@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="NAVI Admin - Mock Walk Recording"
+  xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Walk from Admin to Student Center</name>
+    <trkseg>
+      <trkpt lat="11.81835" lon="122.17050">
+        <ele>12.0</ele>
+        <time>2026-06-18T08:00:00Z</time>
+      </trkpt>
+      <trkpt lat="11.81830" lon="122.17055">
+        <ele>12.1</ele>
+        <time>2026-06-18T08:00:05Z</time>
+      </trkpt>
+      <trkpt lat="11.81825" lon="122.17060">
+        <ele>12.1</ele>
+        <time>2026-06-18T08:00:10Z</time>
+      </trkpt>
+      <trkpt lat="11.81820" lon="122.17065">
+        <ele>12.0</ele>
+        <time>2026-06-18T08:00:15Z</time>
+      </trkpt>
+      <trkpt lat="11.81815" lon="122.17070">
+        <ele>12.2</ele>
+        <time>2026-06-18T08:00:20Z</time>
+      </trkpt>
+      <trkpt lat="11.81810" lon="122.17075">
+        <ele>12.3</ele>
+        <time>2026-06-18T08:00:25Z</time>
+      </trkpt>
+      <trkpt lat="11.81805" lon="122.17078">
+        <ele>12.2</ele>
+        <time>2026-06-18T08:00:30Z</time>
+      </trkpt>
+      <trkpt lat="11.81800" lon="122.17080">
+        <ele>12.1</ele>
+        <time>2026-06-18T08:00:35Z</time>
+      </trkpt>
+      <trkpt lat="11.81795" lon="122.17082">
+        <ele>12.0</ele>
+        <time>2026-06-18T08:00:40Z</time>
+      </trkpt>
+      <trkpt lat="11.81790" lon="122.17083">
+        <ele>11.9</ele>
+        <time>2026-06-18T08:00:45Z</time>
+      </trkpt>
+      <trkpt lat="11.81785" lon="122.17085">
+        <ele>11.8</ele>
+        <time>2026-06-18T08:00:50Z</time>
+      </trkpt>
+      <trkpt lat="11.81780" lon="122.17085">
+        <ele>11.7</ele>
+        <time>2026-06-18T08:00:55Z</time>
+      </trkpt>
+      <trkpt lat="11.81775" lon="122.17083">
+        <ele>11.6</ele>
+        <time>2026-06-18T08:01:00Z</time>
+      </trkpt>
+      <trkpt lat="11.81770" lon="122.17080">
+        <ele>11.5</ele>
+        <time>2026-06-18T08:01:05Z</time>
+      </trkpt>
+      <trkpt lat="11.81768" lon="122.17078">
+        <ele>11.5</ele>
+        <time>2026-06-18T08:01:10Z</time>
+      </trkpt>
+      <trkpt lat="11.81765" lon="122.17080">
+        <ele>11.4</ele>
+        <time>2026-06-18T08:01:15Z</time>
+      </trkpt>
+      <trkpt lat="11.81760" lon="122.17085">
+        <ele>11.3</ele>
+        <time>2026-06-18T08:01:20Z</time>
+      </trkpt>
+      <trkpt lat="11.81755" lon="122.17088">
+        <ele>11.2</ele>
+        <time>2026-06-18T08:01:25Z</time>
+      </trkpt>
+      <trkpt lat="11.81750" lon="122.17090">
+        <ele>11.1</ele>
+        <time>2026-06-18T08:01:30Z</time>
+      </trkpt>
+      <trkpt lat="11.81745" lon="122.17092">
+        <ele>11.0</ele>
+        <time>2026-06-18T08:01:35Z</time>
+      </trkpt>
+      <trkpt lat="11.81740" lon="122.17095">
+        <ele>11.0</ele>
+        <time>2026-06-18T08:01:40Z</time>
+      </trkpt>
+      <trkpt lat="11.81735" lon="122.17100">
+        <ele>10.9</ele>
+        <time>2026-06-18T08:01:45Z</time>
+      </trkpt>
+      <trkpt lat="11.81730" lon="122.17105">
+        <ele>10.8</ele>
+        <time>2026-06-18T08:01:50Z</time>
+      </trkpt>
+      <trkpt lat="11.81725" lon="122.17110">
+        <ele>10.7</ele>
+        <time>2026-06-18T08:01:55Z</time>
+      </trkpt>
+      <trkpt lat="11.81720" lon="122.17115">
+        <ele>10.6</ele>
+        <time>2026-06-18T08:02:00Z</time>
+      </trkpt>
+      <trkpt lat="11.81715" lon="122.17120">
+        <ele>10.5</ele>
+        <time>2026-06-18T08:02:05Z</time>
+      </trkpt>
+      <trkpt lat="11.81710" lon="122.17130">
+        <ele>10.5</ele>
+        <time>2026-06-18T08:02:10Z</time>
+      </trkpt>
+      <trkpt lat="11.81708" lon="122.17140">
+        <ele>10.4</ele>
+        <time>2026-06-18T08:02:15Z</time>
+      </trkpt>
+      <trkpt lat="11.81705" lon="122.17150">
+        <ele>10.3</ele>
+        <time>2026-06-18T08:02:20Z</time>
+      </trkpt>
+      <trkpt lat="11.81702" lon="122.17160">
+        <ele>10.2</ele>
+        <time>2026-06-18T08:02:25Z</time>
+      </trkpt>
+      <trkpt lat="11.81700" lon="122.17170">
+        <ele>10.1</ele>
+        <time>2026-06-18T08:02:30Z</time>
+      </trkpt>
+      <trkpt lat="11.81698" lon="122.17180">
+        <ele>10.0</ele>
+        <time>2026-06-18T08:02:35Z</time>
+      </trkpt>
+      <trkpt lat="11.81697" lon="122.17190">
+        <ele>10.0</ele>
+        <time>2026-06-18T08:02:40Z</time>
+      </trkpt>
+      <trkpt lat="11.81696" lon="122.17200">
+        <ele>10.1</ele>
+        <time>2026-06-18T08:02:45Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
