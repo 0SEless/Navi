@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseContext } from "@/lib/supabase-server";
+import { createSupabaseContext } from "@supabase/server";
 
 export async function GET(request: NextRequest) {
-  const ctx = await getSupabaseContext(request, "publishable");
+  const { data: ctx, error } = await createSupabaseContext(request, { auth: "publishable" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const { searchParams } = new URL(request.url);
   const campusId = searchParams.get("campus_id") || "asu-ibajay";
 
-  const { data, error } = await ctx.supabase
+  const { data: snapshot, error: snapError } = await ctx.supabase
     .from("graph_snapshots")
     .select("data")
     .eq("campus_id", campusId)
     .single();
 
-  if (error && error.code !== "PGRST116") {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (snapError && snapError.code !== "PGRST116") {
+    return NextResponse.json({ error: snapError.message }, { status: 500 });
   }
 
-  if (data?.data) {
-    return NextResponse.json(data.data);
+  if (snapshot?.data) {
+    return NextResponse.json(snapshot.data);
   }
 
   return NextResponse.json({
@@ -33,18 +34,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getSupabaseContext(request, "secret");
+    const { data: ctx, error } = await createSupabaseContext(request, { auth: "secret" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const body = await request.json();
 
-    const { data, error } = await ctx.supabaseAdmin.rpc("sync_graph_snapshot", {
+    const { data: result, error: rpcError } = await ctx.supabaseAdmin.rpc("sync_graph_snapshot", {
       payload: body,
     });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (rpcError) {
+      return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
 
-    return NextResponse.json(data ?? { success: true });
+    return NextResponse.json(result ?? { success: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Invalid request";
     return NextResponse.json({ error: msg }, { status: 400 });
