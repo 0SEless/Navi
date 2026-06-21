@@ -1,11 +1,11 @@
-import { createContext, useContext } from 'react';
-import type { AuthState } from '../types';
+import { createContext, useContext } from "react";
+import type { AuthState } from "@/types/user";
 
 export const AuthContext = createContext<AuthState>({
   user: null,
   isAuthenticated: false,
-  login: async () => false,
-  logout: () => {},
+  signInWithGoogle: async () => {},
+  logout: async () => {},
 });
 
 export function useAuth() {

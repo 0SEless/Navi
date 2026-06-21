@@ -1,54 +1,65 @@
 "use client";
 
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { createClient } from "@/lib/supabase-client";
 import { AuthContext } from "@/hooks/useAuth";
-import { mockUsers, mockCredentials } from "@/data/users";
 import type { User } from "@/types/user";
 
-function safeGetItem(key: string): string | null {
-  if (typeof window === 'undefined') return null;
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
-function safeSetItem(key: string, value: string): void {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(key, value); } catch { /* noop */ }
-}
-
-function safeRemoveItem(key: string): void {
-  if (typeof window === 'undefined') return;
-  try { localStorage.removeItem(key); } catch { /* noop */ }
+function mapSupabaseUser(sbUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }): User {
+  return {
+    id: sbUser.id,
+    name: (sbUser.user_metadata?.full_name as string) || sbUser.email || "Unknown",
+    email: sbUser.email || "",
+    role: (sbUser.user_metadata?.role as User["role"]) || "viewer",
+    campus_id: (sbUser.user_metadata?.campus_id as string) || null,
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const remembered = safeGetItem("navi_remember") === "true";
-    const stored = remembered ? safeGetItem("navi_user") : null;
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const supabase = createClient();
 
-  const login = useCallback(async (email: string, password: string, rememberMe?: boolean): Promise<boolean> => {
-    const remember = rememberMe ?? true;
-    if (mockCredentials[email] && mockCredentials[email] === password) {
-      const found = mockUsers.find((u) => u.email === email);
-      if (found) {
-        setUser(found);
-        safeSetItem("navi_user", JSON.stringify(found));
-        safeSetItem("navi_remember", String(remember));
-        return true;
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setUser(mapSupabaseUser(session.user));
+        setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
       }
-    }
-    return false;
-  }, []);
+    });
 
-  const logout = useCallback(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(mapSupabaseUser(session.user));
+        setIsAuthenticated(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    safeRemoveItem("navi_user");
-    safeRemoveItem("navi_remember");
-  }, []);
+    setIsAuthenticated(false);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
