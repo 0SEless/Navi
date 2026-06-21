@@ -3,5 +3,5 @@
 import { LoginScreen } from "@/components/pages/LoginScreen";
 
 export default function LoginPage() {
-  return <LoginScreen onLogin={() => window.location.href = "/admin/dashboard"} />;
+  return <LoginScreen />;
 }
