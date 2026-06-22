@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import 'pannellum/build/pannellum.css'
 
 interface PanoramaViewerProps {
   imageUrl: string
@@ -12,15 +13,11 @@ export function PanoramaViewer({ imageUrl, autoLoad = true, compass = true }: Pa
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<any>(null)
 
-  useEffect(() => {
-    if (!document.querySelector('link[href*="pannellum.css"]')) {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = '/pannellum.css'
-      document.head.appendChild(link)
-    }
+  const scriptLoadedRef = useRef(false)
 
+  useEffect(() => {
     const initViewer = () => {
+      scriptLoadedRef.current = true
       if (!containerRef.current) return
       if (viewerRef.current) {
         viewerRef.current.destroy?.()
@@ -35,8 +32,9 @@ export function PanoramaViewer({ imageUrl, autoLoad = true, compass = true }: Pa
     }
 
     if ((window as any).pannellum) {
+      scriptLoadedRef.current = true
       initViewer()
-    } else {
+    } else if (!scriptLoadedRef.current) {
       const script = document.createElement('script')
       script.src = '/pannellum.js'
       script.onload = initViewer

@@ -27,7 +27,7 @@ function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: buildings.map((b) => {
-      const center = (b as any).center ?? CAMPUS_CENTER
+      const center = b.center ?? CAMPUS_CENTER
       return {
         type: 'Feature',
         properties: {
