@@ -1,211 +1,150 @@
-### Task 1: Extend Type Definitions
+### Task 1: Type Definitions (nav-types.ts)
 
 **Files:**
-- Modify: `src/types/nav-types.ts`
-- Create: `src/types/studio-types.ts`
-- Test: `src/types/__tests__/types.test.ts`
+- Create: `src/types/nav-types.ts`
 
 **Interfaces:**
-- Consumes: existing NavNode, NavEdge, Component, LatLng types
-- Produces: `TracePath`, `FloorPlan`, `EdgeTypeExtended` (union), `StudioTool`, `EditorMode`, `LayerType`, extended `Component` with polygon, extended `CompileResult` with polygon
+- Produces: `NavNode`, `NavEdge`, `Building`, `FloorInfo`, `Component` (Room/Walkway/Stair/Elevator/Entrance), `GraphSnapshot`, `PathResult`, `ValidationResult`, `Campus`
 
-- [ ] **Step 1: Write failing type tests**
-
-```typescript
-// src/types/__tests__/types.test.ts
-import { describe, it, expect } from 'vitest'
-import type { TracePath, FloorPlan } from '../nav-types'
-import type { StudioTool, EditorMode, LayerType } from '../studio-types'
-
-describe('TracePath', () => {
-  it('accepts valid trace path data', () => {
-    const trace: TracePath = {
-      id: 'T001',
-      buildingId: 'BLD01',
-      floor: 1,
-      points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
-      type: 'hallway',
-    }
-    expect(trace.id).toBe('T001')
-    expect(trace.points.length).toBe(2)
-  })
-})
-
-describe('FloorPlan', () => {
-  it('accepts valid floor plan data', () => {
-    const fp: FloorPlan = {
-      buildingId: 'BLD01',
-      floor: 1,
-      imageUrl: 'https://example.com/floor1.png',
-      uploadedAt: '2026-06-21T00:00:00Z',
-    }
-    expect(fp.imageUrl).toContain('example.com')
-  })
-})
-
-describe('StudioTool', () => {
-  it('accepts all tool values', () => {
-    const tools: StudioTool[] = ['select', 'move', 'trace', 'room', 'asset', 'qr', 'pano', 'route_test']
-    expect(tools).toHaveLength(8)
-  })
-})
-
-describe('EditorMode', () => {
-  it('accepts all mode values', () => {
-    const modes: EditorMode[] = ['campus', 'building', 'floor']
-    expect(modes).toHaveLength(3)
-  })
-})
-
-describe('LayerType', () => {
-  it('accepts all layer values', () => {
-    const layers: LayerType[] = ['osm', 'satellite', 'floor_plan', 'buildings', 'rooms', 'hallways', 'assets', 'nodes', 'edges', 'labels']
-    expect(layers).toHaveLength(10)
-  })
-})
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npm test`
-Expected: FAIL — `TracePath`, `FloorPlan`, `StudioTool`, `EditorMode`, `LayerType` not defined
-
-- [ ] **Step 3: Add new types to `nav-types.ts`**
-
-Add after existing imports:
+- [ ] **Step 1: Create the file**
 
 ```typescript
-// ---- Trace Path ----
+// src/types/nav-types.ts
 
-export interface TracePath {
-  id: string
-  name?: string
-  buildingId?: string
-  campusId?: string
-  floor: number
-  points: LatLng[]
-  type: 'hallway' | 'path'
-  metadata?: Record<string, unknown>
+export interface LatLng {
+  lat: number;
+  lng: number;
+  elevation?: number;
 }
 
-// ---- Floor Plan ----
-
-export interface FloorPlan {
-  buildingId: string
-  floor: number
-  imageUrl: string
-  uploadedAt: string
+export interface NavNode {
+  id: string;
+  label: string;
+  position: LatLng;
+  floor: number;
+  buildingId: string;
+  campusId: string;
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker';
+  componentId?: string;
+  metadata?: Record<string, string>;
 }
-```
 
-Extend the `EdgeType` union to include the new values:
+export interface NavEdge {
+  id: string;
+  from: string;
+  to: string;
+  distance: number;
+  weight: number;
+  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor';
+  campusId: string;
+}
 
-```typescript
-export type EdgeType =
-  | 'walk'          // NEW: hallways, corridors, outdoor paths (V1 default)
-  | 'transition'    // NEW: outdoor→entrance, entrance→hallway, floor-to-floor
-  | 'restricted'    // NEW: faculty/admin-only zones
-  | 'walkway'       // existing (kept for backward compat)
-  | 'stairs'
-  | 'corridor'
-  | 'elevator'
-  | 'ramp'
-  | 'wall'
-```
+export interface Building {
+  id: string;
+  name: string;
+  campusId: string;
+  floors: number[];
+  footprint: LatLng[];
+  baseElevation: number;
+  height: number;
+}
 
-Add `polygon` field to `Component`:
+export interface FloorInfo {
+  level: number;
+  label: string;
+  buildingId: string;
+}
 
-```typescript
-export interface Component {
-  id: string
-  type: ComponentType
-  name: string
-  buildingId: string
-  floor: number
-  position: LatLng
-  polygon?: LatLng[]    // NEW: polygon vertices (for room/restroom types)
-  dimensions?: {
-    width: number
-    height: number
-    rotation?: number
-  }
-  connections?: string[]
-  metadata?: Record<string, unknown>
+export interface MapComponent {
+  id: string;
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance';
+  label: string;
+  buildingId: string;
+  campusId: string;
+  floor: number;
+  geometry: LatLng[];
+  metadata?: Record<string, string>;
+}
+
+export interface GraphSnapshot {
+  id: string;
+  campusId: string;
+  version: string;
+  updatedAt: string;
+  buildings: Building[];
+  components: MapComponent[];
+  nodes: NavNode[];
+  edges: NavEdge[];
+}
+
+export interface PathResult {
+  path: NavNode[];
+  edges: NavEdge[];
+  totalDistance: number;
+  steps: PathStep[];
+}
+
+export interface PathStep {
+  instruction: string;
+  from: NavNode;
+  to: NavNode;
+  distance: number;
+  type: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  warnings: string[];
+}
+
+export interface ValidationError {
+  code: string;
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+}
+
+export interface Campus {
+  id: string;
+  name: string;
+  code: string;
+  center: LatLng;
+  bounds: { ne: LatLng; sw: LatLng };
 }
 ```
 
-Add polygon to `CompileResult` in `src/engine/component-compiler.ts`:
+- [ ] **Step 2: Write and run a type-smoke test**
 
 ```typescript
-export interface CompileResult {
-  nodes: NavNode[]
-  edges: NavEdge[]
-  polygon?: LatLng[]   // NEW: for room types — the room outline
-}
+// src/types/__tests__/nav-types.test.ts
+import { describe, it, expect } from 'vitest';
+
+describe('NavNode', () => {
+  it('creates a valid node', () => {
+    const node: import('../nav-types').NavNode = {
+      id: 'n1',
+      label: 'Main Gate',
+      position: { lat: 11.82, lng: 122.09 },
+      floor: 0,
+      buildingId: 'outdoor',
+      campusId: 'asu-ibajay',
+      type: 'entrance',
+    };
+    expect(node.id).toBe('n1');
+  });
+});
+
 ```
 
-- [ ] **Step 4: Create `src/types/studio-types.ts`**
+Run: `npx vitest run src/types/__tests__/nav-types.test.ts`
+Expected: PASS
 
-```typescript
-// ---- Studio UI Types ----
-
-export type StudioTool =
-  | 'select'
-  | 'move'
-  | 'trace'
-  | 'room'
-  | 'asset'
-  | 'qr'
-  | 'pano'
-  | 'route_test'
-
-export type EditorMode = 'campus' | 'building' | 'floor'
-
-export type LayerType =
-  | 'osm'
-  | 'satellite'
-  | 'floor_plan'
-  | 'buildings'
-  | 'rooms'
-  | 'hallways'
-  | 'assets'
-  | 'nodes'
-  | 'edges'
-  | 'labels'
-
-export type TraceMode = 'hallway' | 'path'
-
-export type RoomPreset = 'rectangle' | 'lshape' | 'freeform'
-
-export interface StudioViewState {
-  center: { lat: number; lng: number }
-  zoom: number
-  activeFloor: number
-  activeBuildingId: string | null
-}
-
-export interface LayerVisibility {
-  osm: boolean
-  satellite: boolean
-  floor_plan: boolean
-  buildings: boolean
-  rooms: boolean
-  hallways: boolean
-  assets: boolean
-  nodes: boolean
-  edges: boolean
-  labels: boolean
-}
-```
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `npm test`
-Expected: PASS — all 4 test suites pass
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add src/types/nav-types.ts src/types/studio-types.ts src/types/__tests__/types.test.ts src/engine/component-compiler.ts
-git commit -m "feat: extend types for NAVI Studio (TracePath, FloorPlan, new edge types, polygon rooms)"
+git add -A && git commit -m "feat: add canonical type definitions"
 ```
+
+---
+

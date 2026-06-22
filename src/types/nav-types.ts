@@ -1,11 +1,106 @@
-// ---- Position ----
-
 export interface LatLng {
-  lat: number
-  lng: number
+  lat: number;
+  lng: number;
+  elevation?: number;
 }
 
-// ---- Enum Types ----
+export interface NavNode {
+  id: string;
+  label: string;
+  position: LatLng;
+  floor: number;
+  buildingId: string;
+  campusId: string;
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker';
+  componentId?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface NavEdge {
+  id: string;
+  from: string;
+  to: string;
+  distance: number;
+  weight: number;
+  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor';
+  campusId: string;
+}
+
+export interface Building {
+  id: string;
+  name: string;
+  campusId: string;
+  floors: number[];
+  footprint: LatLng[];
+  baseElevation: number;
+  height: number;
+}
+
+export interface FloorInfo {
+  level: number;
+  label: string;
+  buildingId: string;
+}
+
+export interface MapComponent {
+  id: string;
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance';
+  label: string;
+  buildingId: string;
+  campusId: string;
+  floor: number;
+  geometry: LatLng[];
+  metadata?: Record<string, string>;
+}
+
+export interface GraphSnapshot {
+  id: string;
+  campusId: string;
+  version: string;
+  updatedAt: string;
+  buildings: Building[];
+  components: MapComponent[];
+  nodes: NavNode[];
+  edges: NavEdge[];
+}
+
+export interface PathResult {
+  path: NavNode[];
+  edges: NavEdge[];
+  totalDistance: number;
+  steps: PathStep[];
+}
+
+export interface PathStep {
+  instruction: string;
+  from: NavNode;
+  to: NavNode;
+  distance: number;
+  type: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  warnings: string[];
+}
+
+export interface ValidationError {
+  code: string;
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+}
+
+export interface Campus {
+  id: string;
+  name: string;
+  code: string;
+  center: LatLng;
+  bounds: { ne: LatLng; sw: LatLng };
+}
+
+// ---- Legacy types (used by existing committed code, to be migrated) ----
 
 export type NodeType =
   | 'building_entrance'
@@ -15,7 +110,7 @@ export type NodeType =
   | 'room'
   | 'outdoor'
   | 'corner'
-  | 'waypoint'
+  | 'waypoint';
 
 export type EdgeType =
   | 'walk'
@@ -26,7 +121,7 @@ export type EdgeType =
   | 'corridor'
   | 'elevator'
   | 'ramp'
-  | 'wall'
+  | 'wall';
 
 export type ComponentType =
   | 'room'
@@ -34,134 +129,47 @@ export type ComponentType =
   | 'elevator'
   | 'hallway'
   | 'entrance'
-  | 'restroom'
-
-// ---- Graph Elements ----
-
-export interface NavNode {
-  id: string
-  name: string
-  type: NodeType
-  campusId?: string
-  buildingId?: string
-  componentId?: string
-  floor: number
-  position: LatLng
-  svgOffset?: { x: number; y: number }
-  hasQr?: boolean
-  hasPanorama?: boolean
-  metadata?: Record<string, unknown>
-}
-
-export interface NavEdge {
-  id: string
-  from: string
-  to: string
-  type: EdgeType
-  distance: number
-  metadata?: {
-    travelType?: string
-    isBidirectional?: boolean
-  }
-}
-
-export interface Building {
-  id: string
-  campusId?: string
-  name: string
-  code?: string
-  description: string
-  center: LatLng
-  outline?: LatLng[]
-  floors: number
-  color?: string
-  image?: string | null
-  createdAt?: string
-}
-
-// ---- Component ----
+  | 'restroom';
 
 export interface Component {
-  id: string
-  type: ComponentType
-  name: string
-  buildingId: string
-  floor: number
-  position: LatLng
-  polygon?: LatLng[]
+  id: string;
+  type: ComponentType;
+  name: string;
+  buildingId: string;
+  floor: number;
+  position: LatLng;
+  polygon?: LatLng[];
   dimensions?: {
-    width: number
-    height: number
-    rotation?: number
-  }
-  connections?: string[]
-  metadata?: Record<string, unknown>
+    width: number;
+    height: number;
+    rotation?: number;
+  };
+  connections?: string[];
+  metadata?: Record<string, unknown>;
 }
-
-// ---- Trace Path ----
 
 export interface TracePath {
-  id: string
-  name?: string
-  buildingId?: string
-  campusId?: string
-  floor: number
-  points: LatLng[]
-  type: 'hallway' | 'path'
-  metadata?: Record<string, unknown>
+  id: string;
+  name?: string;
+  buildingId?: string;
+  campusId?: string;
+  floor: number;
+  points: LatLng[];
+  type: 'hallway' | 'path';
+  metadata?: Record<string, unknown>;
 }
-
-// ---- Floor Plan ----
 
 export interface FloorPlan {
-  buildingId: string
-  floor: number
-  imageUrl: string
-  uploadedAt: string
+  buildingId: string;
+  floor: number;
+  imageUrl: string;
+  uploadedAt: string;
 }
-
-// ---- Graph ----
-
-export interface GraphSnapshot {
-  version: string
-  campusId: string
-  buildings: Building[]
-  nodes: NavNode[]
-  edges: NavEdge[]
-  components: Component[]
-  traces?: TracePath[]
-  exportedAt: string
-}
-
-// ---- Directory ----
 
 export interface DirEntry {
-  id: string
-  label: string
-  type: 'building' | 'floor' | 'room' | 'entrance' | 'facility'
-  nodeId?: string
-  children?: DirEntry[]
-}
-
-// ---- Pathfinding ----
-
-export interface PathResult {
-  path: string[]
-  cost: number
-  steps: PathStep[]
-}
-
-export interface PathStep {
-  nodeId: string
-  instruction: string
-  distance: number
-}
-
-// ---- Validation ----
-
-export interface ValidationResult {
-  category: string
-  status: 'pass' | 'warn' | 'fail'
-  message: string
-  affectedIds?: string[]
+  id: string;
+  label: string;
+  type: 'building' | 'floor' | 'room' | 'entrance' | 'facility';
+  nodeId?: string;
+  children?: DirEntry[];
 }
