@@ -1,1 +1,2 @@
-export { AuthContext, useAuth } from './useAuth';
+export { AuthContext, useAuth } from './useAuth'
+export { useGeolocation } from './useGeolocation'
