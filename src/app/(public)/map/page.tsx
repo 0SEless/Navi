@@ -1,7 +1,15 @@
-export default function PublicMapPage() {
-  return (
-    <div id="public-map">
-      Public map view — coming soon
-    </div>
-  );
+'use client'
+
+import { useEffect } from 'react'
+import { PublicMap } from '@/components/map/PublicMap'
+import { useGraphStore } from '@/store/graph-store'
+
+export default function MapPage() {
+  const load = useGraphStore((s) => s.load)
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return <PublicMap />
 }
