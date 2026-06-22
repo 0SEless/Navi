@@ -16,6 +16,7 @@ import {
   LogOut,
   Wifi,
   Activity,
+  Workflow,
 } from "lucide-react";
 import type { ScreenName } from "@/types/screens";
 
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "qr", label: "QR Checkpoints", icon: QrCode, group: "Media" },
   { id: "routes", label: "Route Testing", icon: Route, group: "Tools" },
   { id: "dataset", label: "Dataset Mgmt", icon: Database, group: "Tools" },
+  { id: "studio", label: "NAVI Studio", icon: Workflow, group: "Tools" },
 ];
 
 interface AppLayoutProps {

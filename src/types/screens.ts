@@ -6,4 +6,5 @@ export type ScreenName =
   | "panoramas"
   | "qr"
   | "routes"
-  | "dataset";
+  | "dataset"
+  | "studio";
