@@ -1,3 +1,13 @@
+### Task 12: Add Floor Plan Upload API
+
+**Files:**
+- Create: `src/app/api/floor-plans/route.ts`
+
+**Context:** In V1, floor plan upload returns a base64 data URL. In production, replace with Cloudinary/Supabase Storage.
+
+- [ ] **Step 1: Create `src/app/api/floor-plans/route.ts`**
+
+```typescript
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -39,3 +49,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+```
+
+- [ ] **Step 2: Run tests**
+
+Run: `npm test`
+Expected: PASS
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/app/api/floor-plans/route.ts
+git commit -m "feat: add floor plan upload API endpoint"
+```

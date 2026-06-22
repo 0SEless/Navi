@@ -68,7 +68,7 @@ export function buildingToRow(b: Building): Record<string, unknown> {
     description: b.description ?? "",
     floors: b.floors ?? 1,
     color: b.color ?? "#64748B",
-    floor_plan_url: (b as Record<string, unknown>).floorPlanUrl as string ?? null,
+    floor_plan_url: (b as unknown as Record<string, unknown>).floorPlanUrl as string ?? null,
   }
   if (b.center) {
     row.center = toPoint(b.center.lat, b.center.lng)
@@ -94,7 +94,7 @@ export function nodeToRow(n: NavNode): Record<string, unknown> {
     svg_offset_y: n.svgOffset?.y ?? null,
     has_qr: n.hasQr ?? false,
     has_panorama: n.hasPanorama ?? false,
-    panorama_url: (n as Record<string, unknown>).panoramaUrl as string ?? null,
+    panorama_url: (n.metadata?.panoramaUrl as string | undefined) ?? null,
     metadata: n.metadata ?? {},
   }
 }

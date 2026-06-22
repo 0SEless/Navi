@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/admin/dashboard";
+  const next = searchParams.get("next") ?? "/dashboard";
 
   if (code) {
     let supabaseResponse = NextResponse.redirect(`${origin}${next}`);
@@ -36,5 +36,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/admin/login?error=auth_failed`);
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`);
 }

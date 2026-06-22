@@ -1,3 +1,16 @@
+### Task 11: Build Public Map View
+
+**Files:**
+- Create: `src/components/map/PublicMap.tsx`
+- Modify: `src/app/(public)/map/page.tsx`
+
+**Context:** There's already an existing public map page at `src/app/(public)/map/page.tsx`. Replace its placeholder content with a functional map.
+
+- [ ] **Step 1: Read existing `src/app/(public)/map/page.tsx`**
+
+- [ ] **Step 2: Create `src/components/map/PublicMap.tsx`**
+
+```typescript
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
@@ -28,6 +41,7 @@ export function PublicMap() {
   const [to, setTo] = useState('')
   const [path, setPath] = useState<PathResult | null>(null)
 
+  // Initialize map
   useEffect(() => {
     if (mapRef.current) return
     const map = new maplibregl.Map({
@@ -40,10 +54,12 @@ export function PublicMap() {
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
+  // Render buildings and route when graph/path changes
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
 
+    // Buildings layer
     const buildingFeatures = graph.buildings.map((b) => ({
       type: 'Feature' as const,
       id: b.id,
@@ -60,14 +76,15 @@ export function PublicMap() {
           properties: {},
           geometry: {
             type: 'LineString' as const,
-            coordinates: path.path
-              .map((nid) => graph.getNode(nid))
-              .filter((n): n is NonNullable<typeof n> => n != null)
-              .map((n) => [n.position.lng, n.position.lat] as [number, number]),
+            coordinates: path.path.map((nid) => {
+              const node = graph.getNode(nid)
+              return node ? [node.position.lng, node.position.lat] : null
+            }).filter(Boolean),
           },
         }]
       : []
 
+    // Add sources for buildings and route
     try {
       if (!map.getSource('public-buildings')) {
         map.addSource('public-buildings', {
@@ -121,11 +138,12 @@ export function PublicMap() {
   }, [graph, from, to])
 
   const nodeOptions = graph.nodes
-    .filter((n) => n.type !== 'corner')
+    .filter((n) => n.type !== 'corner' && n.type !== 'wall')
     .map((n) => ({ id: n.id, name: n.name, type: n.type }))
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Search / route panel */}
       <div style={{ padding: 12, background: '#0D1526', borderBottom: '1px solid #1E3A5F', display: 'flex', gap: 8, alignItems: 'center' }}>
         <select value={from} onChange={(e) => setFrom(e.target.value)}
           style={{ background: '#111827', border: '1px solid #1E3A5F', borderRadius: 5, padding: '6px 8px', color: '#E2E8F0', fontSize: 11 }}>
@@ -143,8 +161,10 @@ export function PublicMap() {
         </button>
       </div>
 
+      {/* Map */}
       <div ref={mapContainerRef} style={{ flex: 1 }} />
 
+      {/* Route steps */}
       {path && (
         <div style={{ padding: 12, background: '#0D1526', borderTop: '1px solid #1E3A5F', maxHeight: 200, overflowY: 'auto' }}>
           <div style={{ color: '#94A3B8', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>ROUTE ({Math.round(path.cost)}m)</div>
@@ -160,3 +180,36 @@ export function PublicMap() {
     </div>
   )
 }
+```
+
+- [ ] **Step 3: Update `src/app/(public)/map/page.tsx`**
+
+```typescript
+'use client'
+
+import { useEffect } from 'react'
+import { PublicMap } from '@/components/map/PublicMap'
+import { useGraphStore } from '@/store/graph-store'
+
+export default function MapPage() {
+  const load = useGraphStore((s) => s.load)
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return <PublicMap />
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npm test`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/components/map/PublicMap.tsx src/app/\(public\)/map/page.tsx
+git commit -m "feat: add public map view with routing"
+```

@@ -1,146 +1,140 @@
-# Task 4: Rewrite AuthProvider + update useAuth + types
+### Task 4: Refactor Component Compiler for Polygon Output
 
-**Modify:**
-1. `src/types/user.ts` — update AuthState interface
-2. `src/hooks/useAuth.ts` — update context type
-3. `src/components/providers/AuthProvider.tsx` — full rewrite
+**Files:**
+- Modify: `src/engine/component-compiler.ts`
+- Test: `src/engine/__tests__/component-compiler.test.ts`
 
-**Context:** Replace mock auth with Supabase session management. The provider subscribes to Supabase Auth state changes. Consumers are: AppLayout (uses `logout`), LoginScreen (uses `login` - will be rewritten in Task 5), admin layout (uses `isAuthenticated`), and root layout (wraps AuthProvider).
+**Context:** `CompileResult` already has `polygon?: LatLng[]` (added in Task 1). But `compileRoom()` doesn't compute or return it. You need to compute the polygon from the existing corner positions and return it.
 
-## File 1: `src/types/user.ts`
+**Restroom note:** `restroom` type uses `compileRoom` as its compiler (line 282), so it automatically gets polygon support once `compileRoom` is updated.
 
-Replace the `AuthState` interface. Keep `User` interface unchanged.
-
-Old `AuthState`:
-```typescript
-export interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>;
-  logout: () => void;
-}
-```
-
-New `AuthState`:
-```typescript
-export interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  signInWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
-}
-```
-
-## File 2: `src/hooks/useAuth.ts`
-
-Replace the contents. Update to match new AuthState interface. Import `AuthState` from `@/types/user` (or `@/types` — check which import style is used).
-
-Full new content:
-```typescript
-import { createContext, useContext } from "react";
-import type { AuthState } from "@/types/user";
-
-export const AuthContext = createContext<AuthState>({
-  user: null,
-  isAuthenticated: false,
-  signInWithGoogle: async () => {},
-  logout: async () => {},
-});
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
-```
-
-## File 3: `src/components/providers/AuthProvider.tsx`
-
-Full rewrite. Replace all mock auth logic with Supabase session management.
+- [ ] **Step 1: Write failing polygon output test**
 
 ```typescript
-"use client";
+// src/engine/__tests__/component-compiler.test.ts
+import { describe, it, expect } from 'vitest'
+import { compileComponent } from '../component-compiler'
+import type { Component, Building } from '@/types/nav-types'
 
-import { useState, useEffect, type ReactNode } from "react";
-import { createClient } from "@/lib/supabase-client";
-import { AuthContext } from "@/hooks/useAuth";
-import type { User } from "@/types/user";
+describe('compileComponent polygon output', () => {
+  const building: Building = {
+    id: 'BLD01', name: 'Test', description: '',
+    center: { lat: 11.8195, lng: 122.0922 }, floors: 3,
+  }
+  const buildings = new Map<string, Building>([['BLD01', building]])
 
-function mapSupabaseUser(sbUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }): User {
-  return {
-    id: sbUser.id,
-    name: (sbUser.user_metadata?.full_name as string) || sbUser.email || "Unknown",
-    email: sbUser.email || "",
-    role: (sbUser.user_metadata?.role as User["role"]) || "viewer",
-    campus_id: (sbUser.user_metadata?.campus_id as string) || null,
-  };
-}
+  it('compileRoom returns polygon with 4 vertices', () => {
+    const room: Component = {
+      id: 'C001', type: 'room', name: 'Room 101',
+      buildingId: 'BLD01', floor: 1,
+      position: { lat: 11.8195, lng: 122.0922 },
+      dimensions: { width: 6, height: 8 },
+    }
+    const result = compileComponent(room, {
+      buildings,
+      existingNodes: [],
+      existingEdges: [],
+      componentId: 'C001',
+    })
+    expect(result.polygon).toBeDefined()
+    expect(result.polygon!.length).toBe(4)
+    // Polygon should form a closed rectangle around the center
+    const poly = result.polygon!
+    expect(poly[0].lat).toBeLessThan(room.position.lat) // SW
+    expect(poly[2].lat).toBeGreaterThan(room.position.lat) // NE
+  })
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const supabase = createClient();
+  it('compileRoom outputs center node + 4 wall edges', () => {
+    const room: Component = {
+      id: 'C002', type: 'room', name: 'Lab 1',
+      buildingId: 'BLD01', floor: 1,
+      position: { lat: 11.8195, lng: 122.0922 },
+      dimensions: { width: 4, height: 5 },
+    }
+    const result = compileComponent(room, {
+      buildings,
+      existingNodes: [],
+      existingEdges: [],
+      componentId: 'C002',
+    })
+    expect(result.nodes.length).toBe(5) // 4 corners + 1 center
+    expect(result.nodes.filter(n => n.type === 'room')).toHaveLength(1)
+    expect(result.nodes.filter(n => n.type === 'corner')).toHaveLength(4)
+    // Wall edges
+    const wallEdges = result.edges.filter(e => e.type === 'wall')
+    expect(wallEdges).toHaveLength(4)
+  })
 
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-        setIsAuthenticated(true);
-      } else {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    });
+  it('compileRestroom also returns polygon', () => {
+    const restroom: Component = {
+      id: 'C003', type: 'restroom', name: 'CR 1',
+      buildingId: 'BLD01', floor: 1,
+      position: { lat: 11.8195, lng: 122.0922 },
+      dimensions: { width: 3, height: 3 },
+    }
+    const result = compileComponent(restroom, {
+      buildings,
+      existingNodes: [],
+      existingEdges: [],
+      componentId: 'C003',
+    })
+    expect(result.polygon).toBeDefined()
+    expect(result.polygon!.length).toBe(4)
+  })
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-        setIsAuthenticated(true);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase]);
-
-  const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-  };
-
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated, signInWithGoogle, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  it('compileStair does not return polygon', () => {
+    const stair: Component = {
+      id: 'C004', type: 'stair', name: 'Stair A',
+      buildingId: 'BLD01', floor: 0,
+      position: { lat: 11.8195, lng: 122.0922 },
+    }
+    const result = compileComponent(stair, {
+      buildings,
+      existingNodes: [],
+      existingEdges: [],
+      componentId: 'C004',
+    })
+    expect(result.polygon).toBeUndefined()
+  })
+})
 ```
 
-## Dependencies
-- `createClient` from `@/lib/supabase-client` (created in Task 1)
-- `AuthContext` from `@/hooks/useAuth`
-- `User` type from `@/types/user`
+- [ ] **Step 2: Run test to verify it fails**
 
-## Verification
+Run: `npm test`
+Expected: FAIL — polygon is undefined
+
+- [ ] **Step 3: Modify `compileRoom` to compute and return polygon**
+
+In `compileRoom`, the 4 corners are already computed. Compute the polygon array (SW, SE, NE, NW) and return it:
+
+At line 74, after computing all 4 corners, add:
+```typescript
+const polygon: LatLng[] = [
+  { lat: component.position.lat - dLat, lng: component.position.lng - dLng }, // SW
+  { lat: component.position.lat - dLat, lng: component.position.lng + dLng }, // SE
+  { lat: component.position.lat + dLat, lng: component.position.lng + dLng }, // NE
+  { lat: component.position.lat + dLat, lng: component.position.lng - dLng }, // NW
+]
+```
+
+Then change line 140 return from:
+```typescript
+return { nodes: [...cornerNodes, centerNode], edges }
+```
+to:
+```typescript
+return { nodes: [...cornerNodes, centerNode], edges, polygon }
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `npm test`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
 ```bash
-cmd /c "npm run lint"
+git add src/engine/component-compiler.ts src/engine/__tests__/component-compiler.test.ts
+git commit -m "feat: component compiler emits polygon geometry for rooms"
 ```
-Expected: 0 errors (pre-existing warnings only). Note: `AppLayout` and `LoginScreen` will have type errors because they still call `.login` — these will be fixed in Tasks 5 and 6. The `LoginScreen` is in `src/app/(admin)/login/page.tsx` (imported) and `src/components/pages/LoginScreen.tsx`. Ignore any errors in those files for now.
-
-Actually, ignore this — just run lint to check for errors in the files we modified. If there are errors in LoginScreen or AppLayout (from type mismatches), those are expected and will be fixed in subsequent tasks.
-
-## Important notes
-- Keep `"use client"` directive
-- The `supabase` client instance should be created once (not in render)
-- Subscribe to auth state changes in useEffect
-- Call `getSession()` on mount for initial state
-- Return clean-up function with `subscription.unsubscribe()`

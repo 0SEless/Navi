@@ -24,7 +24,10 @@ export default function PanoramaManagement() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string
-      updateNode(nodeId, { panoramaUrl: dataUrl })
+      const node = graph.getNode(nodeId)
+      if (node) {
+        updateNode(nodeId, { metadata: { ...node.metadata, panoramaUrl: dataUrl } })
+      }
       setUploadingId(null)
     }
     reader.readAsDataURL(file)
@@ -61,7 +64,7 @@ export default function PanoramaManagement() {
             <p style={{ fontSize: 13 }}>No panoramas found</p>
           </div>
         ) : panoramaNodes.map((node) => {
-          const panoramaUrl = (node as Record<string, unknown>).panoramaUrl as string | undefined;
+          const panoramaUrl = node.metadata?.panoramaUrl as string | undefined;
           return (
           <div key={node.id} style={{ background: "#0D1526", border: "1px solid #1E293B", borderRadius: 8, padding: 12 }}>
             {panoramaUrl && (

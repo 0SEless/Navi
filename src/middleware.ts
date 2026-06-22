@@ -30,8 +30,9 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isLoginPage = pathname === "/admin/login";
+  const adminPages = ["/dashboard", "/map-editor", "/panoramas", "/qr", "/routes", "/dataset", "/buildings", "/floors"];
+  const isAdminRoute = adminPages.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isLoginPage = pathname === "/login";
   const isAuthCallback = pathname.startsWith("/auth");
 
   if (isAuthCallback) {
@@ -40,13 +41,13 @@ export async function middleware(request: NextRequest) {
 
   if (!user && isAdminRoute && !isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
   if (user && isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/dashboard";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
