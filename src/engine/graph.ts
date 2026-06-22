@@ -1,16 +1,18 @@
 import type {
-  NavNode, NavEdge, Building, Component, LatLng,
+  NavNode, NavEdge, Building, Component, LatLng, TracePath,
   GraphSnapshot, PathResult, ValidationResult, DirEntry,
 } from '../types/nav-types'
 import { aStar, getAdjacencyList } from './a-star'
 import { validateGraph } from './graph-validator'
 import { buildDirectory } from './directory'
+import { compileTrace } from './trace-compiler'
 
 export class Graph {
   private _nodes: Map<string, NavNode> = new Map()
   private _edges: Map<string, NavEdge> = new Map()
   private _buildings: Map<string, Building> = new Map()
   private _components: Map<string, Component> = new Map()
+  private _traces: Map<string, TracePath> = new Map()
 
   // ---- Accessors ----
 
@@ -28,6 +30,10 @@ export class Graph {
 
   get components(): Component[] {
     return Array.from(this._components.values())
+  }
+
+  get traces(): TracePath[] {
+    return Array.from(this._traces.values())
   }
 
   getNode(id: string): NavNode | undefined {
@@ -132,6 +138,57 @@ export class Graph {
     return this.nodes.filter((n) => n.componentId === componentId)
   }
 
+  // ---- Trace Operations ----
+
+  getTrace(id: string): TracePath | undefined {
+    return this._traces.get(id)
+  }
+
+  addTrace(trace: TracePath): void {
+    this._traces.set(trace.id, trace)
+  }
+
+  removeTrace(id: string): void {
+    this._traces.delete(id)
+    for (const node of this.nodes) {
+      if (node.metadata?.traceId === id) {
+        this._nodes.delete(node.id)
+      }
+    }
+    for (const [eid, edge] of this._edges) {
+      if (!this._nodes.has(edge.from) || !this._nodes.has(edge.to)) {
+        this._edges.delete(eid)
+      }
+    }
+  }
+
+  addTraceWithCompile(
+    trace: TracePath,
+    roomNodes: NavNode[]
+  ): void {
+    const existingTraces = this.traces
+    const result = compileTrace(
+      trace,
+      existingTraces,
+      this.nodes,
+      this.edges,
+      roomNodes
+    )
+    this.addTrace(trace)
+    for (const node of result.nodes) {
+      node.metadata = { ...node.metadata, traceId: trace.id }
+      this.addNode(node)
+    }
+    for (const edge of result.edges) {
+      this.addEdge(edge)
+    }
+  }
+
+  setTraces(traces: TracePath[]): void {
+    this._traces.clear()
+    for (const t of traces) this._traces.set(t.id, t)
+  }
+
   // ---- Bulk Operations ----
 
   setNodes(nodes: NavNode[]): void {
@@ -209,6 +266,7 @@ export class Graph {
       nodes: this.nodes,
       edges: this.edges,
       components: this.components,
+      traces: this.traces,
       exportedAt: new Date().toISOString(),
     }
   }
@@ -219,6 +277,7 @@ export class Graph {
     graph.setNodes(snapshot.nodes)
     graph.setEdges(snapshot.edges)
     graph.setComponents(snapshot.components ?? [])
+    graph.setTraces(snapshot.traces ?? [])
     return graph
   }
 

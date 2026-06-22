@@ -129,6 +129,7 @@ export interface GraphSnapshot {
   nodes: NavNode[]
   edges: NavEdge[]
   components: Component[]
+  traces?: TracePath[]
   exportedAt: string
 }
 
