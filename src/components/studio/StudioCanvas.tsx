@@ -1,0 +1,321 @@
+'use client'
+
+import { useRef, useEffect, useState } from 'react'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { useGraphStore } from '@/store/graph-store'
+import { useStudioStore } from '@/store/studio-store'
+import type { NavNode, NavEdge, LatLng } from '@/types/nav-types'
+
+const OSM_STYLE = {
+  version: 8 as const,
+  sources: {
+    osm: {
+      type: 'raster' as const,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
+}
+
+const SRC = {
+  BUILDINGS: 'studio-buildings',
+  NODES: 'studio-nodes',
+  EDGES: 'studio-edges',
+  DRAWING: 'studio-drawing',
+  TRACE: 'studio-trace',
+  ROOMS: 'studio-rooms',
+}
+
+const LYR = {
+  BUILDINGS_FILL: 'studio-buildings-fill',
+  BUILDINGS_OUTLINE: 'studio-buildings-outline',
+  EDGES: 'studio-edges',
+  NODES: 'studio-nodes',
+  NODES_INNER: 'studio-nodes-inner',
+  NODES_LABEL: 'studio-nodes-label',
+  DRAWING_LINE: 'studio-drawing-line',
+  DRAWING_POINTS: 'studio-drawing-points',
+  TRACE_LINE: 'studio-trace-line',
+  TRACE_POINTS: 'studio-trace-points',
+  ROOMS_FILL: 'studio-rooms-fill',
+  ROOMS_OUTLINE: 'studio-rooms-outline',
+}
+
+function buildBuildingGeo(buildings: any[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: buildings.map((b) => ({
+      type: 'Feature',
+      properties: { id: b.id, name: b.name },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [b.center.lng - 0.0003, b.center.lat - 0.0003],
+          [b.center.lng + 0.0003, b.center.lat - 0.0003],
+          [b.center.lng + 0.0003, b.center.lat + 0.0003],
+          [b.center.lng - 0.0003, b.center.lat + 0.0003],
+          [b.center.lng - 0.0003, b.center.lat - 0.0003],
+        ]],
+      },
+    })),
+  }
+}
+
+function buildNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: nodes.map((n) => ({
+      type: 'Feature',
+      properties: { id: n.id, name: n.name, type: n.type },
+      geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
+    })),
+  }
+}
+
+function buildEdgeGeo(edges: NavEdge[], nodes: NavNode[]): GeoJSON.FeatureCollection {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  return {
+    type: 'FeatureCollection',
+    features: edges.map((e) => {
+      const from = nodeMap.get(e.from)
+      const to = nodeMap.get(e.to)
+      if (!from || !to) return null
+      return {
+        type: 'Feature',
+        properties: { id: e.id, type: e.type },
+        geometry: {
+          type: 'LineString',
+          coordinates: [[from.position.lng, from.position.lat], [to.position.lng, to.position.lat]],
+        },
+      }
+    }).filter(Boolean) as GeoJSON.Feature[],
+  }
+}
+
+function addSourcesAndLayers(map: maplibregl.Map) {
+  map.addSource(SRC.BUILDINGS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.BUILDINGS_FILL, type: 'fill', source: SRC.BUILDINGS, paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.12 } })
+  map.addLayer({ id: LYR.BUILDINGS_OUTLINE, type: 'line', source: SRC.BUILDINGS, paint: { 'line-color': '#1C6BEB', 'line-width': 2 } })
+
+  map.addSource(SRC.EDGES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.EDGES, type: 'line', source: SRC.EDGES, paint: { 'line-color': '#475569', 'line-width': 2 } })
+
+  map.addSource(SRC.NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
+
+  map.addSource(SRC.DRAWING, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-dasharray': [4, 4] } })
+  map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B' } })
+
+  map.addSource(SRC.ROOMS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
+  map.addLayer({ id: LYR.ROOMS_OUTLINE, type: 'line', source: SRC.ROOMS, paint: { 'line-color': '#10B981', 'line-width': 2 } })
+}
+
+function syncAllData(map: maplibregl.Map, graph: any, activeFloor: number) {
+  const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
+  const filteredEdges = graph.edges.filter((e: NavEdge) => {
+    const from = graph.getNode(e.from)
+    const to = graph.getNode(e.to)
+    return from?.floor === activeFloor && to?.floor === activeFloor
+  })
+  const buildingGeo = buildBuildingGeo(graph.buildings)
+  const nodeGeo = buildNodeGeo(filteredNodes)
+  const edgeGeo = buildEdgeGeo(filteredEdges, filteredNodes)
+  try {
+    const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
+    const nodeSrc = map.getSource(SRC.NODES) as maplibregl.GeoJSONSource
+    const edgeSrc = map.getSource(SRC.EDGES) as maplibregl.GeoJSONSource
+    if (buildingSrc) buildingSrc.setData(buildingGeo)
+    if (nodeSrc) nodeSrc.setData(nodeGeo)
+    if (edgeSrc) edgeSrc.setData(edgeGeo)
+  } catch { /* source not ready */ }
+}
+
+export function StudioCanvas() {
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const readyRef = useRef(false)
+  const handlersSetupRef = useRef(false)
+
+  const graph = useGraphStore((s) => s.graph)
+  const addTrace = useGraphStore((s) => s.addTrace)
+  const addComponent = useGraphStore((s) => s.addComponent)
+  const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
+  const tool = useStudioStore((s) => s.tool)
+  const activeFloor = useStudioStore((s) => s.activeFloor)
+  const editorMode = useStudioStore((s) => s.editorMode)
+  const layers = useStudioStore((s) => s.layers)
+  const tracePoints = useStudioStore((s) => s.tracePoints)
+  const addTracePoint = useStudioStore((s) => s.addTracePoint)
+  const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
+
+  const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
+  const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+
+  const toolRef = useRef(tool)
+  const tracePointsRef = useRef(tracePoints)
+  const graphRef = useRef(graph)
+  useEffect(() => { toolRef.current = tool }, [tool])
+  useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
+  useEffect(() => { graphRef.current = graph }, [graph])
+
+  useEffect(() => {
+    if (mapRef.current) return
+    let mounted = true
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current!,
+      style: OSM_STYLE,
+      center: [122.0922, 11.8195],
+      zoom: 17,
+    })
+    map.on('load', () => {
+      if (!mounted) return
+      addSourcesAndLayers(map)
+      readyRef.current = true
+      syncAllData(map, graph, activeFloor)
+    })
+    mapRef.current = map
+    return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    syncAllData(map, graph, activeFloor)
+  }, [graph, activeFloor])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || handlersSetupRef.current) return
+    handlersSetupRef.current = true
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      const curTool = toolRef.current
+      const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+      if (curTool === 'trace') { addTracePoint(pos); return }
+      if (curTool === 'asset') {
+        addComponent({ id: `comp-${Date.now()}`, type: 'stair', name: 'Asset', buildingId: '', floor: activeFloor, position: pos })
+        return
+      }
+      if (curTool === 'select') {
+        const features = map.queryRenderedFeatures(e.point)
+        const hitNode = features.find((f) => f.layer.id === LYR.NODES)
+        setSelectedNode(hitNode?.properties?.id ?? null)
+        return
+      }
+    }
+
+    const handleDblClick = () => {
+      const curTool = toolRef.current
+      if (curTool === 'trace' && tracePointsRef.current.length >= 2) {
+        const trace = { id: `T${Date.now()}`, floor: useStudioStore.getState().activeFloor, points: tracePointsRef.current, type: useStudioStore.getState().traceMode }
+        addTrace(trace)
+        clearTracePoints()
+      }
+    }
+
+    let dragStart: LatLng | null = null
+
+    const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
+      if (e.originalEvent.button !== 0) return
+      if (toolRef.current === 'room') {
+        dragStart = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+        setRoomDrag({ start: dragStart, current: dragStart })
+      }
+    }
+
+    const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
+      setCursorLL({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+      if (dragStart && toolRef.current === 'room') {
+        setRoomDrag({ start: dragStart, current: { lat: e.lngLat.lat, lng: e.lngLat.lng } })
+      }
+    }
+
+    const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
+      if (dragStart && toolRef.current === 'room') {
+        const start = dragStart
+        const end = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+        const polygon = [
+          { lat: Math.min(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
+          { lat: Math.min(start.lat, end.lat), lng: Math.max(start.lng, end.lng) },
+          { lat: Math.max(start.lat, end.lat), lng: Math.max(start.lng, end.lng) },
+          { lat: Math.max(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
+        ]
+        const center = { lat: (start.lat + end.lat) / 2, lng: (start.lng + end.lng) / 2 }
+        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: '', floor: activeFloor, position: center, polygon })
+        dragStart = null
+        setRoomDrag(null)
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { clearTracePoints(); setRoomDrag(null) }
+      if (e.key === 'Delete' && selectedNode) {
+        graphRef.current.removeNode(selectedNode)
+        setSelectedNode(null)
+      }
+    }
+
+    map.on('click', handleClick)
+    map.on('dblclick', handleDblClick)
+    map.on('mousedown', handleMouseDown)
+    map.on('mousemove', handleMouseMove)
+    map.on('mouseup', handleMouseUp)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      map.off('click', handleClick)
+      map.off('dblclick', handleDblClick)
+      map.off('mousedown', handleMouseDown)
+      map.off('mousemove', handleMouseMove)
+      map.off('mouseup', handleMouseUp)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [activeFloor, addTrace, addComponent, addTracePoint, clearTracePoints, selectedNode])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const canvas = map.getCanvas()
+    if (tool === 'trace' || tool === 'room' || tool === 'asset') canvas.style.cursor = 'crosshair'
+    else if (tool === 'select') canvas.style.cursor = 'pointer'
+    else canvas.style.cursor = ''
+    if (tool === 'trace' || tool === 'room') map.dragPan.disable()
+    else map.dragPan.enable()
+  }, [tool])
+
+  useEffect(() => {
+    const m = mapRef.current
+    if (!m || !readyRef.current) return
+    const drawFeatures: GeoJSON.Feature[] = []
+
+    if (tracePoints.length > 0 && tool === 'trace') {
+      const coords = tracePoints.map((p) => [p.lng, p.lat])
+      drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
+      for (const p of tracePoints) {
+        drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
+      }
+    }
+
+    if (roomDrag && tool === 'room') {
+      const s = roomDrag.start; const c = roomDrag.current
+      drawFeatures.push({
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [[[s.lng, s.lat], [c.lng, s.lat], [c.lng, c.lat], [s.lng, c.lat], [s.lng, s.lat]]] },
+        properties: {},
+      })
+    }
+
+    try {
+      const src = m.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
+      if (src) src.setData({ type: 'FeatureCollection', features: drawFeatures })
+    } catch { /* source not ready */ }
+  }, [tracePoints, roomDrag, tool])
+
+  return <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+}
