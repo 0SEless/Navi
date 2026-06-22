@@ -65,12 +65,19 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
   const building = buildings.get(component.buildingId)
   const roomLabel = component.name
 
+  const polygon: LatLng[] = [
+    { lat: component.position.lat - dLat, lng: component.position.lng - dLng }, // SW
+    { lat: component.position.lat - dLat, lng: component.position.lng + dLng }, // SE
+    { lat: component.position.lat + dLat, lng: component.position.lng + dLng }, // NE
+    { lat: component.position.lat + dLat, lng: component.position.lng - dLng }, // NW
+  ]
+
   // 4 corners (type: corner, non-navigable)
   const corners = [
-    { pos: { lat: component.position.lat - dLat, lng: component.position.lng - dLng }, label: 'SW' },
-    { pos: { lat: component.position.lat - dLat, lng: component.position.lng + dLng }, label: 'SE' },
-    { pos: { lat: component.position.lat + dLat, lng: component.position.lng + dLng }, label: 'NE' },
-    { pos: { lat: component.position.lat + dLat, lng: component.position.lng - dLng }, label: 'NW' },
+    { pos: polygon[0], label: 'SW' },
+    { pos: polygon[1], label: 'SE' },
+    { pos: polygon[2], label: 'NE' },
+    { pos: polygon[3], label: 'NW' },
   ]
 
   const cornerNodes: NavNode[] = corners.map((c) => ({
@@ -137,7 +144,7 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
     }
   }
 
-  return { nodes: [...cornerNodes, centerNode], edges }
+  return { nodes: [...cornerNodes, centerNode], edges, polygon }
 }
 
 function compileStair(component: Component, context: CompileContext): CompileResult {
@@ -294,5 +301,6 @@ export function compileComponent(
   return {
     nodes: result.nodes.map((n) => ({ ...n, componentId: context.componentId })),
     edges: result.edges,
+    ...(result.polygon ? { polygon: result.polygon } : {}),
   }
 }
