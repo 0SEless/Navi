@@ -50,7 +50,6 @@ export interface NavNode {
   svgOffset?: { x: number; y: number }
   hasQr?: boolean
   hasPanorama?: boolean
-  panoramaUrl?: string
   metadata?: Record<string, unknown>
 }
 
