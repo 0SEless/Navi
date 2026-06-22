@@ -5,6 +5,7 @@ import type {
 export interface CompileResult {
   nodes: NavNode[]
   edges: NavEdge[]
+  polygon?: LatLng[]
 }
 
 export interface CompileContext {

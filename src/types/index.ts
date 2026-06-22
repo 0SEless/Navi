@@ -6,4 +6,11 @@ export type {
   NavNode, NavEdge, Building,
   Component, GraphSnapshot, DirEntry,
   PathResult, PathStep, ValidationResult,
+  TracePath, FloorPlan,
 } from './nav-types';
+
+export type {
+  StudioTool, EditorMode, LayerType,
+  TraceMode, RoomPreset,
+  StudioViewState, LayerVisibility,
+} from './studio-types';

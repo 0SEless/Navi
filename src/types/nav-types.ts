@@ -18,6 +18,9 @@ export type NodeType =
   | 'waypoint'
 
 export type EdgeType =
+  | 'walk'
+  | 'transition'
+  | 'restricted'
   | 'walkway'
   | 'stairs'
   | 'corridor'
@@ -47,6 +50,7 @@ export interface NavNode {
   svgOffset?: { x: number; y: number }
   hasQr?: boolean
   hasPanorama?: boolean
+  panoramaUrl?: string
   metadata?: Record<string, unknown>
 }
 
@@ -85,6 +89,7 @@ export interface Component {
   buildingId: string
   floor: number
   position: LatLng
+  polygon?: LatLng[]
   dimensions?: {
     width: number
     height: number
@@ -92,6 +97,28 @@ export interface Component {
   }
   connections?: string[]
   metadata?: Record<string, unknown>
+}
+
+// ---- Trace Path ----
+
+export interface TracePath {
+  id: string
+  name?: string
+  buildingId?: string
+  campusId?: string
+  floor: number
+  points: LatLng[]
+  type: 'hallway' | 'path'
+  metadata?: Record<string, unknown>
+}
+
+// ---- Floor Plan ----
+
+export interface FloorPlan {
+  buildingId: string
+  floor: number
+  imageUrl: string
+  uploadedAt: string
 }
 
 // ---- Graph ----
