@@ -5,7 +5,8 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import type { NavNode, NavEdge, LatLng } from '@/types/nav-types'
+import type { NavNode, NavEdge, LatLng, Building } from '@/types/nav-types'
+import type { Graph } from '@/engine/graph'
 
 const OSM_STYLE = {
   version: 8 as const,
@@ -44,7 +45,7 @@ const LYR = {
   ROOMS_OUTLINE: 'studio-rooms-outline',
 }
 
-function buildBuildingGeo(buildings: any[]): GeoJSON.FeatureCollection {
+function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: buildings.map((b) => ({
@@ -115,7 +116,7 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: LYR.ROOMS_OUTLINE, type: 'line', source: SRC.ROOMS, paint: { 'line-color': '#10B981', 'line-width': 2 } })
 }
 
-function syncAllData(map: maplibregl.Map, graph: any, activeFloor: number) {
+function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
   const filteredEdges = graph.edges.filter((e: NavEdge) => {
     const from = graph.getNode(e.from)
