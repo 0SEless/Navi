@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { Graph } from '../engine/graph'
-import type { NavNode, NavEdge, Building, Component, GraphSnapshot } from '../types/nav-types'
+import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 
 const STORAGE_KEY = 'navi-graph'
@@ -26,6 +26,9 @@ interface GraphState {
 
   addComponent: (component: Component) => void
   removeComponent: (id: string) => void
+  addTrace: (trace: TracePath) => void
+  removeTrace: (id: string) => void
+  addComponentWithPolygon: (component: Component) => void
 
   setNodes: (nodes: NavNode[]) => void
   setEdges: (edges: NavEdge[]) => void
@@ -108,7 +111,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       existingEdges: graph.edges,
       componentId: component.id,
     })
-    graph.addComponent(component)
+    graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
     for (const node of result.nodes) {
       graph.addNode(node)
     }
@@ -121,6 +124,36 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   removeComponent: (id) => {
     const graph = get().graph
     graph.removeComponent(id)
+    set({})
+  },
+
+  addTrace: (trace) => {
+    const roomNodes = get().graph.nodes.filter(n => n.type === 'room')
+    get().graph.addTraceWithCompile(trace, roomNodes)
+    set({})
+  },
+
+  removeTrace: (id) => {
+    get().graph.removeTrace(id)
+    set({})
+  },
+
+  addComponentWithPolygon: (component) => {
+    const graph = get().graph
+    const buildingsMap = new Map(graph.buildings.map((b) => [b.id, b]))
+    const result = compileComponent(component, {
+      buildings: buildingsMap,
+      existingNodes: graph.nodes,
+      existingEdges: graph.edges,
+      componentId: component.id,
+    })
+    graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
+    for (const node of result.nodes) {
+      graph.addNode(node)
+    }
+    for (const edge of result.edges) {
+      graph.addEdge(edge)
+    }
     set({})
   },
 
