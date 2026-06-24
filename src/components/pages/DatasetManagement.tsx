@@ -1,37 +1,12 @@
 import { useState } from "react";
 import {
-  Database,
-  Download,
-  Upload,
-  FileJson,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  RefreshCw,
-  Clock,
-  Shield,
-  Archive,
-  Play,
-  Trash2,
-  Plus,
-  Copy,
-  ChevronDown,
-  ChevronRight,
-  Server,
-  HardDrive,
-  Activity,
-  FileText,
+  Database, Download, Upload, FileJson, CheckCircle, AlertTriangle, XCircle,
+  RefreshCw, Clock, Shield, Archive, Play, Trash2, Plus, Copy,
+  ChevronDown, ChevronRight, Server, HardDrive, Activity, FileText,
 } from "lucide-react";
 
 interface Backup {
-  id: string;
-  name: string;
-  type: "auto" | "manual";
-  size: string;
-  nodes: number;
-  edges: number;
-  created: string;
-  status: "complete" | "in_progress";
+  id: string; name: string; type: "auto" | "manual"; size: string; nodes: number; edges: number; created: string; status: "complete" | "in_progress";
 }
 
 const BACKUPS: Backup[] = [
@@ -42,12 +17,7 @@ const BACKUPS: Backup[] = [
   { id: "bk-005", name: "Auto Backup", type: "auto", size: "249 KB", nodes: 84, edges: 128, created: "2025-05-14 23:00", status: "complete" },
 ];
 
-interface ValidationResult {
-  category: string;
-  status: "pass" | "warn" | "fail";
-  message: string;
-  count?: number;
-}
+interface ValidationResult { category: string; status: "pass" | "warn" | "fail"; message: string; count?: number; }
 
 const VALIDATION_RESULTS: ValidationResult[] = [
   { category: "Graph Connectivity", status: "warn", message: "1 node (N031) is disconnected from the main graph", count: 1 },
@@ -62,38 +32,6 @@ const VALIDATION_RESULTS: ValidationResult[] = [
   { category: "Staircase Connectors", status: "fail", message: "COE Floor 2 has no staircase connector to Floor 1" },
 ];
 
-const SAMPLE_JSON = `{
-  "version": "2.4.1",
-  "campus": "ASU Ibajay",
-  "exported": "2025-05-17T08:00:00Z",
-  "nodes": [
-    {
-      "id": "N001",
-      "name": "Admin Entrance",
-      "type": "building_entrance",
-      "buildingId": "admin",
-      "floor": 1,
-      "x": 733,
-      "y": 155,
-      "hasQr": true,
-      "qrCode": "NAVI-ASU-N001-2025",
-      "hasPanorama": true,
-      "panoramaId": "pano-001"
-    }
-  ],
-  "edges": [
-    {
-      "id": "E001",
-      "from": "N001",
-      "to": "N010",
-      "type": "walkway",
-      "weight": 140
-    }
-  ],
-  "buildings": [...],
-  "floors": [...]
-}`;
-
 export function DatasetManagement() {
   const [backups] = useState<Backup[]>(BACKUPS);
   const [activeTab, setActiveTab] = useState<"export" | "import" | "validate" | "backups">("export");
@@ -104,12 +42,8 @@ export function DatasetManagement() {
   const [importDrag, setImportDrag] = useState(false);
 
   const runValidation = () => {
-    setValidating(true);
-    setValidated(false);
-    setTimeout(() => {
-      setValidating(false);
-      setValidated(true);
-    }, 2000);
+    setValidating(true); setValidated(false);
+    setTimeout(() => { setValidating(false); setValidated(true); }, 2000);
   };
 
   const passCount = VALIDATION_RESULTS.filter((r) => r.status === "pass").length;
@@ -117,51 +51,33 @@ export function DatasetManagement() {
   const failCount = VALIDATION_RESULTS.filter((r) => r.status === "fail").length;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#F1F5F9" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <div style={{ background: "white", borderBottom: "1px solid #E2E8F0", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+      <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div>
-          <h1 style={{ color: "#0F172A", fontSize: 18, fontWeight: 700, margin: 0 }}>Dataset Management</h1>
-          <p style={{ color: "#64748B", fontSize: 12, margin: "2px 0 0" }}>Import, export, validate, and backup the navigation dataset</p>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--navi-text)", margin: 0 }}>Dataset Management</h1>
+          <p style={{ color: "var(--navi-text-secondary)", fontSize: 12, margin: "2px 0 0" }}>Import, export, validate, and backup the navigation dataset</p>
         </div>
-        <div className="flex gap-2">
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 12, color: "#64748B" }}>
-            <Server size={12} color="#10B981" /> 100 nodes · 148 edges · 284 KB
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", background: "var(--navi-content)", borderRadius: 6, fontSize: 11, color: "var(--navi-text-secondary)" }}>
+            <Server size={11} color="var(--navi-success)" /> 100 nodes · 148 edges
           </div>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "linear-gradient(135deg, #1C6BEB, #0891B2)", border: "none", borderRadius: 7, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            <Archive size={14} /> Create Backup
+          <button style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", background: "var(--navi-primary)", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            <Archive size={13} /> Create Backup
           </button>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div style={{ background: "white", borderBottom: "1px solid #E2E8F0", padding: "0 24px", display: "flex", gap: 0 }}>
+      <div style={{ borderBottom: "1px solid var(--navi-border)", padding: "0 24px", display: "flex", gap: 0 }}>
         {([
           ["export", "Export Dataset", Download],
           ["import", "Import Dataset", Upload],
           ["validate", "Validate", CheckCircle],
           ["backups", "Backups", Archive],
         ] as [typeof activeTab, string, React.ElementType][]).map(([tab, label, Icon]) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "12px 16px",
-              background: "none",
-              border: "none",
-              borderBottom: activeTab === tab ? "2px solid #1C6BEB" : "2px solid transparent",
-              color: activeTab === tab ? "#1C6BEB" : "#64748B",
-              fontSize: 13,
-              fontWeight: activeTab === tab ? 600 : 400,
-              cursor: "pointer",
-              marginBottom: -1,
-            }}
-          >
-            <Icon size={14} />
-            {label}
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "10px 14px", background: "none", border: "none", borderBottom: activeTab === tab ? "2px solid var(--navi-primary)" : "2px solid transparent", color: activeTab === tab ? "var(--navi-primary)" : "var(--navi-text-secondary)", fontSize: 12, fontWeight: activeTab === tab ? 600 : 400, cursor: "pointer", marginBottom: -1 }}>
+            <Icon size={13} /> {label}
           </button>
         ))}
       </div>
@@ -170,99 +86,63 @@ export function DatasetManagement() {
         {/* EXPORT TAB */}
         {activeTab === "export" && (
           <div style={{ maxWidth: 800 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-              {/* Format selector */}
-              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, padding: "20px" }}>
-                <h3 style={{ color: "#0F172A", fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>Export Format</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "18px" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)", margin: "0 0 14px" }}>Export Format</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {[
-                    { key: "json", label: "Navigation JSON", desc: "Full dataset including nodes, edges, buildings, floors", icon: FileJson, color: "#F59E0B" },
-                    { key: "geojson", label: "GeoJSON", desc: "Geographic format for GIS tools and map viewers", icon: FileText, color: "#10B981" },
-                    { key: "csv", label: "CSV Export", desc: "Spreadsheet-compatible node and edge tables", icon: FileText, color: "#1C6BEB" },
+                    { key: "json", label: "Navigation JSON", desc: "Full dataset including nodes, edges, buildings", icon: FileJson, color: "#D97706" },
+                    { key: "geojson", label: "GeoJSON", desc: "Geographic format for GIS tools", icon: FileText, color: "var(--navi-success)" },
+                    { key: "csv", label: "CSV Export", desc: "Spreadsheet-compatible tables", icon: FileText, color: "var(--navi-primary)" },
                   ].map(({ key, label, desc, icon: Icon, color }) => (
-                    <div
-                      key={key}
-                      onClick={() => setSelectedFormat(key as typeof selectedFormat)}
-                      style={{
-                        display: "flex",
-                        gap: 12,
-                        padding: "12px 14px",
-                        borderRadius: 8,
-                        border: selectedFormat === key ? `1px solid ${color}` : "1px solid #E2E8F0",
-                        background: selectedFormat === key ? `${color}08` : "#FAFAFA",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <div style={{ width: 34, height: 34, background: `${color}15`, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Icon size={16} color={color} />
+                    <div key={key} onClick={() => setSelectedFormat(key as typeof selectedFormat)} style={{ display: "flex", gap: 10, padding: "10px 12px", borderRadius: 8, border: selectedFormat === key ? `1px solid ${color}` : "1px solid var(--navi-border)", background: selectedFormat === key ? `${color}08` : "transparent", cursor: "pointer" }}>
+                      <div style={{ width: 32, height: 32, background: `${color}12`, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Icon size={14} color={color} />
                       </div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{label}</div>
-                        <div style={{ fontSize: 11, color: "#94A3B8" }}>{desc}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-text)" }}>{label}</div>
+                        <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>{desc}</div>
                       </div>
-                      {selectedFormat === key && <CheckCircle size={16} color={color} style={{ marginLeft: "auto", alignSelf: "center" }} />}
+                      {selectedFormat === key && <CheckCircle size={14} color={color} style={{ alignSelf: "center" }} />}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Export options */}
-              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, padding: "20px" }}>
-                <h3 style={{ color: "#0F172A", fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>Include in Export</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[
-                    { label: "Navigation Nodes (100)", checked: true },
-                    { label: "Path Edges (148)", checked: true },
-                    { label: "Building Metadata (8)", checked: true },
-                    { label: "Floor Layers (23)", checked: true },
-                    { label: "QR Checkpoint Data (47)", checked: true },
-                    { label: "Panorama Metadata (34)", checked: false },
-                    { label: "Schema Version Info", checked: true },
-                  ].map(({ label, checked }, i) => (
-                    <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                      <div style={{ width: 16, height: 16, background: checked ? "#1C6BEB" : "#F1F5F9", border: `1px solid ${checked ? "#1C6BEB" : "#CBD5E1"}`, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {checked && <svg width="10" height="8" viewBox="0 0 10 8"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>}
-                      </div>
-                      <span style={{ fontSize: 13, color: "#0F172A" }}>{label}</span>
-                    </label>
-                  ))}
-                </div>
-
-                <button style={{ width: "100%", marginTop: 20, padding: "10px", background: "linear-gradient(135deg, #1C6BEB, #0891B2)", border: "none", borderRadius: 8, color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-                  <Download size={14} /> Export as {selectedFormat.toUpperCase()}
+              <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "18px" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)", margin: "0 0 14px" }}>Include in Export</h3>
+                {["Navigation Nodes (100)", "Path Edges (148)", "Building Metadata (8)", "Floor Layers (23)", "QR Checkpoint Data (47)", "Schema Version Info"].map((label, i) => (
+                  <label key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", cursor: "pointer", fontSize: 12, color: "var(--navi-text)" }}>
+                    <div style={{ width: 14, height: 14, background: "var(--navi-primary)", border: "1px solid var(--navi-primary)", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="9" height="7" viewBox="0 0 10 8"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>
+                    </div>
+                    {label}
+                  </label>
+                ))}
+                <button style={{ width: "100%", marginTop: 14, padding: "8px", background: "var(--navi-primary)", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <Download size={12} /> Export as {selectedFormat.toUpperCase()}
                 </button>
               </div>
             </div>
 
             {/* JSON Preview */}
-            <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
-              <div
-                style={{ padding: "14px 18px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
-                onClick={() => setExpandedJson(!expandedJson)}
-              >
-                <div className="flex items-center gap-2">
-                  <FileJson size={14} color="#F59E0B" />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>JSON Preview</span>
-                  <span style={{ fontSize: 11, color: "#94A3B8" }}>navi_dataset_2025-05-17.json</span>
+            <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--navi-content)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpandedJson(!expandedJson)}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <FileJson size={13} color="#D97706" />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-text)" }}>JSON Preview</span>
+                  <span style={{ fontSize: 10, color: "var(--navi-text-secondary)" }}>navi_dataset_2025-05-17.json</span>
                 </div>
-                <div className="flex gap-2">
-                  <button style={{ background: "none", border: "1px solid #E2E8F0", borderRadius: 5, padding: "3px 8px", color: "#64748B", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>
-                    <Copy size={10} /> Copy
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ background: "var(--navi-content)", border: "1px solid var(--navi-border)", borderRadius: 4, padding: "2px 6px", color: "var(--navi-text-secondary)", fontSize: 10, cursor: "pointer" }}>
+                    <Copy size={9} style={{ display: "inline" }} /> Copy
                   </button>
-                  {expandedJson ? <ChevronDown size={14} color="#94A3B8" /> : <ChevronRight size={14} color="#94A3B8" />}
+                  {expandedJson ? <ChevronDown size={13} color="var(--navi-text-secondary)" /> : <ChevronRight size={13} color="var(--navi-text-secondary)" />}
                 </div>
               </div>
               {expandedJson && (
-                <pre style={{ background: "#0F172A", color: "#94A3B8", padding: "18px", fontSize: 11, lineHeight: 1.7, overflowX: "auto", margin: 0, fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
-                  {SAMPLE_JSON.split("\n").map((line, i) => {
-                    const coloredLine = line
-                      .replace(/"([^"]+)":/g, '<span style="color:#60A5FA">"$1"</span>:')
-                      .replace(/: "([^"]+)"/g, ': <span style="color:#34D399">"$1"</span>')
-                      .replace(/: (\d+)/g, ': <span style="color:#FB923C">$1</span>')
-                      .replace(/: (true|false)/g, ': <span style="color:#A78BFA">$1</span>');
-                    return <div key={i} dangerouslySetInnerHTML={{ __html: coloredLine }} />;
-                  })}
+                <pre style={{ background: "var(--navi-sidebar)", color: "var(--navi-text-sidebar)", padding: "16px", fontSize: 11, lineHeight: 1.6, overflowX: "auto", margin: 0, maxHeight: 400 }}>
+                  {`{\n  "version": "2.4.1",\n  "campus": "ASU Ibajay",\n  "nodes": [ ... 100 items ],\n  "edges": [ ... 148 items ],\n  "buildings": [ ... 8 items ]\n}`}
                 </pre>
               )}
             </div>
@@ -272,42 +152,29 @@ export function DatasetManagement() {
         {/* IMPORT TAB */}
         {activeTab === "import" && (
           <div style={{ maxWidth: 700 }}>
-            <div
-              onDragOver={(e) => { e.preventDefault(); setImportDrag(true); }}
-              onDragLeave={() => setImportDrag(false)}
-              onDrop={(e) => { e.preventDefault(); setImportDrag(false); }}
-              style={{
-                border: `2px dashed ${importDrag ? "#1C6BEB" : "#CBD5E1"}`,
-                borderRadius: 12,
-                padding: "60px 40px",
-                textAlign: "center",
-                background: importDrag ? "#EFF6FF" : "white",
-                cursor: "pointer",
-                marginBottom: 20,
-                transition: "all 0.2s",
-              }}
-            >
-              <Upload size={36} color={importDrag ? "#1C6BEB" : "#94A3B8"} style={{ margin: "0 auto 12px" }} />
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#0F172A", marginBottom: 8 }}>Drop dataset file here</div>
-              <div style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }}>Supports JSON, GeoJSON, and CSV formats</div>
-              <button style={{ padding: "9px 24px", background: "#1C6BEB", border: "none", borderRadius: 7, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Browse Files</button>
+            <div onDragOver={(e) => { e.preventDefault(); setImportDrag(true); }} onDragLeave={() => setImportDrag(false)} onDrop={(e) => { e.preventDefault(); setImportDrag(false); }}
+              style={{ border: `2px dashed ${importDrag ? "var(--navi-primary)" : "var(--navi-border)"}`, borderRadius: 12, padding: "48px 32px", textAlign: "center", background: importDrag ? "var(--navi-primary-light)" : "var(--navi-card)", cursor: "pointer", marginBottom: 16 }}>
+              <Upload size={32} color={importDrag ? "var(--navi-primary)" : "var(--navi-text-secondary)"} style={{ margin: "0 auto 10px" }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--navi-text)", marginBottom: 6 }}>Drop dataset file here</div>
+              <div style={{ fontSize: 12, color: "var(--navi-text-secondary)", marginBottom: 16 }}>Supports JSON, GeoJSON, and CSV</div>
+              <button style={{ padding: "7px 20px", background: "var(--navi-primary)", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Browse Files</button>
             </div>
 
-            <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, padding: "20px" }}>
-              <h3 style={{ color: "#0F172A", fontSize: 14, fontWeight: 600, margin: "0 0 14px" }}>Import Options</h3>
+            <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "18px" }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)", margin: "0 0 12px" }}>Import Options</h3>
               {[
-                { label: "Validate before importing", desc: "Run schema validation before applying changes", checked: true },
-                { label: "Create backup before import", desc: "Automatically backup current dataset first", checked: true },
-                { label: "Merge with existing data", desc: "Add imported nodes/edges to existing dataset (don't replace)", checked: false },
-                { label: "Override node positions", desc: "Update x,y coordinates of existing nodes", checked: true },
-              ].map(({ label, desc, checked }, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: i < 3 ? "1px solid #F8FAFC" : "none" }}>
-                  <div style={{ width: 18, height: 18, background: checked ? "#1C6BEB" : "#F1F5F9", border: `1px solid ${checked ? "#1C6BEB" : "#CBD5E1"}`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, cursor: "pointer" }}>
-                    {checked && <svg width="11" height="9" viewBox="0 0 10 8"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>}
+                { label: "Validate before importing", desc: "Run schema validation before applying changes" },
+                { label: "Create backup before import", desc: "Automatically backup current dataset first" },
+                { label: "Merge with existing data", desc: "Add imported nodes/edges to existing dataset" },
+                { label: "Override node positions", desc: "Update coordinates of existing nodes" },
+              ].map(({ label, desc }, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: i < 3 ? "1px solid var(--navi-content)" : "none" }}>
+                  <div style={{ width: 16, height: 16, background: "var(--navi-primary)", border: "1px solid var(--navi-primary)", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                    <svg width="10" height="8" viewBox="0 0 10 8"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" /></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A" }}>{label}</div>
-                    <div style={{ fontSize: 11, color: "#94A3B8" }}>{desc}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: "var(--navi-text)" }}>{label}</div>
+                    <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>{desc}</div>
                   </div>
                 </div>
               ))}
@@ -318,78 +185,56 @@ export function DatasetManagement() {
         {/* VALIDATE TAB */}
         {activeTab === "validate" && (
           <div style={{ maxWidth: 760 }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 style={{ color: "#0F172A", fontSize: 16, fontWeight: 700, margin: 0 }}>Dataset Validation</h2>
-              <button
-                onClick={runValidation}
-                disabled={validating}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "9px 18px",
-                  background: validating ? "#F1F5F9" : "linear-gradient(135deg, #1C6BEB, #0891B2)",
-                  border: "none",
-                  borderRadius: 7,
-                  color: validating ? "#64748B" : "white",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: validating ? "default" : "pointer",
-                }}
-              >
-                {validating ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Play size={14} />}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--navi-text)", margin: 0 }}>Dataset Validation</h2>
+              <button onClick={runValidation} disabled={validating} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", background: validating ? "var(--navi-content)" : "var(--navi-primary)", border: "none", borderRadius: 6, color: validating ? "var(--navi-text-secondary)" : "white", fontSize: 12, fontWeight: 600, cursor: validating ? "default" : "pointer" }}>
+                {validating ? <RefreshCw size={12} style={{ animation: "spin 0.8s linear infinite" }} /> : <Play size={12} />}
                 {validating ? "Validating..." : "Run Validation"}
               </button>
             </div>
 
             {validated && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
                 {[
-                  { label: "Passed", value: passCount, color: "#10B981", bg: "#DCFCE7", icon: CheckCircle },
-                  { label: "Warnings", value: warnCount, color: "#F59E0B", bg: "#FEF9C3", icon: AlertTriangle },
-                  { label: "Failures", value: failCount, color: "#EF4444", bg: "#FEE2E2", icon: XCircle },
+                  { label: "Passed", value: passCount, color: "var(--navi-success)", bg: "#ECFDF5", icon: CheckCircle },
+                  { label: "Warnings", value: warnCount, color: "#D97706", bg: "#FFFBEB", icon: AlertTriangle },
+                  { label: "Failures", value: failCount, color: "var(--navi-error)", bg: "#FEF2F2", icon: XCircle },
                 ].map(({ label, value, color, bg, icon: Icon }) => (
-                  <div key={label} style={{ background: bg, border: `1px solid ${color}40`, borderRadius: 10, padding: "16px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-                    <Icon size={24} color={color} />
+                  <div key={label} style={{ background: bg, border: `1px solid ${color}30`, borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <Icon size={22} color={color} />
                     <div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
-                      <div style={{ fontSize: 12, color, opacity: 0.8 }}>{label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+                      <div style={{ fontSize: 11, color, opacity: 0.8 }}>{label}</div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, overflow: "hidden" }}>
               {!validated && !validating && (
-                <div style={{ padding: "48px", textAlign: "center", color: "#94A3B8" }}>
-                  <Activity size={32} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-                  <div style={{ fontSize: 14 }}>Click &ldquo;Run Validation&rdquo; to analyze dataset integrity</div>
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--navi-text-secondary)" }}>
+                  <Activity size={28} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+                  <div style={{ fontSize: 13 }}>Click "Run Validation" to analyze dataset integrity</div>
                 </div>
               )}
               {validating && (
-                <div style={{ padding: "48px", textAlign: "center" }}>
-                  <div style={{ width: 36, height: 36, border: "3px solid #E2E8F0", borderTopColor: "#1C6BEB", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-                  <div style={{ fontSize: 14, color: "#64748B" }}>Analyzing navigation graph...</div>
+                <div style={{ padding: "40px", textAlign: "center" }}>
+                  <div style={{ width: 32, height: 32, border: "2px solid var(--navi-border)", borderTopColor: "var(--navi-primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 14px" }} />
+                  <div style={{ fontSize: 13, color: "var(--navi-text-secondary)" }}>Analyzing navigation graph...</div>
                 </div>
               )}
               {validated && VALIDATION_RESULTS.map((result, i) => {
-                const config = {
-                  pass: { color: "#10B981", bg: "#F0FDF4", icon: CheckCircle },
-                  warn: { color: "#F59E0B", bg: "#FFFBEB", icon: AlertTriangle },
-                  fail: { color: "#EF4444", bg: "#FEF2F2", icon: XCircle },
-                }[result.status];
+                const config = { pass: { color: "var(--navi-success)", bg: "#F0FDF4", icon: CheckCircle }, warn: { color: "#D97706", bg: "#FFFBEB", icon: AlertTriangle }, fail: { color: "var(--navi-error)", bg: "#FEF2F2", icon: XCircle } }[result.status];
                 const Icon = config.icon;
                 return (
-                  <div key={i} style={{ display: "flex", gap: 12, padding: "12px 18px", borderBottom: i < VALIDATION_RESULTS.length - 1 ? "1px solid #F8FAFC" : "none", background: result.status !== "pass" ? config.bg : "white" }}>
-                    <Icon size={16} color={config.color} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div key={i} style={{ display: "flex", gap: 10, padding: "10px 16px", borderBottom: i < VALIDATION_RESULTS.length - 1 ? "1px solid var(--navi-content)" : "none", background: result.status !== "pass" ? config.bg : "transparent" }}>
+                    <Icon size={14} color={config.color} style={{ flexShrink: 0, marginTop: 1 }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{result.category}</div>
-                      <div style={{ fontSize: 12, color: "#64748B" }}>{result.message}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-text)" }}>{result.category}</div>
+                      <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>{result.message}</div>
                     </div>
-                    {result.count !== undefined && (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: config.color, flexShrink: 0 }}>{result.count}</div>
-                    )}
+                    {result.count !== undefined && <div style={{ fontSize: 12, fontWeight: 700, color: config.color, flexShrink: 0 }}>{result.count}</div>}
                   </div>
                 );
               })}
@@ -400,85 +245,77 @@ export function DatasetManagement() {
         {/* BACKUPS TAB */}
         {activeTab === "backups" && (
           <div style={{ maxWidth: 800 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
               {[
-                { label: "Total Backups", value: backups.length, icon: HardDrive, color: "#1C6BEB" },
-                { label: "Total Size", value: "1.34 MB", icon: Database, color: "#8B5CF6" },
-                { label: "Last Backup", value: "Today 08:00", icon: Clock, color: "#10B981" },
+                { label: "Total Backups", value: backups.length, icon: HardDrive, color: "var(--navi-primary)" },
+                { label: "Total Size", value: "1.34 MB", icon: Database, color: "#7C3AED" },
+                { label: "Last Backup", value: "Today 08:00", icon: Clock, color: "var(--navi-success)" },
               ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, padding: "16px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 38, height: 38, background: `${color}15`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={18} color={color} />
+                <div key={label} style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, background: `${color}12`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={16} color={color} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>{value}</div>
-                    <div style={{ fontSize: 11, color: "#94A3B8" }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "var(--navi-text)" }}>{value}</div>
+                    <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>{label}</div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Auto-backup config */}
-            <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, padding: "18px", marginBottom: 16 }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Shield size={15} color="#1C6BEB" />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Automatic Backup Schedule</span>
+            <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "16px", marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Shield size={14} color="var(--navi-primary)" />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)" }}>Automatic Backup Schedule</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 12, color: "#10B981" }}>Enabled</span>
-                  <div style={{ width: 36, height: 20, background: "#10B981", borderRadius: 10, position: "relative" }}>
-                    <div style={{ position: "absolute", right: 2, top: 2, width: 16, height: 16, background: "white", borderRadius: "50%" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, color: "var(--navi-success)" }}>Enabled</span>
+                  <div style={{ width: 34, height: 18, background: "var(--navi-success)", borderRadius: 9, position: "relative" }}>
+                    <div style={{ position: "absolute", right: 2, top: 2, width: 14, height: 14, background: "white", borderRadius: "50%" }} />
                   </div>
                 </div>
               </div>
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
                 {[
                   { label: "Frequency", value: "Daily at 23:00" },
                   { label: "Retention", value: "30 days" },
                   { label: "Location", value: "Server local" },
                 ].map(({ label, value }) => (
-                  <div key={label} style={{ background: "#F8FAFC", borderRadius: 7, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 600 }}>{label}</div>
-                    <div style={{ fontSize: 13, color: "#0F172A", fontWeight: 500, marginTop: 2 }}>{value}</div>
+                  <div key={label} style={{ background: "var(--navi-content)", borderRadius: 6, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 9, color: "var(--navi-text-secondary)", fontWeight: 600 }}>{label}</div>
+                    <div style={{ fontSize: 12, color: "var(--navi-text)", fontWeight: 500, marginTop: 1 }}>{value}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Backup list */}
-            <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ padding: "14px 18px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Backup History</span>
-                <button style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: "#1C6BEB", border: "none", borderRadius: 6, color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  <Plus size={12} /> Create Backup
+            <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--navi-content)", display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)" }}>Backup History</span>
+                <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "var(--navi-primary)", border: "none", borderRadius: 5, color: "white", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  <Plus size={11} /> Create Backup
                 </button>
               </div>
               {backups.map((bk, i) => (
-                <div key={bk.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderBottom: i < backups.length - 1 ? "1px solid #F8FAFC" : "none" }}>
-                  <div style={{ width: 36, height: 36, background: bk.type === "manual" ? "#DBEAFE" : "#F1F5F9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Archive size={16} color={bk.type === "manual" ? "#1C6BEB" : "#94A3B8"} />
+                <div key={bk.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < backups.length - 1 ? "1px solid var(--navi-content)" : "none" }}>
+                  <div style={{ width: 34, height: 34, background: bk.type === "manual" ? "var(--navi-primary-light)" : "var(--navi-content)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Archive size={14} color={bk.type === "manual" ? "var(--navi-primary)" : "var(--navi-text-secondary)"} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{bk.name}</div>
-                    <div style={{ fontSize: 11, color: "#94A3B8" }}>
-                      <Clock size={9} style={{ display: "inline", marginRight: 3 }} />
-                      {bk.created} · {bk.size} · {bk.nodes} nodes · {bk.edges} edges
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-text)" }}>{bk.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--navi-text-secondary)" }}>
+                      <Clock size={8} style={{ display: "inline", marginRight: 2 }} />
+                      {bk.created} · {bk.size}
                     </div>
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: bk.type === "manual" ? "#1C6BEB" : "#64748B", background: bk.type === "manual" ? "#DBEAFE" : "#F1F5F9", padding: "2px 7px", borderRadius: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: bk.type === "manual" ? "var(--navi-primary)" : "var(--navi-text-secondary)", background: bk.type === "manual" ? "var(--navi-primary-light)" : "var(--navi-content)", padding: "2px 6px", borderRadius: 6 }}>
                     {bk.type === "manual" ? "Manual" : "Auto"}
-                  </div>
-                  <div className="flex gap-2">
-                    <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 5, color: "#64748B", fontSize: 11, cursor: "pointer" }}>
-                      <Download size={11} /> Download
-                    </button>
-                    <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 5, color: "#10B981", fontSize: 11, cursor: "pointer" }}>
-                      <RefreshCw size={11} /> Restore
-                    </button>
-                    <button style={{ padding: "5px 8px", background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 5, color: "#EF4444", fontSize: 11, cursor: "pointer" }}>
-                      <Trash2 size={11} />
-                    </button>
+                  </span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button style={{ padding: "4px 8px", background: "var(--navi-content)", border: "1px solid var(--navi-border)", borderRadius: 4, color: "var(--navi-text-secondary)", fontSize: 10, cursor: "pointer" }}><Download size={10} /></button>
+                    <button style={{ padding: "4px 8px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 4, color: "var(--navi-success)", fontSize: 10, cursor: "pointer" }}><RefreshCw size={10} /></button>
+                    <button style={{ padding: "4px 8px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 4, color: "var(--navi-error)", fontSize: 10, cursor: "pointer" }}><Trash2 size={10} /></button>
                   </div>
                 </div>
               ))}
@@ -486,7 +323,6 @@ export function DatasetManagement() {
           </div>
         )}
       </div>
-
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );

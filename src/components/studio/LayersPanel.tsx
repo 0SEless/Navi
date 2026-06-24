@@ -23,16 +23,16 @@ export function LayersPanel() {
 
   return (
     <div style={{
-      width: 220, background: '#0D1526',
-      borderRight: '1px solid #1E3A5F',
+      width: 220, background: 'var(--navi-card)',
+      borderRight: '1px solid var(--navi-border)',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
     }}>
       <div style={{
-        padding: '10px 14px', borderBottom: '1px solid #1E293B',
+        padding: '10px 14px', borderBottom: '1px solid var(--navi-border)',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        <Layers size={13} color="#06B6D4" />
-        <span style={{ color: '#94A3B8', fontSize: 11, fontWeight: 600 }}>LAYERS</span>
+        <Layers size={13} color="var(--navi-primary)" />
+        <span style={{ color: 'var(--navi-text-secondary)', fontSize: 11, fontWeight: 600 }}>LAYERS</span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
@@ -41,13 +41,13 @@ export function LayersPanel() {
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '6px 14px', cursor: 'pointer',
-              color: layers[key] ? '#E2E8F0' : '#475569',
+              color: layers[key] ? 'var(--navi-text)' : 'var(--navi-text-secondary)',
               fontSize: 11,
             }}
           >
-            <Icon size={12} color={layers[key] ? '#1C6BEB' : '#334155'} />
+            <Icon size={12} color={layers[key] ? 'var(--navi-primary)' : 'var(--navi-border)'} />
             <span style={{ flex: 1 }}>{label}</span>
-            {layers[key] ? <Eye size={12} color="#1C6BEB" /> : <EyeOff size={12} />}
+            {layers[key] ? <Eye size={12} color="var(--navi-primary)" /> : <EyeOff size={12} />}
           </div>
         ))}
       </div>

@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseContext } from "@supabase/server";
+import { createServerClient } from "@supabase/ssr";
+
+async function getClient(auth: "publishable" | "secret") {
+  const key = auth === "secret"
+    ? process.env.SUPABASE_SERVICE_ROLE_KEY!
+    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    key,
+    {
+      cookies: {
+        getAll: () => [],
+        setAll: () => {},
+      },
+    },
+  );
+}
 
 export async function GET(request: NextRequest) {
-  const { data: ctx, error } = await createSupabaseContext(request, { auth: "publishable" });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const supabase = await getClient("publishable");
   const { searchParams } = new URL(request.url);
   const campusId = searchParams.get("campus_id") || "asu-ibajay";
 
-  // ponytail: raw typed assertion because @supabase/server types are noisy
-  const result = await ctx.supabase
+  const result = await supabase
     .from("graph_snapshots")
     .select("data")
     .eq("campus_id", campusId)
@@ -35,11 +49,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { data: ctx, error } = await createSupabaseContext(request, { auth: "secret" });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const supabase = await getClient("secret");
     const body = await request.json();
 
-    const { data: result, error: rpcError } = await ctx.supabaseAdmin.rpc("sync_graph_snapshot", body as never);
+    const { data: result, error: rpcError } = await supabase.rpc("sync_graph_snapshot", body as never);
 
     if (rpcError) {
       return NextResponse.json({ error: rpcError.message }, { status: 500 });

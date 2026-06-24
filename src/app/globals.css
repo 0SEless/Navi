@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --navi-primary: #2563EB;
+  --navi-primary-light: #EFF6FF;
+  --navi-primary-dark: #1D4ED8;
+  --navi-accent: #7C3AED;
+  --navi-success: #059669;
+  --navi-warning: #D97706;
+  --navi-error: #DC2626;
+  --navi-sidebar: #0F172A;
+  --navi-sidebar-hover: #1E293B;
+  --navi-content: #F1F5F9;
+  --navi-card: #FFFFFF;
+  --navi-text: #0F172A;
+  --navi-text-secondary: #64748B;
+  --navi-text-sidebar: #94A3B8;
+  --navi-text-sidebar-active: #FFFFFF;
+  --navi-border: #E2E8F0;
+  --navi-sidebar-border: #1E293B;
+  --navi-radius: 8px;
+  --navi-radius-sm: 6px;
+  --navi-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --navi-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -16,6 +40,10 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--navi-text);
+  background: var(--navi-content);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 #__next {
@@ -28,6 +56,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0A0F1E;
-  color: #64748B;
+  background: var(--navi-sidebar);
+  color: var(--navi-text-secondary);
 }

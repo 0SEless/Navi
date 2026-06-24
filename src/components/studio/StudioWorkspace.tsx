@@ -7,7 +7,7 @@ import { PropertiesPanel } from './PropertiesPanel'
 
 export function StudioWorkspace() {
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0A0F1E' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--navi-content)' }}>
       <StudioToolbar />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <LayersPanel />
