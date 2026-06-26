@@ -6,6 +6,13 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
 import type { Building } from '@/types/nav-types'
 
+interface CampusMapProps {
+  center?: [number, number]
+  zoom?: number
+  interactive?: boolean
+  onMapLoaded?: (map: maplibregl.Map) => void
+}
+
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
@@ -78,7 +85,12 @@ function syncBuildings(map: maplibregl.Map, buildings: Building[]) {
   }
 }
 
-export function CampusMap() {
+export default function CampusMap({
+  center = [122.0922, 11.8195],
+  zoom = 17,
+  interactive = true,
+  onMapLoaded,
+}: CampusMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const readyRef = useRef(false)
@@ -91,14 +103,16 @@ export function CampusMap() {
     const map = new maplibregl.Map({
       container: mapContainerRef.current!,
       style: OSM_STYLE,
-      center: [122.0922, 11.8195],
-      zoom: 17,
+      center,
+      zoom,
+      interactive,
     })
     map.on('load', () => {
       if (!mounted) return
       addSourceAndLayer(map)
       readyRef.current = true
       syncBuildings(map, buildings)
+      onMapLoaded?.(map)
     })
     mapRef.current = map
     return () => {

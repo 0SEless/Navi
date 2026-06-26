@@ -10,6 +10,7 @@ type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error'
 
 interface GraphState {
   graph: Graph
+  currentMapId: string | null
   syncStatus: SyncStatus
   syncError: string | null
 
@@ -22,6 +23,7 @@ interface GraphState {
   updateEdge: (id: string, partial: Partial<NavEdge>) => void
 
   addBuilding: (building: Building) => void
+  updateBuilding: (id: string, partial: Partial<Building>) => void
   removeBuilding: (id: string) => void
 
   addComponent: (component: Component) => void
@@ -34,16 +36,21 @@ interface GraphState {
   setEdges: (edges: NavEdge[]) => void
   setBuildings: (buildings: Building[]) => void
 
+  loadMapData: (mapId: string) => void
   save: () => void
-  load: () => void
   reset: () => void
 
   syncToSupabase: () => Promise<void>
   fetchFromSupabase: () => Promise<void>
 }
 
+function storageKey(mapId: string): string {
+  return mapId ? `navi-graph-${mapId}` : STORAGE_KEY
+}
+
 export const useGraphStore = create<GraphState>((set, get) => ({
   graph: new Graph(),
+  currentMapId: null,
   syncStatus: 'idle',
   syncError: null,
 
@@ -79,6 +86,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   addBuilding: (building) => {
     get().graph.addBuilding(building)
+    set({})
+  },
+
+  updateBuilding: (id, partial) => {
+    get().graph.updateBuilding(id, partial)
     set({})
   },
 
@@ -157,12 +169,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
-  save: () => {
-    if (typeof window === 'undefined') return
-    const json = get().graph.toJSON()
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(json))
-  },
-
   load: () => {
     if (typeof window === 'undefined') return
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -175,14 +181,39 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         // ignore corrupt data
       }
     }
-    // Attempt Supabase fetch in background — does not block UI
     get().fetchFromSupabase()
+  },
+
+  loadMapData: (mapId: string) => {
+    if (typeof window === 'undefined') return
+    const key = storageKey(mapId)
+    const raw = localStorage.getItem(key)
+    let graph = new Graph()
+    if (raw) {
+      try {
+        const snapshot = JSON.parse(raw)
+        graph = Graph.fromJSON(snapshot)
+      } catch {
+        // ignore corrupt data
+      }
+    }
+    set({ graph, currentMapId: mapId })
+  },
+
+  save: () => {
+    if (typeof window === 'undefined') return
+    const mapId = get().currentMapId
+    const key = mapId ? storageKey(mapId) : STORAGE_KEY
+    const json = get().graph.toJSON()
+    localStorage.setItem(key, JSON.stringify(json))
   },
 
   reset: () => {
     if (typeof window === 'undefined') return
-    localStorage.removeItem(STORAGE_KEY)
-    set({ graph: new Graph(), syncStatus: 'idle', syncError: null })
+    const mapId = get().currentMapId
+    const key = mapId ? storageKey(mapId) : STORAGE_KEY
+    localStorage.removeItem(key)
+    set({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
   },
 
   syncToSupabase: async () => {

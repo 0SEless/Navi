@@ -35,6 +35,8 @@ export interface Building {
   center: LatLng;
   baseElevation: number;
   height: number;
+  color?: string;
+  category?: string;
 }
 
 export interface FloorInfo {

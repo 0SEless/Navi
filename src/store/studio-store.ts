@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 import type { StudioTool, EditorMode, LayerVisibility } from '../types/studio-types'
+import type { LatLng } from '../types/nav-types'
+
+type PendingType = 'building' | 'boundary' | 'trace' | null
+
+interface PendingConfirm {
+  type: NonNullable<PendingType>
+  points: { lat: number; lng: number }[]
+}
 
 interface StudioState {
   tool: StudioTool
@@ -19,11 +27,14 @@ interface StudioState {
   setTraceActive: (active: boolean) => void
   setTraceMode: (mode: 'hallway' | 'path') => void
 
-  // Tracing state
   tracePoints: { lat: number; lng: number }[]
   addTracePoint: (point: { lat: number; lng: number }) => void
   clearTracePoints: () => void
   undoLastTracePoint: () => void
+
+  pendingConfirm: PendingConfirm | null
+  setPendingConfirm: (type: PendingType, points: { lat: number; lng: number }[]) => void
+  clearPendingConfirm: () => void
 }
 
 const defaultLayers: LayerVisibility = {
@@ -72,4 +83,8 @@ export const useStudioStore = create<StudioState>((set) => ({
   undoLastTracePoint: () => set((s) => ({
     tracePoints: s.tracePoints.slice(0, -1),
   })),
+
+  pendingConfirm: null,
+  setPendingConfirm: (type, points) => set({ pendingConfirm: type ? { type, points } : null }),
+  clearPendingConfirm: () => set({ pendingConfirm: null }),
 }))

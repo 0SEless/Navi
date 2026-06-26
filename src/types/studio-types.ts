@@ -9,6 +9,11 @@ export type StudioTool =
   | 'qr'
   | 'pano'
   | 'route_test'
+  | 'boundary'
+  | 'building'
+  | 'wall'
+  | 'door'
+  | 'stairs'
 
 export type EditorMode = 'campus' | 'building' | 'floor'
 

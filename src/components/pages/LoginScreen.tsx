@@ -1,8 +1,10 @@
 import { Route } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { MOCK_USERS, isMockAuthEnabled } from "@/lib/mock-auth";
 
 export function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, mockLogin } = useAuth();
+  const mockEnabled = typeof window !== "undefined" && isMockAuthEnabled();
 
   return (
     <div style={{
@@ -74,6 +76,41 @@ export function LoginScreen() {
           </svg>
           Sign in with Google
         </button>
+
+        {mockEnabled && (
+          <div style={{ maxWidth: 340, marginTop: 20 }}>
+            <div style={{ fontSize: 11, color: "var(--navi-text-secondary)", marginBottom: 8, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Mock Auth (Dev Only)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {MOCK_USERS.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => mockLogin?.(u)}
+                  style={{
+                    textAlign: "left",
+                    background: "var(--navi-card)",
+                    border: "1px solid var(--navi-border)",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)" }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(37,99,235,0.1)", color: "var(--navi-primary)" }}>
+                    {u.role.replace("_", " ")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ maxWidth: 340, marginTop: 20, padding: "10px 14px", background: "var(--navi-primary-light)", borderRadius: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--navi-primary)" strokeWidth="2" style={{ marginTop: 1, flexShrink: 0 }}>

@@ -5,6 +5,7 @@ export const AuthContext = createContext<AuthState>({
   user: null,
   isAuthenticated: false,
   signInWithGoogle: async () => {},
+  mockLogin: async () => {},
   logout: async () => {},
 });
 

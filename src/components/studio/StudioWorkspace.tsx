@@ -1,19 +1,50 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useStudioStore } from '@/store/studio-store'
+import { useGraphStore } from '@/store/graph-store'
+import { LeftPanel } from './LeftPanel'
+import { RightPanel } from './RightPanel'
 import { StudioCanvas } from './StudioCanvas'
-import { StudioToolbar } from './StudioToolbar'
-import { LayersPanel } from './LayersPanel'
-import { PropertiesPanel } from './PropertiesPanel'
+import { FloorTabs } from './FloorTabs'
+import { ConfirmOverlay } from './ConfirmOverlay'
 
-export function StudioWorkspace() {
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--navi-content)' }}>
-      <StudioToolbar />
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <LayersPanel />
+interface StudioWorkspaceProps {
+  mapId: string
+}
+
+export function StudioWorkspace({ mapId }: StudioWorkspaceProps) {
+  const editorMode = useStudioStore((s) => s.editorMode)
+  const save = useGraphStore((s) => s.save)
+
+  useEffect(() => {
+    const interval = setInterval(() => save(), 30000)
+    return () => clearInterval(interval)
+  }, [save])
+
+  const mapContent = (
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <LeftPanel />
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <StudioCanvas />
-        <PropertiesPanel />
+        <ConfirmOverlay />
       </div>
+      <RightPanel />
+    </div>
+  )
+
+  if (editorMode === 'floor') {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <FloorTabs />
+        {mapContent}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {mapContent}
     </div>
   )
 }

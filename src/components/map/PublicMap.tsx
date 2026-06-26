@@ -6,9 +6,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
 import { RouteLine } from '@/components/map/RouteLine'
 import { QRScanner } from '@/components/map/QRScanner'
+import { SearchBar } from '@/components/search/SearchBar'
+import { BuildingInfo } from '@/components/directory/BuildingInfo'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { resolvePosition } from '@/engine/spatial-resolver'
-import type { LatLng, PathResult } from '@/types/nav-types'
+import type { LatLng, PathResult, Building } from '@/types/nav-types'
 
 const OSM_STYLE = {
   version: 8 as const,
@@ -23,7 +25,11 @@ const OSM_STYLE = {
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }
 
-export function PublicMap() {
+interface PublicMapProps {
+  campusId?: string
+}
+
+export function PublicMap({ campusId }: PublicMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
@@ -32,6 +38,7 @@ export function PublicMap() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [path, setPath] = useState<PathResult | null>(null)
+  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null)
 
   const getNodePosition = useCallback((nodeId: string) => {
     const node = graph.getNode(nodeId)
@@ -42,6 +49,8 @@ export function PublicMap() {
   const [userNodeId, setUserNodeId] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
+  const userNodeRef = useRef<string | null>(null)
+  const userMarkerRef = useRef<maplibregl.Marker | null>(null)
 
   const handleQrScan = useCallback((nodeId: string) => {
     setScanning(false)
@@ -52,9 +61,7 @@ export function PublicMap() {
       setUserNodeId(resolved.id)
       userNodeRef.current = resolved.id
     }
-  }, [graph, setFrom])
-  const userNodeRef = useRef<string | null>(null)
-  const userMarkerRef = useRef<maplibregl.Marker | null>(null)
+  }, [graph])
 
   // Resolve geolocation to nearest nav node
   useEffect(() => {
@@ -70,7 +77,7 @@ export function PublicMap() {
       userNodeRef.current = resolved.id
       if (!from) setFrom(resolved.id)
     }
-  }, [geo.latitude, geo.longitude, graph])
+  }, [geo.latitude, geo.longitude, graph, from])
 
   // Show/hide user location marker on the map
   useEffect(() => {
@@ -119,10 +126,10 @@ export function PublicMap() {
     const buildingFeatures = graph.buildings.map((b) => ({
       type: 'Feature' as const,
       id: b.id,
-      properties: { name: b.name, code: b.code },
+      properties: { name: b.name, code: b.id },
       geometry: {
         type: 'Polygon' as const,
-        coordinates: [b.outline?.map((p) => [p.lng, p.lat]) ?? []],
+        coordinates: [(b as any).outline?.map((p: LatLng) => [p.lng, p.lat]) ?? []],
       },
     }))
 
@@ -151,39 +158,62 @@ export function PublicMap() {
     } catch { /* map not ready yet */ }
   }, [mapInstance, graph])
 
+  // Building click detection
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const handler = (e: maplibregl.MapMouseEvent) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ['public-buildings-fill'] })
+      if (features.length > 0) {
+        const f = features[0]
+        const building = graph.buildings.find(
+          (b) => b.id === f.id || b.name === f.properties?.name
+        )
+        setSelectedBuilding(building ?? null)
+      }
+    }
+    map.on('click', 'public-buildings-fill', handler)
+    return () => { map.off('click', 'public-buildings-fill', handler) }
+  }, [mapInstance, graph])
+
   const handleRoute = useCallback(() => {
     if (!from || !to) return
     const result = graph.findPath(from, to)
     setPath(result)
   }, [graph, from, to])
 
-  const nodeOptions = graph.nodes
-    .filter((n) => n.type !== 'corner')
-    .map((n) => ({ id: n.id, name: n.name, type: n.type }))
+  const fromNode = from ? graph.getNode(from) : null
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: 10, background: 'var(--navi-card)', borderBottom: '1px solid var(--navi-border)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <select value={from} onChange={(e) => setFrom(e.target.value)}
-          style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11 }}>
-          <option value="">From...</option>
-          {nodeOptions.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
-        </select>
-        <select value={to} onChange={(e) => setTo(e.target.value)}
-          style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11 }}>
-          <option value="">To...</option>
-          {nodeOptions.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
-        </select>
+        {fromNode ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, fontSize: 11 }}>
+            <span style={{ color: 'var(--navi-text-secondary)' }}>From:</span>
+            <span style={{ color: 'var(--navi-text)', fontWeight: 500 }}>{fromNode.label || fromNode.id}</span>
+            <button onClick={() => { setFrom(''); setPath(null) }}
+              style={{ background: 'none', border: 'none', color: 'var(--navi-text-secondary)', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}>
+              &times;
+            </button>
+          </div>
+        ) : (
+          <SearchBar onSelect={(n) => setFrom(n.id)} placeholder="Set start..." />
+        )}
+
+        <SearchBar onSelect={(n) => setTo(n.id)} placeholder="Where to?" />
+
         <button onClick={handleRoute}
           style={{ padding: '5px 12px', background: 'var(--navi-primary)', border: 'none', borderRadius: 5, color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
           Route
         </button>
+
         <button onClick={() => setScanning(true)}
           style={{ padding: '5px 10px', background: scanning ? 'var(--navi-success)' : 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: scanning ? 'white' : 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-          {scanning ? 'Scanning...' : 'QR Scan'}
+          {scanning ? 'Scanning...' : 'QR'}
         </button>
+
         {geo.loading && <span style={{ color: 'var(--navi-text-secondary)', fontSize: 10 }}>locating...</span>}
-        {userNodeId && <span style={{ color: 'var(--navi-success)', fontSize: 10 }}>{userNodeId}</span>}
+        {userNodeId && fromNode && <span style={{ color: 'var(--navi-success)', fontSize: 10 }}>{fromNode.label || fromNode.id}</span>}
       </div>
 
       <div ref={mapContainerRef} style={{ flex: 1 }} />
@@ -192,7 +222,7 @@ export function PublicMap() {
 
       {path && (
         <div style={{ padding: 10, background: 'var(--navi-card)', borderTop: '1px solid var(--navi-border)', maxHeight: 180, overflowY: 'auto' }}>
-          <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>ROUTE ({Math.round(path.cost)}m)</div>
+          <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>ROUTE ({(path as any).cost ? Math.round((path as any).cost) : Math.round(path.totalDistance)}m)</div>
           {path.steps.map((step, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, padding: '2px 0', fontSize: 10, color: 'var(--navi-text)' }}>
               <span style={{ color: 'var(--navi-text-secondary)', minWidth: 14 }}>{i + 1}.</span>
@@ -202,6 +232,8 @@ export function PublicMap() {
           ))}
         </div>
       )}
+
+      <BuildingInfo building={selectedBuilding} onClose={() => setSelectedBuilding(null)} />
 
       {scanning && (
         <div style={{

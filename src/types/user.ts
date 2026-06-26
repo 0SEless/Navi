@@ -6,9 +6,12 @@ export interface User {
   campus_id: string | null;
 }
 
+import type { MockUser } from "@/lib/mock-auth";
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   signInWithGoogle: () => Promise<void>;
+  mockLogin?: (user: MockUser) => Promise<void>;
   logout: () => Promise<void>;
 }

@@ -7,6 +7,8 @@ import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import type { NavNode, NavEdge, LatLng, Building } from '@/types/nav-types'
 import type { Graph } from '@/engine/graph'
+import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
+import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
 
 const OSM_STYLE = {
   version: 8 as const,
@@ -33,6 +35,7 @@ const SRC = {
 const LYR = {
   BUILDINGS_FILL: 'studio-buildings-fill',
   BUILDINGS_OUTLINE: 'studio-buildings-outline',
+  BUILDINGS_EXTRUSION: 'studio-buildings-extrusion',
   EDGES: 'studio-edges',
   NODES: 'studio-nodes',
   NODES_INNER: 'studio-nodes-inner',
@@ -50,16 +53,18 @@ function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
     type: 'FeatureCollection',
     features: buildings.map((b) => ({
       type: 'Feature',
-      properties: { id: b.id, name: b.name },
+      properties: { id: b.id, name: b.name, color: b.color || '#1C6BEB', height: b.height || 15 },
       geometry: {
         type: 'Polygon',
-        coordinates: [[
-          [b.center.lng - 0.0003, b.center.lat - 0.0003],
-          [b.center.lng + 0.0003, b.center.lat - 0.0003],
-          [b.center.lng + 0.0003, b.center.lat + 0.0003],
-          [b.center.lng - 0.0003, b.center.lat + 0.0003],
-          [b.center.lng - 0.0003, b.center.lat - 0.0003],
-        ]],
+        coordinates: b.footprint.length >= 3
+          ? [[...b.footprint.map((p) => [p.lng, p.lat] as [number, number]), [b.footprint[0].lng, b.footprint[0].lat] as [number, number]]]
+          : [[
+              [b.center.lng - 0.0003, b.center.lat - 0.0003],
+              [b.center.lng + 0.0003, b.center.lat - 0.0003],
+              [b.center.lng + 0.0003, b.center.lat + 0.0003],
+              [b.center.lng - 0.0003, b.center.lat + 0.0003],
+              [b.center.lng - 0.0003, b.center.lat - 0.0003],
+            ]],
       },
     })),
   }
@@ -98,8 +103,9 @@ function buildEdgeGeo(edges: NavEdge[], nodes: NavNode[]): GeoJSON.FeatureCollec
 
 function addSourcesAndLayers(map: maplibregl.Map) {
   map.addSource(SRC.BUILDINGS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.BUILDINGS_FILL, type: 'fill', source: SRC.BUILDINGS, paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.12 } })
-  map.addLayer({ id: LYR.BUILDINGS_OUTLINE, type: 'line', source: SRC.BUILDINGS, paint: { 'line-color': '#1C6BEB', 'line-width': 2 } })
+  map.addLayer({ id: LYR.BUILDINGS_FILL, type: 'fill', source: SRC.BUILDINGS, paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.08 } })
+  map.addLayer({ id: LYR.BUILDINGS_EXTRUSION, type: 'fill-extrusion', source: SRC.BUILDINGS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.65, 'fill-extrusion-base': 0 } })
+  map.addLayer({ id: LYR.BUILDINGS_OUTLINE, type: 'line', source: SRC.BUILDINGS, paint: { 'line-color': ['get', 'color'], 'line-width': 2 } })
 
   map.addSource(SRC.EDGES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.EDGES, type: 'line', source: SRC.EDGES, paint: { 'line-color': '#475569', 'line-width': 2 } })
@@ -108,8 +114,8 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
 
   map.addSource(SRC.DRAWING, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-dasharray': [4, 4] } })
-  map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B' } })
+  map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.6 } })
+  map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-opacity': 0.7 } })
 
   map.addSource(SRC.ROOMS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
@@ -143,9 +149,9 @@ export function StudioCanvas() {
   const handlersSetupRef = useRef(false)
 
   const graph = useGraphStore((s) => s.graph)
-  const addTrace = useGraphStore((s) => s.addTrace)
   const addComponent = useGraphStore((s) => s.addComponent)
   const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
+  const addBuilding = useGraphStore((s) => s.addBuilding)
   const tool = useStudioStore((s) => s.tool)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const editorMode = useStudioStore((s) => s.editorMode)
@@ -153,6 +159,9 @@ export function StudioCanvas() {
   const tracePoints = useStudioStore((s) => s.tracePoints)
   const addTracePoint = useStudioStore((s) => s.addTracePoint)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
+  const setPendingConfirm = useStudioStore((s) => s.setPendingConfirm)
+  const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
+  const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
 
   const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
@@ -206,7 +215,14 @@ export function StudioCanvas() {
       if (curTool === 'select') {
         const features = map.queryRenderedFeatures(e.point)
         const hitNode = features.find((f) => f.layer.id === LYR.NODES)
-        setSelectedNode(hitNode?.properties?.id ?? null)
+        if (hitNode) { setSelectedNode(hitNode.properties?.id ?? null); return }
+        const hitBuilding = features.find((f) => f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL)
+        if (hitBuilding) {
+          const bid = hitBuilding.properties?.id
+          if (bid) setActiveBuilding(bid)
+          return
+        }
+        setSelectedNode(null)
         return
       }
     }
@@ -214,9 +230,7 @@ export function StudioCanvas() {
     const handleDblClick = () => {
       const curTool = toolRef.current
       if (curTool === 'trace' && tracePointsRef.current.length >= 2) {
-        const trace = { id: `T${Date.now()}`, floor: useStudioStore.getState().activeFloor, points: tracePointsRef.current, type: useStudioStore.getState().traceMode }
-        addTrace(trace)
-        clearTracePoints()
+        setPendingConfirm('trace', [...tracePointsRef.current])
       }
     }
 
@@ -283,12 +297,20 @@ export function StudioCanvas() {
     const map = mapRef.current
     if (!map) return
     const canvas = map.getCanvas()
-    if (tool === 'trace' || tool === 'room' || tool === 'asset') canvas.style.cursor = 'crosshair'
+    if (tool === 'trace' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = 'crosshair'
     else if (tool === 'select') canvas.style.cursor = 'pointer'
     else canvas.style.cursor = ''
-    if (tool === 'trace' || tool === 'room') map.dragPan.disable()
+    if (tool === 'trace' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
     else map.dragPan.enable()
   }, [tool])
+
+  useCampusBoundary(mapRef.current, (result: BoundaryPolygon) => {
+    setPendingConfirm('boundary', result.points)
+  })
+
+  useBuildingTracer(mapRef.current, (result: BuildingFootprint) => {
+    setPendingConfirm('building', result.points)
+  })
 
   useEffect(() => {
     const m = mapRef.current
@@ -300,6 +322,25 @@ export function StudioCanvas() {
       drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
       for (const p of tracePoints) {
         drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
+      }
+    }
+
+    if (pendingConfirm && pendingConfirm.points.length >= 2) {
+      const coords = pendingConfirm.points.map((p) => [p.lng, p.lat])
+      if (pendingConfirm.points.length >= 3) {
+        drawFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] },
+          properties: { pending: true },
+        })
+      }
+      drawFeatures.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: pendingConfirm.points.length >= 3 ? [...coords, coords[0]] : coords },
+        properties: { pending: true },
+      })
+      for (const p of pendingConfirm.points) {
+        drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { pending: true } })
       }
     }
 
@@ -316,7 +357,7 @@ export function StudioCanvas() {
       const src = m.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
       if (src) src.setData({ type: 'FeatureCollection', features: drawFeatures })
     } catch { /* source not ready */ }
-  }, [tracePoints, roomDrag, tool])
+  }, [tracePoints, roomDrag, tool, pendingConfirm])
 
   return <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 }

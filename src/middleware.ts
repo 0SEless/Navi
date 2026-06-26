@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { MOCK_COOKIE, decodeMockSession, isMockAuthEnabled } from "@/lib/mock-auth";
 
 const adminPrefixes = ["/dashboard", "/panoramas", "/qr", "/routes", "/dataset", "/studio"];
 
@@ -31,13 +32,17 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && isAdminRoute && !isLoginPage) {
+  const mockUser = !user && isMockAuthEnabled()
+    ? decodeMockSession(request.cookies.get(MOCK_COOKIE)?.value ?? "")
+    : null;
+
+  if (!user && !mockUser && isAdminRoute && !isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
+  if ((user || mockUser) && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

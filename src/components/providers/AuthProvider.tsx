@@ -3,6 +3,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { AuthContext } from "@/hooks/useAuth";
+import { decodeMockSession, isMockAuthEnabled, MOCK_COOKIE } from "@/lib/mock-auth";
 import type { User } from "@/types/user";
 
 function mapSupabaseUser(sbUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }): User {
@@ -13,6 +14,16 @@ function mapSupabaseUser(sbUser: { id: string; email?: string | null; user_metad
     role: (sbUser.user_metadata?.role as User["role"]) || "viewer",
     campus_id: (sbUser.user_metadata?.campus_id as string) || null,
   };
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function deleteCookie(name: string) {
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -37,6 +48,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         setUser(mapSupabaseUser(session.user));
         setIsAuthenticated(true);
+      } else if (isMockAuthEnabled()) {
+        const raw = getCookie(MOCK_COOKIE);
+        if (raw) {
+          const mockUser = decodeMockSession(raw);
+          if (mockUser) {
+            setUser(mockUser);
+            setIsAuthenticated(true);
+          }
+        }
       }
     });
 
@@ -52,14 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const mockLogin = async (mockUser: import("@/lib/mock-auth").MockUser) => {
+    const { encodeMockSession } = await import("@/lib/mock-auth");
+    const encoded = encodeMockSession(mockUser);
+    document.cookie = `${MOCK_COOKIE}=${encoded}; path=/; max-age=86400; SameSite=Lax`;
+    setUser(mockUser);
+    setIsAuthenticated(true);
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
+    deleteCookie(MOCK_COOKIE);
     setUser(null);
     setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, signInWithGoogle, mockLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

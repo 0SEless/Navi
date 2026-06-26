@@ -1,6 +1,6 @@
 'use client'
 
-import { MousePointer2, Move, Pencil, Square, Package, Route } from 'lucide-react'
+import { MousePointer2, Move, Pencil, Square, Package, Route, MapPin } from 'lucide-react'
 import { useStudioStore } from '@/store/studio-store'
 import type { StudioTool } from '@/types/studio-types'
 
@@ -11,6 +11,7 @@ const TOOL_CONFIG: { tool: StudioTool; icon: typeof MousePointer2; label: string
   { tool: 'room', icon: Square, label: 'Room', color: '#10B981' },
   { tool: 'asset', icon: Package, label: 'Asset', color: '#8B5CF6' },
   { tool: 'route_test', icon: Route, label: 'Route', color: '#06B6D4' },
+  { tool: 'boundary', icon: MapPin, label: 'Boundary', color: '#F97316' },
 ]
 
 const FLOORS = [
