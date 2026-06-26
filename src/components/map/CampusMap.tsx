@@ -34,7 +34,9 @@ function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: buildings.map((b) => {
-      const center = b.center ?? CAMPUS_CENTER
+      const center = b.footprint.length >= 3
+        ? b.footprint.reduce((a, p) => ({ lat: a.lat + p.lat / b.footprint.length, lng: a.lng + p.lng / b.footprint.length }), { lat: 0, lng: 0 })
+        : CAMPUS_CENTER
       return {
         type: 'Feature',
         properties: {
