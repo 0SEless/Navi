@@ -32,11 +32,9 @@ export interface Building {
   campusId: string;
   floors: number[];
   footprint: LatLng[];
-  center: LatLng;
+  center?: LatLng;
   baseElevation: number;
   height: number;
-  color?: string;
-  category?: string;
 }
 
 export interface FloorInfo {
