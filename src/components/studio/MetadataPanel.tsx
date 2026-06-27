@@ -16,7 +16,6 @@ export function MetadataPanel() {
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
   const graph = useGraphStore((s) => s.graph)
   const buildings = graph.buildings
-</parameter=filePath>
   const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const save = useGraphStore((s) => s.save)
   const setEditorMode = useStudioStore((s) => s.setEditorMode)
