@@ -74,7 +74,7 @@ function clearBoundaryDrawing(map: maplibregl.Map) {
   try {
     const src = map.getSource(BOUNDARY_SOURCE) as maplibregl.GeoJSONSource
     if (src) src.setData(EMPTY_FC)
-  } catch { /* source not ready */ }
+  } catch { console.warn('[CampusBoundary] clear source not ready') }
 }
 
 export function useCampusBoundary(

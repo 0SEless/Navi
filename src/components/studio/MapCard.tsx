@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { Plus, MoreVertical, Building2, MapPin, Route, Trash2, Eye, Pencil } from 'lucide-react'
 import type { CampusMap } from '@/types/campus-map'
 
@@ -12,6 +13,19 @@ interface MapCardProps {
 }
 
 export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
   return (
     <div style={{
       background: 'var(--navi-card)',
@@ -61,13 +75,9 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProp
             </div>
           </div>
           <div style={{ position: 'absolute', top: 8, right: 8 }}>
-            <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+            <div ref={menuRef} style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const menu = e.currentTarget.parentElement?.querySelector('[data-menu]') as HTMLElement
-                  if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block'
-                }}
+                onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
                 style={{
                   background: 'rgba(0,0,0,0.3)',
                   border: 'none',
@@ -83,49 +93,50 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProp
               >
                 <MoreVertical size={14} />
               </button>
-              <div data-menu
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: 32,
-                  right: 0,
-                  background: 'var(--navi-card)',
-                  border: '1px solid var(--navi-border)',
-                  borderRadius: 8,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                  zIndex: 10,
-                  minWidth: 140,
-                  overflow: 'hidden',
-                }}
-              >
-                {[
-                  { label: 'Preview', icon: Eye, action: () => onView?.(map.id) },
-                  { label: 'Edit', icon: Pencil, action: () => onEdit?.(map.id) },
-                  { label: 'Delete', icon: Trash2, action: () => onDelete?.(map.id) },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={(e) => { e.stopPropagation(); item.action(); }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      color: item.label === 'Delete' ? '#EF4444' : 'var(--navi-text)',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--navi-content)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
-                  >
-                    <item.icon size={13} />
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              {menuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 32,
+                    right: 0,
+                    background: 'var(--navi-card)',
+                    border: '1px solid var(--navi-border)',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    zIndex: 10,
+                    minWidth: 140,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {[
+                    { label: 'Preview', icon: Eye, action: () => { setMenuOpen(false); onView?.(map.id) } },
+                    { label: 'Edit', icon: Pencil, action: () => { setMenuOpen(false); onEdit?.(map.id) } },
+                    { label: 'Delete', icon: Trash2, action: () => { setMenuOpen(false); onDelete?.(map.id) } },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={(e) => { e.stopPropagation(); item.action(); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: item.label === 'Delete' ? '#EF4444' : 'var(--navi-text)',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--navi-content)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
+                    >
+                      <item.icon size={13} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </>

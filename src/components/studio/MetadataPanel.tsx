@@ -45,7 +45,7 @@ function MetadataForm({
   const [editing, setEditing] = useState(false)
   const [recentColors] = useState<string[]>(['#1C6BEB', '#7C3AED'])
   const [name, setName] = useState(building.name)
-  const [code, setCode] = useState(building.id.slice(-6).toUpperCase())
+  const [code, setCode] = useState(building.code || '')
   const [dept, setDept] = useState(building.department || '')
   const [category, setCategory] = useState(building.category || '')
   const [floors, setFloors] = useState(building.floors.length)

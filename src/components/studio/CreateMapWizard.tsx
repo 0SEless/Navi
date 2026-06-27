@@ -155,8 +155,8 @@ export function CreateMapWizard() {
     setSearching(true)
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=ph`,
-        { headers: { 'Accept-Language': 'en' } }
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'NAVI/1.0 (campus navigation)' } }
       )
       const data: NominatimResult[] = await res.json()
       setSearchResults(data)

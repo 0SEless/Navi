@@ -62,7 +62,7 @@ export const useStudioStore = create<StudioState>((set) => ({
 
   setTool: (tool) => set({ tool }),
   setEditorMode: (mode) => set({ editorMode: mode }),
-  setActiveBuilding: (id) => set({ activeBuildingId: id, activeFloor: 0 }),
+  setActiveBuilding: (id) => set((s) => ({ activeBuildingId: id, activeFloor: id === s.activeBuildingId ? s.activeFloor : 0 })),
   setActiveFloor: (floor) => set({ activeFloor: floor }),
   toggleLayer: (layer) => set((s) => ({
     layers: { ...s.layers, [layer]: !s.layers[layer] },
@@ -72,7 +72,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   })),
   setTraceActive: (active) => set({
     isTraceActive: active,
-    tracePoints: active ? [] : [],
+    tracePoints: [],
   }),
   setTraceMode: (mode) => set({ traceMode: mode }),
 

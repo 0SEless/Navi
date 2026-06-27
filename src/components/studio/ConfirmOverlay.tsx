@@ -44,7 +44,7 @@ export function ConfirmOverlay() {
       saveGraph()
       if (currentMapId) {
         updateMapStats(currentMapId, {
-          buildings: graph.buildingCount,
+          buildings: graph.buildingCount + 1,
           nodes: graph.nodeCount,
           edges: graph.edgeCount,
         })

@@ -71,14 +71,14 @@ function renderTracerDrawing(map: maplibregl.Map, points: LatLng[]) {
   try {
     const src = map.getSource(TRACER_SOURCE) as maplibregl.GeoJSONSource
     if (src) src.setData({ type: 'FeatureCollection', features })
-  } catch { /* source not ready */ }
+  } catch { console.warn('[BuildingTracer] render source not ready') }
 }
 
 function clearTracerDrawing(map: maplibregl.Map) {
   try {
     const src = map.getSource(TRACER_SOURCE) as maplibregl.GeoJSONSource
     if (src) src.setData(EMPTY_FC)
-  } catch { /* source not ready */ }
+  } catch { console.warn('[BuildingTracer] clear source not ready') }
 }
 
 export function useBuildingTracer(

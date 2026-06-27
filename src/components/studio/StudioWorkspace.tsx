@@ -11,9 +11,10 @@ import { ConfirmOverlay } from './ConfirmOverlay'
 
 interface StudioWorkspaceProps {
   mapId: string
+  center?: { lat: number; lng: number }
 }
 
-export function StudioWorkspace({ mapId }: StudioWorkspaceProps) {
+export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
   const editorMode = useStudioStore((s) => s.editorMode)
   const save = useGraphStore((s) => s.save)
 
@@ -28,7 +29,7 @@ export function StudioWorkspace({ mapId }: StudioWorkspaceProps) {
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <LeftPanel />
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <StudioCanvas />
+        <StudioCanvas center={center} />
         <ConfirmOverlay />
       </div>
       <RightPanel />

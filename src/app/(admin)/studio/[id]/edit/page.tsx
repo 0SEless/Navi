@@ -23,5 +23,5 @@ export default function EditPage({ params }: { params: Promise<{ id: string }> }
     )
   }
 
-  return <StudioWorkspace mapId={id} />
+  return <StudioWorkspace mapId={id} center={campusMap.center} />
 }

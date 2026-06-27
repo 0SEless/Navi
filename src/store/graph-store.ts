@@ -174,7 +174,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
-  load: () => {
+  load: async () => {
     if (typeof window === 'undefined') return
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -186,7 +186,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         // ignore corrupt data
       }
     }
-    get().fetchFromSupabase()
+    // await get().fetchFromSupabase() // disabled until Supabase env vars configured in Vercel
   },
 
   loadMapData: (mapId: string) => {
@@ -237,10 +237,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
       localStorage.setItem(SYNC_STATUS_KEY, JSON.stringify({ syncedAt: new Date().toISOString() }))
       set({ syncStatus: 'synced' })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Sync failed'
-      set({ syncStatus: 'error', syncError: msg })
-    }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Sync failed'
+        console.warn('[graph-store] syncToSupabase failed:', msg)
+        set({ syncStatus: 'error', syncError: msg })
+      }
   },
 
   fetchFromSupabase: async () => {
@@ -256,7 +257,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
       const graph = Graph.fromJSON(data as GraphSnapshot)
       set({ graph, syncStatus: 'synced' })
-    } catch {
+    } catch (e) {
+      console.warn('[graph-store] fetchFromSupabase failed:', e)
       set({ syncStatus: 'idle' })
     }
   },

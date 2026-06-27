@@ -57,7 +57,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
     get().save()
   },
 
-  deleteMap: (id) => {
+    deleteMap: (id) => {
     set((s) => ({
       maps: s.maps.filter((m) => m.id !== id),
       selectedMapId: s.selectedMapId === id ? null : s.selectedMapId,
@@ -65,7 +65,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
       landmarkInstances: s.landmarkInstances.filter((i) => i.mapId !== id),
     }))
     get().save()
-    get().deleteFromSupabase(id)
+    // get().deleteFromSupabase(id) // disabled until Supabase env vars configured in Vercel
   },
 
   getMap: (id) => get().maps.find((m) => m.id === id),
@@ -126,7 +126,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...map, landmarkTypes: types, landmarkInstances: instances }),
         })
-      } catch { /* silently retry next time */ }
+      } catch (e) { console.warn('[campus-map-store] syncToSupabase failed:', e) }
     }
   },
 
@@ -150,14 +150,14 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
         if (m.landmarkInstances) landmarkInstances.push(...m.landmarkInstances)
       }
       set({ maps, landmarkTypes, landmarkInstances })
-    } catch { /* offline */ }
+    } catch (e) { console.warn('[campus-map-store] fetchFromSupabase failed:', e) }
   },
 
   deleteFromSupabase: async (mapId) => {
     if (typeof window === 'undefined') return
     try {
       await fetch(`/api/campus-maps?map_id=${encodeURIComponent(mapId)}`, { method: 'DELETE' })
-    } catch { /* offline */ }
+    } catch (e) { console.warn('[campus-map-store] deleteFromSupabase failed:', e) }
   },
 
   load: () => {
@@ -173,14 +173,14 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
         })
       }
     } catch { /* corrupt */ }
-    get().fetchFromSupabase()
+    // get().fetchFromSupabase() // disabled until Supabase env vars configured in Vercel
   },
 
   save: () => {
     if (typeof window === 'undefined') return
     const { maps, landmarkTypes, landmarkInstances } = get()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ maps, landmarkTypes, landmarkInstances }))
-    get().syncToSupabase()
+    // get().syncToSupabase() // disabled until Supabase env vars configured in Vercel
   },
 
   reset: () => {

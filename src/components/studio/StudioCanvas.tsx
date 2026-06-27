@@ -163,14 +163,18 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     if (buildingSrc) buildingSrc.setData(buildingGeo)
     if (nodeSrc) nodeSrc.setData(nodeGeo)
     if (edgeSrc) edgeSrc.setData(edgeGeo)
-  } catch { /* source not ready */ }
+  } catch { console.warn('[StudioCanvas] source not ready') }
 }
 
-export function StudioCanvas() {
+interface StudioCanvasProps {
+  center?: { lat: number; lng: number }
+}
+
+export function StudioCanvas({ center }: StudioCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const readyRef = useRef(false)
-  const handlersSetupRef = useRef(false)
+  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
 
   const graph = useGraphStore((s) => s.graph)
   const addComponent = useGraphStore((s) => s.addComponent)
@@ -187,6 +191,7 @@ export function StudioCanvas() {
   const setPendingConfirm = useStudioStore((s) => s.setPendingConfirm)
   const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
+  const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
 
   const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
@@ -195,23 +200,29 @@ export function StudioCanvas() {
   const toolRef = useRef(tool)
   const tracePointsRef = useRef(tracePoints)
   const graphRef = useRef(graph)
+  const activeFloorRef = useRef(activeFloor)
+  const selectedNodeRef = useRef(selectedNode)
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
   useEffect(() => { graphRef.current = graph }, [graph])
+  useEffect(() => { activeFloorRef.current = activeFloor }, [activeFloor])
+  useEffect(() => { selectedNodeRef.current = selectedNode }, [selectedNode])
 
 useEffect(() => {
     if (mapRef.current) return
     let mounted = true
+    const c = center ?? { lat: 11.8195, lng: 122.0922 }
     const map = new maplibregl.Map({
       container: mapContainerRef.current!,
       style: getInitialStyle(),
-      center: [122.0922, 11.8195],
+      center: [c.lng, c.lat],
       zoom: 17,
     })
     map.on('load', () => {
       if (!mounted) return
       addSourcesAndLayers(map)
       readyRef.current = true
+      setMapInstance(map)
       syncAllData(map, graph, activeFloor)
     })
     map.on('error', (e) => {
@@ -222,12 +233,13 @@ useEffect(() => {
         map.once('style.load', () => {
           addSourcesAndLayers(map)
           readyRef.current = true
+          setMapInstance(map)
           syncAllData(map, graph, activeFloor)
         })
       }
     })
     mapRef.current = map
-    return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false }
+    return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false; setMapInstance(null) }
   }, [])
 
   useEffect(() => {
@@ -238,15 +250,14 @@ useEffect(() => {
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || handlersSetupRef.current) return
-    handlersSetupRef.current = true
+    if (!map) return
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       const curTool = toolRef.current
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
       if (curTool === 'trace') { addTracePoint(pos); return }
       if (curTool === 'asset') {
-        addComponent({ id: `comp-${Date.now()}`, type: 'stair', name: 'Asset', buildingId: '', floor: activeFloor, position: pos })
+        addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingId ?? '', floor: activeFloorRef.current, position: pos })
         return
       }
       if (curTool === 'select') {
@@ -299,7 +310,7 @@ useEffect(() => {
           { lat: Math.max(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
         ]
         const center = { lat: (start.lat + end.lat) / 2, lng: (start.lng + end.lng) / 2 }
-        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: '', floor: activeFloor, position: center, polygon })
+        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: activeBuildingId ?? '', floor: activeFloorRef.current, position: center, polygon })
         dragStart = null
         setRoomDrag(null)
       }
@@ -307,8 +318,8 @@ useEffect(() => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { clearTracePoints(); setRoomDrag(null) }
-      if (e.key === 'Delete' && selectedNode) {
-        graphRef.current.removeNode(selectedNode)
+      if (e.key === 'Delete' && selectedNodeRef.current) {
+        graphRef.current.removeNode(selectedNodeRef.current)
         setSelectedNode(null)
       }
     }
@@ -328,7 +339,7 @@ useEffect(() => {
       map.off('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [activeFloor, addTrace, addComponent, addComponentWithPolygon, addTracePoint, clearTracePoints, setPendingConfirm, setActiveBuilding, selectedNode])
+  }, [])
 
   useEffect(() => {
     const map = mapRef.current
@@ -341,11 +352,11 @@ useEffect(() => {
     else map.dragPan.enable()
   }, [tool])
 
-  useCampusBoundary(mapRef.current, (result: BoundaryPolygon) => {
+  useCampusBoundary(mapInstance, (result: BoundaryPolygon) => {
     setPendingConfirm('boundary', result.points)
   })
 
-  useBuildingTracer(mapRef.current, (result: BuildingFootprint) => {
+  useBuildingTracer(mapInstance, (result: BuildingFootprint) => {
     setPendingConfirm('building', result.points)
   })
 
