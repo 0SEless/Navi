@@ -13,6 +13,7 @@ export function ConfirmOverlay() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const activeFloor = useStudioStore((s) => s.activeFloor)
+  const traceMode = useStudioStore((s) => s.traceMode)
   const addBuilding = useGraphStore((s) => s.addBuilding)
   const addTrace = useGraphStore((s) => s.addTrace)
   const graph = useGraphStore((s) => s.graph)
@@ -57,7 +58,7 @@ export function ConfirmOverlay() {
         id: `T${Date.now()}`,
         floor: activeFloor,
         points: pendingConfirm.points,
-        type: 'hallway',
+        type: traceMode,
       })
       saveGraph()
       clearTracePoints()
@@ -75,7 +76,7 @@ export function ConfirmOverlay() {
 
   const labels: Record<string, string> = {
     building: 'Building footprint',
-    trace: 'Trace path',
+    trace: traceMode === 'path' ? 'Path route' : 'Trace path',
     boundary: 'Boundary',
   }
 

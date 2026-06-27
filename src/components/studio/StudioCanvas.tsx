@@ -223,7 +223,7 @@ useEffect(() => {
       addSourcesAndLayers(map)
       readyRef.current = true
       setMapInstance(map)
-      syncAllData(map, graph, activeFloor)
+      syncAllData(map, graphRef.current, activeFloorRef.current)
     })
     map.on('error', (e) => {
       console.error('[StudioCanvas] Map error:', e)
@@ -234,7 +234,7 @@ useEffect(() => {
           addSourcesAndLayers(map)
           readyRef.current = true
           setMapInstance(map)
-          syncAllData(map, graph, activeFloor)
+          syncAllData(map, graphRef.current, activeFloorRef.current)
         })
       }
     })
@@ -255,7 +255,7 @@ useEffect(() => {
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       const curTool = toolRef.current
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-      if (curTool === 'trace') { addTracePoint(pos); return }
+      if (curTool === 'trace' || curTool === 'route_test') { addTracePoint(pos); return }
       if (curTool === 'asset') {
         addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingId ?? '', floor: activeFloorRef.current, position: pos })
         return
@@ -277,7 +277,7 @@ useEffect(() => {
 
     const handleDblClick = () => {
       const curTool = toolRef.current
-      if (curTool === 'trace' && tracePointsRef.current.length >= 2) {
+      if ((curTool === 'trace' || curTool === 'route_test') && tracePointsRef.current.length >= 2) {
         setPendingConfirm('trace', [...tracePointsRef.current])
       }
     }
@@ -345,10 +345,10 @@ useEffect(() => {
     const map = mapRef.current
     if (!map) return
     const canvas = map.getCanvas()
-    if (tool === 'trace' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = 'crosshair'
+    if (tool === 'trace' || tool === 'route_test' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = 'crosshair'
     else if (tool === 'select') canvas.style.cursor = 'pointer'
     else canvas.style.cursor = ''
-    if (tool === 'trace' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
+    if (tool === 'trace' || tool === 'route_test' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
     else map.dragPan.enable()
   }, [tool])
 
@@ -365,7 +365,7 @@ useEffect(() => {
     if (!m || !readyRef.current) return
     const drawFeatures: GeoJSON.Feature[] = []
 
-    if (tracePoints.length > 0 && tool === 'trace') {
+    if (tracePoints.length > 0 && (tool === 'trace' || tool === 'route_test')) {
       const coords = tracePoints.map((p) => [p.lng, p.lat])
       drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
       for (const p of tracePoints) {
