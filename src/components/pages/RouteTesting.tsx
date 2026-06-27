@@ -21,22 +21,22 @@ function calcDistance(a: { lat: number; lng: number }, b: { lat: number; lng: nu
 }
 
 const MOCK_NODES: NavNode[] = [
-  { id: "N001", name: "Admin Entrance", type: "building_entrance", buildingId: "admin", floor: 1, position: { lat: 11.81835, lng: 122.1705 }, hasQr: true, hasPanorama: true },
-  { id: "N002", name: "Library Entrance", type: "building_entrance", buildingId: "lib", floor: 1, position: { lat: 11.81845, lng: 122.17105 }, hasQr: true, hasPanorama: true },
-  { id: "N003", name: "Science Lab Entrance", type: "building_entrance", buildingId: "sci", floor: 1, position: { lat: 11.81775, lng: 122.1703 }, hasQr: false, hasPanorama: false },
-  { id: "N004", name: "CAS Entrance", type: "building_entrance", buildingId: "cas", floor: 1, position: { lat: 11.8175, lng: 122.1705 }, hasQr: true, hasPanorama: false },
-  { id: "N005", name: "COE Entrance", type: "building_entrance", buildingId: "coe", floor: 1, position: { lat: 11.81705, lng: 122.1705 }, hasQr: true, hasPanorama: true },
-  { id: "N006", name: "Gymnasium Entrance", type: "building_entrance", buildingId: "gym", floor: 1, position: { lat: 11.8172, lng: 122.1715 }, hasQr: false, hasPanorama: false },
-  { id: "N007", name: "Student Center Entrance", type: "building_entrance", buildingId: "sc", floor: 1, position: { lat: 11.8170, lng: 122.1720 }, hasQr: true, hasPanorama: true },
-  { id: "N008", name: "Chapel Entrance", type: "building_entrance", buildingId: "chapel", floor: 1, position: { lat: 11.8177, lng: 122.1715 }, hasQr: false, hasPanorama: false },
-  { id: "N009", name: "NW Junction", type: "intersection", buildingId: undefined, floor: 0, position: { lat: 11.8180, lng: 122.1704 }, hasQr: false, hasPanorama: false },
-  { id: "N010", name: "NE Junction", type: "intersection", buildingId: undefined, floor: 0, position: { lat: 11.8180, lng: 122.1710 }, hasQr: false, hasPanorama: false },
-  { id: "N011", name: "Main Plaza", type: "intersection", buildingId: undefined, floor: 0, position: { lat: 11.8177, lng: 122.1708 }, hasQr: true, hasPanorama: true },
-  { id: "N012", name: "SW Junction", type: "intersection", buildingId: undefined, floor: 0, position: { lat: 11.8173, lng: 122.1705 }, hasQr: false, hasPanorama: false },
-  { id: "N013", name: "SE Junction", type: "intersection", buildingId: undefined, floor: 0, position: { lat: 11.8173, lng: 122.1712 }, hasQr: false, hasPanorama: false },
-  { id: "N014", name: "South Gate", type: "outdoor", buildingId: undefined, floor: 0, position: { lat: 11.8167, lng: 122.1708 }, hasQr: true, hasPanorama: false },
-  { id: "N015", name: "West Entry", type: "outdoor", buildingId: undefined, floor: 0, position: { lat: 11.8180, lng: 122.1700 }, hasQr: false, hasPanorama: false },
-  { id: "N016", name: "Tourism Building Entrance", type: "building_entrance", buildingId: "tourism", floor: 1, position: { lat: 11.818639, lng: 122.172651 }, hasQr: true, hasPanorama: false },
+  { id: "N001", label: "Admin Entrance", name: "Admin Entrance", type: "building_entrance", buildingId: "admin", campusId: "asu-ibajay", floor: 1, position: { lat: 11.81835, lng: 122.1705 }, hasQr: true, hasPanorama: true },
+  { id: "N002", label: "Library Entrance", name: "Library Entrance", type: "building_entrance", buildingId: "lib", campusId: "asu-ibajay", floor: 1, position: { lat: 11.81845, lng: 122.17105 }, hasQr: true, hasPanorama: true },
+  { id: "N003", label: "Science Lab Entrance", name: "Science Lab Entrance", type: "building_entrance", buildingId: "sci", campusId: "asu-ibajay", floor: 1, position: { lat: 11.81775, lng: 122.1703 }, hasQr: false, hasPanorama: false },
+  { id: "N004", label: "CAS Entrance", name: "CAS Entrance", type: "building_entrance", buildingId: "cas", campusId: "asu-ibajay", floor: 1, position: { lat: 11.8175, lng: 122.1705 }, hasQr: true, hasPanorama: false },
+  { id: "N005", label: "COE Entrance", name: "COE Entrance", type: "building_entrance", buildingId: "coe", campusId: "asu-ibajay", floor: 1, position: { lat: 11.81705, lng: 122.1705 }, hasQr: true, hasPanorama: true },
+  { id: "N006", label: "Gymnasium Entrance", name: "Gymnasium Entrance", type: "building_entrance", buildingId: "gym", campusId: "asu-ibajay", floor: 1, position: { lat: 11.8172, lng: 122.1715 }, hasQr: false, hasPanorama: false },
+  { id: "N007", label: "Student Center Entrance", name: "Student Center Entrance", type: "building_entrance", buildingId: "sc", campusId: "asu-ibajay", floor: 1, position: { lat: 11.8170, lng: 122.1720 }, hasQr: true, hasPanorama: true },
+  { id: "N008", label: "Chapel Entrance", name: "Chapel Entrance", type: "building_entrance", buildingId: "chapel", campusId: "asu-ibajay", floor: 1, position: { lat: 11.8177, lng: 122.1715 }, hasQr: false, hasPanorama: false },
+  { id: "N009", label: "NW Junction", name: "NW Junction", type: "intersection", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8180, lng: 122.1704 }, hasQr: false, hasPanorama: false },
+  { id: "N010", label: "NE Junction", name: "NE Junction", type: "intersection", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8180, lng: 122.1710 }, hasQr: false, hasPanorama: false },
+  { id: "N011", label: "Main Plaza", name: "Main Plaza", type: "intersection", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8177, lng: 122.1708 }, hasQr: true, hasPanorama: true },
+  { id: "N012", label: "SW Junction", name: "SW Junction", type: "intersection", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8173, lng: 122.1705 }, hasQr: false, hasPanorama: false },
+  { id: "N013", label: "SE Junction", name: "SE Junction", type: "intersection", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8173, lng: 122.1712 }, hasQr: false, hasPanorama: false },
+  { id: "N014", label: "South Gate", name: "South Gate", type: "outdoor", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8167, lng: 122.1708 }, hasQr: true, hasPanorama: false },
+  { id: "N015", label: "West Entry", name: "West Entry", type: "outdoor", buildingId: "", campusId: "asu-ibajay", floor: 0, position: { lat: 11.8180, lng: 122.1700 }, hasQr: false, hasPanorama: false },
+  { id: "N016", label: "Tourism Building Entrance", name: "Tourism Building Entrance", type: "building_entrance", buildingId: "tourism", campusId: "asu-ibajay", floor: 1, position: { lat: 11.818639, lng: 122.172651 }, hasQr: true, hasPanorama: false },
 ];
 
 const MOCK_EDGES: NavEdge[] = [
@@ -105,7 +105,7 @@ export function RouteTesting() {
   const animRef = useRef<number | null>(null);
 
   const toEngineNodes = (nodes: NavNode[]) =>
-    nodes.map((n) => ({ id: n.id, name: n.name, type: n.type, buildingId: n.buildingId ?? undefined, floor: n.floor, position: n.position, svgOffset: n.svgOffset, hasQr: n.hasQr, hasPanorama: n.hasPanorama }));
+    nodes.map((n) => ({ id: n.id, label: n.label, name: n.name, type: n.type, buildingId: n.buildingId, campusId: n.campusId, floor: n.floor, position: n.position, svgOffset: n.svgOffset, hasQr: n.hasQr, hasPanorama: n.hasPanorama }));
 
   const computeRoute = () => {
     setIsRunning(true); setAnimStep(-1); setRouteResult(null);
@@ -139,8 +139,8 @@ export function RouteTesting() {
     const node = MOCK_NODES.find((n) => n.id === nodeId)!;
     const prev = i > 0 ? MOCK_NODES.find((n) => n.id === routeResult!.path[i - 1]) : null;
     const dist = prev ? Math.round(calcDistance(prev.position, node.position)) : 0;
-    const instruction = i === 0 ? "Start here" : i === (routeResult?.path.length ?? 1) - 1 ? "Destination reached" : `Continue to ${node.name}`;
-    return { nodeId, nodeName: node.name, instruction, distance: dist };
+    const instruction = i === 0 ? "Start here" : i === (routeResult?.path.length ?? 1) - 1 ? "Destination reached" : `Continue to ${node.label}`;
+    return { nodeId, nodeName: node.label, instruction, distance: dist };
   });
 
   return (

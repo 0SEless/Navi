@@ -3,28 +3,28 @@ import { aStar, haversine, getAdjacencyList } from '../a-star'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 
 const origin: NavNode = {
-  id: 'N001', name: 'Origin', type: 'building_entrance',
-  floor: 0, position: { lat: 11.8195, lng: 122.0922 },
+  id: 'N001', label: 'Origin', name: 'Origin', type: 'building_entrance',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8195, lng: 122.0922 },
 }
 const mid1: NavNode = {
-  id: 'N002', name: 'Mid 1', type: 'intersection',
-  floor: 0, position: { lat: 11.8196, lng: 122.0923 },
+  id: 'N002', label: 'Mid 1', name: 'Mid 1', type: 'intersection',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8196, lng: 122.0923 },
 }
 const mid2: NavNode = {
-  id: 'N003', name: 'Mid 2', type: 'intersection',
-  floor: 0, position: { lat: 11.8197, lng: 122.0924 },
+  id: 'N003', label: 'Mid 2', name: 'Mid 2', type: 'intersection',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8197, lng: 122.0924 },
 }
 const dest: NavNode = {
-  id: 'N004', name: 'Destination', type: 'building_entrance',
-  floor: 0, position: { lat: 11.8198, lng: 122.0925 },
+  id: 'N004', label: 'Destination', name: 'Destination', type: 'building_entrance',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8198, lng: 122.0925 },
 }
 
 const nodes = [origin, mid1, mid2, dest]
 
 const edges: NavEdge[] = [
-  { id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15 },
-  { id: 'E002', from: 'N002', to: 'N003', type: 'walkway', distance: 20 },
-  { id: 'E003', from: 'N003', to: 'N004', type: 'walkway', distance: 15 },
+  { id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15, weight: 15, campusId: 'asu-ibajay' },
+  { id: 'E002', from: 'N002', to: 'N003', type: 'walkway', distance: 20, weight: 20, campusId: 'asu-ibajay' },
+  { id: 'E003', from: 'N003', to: 'N004', type: 'walkway', distance: 15, weight: 15, campusId: 'asu-ibajay' },
 ]
 
 describe('haversine', () => {
@@ -60,7 +60,7 @@ describe('aStar', () => {
 
   it('returns null when no path exists', () => {
     const isolated: NavEdge[] = [
-      { id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15 },
+      { id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15, weight: 15, campusId: 'asu-ibajay' },
     ]
     expect(aStar(nodes, isolated, 'N001', 'N004')).toBeNull()
   })

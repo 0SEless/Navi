@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type JSX } from 'react'
 import { Search, X } from 'lucide-react'
 import { useGraphStore } from '@/store/graph-store'
 import type { NavNode } from '@/types/nav-types'

@@ -3,25 +3,26 @@ import { Graph } from '../graph'
 import type { NavNode, NavEdge, Building, Component, TracePath } from '@/types/nav-types'
 
 const nodeA: NavNode = {
-  id: 'N001', name: 'Node A', type: 'intersection',
-  floor: 0, position: { lat: 11.8195, lng: 122.0922 },
+  id: 'N001', label: 'Node A', name: 'Node A', type: 'intersection',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8195, lng: 122.0922 },
 }
 const nodeB: NavNode = {
-  id: 'N002', name: 'Node B', type: 'intersection',
-  floor: 0, position: { lat: 11.8196, lng: 122.0923 },
+  id: 'N002', label: 'Node B', name: 'Node B', type: 'intersection',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8196, lng: 122.0923 },
 }
 const nodeC: NavNode = {
-  id: 'N003', name: 'Node C', type: 'room',
-  floor: 1, position: { lat: 11.8197, lng: 122.0924 },
+  id: 'N003', label: 'Node C', name: 'Node C', type: 'room',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.8197, lng: 122.0924 },
 }
 
 const edgeAB: NavEdge = {
-  id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 20,
+  id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 20, weight: 20, campusId: 'asu-ibajay',
 }
 
 const building: Building = {
   id: 'BLD01', name: 'Admin', description: 'Admin building',
-  center: { lat: 11.8195, lng: 122.0922 }, floors: 3,
+  campusId: 'asu-ibajay', center: { lat: 11.8195, lng: 122.0922 },
+  floors: [0, 1, 2], footprint: [{ lat: 11.8195, lng: 122.0922 }], baseElevation: 0, height: 10,
 }
 
 describe('Graph', () => {
@@ -106,7 +107,7 @@ describe('Graph', () => {
     expect(restored.buildings).toHaveLength(1)
     expect(restored.nodes).toHaveLength(2)
     expect(restored.edges).toHaveLength(1)
-    expect(restored.getNode('N001')?.name).toBe('Node A')
+    expect(restored.getNode('N001')?.label).toBe('Node A')
   })
 
   it('validates graph', () => {
@@ -170,9 +171,9 @@ describe('Graph trace operations', () => {
   })
 
   it('sets edges with new edge types', () => {
-    graph.addNode({ id: 'N001', name: 'A', type: 'intersection', floor: 0, position: { lat: 0, lng: 0 } })
-    graph.addNode({ id: 'N002', name: 'B', type: 'intersection', floor: 0, position: { lat: 0, lng: 1 } })
-    graph.addEdge({ id: 'E001', from: 'N001', to: 'N002', type: 'walk', distance: 100 })
+    graph.addNode({ id: 'N001', label: 'A', name: 'A', type: 'intersection', buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 0, lng: 0 } })
+    graph.addNode({ id: 'N002', label: 'B', name: 'B', type: 'intersection', buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0, position: { lat: 0, lng: 1 } })
+    graph.addEdge({ id: 'E001', from: 'N001', to: 'N002', type: 'walk', distance: 100, weight: 100, campusId: 'asu-ibajay' })
     const edge = graph.getEdge('E001')
     expect(edge?.type).toBe('walk')
   })

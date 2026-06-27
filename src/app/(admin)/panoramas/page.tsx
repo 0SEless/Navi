@@ -14,7 +14,7 @@ export default function PanoramaManagement() {
 
   const panoramaNodes = useMemo(() => {
     return graph.nodes.filter((n) => n.hasPanorama).filter((n) =>
-      !search || n.name.toLowerCase().includes(search.toLowerCase()) || n.id.toLowerCase().includes(search.toLowerCase())
+      !search || n.label.toLowerCase().includes(search.toLowerCase()) || n.id.toLowerCase().includes(search.toLowerCase())
     )
   }, [graph.nodes, search])
 
@@ -76,7 +76,7 @@ export default function PanoramaManagement() {
                 onMouseEnter={(e) => { (e.currentTarget.querySelector('.pano-overlay') as HTMLElement).style.opacity = '1' }}
                 onMouseLeave={(e) => { (e.currentTarget.querySelector('.pano-overlay') as HTMLElement).style.opacity = '0' }}
               >
-                <img src={panoramaUrl} alt={node.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={panoramaUrl} alt={node.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 <div className="pano-overlay" style={{
                   position: "absolute", inset: 0, background: "rgba(15,23,42,0.4)", opacity: 0,
                   display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity 0.2s",
@@ -87,7 +87,7 @@ export default function PanoramaManagement() {
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginBottom: 8 }}>
               <Camera size={14} color="var(--navi-primary)" />
-              <span style={{ color: "var(--navi-text)", fontSize: 13, fontWeight: 600, marginLeft: 4 }}>{node.name}</span>
+              <span style={{ color: "var(--navi-text)", fontSize: 13, fontWeight: 600, marginLeft: 4 }}>{node.label}</span>
               <span style={{ color: "var(--navi-text-secondary)", fontSize: 10, marginLeft: "auto" }}>{node.id}</span>
             </div>
             <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>

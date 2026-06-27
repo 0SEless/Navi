@@ -21,7 +21,7 @@ export default function QRManagement() {
 
   const qrNodes = useMemo(() => {
     return graph.nodes.filter((n) => n.hasQr).filter((n) =>
-      !search || n.name.toLowerCase().includes(search.toLowerCase()) || n.id.toLowerCase().includes(search.toLowerCase())
+      !search || n.label.toLowerCase().includes(search.toLowerCase()) || n.id.toLowerCase().includes(search.toLowerCase())
     )
   }, [graph.nodes, search])
 
@@ -85,7 +85,7 @@ export default function QRManagement() {
             ) : qrNodes.map((node) => (
               <tr key={node.id} style={{ borderBottom: "1px solid var(--navi-border)" }}>
                 <td style={{ padding: "10px", color: "var(--navi-primary)", fontSize: 12, fontWeight: 600 }}>{node.id}</td>
-                <td style={{ padding: "10px", color: "var(--navi-text)", fontSize: 12 }}>{node.name}</td>
+                <td style={{ padding: "10px", color: "var(--navi-text)", fontSize: 12 }}>{node.label}</td>
                 <td style={{ padding: "10px" }}>
                   <span style={{ background: "var(--navi-content)", borderRadius: 3, padding: "2px 6px", fontSize: 10, color: "var(--navi-text-secondary)" }}>{node.type.replace("_", " ")}</span>
                 </td>

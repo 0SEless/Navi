@@ -44,9 +44,9 @@ export function ConfirmOverlay() {
       saveGraph()
       if (currentMapId) {
         updateMapStats(currentMapId, {
-          buildings: graph._buildings.size,
-          nodes: graph._nodes.size,
-          edges: graph._edges.size,
+          buildings: graph.buildingCount,
+          nodes: graph.nodeCount,
+          edges: graph.edgeCount,
         })
       }
       setActiveBuilding(id)

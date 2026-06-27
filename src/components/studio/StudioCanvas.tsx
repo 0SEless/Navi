@@ -98,7 +98,7 @@ function buildNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollection {
     type: 'FeatureCollection',
     features: nodes.map((n) => ({
       type: 'Feature',
-      properties: { id: n.id, name: n.name, type: n.type },
+      properties: { id: n.id, label: n.label, type: n.type },
       geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
     })),
   }
@@ -125,6 +125,7 @@ function buildEdgeGeo(edges: NavEdge[], nodes: NavNode[]): GeoJSON.FeatureCollec
 }
 
 function addSourcesAndLayers(map: maplibregl.Map) {
+  if (map.getSource(SRC.BUILDINGS)) return
   map.addSource(SRC.BUILDINGS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.BUILDINGS_FILL, type: 'fill', source: SRC.BUILDINGS, paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.08 } })
   map.addLayer({ id: LYR.BUILDINGS_EXTRUSION, type: 'fill-extrusion', source: SRC.BUILDINGS, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.65, 'fill-extrusion-base': 0 } })
@@ -218,9 +219,11 @@ useEffect(() => {
       if (e.error?.message?.includes('Style is not done loading') || e.error?.message?.includes('style')) {
         console.warn('[StudioCanvas] Style load failed, switching to fallback')
         map.setStyle(FALLBACK_STYLE)
-        addSourcesAndLayers(map)
-        readyRef.current = true
-        syncAllData(map, graph, activeFloor)
+        map.once('style.load', () => {
+          addSourcesAndLayers(map)
+          readyRef.current = true
+          syncAllData(map, graph, activeFloor)
+        })
       }
     })
     mapRef.current = map
@@ -325,7 +328,7 @@ useEffect(() => {
       map.off('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [activeFloor, addTrace, addComponent, addTracePoint, clearTracePoints, selectedNode])
+  }, [activeFloor, addTrace, addComponent, addComponentWithPolygon, addTracePoint, clearTracePoints, setPendingConfirm, setActiveBuilding, selectedNode])
 
   useEffect(() => {
     const map = mapRef.current

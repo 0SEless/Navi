@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'

@@ -222,7 +222,7 @@ export function PublicMap({ campusId }: PublicMapProps) {
 
       {path && (
         <div style={{ padding: 10, background: 'var(--navi-card)', borderTop: '1px solid var(--navi-border)', maxHeight: 180, overflowY: 'auto' }}>
-          <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>ROUTE ({(path as any).cost ? Math.round((path as any).cost) : Math.round(path.totalDistance)}m)</div>
+          <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 4 }}>ROUTE ({Math.round((path as any).cost ?? 0)}m)</div>
           {path.steps.map((step, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, padding: '2px 0', fontSize: 10, color: 'var(--navi-text)' }}>
               <span style={{ color: 'var(--navi-text-secondary)', minWidth: 14 }}>{i + 1}.</span>

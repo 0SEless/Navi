@@ -85,7 +85,7 @@ export function nodeToRow(n: NavNode): Record<string, unknown> {
     id: n.id,
     campus_id: n.campusId ?? "asu-ibajay",
     building_id: n.buildingId ?? null,
-    name: n.name,
+    name: n.label,
     node_type: n.type,
     floor: n.floor,
     position: toPoint(n.position.lat, n.position.lng),
@@ -94,7 +94,7 @@ export function nodeToRow(n: NavNode): Record<string, unknown> {
     svg_offset_y: n.svgOffset?.y ?? null,
     has_qr: n.hasQr ?? false,
     has_panorama: n.hasPanorama ?? false,
-    panorama_url: (n.metadata?.panoramaUrl as string | undefined) ?? null,
+    panorama_url: (n.metadata as Record<string, string> | undefined)?.panoramaUrl ?? null,
     metadata: n.metadata ?? {},
   }
 }

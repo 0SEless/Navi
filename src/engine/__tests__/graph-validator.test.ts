@@ -4,22 +4,23 @@ import type { NavNode, NavEdge, Building } from '@/types/nav-types'
 
 const building: Building = {
   id: 'BLD01', name: 'Admin', description: '',
-  center: { lat: 11.8195, lng: 122.0922 }, floors: 2,
+  campusId: 'asu-ibajay', center: { lat: 11.8195, lng: 122.0922 },
+  floors: [0, 1], footprint: [{ lat: 11.8195, lng: 122.0922 }], baseElevation: 0, height: 10,
 }
 
 const nodeA: NavNode = {
-  id: 'N001', name: 'Entrance', type: 'building_entrance',
-  buildingId: 'BLD01', floor: 0,
+  id: 'N001', label: 'Entrance', name: 'Entrance', type: 'building_entrance',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0,
   position: { lat: 11.8195, lng: 122.0922 },
 }
 const nodeB: NavNode = {
-  id: 'N002', name: 'Hall', type: 'intersection',
-  buildingId: 'BLD01', floor: 0,
+  id: 'N002', label: 'Hall', name: 'Hall', type: 'intersection',
+  buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 0,
   position: { lat: 11.8196, lng: 122.0923 },
 }
 
 const edge: NavEdge = {
-  id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15,
+  id: 'E001', from: 'N001', to: 'N002', type: 'walkway', distance: 15, weight: 15, campusId: 'asu-ibajay',
 }
 
 describe('validateGraph', () => {

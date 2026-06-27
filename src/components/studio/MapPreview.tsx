@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, use } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -120,7 +120,8 @@ export function MapPreview({ mapId }: MapPreviewProps) {
     if (!map) return
     const style = satellite ? SATELLITE_STYLE : OSM_STYLE
     map.setStyle(style)
-    if (campusMap) {
+    const currentCampusMap = campusMap
+    if (currentCampusMap) {
       map.once('style.load', () => {
         map.addSource('buildings-extrusion', {
           type: 'geojson',

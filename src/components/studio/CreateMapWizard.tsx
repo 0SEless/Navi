@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCampusMapStore } from '@/store/campus-map-store'
-import { Search, ArrowLeft, Check, X, Navigation, MapPin } from 'lucide-react'
+import { Search, ArrowLeft, Check, X, MapPin } from 'lucide-react'
 
 const OSM_STYLE = {
   version: 8 as const,

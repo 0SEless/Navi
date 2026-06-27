@@ -8,6 +8,7 @@ import { buildDirectory } from './directory'
 import { compileTrace } from './trace-compiler'
 
 export class Graph {
+  campusId: string = 'asu-ibajay'
   private _nodes: Map<string, NavNode> = new Map()
   private _edges: Map<string, NavEdge> = new Map()
   private _buildings: Map<string, Building> = new Map()
@@ -35,6 +36,11 @@ export class Graph {
   get traces(): TracePath[] {
     return Array.from(this._traces.values())
   }
+
+  get buildingCount(): number { return this._buildings.size }
+  get nodeCount(): number { return this._nodes.size }
+  get edgeCount(): number { return this._edges.size }
+  get componentCount(): number { return this._components.size }
 
   getNode(id: string): NavNode | undefined {
     return this._nodes.get(id)
@@ -260,24 +266,26 @@ export class Graph {
 
   toJSON(): GraphSnapshot {
     return {
+      id: this.campusId || 'unknown',
       version: '1.0.0',
-      campusId: 'asu-ibajay',
+      campusId: this.campusId || 'asu-ibajay',
+      updatedAt: new Date().toISOString(),
       buildings: this.buildings,
       nodes: this.nodes,
       edges: this.edges,
       components: this.components,
       traces: this.traces,
-      exportedAt: new Date().toISOString(),
     }
   }
 
   static fromJSON(snapshot: GraphSnapshot): Graph {
     const graph = new Graph()
+    graph.campusId = snapshot.campusId || 'asu-ibajay'
     graph.setBuildings(snapshot.buildings)
     graph.setNodes(snapshot.nodes)
     graph.setEdges(snapshot.edges)
     graph.setComponents(snapshot.components ?? [])
-    graph.setTraces(snapshot.traces ?? [])
+    if (snapshot.traces) graph.setTraces(snapshot.traces)
     return graph
   }
 

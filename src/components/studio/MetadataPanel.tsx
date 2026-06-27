@@ -5,6 +5,7 @@ import { MoreVertical, Check, X, Minus, Plus, ChevronDown } from 'lucide-react'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { useCampusMapStore } from '@/store/campus-map-store'
+import type { Building } from '@/types/nav-types'
 
 const COLOR_SWATCHES = [
   '#1C6BEB', '#7C3AED', '#10B981', '#F59E0B', '#EF4444',
@@ -29,14 +30,14 @@ export function MetadataPanel() {
 
   if (!building) return null
 
-  return <MetadataForm building={building} updateBuilding={updateBuilding} onEditFloor={() => setEditorMode('floor')} onSave={save} landmarkTypes={landmarkTypes.map((t) => ({ id: t.id, name: t.name }))} />
+  return <MetadataForm key={building.id} building={building} updateBuilding={updateBuilding} onEditFloor={() => setEditorMode('floor')} onSave={save} landmarkTypes={landmarkTypes.map((t) => ({ id: t.id, name: t.name }))} />
 }
 
 function MetadataForm({
   building, updateBuilding, onEditFloor, onSave, landmarkTypes,
 }: {
-  building: any
-  updateBuilding: (id: string, partial: any) => void
+  building: Building
+  updateBuilding: (id: string, partial: Partial<Building>) => void
   onEditFloor: () => void
   onSave: () => void
   landmarkTypes: { id: string; name: string }[]
@@ -47,9 +48,9 @@ function MetadataForm({
   const [code, setCode] = useState(building.id.slice(-6).toUpperCase())
   const [dept, setDept] = useState(building.department || '')
   const [category, setCategory] = useState(building.category || '')
-  const [floors, setFloors] = useState(building.floors.length || 1)
+  const [floors, setFloors] = useState(building.floors.length)
   const [color, setColor] = useState(building.color || '#1C6BEB')
-  const [height, setHeight] = useState(building.height || 15)
+  const [height, setHeight] = useState(building.height)
   const [showColorPicker, setShowColorPicker] = useState(false)
 
   const handleSave = () => {
@@ -71,9 +72,9 @@ function MetadataForm({
     setCode(building.id.slice(-6).toUpperCase())
     setDept(building.department || '')
     setCategory(building.category || '')
-    setFloors(building.floors.length || 1)
+    setFloors(building.floors.length)
     setColor(building.color || '#1C6BEB')
-    setHeight(building.height || 15)
+    setHeight(building.height)
     setEditing(false)
   }
 

@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCampusMapStore } from '@/store/campus-map-store'
 import { MapCard } from './MapCard'
-import { Trash2 } from 'lucide-react'
 
 export function StudioDashboard() {
   const router = useRouter()

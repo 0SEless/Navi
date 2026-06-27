@@ -19,13 +19,13 @@ export function buildDirectory(graph: Graph): DirEntry[] {
       const children: DirEntry[] = [
         ...entranceNodes.map((n) => ({
           id: n.id,
-          label: n.name,
+          label: n.label,
           type: 'entrance' as const,
           nodeId: n.id,
         })),
         ...roomNodes.map((n) => ({
           id: n.id,
-          label: n.name,
+          label: n.label,
           type: 'room' as const,
           nodeId: n.id,
         })),

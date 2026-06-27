@@ -13,6 +13,7 @@ export interface CompileContext {
   existingNodes: NavNode[]
   existingEdges: NavEdge[]
   componentId: string
+  campusId?: string
 }
 
 function haversine(a: LatLng, b: LatLng): number {
@@ -82,9 +83,11 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
 
   const cornerNodes: NavNode[] = corners.map((c) => ({
     id: genId('N'),
+    label: `${roomLabel} ${c.label}`,
     name: `${roomLabel} ${c.label}`,
     type: 'corner' as const,
     buildingId: component.buildingId,
+    campusId: context.campusId ?? '',
     floor: component.floor,
     position: c.pos,
   }))
@@ -92,19 +95,21 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
   // 1 center node (POI, navigable)
   const centerNode: NavNode = {
     id: genId('N'),
+    label: roomLabel,
     name: roomLabel,
     type: 'room',
     buildingId: component.buildingId,
+    campusId: context.campusId ?? '',
     floor: component.floor,
     position: component.position,
   }
 
   // 4 wall edges (non-navigable)
   const wallEdges: NavEdge[] = [
-    { id: genId('E'), from: cornerNodes[0].id, to: cornerNodes[1].id, type: 'wall', distance: w * 2 },
-    { id: genId('E'), from: cornerNodes[1].id, to: cornerNodes[2].id, type: 'wall', distance: h * 2 },
-    { id: genId('E'), from: cornerNodes[2].id, to: cornerNodes[3].id, type: 'wall', distance: w * 2 },
-    { id: genId('E'), from: cornerNodes[3].id, to: cornerNodes[0].id, type: 'wall', distance: h * 2 },
+    { id: genId('E'), from: cornerNodes[0].id, to: cornerNodes[1].id, type: 'wall', distance: w * 2, weight: w * 2, campusId: context.campusId ?? '' },
+    { id: genId('E'), from: cornerNodes[1].id, to: cornerNodes[2].id, type: 'wall', distance: h * 2, weight: h * 2, campusId: context.campusId ?? '' },
+    { id: genId('E'), from: cornerNodes[2].id, to: cornerNodes[3].id, type: 'wall', distance: w * 2, weight: w * 2, campusId: context.campusId ?? '' },
+    { id: genId('E'), from: cornerNodes[3].id, to: cornerNodes[0].id, type: 'wall', distance: h * 2, weight: h * 2, campusId: context.campusId ?? '' },
   ]
 
   // Connect center to nearest corner
@@ -117,6 +122,8 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
       to: nearestCorner.id,
       type: 'corridor',
       distance: haversine(component.position, nearestCorner.position),
+      weight: haversine(component.position, nearestCorner.position),
+      campusId: context.campusId ?? '',
     })
   }
 
@@ -140,6 +147,8 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
         to: outdoorConnection.id,
         type: 'corridor',
         distance: haversine(component.position, outdoorConnection.position),
+        weight: haversine(component.position, outdoorConnection.position),
+        campusId: context.campusId ?? '',
       })
     }
   }
@@ -149,23 +158,27 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
 
 function compileStair(component: Component, context: CompileContext): CompileResult {
   const building = context.buildings.get(component.buildingId)
-  const maxFloor = building?.floors ?? 2
+  const maxFloor = Array.isArray(building?.floors) ? (building?.floors?.length ?? 2) : (building?.floors ?? 2)
   const currentFloor = component.floor
 
   const topNode: NavNode = {
     id: genId('N'),
+    label: `${component.name} (Up)`,
     name: `${component.name} (Up)`,
     type: 'staircase',
     buildingId: component.buildingId,
+    campusId: context.campusId ?? '',
     floor: currentFloor + 1 <= maxFloor ? currentFloor + 1 : currentFloor,
     position: component.position,
   }
 
   const bottomNode: NavNode = {
     id: genId('N'),
+    label: `${component.name} (Down)`,
     name: `${component.name} (Down)`,
     type: 'staircase',
     buildingId: component.buildingId,
+    campusId: context.campusId ?? '',
     floor: currentFloor,
     position: component.position,
   }
@@ -176,6 +189,8 @@ function compileStair(component: Component, context: CompileContext): CompileRes
     to: topNode.id,
     type: 'stairs',
     distance: 4,
+    weight: 4,
+    campusId: context.campusId ?? '',
   }
 
   return { nodes: [bottomNode, topNode], edges: [edge] }
@@ -183,7 +198,7 @@ function compileStair(component: Component, context: CompileContext): CompileRes
 
 function compileElevator(component: Component, context: CompileContext): CompileResult {
   const building = context.buildings.get(component.buildingId)
-  const totalFloors = building?.floors ?? 3
+  const totalFloors = Array.isArray(building?.floors) ? (building?.floors?.length ?? 3) : (building?.floors ?? 3)
 
   const nodes: NavNode[] = []
   const edges: NavEdge[] = []
@@ -191,9 +206,11 @@ function compileElevator(component: Component, context: CompileContext): Compile
   for (let f = 0; f < totalFloors; f++) {
     const node: NavNode = {
       id: genId('N'),
+      label: `${component.name} (F${f})`,
       name: `${component.name} (F${f})`,
       type: 'elevator',
       buildingId: component.buildingId,
+      campusId: context.campusId ?? '',
       floor: f,
       position: component.position,
     }
@@ -205,6 +222,8 @@ function compileElevator(component: Component, context: CompileContext): Compile
         to: node.id,
         type: 'elevator',
         distance: 3,
+        weight: 3,
+        campusId: context.campusId ?? '',
       })
     }
   }
@@ -228,9 +247,11 @@ function compileHallway(component: Component, context: CompileContext): CompileR
     }
     const node: NavNode = {
       id: genId('N'),
+      label: `${component.name} ${i === 0 ? 'Start' : i === segmentCount ? 'End' : `Pt${i}`}`,
       name: `${component.name} ${i === 0 ? 'Start' : i === segmentCount ? 'End' : `Pt${i}`}`,
       type: 'intersection',
       buildingId: component.buildingId,
+      campusId: context.campusId ?? '',
       floor: component.floor,
       position: pos,
     }
@@ -242,6 +263,8 @@ function compileHallway(component: Component, context: CompileContext): CompileR
         to: node.id,
         type: 'corridor',
         distance: haversine(nodes[i - 1].position, pos),
+        weight: haversine(nodes[i - 1].position, pos),
+        campusId: context.campusId ?? '',
       })
     }
   }
@@ -252,13 +275,15 @@ function compileHallway(component: Component, context: CompileContext): CompileR
 function compileEntrance(component: Component, context: CompileContext): CompileResult {
   const node: NavNode = {
     id: genId('N'),
+    label: component.name,
     name: component.name,
     type: 'building_entrance',
     buildingId: component.buildingId,
+    campusId: context.campusId ?? '',
     floor: component.floor,
     position: component.position,
-    hasQr: component.metadata?.hasQr === true,
-    hasPanorama: component.metadata?.hasPanorama === true,
+    hasQr: (component.metadata as Record<string, boolean>)?.hasQr === true,
+    hasPanorama: (component.metadata as Record<string, boolean>)?.hasPanorama === true,
   }
 
   const outdoorNodes = context.existingNodes.filter(
@@ -274,6 +299,8 @@ function compileEntrance(component: Component, context: CompileContext): Compile
       to: nearestOutdoor.id,
       type: 'walkway',
       distance: haversine(component.position, nearestOutdoor.position),
+      weight: haversine(component.position, nearestOutdoor.position),
+      campusId: context.campusId ?? '',
     })
   }
 

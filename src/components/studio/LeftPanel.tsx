@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { useCampusMapStore } from '@/store/campus-map-store'
-import { Building2, MapPin, ChevronDown, ChevronRight, Plus, Trash2, Eye, EyeOff, Palette } from 'lucide-react'
+import { Building2, MapPin, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 
 const COLOR_OPTIONS = [
   '#1C6BEB', '#7C3AED', '#10B981', '#F59E0B', '#EF4444',

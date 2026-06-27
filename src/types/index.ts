@@ -7,7 +7,6 @@ export type {
   Component, GraphSnapshot, DirEntry,
   PathResult, PathStep, ValidationResult,
   TracePath, FloorPlan, FloorInfo, MapComponent,
-  ValidationError, Campus,
 } from './nav-types';
 
 export type {

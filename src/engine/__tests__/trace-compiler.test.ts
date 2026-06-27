@@ -52,8 +52,8 @@ describe('compileTrace', () => {
 
   it('generates edges to existing room entrance nodes within proximity', () => {
     const roomNode: NavNode = {
-      id: 'N010', name: 'Room 101', type: 'room',
-      buildingId: 'BLD01', floor: 1,
+      id: 'N010', label: 'Room 101', name: 'Room 101', type: 'room',
+      buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 1,
       position: { lat: 11.81955, lng: 122.09225 },
     }
     const result = compileTrace(hallway, [], [roomNode], [])

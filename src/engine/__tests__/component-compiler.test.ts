@@ -5,7 +5,8 @@ import type { Component, Building } from '@/types/nav-types'
 describe('compileComponent polygon output', () => {
   const building: Building = {
     id: 'BLD01', name: 'Test', description: '',
-    center: { lat: 11.8195, lng: 122.0922 }, floors: 3,
+    campusId: 'asu-ibajay', center: { lat: 11.8195, lng: 122.0922 },
+    floors: [0, 1, 2], footprint: [{ lat: 11.8195, lng: 122.0922 }], baseElevation: 0, height: 10,
   }
   const buildings = new Map<string, Building>([['BLD01', building]])
 

@@ -7,13 +7,17 @@ export interface LatLng {
 export interface NavNode {
   id: string;
   label: string;
+  name?: string;
   position: LatLng;
   floor: number;
   buildingId: string;
   campusId: string;
-  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker';
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker' | 'corner' | 'staircase' | 'intersection' | 'building_entrance' | 'outdoor' | 'hallway';
   componentId?: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
+  svgOffset?: { x: number; y: number };
+  hasQr?: boolean;
+  hasPanorama?: boolean;
 }
 
 export interface NavEdge {
@@ -21,9 +25,9 @@ export interface NavEdge {
   from: string;
   to: string;
   distance: number;
-  weight: number;
-  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor';
-  campusId: string;
+  weight?: number;
+  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor' | 'corridor' | 'stairs' | 'transition' | 'walk' | 'wall';
+  campusId?: string;
 }
 
 export interface Building {
@@ -34,6 +38,14 @@ export interface Building {
   footprint: LatLng[];
   baseElevation: number;
   height: number;
+  color?: string;
+  center?: LatLng;
+  code?: string;
+  description?: string;
+  outline?: LatLng[];
+  floorPlanUrl?: string;
+  department?: string;
+  category?: string;
 }
 
 export interface FloorInfo {
@@ -44,13 +56,21 @@ export interface FloorInfo {
 
 export interface MapComponent {
   id: string;
-  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance';
+  type: ComponentType;
   label: string;
+  name?: string;
   buildingId: string;
   campusId: string;
   floor: number;
   geometry: LatLng[];
-  metadata?: Record<string, string>;
+  polygon?: LatLng[];
+  metadata?: Record<string, unknown>;
+  dimensions?: {
+    width: number;
+    height: number;
+    rotation?: number;
+  };
+  connections?: string[];
 }
 
 export interface GraphSnapshot {
@@ -59,45 +79,31 @@ export interface GraphSnapshot {
   version: string;
   updatedAt: string;
   buildings: Building[];
-  components: MapComponent[];
+  components: Component[];
   nodes: NavNode[];
   edges: NavEdge[];
+  traces?: TracePath[];
 }
 
 export interface PathResult {
-  path: NavNode[];
-  edges: NavEdge[];
-  totalDistance: number;
+  path: string[];
+  cost: number;
   steps: PathStep[];
 }
 
 export interface PathStep {
+  nodeId: string;
   instruction: string;
-  from: NavNode;
-  to: NavNode;
   distance: number;
-  type: string;
 }
 
 export interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-  warnings: string[];
-}
-
-export interface ValidationError {
-  code: string;
+  category: string;
+  status: 'pass' | 'fail' | 'warn' | 'error' | 'warning' | 'info';
   message: string;
   nodeId?: string;
   edgeId?: string;
-}
-
-export interface Campus {
-  id: string;
-  name: string;
-  code: string;
-  center: LatLng;
-  bounds: { ne: LatLng; sw: LatLng };
+  affectedIds?: string[];
 }
 
 // ---- Legacy types (used by existing committed code, to be migrated) ----
@@ -136,6 +142,7 @@ export interface Component {
   type: ComponentType;
   name: string;
   buildingId: string;
+  campusId?: string;
   floor: number;
   position: LatLng;
   polygon?: LatLng[];

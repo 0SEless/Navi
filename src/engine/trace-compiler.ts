@@ -84,14 +84,14 @@ export function compileTrace(
     const key = pointToLatLng(pos)
     const node: NavNode = {
       id,
+      label: `${trace.name ?? 'Path'} Node`,
       name: `${trace.name ?? 'Path'} Node`,
       type: 'intersection',
-      buildingId: trace.buildingId,
+      buildingId: trace.buildingId ?? '',
+      campusId: trace.campusId ?? '',
       floor: trace.floor,
       position: pos,
-    }
-    if (intersectionPositions.has(key)) {
-      node.metadata = { source: 'intersection' }
+      metadata: intersectionPositions.has(key) ? { source: 'intersection' } : undefined,
     }
     nodeMap.set(key, node)
     nodes.push(node)
@@ -115,6 +115,8 @@ export function compileTrace(
           to: toNode.id,
           type: 'walk',
           distance: haversine(fromNode.position, toNode.position),
+          weight: haversine(fromNode.position, toNode.position),
+          campusId: trace.campusId ?? '',
         })
       }
     }
@@ -140,6 +142,8 @@ export function compileTrace(
             to: roomNode.id,
             type: 'transition',
             distance: haversine(node.position, roomNode.position),
+            weight: haversine(node.position, roomNode.position),
+            campusId: trace.campusId ?? '',
           })
         }
       }

@@ -37,7 +37,7 @@ function generateInstructions(path: string[], nodes: NavNode[]): PathStep[] {
     const dist = prev ? Math.round(heuristic(prev.position, node.position)) : 0
     let instruction = 'Start here'
     if (i > 0 && i < path.length - 1) {
-      instruction = `Continue to ${node.name}`
+      instruction = `Continue to ${node.label}`
     } else if (i === path.length - 1) {
       instruction = 'Destination reached'
     }

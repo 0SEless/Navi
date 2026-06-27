@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { Graph } from '../engine/graph'
-import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
+import type { NavNode, NavEdge, Building, Component, ComponentType, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 
 const STORAGE_KEY = 'navi-graph'
@@ -37,6 +37,7 @@ interface GraphState {
   setBuildings: (buildings: Building[]) => void
 
   loadMapData: (mapId: string) => void
+  load: () => void
   save: () => void
   reset: () => void
 
@@ -114,14 +115,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
-  addComponent: (component) => {
+  addComponent: (component: Component) => {
     const graph = get().graph
     const buildingsMap = new Map(graph.buildings.map((b) => [b.id, b]))
+    const currentMapId = get().currentMapId
     const result = compileComponent(component, {
       buildings: buildingsMap,
       existingNodes: graph.nodes,
       existingEdges: graph.edges,
       componentId: component.id,
+      campusId: component.campusId ?? currentMapId ?? undefined,
     })
     graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
     for (const node of result.nodes) {
@@ -150,14 +153,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
-  addComponentWithPolygon: (component) => {
+  addComponentWithPolygon: (component: Component) => {
     const graph = get().graph
     const buildingsMap = new Map(graph.buildings.map((b) => [b.id, b]))
+    const currentMapId = get().currentMapId
     const result = compileComponent(component, {
       buildings: buildingsMap,
       existingNodes: graph.nodes,
       existingEdges: graph.edges,
       componentId: component.id,
+      campusId: component.campusId ?? currentMapId ?? undefined,
     })
     graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
     for (const node of result.nodes) {

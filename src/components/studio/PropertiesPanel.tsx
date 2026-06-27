@@ -41,9 +41,9 @@ export function PropertiesPanel() {
 
       <div style={{ padding: '8px 14px', borderTop: '1px solid var(--navi-border)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         {[
-          { label: 'Buildings', value: graph._buildings.size },
-          { label: 'Nodes', value: graph._nodes.size },
-          { label: 'Edges', value: graph._edges.size },
+          { label: 'Buildings', value: graph.buildingCount },
+          { label: 'Nodes', value: graph.nodeCount },
+          { label: 'Edges', value: graph.edgeCount },
         ].map(({ label, value }) => (
           <div key={label} style={{ background: 'var(--navi-content)', borderRadius: 4, padding: '5px 6px', textAlign: 'center' }}>
             <div style={{ color: 'var(--navi-primary)', fontSize: 13, fontWeight: 700 }}>{value}</div>

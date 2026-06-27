@@ -1,6 +1,5 @@
 'use client'
 
-import { useStudioStore } from '@/store/studio-store'
 import { LeftPanel } from './LeftPanel'
 import { RightPanel } from './RightPanel'
 import { StudioCanvas } from './StudioCanvas'
