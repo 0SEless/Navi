@@ -17,8 +17,10 @@ export function LeftPanel() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
   const currentMapId = useGraphStore((s) => s.currentMapId)
-  const landmarkTypes = useCampusMapStore((s) => s.landmarkTypes.filter((t) => t.mapId === currentMapId))
-  const landmarkInstances = useCampusMapStore((s) => s.landmarkInstances.filter((i) => i.mapId === currentMapId))
+  const allLandmarkTypes = useCampusMapStore((s) => s.landmarkTypes)
+  const allLandmarkInstances = useCampusMapStore((s) => s.landmarkInstances)
+  const landmarkTypes = allLandmarkTypes.filter((t) => t.mapId === currentMapId)
+  const landmarkInstances = allLandmarkInstances.filter((i) => i.mapId === currentMapId)
   const addLandmarkType = useCampusMapStore((s) => s.addLandmarkType)
   const removeLandmarkType = useCampusMapStore((s) => s.removeLandmarkType)
 

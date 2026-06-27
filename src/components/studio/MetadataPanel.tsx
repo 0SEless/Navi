@@ -20,7 +20,8 @@ export function MetadataPanel() {
   const save = useGraphStore((s) => s.save)
   const setEditorMode = useStudioStore((s) => s.setEditorMode)
   const currentMapId = useGraphStore((s) => s.currentMapId)
-  const landmarkTypes = useCampusMapStore((s) => s.landmarkTypes.filter((t) => t.mapId === currentMapId))
+  const allLandmarkTypes = useCampusMapStore((s) => s.landmarkTypes)
+  const landmarkTypes = allLandmarkTypes.filter((t) => t.mapId === currentMapId)
 
   const building = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
 
