@@ -24,6 +24,10 @@ interface CampusMapState {
   removeLandmarkInstance: (id: string) => void
   getInstancesByMap: (mapId: string) => LandmarkInstance[]
 
+  syncToSupabase: () => Promise<void>
+  fetchFromSupabase: () => Promise<void>
+  deleteFromSupabase: (mapId: string) => Promise<void>
+
   load: () => void
   save: () => void
   reset: () => void
@@ -61,6 +65,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
       landmarkInstances: s.landmarkInstances.filter((i) => i.mapId !== id),
     }))
     get().save()
+    get().deleteFromSupabase(id)
   },
 
   getMap: (id) => get().maps.find((m) => m.id === id),
@@ -109,6 +114,52 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
 
   getInstancesByMap: (mapId) => get().landmarkInstances.filter((i) => i.mapId === mapId),
 
+  syncToSupabase: async () => {
+    if (typeof window === 'undefined') return
+    const { maps, landmarkTypes, landmarkInstances } = get()
+    for (const map of maps) {
+      const types = landmarkTypes.filter((t) => t.mapId === map.id)
+      const instances = landmarkInstances.filter((i) => i.mapId === map.id)
+      try {
+        await fetch('/api/campus-maps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...map, landmarkTypes: types, landmarkInstances: instances }),
+        })
+      } catch { /* silently retry next time */ }
+    }
+  },
+
+  fetchFromSupabase: async () => {
+    if (typeof window === 'undefined') return
+    try {
+      const res = await fetch('/api/campus-maps')
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data.maps || !data.maps.length) return
+      const maps: CampusMap[] = []
+      const landmarkTypes: LandmarkType[] = []
+      const landmarkInstances: LandmarkInstance[] = []
+      for (const m of data.maps) {
+        maps.push({
+          id: m.id, name: m.name, schoolName: m.schoolName, campusName: m.campusName,
+          imageUrl: m.imageUrl, boundary: m.boundary, center: m.center,
+          createdAt: m.createdAt, updatedAt: m.updatedAt, stats: m.stats,
+        })
+        if (m.landmarkTypes) landmarkTypes.push(...m.landmarkTypes)
+        if (m.landmarkInstances) landmarkInstances.push(...m.landmarkInstances)
+      }
+      set({ maps, landmarkTypes, landmarkInstances })
+    } catch { /* offline */ }
+  },
+
+  deleteFromSupabase: async (mapId) => {
+    if (typeof window === 'undefined') return
+    try {
+      await fetch(`/api/campus-maps?map_id=${encodeURIComponent(mapId)}`, { method: 'DELETE' })
+    } catch { /* offline */ }
+  },
+
   load: () => {
     if (typeof window === 'undefined') return
     try {
@@ -122,12 +173,14 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
         })
       }
     } catch { /* corrupt */ }
+    get().fetchFromSupabase()
   },
 
   save: () => {
     if (typeof window === 'undefined') return
     const { maps, landmarkTypes, landmarkInstances } = get()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ maps, landmarkTypes, landmarkInstances }))
+    get().syncToSupabase()
   },
 
   reset: () => {

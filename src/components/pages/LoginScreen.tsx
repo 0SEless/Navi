@@ -1,10 +1,17 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Route } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { MOCK_USERS, isMockAuthEnabled } from "@/lib/mock-auth";
 
 export function LoginScreen() {
   const { signInWithGoogle, mockLogin } = useAuth();
-  const mockEnabled = typeof window !== "undefined" && isMockAuthEnabled();
+  const [mockEnabled, setMockEnabled] = useState(false);
+
+  useEffect(() => {
+    setMockEnabled(isMockAuthEnabled());
+  }, []);
 
   return (
     <div style={{

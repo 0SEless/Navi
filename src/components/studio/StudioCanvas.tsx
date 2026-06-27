@@ -156,6 +156,7 @@ export function StudioCanvas() {
   const addComponent = useGraphStore((s) => s.addComponent)
   const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
   const addBuilding = useGraphStore((s) => s.addBuilding)
+  const addTrace = useGraphStore((s) => s.addTrace)
   const tool = useStudioStore((s) => s.tool)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const editorMode = useStudioStore((s) => s.editorMode)
