@@ -10,6 +10,18 @@ import type { Graph } from '@/engine/graph'
 import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
 import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
 
+const FALLBACK_STYLE = {
+  version: 8 as const,
+  sources: {},
+  layers: [
+    {
+      id: 'background',
+      type: 'background' as const,
+      paint: { 'background-color': '#1a1a2e' },
+    },
+  ],
+}
+
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
@@ -21,6 +33,13 @@ const OSM_STYLE = {
     },
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
+}
+
+function getInitialStyle() {
+  if (typeof window !== 'undefined') {
+    return OSM_STYLE
+  }
+  return FALLBACK_STYLE
 }
 
 const SRC = {
@@ -179,12 +198,12 @@ export function StudioCanvas() {
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
   useEffect(() => { graphRef.current = graph }, [graph])
 
-  useEffect(() => {
+useEffect(() => {
     if (mapRef.current) return
     let mounted = true
     const map = new maplibregl.Map({
       container: mapContainerRef.current!,
-      style: OSM_STYLE,
+      style: getInitialStyle(),
       center: [122.0922, 11.8195],
       zoom: 17,
     })
@@ -196,6 +215,13 @@ export function StudioCanvas() {
     })
     map.on('error', (e) => {
       console.error('[StudioCanvas] Map error:', e)
+      if (e.error?.message?.includes('Style is not done loading') || e.error?.message?.includes('style')) {
+        console.warn('[StudioCanvas] Style load failed, switching to fallback')
+        map.setStyle(FALLBACK_STYLE)
+        addSourcesAndLayers(map)
+        readyRef.current = true
+        syncAllData(map, graph, activeFloor)
+      }
     })
     mapRef.current = map
     return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false }
