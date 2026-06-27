@@ -14,7 +14,9 @@ const COLOR_SWATCHES = [
 
 export function MetadataPanel() {
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
-  const buildings = useGraphStore((s) => s.graph.buildings)
+  const graph = useGraphStore((s) => s.graph)
+  const buildings = graph.buildings
+</parameter=filePath>
   const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const save = useGraphStore((s) => s.save)
   const setEditorMode = useStudioStore((s) => s.setEditorMode)

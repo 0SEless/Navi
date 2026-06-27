@@ -12,7 +12,8 @@ const COLOR_OPTIONS = [
 ]
 
 export function LeftPanel() {
-  const buildings = useGraphStore((s) => s.graph.buildings)
+  const graph = useGraphStore((s) => s.graph)
+  const buildings = graph.buildings
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
   const currentMapId = useGraphStore((s) => s.currentMapId)
