@@ -194,6 +194,9 @@ export function StudioCanvas() {
       readyRef.current = true
       syncAllData(map, graph, activeFloor)
     })
+    map.on('error', (e) => {
+      console.error('[StudioCanvas] Map error:', e)
+    })
     mapRef.current = map
     return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false }
   }, [])
