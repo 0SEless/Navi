@@ -54,6 +54,8 @@ export function RightPanel() {
   const tools = editorMode === 'floor' ? FLOOR_TOOLS : ALL_CAMPUS_TOOLS
   const activeBuilding = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
 
+  console.log('[RightPanel] render', { tool, editorMode, activeBuildingId, buildingsCount: buildings.length })
+
   return (
     <div style={{
       width: 200,

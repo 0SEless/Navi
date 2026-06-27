@@ -22,6 +22,9 @@ export function MetadataPanel() {
   const landmarkTypes = useCampusMapStore((s) => s.landmarkTypes.filter((t) => t.mapId === currentMapId))
 
   const building = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
+
+  console.log('[MetadataPanel] render', { activeBuildingId, building: building?.id })
+
   if (!building) return null
 
   return <MetadataForm building={building} updateBuilding={updateBuilding} onEditFloor={() => setEditorMode('floor')} onSave={save} landmarkTypes={landmarkTypes.map((t) => ({ id: t.id, name: t.name }))} />

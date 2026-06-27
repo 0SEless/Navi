@@ -17,6 +17,8 @@ export function StudioWorkspace({ mapId }: StudioWorkspaceProps) {
   const editorMode = useStudioStore((s) => s.editorMode)
   const save = useGraphStore((s) => s.save)
 
+  console.log('[StudioWorkspace] render', { mapId, editorMode })
+
   useEffect(() => {
     const interval = setInterval(() => save(), 30000)
     return () => clearInterval(interval)
