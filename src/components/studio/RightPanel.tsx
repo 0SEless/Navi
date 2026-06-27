@@ -47,6 +47,9 @@ export function RightPanel() {
   const editorMode = useStudioStore((s) => s.editorMode)
   const layers = useStudioStore((s) => s.layers)
   const toggleLayer = useStudioStore((s) => s.toggleLayer)
+  const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+
+  const buildings = useGraphStore((s) => s.graph.buildings)
 
   const tools = editorMode === 'floor' ? FLOOR_TOOLS : ALL_CAMPUS_TOOLS
   const activeBuilding = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
