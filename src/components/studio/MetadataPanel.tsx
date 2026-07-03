@@ -28,9 +28,12 @@ export function MetadataPanel() {
   const [fallbackBuilding, setFallbackBuilding] = useState<Building | null>(null)
   const prevActiveIdRef = useRef(activeBuildingId)
 
-  if (building && building !== fallbackBuilding) {
-    setFallbackBuilding(building)
-  }
+  useEffect(() => {
+    if (building && building !== fallbackBuilding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFallbackBuilding(building)
+    }
+  }, [building, fallbackBuilding])
 
   useEffect(() => {
     if (prevActiveIdRef.current && !activeBuildingId && dirty) {
