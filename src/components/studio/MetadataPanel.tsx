@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Trash2, ArrowLeft, Upload, Edit, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useGraphStore } from '@/store/graph-store'
