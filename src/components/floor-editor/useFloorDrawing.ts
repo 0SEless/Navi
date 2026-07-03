@@ -1,0 +1,256 @@
+'use client'
+
+import { useCallback, useRef, useEffect, useReducer } from 'react'
+import maplibregl from 'maplibre-gl'
+import { useGraphStore } from '@/store/graph-store'
+import type { LatLng, Component, ComponentType } from '@/types/nav-types'
+import type { StudioTool } from '@/types/studio-types'
+import { drawReducer } from './draw-reducer'
+
+const DRAW_SRC = 'floor-draw-preview'
+
+function addDrawLayers(map: maplibregl.Map) {
+  if (map.getSource(DRAW_SRC)) return
+  map.addSource(DRAW_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  // preview line (trace)
+  map.addLayer({ id: 'floor-draw-line', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'line'], paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-opacity': 0.7, 'line-dasharray': [4, 3] } })
+  // preview polygon fill + outline (room)
+  map.addLayer({ id: 'floor-draw-polygon-fill', type: 'fill', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
+  map.addLayer({ id: 'floor-draw-polygon-outline', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-dasharray': [4, 3] } })
+  // placement vertices
+  map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
+  // placed item icons (door, stairs, elevator, asset)
+  map.addLayer({ id: 'floor-draw-placed', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'], paint: { 'circle-radius': 8, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
+  map.addLayer({
+    id: 'floor-draw-placed-label', type: 'symbol', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'],
+    layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -1.5], 'text-anchor': 'bottom' },
+    paint: { 'text-color': '#1E293B', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1 },
+  })
+}
+
+function updatePreview(map: maplibregl.Map, features: GeoJSON.Feature[]) {
+  const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
+  if (src) src.setData({ type: 'FeatureCollection', features })
+}
+
+function clearPreview(map: maplibregl.Map) {
+  const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
+  if (src) src.setData({ type: 'FeatureCollection', features: [] })
+}
+
+function pointsToLine(points: LatLng[]): GeoJSON.Feature {
+  return {
+    type: 'Feature', properties: { type: 'line' },
+    geometry: { type: 'LineString', coordinates: points.map((p) => [p.lng, p.lat] as [number, number]) },
+  }
+}
+
+function pointsToPolygon(points: LatLng[]): GeoJSON.Feature {
+  return {
+    type: 'Feature', properties: { type: 'polygon' },
+    geometry: { type: 'Polygon', coordinates: [[...points.map((p) => [p.lng, p.lat] as [number, number]), [points[0].lng, points[0].lat] as [number, number]]] },
+  }
+}
+
+function pointsToVertices(points: LatLng[]): GeoJSON.Feature[] {
+  return points.map((p, i) => ({
+    type: 'Feature' as const, properties: { type: 'vertex', index: i },
+    geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] as [number, number] },
+  }))
+}
+
+function placedItem(position: LatLng, label: string): GeoJSON.Feature {
+  return {
+    type: 'Feature', properties: { type: 'placed', label },
+    geometry: { type: 'Point', coordinates: [position.lng, position.lat] },
+  }
+}
+
+interface UseFloorDrawingOptions {
+  map: maplibregl.Map | null
+  buildingId: string
+  campusId: string
+  floor: number
+  tool: StudioTool
+  onSelect?: (id: string | null) => void
+}
+
+export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSelect }: UseFloorDrawingOptions) {
+  const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
+  const updateBuilding = useGraphStore((s) => s.updateBuilding)
+  const save = useGraphStore((s) => s.save)
+
+  const [drawState, dispatch] = useReducer(drawReducer, { drawMode: 'idle', pendingPoints: [], pendingPolygon: [] })
+  const toolRef = useRef(tool)
+  useEffect(() => { toolRef.current = tool }, [tool])
+
+  // Initialize layers
+  useEffect(() => {
+    if (!map) return
+    addDrawLayers(map)
+    return () => { clearPreview(map) }
+  }, [map])
+
+  // Reset state on tool change
+  useEffect(() => {
+    dispatch({ type: 'RESET' })
+    if (map) clearPreview(map)
+  }, [tool, map])
+
+  // Update preview
+  useEffect(() => {
+    if (!map) return
+    const features: GeoJSON.Feature[] = []
+    if (drawState.drawMode === 'placing-points' && drawState.pendingPoints.length > 0) {
+      features.push(pointsToLine(drawState.pendingPoints), ...pointsToVertices(drawState.pendingPoints))
+    }
+    if (drawState.drawMode === 'placing-polygon' && drawState.pendingPolygon.length > 0) {
+      features.push(pointsToPolygon(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
+    }
+    updatePreview(map, features)
+  }, [map, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon])
+
+  const confirmHallway = useCallback(() => {
+    if (drawState.pendingPoints.length < 2 || !map) return
+    const id = `hallway-${Date.now()}`
+    addComponentWithPolygon({
+      id,
+      type: 'hallway',
+      name: 'Hallway',
+      buildingId,
+      campusId,
+      floor,
+      position: drawState.pendingPoints[0],
+      polygon: drawState.pendingPoints,
+    })
+    save()
+    dispatch({ type: 'RESET' })
+    clearPreview(map)
+    onSelect?.(id)
+  }, [drawState.pendingPoints, map, addComponentWithPolygon, floor, buildingId, campusId, save, onSelect])
+
+  const confirmRoom = useCallback(() => {
+    if (drawState.pendingPolygon.length < 3 || !map) return
+    const id = `room-${Date.now()}`
+    addComponentWithPolygon({
+      id,
+      type: 'room',
+      name: `Room ${drawState.pendingPolygon.length}-sided`,
+      buildingId,
+      campusId,
+      floor,
+      position: drawState.pendingPolygon[0],
+      polygon: drawState.pendingPolygon,
+    })
+    save()
+    dispatch({ type: 'RESET' })
+    clearPreview(map)
+    onSelect?.(id)
+  }, [drawState.pendingPolygon, map, addComponentWithPolygon, buildingId, campusId, floor, save, onSelect])
+
+  const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
+    const id = `${type}-${Date.now()}`
+    const component: Component = {
+      id,
+      type,
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      buildingId,
+      campusId,
+      floor,
+      position,
+      range: type === 'stair' || type === 'elevator' ? { from: floor, to: floor + 1 } : undefined,
+    }
+    addComponentWithPolygon(component)
+    if (type === 'entrance') {
+      const graph = useGraphStore.getState().graph
+      const building = graph.buildings.find((b) => b.id === buildingId)
+      if (building) {
+        updateBuilding(buildingId, {
+          entrances: [...(building.entrances ?? []), { id, position, floor, label: 'Entrance' }],
+        })
+      }
+    }
+    save()
+    onSelect?.(id)
+    // Show brief placement feedback
+    if (map) {
+      const feedback = placedItem(position, type.charAt(0).toUpperCase() + type.slice(1))
+      updatePreview(map, [feedback])
+      setTimeout(() => { if (map) clearPreview(map) }, 1500)
+    }
+  }, [addComponentWithPolygon, buildingId, campusId, floor, save, map, onSelect, updateBuilding])
+
+  // Map click handler
+  const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    const currentTool = toolRef.current
+    if (currentTool === 'select') {
+      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-line', 'floor-draw-placed']
+      const features = map!.queryRenderedFeatures(e.point, { layers })
+      if (features.length > 0) {
+        onSelect?.(features[0].properties?.id as string ?? null)
+      } else {
+        onSelect?.(null)
+      }
+      return
+    }
+
+    const pos: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+
+    switch (currentTool) {
+      case 'hallway':
+        dispatch({ type: 'ADD_POINT', point: pos })
+        break
+      case 'room':
+        dispatch({ type: 'ADD_POLYGON_POINT', point: pos })
+        break
+      case 'entrance':
+        placeComponent(pos, 'entrance')
+        break
+      case 'stairs':
+        placeComponent(pos, 'stair')
+        break
+      case 'elevator':
+        placeComponent(pos, 'elevator')
+        break
+    }
+  }, [map, placeComponent, onSelect])
+
+  // Double-click to confirm
+  useEffect(() => {
+    if (!map) return
+    const handleDblClick = (e: maplibregl.MapMouseEvent) => {
+      if (drawState.drawMode === 'placing-points') {
+        e.originalEvent.preventDefault()
+        confirmHallway()
+      } else if (drawState.drawMode === 'placing-polygon') {
+        e.originalEvent.preventDefault()
+        confirmRoom()
+      }
+    }
+    map.on('dblclick', handleDblClick)
+    return () => { map.off('dblclick', handleDblClick) }
+  }, [map, drawState.drawMode, confirmHallway, confirmRoom])
+
+  // Right-click to cancel
+  useEffect(() => {
+    if (!map) return
+    const handleContext = (e: maplibregl.MapMouseEvent) => {
+      if (drawState.drawMode !== 'idle') {
+        e.originalEvent.preventDefault()
+        dispatch({ type: 'RESET' })
+        clearPreview(map)
+      }
+    }
+    map.on('contextmenu', handleContext)
+    return () => { map.off('contextmenu', handleContext) }
+  }, [map, drawState.drawMode])
+
+  // Attach click handler
+  useEffect(() => {
+    if (!map) return
+    map.on('click', handleMapClick)
+    return () => { map.off('click', handleMapClick) }
+  }, [map, handleMapClick])
+
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, confirmHallway, confirmRoom, cancel: () => { dispatch({ type: 'RESET' }); if (map) clearPreview(map) } }
+}

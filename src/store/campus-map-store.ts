@@ -65,7 +65,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
       landmarkInstances: s.landmarkInstances.filter((i) => i.mapId !== id),
     }))
     get().save()
-    // get().deleteFromSupabase(id) // disabled until Supabase env vars configured in Vercel
+    get().deleteFromSupabase(id)
   },
 
   getMap: (id) => get().maps.find((m) => m.id === id),
@@ -173,14 +173,14 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
         })
       }
     } catch { /* corrupt */ }
-    // get().fetchFromSupabase() // disabled until Supabase env vars configured in Vercel
+    get().fetchFromSupabase()
   },
 
   save: () => {
     if (typeof window === 'undefined') return
     const { maps, landmarkTypes, landmarkInstances } = get()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ maps, landmarkTypes, landmarkInstances }))
-    // get().syncToSupabase() // disabled until Supabase env vars configured in Vercel
+    get().syncToSupabase()
   },
 
   reset: () => {

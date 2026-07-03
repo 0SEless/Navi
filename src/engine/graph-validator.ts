@@ -4,7 +4,7 @@ export function validateGraph(nodes: NavNode[], edges: NavEdge[], buildings: Bui
   const results: ValidationResult[] = []
   const nodeIds = new Set(nodes.map((n) => n.id))
   const buildingIds = new Set(buildings.map((b) => b.id))
-  const edgeIds = new Set<string>()
+
 
   // 1. All edge endpoints reference existing nodes
   const badRefs: string[] = []

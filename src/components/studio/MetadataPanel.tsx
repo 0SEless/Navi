@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { MoreVertical, Check, X, Minus, Plus, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Trash2, ArrowLeft, Upload, Edit, CheckCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import { useCampusMapStore } from '@/store/campus-map-store'
 import type { Building } from '@/types/nav-types'
 
 const COLOR_SWATCHES = [
@@ -15,230 +15,285 @@ const COLOR_SWATCHES = [
 
 export function MetadataPanel() {
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+  const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const graph = useGraphStore((s) => s.graph)
   const buildings = graph.buildings
   const updateBuilding = useGraphStore((s) => s.updateBuilding)
+  const removeBuilding = useGraphStore((s) => s.removeBuilding)
   const save = useGraphStore((s) => s.save)
-  const setEditorMode = useStudioStore((s) => s.setEditorMode)
-  const currentMapId = useGraphStore((s) => s.currentMapId)
-  const allLandmarkTypes = useCampusMapStore((s) => s.landmarkTypes)
-  const landmarkTypes = allLandmarkTypes.filter((t) => t.mapId === currentMapId)
 
   const building = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
+  const [dirty, setDirty] = useState(false)
+  const [showDialog, setShowDialog] = useState(false)
+  const [fallbackBuilding, setFallbackBuilding] = useState<Building | null>(null)
+  const prevActiveIdRef = useRef(activeBuildingId)
 
-  console.log('[MetadataPanel] render', { activeBuildingId, building: building?.id })
-
-  if (!building) return null
-
-  return <MetadataForm key={building.id} building={building} updateBuilding={updateBuilding} onEditFloor={() => setEditorMode('floor')} onSave={save} landmarkTypes={landmarkTypes.map((t) => ({ id: t.id, name: t.name }))} />
-}
-
-function MetadataForm({
-  building, updateBuilding, onEditFloor, onSave, landmarkTypes,
-}: {
-  building: Building
-  updateBuilding: (id: string, partial: Partial<Building>) => void
-  onEditFloor: () => void
-  onSave: () => void
-  landmarkTypes: { id: string; name: string }[]
-}) {
-  const [editing, setEditing] = useState(false)
-  const [recentColors] = useState<string[]>(['#1C6BEB', '#7C3AED'])
-  const [name, setName] = useState(building.name)
-  const [code, setCode] = useState(building.code || '')
-  const [dept, setDept] = useState(building.department || '')
-  const [category, setCategory] = useState(building.category || '')
-  const [floors, setFloors] = useState(building.floors.length)
-  const [color, setColor] = useState(building.color || '#1C6BEB')
-  const [height, setHeight] = useState(building.height)
-  const [showColorPicker, setShowColorPicker] = useState(false)
-
-  const handleSave = () => {
-    updateBuilding(building.id, {
-      name,
-      height,
-      floors: Array.from({ length: floors }, (_, i) => i),
-      color,
-      department: dept,
-      code,
-      category,
-    })
-    onSave()
-    setEditing(false)
+  if (building && building !== fallbackBuilding) {
+    setFallbackBuilding(building)
   }
 
-  const handleCancel = () => {
-    setName(building.name)
-    setCode(building.id.slice(-6).toUpperCase())
-    setDept(building.department || '')
-    setCategory(building.category || '')
-    setFloors(building.floors.length)
-    setColor(building.color || '#1C6BEB')
-    setHeight(building.height)
-    setEditing(false)
+  useEffect(() => {
+    if (prevActiveIdRef.current && !activeBuildingId && dirty) {
+      const last = fallbackBuilding
+      if (last) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setShowDialog(true)
+        setActiveBuilding(prevActiveIdRef.current)
+      }
+    }
+    prevActiveIdRef.current = activeBuildingId
+  }, [activeBuildingId, dirty, setActiveBuilding, fallbackBuilding])
+
+  const formBuilding = building || fallbackBuilding
+
+  if (!building && !showDialog && !fallbackBuilding) {
+    return (
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        fontSize: 11,
+        color: 'var(--navi-text-secondary)',
+        borderTop: '1px solid var(--navi-border)',
+      }}>
+        Click a building on the map to edit its properties
+      </div>
+    )
   }
+
+  if (!formBuilding) return null
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', borderTop: '1px solid var(--navi-border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: '1px solid var(--navi-border)' }}>
+        <button onClick={() => {
+          if (dirty) {
+            setShowDialog(true)
+          } else {
+            setActiveBuilding(null)
+          }
+        }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', display: 'flex', padding: 2 }}>
+          <ArrowLeft size={16} />
+        </button>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Metadata
+          {dirty ? 'Building Properties *' : 'Building Properties'}
         </span>
-        {!editing && (
-          <button onClick={() => setEditing(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', padding: 2, display: 'flex' }}>
-            <MoreVertical size={14} />
-          </button>
-        )}
-        {editing && (
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={handleCancel}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 2, display: 'flex' }}>
-              <X size={14} />
-            </button>
-            <button onClick={handleSave}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#10B981', padding: 2, display: 'flex' }}>
-              <Check size={14} />
-            </button>
-          </div>
-        )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Field label="Name" editing={editing}>
-          {editing ? (
-            <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-          ) : (
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--navi-text)' }}>{building.name}</span>
-          )}
-        </Field>
+      <BuildingForm
+        key={formBuilding.id}
+        building={formBuilding}
+        onDirty={setDirty}
+        onSave={(partial) => {
+          updateBuilding(formBuilding.id, partial)
+          save()
+          setDirty(false)
+        }}
+        onDelete={() => {
+          removeBuilding(formBuilding.id)
+          setActiveBuilding(null)
+          setDirty(false)
+        }}
+      />
 
-        <Field label="Code" editing={editing}>
-          {editing ? (
-            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} style={{ ...inputStyle, maxWidth: 80 }} />
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--navi-text)' }}>{code}</span>
-          )}
-        </Field>
-
-        <Field label="Department" editing={editing}>
-          {editing ? (
-            <input value={dept} onChange={(e) => setDept(e.target.value)} style={inputStyle} />
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--navi-text)' }}>{dept || '—'}</span>
-          )}
-        </Field>
-
-        <Field label="Category" editing={editing}>
-          {editing ? (
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              style={{
-                padding: '4px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
-                background: 'var(--navi-card)', color: 'var(--navi-text)', fontSize: 12, outline: 'none', width: '100%',
+      {showDialog && (
+        <div style={{
+          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20,
+        }}>
+          <div style={{
+            background: 'var(--navi-card)', borderRadius: 10, padding: 20,
+            border: '1px solid var(--navi-border)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            minWidth: 240, display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navi-text)' }}>Save Changes?</div>
+            <div style={{ fontSize: 11, color: 'var(--navi-text-secondary)' }}>You have unsaved changes to this building.</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => {
+                setShowDialog(false)
               }}
-            >
-              <option value="">(don't specify)</option>
-              {landmarkTypes.map((t) => (
-                <option key={t.id} value={t.name}>{t.name}</option>
-              ))}
-            </select>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--navi-text)' }}>{category || "(don't specify)"}</span>
-          )}
-        </Field>
-
-        <Field label="Floors" editing={editing}>
-          {editing ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => setFloors(Math.max(1, floors - 1))} style={stepperBtnStyle}><Minus size={12} /></button>
-              <input value={floors} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) setFloors(v) }} style={{ ...inputStyle, width: 36, textAlign: 'center' }} />
-              <button onClick={() => setFloors(floors + 1)} style={stepperBtnStyle}><Plus size={12} /></button>
-            </div>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--navi-text)' }}>{building.floors.length}</span>
-          )}
-        </Field>
-
-        <Field label="Height" editing={editing}>
-          {editing ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => setHeight(Math.max(1, height - 1))} style={stepperBtnStyle}><Minus size={12} /></button>
-              <input value={height} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) setHeight(v) }} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
-              <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>m</span>
-              <button onClick={() => setHeight(height + 1)} style={stepperBtnStyle}><Plus size={12} /></button>
-            </div>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--navi-text)' }}>{building.height}m</span>
-          )}
-        </Field>
-
-        <Field label="Color" editing={editing}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 16, height: 16, borderRadius: 3, background: color, border: '1px solid var(--navi-border)' }} />
-            {!editing ? (
-              <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>{color}</span>
-            ) : (
-              <button onClick={() => setShowColorPicker(!showColorPicker)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, padding: 0 }}>
-                Change <ChevronDown size={10} />
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--navi-border)', background: 'transparent', color: 'var(--navi-text)', fontSize: 11, cursor: 'pointer' }}>
+                Cancel
               </button>
-            )}
-          </div>
-          {editing && showColorPicker && (
-            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {recentColors.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>RECENT</div>
-                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                    {recentColors.map((c) => (
-                      <button key={c} onClick={() => { setColor(c); setShowColorPicker(false) }}
-                        style={{ width: 18, height: 18, borderRadius: 3, background: c, border: color === c ? '2px solid var(--navi-text)' : '1px solid var(--navi-border)', cursor: 'pointer' }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>SWATCHES</div>
-                <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                  {COLOR_SWATCHES.map((c) => (
-                    <button key={c} onClick={() => { setColor(c); setShowColorPicker(false) }}
-                      style={{ width: 18, height: 18, borderRadius: 3, background: c, border: color === c ? '2px solid var(--navi-text)' : '1px solid var(--navi-border)', cursor: 'pointer' }} />
-                  ))}
-                </div>
-              </div>
+              <button onClick={() => {
+                if (dirty) save()
+                setDirty(false)
+                setShowDialog(false)
+                setActiveBuilding(null)
+              }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                Discard
+              </button>
+              <button onClick={() => {
+                if (dirty) save()
+                setDirty(false)
+                setShowDialog(false)
+                setActiveBuilding(null)
+              }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--navi-primary)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                Save
+              </button>
             </div>
-          )}
-        </Field>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-        {!editing && (
-          <button onClick={onEditFloor}
-            style={{ marginTop: 8, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--navi-primary)', background: 'transparent', color: 'var(--navi-primary)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-            Edit Floor
-          </button>
-        )}
+function BuildingForm({ building, onDirty, onSave, onDelete }: {
+  building: Building
+  onDirty: (dirty: boolean) => void
+  onSave: (partial: Partial<Building>) => void
+  onDelete: () => void
+}) {
+  const [name, setName] = useState(building.name)
+  const [height, setHeight] = useState(building.height)
+  const [floors, setFloors] = useState(building.floors.length)
+  const [color, setColor] = useState(building.color || '#1C6BEB')
+  const [floorPlanUrls, setFloorPlanUrls] = useState<Record<number, string>>(building.floorPlanUrls ?? {})
+  const router = useRouter()
+  const currentMapId = useGraphStore((s) => s.currentMapId)
+
+  useEffect(() => {
+    const changed = name !== building.name || height !== building.height ||
+      floors !== building.floors.length || color !== (building.color || '#1C6BEB')
+    onDirty(changed)
+  }, [name, height, floors, color, building, onDirty])
+
+  const handleSave = () => {
+    onSave({ name, height, floors: Array.from({ length: floors }, (_, i) => i), color, floorPlanUrls })
+  }
+
+  const handleFloorPlanUpload = (floorIdx: number, file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string
+      setFloorPlanUrls((prev) => ({ ...prev, [floorIdx]: dataUrl }))
+      onDirty(true)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const floorLabel = (f: number) => f === 0 ? 'GF' : f > 0 ? `${f}F` : `${f}F`
+
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Field label="NAME">
+        <input value={name} onChange={(e) => setName(e.target.value)} style={INPUT_STYLE} />
+      </Field>
+
+      <Field label="HEIGHT">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <StepBtn onClick={() => setHeight(Math.max(1, height - 1))}>-</StepBtn>
+          <input value={height} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) setHeight(v) }}
+            style={{ ...INPUT_STYLE, width: 44, textAlign: 'center' }} />
+          <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>m</span>
+          <StepBtn onClick={() => setHeight(height + 1)}>+</StepBtn>
+        </div>
+      </Field>
+
+      <Field label="FLOORS">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <StepBtn onClick={() => setFloors(Math.max(1, floors - 1))}>-</StepBtn>
+          <input value={floors} onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v) && v >= 1) setFloors(v) }}
+            style={{ ...INPUT_STYLE, width: 44, textAlign: 'center' }} />
+          <StepBtn onClick={() => setFloors(floors + 1)}>+</StepBtn>
+        </div>
+      </Field>
+
+      <Field label="COLOR">
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          {COLOR_SWATCHES.map((c) => (
+            <button key={c} onClick={() => setColor(c)}
+              style={{ width: 24, height: 24, borderRadius: 4, background: c, border: color === c ? '2px solid var(--navi-text)' : '1px solid var(--navi-border)', cursor: 'pointer' }} />
+          ))}
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)}
+            style={{ width: 24, height: 24, padding: 0, border: '1px solid var(--navi-border)', borderRadius: 4, cursor: 'pointer', background: 'none' }} />
+        </div>
+      </Field>
+
+      <Field label="FLOOR IMAGES">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {Array.from({ length: floors }, (_, i) => i).map((floorIdx) => (
+            <div key={floorIdx} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 6px', borderRadius: 4, background: 'var(--navi-content)',
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text)', minWidth: 24 }}>
+                {floorLabel(floorIdx)}
+              </span>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '3px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
+                fontSize: 10, color: 'var(--navi-text-secondary)', cursor: 'pointer',
+              }}>
+                <Upload size={12} />
+                {floorPlanUrls[floorIdx] ? 'Replace' : 'Upload'}
+                <input type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFloorPlanUpload(floorIdx, f); e.target.value = '' }} />
+              </label>
+              {floorPlanUrls[floorIdx] && (
+                <span style={{ color: '#10B981', display: 'flex', alignItems: 'center' }}>
+                  <CheckCircle size={12} />
+                </span>
+              )}
+              <div style={{ flex: 1 }} />
+              {currentMapId && (
+                <button onClick={() => router.push(`/studio/${currentMapId}/edit/building/${building.id}/floor/${floorIdx}`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 3,
+                    padding: '3px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
+                    background: 'var(--navi-primary)', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                  <Edit size={10} /> Edit Floor
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Field>
+
+      <Field label="ID">
+        <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)', wordBreak: 'break-all' }}>{building.id}</div>
+      </Field>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <button onClick={handleSave}
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'var(--navi-primary)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          Save Changes
+        </button>
+        <button onClick={onDelete}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 6, border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          <Trash2 size={14} /> Delete
+        </button>
       </div>
     </div>
   )
 }
 
-function Field({ label, editing, children }: { label: string; editing: boolean; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>{label}</div>
       {children}
     </div>
   )
 }
 
-const inputStyle: React.CSSProperties = {
-  padding: '4px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
-  background: 'var(--navi-card)', color: 'var(--navi-text)', fontSize: 12, outline: 'none', width: '100%',
+function StepBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text)', fontSize: 14 }}>
+      {children}
+    </button>
+  )
 }
 
-const stepperBtnStyle: React.CSSProperties = {
-  width: 22, height: 22, borderRadius: 4, border: '1px solid var(--navi-border)',
-  background: 'var(--navi-content)', cursor: 'pointer', display: 'flex', alignItems: 'center',
-  justifyContent: 'center', color: 'var(--navi-text)',
+const INPUT_STYLE: React.CSSProperties = {
+  padding: '5px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
+  background: 'var(--navi-card)', color: 'var(--navi-text)', fontSize: 12, outline: 'none', width: '100%',
 }

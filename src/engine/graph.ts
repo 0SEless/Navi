@@ -126,6 +126,13 @@ export class Graph {
     this._components.set(component.id, component)
   }
 
+  updateComponent(id: string, partial: Partial<Component>): void {
+    const existing = this._components.get(id)
+    if (existing) {
+      this._components.set(id, { ...existing, ...partial })
+    }
+  }
+
   removeComponent(id: string): void {
     this._components.delete(id)
     for (const node of this.nodes) {
@@ -152,6 +159,13 @@ export class Graph {
 
   addTrace(trace: TracePath): void {
     this._traces.set(trace.id, trace)
+  }
+
+  updateTrace(id: string, partial: Partial<TracePath>): void {
+    const existing = this._traces.get(id)
+    if (existing) {
+      this._traces.set(id, { ...existing, ...partial })
+    }
   }
 
   removeTrace(id: string): void {
@@ -220,7 +234,10 @@ export class Graph {
   // ---- Queries ----
 
   findPath(fromId: string, toId: string): PathResult | null {
-    return aStar(this.nodes, this.edges, fromId, toId)
+    return aStar(this.nodes, this.edges, fromId, toId, {
+      buildings: this.buildings,
+      components: this.components,
+    })
   }
 
   getNodesByBuilding(buildingId: string): NavNode[] {

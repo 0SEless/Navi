@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { StudioTool, EditorMode, LayerVisibility } from '../types/studio-types'
-import type { LatLng } from '../types/nav-types'
+import type { StudioTool, EditorMode, LayerVisibility, TraceMode } from '../types/studio-types'
+
 
 type PendingType = 'building' | 'boundary' | 'trace' | null
 
@@ -16,7 +16,7 @@ interface StudioState {
   activeFloor: number
   layers: LayerVisibility
   isTraceActive: boolean
-  traceMode: 'hallway' | 'path'
+  traceMode: TraceMode
 
   setTool: (tool: StudioTool) => void
   setEditorMode: (mode: EditorMode) => void
@@ -25,7 +25,7 @@ interface StudioState {
   toggleLayer: (layer: keyof LayerVisibility) => void
   setLayers: (layers: Partial<LayerVisibility>) => void
   setTraceActive: (active: boolean) => void
-  setTraceMode: (mode: 'hallway' | 'path') => void
+  setTraceMode: (mode: TraceMode) => void
 
   tracePoints: { lat: number; lng: number }[]
   addTracePoint: (point: { lat: number; lng: number }) => void
@@ -35,6 +35,14 @@ interface StudioState {
   pendingConfirm: PendingConfirm | null
   setPendingConfirm: (type: PendingType, points: { lat: number; lng: number }[]) => void
   clearPendingConfirm: () => void
+
+  selectedTraceId: string | null
+  setSelectedTraceId: (id: string | null) => void
+
+  isVertexEditing: boolean
+  editTargetType: 'trace' | 'building' | 'boundary' | 'room' | null
+  editTargetId: string | null
+  setVertexEditing: (targetType: StudioState['editTargetType'], targetId: string | null) => void
 }
 
 const defaultLayers: LayerVisibility = {
@@ -57,10 +65,10 @@ export const useStudioStore = create<StudioState>((set) => ({
   activeFloor: 0,
   layers: { ...defaultLayers },
   isTraceActive: false,
-  traceMode: 'hallway',
+  traceMode: 'path',
   tracePoints: [],
 
-  setTool: (tool) => set({ tool, traceMode: tool === 'route_test' ? 'path' : 'hallway' }),
+  setTool: (tool) => set({ tool, traceMode: tool === 'route_test' || tool === 'trace' ? 'path' : 'path' }),
   setEditorMode: (mode) => set({ editorMode: mode }),
   setActiveBuilding: (id) => set((s) => ({ activeBuildingId: id, activeFloor: id === s.activeBuildingId ? s.activeFloor : 0 })),
   setActiveFloor: (floor) => set({ activeFloor: floor }),
@@ -87,4 +95,17 @@ export const useStudioStore = create<StudioState>((set) => ({
   pendingConfirm: null,
   setPendingConfirm: (type, points) => set({ pendingConfirm: type ? { type, points } : null }),
   clearPendingConfirm: () => set({ pendingConfirm: null }),
+
+  selectedTraceId: null,
+  setSelectedTraceId: (id) => set({ selectedTraceId: id }),
+
+  isVertexEditing: false,
+  editTargetType: null,
+  editTargetId: null,
+  setVertexEditing: (targetType, targetId) => set({
+    isVertexEditing: targetType !== null,
+    editTargetType: targetType,
+    editTargetId: targetId,
+    tool: targetType !== null ? 'vertex' : 'select',
+  }),
 }))

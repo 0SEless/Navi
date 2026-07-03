@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { TracePath, NavNode, NavEdge } from '@/types/nav-types'
-import { compileTrace, type CompileTraceResult } from '../trace-compiler'
+import { compileTrace } from '../trace-compiler'
 
 describe('compileTrace', () => {
   const hallway: TracePath = {
@@ -13,7 +13,7 @@ describe('compileTrace', () => {
       { lat: 11.8196, lng: 122.0923 },
       { lat: 11.8197, lng: 122.0924 },
     ],
-    type: 'hallway',
+    type: 'interior',
   }
 
   it('generates endpoint nodes for a simple trace', () => {
@@ -41,7 +41,7 @@ describe('compileTrace', () => {
         { lat: 11.8190, lng: 122.0923 },
         { lat: 11.8200, lng: 122.0923 },
       ],
-      type: 'hallway',
+      type: 'interior',
     }
     const result = compileTrace(hallway, [existingTrace], [], [])
     const intersectionNodes = result.nodes.filter(

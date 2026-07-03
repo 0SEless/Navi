@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { Graph } from '../engine/graph'
-import type { NavNode, NavEdge, Building, Component, ComponentType, GraphSnapshot, TracePath } from '../types/nav-types'
+import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 
 const STORAGE_KEY = 'navi-graph'
@@ -27,8 +27,10 @@ interface GraphState {
   removeBuilding: (id: string) => void
 
   addComponent: (component: Component) => void
+  updateComponent: (id: string, partial: Partial<Component>) => void
   removeComponent: (id: string) => void
   addTrace: (trace: TracePath) => void
+  updateTrace: (id: string, partial: Partial<TracePath>) => void
   removeTrace: (id: string) => void
   addComponentWithPolygon: (component: Component) => void
 
@@ -126,7 +128,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       componentId: component.id,
       campusId: component.campusId ?? currentMapId ?? undefined,
     })
-    graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
+    graph.addComponent({ ...component, polygon: component.polygon ?? result.polygon })
     for (const node of result.nodes) {
       graph.addNode(node)
     }
@@ -136,15 +138,34 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
+  updateComponent: (id, partial) => {
+    get().graph.updateComponent(id, partial)
+    set({})
+  },
+
   removeComponent: (id) => {
     const graph = get().graph
+    const component = graph.getComponent(id)
     graph.removeComponent(id)
+    if (component?.type === 'entrance') {
+      const building = graph.getBuilding(component.buildingId)
+      if (building && building.entrances) {
+        graph.updateBuilding(component.buildingId, {
+          entrances: building.entrances.filter((e) => e.id !== id),
+        })
+      }
+    }
     set({})
   },
 
   addTrace: (trace) => {
     const roomNodes = get().graph.nodes.filter(n => n.type === 'room')
     get().graph.addTraceWithCompile(trace, roomNodes)
+    set({})
+  },
+
+  updateTrace: (id, partial) => {
+    get().graph.updateTrace(id, partial)
     set({})
   },
 
@@ -164,7 +185,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       componentId: component.id,
       campusId: component.campusId ?? currentMapId ?? undefined,
     })
-    graph.addComponent({ ...component, polygon: result.polygon ?? component.polygon })
+    graph.addComponent({ ...component, polygon: component.polygon ?? result.polygon })
     for (const node of result.nodes) {
       graph.addNode(node)
     }
@@ -186,7 +207,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         // ignore corrupt data
       }
     }
-    // await get().fetchFromSupabase() // disabled until Supabase env vars configured in Vercel
+    await get().fetchFromSupabase()
   },
 
   loadMapData: (mapId: string) => {

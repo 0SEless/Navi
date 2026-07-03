@@ -88,7 +88,8 @@ export function useBuildingTracer(
   const tool = useStudioStore((s) => s.tool)
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
-  onCompleteRef.current = onComplete
+
+  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
   useEffect(() => {
     if (!map) return

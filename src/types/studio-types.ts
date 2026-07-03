@@ -14,6 +14,10 @@ export type StudioTool =
   | 'wall'
   | 'door'
   | 'stairs'
+  | 'vertex'
+  | 'entrance'
+  | 'elevator'
+  | 'hallway'
 
 export type EditorMode = 'campus' | 'building' | 'floor'
 
@@ -29,7 +33,7 @@ export type LayerType =
   | 'edges'
   | 'labels'
 
-export type TraceMode = 'hallway' | 'path'
+export type TraceMode = 'arterial' | 'path' | 'interior'
 
 export type RoomPreset = 'rectangle' | 'lshape' | 'freeform'
 

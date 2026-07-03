@@ -3,6 +3,7 @@
 import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { MetadataPanel } from './MetadataPanel'
+import { TracePropertiesPanel } from './TracePropertiesPanel'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import {
   MousePointer2, Move, Pencil, Square, Package, Route, MapPin, Building2,
@@ -48,18 +49,17 @@ export function RightPanel() {
   const layers = useStudioStore((s) => s.layers)
   const toggleLayer = useStudioStore((s) => s.toggleLayer)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+  const selectedTraceId = useStudioStore((s) => s.selectedTraceId)
+  const setSelectedTraceId = useStudioStore((s) => s.setSelectedTraceId)
 
   const graph = useGraphStore((s) => s.graph)
-  const buildings = graph.buildings
 
   const tools = editorMode === 'floor' ? FLOOR_TOOLS : ALL_CAMPUS_TOOLS
-  const activeBuilding = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
-
-  console.log('[RightPanel] render', { tool, editorMode, activeBuildingId, buildingsCount: buildings.length })
+  const selectedTrace = selectedTraceId ? graph.traces.find((t) => t.id === selectedTraceId) : null
 
   return (
     <div style={{
-      width: 200,
+      width: 280,
       background: 'var(--navi-card)',
       borderLeft: '1px solid var(--navi-border)',
       display: 'flex',
@@ -67,76 +67,91 @@ export function RightPanel() {
       overflow: 'hidden',
       flexShrink: 0,
     }}>
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Tools
+      {selectedTrace ? (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Trace
+            </div>
+          </div>
+          <TracePropertiesPanel key={selectedTrace.id} trace={selectedTrace} onClose={() => setSelectedTraceId(null)} />
         </div>
-      </div>
+      ) : activeBuildingId ? (
+        <MetadataPanel />
+      ) : (
+        <>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Tools
+            </div>
+          </div>
 
-      <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: 2, borderBottom: '1px solid var(--navi-border)' }}>
-        {tools.map(({ tool: t, icon: Icon, label, color }) => (
-          <button
-            key={t}
-            onClick={() => setTool(t)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 8px',
-              borderRadius: 6,
-              border: 'none',
-              cursor: 'pointer',
-              background: tool === t ? `${color}15` : 'transparent',
-              color: tool === t ? color : 'var(--navi-text)',
-              fontSize: 11,
-              textAlign: 'left',
-            }}
-            onMouseEnter={(e) => { if (tool !== t) e.currentTarget.style.background = 'var(--navi-content)' }}
-            onMouseLeave={(e) => { if (tool !== t) e.currentTarget.style.background = 'transparent' }}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-          Layers
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {LAYER_ITEMS.map(({ key, label }) => {
-            const active = layers[key]
-            return (
+          <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: 2, borderBottom: '1px solid var(--navi-border)' }}>
+            {tools.map(({ tool: t, icon: Icon, label, color }) => (
               <button
-                key={key}
-                onClick={() => toggleLayer(key)}
+                key={t}
+                onClick={() => setTool(t)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '4px 6px',
-                  borderRadius: 4,
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
                   border: 'none',
                   cursor: 'pointer',
-                  background: 'transparent',
-                  color: active ? 'var(--navi-text)' : 'var(--navi-text-secondary)',
-                  fontSize: 10,
+                  background: tool === t ? `${color}15` : 'transparent',
+                  color: tool === t ? color : 'var(--navi-text)',
+                  fontSize: 11,
                   textAlign: 'left',
-                  opacity: active ? 1 : 0.5,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--navi-content)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                onMouseEnter={(e) => { if (tool !== t) e.currentTarget.style.background = 'var(--navi-content)' }}
+                onMouseLeave={(e) => { if (tool !== t) e.currentTarget.style.background = 'transparent' }}
               >
-                {active ? <Eye size={11} /> : <EyeOff size={11} />}
+                <Icon size={14} />
                 {label}
               </button>
-            )
-          })}
-        </div>
-      </div>
+            ))}
+          </div>
 
-      <MetadataPanel />
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Layers
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {LAYER_ITEMS.map(({ key, label }) => {
+                const active = layers[key]
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleLayer(key)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 6px',
+                      borderRadius: 4,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: 'transparent',
+                      color: active ? 'var(--navi-text)' : 'var(--navi-text-secondary)',
+                      fontSize: 10,
+                      textAlign: 'left',
+                      opacity: active ? 1 : 0.5,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--navi-content)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    {active ? <Eye size={11} /> : <EyeOff size={11} />}
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <MetadataPanel />
+        </>
+      )}
     </div>
   )
 }

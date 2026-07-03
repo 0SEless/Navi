@@ -1,25 +1,29 @@
 'use client'
 
-import { MousePointer2, Move, Pencil, Square, Package, Route, MapPin } from 'lucide-react'
+import { MousePointer2, Move, Pencil, Square, Route, MapPin, Building2, ArrowUpDown, DoorOpen, CornerUpRight } from 'lucide-react'
 import { useStudioStore } from '@/store/studio-store'
+import { useGraphStore } from '@/store/graph-store'
 import type { StudioTool } from '@/types/studio-types'
 
-const TOOL_CONFIG: { tool: StudioTool; icon: typeof MousePointer2; label: string; color: string }[] = [
+const CAMPUS_TOOLS: { tool: StudioTool; icon: typeof MousePointer2; label: string; color: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
   { tool: 'move', icon: Move, label: 'Move', color: '#64748B' },
   { tool: 'trace', icon: Pencil, label: 'Trace', color: '#F59E0B' },
-  { tool: 'room', icon: Square, label: 'Room', color: '#10B981' },
-  { tool: 'asset', icon: Package, label: 'Asset', color: '#8B5CF6' },
   { tool: 'route_test', icon: Route, label: 'Route', color: '#06B6D4' },
+  { tool: 'building', icon: Building2, label: 'Building', color: '#8B5CF6' },
   { tool: 'boundary', icon: MapPin, label: 'Boundary', color: '#F97316' },
 ]
 
-const FLOORS = [
-  { value: 0, label: 'GF' },
-  { value: 1, label: '1F' },
-  { value: 2, label: '2F' },
-  { value: 3, label: '3F' },
+const FLOOR_TOOLS: { tool: StudioTool; icon: typeof MousePointer2; label: string; color: string }[] = [
+  { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
+  { tool: 'room', icon: Square, label: 'Room', color: '#10B981' },
+  { tool: 'entrance', icon: DoorOpen, label: 'Entrance', color: '#F59E0B' },
+  { tool: 'stairs', icon: ArrowUpDown, label: 'Stairs', color: '#10B981' },
+  { tool: 'elevator', icon: ArrowUpDown, label: 'Elevator', color: '#7C3AED' },
+  { tool: 'hallway', icon: CornerUpRight, label: 'Hallway', color: '#F59E0B' },
 ]
+
+const FLOOR_LABELS = ['GF', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F', '9F', '10F', 'B1', 'B2', 'B3']
 
 export function StudioToolbar() {
   const tool = useStudioStore((s) => s.tool)
@@ -28,6 +32,14 @@ export function StudioToolbar() {
   const setEditorMode = useStudioStore((s) => s.setEditorMode)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const setActiveFloor = useStudioStore((s) => s.setActiveFloor)
+  const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+  const building = useGraphStore((s) => s.graph.buildings.find((b) => b.id === activeBuildingId))
+  const toolConfig = editorMode === 'floor' ? FLOOR_TOOLS : CAMPUS_TOOLS
+  const floorCount = Array.isArray(building?.floors) ? building.floors.length : 1
+  const floors = Array.from({ length: floorCount }, (_, i) => ({
+    value: i,
+    label: FLOOR_LABELS[i] ?? `${i}F`,
+  }))
 
   return (
     <div style={{
@@ -54,7 +66,7 @@ export function StudioToolbar() {
 
       <div style={{ width: 1, height: 22, background: 'var(--navi-border)', margin: '0 4px' }} />
 
-      {TOOL_CONFIG.map(({ tool: t, icon: Icon, label, color }) => (
+      {toolConfig.map(({ tool: t, icon: Icon, label, color }) => (
         <button key={t} title={label} onClick={() => setTool(t)}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
@@ -71,7 +83,7 @@ export function StudioToolbar() {
       <div style={{ flex: 1 }} />
 
       <span style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600 }}>FLOOR:</span>
-      {FLOORS.map((f) => (
+      {floors.map((f) => (
         <button key={f.value} onClick={() => setActiveFloor(f.value)}
           style={{
             width: 32, height: 24, borderRadius: 4,

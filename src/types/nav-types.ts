@@ -30,6 +30,14 @@ export interface NavEdge {
   campusId?: string;
 }
 
+export interface BuildingEntrance {
+  id: string;
+  position: LatLng;
+  floor: number;
+  label?: string;
+  connectorTraceId?: string;
+}
+
 export interface Building {
   id: string;
   name: string;
@@ -44,6 +52,8 @@ export interface Building {
   description?: string;
   outline?: LatLng[];
   floorPlanUrl?: string;
+  floorPlanUrls?: Record<number, string>;
+  entrances?: BuildingEntrance[];
   department?: string;
   category?: string;
 }
@@ -152,6 +162,7 @@ export interface Component {
     rotation?: number;
   };
   connections?: string[];
+  range?: { from: number; to: number };
   metadata?: Record<string, unknown>;
 }
 
@@ -162,7 +173,11 @@ export interface TracePath {
   campusId?: string;
   floor: number;
   points: LatLng[];
-  type: 'hallway' | 'path';
+  type: 'arterial' | 'path' | 'interior';
+  color?: string;
+  role?: 'general' | 'connector';
+  connectorToBuildingId?: string;
+  connectorToEntranceId?: string;
   metadata?: Record<string, unknown>;
 }
 

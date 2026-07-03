@@ -215,7 +215,7 @@ export function DatasetManagement() {
               {!validated && !validating && (
                 <div style={{ padding: "40px", textAlign: "center", color: "var(--navi-text-secondary)" }}>
                   <Activity size={28} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
-                  <div style={{ fontSize: 13 }}>Click "Run Validation" to analyze dataset integrity</div>
+                  <div style={{ fontSize: 13 }}>Click &ldquo;Run Validation&rdquo; to analyze dataset integrity</div>
                 </div>
               )}
               {validating && (

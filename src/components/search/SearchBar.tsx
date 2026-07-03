@@ -113,6 +113,7 @@ export function SearchBar({
           className="flex h-10 w-full rounded-md border border-input bg-background px-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Search nodes"
           aria-autocomplete="list"
+          aria-controls="search-results-listbox"
           aria-expanded={open}
           role="combobox"
         />
@@ -131,6 +132,7 @@ export function SearchBar({
       {open && results.length > 0 && (
         <ul
           ref={listRef}
+          id="search-results-listbox"
           role="listbox"
           className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md"
         >

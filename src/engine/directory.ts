@@ -39,8 +39,6 @@ export function buildDirectory(graph: Graph): DirEntry[] {
       }
     })
 
-    const entranceNodes = buildingNodes.filter((n) => n.type === 'building_entrance' && n.floor === undefined)
-
     return {
       id: building.id,
       label: building.name,

@@ -3,6 +3,14 @@
 import { useEffect, useRef } from 'react'
 import 'pannellum/build/pannellum.css'
 
+type PannellumViewer = { destroy: () => void }
+
+declare global {
+  interface Window {
+    pannellum?: { viewer: (container: HTMLElement, config: Record<string, unknown>) => PannellumViewer }
+  }
+}
+
 interface PanoramaViewerProps {
   imageUrl: string
   autoLoad?: boolean
@@ -11,7 +19,7 @@ interface PanoramaViewerProps {
 
 export function PanoramaViewer({ imageUrl, autoLoad = true, compass = true }: PanoramaViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const viewerRef = useRef<any>(null)
+  const viewerRef = useRef<PannellumViewer | null>(null)
 
   const scriptLoadedRef = useRef(false)
 
@@ -23,7 +31,7 @@ export function PanoramaViewer({ imageUrl, autoLoad = true, compass = true }: Pa
         viewerRef.current.destroy?.()
         viewerRef.current = null
       }
-      viewerRef.current = (window as any).pannellum.viewer(containerRef.current, {
+      viewerRef.current = window.pannellum!.viewer(containerRef.current, {
         type: 'equirectangular',
         panorama: imageUrl,
         autoLoad,
@@ -31,7 +39,7 @@ export function PanoramaViewer({ imageUrl, autoLoad = true, compass = true }: Pa
       })
     }
 
-    if ((window as any).pannellum) {
+    if (window.pannellum) {
       scriptLoadedRef.current = true
       initViewer()
     } else if (!scriptLoadedRef.current) {

@@ -4,7 +4,6 @@ import {
   findLineIntersections,
   findEndpointNodes,
   findProximityConnections,
-  type IntersectionPoint,
 } from '../intersection-engine'
 
 describe('findLineIntersections', () => {
@@ -47,7 +46,7 @@ describe('findEndpointNodes', () => {
         { lat: 11.8196, lng: 122.0923 },
         { lat: 11.8197, lng: 122.0924 },
       ],
-      type: 'hallway',
+      type: 'interior',
     }
     const endpoints = findEndpointNodes(trace)
     expect(endpoints).toHaveLength(2)

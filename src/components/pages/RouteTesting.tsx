@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 import {
-  Route, RotateCcw, AlertTriangle, CheckCircle, MapPin, Clock,
-  Zap, Activity, Navigation, XCircle,
+  Route, RotateCcw, AlertTriangle, CheckCircle,
+  Zap, Activity, XCircle,
 } from "lucide-react";
-import type { NavNode, NavEdge, NodeType } from "@/types/nav-types";
+import type { NavNode, NavEdge } from "@/types/nav-types";
 import { aStar as engineAStar, getAdjacencyList } from "@/engine/a-star";
 
 function calcDistance(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {

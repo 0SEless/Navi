@@ -149,7 +149,7 @@ describe('Graph trace operations', () => {
     const trace: TracePath = {
       id: 'T001', floor: 0,
       points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
-      type: 'hallway',
+      type: 'interior',
     }
     graph.addTrace(trace)
     expect(graph.traces).toHaveLength(1)
@@ -160,7 +160,7 @@ describe('Graph trace operations', () => {
     const trace: TracePath = {
       id: 'T001', floor: 0,
       points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
-      type: 'hallway',
+      type: 'interior',
     }
     graph.addTraceWithCompile(trace, [])
     expect(graph.traces).toHaveLength(1)

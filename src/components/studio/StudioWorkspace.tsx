@@ -6,7 +6,6 @@ import { useGraphStore } from '@/store/graph-store'
 import { LeftPanel } from './LeftPanel'
 import { RightPanel } from './RightPanel'
 import { StudioCanvas } from './StudioCanvas'
-import { FloorTabs } from './FloorTabs'
 import { ConfirmOverlay } from './ConfirmOverlay'
 
 interface StudioWorkspaceProps {
@@ -32,18 +31,9 @@ export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
         <StudioCanvas center={center} />
         <ConfirmOverlay />
       </div>
-      <RightPanel />
+      <RightPanel mapId={mapId} />
     </div>
   )
-
-  if (editorMode === 'floor') {
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <FloorTabs />
-        {mapContent}
-      </div>
-    )
-  }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>

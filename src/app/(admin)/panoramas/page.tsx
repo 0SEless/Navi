@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useCallback, useRef } from "react"
+import { useState, useMemo, useCallback } from "react"
+import Image from "next/image"
 import { Camera, Search, X, Upload, Maximize2 } from "lucide-react"
 import { useGraphStore } from "@/store/graph-store"
 import { PanoramaViewer } from "@/components/map/PanoramaViewer"
@@ -10,8 +11,6 @@ export default function PanoramaManagement() {
   const updateNode = useGraphStore((s) => s.updateNode)
   const [search, setSearch] = useState("")
   const [uploadingId, setUploadingId] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
   const panoramaNodes = useMemo(() => {
     return graph.nodes.filter((n) => n.hasPanorama).filter((n) =>
       !search || n.label.toLowerCase().includes(search.toLowerCase()) || n.id.toLowerCase().includes(search.toLowerCase())
@@ -33,7 +32,7 @@ export default function PanoramaManagement() {
       setUploadingId(null)
     }
     reader.readAsDataURL(file)
-  }, [updateNode])
+  }, [updateNode, graph])
 
   return (
     <div style={{ padding: 24, height: "100%", display: "flex", flexDirection: "column", background: "var(--navi-content)", minHeight: "100%" }}>
@@ -76,7 +75,7 @@ export default function PanoramaManagement() {
                 onMouseEnter={(e) => { (e.currentTarget.querySelector('.pano-overlay') as HTMLElement).style.opacity = '1' }}
                 onMouseLeave={(e) => { (e.currentTarget.querySelector('.pano-overlay') as HTMLElement).style.opacity = '0' }}
               >
-                <img src={panoramaUrl} alt={node.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <Image src={panoramaUrl} alt={node.label} width={300} height={100} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 <div className="pano-overlay" style={{
                   position: "absolute", inset: 0, background: "rgba(15,23,42,0.4)", opacity: 0,
                   display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity 0.2s",

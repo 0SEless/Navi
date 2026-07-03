@@ -9,7 +9,7 @@ describe('TracePath', () => {
       buildingId: 'BLD01',
       floor: 1,
       points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
-      type: 'hallway',
+      type: 'interior',
     }
     expect(trace.id).toBe('T001')
     expect(trace.points.length).toBe(2)

@@ -2,19 +2,21 @@
 
 import { X } from 'lucide-react'
 import { useStudioStore } from '@/store/studio-store'
+import { useGraphStore } from '@/store/graph-store'
 
-const FLOORS = [
-  { value: 0, label: 'GF' },
-  { value: 1, label: '1F' },
-  { value: 2, label: '2F' },
-  { value: 3, label: '3F' },
-]
+const FLOOR_LABELS = ['GF', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F', '9F', '10F', 'B1', 'B2', 'B3']
 
 export function FloorTabs() {
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const setActiveFloor = useStudioStore((s) => s.setActiveFloor)
   const setEditorMode = useStudioStore((s) => s.setEditorMode)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+  const building = useGraphStore((s) => s.graph.buildings.find((b) => b.id === activeBuildingId))
+  const floorCount = Array.isArray(building?.floors) ? building.floors.length : 1
+  const floors = Array.from({ length: floorCount }, (_, i) => ({
+    value: i,
+    label: FLOOR_LABELS[i] ?? `${i}F`,
+  }))
 
   return (
     <div style={{
@@ -22,9 +24,9 @@ export function FloorTabs() {
       padding: '4px 14px', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
     }}>
       <span style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginRight: 8 }}>
-        FLOOR EDITOR{activeBuildingId ? ` — ${activeBuildingId.slice(0, 8)}` : ''}
+        FLOOR EDITOR{activeBuildingId ? ` — ${building?.name ?? activeBuildingId.slice(0, 8)}` : ''}
       </span>
-      {FLOORS.map((f) => (
+      {floors.map((f) => (
         <button key={f.value} onClick={() => setActiveFloor(f.value)}
           style={{
             padding: '4px 12px', borderRadius: 4, border: 'none',

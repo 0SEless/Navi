@@ -1,4 +1,4 @@
-import type { NavNode, NavEdge, LatLng, PathResult, PathStep } from '../types/nav-types'
+import type { NavNode, NavEdge, LatLng, PathResult, PathStep, Building, Component } from '../types/nav-types'
 
 function haversine(a: LatLng, b: LatLng): number {
   const R = 6371000
@@ -29,18 +29,95 @@ function heuristic(a: LatLng, b: LatLng): number {
   return haversine(a, b)
 }
 
-function generateInstructions(path: string[], nodes: NavNode[]): PathStep[] {
+const FLOOR_LABELS = ['GF', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F', '9F', '10F', 'B1', 'B2', 'B3']
+
+function floorLabel(level: number): string {
+  return FLOOR_LABELS[level] ?? `${level}F`
+}
+
+function nodeDisplayName(node: NavNode, buildings: Map<string, Building>, components: Map<string, Component>): string {
+  if (node.name) return node.name
+
+  if (node.componentId) {
+    const comp = components.get(node.componentId)
+    if (comp?.name) return comp.name
+  }
+
+  if (node.type === 'building_entrance') {
+    const bldg = buildings.get(node.buildingId)
+    const base = bldg ? `${bldg.name}` : 'Building'
+    return `${base} Entrance`
+  }
+
+  if (node.type === 'room') return `Room ${node.label}`
+  if (node.type === 'stair' || node.type === 'staircase') return `Stairs to ${floorLabel(node.floor)}`
+  if (node.type === 'elevator') return `Elevator to ${floorLabel(node.floor)}`
+  if (node.type === 'hallway') return `Hallway`
+
+  return node.label || node.id.slice(0, 8)
+}
+
+function generateInstructions(
+  path: string[],
+  nodes: NavNode[],
+  buildings?: Building[],
+  components?: Component[],
+): PathStep[] {
+  const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]))
+  const buildingMap = new Map(buildings?.map((b) => [b.id, b]) ?? [])
+  const componentMap = new Map(components?.map((c) => [c.id, c]) ?? [])
+
   return path.flatMap((nodeId, i) => {
-    const node = nodes.find((n) => n.id === nodeId)
+    const node = nodeMap[nodeId]
     if (!node) return []
-    const prev = i > 0 ? nodes.find((n) => n.id === path[i - 1]) : null
-    const dist = prev ? Math.round(heuristic(prev.position, node.position)) : 0
-    let instruction = 'Start here'
-    if (i > 0 && i < path.length - 1) {
-      instruction = `Continue to ${node.label}`
+    const prev = i > 0 ? nodeMap[path[i - 1]] : null
+    const dist = prev ? Math.round(haversine(prev.position, node.position)) : 0
+    const bldg = buildingMap.get(node.buildingId)
+    const buildingName = bldg?.name ?? ''
+
+    let instruction = ''
+
+    if (i === 0) {
+      const parts = ['Start here']
+      if (buildingName) parts.push(`at ${buildingName}`)
+      parts.push(`(${floorLabel(node.floor)})`)
+      instruction = parts.join(' ')
     } else if (i === path.length - 1) {
-      instruction = 'Destination reached'
+      const parts = ['Destination reached']
+      if (buildingName) parts.push(`at ${buildingName}`)
+      const display = nodeDisplayName(node, buildingMap, componentMap)
+      if (display && display !== buildingName) parts.push(`— ${display}`)
+      parts.push(`(${floorLabel(node.floor)})`)
+      instruction = parts.join(' ')
+    } else {
+      const display = nodeDisplayName(node, buildingMap, componentMap)
+      // Floor transition
+      if (prev && node.floor !== prev.floor) {
+        const dir = node.floor > prev.floor ? 'up' : 'down'
+        const via = node.type === 'stair' || node.type === 'staircase' ? 'stairs' :
+                     node.type === 'elevator' ? 'elevator' : 'walk'
+        instruction = `Take ${via} ${dir} to ${floorLabel(node.floor)}`
+        if (buildingName && buildingName !== (buildingMap.get(prev.buildingId)?.name ?? '')) {
+          instruction += ` in ${buildingName}`
+        }
+      }
+      // Crossing into a building
+      else if (prev && prev.buildingId !== node.buildingId) {
+        instruction = `Enter ${buildingName || node.buildingId.slice(0, 8)}`
+        if (node.type === 'building_entrance') {
+          instruction += ` (${display})`
+        }
+      }
+      // Room arrival
+      else if (node.type === 'room' || node.type === 'hallway') {
+        instruction = `Continue to ${display}`
+      }
+      // Default
+      else {
+        instruction = `Continue to ${display}`
+      }
     }
+
     return { nodeId, instruction, distance: dist }
   })
 }
@@ -49,7 +126,8 @@ export function aStar(
   nodes: NavNode[],
   edges: NavEdge[],
   startId: string,
-  endId: string
+  endId: string,
+  context?: { buildings?: Building[]; components?: Component[] },
 ): PathResult | null {
   const adj = buildAdjacencyList(edges)
   const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]))
@@ -83,7 +161,7 @@ export function aStar(
       return {
         path,
         cost: gScore[endId],
-        steps: generateInstructions(path, nodes),
+        steps: generateInstructions(path, nodes, context?.buildings, context?.components),
       }
     }
     openSet.delete(current)

@@ -11,23 +11,15 @@ interface GeolocationState {
 }
 
 export function useGeolocation(): GeolocationState {
-  const [state, setState] = useState<GeolocationState>({
-    latitude: null,
-    longitude: null,
-    accuracy: null,
-    error: null,
-    loading: true,
+  const [state, setState] = useState<GeolocationState>(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return { latitude: null, longitude: null, accuracy: null, error: 'Geolocation is not supported by this browser', loading: false }
+    }
+    return { latitude: null, longitude: null, accuracy: null, error: null, loading: true }
   })
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setState((prev) => ({
-        ...prev,
-        error: 'Geolocation is not supported by this browser',
-        loading: false,
-      }))
-      return
-    }
+    if (!navigator.geolocation) return
 
     navigator.geolocation.getCurrentPosition(
       (position) => {

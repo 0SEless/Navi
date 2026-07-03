@@ -6,6 +6,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCampusMapStore } from '@/store/campus-map-store'
 import { useGraphStore } from '@/store/graph-store'
+import type { Building } from '@/types/nav-types'
 import { ArrowLeft, Edit, Satellite, Map } from 'lucide-react'
 
 const OSM_STYLE = {
@@ -34,6 +35,60 @@ const SATELLITE_STYLE = {
   layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
 }
 
+const SRC = 'preview-buildings'
+const LYR = 'preview-buildings-extrusion'
+const BOUNDARY_SRC = 'preview-boundary'
+
+function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: buildings.map((b) => ({
+      type: 'Feature',
+      properties: { id: b.id, name: b.name, color: b.color || '#1C6BEB', height: b.height || 15 },
+      geometry: {
+        type: 'Polygon',
+        coordinates: b.footprint.length >= 3
+          ? [[...b.footprint.map((p) => [p.lng, p.lat] as [number, number]), [b.footprint[0].lng, b.footprint[0].lat] as [number, number]]]
+          : (() => {
+              const c = b.footprint.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 })
+              const avg = { lat: c.lat / b.footprint.length, lng: c.lng / b.footprint.length }
+              return [[
+                [avg.lng - 0.0003, avg.lat - 0.0003],
+                [avg.lng + 0.0003, avg.lat - 0.0003],
+                [avg.lng + 0.0003, avg.lat + 0.0003],
+                [avg.lng - 0.0003, avg.lat + 0.0003],
+                [avg.lng - 0.0003, avg.lat - 0.0003],
+              ]]
+            })(),
+      },
+    })),
+  }
+}
+
+function initSources(map: maplibregl.Map) {
+  if (map.getSource(SRC)) return
+  map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR, type: 'fill-extrusion', source: SRC, paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.85, 'fill-extrusion-base': 0 } })
+}
+
+function addBoundarySource(map: maplibregl.Map) {
+  if (map.getSource(BOUNDARY_SRC)) return
+  map.addSource(BOUNDARY_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'preview-boundary-fill', type: 'fill', source: BOUNDARY_SRC, paint: { 'fill-color': '#94A3B8', 'fill-opacity': 0.15 } })
+  map.addLayer({ id: 'preview-boundary-outline', type: 'line', source: BOUNDARY_SRC, paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 2], 'line-opacity': 0.5 } })
+}
+
+function syncBoundary(map: maplibregl.Map, boundary: { lat: number; lng: number }[]) {
+  if (!boundary || boundary.length < 3) return
+  const src = map.getSource(BOUNDARY_SRC) as maplibregl.GeoJSONSource
+  if (!src) return
+  const coords = boundary.map((p) => [p.lng, p.lat] as [number, number])
+  src.setData({
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] }, properties: {} }],
+  })
+}
+
 interface MapPreviewProps {
   mapId: string
 }
@@ -47,11 +102,13 @@ export function MapPreview({ mapId }: MapPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [satellite, setSatellite] = useState(false)
+  const initRef = useRef(false)
 
   useEffect(() => {
     loadMapData(mapId)
   }, [mapId, loadMapData])
 
+  // Init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     const center = campusMap?.center ?? { lat: 11.8195, lng: 122.0922 }
@@ -64,83 +121,38 @@ export function MapPreview({ mapId }: MapPreviewProps) {
       maxPitch: 85,
     })
     mapRef.current = map
-
     map.on('load', () => {
-      if (!campusMap) return
-
-      map.addSource('buildings-extrusion', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      })
-      map.addLayer({
-        id: 'buildings-extrusion-fill',
-        type: 'fill-extrusion',
-        source: 'buildings-extrusion',
-        paint: {
-          'fill-extrusion-color': ['get', 'color'],
-          'fill-extrusion-height': ['get', 'height'],
-          'fill-extrusion-opacity': 0.85,
-          'fill-extrusion-base': 0,
-        },
-      })
+      initSources(map)
+      addBoundarySource(map)
+      initRef.current = true
+      // Sync buildings immediately — data may have loaded before map was ready
+      const src = map.getSource(SRC) as maplibregl.GeoJSONSource
+      if (src && graph.buildings.length > 0) src.setData(buildBuildingGeo(graph.buildings))
     })
-  }, [campusMap])
+  }, [campusMap, graph.buildings])
 
+  // Sync buildings whenever they change
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !initRef.current || graph.buildings.length === 0) return
+    const src = map.getSource(SRC) as maplibregl.GeoJSONSource
+    if (src) src.setData(buildBuildingGeo(graph.buildings))
+  }, [graph.buildings])
+
+  // Satellite toggle
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const buildings = graph.buildings
-    if (buildings.length === 0) return
+    map.setStyle(satellite ? SATELLITE_STYLE : OSM_STYLE)
+    map.once('style.load', () => { initSources(map); addBoundarySource(map) })
+  }, [satellite])
 
-    const src = map.getSource('buildings-extrusion') as maplibregl.GeoJSONSource
-    if (!src) return
-
-    const features: GeoJSON.Feature[] = buildings.map((b) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          ...b.footprint.map((p) => [p.lng, p.lat] as [number, number]),
-          [b.footprint[0].lng, b.footprint[0].lat] as [number, number],
-        ]],
-      },
-      properties: {
-        id: b.id,
-        name: b.name,
-        height: b.height || 15,
-        color: b.color || '#1C6BEB',
-      },
-    }))
-
-    src.setData({ type: 'FeatureCollection', features })
-  }, [graph])
-
+  // Boundary sync
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
-    const style = satellite ? SATELLITE_STYLE : OSM_STYLE
-    map.setStyle(style)
-    const currentCampusMap = campusMap
-    if (currentCampusMap) {
-      map.once('style.load', () => {
-        map.addSource('buildings-extrusion', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] },
-        })
-        map.addLayer({
-          id: 'buildings-extrusion-fill',
-          type: 'fill-extrusion',
-          source: 'buildings-extrusion',
-          paint: {
-            'fill-extrusion-color': ['get', 'color'],
-            'fill-extrusion-height': ['get', 'height'],
-            'fill-extrusion-opacity': 0.85,
-            'fill-extrusion-base': 0,
-          },
-        })
-      })
-    }
-  }, [satellite, campusMap])
+    if (!map || !campusMap?.boundary || campusMap.boundary.length < 3) return
+    syncBoundary(map, campusMap.boundary)
+  }, [campusMap?.boundary])
 
   if (!campusMap) {
     return (

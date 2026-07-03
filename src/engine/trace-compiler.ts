@@ -37,6 +37,8 @@ export function compileTrace(
   existingEdges: NavEdge[],
   roomNodes?: NavNode[]
 ): CompileTraceResult {
+  if (trace.metadata?.role === 'wall') return { nodes: [], edges: [] }
+
   const nodes: NavNode[] = []
   const edges: NavEdge[] = []
   const generatedNodePositions = new Set<string>()

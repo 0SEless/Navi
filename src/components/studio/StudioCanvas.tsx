@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import type { NavNode, NavEdge, LatLng, Building } from '@/types/nav-types'
+import type { NavNode, NavEdge, LatLng, Building, TracePath } from '@/types/nav-types'
 import type { Graph } from '@/engine/graph'
 import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
 import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
@@ -35,6 +35,19 @@ const OSM_STYLE = {
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }
 
+const SATELLITE_STYLE = {
+  version: 8 as const,
+  sources: {
+    satellite: {
+      type: 'raster' as const,
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    },
+  },
+  layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
+}
+
 function getInitialStyle() {
   if (typeof window !== 'undefined') {
     return OSM_STYLE
@@ -47,7 +60,7 @@ const SRC = {
   NODES: 'studio-nodes',
   EDGES: 'studio-edges',
   DRAWING: 'studio-drawing',
-  TRACE: 'studio-trace',
+  TRACES: 'studio-traces',
   ROOMS: 'studio-rooms',
 }
 
@@ -61,8 +74,9 @@ const LYR = {
   NODES_LABEL: 'studio-nodes-label',
   DRAWING_LINE: 'studio-drawing-line',
   DRAWING_POINTS: 'studio-drawing-points',
-  TRACE_LINE: 'studio-trace-line',
-  TRACE_POINTS: 'studio-trace-points',
+  TRACES_LINE: 'studio-traces-line',
+  TRACES_INNER: 'studio-traces-inner',
+  TRACES_POINTS: 'studio-traces-points',
   ROOMS_FILL: 'studio-rooms-fill',
   ROOMS_OUTLINE: 'studio-rooms-outline',
 }
@@ -124,6 +138,20 @@ function buildEdgeGeo(edges: NavEdge[], nodes: NavNode[]): GeoJSON.FeatureCollec
   }
 }
 
+function buildTracesGeo(traces: TracePath[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: traces.map((t) => ({
+      type: 'Feature',
+      properties: { id: t.id, name: t.name, type: t.type, role: t.role, color: t.color || '#10B981' },
+      geometry: {
+        type: 'LineString',
+        coordinates: t.points.map((p) => [p.lng, p.lat] as [number, number]),
+      },
+    })),
+  }
+}
+
 function addSourcesAndLayers(map: maplibregl.Map) {
   if (map.getSource(SRC.BUILDINGS)) return
   map.addSource(SRC.BUILDINGS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -136,6 +164,10 @@ function addSourcesAndLayers(map: maplibregl.Map) {
 
   map.addSource(SRC.NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
+
+  map.addSource(SRC.TRACES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.TRACES_INNER, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': 2, 'line-opacity': 0.5 }, filter: ['==', ['get', 'type'], 'interior'] })
+  map.addLayer({ id: LYR.TRACES_LINE, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': 4, 'line-opacity': 0.8 }, filter: ['!=', ['get', 'type'], 'interior'] })
 
   map.addSource(SRC.DRAWING, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.6 } })
@@ -156,13 +188,16 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   const buildingGeo = buildBuildingGeo(graph.buildings)
   const nodeGeo = buildNodeGeo(filteredNodes)
   const edgeGeo = buildEdgeGeo(filteredEdges, filteredNodes)
+  const tracesGeo = buildTracesGeo(graph.traces)
   try {
     const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
     const nodeSrc = map.getSource(SRC.NODES) as maplibregl.GeoJSONSource
     const edgeSrc = map.getSource(SRC.EDGES) as maplibregl.GeoJSONSource
+    const tracesSrc = map.getSource(SRC.TRACES) as maplibregl.GeoJSONSource
     if (buildingSrc) buildingSrc.setData(buildingGeo)
     if (nodeSrc) nodeSrc.setData(nodeGeo)
     if (edgeSrc) edgeSrc.setData(edgeGeo)
+    if (tracesSrc) tracesSrc.setData(tracesGeo)
   } catch { console.warn('[StudioCanvas] source not ready') }
 }
 
@@ -179,11 +214,8 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const graph = useGraphStore((s) => s.graph)
   const addComponent = useGraphStore((s) => s.addComponent)
   const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
-  const addBuilding = useGraphStore((s) => s.addBuilding)
-  const addTrace = useGraphStore((s) => s.addTrace)
   const tool = useStudioStore((s) => s.tool)
   const activeFloor = useStudioStore((s) => s.activeFloor)
-  const editorMode = useStudioStore((s) => s.editorMode)
   const layers = useStudioStore((s) => s.layers)
   const tracePoints = useStudioStore((s) => s.tracePoints)
   const addTracePoint = useStudioStore((s) => s.addTracePoint)
@@ -192,8 +224,9 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
+  const setSelectedTraceId = useStudioStore((s) => s.setSelectedTraceId)
 
-  const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
+  const [, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
 
@@ -240,13 +273,28 @@ useEffect(() => {
     })
     mapRef.current = map
     return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false; setMapInstance(null) }
-  }, [])
+  }, [center])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
     syncAllData(map, graph, activeFloor)
   }, [graph, activeFloor])
+
+  const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) : null
+  useEffect(() => {
+    if (!selectedBuilding || !mapRef.current || !readyRef.current) return
+    const map = mapRef.current
+    const b = selectedBuilding
+    const opts = { pitch: map.getPitch(), bearing: map.getBearing(), duration: 500 }
+    if (b.footprint.length >= 2) {
+      const bounds = new maplibregl.LngLatBounds()
+      b.footprint.forEach((p) => bounds.extend([p.lng, p.lat]))
+      map.fitBounds(bounds, { padding: 120, ...opts })
+    } else if (b.center) {
+      map.flyTo({ center: [b.center.lng, b.center.lat], zoom: 18, ...opts })
+    }
+  }, [selectedBuilding, readyRef])
 
   useEffect(() => {
     const map = mapRef.current
@@ -270,7 +318,13 @@ useEffect(() => {
           if (bid) setActiveBuilding(bid)
           return
         }
+        const hitTrace = features.find((f) => f.layer.id === LYR.TRACES_LINE || f.layer.id === LYR.TRACES_INNER)
+        if (hitTrace) {
+          const tid = hitTrace.properties?.id
+          if (tid) { setSelectedTraceId(tid); return }
+        }
         setSelectedNode(null)
+        setSelectedTraceId(null)
         return
       }
     }
@@ -339,7 +393,7 @@ useEffect(() => {
       map.off('mouseup', handleMouseUp)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current
@@ -351,6 +405,21 @@ useEffect(() => {
     if (tool === 'trace' || tool === 'route_test' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
     else map.dragPan.enable()
   }, [tool])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    const currentStyle = map.getStyle()
+    const isSatellite = currentStyle?.sources?.satellite != null
+    const wantsSatellite = layers.satellite
+    if (wantsSatellite === isSatellite) return
+    const targetStyle = wantsSatellite ? SATELLITE_STYLE : OSM_STYLE
+    map.setStyle(targetStyle)
+    map.once('style.load', () => {
+      addSourcesAndLayers(map)
+      syncAllData(map, graphRef.current, activeFloorRef.current)
+    })
+  }, [layers, mapInstance])
 
   useCampusBoundary(mapInstance, (result: BoundaryPolygon) => {
     setPendingConfirm('boundary', result.points)

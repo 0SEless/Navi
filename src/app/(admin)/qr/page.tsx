@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { QrCode, Search, X, Camera, Check, ScanLine } from "lucide-react"
+import { QrCode, Search, X, Check, ScanLine } from "lucide-react"
 import { useGraphStore } from "@/store/graph-store"
 import { QRScanner } from "@/components/map/QRScanner"
 

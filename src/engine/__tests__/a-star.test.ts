@@ -50,8 +50,8 @@ describe('aStar', () => {
   it('returns path with steps', () => {
     const result = aStar(nodes, edges, 'N001', 'N004')
     expect(result!.steps.length).toBe(4)
-    expect(result!.steps[0].instruction).toBe('Start here')
-    expect(result!.steps[3].instruction).toBe('Destination reached')
+    expect(result!.steps[0].instruction).toBe('Start here (GF)')
+    expect(result!.steps[3].instruction).toBe('Destination reached \u2014 Destination (GF)')
   })
 
   it('returns null when start node does not exist', () => {
@@ -69,6 +69,50 @@ describe('aStar', () => {
     const result = aStar(nodes, edges, 'N001', 'N002')
     expect(result).not.toBeNull()
     expect(result!.path).toEqual(['N001', 'N002'])
+  })
+
+  it('returns path with cost 0 when start equals end', () => {
+    const result = aStar(nodes, edges, 'N001', 'N001')
+    expect(result).not.toBeNull()
+    expect(result!.path).toEqual(['N001'])
+    expect(result!.cost).toBe(0)
+  })
+
+  it('returns null when end node does not exist', () => {
+    expect(aStar(nodes, edges, 'N001', 'N999')).toBeNull()
+  })
+
+  it('returns null with empty nodes array', () => {
+    expect(aStar([], edges, 'N001', 'N004')).toBeNull()
+  })
+
+  it('returns null with empty edges array', () => {
+    expect(aStar(nodes, [], 'N001', 'N004')).toBeNull()
+  })
+
+  it('returns null when graph is disconnected (nodes exist but no edges connect them)', () => {
+    const disconnectedNodes = [
+      { ...origin },
+      { ...dest, id: 'N004' },
+    ]
+    expect(aStar(disconnectedNodes, [], 'N001', 'N004')).toBeNull()
+  })
+
+  it('returns smallest cost when multiple paths exist', () => {
+    const multiPathEdges: NavEdge[] = [
+      ...edges,
+      { id: 'E004', from: 'N001', to: 'N003', type: 'walkway', distance: 10, weight: 10, campusId: 'asu-ibajay' },
+    ]
+    const result = aStar(nodes, multiPathEdges, 'N001', 'N004')
+    expect(result).not.toBeNull()
+    expect(result!.cost).toBe(25) // N001->N003(10) + N003->N004(15)
+    expect(result!.path).toEqual(['N001', 'N003', 'N004'])
+  })
+
+  it('finds path with bidirectional edges', () => {
+    const result = aStar(nodes, edges, 'N004', 'N001')
+    expect(result).not.toBeNull()
+    expect(result!.path).toEqual(['N004', 'N003', 'N002', 'N001'])
   })
 })
 

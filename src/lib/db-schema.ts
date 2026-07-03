@@ -1,4 +1,4 @@
-import type { Building, NavNode, NavEdge, GraphSnapshot } from "@/types/nav-types"
+import type { Building, NavNode, NavEdge } from "@/types/nav-types"
 
 // Map TypeScript camelCase property names to snake_case DB column names
 const TS_TO_DB: Record<string, string> = {

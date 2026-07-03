@@ -123,7 +123,7 @@ export default function CampusMap({
       mapRef.current = null
       readyRef.current = false
     }
-  }, [])
+  }, [buildings, center, interactive, onMapLoaded, zoom])
 
   useEffect(() => {
     const map = mapRef.current

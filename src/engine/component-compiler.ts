@@ -55,7 +55,7 @@ function findNearestNode(
 }
 
 function compileRoom(component: Component, context: CompileContext): CompileResult {
-  const { buildings, existingNodes, existingEdges } = context
+  const { existingNodes, existingEdges } = context
   const w = (component.dimensions?.width ?? 4) / 2
   const h = (component.dimensions?.height ?? 5) / 2
   const metersPerLat = 111320
@@ -63,7 +63,6 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
   const dLat = h / metersPerLat
   const dLng = w / metersPerLng
 
-  const building = buildings.get(component.buildingId)
   const roomLabel = component.name
 
   const polygon: LatLng[] = [
@@ -157,53 +156,46 @@ function compileRoom(component: Component, context: CompileContext): CompileResu
 }
 
 function compileStair(component: Component, context: CompileContext): CompileResult {
-  const building = context.buildings.get(component.buildingId)
-  const maxFloor = Array.isArray(building?.floors) ? (building?.floors?.length ?? 2) : (building?.floors ?? 2)
-  const currentFloor = component.floor
-
-  const topNode: NavNode = {
-    id: genId('N'),
-    label: `${component.name} (Up)`,
-    name: `${component.name} (Up)`,
-    type: 'staircase',
-    buildingId: component.buildingId,
-    campusId: context.campusId ?? '',
-    floor: currentFloor + 1 <= maxFloor ? currentFloor + 1 : currentFloor,
-    position: component.position,
-  }
-
-  const bottomNode: NavNode = {
-    id: genId('N'),
-    label: `${component.name} (Down)`,
-    name: `${component.name} (Down)`,
-    type: 'staircase',
-    buildingId: component.buildingId,
-    campusId: context.campusId ?? '',
-    floor: currentFloor,
-    position: component.position,
-  }
-
-  const edge: NavEdge = {
-    id: genId('E'),
-    from: bottomNode.id,
-    to: topNode.id,
-    type: 'stairs',
-    distance: 4,
-    weight: 4,
-    campusId: context.campusId ?? '',
-  }
-
-  return { nodes: [bottomNode, topNode], edges: [edge] }
-}
-
-function compileElevator(component: Component, context: CompileContext): CompileResult {
-  const building = context.buildings.get(component.buildingId)
-  const totalFloors = Array.isArray(building?.floors) ? (building?.floors?.length ?? 3) : (building?.floors ?? 3)
+  const range = component.range ?? { from: component.floor, to: component.floor + 1 }
 
   const nodes: NavNode[] = []
   const edges: NavEdge[] = []
 
-  for (let f = 0; f < totalFloors; f++) {
+  for (let f = range.from; f <= range.to; f++) {
+    const node: NavNode = {
+      id: genId('N'),
+      label: `${component.name} (F${f})`,
+      name: `${component.name} (F${f})`,
+      type: 'staircase',
+      buildingId: component.buildingId,
+      campusId: context.campusId ?? '',
+      floor: f,
+      position: component.position,
+    }
+    nodes.push(node)
+    if (nodes.length > 1) {
+      edges.push({
+        id: genId('E'),
+        from: nodes[nodes.length - 2].id,
+        to: node.id,
+        type: 'stairs',
+        distance: 4,
+        weight: 4,
+        campusId: context.campusId ?? '',
+      })
+    }
+  }
+
+  return { nodes, edges }
+}
+
+function compileElevator(component: Component, context: CompileContext): CompileResult {
+  const range = component.range ?? { from: 0, to: 2 }
+
+  const nodes: NavNode[] = []
+  const edges: NavEdge[] = []
+
+  for (let f = range.from; f <= range.to; f++) {
     const node: NavNode = {
       id: genId('N'),
       label: `${component.name} (F${f})`,
@@ -215,10 +207,10 @@ function compileElevator(component: Component, context: CompileContext): Compile
       position: component.position,
     }
     nodes.push(node)
-    if (f > 0) {
+    if (nodes.length > 1) {
       edges.push({
         id: genId('E'),
-        from: nodes[f - 1].id,
+        from: nodes[nodes.length - 2].id,
         to: node.id,
         type: 'elevator',
         distance: 3,
@@ -232,9 +224,33 @@ function compileElevator(component: Component, context: CompileContext): Compile
 }
 
 function compileHallway(component: Component, context: CompileContext): CompileResult {
+  // Use polygon points as drawn polyline when available
+  if (component.polygon && component.polygon.length >= 2) {
+    const nodes: NavNode[] = component.polygon.map((pos, i) => ({
+      id: genId('N'),
+      label: `${component.name} ${i === 0 ? 'Start' : i === component.polygon!.length - 1 ? 'End' : `Pt${i}`}`,
+      name: `${component.name} ${i === 0 ? 'Start' : i === component.polygon!.length - 1 ? 'End' : `Pt${i}`}`,
+      type: 'intersection',
+      buildingId: component.buildingId,
+      campusId: context.campusId ?? '',
+      floor: component.floor,
+      position: pos,
+    }))
+    const edges: NavEdge[] = nodes.slice(1).map((node, i) => ({
+      id: genId('E'),
+      from: nodes[i].id,
+      to: node.id,
+      type: 'corridor',
+      distance: haversine(nodes[i].position, node.position),
+      weight: haversine(nodes[i].position, node.position),
+      campusId: context.campusId ?? '',
+    }))
+    return { nodes, edges }
+  }
+
+  // Fallback: legacy linear generation from position + width
   const length = component.dimensions?.width ?? 10
   const segmentCount = Math.max(2, Math.floor(length / 5))
-  const dLatPerSegment = 0
   const dLngPerSegment = (length / segmentCount) / (111320 * Math.cos((component.position.lat * Math.PI) / 180))
 
   const nodes: NavNode[] = []
