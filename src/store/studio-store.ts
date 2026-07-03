@@ -68,7 +68,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   traceMode: 'path',
   tracePoints: [],
 
-  setTool: (tool) => set({ tool, traceMode: tool === 'route_test' || tool === 'trace' ? 'path' : 'path' }),
+  setTool: (tool) => set({ tool, traceMode: tool === 'route_test' || tool === 'trace' ? (tool === 'route_test' ? 'arterial' : 'interior') : 'path' }),
   setEditorMode: (mode) => set({ editorMode: mode }),
   setActiveBuilding: (id) => set((s) => ({ activeBuildingId: id, activeFloor: id === s.activeBuildingId ? s.activeFloor : 0 })),
   setActiveFloor: (floor) => set({ activeFloor: floor }),

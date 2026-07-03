@@ -234,11 +234,13 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const tracePointsRef = useRef(tracePoints)
   const graphRef = useRef(graph)
   const activeFloorRef = useRef(activeFloor)
+  const activeBuildingIdRef = useRef(activeBuildingId)
   const selectedNodeRef = useRef(selectedNode)
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
   useEffect(() => { graphRef.current = graph }, [graph])
   useEffect(() => { activeFloorRef.current = activeFloor }, [activeFloor])
+  useEffect(() => { activeBuildingIdRef.current = activeBuildingId }, [activeBuildingId])
   useEffect(() => { selectedNodeRef.current = selectedNode }, [selectedNode])
 
 useEffect(() => {
@@ -305,7 +307,7 @@ useEffect(() => {
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
       if (curTool === 'trace' || curTool === 'route_test') { addTracePoint(pos); return }
       if (curTool === 'asset') {
-        addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingId ?? '', floor: activeFloorRef.current, position: pos })
+        addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: pos })
         return
       }
       if (curTool === 'select') {
@@ -364,7 +366,7 @@ useEffect(() => {
           { lat: Math.max(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
         ]
         const center = { lat: (start.lat + end.lat) / 2, lng: (start.lng + end.lng) / 2 }
-        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: activeBuildingId ?? '', floor: activeFloorRef.current, position: center, polygon })
+        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: center, polygon })
         dragStart = null
         setRoomDrag(null)
       }

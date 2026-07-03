@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { LeftPanel } from './LeftPanel'
 import { RightPanel } from './RightPanel'
@@ -13,11 +12,8 @@ interface StudioWorkspaceProps {
   center?: { lat: number; lng: number }
 }
 
-export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
-  const editorMode = useStudioStore((s) => s.editorMode)
+export function StudioWorkspace({ center }: StudioWorkspaceProps) {
   const save = useGraphStore((s) => s.save)
-
-  console.log('[StudioWorkspace] render', { mapId, editorMode })
 
   useEffect(() => {
     const interval = setInterval(() => save(), 30000)
@@ -31,7 +27,7 @@ export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
         <StudioCanvas center={center} />
         <ConfirmOverlay />
       </div>
-      <RightPanel mapId={mapId} />
+      <RightPanel />
     </div>
   )
 

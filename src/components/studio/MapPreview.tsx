@@ -144,7 +144,13 @@ export function MapPreview({ mapId }: MapPreviewProps) {
     const map = mapRef.current
     if (!map) return
     map.setStyle(satellite ? SATELLITE_STYLE : OSM_STYLE)
-    map.once('style.load', () => { initSources(map); addBoundarySource(map) })
+    map.once('style.load', () => {
+      initSources(map)
+      addBoundarySource(map)
+      const src = map.getSource(SRC) as maplibregl.GeoJSONSource
+      if (src && graph.buildings.length > 0) src.setData(buildBuildingGeo(graph.buildings))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satellite])
 
   // Boundary sync

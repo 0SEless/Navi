@@ -23,7 +23,7 @@ export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelPro
   const [role, setRole] = useState(trace.role ?? 'general')
   const [connectorBuildingId, setConnectorBuildingId] = useState(trace.connectorToBuildingId ?? '')
   const [connectorEntranceId, setConnectorEntranceId] = useState(trace.connectorToEntranceId ?? '')
-  const [type] = useState(trace.type)
+  const type = trace.type
 
   const graph = useGraphStore((s) => s.graph)
   const updateTrace = useGraphStore((s) => s.updateTrace)

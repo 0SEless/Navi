@@ -122,7 +122,6 @@ export function MetadataPanel() {
                 Cancel
               </button>
               <button onClick={() => {
-                if (dirty) save()
                 setDirty(false)
                 setShowDialog(false)
                 setActiveBuilding(null)

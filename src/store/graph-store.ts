@@ -174,40 +174,22 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({})
   },
 
-  addComponentWithPolygon: (component: Component) => {
-    const graph = get().graph
-    const buildingsMap = new Map(graph.buildings.map((b) => [b.id, b]))
-    const currentMapId = get().currentMapId
-    const result = compileComponent(component, {
-      buildings: buildingsMap,
-      existingNodes: graph.nodes,
-      existingEdges: graph.edges,
-      componentId: component.id,
-      campusId: component.campusId ?? currentMapId ?? undefined,
-    })
-    graph.addComponent({ ...component, polygon: component.polygon ?? result.polygon })
-    for (const node of result.nodes) {
-      graph.addNode(node)
-    }
-    for (const edge of result.edges) {
-      graph.addEdge(edge)
-    }
-    set({})
-  },
+  addComponentWithPolygon: (component: Component) => get().addComponent(component),
 
   load: async () => {
     if (typeof window === 'undefined') return
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      try {
-        const snapshot = JSON.parse(raw)
-        const graph = Graph.fromJSON(snapshot)
-        set({ graph })
-      } catch {
-        // ignore corrupt data
-      }
+    if (!raw) {
+      await get().fetchFromSupabase()
+      return
     }
-    await get().fetchFromSupabase()
+    try {
+      const snapshot = JSON.parse(raw)
+      const graph = Graph.fromJSON(snapshot)
+      set({ graph })
+    } catch {
+      await get().fetchFromSupabase()
+    }
   },
 
   loadMapData: (mapId: string) => {
@@ -232,6 +214,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     const json = get().graph.toJSON()
     localStorage.setItem(key, JSON.stringify(json))
+    get().syncToSupabase()
   },
 
   reset: () => {
