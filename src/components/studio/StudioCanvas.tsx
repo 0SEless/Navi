@@ -223,7 +223,6 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
     if (currentEditTrace) {
       updateTrace(currentEditTrace.id, { points })
       save()
-      setVertexEditing(null, null)
     }
   })
 
@@ -431,7 +430,7 @@ useEffect(() => {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { clearTracePoints(); clearDrawPoints(); setRoomDrag(null) }
+      if (e.key === 'Escape') { clearTracePoints(); clearDrawPoints(); setRoomDrag(null); setVertexEditing(null, null) }
       if (e.key === 'Delete' && selectedNodeRef.current) {
         graphRef.current.removeNode(selectedNodeRef.current)
         setSelectedNode(null)
@@ -462,7 +461,7 @@ useEffect(() => {
     if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = CURSOR_CROSSHAIR
     else if (tool === 'select') canvas.style.cursor = 'pointer'
     else canvas.style.cursor = ''
-    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
+    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'vertex') map.dragPan.disable()
     else map.dragPan.enable()
   }, [tool])
 
