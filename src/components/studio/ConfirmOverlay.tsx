@@ -12,7 +12,11 @@ export function ConfirmOverlay() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const activeFloor = useStudioStore((s) => s.activeFloor)
+  const adjustBuildingId = useStudioStore((s) => s.adjustBuildingId)
+  const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
+  const setTool = useStudioStore((s) => s.setTool)
   const addBuilding = useGraphStore((s) => s.addBuilding)
+  const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const addTrace = useGraphStore((s) => s.addTrace)
   const graph = useGraphStore((s) => s.graph)
   const currentMapId = useGraphStore((s) => s.currentMapId)
@@ -34,19 +38,28 @@ export function ConfirmOverlay() {
         lat: points.reduce((s, p) => s + p.lat, 0) / points.length,
         lng: points.reduce((s, p) => s + p.lng, 0) / points.length,
       }
-      const id = `bldg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-      addBuilding({
-        id,
-        name: `Building ${id.slice(-6).toUpperCase()}`,
-        campusId: currentMapId || '',
-        floors: [0],
-        footprint: points,
-        center: centroid,
-        baseElevation: 0,
-        height: 15,
-        color: '#1C6BEB',
-      })
+      if (adjustBuildingId) {
+        updateBuilding(adjustBuildingId, { footprint: points, center: centroid })
+        setAdjustBuilding(null)
+        setActiveBuilding(adjustBuildingId)
+      } else {
+        const id = `bldg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        addBuilding({
+          id,
+          name: `Building ${id.slice(-6).toUpperCase()}`,
+          campusId: currentMapId || '',
+          floors: [0],
+          footprint: points,
+          center: centroid,
+          baseElevation: 0,
+          height: 15,
+          color: '#1C6BEB',
+        })
+        setActiveBuilding(id)
+      }
+      clearDrawPoints()
       saveGraph()
+      setTool('select')
       if (currentMapId) {
         updateMapStats(currentMapId, {
           buildings: graph.buildingCount,
@@ -54,7 +67,6 @@ export function ConfirmOverlay() {
           edges: graph.edgeCount,
         })
       }
-      setActiveBuilding(id)
     }
 
     if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
@@ -74,10 +86,17 @@ export function ConfirmOverlay() {
     clearPendingConfirm()
   }
 
+  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
+
   const handleCancel = () => {
     if (pendingConfirm.type === 'route') {
       clearTracePoints()
     }
+    if (adjustBuildingId) {
+      setAdjustBuilding(null)
+      setTool('select')
+    }
+    clearDrawPoints()
     clearPendingConfirm()
   }
 
@@ -193,7 +212,7 @@ export function ConfirmOverlay() {
           border: '1px solid var(--navi-border)',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
-          {labels[pendingConfirm.type]} complete — confirm or cancel
+          {labels[pendingConfirm.type]} complete — {adjustBuildingId ? 'update' : 'confirm'} or cancel
         </div>
       )}
 
@@ -234,7 +253,7 @@ export function ConfirmOverlay() {
             boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
           }}
         >
-          <Check size={16} /> Save
+          <Check size={16} /> {adjustBuildingId ? 'Update' : 'Save'}
         </button>
       </div>
     </div>

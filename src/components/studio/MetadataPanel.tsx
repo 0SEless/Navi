@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Trash2, ArrowLeft, Upload, Edit, CheckCircle } from 'lucide-react'
+import { Trash2, ArrowLeft, Upload, Edit, CheckCircle, Move } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
@@ -21,6 +21,10 @@ export function MetadataPanel() {
   const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const removeBuilding = useGraphStore((s) => s.removeBuilding)
   const save = useGraphStore((s) => s.save)
+
+  const setTool = useStudioStore((s) => s.setTool)
+  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
+  const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
 
   const building = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
   const [dirty, setDirty] = useState(false)
@@ -101,6 +105,13 @@ export function MetadataPanel() {
           setActiveBuilding(null)
           setDirty(false)
         }}
+        onAdjust={() => {
+          setAdjustBuilding(formBuilding.id)
+          setDrawPoints(formBuilding.footprint)
+          setTool('building')
+          setActiveBuilding(null)
+          setDirty(false)
+        }}
       />
 
       {showDialog && (
@@ -147,11 +158,12 @@ export function MetadataPanel() {
   )
 }
 
-function BuildingForm({ building, onDirty, onSave, onDelete }: {
+function BuildingForm({ building, onDirty, onSave, onDelete, onAdjust }: {
   building: Building
   onDirty: (dirty: boolean) => void
   onSave: (partial: Partial<Building>) => void
   onDelete: () => void
+  onAdjust: () => void
 }) {
   const [name, setName] = useState(building.name)
   const [height, setHeight] = useState(building.height)
@@ -268,6 +280,10 @@ function BuildingForm({ building, onDirty, onSave, onDelete }: {
         <button onClick={handleSave}
           style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: 'none', background: 'var(--navi-primary)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
           Save Changes
+        </button>
+        <button onClick={onAdjust}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 6, border: '1px solid #06B6D4', background: 'transparent', color: '#06B6D4', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+          <Move size={14} /> Adjust
         </button>
         <button onClick={onDelete}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', borderRadius: 6, border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>

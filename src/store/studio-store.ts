@@ -48,6 +48,9 @@ interface StudioState {
   editTargetType: 'trace' | 'building' | 'boundary' | 'room' | null
   editTargetId: string | null
   setVertexEditing: (targetType: StudioState['editTargetType'], targetId: string | null) => void
+
+  adjustBuildingId: string | null
+  setAdjustBuilding: (id: string | null) => void
 }
 
 const defaultLayers: LayerVisibility = {
@@ -109,6 +112,9 @@ export const useStudioStore = create<StudioState>((set) => ({
     editTargetId: targetId,
     tool: targetType !== null ? 'vertex' : 'select',
   }),
+
+  adjustBuildingId: null,
+  setAdjustBuilding: (id) => set({ adjustBuildingId: id }),
 
   setRouteWidth: (width) => set({ routeWidth: Math.max(2, Math.min(24, width)) }),
 
