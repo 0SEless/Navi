@@ -82,6 +82,8 @@ export function useCampusBoundary(
   onComplete?: (polygon: BoundaryPolygon) => void,
 ) {
   const tool = useStudioStore((s) => s.tool)
+  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
+  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
 
@@ -106,6 +108,7 @@ export function useCampusBoundary(
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       pointsRef.current = [...pointsRef.current, { lat: e.lngLat.lat, lng: e.lngLat.lng }]
       renderBoundaryDrawing(map, pointsRef.current)
+      setDrawPoints(pointsRef.current)
     }
 
     const handleDblClick = () => {
@@ -117,6 +120,7 @@ export function useCampusBoundary(
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearBoundaryDrawing(map)
+      clearDrawPoints()
     }
 
     map.on('click', handleClick)
@@ -128,6 +132,7 @@ export function useCampusBoundary(
       map.doubleClickZoom?.enable()
       pointsRef.current = []
       clearBoundaryDrawing(map)
+      clearDrawPoints()
     }
   }, [map, tool])
 }

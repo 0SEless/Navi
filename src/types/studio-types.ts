@@ -3,12 +3,11 @@
 export type StudioTool =
   | 'select'
   | 'move'
-  | 'trace'
   | 'room'
   | 'asset'
   | 'qr'
   | 'pano'
-  | 'route_test'
+  | 'route'
   | 'boundary'
   | 'building'
   | 'wall'
@@ -32,8 +31,6 @@ export type LayerType =
   | 'nodes'
   | 'edges'
   | 'labels'
-
-export type TraceMode = 'arterial' | 'path' | 'interior'
 
 export type RoomPreset = 'rectangle' | 'lshape' | 'freeform'
 

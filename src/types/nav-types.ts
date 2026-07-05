@@ -173,9 +173,9 @@ export interface TracePath {
   campusId?: string;
   floor: number;
   points: LatLng[];
-  type: 'arterial' | 'path' | 'interior';
+  type: 'arterial' | 'connector';
   color?: string;
-  role?: 'general' | 'connector';
+  width?: number;
   connectorToBuildingId?: string;
   connectorToEntranceId?: string;
   metadata?: Record<string, unknown>;

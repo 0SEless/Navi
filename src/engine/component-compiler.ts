@@ -31,7 +31,7 @@ function haversine(a: LatLng, b: LatLng): number {
 }
 
 let _idCounter = 0
-function genId(prefix: string): string {
+export function genId(prefix: string): string {
   _idCounter++
   return `${prefix}${String(_idCounter).padStart(4, '0')}`
 }

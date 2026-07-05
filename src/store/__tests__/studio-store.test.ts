@@ -17,8 +17,8 @@ describe('useStudioStore', () => {
   })
 
   it('sets tool', () => {
-    useStudioStore.getState().setTool('trace')
-    expect(useStudioStore.getState().tool).toBe('trace')
+    useStudioStore.getState().setTool('route')
+    expect(useStudioStore.getState().tool).toBe('route')
   })
 
   it('sets editor mode', () => {

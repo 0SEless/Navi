@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useEffect, useReducer } from 'react'
+import { useCallback, useRef, useEffect, useReducer, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useGraphStore } from '@/store/graph-store'
 import type { LatLng, Component, ComponentType } from '@/types/nav-types'
@@ -17,6 +17,9 @@ function addDrawLayers(map: maplibregl.Map) {
   // preview polygon fill + outline (room)
   map.addLayer({ id: 'floor-draw-polygon-fill', type: 'fill', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
   map.addLayer({ id: 'floor-draw-polygon-outline', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-dasharray': [4, 3] } })
+  // preview width buffer (hallway)
+  map.addLayer({ id: 'floor-draw-buffer-fill', type: 'fill', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'buffer'], paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
+  map.addLayer({ id: 'floor-draw-buffer-outline', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'buffer'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-dasharray': [4, 3] } })
   // placement vertices
   map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
   // placed item icons (door, stairs, elevator, asset)
@@ -34,8 +37,10 @@ function updatePreview(map: maplibregl.Map, features: GeoJSON.Feature[]) {
 }
 
 function clearPreview(map: maplibregl.Map) {
-  const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
-  if (src) src.setData({ type: 'FeatureCollection', features: [] })
+  try {
+    const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
+    if (src) src.setData({ type: 'FeatureCollection', features: [] })
+  } catch { /* map may have been removed */ }
 }
 
 function pointsToLine(points: LatLng[]): GeoJSON.Feature {
@@ -57,6 +62,64 @@ function pointsToVertices(points: LatLng[]): GeoJSON.Feature[] {
     type: 'Feature' as const, properties: { type: 'vertex', index: i },
     geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] as [number, number] },
   }))
+}
+
+export function computeWidthBuffer(centerline: LatLng[], totalWidth: number): LatLng[] {
+  if (centerline.length < 2) return centerline
+  const hw = totalWidth / 2
+  const avgLat = centerline.reduce((s, p) => s + p.lat, 0) / centerline.length
+  const mpd = 111320 * Math.cos(avgLat * Math.PI / 180)
+  const mLat = 111320
+
+  const offsets: { lat: number; lng: number }[] = []
+
+  for (let i = 0; i < centerline.length; i++) {
+    const p = centerline[i]
+    let angle: number
+
+    if (i === 0) {
+      angle = Math.atan2(
+        (centerline[1].lat - p.lat) * mLat,
+        (centerline[1].lng - p.lng) * mpd
+      )
+    } else if (i === centerline.length - 1) {
+      angle = Math.atan2(
+        (p.lat - centerline[i - 1].lat) * mLat,
+        (p.lng - centerline[i - 1].lng) * mpd
+      )
+    } else {
+      const aIn = Math.atan2(
+        (p.lat - centerline[i - 1].lat) * mLat,
+        (p.lng - centerline[i - 1].lng) * mpd
+      )
+      const aOut = Math.atan2(
+        (centerline[i + 1].lat - p.lat) * mLat,
+        (centerline[i + 1].lng - p.lng) * mpd
+      )
+      const x = Math.cos(aIn) + Math.cos(aOut)
+      const y = Math.sin(aIn) + Math.sin(aOut)
+      angle = Math.atan2(y, x)
+    }
+
+    const perp = angle + Math.PI / 2
+    offsets.push({
+      lat: (hw / mLat) * Math.sin(perp),
+      lng: (hw / mpd) * Math.cos(perp),
+    })
+  }
+
+  const left = centerline.map((p, i) => ({ lat: p.lat + offsets[i].lat, lng: p.lng + offsets[i].lng }))
+  const right = centerline.map((p, i) => ({ lat: p.lat - offsets[i].lat, lng: p.lng - offsets[i].lng }))
+
+  return [...left, ...right.reverse()]
+}
+
+function pointsToBuffer(points: LatLng[], width: number): GeoJSON.Feature {
+  const buffer = computeWidthBuffer(points, width)
+  return {
+    type: 'Feature', properties: { type: 'buffer' },
+    geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
+  }
 }
 
 function placedItem(position: LatLng, label: string): GeoJSON.Feature {
@@ -81,6 +144,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
   const save = useGraphStore((s) => s.save)
 
   const [drawState, dispatch] = useReducer(drawReducer, { drawMode: 'idle', pendingPoints: [], pendingPolygon: [] })
+  const [hallwayWidth, setHallwayWidth] = useState(3)
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
 
@@ -105,48 +169,47 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       features.push(pointsToLine(drawState.pendingPoints), ...pointsToVertices(drawState.pendingPoints))
     }
     if (drawState.drawMode === 'placing-polygon' && drawState.pendingPolygon.length > 0) {
-      features.push(pointsToPolygon(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
+      if (toolRef.current === 'hallway') {
+        features.push(pointsToBuffer(drawState.pendingPolygon, hallwayWidth), pointsToLine(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
+      } else {
+        features.push(pointsToPolygon(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
+      }
     }
     updatePreview(map, features)
-  }, [map, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon])
+  }, [map, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, hallwayWidth])
 
-  const confirmHallway = useCallback(() => {
-    if (drawState.pendingPoints.length < 2 || !map) return
-    const id = `hallway-${Date.now()}`
-    addComponentWithPolygon({
-      id,
-      type: 'hallway',
-      name: 'Hallway',
-      buildingId,
-      campusId,
-      floor,
-      position: drawState.pendingPoints[0],
-      polygon: drawState.pendingPoints,
-    })
-    save()
-    dispatch({ type: 'RESET' })
-    clearPreview(map)
-    onSelect?.(id)
-  }, [drawState.pendingPoints, map, addComponentWithPolygon, floor, buildingId, campusId, save, onSelect])
+  const confirmPolygon = useCallback(() => {
+    const tool = toolRef.current
+    if (tool !== 'room' && tool !== 'hallway' && tool !== 'elevator') return
+    const minPoints = tool === 'hallway' ? 2 : 3
+    if (drawState.pendingPolygon.length < minPoints || !map) return
 
-  const confirmRoom = useCallback(() => {
-    if (drawState.pendingPolygon.length < 3 || !map) return
-    const id = `room-${Date.now()}`
-    addComponentWithPolygon({
+    const id = `${tool}-${Date.now()}`
+    const graph = useGraphStore.getState().graph
+    const existingCount = graph.components.filter(
+      (c) => c.type === tool && c.buildingId === buildingId && c.floor === floor
+    ).length
+
+    const name = tool === 'room' ? `Room ${existingCount + 1}` : `${tool.charAt(0).toUpperCase() + tool.slice(1)} ${existingCount + 1}`
+
+    const component: Component = {
       id,
-      type: 'room',
-      name: `Room ${drawState.pendingPolygon.length}-sided`,
+      type: tool,
+      name,
       buildingId,
       campusId,
       floor,
       position: drawState.pendingPolygon[0],
       polygon: drawState.pendingPolygon,
-    })
+      range: tool === 'elevator' ? { from: 0, to: 2 } : undefined,
+      dimensions: tool === 'hallway' ? { width: hallwayWidth } : undefined,
+    }
+    addComponentWithPolygon(component)
     save()
     dispatch({ type: 'RESET' })
     clearPreview(map)
     onSelect?.(id)
-  }, [drawState.pendingPolygon, map, addComponentWithPolygon, buildingId, campusId, floor, save, onSelect])
+  }, [drawState.pendingPolygon, map, addComponentWithPolygon, floor, buildingId, campusId, save, onSelect, hallwayWidth])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = `${type}-${Date.now()}`
@@ -184,7 +247,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
     const currentTool = toolRef.current
     if (currentTool === 'select') {
-      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-line', 'floor-draw-placed']
+      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-fill', 'floor-hallways-outline', 'floor-hallway-centerlines-layer', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-draw-placed']
       const features = map!.queryRenderedFeatures(e.point, { layers })
       if (features.length > 0) {
         onSelect?.(features[0].properties?.id as string ?? null)
@@ -197,10 +260,9 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     const pos: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
 
     switch (currentTool) {
-      case 'hallway':
-        dispatch({ type: 'ADD_POINT', point: pos })
-        break
       case 'room':
+      case 'hallway':
+      case 'elevator':
         dispatch({ type: 'ADD_POLYGON_POINT', point: pos })
         break
       case 'entrance':
@@ -209,27 +271,8 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       case 'stairs':
         placeComponent(pos, 'stair')
         break
-      case 'elevator':
-        placeComponent(pos, 'elevator')
-        break
     }
   }, [map, placeComponent, onSelect])
-
-  // Double-click to confirm
-  useEffect(() => {
-    if (!map) return
-    const handleDblClick = (e: maplibregl.MapMouseEvent) => {
-      if (drawState.drawMode === 'placing-points') {
-        e.originalEvent.preventDefault()
-        confirmHallway()
-      } else if (drawState.drawMode === 'placing-polygon') {
-        e.originalEvent.preventDefault()
-        confirmRoom()
-      }
-    }
-    map.on('dblclick', handleDblClick)
-    return () => { map.off('dblclick', handleDblClick) }
-  }, [map, drawState.drawMode, confirmHallway, confirmRoom])
 
   // Right-click to cancel
   useEffect(() => {
@@ -252,5 +295,9 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     return () => { map.off('click', handleMapClick) }
   }, [map, handleMapClick])
 
-  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, confirmHallway, confirmRoom, cancel: () => { dispatch({ type: 'RESET' }); if (map) clearPreview(map) } }
+  const removeLastPoint = useCallback(() => {
+    dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })
+  }, [])
+
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmPolygon, cancel: () => { dispatch({ type: 'RESET' }); if (map) clearPreview(map) }, removeLastPoint }
 }

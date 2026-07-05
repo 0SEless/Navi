@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
@@ -9,6 +9,8 @@ import type { NavNode, NavEdge, LatLng, Building, TracePath } from '@/types/nav-
 import type { Graph } from '@/engine/graph'
 import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
 import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
+import { useVertexEditor } from './useVertexEditor'
+import { Trash2, Check, X } from 'lucide-react'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -48,37 +50,17 @@ const SATELLITE_STYLE = {
   layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
 }
 
+const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', TRACES: 's-traces', DRAWING: 's-drawing', CURSOR: 's-cursor' } as const
+const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points', CURSOR_PREVIEW: 'l-cursor-preview' } as const
+const HIDDEN_NODE_TYPES = new Set(['room', 'staircase', 'elevator'])
+
+const CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23000' stroke-width='1.5' opacity='0.4'/%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23fff' stroke-width='0.5' opacity='0.6'/%3E%3Cline x1='14' y1='2' x2='14' y2='26' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='2' y1='14' x2='26' y2='14' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='14' y1='3' x2='14' y2='25' stroke='%23fff' stroke-width='0.5'/%3E%3Cline x1='3' y1='14' x2='25' y2='14' stroke='%23fff' stroke-width='0.5'/%3E%3Ccircle cx='14' cy='14' r='2' fill='%23000'/%3E%3C/svg%3E") 14 14, crosshair`
+
 function getInitialStyle() {
   if (typeof window !== 'undefined') {
     return OSM_STYLE
   }
   return FALLBACK_STYLE
-}
-
-const SRC = {
-  BUILDINGS: 'studio-buildings',
-  NODES: 'studio-nodes',
-  EDGES: 'studio-edges',
-  DRAWING: 'studio-drawing',
-  TRACES: 'studio-traces',
-  ROOMS: 'studio-rooms',
-}
-
-const LYR = {
-  BUILDINGS_FILL: 'studio-buildings-fill',
-  BUILDINGS_OUTLINE: 'studio-buildings-outline',
-  BUILDINGS_EXTRUSION: 'studio-buildings-extrusion',
-  EDGES: 'studio-edges',
-  NODES: 'studio-nodes',
-  NODES_INNER: 'studio-nodes-inner',
-  NODES_LABEL: 'studio-nodes-label',
-  DRAWING_LINE: 'studio-drawing-line',
-  DRAWING_POINTS: 'studio-drawing-points',
-  TRACES_LINE: 'studio-traces-line',
-  TRACES_INNER: 'studio-traces-inner',
-  TRACES_POINTS: 'studio-traces-points',
-  ROOMS_FILL: 'studio-rooms-fill',
-  ROOMS_OUTLINE: 'studio-rooms-outline',
 }
 
 function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
@@ -89,19 +71,7 @@ function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
       properties: { id: b.id, name: b.name, color: b.color || '#1C6BEB', height: b.height || 15 },
       geometry: {
         type: 'Polygon',
-        coordinates: b.footprint.length >= 3
-          ? [[...b.footprint.map((p) => [p.lng, p.lat] as [number, number]), [b.footprint[0].lng, b.footprint[0].lat] as [number, number]]]
-          : (() => {
-              const c = b.footprint.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 })
-              const avg = { lat: c.lat / b.footprint.length, lng: c.lng / b.footprint.length }
-              return [[
-                [avg.lng - 0.0003, avg.lat - 0.0003],
-                [avg.lng + 0.0003, avg.lat - 0.0003],
-                [avg.lng + 0.0003, avg.lat + 0.0003],
-                [avg.lng - 0.0003, avg.lat + 0.0003],
-                [avg.lng - 0.0003, avg.lat - 0.0003],
-              ]]
-            })(),
+        coordinates: [b.footprint.map((p) => [p.lng, p.lat] as [number, number]).concat([[b.footprint[0].lng, b.footprint[0].lat] as [number, number]])],
       },
     })),
   }
@@ -112,7 +82,7 @@ function buildNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollection {
     type: 'FeatureCollection',
     features: nodes.map((n) => ({
       type: 'Feature',
-      properties: { id: n.id, label: n.label, type: n.type },
+      properties: { id: n.id, type: n.type },
       geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
     })),
   }
@@ -128,11 +98,8 @@ function buildEdgeGeo(edges: NavEdge[], nodes: NavNode[]): GeoJSON.FeatureCollec
       if (!from || !to) return null
       return {
         type: 'Feature',
-        properties: { id: e.id, type: e.type },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[from.position.lng, from.position.lat], [to.position.lng, to.position.lat]],
-        },
+        properties: { id: e.id },
+        geometry: { type: 'LineString', coordinates: [[from.position.lng, from.position.lat], [to.position.lng, to.position.lat]] },
       }
     }).filter(Boolean) as GeoJSON.Feature[],
   }
@@ -143,7 +110,7 @@ function buildTracesGeo(traces: TracePath[]): GeoJSON.FeatureCollection {
     type: 'FeatureCollection',
     features: traces.map((t) => ({
       type: 'Feature',
-      properties: { id: t.id, name: t.name, type: t.type, role: t.role, color: t.color || '#10B981' },
+      properties: { id: t.id, name: t.name, type: t.type, color: t.color || '#FFFFFF', width: t.width ?? 8 },
       geometry: {
         type: 'LineString',
         coordinates: t.points.map((p) => [p.lng, p.lat] as [number, number]),
@@ -166,16 +133,15 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
 
   map.addSource(SRC.TRACES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.TRACES_INNER, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': 2, 'line-opacity': 0.5 }, filter: ['==', ['get', 'type'], 'interior'] })
-  map.addLayer({ id: LYR.TRACES_LINE, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': 4, 'line-opacity': 0.8 }, filter: ['!=', ['get', 'type'], 'interior'] })
+  map.addLayer({ id: LYR.TRACES_LINE, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.8 }, filter: ['==', ['get', 'type'], 'arterial'] })
+  map.addLayer({ id: LYR.TRACES_INNER, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.5 }, filter: ['!=', ['get', 'type'], 'arterial'] })
 
   map.addSource(SRC.DRAWING, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.6 } })
-  map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-opacity': 0.7 } })
+  map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#06B6D4', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.6 } })
+  map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 9, 6], 'circle-color': '#06B6D4', 'circle-opacity': 0.8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } })
 
-  map.addSource(SRC.ROOMS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
-  map.addLayer({ id: LYR.ROOMS_OUTLINE, type: 'line', source: SRC.ROOMS, paint: { 'line-color': '#10B981', 'line-width': 2 } })
+  map.addSource(SRC.CURSOR, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.CURSOR_PREVIEW, type: 'circle', source: SRC.CURSOR, paint: { 'circle-radius': 8, 'circle-color': '#06B6D4', 'circle-opacity': 0.25, 'circle-stroke-width': 2, 'circle-stroke-color': '#06B6D4', 'circle-stroke-opacity': 0.5 } })
 }
 
 function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
@@ -185,9 +151,12 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     const to = graph.getNode(e.to)
     return from?.floor === activeFloor && to?.floor === activeFloor
   })
+  const visibleNodes = filteredNodes.filter((n) => !HIDDEN_NODE_TYPES.has(n.type))
+  const visibleNodeIds = new Set(visibleNodes.map((n) => n.id))
+  const visibleEdges = filteredEdges.filter((e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to))
   const buildingGeo = buildBuildingGeo(graph.buildings)
-  const nodeGeo = buildNodeGeo(filteredNodes)
-  const edgeGeo = buildEdgeGeo(filteredEdges, filteredNodes)
+  const nodeGeo = buildNodeGeo(visibleNodes)
+  const edgeGeo = buildEdgeGeo(visibleEdges, visibleNodes)
   const tracesGeo = buildTracesGeo(graph.traces)
   try {
     const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
@@ -201,6 +170,14 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   } catch { console.warn('[StudioCanvas] source not ready') }
 }
 
+function updateDrawingSource(map: maplibregl.Map | null, features: GeoJSON.Feature[]) {
+  if (!map) return
+  try {
+    const src = map.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
+    if (src) src.setData({ type: 'FeatureCollection', features })
+  } catch { /* source not ready */ }
+}
+
 interface StudioCanvasProps {
   center?: { lat: number; lng: number }
 }
@@ -212,6 +189,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
 
   const graph = useGraphStore((s) => s.graph)
+  const renderVersion = useGraphStore((s) => s.renderVersion)
   const addComponent = useGraphStore((s) => s.addComponent)
   const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
   const tool = useStudioStore((s) => s.tool)
@@ -219,14 +197,37 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const layers = useStudioStore((s) => s.layers)
   const tracePoints = useStudioStore((s) => s.tracePoints)
   const addTracePoint = useStudioStore((s) => s.addTracePoint)
+  const setTracePoints = useStudioStore((s) => s.setTracePoints)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const setPendingConfirm = useStudioStore((s) => s.setPendingConfirm)
   const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
   const setSelectedTraceId = useStudioStore((s) => s.setSelectedTraceId)
+  const drawPoints = useStudioStore((s) => s.drawPoints)
+  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
+  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
+  const undoLastTracePoint = useStudioStore((s) => s.undoLastTracePoint)
+  const editTargetType = useStudioStore((s) => s.editTargetType)
+  const editTargetId = useStudioStore((s) => s.editTargetId)
+  const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
+  const updateTrace = useGraphStore((s) => s.updateTrace)
+  const save = useGraphStore((s) => s.save)
+  const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) ?? null : null
 
-  const [, setCursorLL] = useState<LatLng | null>(null)
+  const currentEditTrace = editTargetType === 'trace' && editTargetId
+    ? graph.traces.find((t) => t.id === editTargetId) ?? null
+    : null
+
+  useVertexEditor(mapInstance, currentEditTrace, (points) => {
+    if (currentEditTrace) {
+      updateTrace(currentEditTrace.id, { points })
+      save()
+      setVertexEditing(null, null)
+    }
+  })
+
+  const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
 
@@ -236,12 +237,46 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const activeFloorRef = useRef(activeFloor)
   const activeBuildingIdRef = useRef(activeBuildingId)
   const selectedNodeRef = useRef(selectedNode)
+  const drawPointsRef = useRef(drawPoints)
+  const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
+
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
   useEffect(() => { graphRef.current = graph }, [graph])
   useEffect(() => { activeFloorRef.current = activeFloor }, [activeFloor])
   useEffect(() => { activeBuildingIdRef.current = activeBuildingId }, [activeBuildingId])
   useEffect(() => { selectedNodeRef.current = selectedNode }, [selectedNode])
+  useEffect(() => { drawPointsRef.current = drawPoints }, [drawPoints])
+
+  function getCurrentPoints() {
+    const curTool = toolRef.current
+    if (curTool === 'route') return tracePointsRef.current
+    if (curTool === 'building' || curTool === 'boundary') return drawPointsRef.current
+    return []
+  }
+
+  function setCurrentPoints(points: LatLng[]) {
+    const curTool = toolRef.current
+    if (curTool === 'route') { setTracePoints(points) }
+    if (curTool === 'building' || curTool === 'boundary') { setDrawPoints(points) }
+  }
+
+  function findNearestVertex(mouseScreen: { x: number; y: number }, map: maplibregl.Map, points: LatLng[]): number {
+    const THRESHOLD = 10
+    let nearest = -1
+    let nearestDist = THRESHOLD
+    for (let i = 0; i < points.length; i++) {
+      const screen = map.project([points[i].lng, points[i].lat])
+      const dx = screen.x - mouseScreen.x
+      const dy = screen.y - mouseScreen.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < nearestDist) {
+        nearestDist = dist
+        nearest = i
+      }
+    }
+    return nearest
+  }
 
 useEffect(() => {
     if (mapRef.current) return
@@ -260,30 +295,15 @@ useEffect(() => {
       setMapInstance(map)
       syncAllData(map, graphRef.current, activeFloorRef.current)
     })
-    map.on('error', (e) => {
-      console.error('[StudioCanvas] Map error:', e)
-      if (e.error?.message?.includes('Style is not done loading') || e.error?.message?.includes('style')) {
-        console.warn('[StudioCanvas] Style load failed, switching to fallback')
-        map.setStyle(FALLBACK_STYLE)
-        map.once('style.load', () => {
-          addSourcesAndLayers(map)
-          readyRef.current = true
-          setMapInstance(map)
-          syncAllData(map, graphRef.current, activeFloorRef.current)
-        })
-      }
-    })
     mapRef.current = map
-    return () => { mounted = false; map.remove(); mapRef.current = null; readyRef.current = false; setMapInstance(null) }
-  }, [center])
+    return () => { mounted = false; map.remove() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !readyRef.current) return
-    syncAllData(map, graph, activeFloor)
-  }, [graph, activeFloor])
+    if (!readyRef.current || !mapRef.current) return
+    syncAllData(mapRef.current, graphRef.current, activeFloorRef.current)
+  }, [graph, activeFloor, renderVersion])
 
-  const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) : null
   useEffect(() => {
     if (!selectedBuilding || !mapRef.current || !readyRef.current) return
     const map = mapRef.current
@@ -303,9 +323,20 @@ useEffect(() => {
     if (!map) return
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (dragVertexRef.current) { dragVertexRef.current = null; return }
       const curTool = toolRef.current
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-      if (curTool === 'trace' || curTool === 'route_test') { addTracePoint(pos); return }
+
+      if (curTool === 'route') {
+        const points = tracePointsRef.current
+        const nearIdx = findNearestVertex(e.point, map, points)
+        if (nearIdx >= 0) {
+          dragVertexRef.current = { index: nearIdx, points: [...points], source: 'trace' }
+          return
+        }
+        addTracePoint(pos)
+        return
+      }
       if (curTool === 'asset') {
         addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: pos })
         return
@@ -333,8 +364,8 @@ useEffect(() => {
 
     const handleDblClick = () => {
       const curTool = toolRef.current
-      if ((curTool === 'trace' || curTool === 'route_test') && tracePointsRef.current.length >= 2) {
-        setPendingConfirm('trace', [...tracePointsRef.current])
+      if (curTool === 'route' && tracePointsRef.current.length >= 2) {
+        setPendingConfirm('route', [...tracePointsRef.current])
       }
     }
 
@@ -342,20 +373,47 @@ useEffect(() => {
 
     const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (e.originalEvent.button !== 0) return
-      if (toolRef.current === 'room') {
+      const curTool = toolRef.current
+      if (curTool === 'room') {
         dragStart = { lat: e.lngLat.lat, lng: e.lngLat.lng }
         setRoomDrag({ start: dragStart, current: dragStart })
+        return
+      }
+      if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
+        const points = getCurrentPoints()
+        const nearIdx = findNearestVertex(e.point, map, points)
+        if (nearIdx >= 0) {
+          dragVertexRef.current = { index: nearIdx, points: [...points], source: curTool === 'route' ? 'trace' : 'draw' }
+        }
       }
     }
 
     const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
       setCursorLL({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+      const drag = dragVertexRef.current
+      if (drag) {
+        drag.points[drag.index] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+        const coords = drag.points.map((p) => [p.lng, p.lat])
+        const drawFeatures: GeoJSON.Feature[] = []
+        drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
+        for (const p of drag.points) {
+          drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
+        }
+        updateDrawingSource(mapRef.current, drawFeatures)
+        return
+      }
       if (dragStart && toolRef.current === 'room') {
         setRoomDrag({ start: dragStart, current: { lat: e.lngLat.lat, lng: e.lngLat.lng } })
       }
     }
 
     const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
+      const drag = dragVertexRef.current
+      if (drag) {
+        setCurrentPoints(drag.points)
+        dragVertexRef.current = null
+        return
+      }
       if (dragStart && toolRef.current === 'room') {
         const start = dragStart
         const end = { lat: e.lngLat.lat, lng: e.lngLat.lng }
@@ -373,7 +431,7 @@ useEffect(() => {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { clearTracePoints(); setRoomDrag(null) }
+      if (e.key === 'Escape') { clearTracePoints(); clearDrawPoints(); setRoomDrag(null) }
       if (e.key === 'Delete' && selectedNodeRef.current) {
         graphRef.current.removeNode(selectedNodeRef.current)
         setSelectedNode(null)
@@ -401,10 +459,10 @@ useEffect(() => {
     const map = mapRef.current
     if (!map) return
     const canvas = map.getCanvas()
-    if (tool === 'trace' || tool === 'route_test' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = 'crosshair'
+    if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') canvas.style.cursor = CURSOR_CROSSHAIR
     else if (tool === 'select') canvas.style.cursor = 'pointer'
     else canvas.style.cursor = ''
-    if (tool === 'trace' || tool === 'route_test' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
+    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building') map.dragPan.disable()
     else map.dragPan.enable()
   }, [tool])
 
@@ -436,7 +494,7 @@ useEffect(() => {
     if (!m || !readyRef.current) return
     const drawFeatures: GeoJSON.Feature[] = []
 
-    if (tracePoints.length > 0 && (tool === 'trace' || tool === 'route_test')) {
+    if (tracePoints.length > 0 && tool === 'route') {
       const coords = tracePoints.map((p) => [p.lng, p.lat])
       drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
       for (const p of tracePoints) {
@@ -445,8 +503,9 @@ useEffect(() => {
     }
 
     if (pendingConfirm && pendingConfirm.points.length >= 2) {
+      const isPolygon = pendingConfirm.type === 'building' || pendingConfirm.type === 'boundary'
       const coords = pendingConfirm.points.map((p) => [p.lng, p.lat])
-      if (pendingConfirm.points.length >= 3) {
+      if (isPolygon && pendingConfirm.points.length >= 3) {
         drawFeatures.push({
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] },
@@ -455,7 +514,7 @@ useEffect(() => {
       }
       drawFeatures.push({
         type: 'Feature',
-        geometry: { type: 'LineString', coordinates: pendingConfirm.points.length >= 3 ? [...coords, coords[0]] : coords },
+        geometry: { type: 'LineString', coordinates: isPolygon && pendingConfirm.points.length >= 3 ? [...coords, coords[0]] : coords },
         properties: { pending: true },
       })
       for (const p of pendingConfirm.points) {
@@ -472,11 +531,137 @@ useEffect(() => {
       })
     }
 
-    try {
-      const src = m.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
-      if (src) src.setData({ type: 'FeatureCollection', features: drawFeatures })
-    } catch { /* source not ready */ }
+    updateDrawingSource(m, drawFeatures)
   }, [tracePoints, roomDrag, tool, pendingConfirm])
 
-  return <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+  useEffect(() => {
+    const m = mapRef.current
+    if (!m || !readyRef.current) return
+    const isDrawing = tool === 'route' || tool === 'building' || tool === 'boundary'
+    const features: GeoJSON.Feature[] = []
+    if (cursorLL && isDrawing && !pendingConfirm) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [cursorLL.lng, cursorLL.lat] },
+        properties: {},
+      })
+    }
+    try {
+      const src = m.getSource(SRC.CURSOR) as maplibregl.GeoJSONSource
+      if (src) src.setData({ type: 'FeatureCollection', features })
+    } catch { /* source not ready */ }
+  }, [cursorLL, tool, pendingConfirm])
+
+  const showConfirmBar =
+    tool === 'route' && tracePoints.length > 0 ||
+    (tool === 'building' || tool === 'boundary') && drawPoints.length > 0
+
+  const routeWidth = useStudioStore((s) => s.routeWidth)
+  const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
+
+  const handleConfirm = useCallback(() => {
+    if (tool === 'route') {
+      if (tracePoints.length >= 2) setPendingConfirm('route', tracePoints)
+    }
+    if (tool === 'building' && drawPoints.length >= 3) {
+      setPendingConfirm('building', drawPoints)
+    }
+    if (tool === 'boundary' && drawPoints.length >= 3) {
+      setPendingConfirm('boundary', drawPoints)
+    }
+  }, [tool, tracePoints, drawPoints, setPendingConfirm])
+
+  const handleCancel = useCallback(() => {
+    if (tool === 'route') { clearTracePoints() }
+    clearDrawPoints()
+  }, [tool, clearTracePoints, clearDrawPoints])
+
+  const handleUndo = useCallback(() => {
+    if (tool === 'route') { undoLastTracePoint() }
+    if (tool === 'building' || tool === 'boundary') {
+      setDrawPoints(drawPoints.slice(0, -1))
+    }
+  }, [tool, undoLastTracePoint, drawPoints, setDrawPoints])
+
+  const minPoints = tool === 'route' ? 2 : 3
+  const canConfirm = tool === 'route' ? tracePoints.length >= 2 : drawPoints.length >= 3
+  const currentPoints = tool === 'route' ? tracePoints : drawPoints
+  const toolLabel =
+    tool === 'route' ? 'Campus route' :
+    tool === 'building' ? 'Building footprint' :
+    tool === 'boundary' ? 'Campus boundary' : ''
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {showConfirmBar && (
+        <div style={{
+          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 6, background: '#1E293B', borderRadius: 8, padding: '4px 6px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 10, alignItems: 'center',
+        }}>
+          <span style={{
+            fontSize: 10, color: '#06B6D4',
+            padding: '0 4px', fontWeight: 600, whiteSpace: 'nowrap',
+          }}>
+            {toolLabel}
+          </span>
+          <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 4px' }}>
+            {currentPoints.length} point{currentPoints.length !== 1 ? 's' : ''} (need {minPoints})
+          </span>
+          {tool === 'route' && (
+            <>
+              <button onClick={() => setRouteWidth(routeWidth - 1)}
+                style={{
+                  width: 24, height: 24, borderRadius: 4, border: 'none',
+                  background: '#475569', color: '#fff', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, lineHeight: 1,
+                }}
+              >−</button>
+              <span style={{ fontSize: 10, color: '#06B6D4', fontWeight: 600, minWidth: 16, textAlign: 'center' }}>
+                {routeWidth}
+              </span>
+              <button onClick={() => setRouteWidth(routeWidth + 1)}
+                style={{
+                  width: 24, height: 24, borderRadius: 4, border: 'none',
+                  background: '#475569', color: '#fff', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, lineHeight: 1,
+                }}
+              >+</button>
+            </>
+          )}
+          <button onClick={handleUndo} disabled={currentPoints.length < 1}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderRadius: 6,
+              border: 'none', background: currentPoints.length < 1 ? '#374151' : '#475569',
+              color: currentPoints.length < 1 ? '#6B7280' : '#fff', fontSize: 11,
+              cursor: currentPoints.length < 1 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Trash2 size={12} />
+          </button>
+          <button onClick={handleConfirm} disabled={!canConfirm}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
+              border: 'none', background: !canConfirm ? '#374151' : '#10B981',
+              color: !canConfirm ? '#6B7280' : '#fff', fontSize: 11,
+              cursor: !canConfirm ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <Check size={12} /> Confirm
+          </button>
+          <button onClick={handleCancel}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
+              border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            <X size={12} /> Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }

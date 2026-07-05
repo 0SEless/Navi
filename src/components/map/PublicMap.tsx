@@ -46,11 +46,12 @@ const LYR = {
   BOUNDARY_FILL: 'public-boundary-fill',
   BOUNDARY_OUTLINE: 'public-boundary-outline',
   TRACES_ARTERIAL: 'public-traces-arterial',
-  TRACES_PATH: 'public-traces-path',
-  TRACES_INTERIOR: 'public-traces-interior',
+  TRACES_CONNECTOR: 'public-traces-connector',
   ENTRANCES: 'public-entrances',
   FLOORPLAN: 'public-floorplan-layer',
   ROOMS_FILL: 'public-rooms-fill',
+  ROOMS_EXTRUSION: 'public-rooms-extrusion',
+  ROOMS_OUTLINE: 'public-rooms-outline',
   ROOMS_LABELS: 'public-rooms-labels',
 } as const
 
@@ -67,9 +68,8 @@ function addMapSources(map: maplibregl.Map) {
   map.addLayer({ id: LYR.BOUNDARY_OUTLINE, type: 'line', source: SRC.BOUNDARY, paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 2], 'line-opacity': 0.5 } })
 
   map.addSource(SRC.TRACES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.TRACES_ARTERIAL, type: 'line', source: SRC.TRACES, filter: ['==', ['get', 'trace_type'], 'arterial'], paint: { 'line-color': '#3B82F6', 'line-width': 4, 'line-opacity': 0.7, 'line-dasharray': [1, 0] } })
-  map.addLayer({ id: LYR.TRACES_PATH, type: 'line', source: SRC.TRACES, filter: ['==', ['get', 'trace_type'], 'path'], paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-opacity': 0.6, 'line-dasharray': [4, 3] } })
-  map.addLayer({ id: LYR.TRACES_INTERIOR, type: 'line', source: SRC.TRACES, filter: ['==', ['get', 'trace_type'], 'interior'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-opacity': 0.4, 'line-dasharray': [2, 4] } })
+  map.addLayer({ id: LYR.TRACES_ARTERIAL, type: 'line', source: SRC.TRACES, filter: ['==', ['get', 'trace_type'], 'arterial'], paint: { 'line-color': '#3B82F6', 'line-width': ['get', 'width'], 'line-opacity': 0.7 } })
+  map.addLayer({ id: LYR.TRACES_CONNECTOR, type: 'line', source: SRC.TRACES, filter: ['match', ['get', 'trace_type'], ['connector', 'path', 'interior'], true, false], paint: { 'line-color': '#F59E0B', 'line-width': ['get', 'width'], 'line-opacity': 0.5, 'line-dasharray': [4, 3] } })
 
   map.addSource(SRC.ENTRANCES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.ENTRANCES, type: 'circle', source: SRC.ENTRANCES, paint: { 'circle-radius': 6, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
@@ -78,7 +78,10 @@ function addMapSources(map: maplibregl.Map) {
   map.addLayer({ id: LYR.FLOORPLAN, type: 'raster', source: SRC.FLOORPLAN, paint: { 'raster-opacity': 0.6 } })
 
   map.addSource(SRC.ROOMS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#10B981', 'fill-opacity': 0.1 } })
+  map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#E8E0D4', 'fill-opacity': 0.65 } })
+  map.addLayer({ id: LYR.ROOMS_EXTRUSION, type: 'fill-extrusion', source: SRC.ROOMS, paint: { 'fill-extrusion-color': '#E8E0D4', 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.8, 'fill-extrusion-base': ['get', 'base'] } })
+  map.addLayer({ id: LYR.ROOMS_OUTLINE, type: 'line', source: SRC.ROOMS, paint: { 'line-color': '#C4B8A8', 'line-width': 1.5 } })
+  map.addLayer({ id: LYR.ROOMS_LABELS, type: 'symbol', source: SRC.ROOMS, layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'text-offset': [0, -0.5] }, paint: { 'text-color': '#3D2E1E', 'text-halo-color': '#FFFFFF', 'text-halo-width': 2 } })
 }
 
 function syncBuildings(map: maplibregl.Map, buildings: Building[]) {
@@ -94,6 +97,7 @@ function syncBuildings(map: maplibregl.Map, buildings: Building[]) {
     },
   }))
   src.setData({ type: 'FeatureCollection', features })
+  map.triggerRepaint()
 }
 
 function syncBoundary(map: maplibregl.Map, boundary: { lat: number; lng: number }[]) {
@@ -114,7 +118,7 @@ function syncTraces(map: maplibregl.Map, traces: TracePath[]) {
     .filter((t) => t.points.length >= 2)
     .map((t) => ({
       type: 'Feature' as const,
-      properties: { trace_type: t.type, name: t.name ?? '', color: t.color ?? '' },
+      properties: { trace_type: t.type, name: t.name ?? '', color: t.color ?? '', width: t.width ?? 8 },
       geometry: {
         type: 'LineString' as const,
         coordinates: t.points.map((p) => [p.lng, p.lat] as [number, number]),
@@ -215,6 +219,7 @@ export function PublicMap({ boundary }: PublicMapProps) {
       style: OSM_STYLE,
       center: [122.0922, 11.8195],
       zoom: 17,
+      pitch: 35,
     })
     map.on('load', () => {
       addMapSources(map)
@@ -227,7 +232,7 @@ export function PublicMap({ boundary }: PublicMapProps) {
     mapRef.current = map
     setMapInstance(map)
     return () => { map.remove(); mapRef.current = null; setMapInstance(null); readyRef.current = false }
-  }, [boundary, graph.buildings, graph.traces])
+  }, [boundary])
 
   // Sync graph data to map layers
   useEffect(() => {
@@ -238,26 +243,29 @@ export function PublicMap({ boundary }: PublicMapProps) {
     syncEntrances(map, graph.buildings)
 
     // Sync rooms for selected building
-    if (selectedBuilding) {
-      const floorComponents = graph.components.filter(
-        (c) => c.buildingId === selectedBuilding.id && c.polygon && c.polygon.length >= 3,
-      )
-      const roomGeo: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features: floorComponents.map((c) => ({
-          type: 'Feature',
-          properties: { name: c.name, type: c.type },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[...c.polygon!.map((p) => [p.lng, p.lat] as [number, number]), [c.polygon![0].lng, c.polygon![0].lat] as [number, number]]],
-          },
-        })),
+    try {
+      const roomSrc = map.getSource(SRC.ROOMS) as maplibregl.GeoJSONSource
+      if (!roomSrc) return
+      if (selectedBuilding) {
+        const roomComponents = graph.components.filter(
+          (c) => c.type === 'room' && c.buildingId === selectedBuilding.id && c.polygon && c.polygon.length >= 3,
+        )
+        const roomGeo: GeoJSON.FeatureCollection = {
+          type: 'FeatureCollection',
+          features: roomComponents.map((c) => ({
+            type: 'Feature',
+            properties: { name: c.name, type: c.type, height: 1, base: 0 },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [[...c.polygon!.map((p) => [p.lng, p.lat] as [number, number]), [c.polygon![0].lng, c.polygon![0].lat] as [number, number]]],
+            },
+          })),
+        }
+        roomSrc.setData(roomGeo)
+      } else {
+        roomSrc.setData({ type: 'FeatureCollection', features: [] })
       }
-      try {
-        const roomSrc = map.getSource(SRC.ROOMS) as maplibregl.GeoJSONSource
-        if (roomSrc) roomSrc.setData(roomGeo)
-      } catch { /* source not ready */ }
-    }
+    } catch { /* source not ready */ }
   }, [graph.buildings, graph.traces, graph.components, selectedBuilding])
 
   // Floor plan overlay when a building is selected
@@ -302,6 +310,14 @@ export function PublicMap({ boundary }: PublicMapProps) {
     return () => { map.off('click', LYR.BUILDINGS_FILL, handler) }
   }, [mapInstance, graph])
 
+  const handleSearchSelect = useCallback((nodeId: string) => {
+    const node = graph.getNode(nodeId)
+    if (node?.buildingId) {
+      const bldg = graph.buildings.find((b) => b.id === node.buildingId)
+      if (bldg) setSelectedBuilding(bldg)
+    }
+  }, [graph])
+
   const handleRoute = useCallback(() => {
     if (!from || !to) return
     const result = graph.findPath(from, to)
@@ -323,10 +339,10 @@ export function PublicMap({ boundary }: PublicMapProps) {
             </button>
           </div>
         ) : (
-          <SearchBar onSelect={(n) => setFrom(n.id)} placeholder="Set start..." />
+          <SearchBar onSelect={(n) => { setFrom(n.id); handleSearchSelect(n.id) }} placeholder="Set start..." />
         )}
 
-        <SearchBar onSelect={(n) => setTo(n.id)} placeholder="Where to?" />
+        <SearchBar onSelect={(n) => { setTo(n.id); handleSearchSelect(n.id) }} placeholder="Where to?" />
 
         <button onClick={handleRoute}
           style={{ padding: '5px 12px', background: 'var(--navi-primary)', border: 'none', borderRadius: 5, color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>

@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { StudioTool, EditorMode, LayerVisibility, TraceMode } from '../types/studio-types'
+import type { StudioTool, EditorMode, LayerVisibility } from '../types/studio-types'
+import type { LatLng } from '../types/nav-types'
 
 
-type PendingType = 'building' | 'boundary' | 'trace' | null
+type PendingType = 'building' | 'boundary' | 'route' | null
 
 interface PendingConfirm {
   type: NonNullable<PendingType>
@@ -15,8 +16,6 @@ interface StudioState {
   activeBuildingId: string | null
   activeFloor: number
   layers: LayerVisibility
-  isTraceActive: boolean
-  traceMode: TraceMode
 
   setTool: (tool: StudioTool) => void
   setEditorMode: (mode: EditorMode) => void
@@ -24,11 +23,10 @@ interface StudioState {
   setActiveFloor: (floor: number) => void
   toggleLayer: (layer: keyof LayerVisibility) => void
   setLayers: (layers: Partial<LayerVisibility>) => void
-  setTraceActive: (active: boolean) => void
-  setTraceMode: (mode: TraceMode) => void
 
   tracePoints: { lat: number; lng: number }[]
   addTracePoint: (point: { lat: number; lng: number }) => void
+  setTracePoints: (points: { lat: number; lng: number }[]) => void
   clearTracePoints: () => void
   undoLastTracePoint: () => void
 
@@ -38,6 +36,13 @@ interface StudioState {
 
   selectedTraceId: string | null
   setSelectedTraceId: (id: string | null) => void
+
+  drawPoints: LatLng[]
+  setDrawPoints: (points: LatLng[]) => void
+  clearDrawPoints: () => void
+
+  routeWidth: number
+  setRouteWidth: (width: number) => void
 
   isVertexEditing: boolean
   editTargetType: 'trace' | 'building' | 'boundary' | 'room' | null
@@ -64,11 +69,11 @@ export const useStudioStore = create<StudioState>((set) => ({
   activeBuildingId: null,
   activeFloor: 0,
   layers: { ...defaultLayers },
-  isTraceActive: false,
-  traceMode: 'path',
   tracePoints: [],
+  drawPoints: [],
+  routeWidth: 8,
 
-  setTool: (tool) => set({ tool, traceMode: tool === 'route_test' || tool === 'trace' ? (tool === 'route_test' ? 'arterial' : 'interior') : 'path' }),
+  setTool: (tool) => set({ tool }),
   setEditorMode: (mode) => set({ editorMode: mode }),
   setActiveBuilding: (id) => set((s) => ({ activeBuildingId: id, activeFloor: id === s.activeBuildingId ? s.activeFloor : 0 })),
   setActiveFloor: (floor) => set({ activeFloor: floor }),
@@ -78,15 +83,11 @@ export const useStudioStore = create<StudioState>((set) => ({
   setLayers: (layers) => set((s) => ({
     layers: { ...s.layers, ...layers },
   })),
-  setTraceActive: (active) => set({
-    isTraceActive: active,
-    tracePoints: [],
-  }),
-  setTraceMode: (mode) => set({ traceMode: mode }),
 
   addTracePoint: (point) => set((s) => ({
     tracePoints: [...s.tracePoints, point],
   })),
+  setTracePoints: (points) => set({ tracePoints: points }),
   clearTracePoints: () => set({ tracePoints: [] }),
   undoLastTracePoint: () => set((s) => ({
     tracePoints: s.tracePoints.slice(0, -1),
@@ -108,4 +109,9 @@ export const useStudioStore = create<StudioState>((set) => ({
     editTargetId: targetId,
     tool: targetType !== null ? 'vertex' : 'select',
   }),
+
+  setRouteWidth: (width) => set({ routeWidth: Math.max(2, Math.min(24, width)) }),
+
+  setDrawPoints: (points) => set({ drawPoints: points }),
+  clearDrawPoints: () => set({ drawPoints: [] }),
 }))

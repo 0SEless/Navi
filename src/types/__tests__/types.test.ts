@@ -9,7 +9,7 @@ describe('TracePath', () => {
       buildingId: 'BLD01',
       floor: 1,
       points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
-      type: 'interior',
+      type: 'arterial',
     }
     expect(trace.id).toBe('T001')
     expect(trace.points.length).toBe(2)
@@ -30,8 +30,8 @@ describe('FloorPlan', () => {
 
 describe('StudioTool', () => {
   it('accepts all tool values', () => {
-    const tools: StudioTool[] = ['select', 'move', 'trace', 'room', 'asset', 'qr', 'pano', 'route_test']
-    expect(tools).toHaveLength(8)
+    const tools: StudioTool[] = ['select', 'move', 'room', 'asset', 'qr', 'pano', 'route']
+    expect(tools).toHaveLength(7)
   })
 })
 

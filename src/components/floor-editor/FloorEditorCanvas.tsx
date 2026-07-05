@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
 import type { Building, LatLng } from '@/types/nav-types'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
-import { useFloorDrawing } from './useFloorDrawing'
+import { useFloorDrawing, computeWidthBuffer } from './useFloorDrawing'
 
 const BLANK_STYLE = {
   version: 8 as const,
@@ -50,7 +50,7 @@ function buildBuildingGeo(building: Building): GeoJSON.FeatureCollection {
 }
 
 function addSourcesAndLayers(map: maplibregl.Map) {
-  const srcs = ['floor-buildings', 'floor-floorplan', 'floor-rooms', 'floor-hallways']
+  const srcs = ['floor-buildings', 'floor-floorplan', 'floor-rooms', 'floor-hallways', 'floor-elevator-areas']
   for (const s of srcs) {
     if (map.getSource(s)) return
   }
@@ -66,7 +66,14 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'floor-rooms-outline', type: 'line', source: 'floor-rooms', paint: { 'line-color': '#10B981', 'line-width': 2 } })
 
   map.addSource('floor-hallways', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: 'floor-hallways-line', type: 'line', source: 'floor-hallways', paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-opacity': 0.6 } })
+  map.addLayer({ id: 'floor-hallways-fill', type: 'fill', source: 'floor-hallways', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.85 } })
+  map.addLayer({ id: 'floor-hallways-outline', type: 'line', source: 'floor-hallways', paint: { 'line-color': '#64748B', 'line-width': 1.5 } })
+  map.addSource('floor-hallway-centerlines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-hallway-centerlines-layer', type: 'line', source: 'floor-hallway-centerlines', paint: { 'line-color': '#FFFFFF', 'line-width': 2, 'line-dasharray': [3, 4], 'line-opacity': 0.8 } })
+
+  map.addSource('floor-elevator-areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-elevator-areas-fill', type: 'fill', source: 'floor-elevator-areas', paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 } })
+  map.addLayer({ id: 'floor-elevator-areas-outline', type: 'line', source: 'floor-elevator-areas', paint: { 'line-color': '#7C3AED', 'line-width': 2 } })
 
   map.addSource('floor-assets', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-assets-layer', type: 'symbol', source: 'floor-assets', layout: { 'icon-image': 'marker', 'icon-size': 0.8, 'text-field': ['get', 'name'], 'text-offset': [0, -1.5], 'text-size': 10 } })
@@ -79,6 +86,12 @@ function addSourcesAndLayers(map: maplibregl.Map) {
 
   map.addSource('floor-labels', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-labels-layer', type: 'symbol', source: 'floor-labels', layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, 0] }, paint: { 'text-color': '#94A3B8', 'text-halo-color': '#1E293B', 'text-halo-width': 1 } })
+
+  map.addSource('floor-point-items', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-items-stairs', type: 'circle', source: 'floor-point-items', filter: ['==', ['get', 'type'], 'stair'], paint: { 'circle-radius': 10, 'circle-color': '#F97316', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } })
+  map.addLayer({ id: 'floor-items-stairs-label', type: 'symbol', source: 'floor-point-items', filter: ['==', ['get', 'type'], 'stair'], layout: { 'text-field': 'S', 'text-size': 11, 'text-allow-overlap': true }, paint: { 'text-color': '#FFFFFF' } })
+  map.addLayer({ id: 'floor-items-entrance', type: 'circle', source: 'floor-point-items', filter: ['==', ['get', 'type'], 'entrance'], paint: { 'circle-radius': 8, 'circle-color': '#F59E0B', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } })
+  map.addLayer({ id: 'floor-items-entrance-label', type: 'symbol', source: 'floor-point-items', filter: ['==', ['get', 'type'], 'entrance'], layout: { 'text-field': '\u2B07', 'text-size': 10, 'text-allow-overlap': true }, paint: { 'text-color': '#FFFFFF' } })
 
   map.addSource('floor-selection', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-selection-fill', type: 'fill', source: 'floor-selection', filter: ['==', ['get', 'type'], 'fill'], paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.2 } })
@@ -107,7 +120,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   const campusId = graph.buildings[0]?.campusId ?? ''
 
   // Wire drawing interactions (state-driven so hook sees map after init)
-  const { drawMode, cancel: cancelDrawing } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect })
+  const { drawMode, pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect })
 
   useEffect(() => {
     if (mapRef.current) return
@@ -182,6 +195,21 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
     const hallwayFeatures: GeoJSON.Feature[] = floorComponents
       .filter((c) => c.type === 'hallway' && c.polygon && c.polygon.length >= 2)
+      .map((c) => {
+        const width = c.dimensions?.width ?? 3
+        const buffer = computeWidthBuffer(c.polygon!, width)
+        return {
+          type: 'Feature' as const,
+          properties: { id: c.id, name: c.name },
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]],
+          },
+        }
+      })
+
+    const hallwayCenterlineFeatures: GeoJSON.Feature[] = floorComponents
+      .filter((c) => c.type === 'hallway' && c.polygon && c.polygon.length >= 2)
       .map((c) => ({
         type: 'Feature' as const,
         properties: { id: c.id, name: c.name },
@@ -191,11 +219,36 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         },
       }))
 
+    const elevatorAreaFeatures: GeoJSON.Feature[] = floorComponents
+      .filter((c) => c.type === 'elevator' && c.polygon && c.polygon.length >= 3)
+      .map((c) => ({
+        type: 'Feature' as const,
+        properties: { id: c.id, name: c.name },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [[...c.polygon!.map((p) => [p.lng, p.lat] as [number, number]), [c.polygon![0].lng, c.polygon![0].lat] as [number, number]]],
+        },
+      }))
+
     try {
       const roomSrc = map.getSource('floor-rooms') as maplibregl.GeoJSONSource
       if (roomSrc) roomSrc.setData({ type: 'FeatureCollection', features: roomFeatures })
       const hallSrc = map.getSource('floor-hallways') as maplibregl.GeoJSONSource
       if (hallSrc) hallSrc.setData({ type: 'FeatureCollection', features: hallwayFeatures })
+      const hallCenterSrc = map.getSource('floor-hallway-centerlines') as maplibregl.GeoJSONSource
+      if (hallCenterSrc) hallCenterSrc.setData({ type: 'FeatureCollection', features: hallwayCenterlineFeatures })
+      const elevAreaSrc = map.getSource('floor-elevator-areas') as maplibregl.GeoJSONSource
+      if (elevAreaSrc) elevAreaSrc.setData({ type: 'FeatureCollection', features: elevatorAreaFeatures })
+
+      const pointFeatures = floorComponents
+        .filter((c) => c.type === 'stair' || c.type === 'entrance')
+        .map((c) => ({
+          type: 'Feature' as const,
+          properties: { id: c.id, name: c.name, type: c.type },
+          geometry: { type: 'Point' as const, coordinates: [c.position.lng, c.position.lat] as [number, number] },
+        }))
+      const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
+      if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { /* source not ready */ }
   }, [graph.components, graph.traces, building.id, floor])
 
@@ -212,14 +265,26 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     const comp = graph.components.find((c) => c.id === selectedId)
     if (!comp) { src.setData({ type: 'FeatureCollection', features: [] }); return }
 
-    if (comp.polygon && comp.polygon.length >= 3) {
-      src.setData({
-        type: 'FeatureCollection',
-        features: [
-          { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...comp.polygon.map((p) => [p.lng, p.lat] as [number, number]), [comp.polygon[0].lng, comp.polygon[0].lat] as [number, number]]] } },
-          { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...comp.polygon.map((p) => [p.lng, p.lat] as [number, number]), [comp.polygon[0].lng, comp.polygon[0].lat] as [number, number]] } },
-        ],
-      })
+    if (comp.polygon && comp.polygon.length >= (comp.type === 'hallway' ? 2 : 3)) {
+      if (comp.type === 'hallway') {
+        const width = comp.dimensions?.width ?? 3
+        const buffer = computeWidthBuffer(comp.polygon, width)
+        src.setData({
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] } },
+            { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...comp.polygon.map((p) => [p.lng, p.lat] as [number, number]), [comp.polygon[0].lng, comp.polygon[0].lat] as [number, number]] } },
+          ],
+        })
+      } else {
+        src.setData({
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...comp.polygon.map((p) => [p.lng, p.lat] as [number, number]), [comp.polygon[0].lng, comp.polygon[0].lat] as [number, number]]] } },
+            { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...comp.polygon.map((p) => [p.lng, p.lat] as [number, number]), [comp.polygon[0].lng, comp.polygon[0].lat] as [number, number]] } },
+          ],
+        })
+      }
     } else if (comp.position) {
       const r = 6
       const d = r * 0.00001
@@ -244,8 +309,16 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       'floor-buildings-outline': layers.buildings,
       'floor-rooms-fill': layers.rooms,
       'floor-rooms-outline': layers.rooms,
-      'floor-hallways-line': layers.hallways,
+      'floor-hallways-fill': layers.hallways,
+      'floor-hallways-outline': layers.hallways,
+      'floor-hallway-centerlines-layer': layers.hallways,
+      'floor-elevator-areas-fill': layers.hallways,
+      'floor-elevator-areas-outline': layers.hallways,
       'floor-assets-layer': layers.assets,
+      'floor-items-stairs': layers.assets,
+      'floor-items-stairs-label': layers.assets,
+      'floor-items-entrance': layers.assets,
+      'floor-items-entrance-label': layers.assets,
       'floor-nodes-layer': layers.nodes,
       'floor-edges-layer': layers.edges,
       'floor-labels-layer': layers.labels,
@@ -325,27 +398,30 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         if (!comp) return
         const isRoom = comp.type === 'room'
         const isHallway = comp.type === 'hallway'
-        const srcId = isRoom ? 'floor-rooms' : isHallway ? 'floor-hallways' : undefined
+        const isElevator = comp.type === 'elevator'
+        const srcId = isRoom ? 'floor-rooms' : isHallway ? 'floor-hallways' : isElevator ? 'floor-elevator-areas' : undefined
 
-        // Live preview: update the rooms/hallways source
-        if (srcId) {
+        // Live preview: update the polygon source
+        if (srcId && working.length >= (isHallway ? 2 : 3)) {
           const src = map.getSource(srcId) as maplibregl.GeoJSONSource
           if (src) {
             const existing = (src as unknown as { _data?: GeoJSON.FeatureCollection })._data
             const features = existing ? [...existing.features] : []
             const origId = features.findIndex((f) => f.properties?.id === drag.componentId)
             if (origId >= 0) {
-              if (isRoom && working.length >= 3) {
+              if (isHallway) {
+                const width = comp.dimensions?.width ?? 3
+                const buffer = computeWidthBuffer(working, width)
+                features[origId] = {
+                  type: 'Feature',
+                  properties: { id: comp.id, name: comp.name },
+                  geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
+                }
+              } else {
                 features[origId] = {
                   type: 'Feature',
                   properties: { id: comp.id, name: comp.name },
                   geometry: { type: 'Polygon', coordinates: [[...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]]] },
-                }
-              } else if (isHallway && working.length >= 2) {
-                features[origId] = {
-                  type: 'Feature',
-                  properties: { id: comp.id, name: comp.name },
-                  geometry: { type: 'LineString', coordinates: working.map((p) => [p.lng, p.lat] as [number, number]) },
                 }
               }
               src.setData({ type: 'FeatureCollection', features })
@@ -366,17 +442,47 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           })
         }
 
+        // Update centerline during hallway drag
+        if (isHallway) {
+          const clSrc = map.getSource('floor-hallway-centerlines') as maplibregl.GeoJSONSource
+          if (clSrc) {
+            const existing = (clSrc as unknown as { _data?: GeoJSON.FeatureCollection })._data
+            const features = existing ? [...existing.features] : []
+            const origId = features.findIndex((f) => f.properties?.id === drag.componentId)
+            if (origId >= 0) {
+              features[origId] = {
+                type: 'Feature',
+                properties: { id: comp.id, name: comp.name },
+                geometry: { type: 'LineString', coordinates: working.map((p) => [p.lng, p.lat] as [number, number]) },
+              }
+              clSrc.setData({ type: 'FeatureCollection', features })
+            }
+          }
+        }
+
         // Update selection highlight
-        if (isRoom || isHallway) {
+        if (isRoom || isHallway || isElevator) {
           const selSrc = map.getSource('floor-selection') as maplibregl.GeoJSONSource
-          if (selSrc && working.length >= 3) {
-            selSrc.setData({
-              type: 'FeatureCollection',
-              features: [
-                { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]]] } },
-                { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]] } },
-              ],
-            })
+          if (selSrc && working.length >= (isHallway ? 2 : 3)) {
+            if (isHallway) {
+              const width = comp.dimensions?.width ?? 3
+              const buffer = computeWidthBuffer(working, width)
+              selSrc.setData({
+                type: 'FeatureCollection',
+                features: [
+                  { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] } },
+                  { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]] } },
+                ],
+              })
+            } else {
+              selSrc.setData({
+                type: 'FeatureCollection',
+                features: [
+                  { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [[...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]]] } },
+                  { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates: [...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]] } },
+                ],
+              })
+            }
           }
         }
       })
@@ -448,6 +554,44 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {drawMode !== 'idle' && (
+        <div style={{
+          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 6, background: '#1E293B', borderRadius: 8, padding: '4px 6px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 10, alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 4px' }}>
+            {pendingPolygon.length} point{pendingPolygon.length !== 1 ? 's' : ''} (need {tool === 'hallway' ? 2 : 3})
+          </span>
+          <button onClick={removeLastPoint} disabled={pendingPolygon.length < 1}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderRadius: 6, border: 'none', background: pendingPolygon.length < 1 ? '#374151' : '#475569', color: pendingPolygon.length < 1 ? '#6B7280' : '#fff', fontSize: 11, cursor: pendingPolygon.length < 1 ? 'not-allowed' : 'pointer' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </button>
+          {tool === 'hallway' && (
+            <>
+              <button onClick={() => setHallwayWidth(Math.max(1, hallwayWidth - 0.5))}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, border: 'none', background: '#475569', color: '#fff', fontSize: 13, cursor: 'pointer' }}>
+                −
+              </button>
+              <span style={{ fontSize: 10, color: '#F59E0B', padding: '0 2px', minWidth: 24, textAlign: 'center' }}>
+                {hallwayWidth.toFixed(1)}m
+              </span>
+              <button onClick={() => setHallwayWidth(Math.min(10, hallwayWidth + 0.5))}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, border: 'none', background: '#475569', color: '#fff', fontSize: 13, cursor: 'pointer' }}>
+                +
+              </button>
+            </>
+          )}
+          <button onClick={confirmDrawing} disabled={pendingPolygon.length < (tool === 'hallway' ? 2 : 3)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, border: 'none', background: pendingPolygon.length < (tool === 'hallway' ? 2 : 3) ? '#374151' : '#10B981', color: pendingPolygon.length < (tool === 'hallway' ? 2 : 3) ? '#6B7280' : '#fff', fontSize: 11, cursor: pendingPolygon.length < (tool === 'hallway' ? 2 : 3) ? 'not-allowed' : 'pointer' }}>
+            ✓ Confirm
+          </button>
+          <button onClick={cancelDrawing}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+            ✗ Cancel
+          </button>
+        </div>
+      )}
       {selectedId && (
         <div style={{
           position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',

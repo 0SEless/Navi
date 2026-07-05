@@ -1,6 +1,6 @@
 'use client'
 
-import { MousePointer2, Move, Pencil, Square, Route, MapPin, Building2, ArrowUpDown, DoorOpen, CornerUpRight } from 'lucide-react'
+import { MousePointer2, Move, Route, MapPin, Building2, ArrowUpDown, DoorOpen, CornerUpRight, Square } from 'lucide-react'
 import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import type { StudioTool } from '@/types/studio-types'
@@ -8,8 +8,7 @@ import type { StudioTool } from '@/types/studio-types'
 const CAMPUS_TOOLS: { tool: StudioTool; icon: typeof MousePointer2; label: string; color: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
   { tool: 'move', icon: Move, label: 'Move', color: '#64748B' },
-  { tool: 'trace', icon: Pencil, label: 'Trace', color: '#F59E0B' },
-  { tool: 'route_test', icon: Route, label: 'Route', color: '#06B6D4' },
+  { tool: 'route', icon: Route, label: 'Route', color: '#06B6D4' },
   { tool: 'building', icon: Building2, label: 'Building', color: '#8B5CF6' },
   { tool: 'boundary', icon: MapPin, label: 'Boundary', color: '#F97316' },
 ]

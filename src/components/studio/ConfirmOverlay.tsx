@@ -12,8 +12,6 @@ export function ConfirmOverlay() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const activeFloor = useStudioStore((s) => s.activeFloor)
-  const traceMode = useStudioStore((s) => s.traceMode)
-  const editorMode = useStudioStore((s) => s.editorMode)
   const addBuilding = useGraphStore((s) => s.addBuilding)
   const addTrace = useGraphStore((s) => s.addTrace)
   const graph = useGraphStore((s) => s.graph)
@@ -22,10 +20,10 @@ export function ConfirmOverlay() {
   const updateMapStats = useCampusMapStore((s) => s.updateMapStats)
 
   const [traceName, setTraceName] = useState('')
-  const [traceType, setTraceType] = useState<'arterial' | 'path' | 'interior'>(
-    editorMode === 'floor' ? 'interior' : traceMode === 'arterial' ? 'arterial' : 'path'
-  )
-  const [traceColor, setTraceColor] = useState('#10B981')
+  const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
+  const [traceColor, setTraceColor] = useState('#FFFFFF')
+  const routeWidth = useStudioStore((s) => s.routeWidth)
+  const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
 
   if (!pendingConfirm) return null
 
@@ -59,7 +57,7 @@ export function ConfirmOverlay() {
       setActiveBuilding(id)
     }
 
-    if (pendingConfirm.type === 'trace' && pendingConfirm.points.length >= 2) {
+    if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
       addTrace({
         id: `T${Date.now()}`,
         name: traceName || undefined,
@@ -67,6 +65,7 @@ export function ConfirmOverlay() {
         points: pendingConfirm.points,
         type: traceType,
         color: traceColor,
+        width: routeWidth,
       })
       saveGraph()
       clearTracePoints()
@@ -76,7 +75,7 @@ export function ConfirmOverlay() {
   }
 
   const handleCancel = () => {
-    if (pendingConfirm.type === 'trace') {
+    if (pendingConfirm.type === 'route') {
       clearTracePoints()
     }
     clearPendingConfirm()
@@ -84,20 +83,17 @@ export function ConfirmOverlay() {
 
   const labels: Record<string, string> = {
     building: 'Building footprint',
-    trace: traceType === 'interior' ? 'Interior path' : traceType === 'arterial' ? 'Arterial route' : 'Path route',
+    route: traceType === 'arterial' ? 'Arterial route' : 'Connector path',
     boundary: 'Boundary',
   }
 
-  const typeOptions: { value: 'arterial' | 'path' | 'interior'; label: string }[] =
-    editorMode === 'floor'
-      ? [{ value: 'interior', label: 'Interior' }]
-      : [
-          { value: 'arterial', label: 'Arterial' },
-          { value: 'path', label: 'Path / Connector' },
-        ]
+  const typeOptions: { value: 'arterial' | 'connector'; label: string }[] = [
+    { value: 'arterial', label: 'Arterial' },
+    { value: 'connector', label: 'Connector' },
+  ]
 
   const COLOR_SWATCHES = [
-    '#10B981', '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
+    '#FFFFFF', '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
     '#06B6D4', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316',
     '#6366F1', '#84CC16', '#0EA5E9', '#D946EF', '#FB923C',
   ]
@@ -114,7 +110,7 @@ export function ConfirmOverlay() {
       alignItems: 'center',
       gap: 8,
     }}>
-      {pendingConfirm.type === 'trace' && (
+      {pendingConfirm.type === 'route' && (
         <div style={{
           background: 'var(--navi-card)',
           border: '1px solid var(--navi-border)',
@@ -162,10 +158,32 @@ export function ConfirmOverlay() {
               ))}
             </div>
           </div>
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>WIDTH</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setRouteWidth(routeWidth - 1)}
+                style={{
+                  width: 28, height: 28, borderRadius: 4, border: '1px solid var(--navi-border)',
+                  background: 'var(--navi-card)', color: 'var(--navi-text)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700,
+                }}
+              >−</button>
+              <span style={{ fontSize: 13, color: 'var(--navi-text)', fontWeight: 600, minWidth: 24, textAlign: 'center' }}>
+                {routeWidth}
+              </span>
+              <button onClick={() => setRouteWidth(routeWidth + 1)}
+                style={{
+                  width: 28, height: 28, borderRadius: 4, border: '1px solid var(--navi-border)',
+                  background: 'var(--navi-card)', color: 'var(--navi-text)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700,
+                }}
+              >+</button>
+            </div>
+          </div>
         </div>
       )}
 
-      {pendingConfirm.type !== 'trace' && (
+      {pendingConfirm.type !== 'route' && (
         <div style={{
           fontSize: 11,
           color: 'var(--navi-text-secondary)',

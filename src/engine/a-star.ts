@@ -57,9 +57,19 @@ function nodeDisplayName(node: NavNode, buildings: Map<string, Building>, compon
   return node.label || node.id.slice(0, 8)
 }
 
+function getBearing(from: LatLng, to: LatLng): number {
+  const dLng = ((to.lng - from.lng) * Math.PI) / 180
+  const lat1 = (from.lat * Math.PI) / 180
+  const lat2 = (to.lat * Math.PI) / 180
+  const y = Math.sin(dLng) * Math.cos(lat2)
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+  return (Math.atan2(y, x) * 180) / Math.PI
+}
+
 function generateInstructions(
   path: string[],
   nodes: NavNode[],
+  edges: NavEdge[],
   buildings?: Building[],
   components?: Component[],
 ): PathStep[] {
@@ -67,10 +77,32 @@ function generateInstructions(
   const buildingMap = new Map(buildings?.map((b) => [b.id, b]) ?? [])
   const componentMap = new Map(components?.map((c) => [c.id, c]) ?? [])
 
+  const degreeMap: Record<string, number> = {}
+  for (const e of edges) {
+    degreeMap[e.from] = (degreeMap[e.from] ?? 0) + 1
+    degreeMap[e.to] = (degreeMap[e.to] ?? 0) + 1
+  }
+
+  function getTurnInstruction(prev: NavNode, curr: NavNode, next: NavNode): string {
+    const bearingIn = getBearing(prev.position, curr.position)
+    const bearingOut = getBearing(curr.position, next.position)
+    let delta = bearingOut - bearingIn
+    if (delta > 180) delta -= 360
+    if (delta < -180) delta += 360
+
+    const nextComp = next.componentId ? componentMap.get(next.componentId) : undefined
+    const targetName = nextComp?.name ?? next.name ?? 'hallway'
+
+    if (delta > 30) return `Turn right onto ${targetName}`
+    if (delta < -30) return `Turn left onto ${targetName}`
+    return `Continue straight along ${targetName}`
+  }
+
   return path.flatMap((nodeId, i) => {
     const node = nodeMap[nodeId]
     if (!node) return []
     const prev = i > 0 ? nodeMap[path[i - 1]] : null
+    const next = i < path.length - 1 ? nodeMap[path[i + 1]] : null
     const dist = prev ? Math.round(haversine(prev.position, node.position)) : 0
     const bldg = buildingMap.get(node.buildingId)
     const buildingName = bldg?.name ?? ''
@@ -107,6 +139,10 @@ function generateInstructions(
         if (node.type === 'building_entrance') {
           instruction += ` (${display})`
         }
+      }
+      // Turn instruction at hallway intersection
+      else if (prev && next && (degreeMap[nodeId] ?? 0) > 2) {
+        instruction = getTurnInstruction(prev, node, next)
       }
       // Room arrival
       else if (node.type === 'room' || node.type === 'hallway') {
@@ -161,7 +197,7 @@ export function aStar(
       return {
         path,
         cost: gScore[endId],
-        steps: generateInstructions(path, nodes, context?.buildings, context?.components),
+        steps: generateInstructions(path, nodes, edges, context?.buildings, context?.components),
       }
     }
     openSet.delete(current)

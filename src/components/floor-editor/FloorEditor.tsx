@@ -45,6 +45,8 @@ const LAYER_ITEMS: { key: keyof LayerVisibility; label: string }[] = [
 
 export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const graph = useGraphStore((s) => s.graph)
+  const syncStatus = useGraphStore((s) => s.syncStatus)
+  const syncError = useGraphStore((s) => s.syncError)
   const building = useMemo(() => graph.buildings.find((b) => b.id === buildingId), [graph.buildings, buildingId])
 
   const [tool, setTool] = useState<StudioTool>('select')
@@ -89,6 +91,16 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         <span style={{ fontSize: 11, color: 'var(--navi-text-secondary)' }}>
           — {building.name} — {floorLabel}
         </span>
+        <div style={{ flex: 1 }} />
+        {syncStatus === 'syncing' && (
+          <span style={{ fontSize: 10, color: '#F59E0B' }}>Syncing…</span>
+        )}
+        {syncStatus === 'error' && (
+          <span style={{ fontSize: 10, color: '#EF4444' }} title={syncError ?? ''}>Sync failed (saved locally)</span>
+        )}
+        {syncStatus === 'synced' && (
+          <span style={{ fontSize: 10, color: '#10B981' }}>Saved</span>
+        )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -98,10 +110,13 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           <FloorEditorCanvas building={building} floor={floor} tool={tool} layers={layers} selectedId={selectedId} onSelect={handleSelect} />
           {!building.floorPlanUrls?.[floor] && (
             <div style={{
-              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#0F172A', color: '#475569', fontSize: 13, fontWeight: 500, pointerEvents: 'none', zIndex: 10,
+              position: 'absolute', top: 0, left: 0, right: 0,
+              padding: '6px 12px', background: 'rgba(30, 41, 59, 0.9)',
+              color: '#94A3B8', fontSize: 11, zIndex: 10,
+              display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              Upload a floor plan image in the Building panel to begin editing
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              No floor plan &mdash; components shown on dark background. Upload one in the Building panel.
             </div>
           )}
         </div>

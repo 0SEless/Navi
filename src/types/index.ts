@@ -11,6 +11,6 @@ export type {
 
 export type {
   StudioTool, EditorMode, LayerType,
-  TraceMode, RoomPreset,
+  RoomPreset,
   StudioViewState, LayerVisibility,
 } from './studio-types';

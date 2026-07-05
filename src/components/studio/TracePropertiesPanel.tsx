@@ -7,7 +7,7 @@ import { useStudioStore } from '@/store/studio-store'
 import type { TracePath } from '@/types/nav-types'
 
 const COLOR_SWATCHES = [
-  '#10B981', '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
+  '#FFFFFF', '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
   '#06B6D4', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316',
   '#6366F1', '#84CC16', '#0EA5E9', '#D946EF', '#FB923C',
 ]
@@ -19,11 +19,11 @@ interface TracePropertiesPanelProps {
 
 export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelProps) {
   const [name, setName] = useState(trace.name ?? '')
-  const [color, setColor] = useState(trace.color ?? '#10B981')
-  const [role, setRole] = useState(trace.role ?? 'general')
+  const [color, setColor] = useState(trace.color ?? '#FFFFFF')
+  const [routeWidth, setRouteWidth] = useState(trace.width ?? 8)
+  const [type, setType] = useState<'arterial' | 'connector'>(trace.type)
   const [connectorBuildingId, setConnectorBuildingId] = useState(trace.connectorToBuildingId ?? '')
   const [connectorEntranceId, setConnectorEntranceId] = useState(trace.connectorToEntranceId ?? '')
-  const type = trace.type
 
   const graph = useGraphStore((s) => s.graph)
   const updateTrace = useGraphStore((s) => s.updateTrace)
@@ -35,9 +35,10 @@ export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelPro
     updateTrace(trace.id, {
       name: name || undefined,
       color,
-      role,
-      connectorToBuildingId: role === 'connector' ? connectorBuildingId || undefined : undefined,
-      connectorToEntranceId: role === 'connector' ? connectorEntranceId || undefined : undefined,
+      type,
+      width: routeWidth,
+      connectorToBuildingId: type === 'connector' ? connectorBuildingId || undefined : undefined,
+      connectorToEntranceId: type === 'connector' ? connectorEntranceId || undefined : undefined,
     })
     save()
   }
@@ -63,7 +64,7 @@ export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelPro
     <div style={{ borderTop: '1px solid var(--navi-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Trace Properties
+          Route Properties
         </div>
         <button onClick={onClose}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', display: 'flex', padding: 2 }}>
@@ -83,8 +84,21 @@ export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelPro
 
       <div>
         <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>TYPE</div>
-        <div style={{ fontSize: 11, color: 'var(--navi-text)', padding: '4px 8px', borderRadius: 4, background: 'var(--navi-content)' }}>
-          {type === 'arterial' ? 'Arterial Route' : type === 'path' ? 'Path / Connector' : 'Interior Path'}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={() => setType('arterial')}
+            style={{
+              padding: '4px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
+              background: type === 'arterial' ? 'var(--navi-primary)' : 'transparent',
+              color: type === 'arterial' ? '#fff' : 'var(--navi-text-secondary)',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}>Arterial</button>
+          <button onClick={() => setType('connector')}
+            style={{
+              padding: '4px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
+              background: type === 'connector' ? 'var(--navi-primary)' : 'transparent',
+              color: type === 'connector' ? '#fff' : 'var(--navi-text-secondary)',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}>Connector</button>
         </div>
       </div>
 
@@ -99,26 +113,29 @@ export function TracePropertiesPanel({ trace, onClose }: TracePropertiesPanelPro
       </div>
 
       <div>
-        <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>ROLE</div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => setRole('general')}
+        <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>WIDTH</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setRouteWidth(Math.max(2, routeWidth - 1))}
             style={{
-              padding: '4px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
-              background: role === 'general' ? 'var(--navi-primary)' : 'transparent',
-              color: role === 'general' ? '#fff' : 'var(--navi-text-secondary)',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            }}>General</button>
-          <button onClick={() => setRole('connector')}
+              width: 28, height: 28, borderRadius: 4, border: '1px solid var(--navi-border)',
+              background: 'var(--navi-card)', color: 'var(--navi-text)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700,
+            }}
+          >−</button>
+          <span style={{ fontSize: 13, color: 'var(--navi-text)', fontWeight: 600, minWidth: 24, textAlign: 'center' }}>
+            {routeWidth}
+          </span>
+          <button onClick={() => setRouteWidth(Math.min(24, routeWidth + 1))}
             style={{
-              padding: '4px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
-              background: role === 'connector' ? 'var(--navi-primary)' : 'transparent',
-              color: role === 'connector' ? '#fff' : 'var(--navi-text-secondary)',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            }}>Connector</button>
+              width: 28, height: 28, borderRadius: 4, border: '1px solid var(--navi-border)',
+              background: 'var(--navi-card)', color: 'var(--navi-text)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700,
+            }}
+          >+</button>
         </div>
       </div>
 
-      {role === 'connector' && (
+      {type === 'connector' && (
         <>
           <div>
             <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>CONNECTS TO BUILDING</div>

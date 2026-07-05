@@ -86,6 +86,8 @@ export function useBuildingTracer(
   onComplete?: (footprint: BuildingFootprint) => void,
 ) {
   const tool = useStudioStore((s) => s.tool)
+  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
+  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
 
@@ -110,6 +112,7 @@ export function useBuildingTracer(
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       pointsRef.current = [...pointsRef.current, { lat: e.lngLat.lat, lng: e.lngLat.lng }]
       renderTracerDrawing(map, pointsRef.current)
+      setDrawPoints(pointsRef.current)
     }
 
     const handleDblClick = () => {
@@ -121,6 +124,7 @@ export function useBuildingTracer(
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearTracerDrawing(map)
+      clearDrawPoints()
     }
 
     map.on('click', handleClick)
@@ -132,6 +136,7 @@ export function useBuildingTracer(
       map.doubleClickZoom?.enable()
       pointsRef.current = []
       clearTracerDrawing(map)
+      clearDrawPoints()
     }
   }, [map, tool])
 }

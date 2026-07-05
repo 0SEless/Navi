@@ -11,6 +11,7 @@ type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error'
 interface GraphState {
   graph: Graph
   currentMapId: string | null
+  renderVersion: number
   syncStatus: SyncStatus
   syncError: string | null
 
@@ -54,67 +55,68 @@ function storageKey(mapId: string): string {
 export const useGraphStore = create<GraphState>((set, get) => ({
   graph: new Graph(),
   currentMapId: null,
+  renderVersion: 0,
   syncStatus: 'idle',
   syncError: null,
 
   addNode: (node) => {
     get().graph.addNode(node)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeNode: (id) => {
     get().graph.removeNode(id)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateNode: (id, partial) => {
     get().graph.updateNode(id, partial)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   addEdge: (edge) => {
     get().graph.addEdge(edge)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeEdge: (id) => {
     get().graph.removeEdge(id)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateEdge: (id, partial) => {
     get().graph.updateEdge(id, partial)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   addBuilding: (building) => {
     get().graph.addBuilding(building)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateBuilding: (id, partial) => {
     get().graph.updateBuilding(id, partial)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeBuilding: (id) => {
     get().graph.removeBuilding(id)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   setNodes: (nodes) => {
     get().graph.setNodes(nodes)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   setEdges: (edges) => {
     get().graph.setEdges(edges)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   setBuildings: (buildings) => {
     get().graph.setBuildings(buildings)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   addComponent: (component: Component) => {
@@ -135,12 +137,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     for (const edge of result.edges) {
       graph.addEdge(edge)
     }
-    set({})
+    if (component.type === 'hallway') {
+      graph.syncHallwayIntersections(component.buildingId, component.floor)
+    }
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateComponent: (id, partial) => {
     get().graph.updateComponent(id, partial)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeComponent: (id) => {
@@ -155,23 +160,23 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         })
       }
     }
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   addTrace: (trace) => {
     const roomNodes = get().graph.nodes.filter(n => n.type === 'room')
     get().graph.addTraceWithCompile(trace, roomNodes)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateTrace: (id, partial) => {
     get().graph.updateTrace(id, partial)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeTrace: (id) => {
     get().graph.removeTrace(id)
-    set({})
+    set({ renderVersion: get().renderVersion + 1 })
   },
 
   addComponentWithPolygon: (component: Component) => get().addComponent(component),

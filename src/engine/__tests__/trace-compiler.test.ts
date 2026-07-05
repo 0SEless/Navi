@@ -13,7 +13,7 @@ describe('compileTrace', () => {
       { lat: 11.8196, lng: 122.0923 },
       { lat: 11.8197, lng: 122.0924 },
     ],
-    type: 'interior',
+    type: 'connector',
   }
 
   it('generates endpoint nodes for a simple trace', () => {
@@ -41,7 +41,7 @@ describe('compileTrace', () => {
         { lat: 11.8190, lng: 122.0923 },
         { lat: 11.8200, lng: 122.0923 },
       ],
-      type: 'interior',
+      type: 'connector',
     }
     const result = compileTrace(hallway, [existingTrace], [], [])
     const intersectionNodes = result.nodes.filter(

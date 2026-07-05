@@ -14,6 +14,7 @@ export type DrawAction =
   | { type: 'ADD_POLYGON_POINT'; point: LatLng }
   | { type: 'CLEAR_POINTS' }
   | { type: 'CLEAR_POLYGON' }
+  | { type: 'REMOVE_LAST_POLYGON_POINT' }
 
 export function drawReducer(state: DrawState, action: DrawAction): DrawState {
   switch (action.type) {
@@ -22,5 +23,6 @@ export function drawReducer(state: DrawState, action: DrawAction): DrawState {
     case 'ADD_POLYGON_POINT': return { ...state, pendingPolygon: [...state.pendingPolygon, action.point], drawMode: 'placing-polygon' }
     case 'CLEAR_POINTS': return { ...state, pendingPoints: [], drawMode: 'idle' }
     case 'CLEAR_POLYGON': return { ...state, pendingPolygon: [], drawMode: 'idle' }
+    case 'REMOVE_LAST_POLYGON_POINT': return { ...state, pendingPolygon: state.pendingPolygon.slice(0, -1) }
   }
 }

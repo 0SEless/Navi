@@ -6,15 +6,14 @@ import { MetadataPanel } from './MetadataPanel'
 import { TracePropertiesPanel } from './TracePropertiesPanel'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import {
-  MousePointer2, Move, Pencil, Square, Package, Route, MapPin, Building2,
+  MousePointer2, Move, Square, Package, Route, MapPin, Building2,
   Minus, Maximize, ArrowUpDown, Eye, EyeOff,
 } from 'lucide-react'
 
 const ALL_CAMPUS_TOOLS: { tool: StudioTool; icon: React.ElementType; label: string; color: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
   { tool: 'move', icon: Move, label: 'Move', color: '#64748B' },
-  { tool: 'trace', icon: Pencil, label: 'Trace', color: '#F59E0B' },
-  { tool: 'route_test', icon: Route, label: 'Route', color: '#06B6D4' },
+  { tool: 'route', icon: Route, label: 'Route', color: '#06B6D4' },
   { tool: 'building', icon: Building2, label: 'Building', color: '#8B5CF6' },
   { tool: 'boundary', icon: MapPin, label: 'Boundary', color: '#F97316' },
 ]
@@ -22,7 +21,6 @@ const ALL_CAMPUS_TOOLS: { tool: StudioTool; icon: React.ElementType; label: stri
 const FLOOR_TOOLS: { tool: StudioTool; icon: React.ElementType; label: string; color: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
   { tool: 'move', icon: Move, label: 'Move', color: '#64748B' },
-  { tool: 'trace', icon: Pencil, label: 'Trace', color: '#F59E0B' },
   { tool: 'room', icon: Square, label: 'Room', color: '#10B981' },
   { tool: 'asset', icon: Package, label: 'Asset', color: '#8B5CF6' },
   { tool: 'wall', icon: Minus, label: 'Wall', color: '#64748B' },
@@ -71,7 +69,7 @@ export function RightPanel() {
         <div style={{ flex: 1, overflow: 'auto' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Trace
+              Route
             </div>
           </div>
           <TracePropertiesPanel key={selectedTrace.id} trace={selectedTrace} onClose={() => setSelectedTraceId(null)} />

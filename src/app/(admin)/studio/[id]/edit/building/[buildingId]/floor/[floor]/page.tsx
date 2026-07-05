@@ -2,6 +2,8 @@
 
 import { useEffect, use } from 'react'
 import { FloorEditor } from '@/components/floor-editor/FloorEditor'
+import { ErrorBoundary } from '@/components/floor-editor/ErrorBoundary'
+import { DebugConsoleCapture } from '@/components/floor-editor/DebugConsoleCapture'
 import { useGraphStore } from '@/store/graph-store'
 
 export default function FloorEditorPage({ params }: { params: Promise<{ id: string; buildingId: string; floor: string }> }) {
@@ -13,5 +15,9 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     loadMapData(mapId)
   }, [mapId, loadMapData])
 
-  return <FloorEditor mapId={mapId} buildingId={buildingId} floor={floor} />
+  return (
+    <ErrorBoundary>
+      <FloorEditor mapId={mapId} buildingId={buildingId} floor={floor} />
+    </ErrorBoundary>
+  )
 }
