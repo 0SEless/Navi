@@ -232,7 +232,10 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const editTargetId = useStudioStore((s) => s.editTargetId)
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
   const updateTrace = useGraphStore((s) => s.updateTrace)
+  const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const save = useGraphStore((s) => s.save)
+  const adjustBuildingId = useStudioStore((s) => s.adjustBuildingId)
+  const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
   const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) ?? null : null
 
   const currentEditTrace = editTargetType === 'trace' && editTargetId
@@ -259,12 +262,15 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const selectedNodeRef = useRef(selectedNode)
   const drawPointsRef = useRef(drawPoints)
   const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
+  const adjustBuildingIdRef = useRef(adjustBuildingId)
+  const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
 
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
   useEffect(() => { graphRef.current = graph }, [graph])
   useEffect(() => { activeFloorRef.current = activeFloor }, [activeFloor])
   useEffect(() => { activeBuildingIdRef.current = activeBuildingId }, [activeBuildingId])
+  useEffect(() => { adjustBuildingIdRef.current = adjustBuildingId }, [adjustBuildingId])
   useEffect(() => { selectedNodeRef.current = selectedNode }, [selectedNode])
   useEffect(() => { drawPointsRef.current = drawPoints }, [drawPoints])
 
@@ -355,6 +361,7 @@ useEffect(() => {
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       if (dragVertexRef.current) { dragVertexRef.current = null; return }
+      if (buildingDragRef.current) { buildingDragRef.current = null; map.dragPan.enable(); return }
       const curTool = toolRef.current
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
 
@@ -405,6 +412,25 @@ useEffect(() => {
     const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (e.originalEvent.button !== 0) return
       const curTool = toolRef.current
+      if (curTool === 'select' && adjustBuildingIdRef.current) {
+        const features = map.queryRenderedFeatures(e.point)
+        const hitBuilding = features.find((f) =>
+          (f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL) &&
+          f.properties?.id === adjustBuildingIdRef.current
+        )
+        if (hitBuilding) {
+          const building = graphRef.current.buildings.find(b => b.id === adjustBuildingIdRef.current)
+          if (building) {
+            buildingDragRef.current = {
+              buildingId: adjustBuildingIdRef.current,
+              originalFootprint: building.footprint.map(p => ({ ...p })),
+              startPoint: { lat: e.lngLat.lat, lng: e.lngLat.lng },
+            }
+            map.dragPan.disable()
+            return
+          }
+        }
+      }
       if (curTool === 'room') {
         dragStart = { lat: e.lngLat.lat, lng: e.lngLat.lng }
         setRoomDrag({ start: dragStart, current: dragStart })
@@ -436,6 +462,29 @@ useEffect(() => {
       if (dragStart && toolRef.current === 'room') {
         setRoomDrag({ start: dragStart, current: { lat: e.lngLat.lat, lng: e.lngLat.lng } })
       }
+      const buildingDrag = buildingDragRef.current
+      if (buildingDrag) {
+        const dLat = e.lngLat.lat - buildingDrag.startPoint.lat
+        const dLng = e.lngLat.lng - buildingDrag.startPoint.lng
+        const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
+        if (buildingSrc) {
+          const features = graphRef.current.buildings.map((bb) => {
+            const footprint = bb.id === buildingDrag.buildingId
+              ? buildingDrag.originalFootprint.map(p => ({ lat: p.lat + dLat, lng: p.lng + dLng }))
+              : bb.footprint
+            return {
+              type: 'Feature',
+              properties: { id: bb.id, name: bb.name, color: bb.color || '#1C6BEB', height: bb.height || 15 },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [footprint.map(p => [p.lng, p.lat]).concat([[footprint[0].lng, footprint[0].lat]])],
+              },
+            }
+          })
+          buildingSrc.setData({ type: 'FeatureCollection', features })
+        }
+        return
+      }
     }
 
     const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
@@ -443,6 +492,28 @@ useEffect(() => {
       if (drag) {
         setCurrentPoints(drag.points)
         dragVertexRef.current = null
+        return
+      }
+      const buildingDrag = buildingDragRef.current
+      if (buildingDrag) {
+        map.dragPan.enable()
+        const dLat = e.lngLat.lat - buildingDrag.startPoint.lat
+        const dLng = e.lngLat.lng - buildingDrag.startPoint.lng
+        if (dLat !== 0 || dLng !== 0) {
+          const movedFootprint = buildingDrag.originalFootprint.map(p => ({
+            lat: p.lat + dLat,
+            lng: p.lng + dLng,
+          }))
+          const centroid = {
+            lat: movedFootprint.reduce((s, p) => s + p.lat, 0) / movedFootprint.length,
+            lng: movedFootprint.reduce((s, p) => s + p.lng, 0) / movedFootprint.length,
+          }
+          updateBuilding(buildingDrag.buildingId, { footprint: movedFootprint, center: centroid })
+          save()
+        }
+        setAdjustBuilding(null)
+        buildingDragRef.current = null
+        syncAllData(map, graphRef.current, activeFloorRef.current)
         return
       }
       if (dragStart && toolRef.current === 'room') {
@@ -462,7 +533,15 @@ useEffect(() => {
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { clearTracePoints(); clearDrawPoints(); setRoomDrag(null); setVertexEditing(null, null) }
+      if (e.key === 'Escape') {
+        if (buildingDragRef.current) {
+          buildingDragRef.current = null
+          map.dragPan.enable()
+          syncAllData(map, graphRef.current, activeFloorRef.current)
+          return
+        }
+        clearTracePoints(); clearDrawPoints(); setRoomDrag(null); setVertexEditing(null, null)
+      }
       if (e.key === 'Delete' && selectedNodeRef.current) {
         graphRef.current.removeNode(selectedNodeRef.current)
         setSelectedNode(null)

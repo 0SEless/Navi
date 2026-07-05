@@ -22,8 +22,6 @@ export function MetadataPanel() {
   const removeBuilding = useGraphStore((s) => s.removeBuilding)
   const save = useGraphStore((s) => s.save)
 
-  const setTool = useStudioStore((s) => s.setTool)
-  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
 
   const building = activeBuildingId ? buildings.find((b) => b.id === activeBuildingId) : null
@@ -107,9 +105,7 @@ export function MetadataPanel() {
         }}
         onAdjust={() => {
           setAdjustBuilding(formBuilding.id)
-          setDrawPoints(formBuilding.footprint)
-          setTool('building')
-          setActiveBuilding(null)
+          setActiveBuilding(formBuilding.id)
           setDirty(false)
         }}
       />
