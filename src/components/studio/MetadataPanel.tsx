@@ -97,6 +97,7 @@ export function MetadataPanel() {
         }}
         onDelete={() => {
           removeBuilding(formBuilding.id)
+          save()
           setActiveBuilding(null)
           setDirty(false)
         }}

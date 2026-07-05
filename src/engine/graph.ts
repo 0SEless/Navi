@@ -221,10 +221,8 @@ export class Graph {
     trace: TracePath,
     roomNodes: NavNode[]
   ): void {
-    const existingTraces = this.traces
     const result = compileTrace(
       trace,
-      existingTraces,
       this.nodes,
       this.edges,
       roomNodes
@@ -237,6 +235,54 @@ export class Graph {
     for (const edge of result.edges) {
       this.addEdge(edge)
     }
+  }
+
+  connectNodes(idA: string, idB: string): NavEdge | null {
+    const nodeA = this._nodes.get(idA)
+    const nodeB = this._nodes.get(idB)
+    if (!nodeA || !nodeB) return null
+    const edgeExists = this.edges.some(
+      (e) => (e.from === idA && e.to === idB) || (e.from === idB && e.to === idA)
+    )
+    if (edgeExists) return null
+    const d = haversine(nodeA.position, nodeB.position)
+    const edge: NavEdge = {
+      id: genId('E'), from: idA, to: idB,
+      type: 'walk', distance: d, weight: d,
+      campusId: nodeA.campusId,
+    }
+    this.addEdge(edge)
+    return edge
+  }
+
+  splitEdge(edgeId: string, position: LatLng): NavNode | null {
+    const edge = this._edges.get(edgeId)
+    if (!edge) return null
+    const id = genId('N')
+    const fromPos = this._nodePosition(edge.from)
+    const toPos = this._nodePosition(edge.to)
+    const d1 = haversine(position, fromPos)
+    const d2 = haversine(position, toPos)
+    const node: NavNode = {
+      id, label: 'Connection', name: 'Connection',
+      type: 'intersection',
+      buildingId: this._nodes.get(edge.from)?.buildingId ?? '',
+      campusId: edge.campusId ?? '',
+      floor: this._nodes.get(edge.from)?.floor ?? 0,
+      position,
+      metadata: { connectionNode: true, traceId: this._nodes.get(edge.from)?.metadata?.traceId },
+    }
+    this.removeEdge(edgeId)
+    this.addNode(node)
+    this.addEdge({
+      id: genId('E'), from: edge.from, to: id,
+      type: edge.type, distance: d1, weight: d1, campusId: edge.campusId,
+    })
+    this.addEdge({
+      id: genId('E'), from: id, to: edge.to,
+      type: edge.type, distance: d2, weight: d2, campusId: edge.campusId,
+    })
+    return node
   }
 
   setTraces(traces: TracePath[]): void {

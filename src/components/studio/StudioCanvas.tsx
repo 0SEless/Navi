@@ -50,8 +50,8 @@ const SATELLITE_STYLE = {
   layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
 }
 
-const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', TRACES: 's-traces', DRAWING: 's-drawing', CURSOR: 's-cursor' } as const
-const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points', CURSOR_PREVIEW: 'l-cursor-preview' } as const
+const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', NODES_CONNECTION: 's-nodes-connection', TRACES: 's-traces', DRAWING: 's-drawing', CURSOR: 's-cursor' } as const
+const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', NODES_CONNECTION: 'l-nodes-connection', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points', CURSOR_PREVIEW: 'l-cursor-preview' } as const
 const HIDDEN_NODE_TYPES = new Set(['room', 'staircase', 'elevator'])
 
 const CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23000' stroke-width='1.5' opacity='0.4'/%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23fff' stroke-width='0.5' opacity='0.6'/%3E%3Cline x1='14' y1='2' x2='14' y2='26' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='2' y1='14' x2='26' y2='14' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='14' y1='3' x2='14' y2='25' stroke='%23fff' stroke-width='0.5'/%3E%3Cline x1='3' y1='14' x2='25' y2='14' stroke='%23fff' stroke-width='0.5'/%3E%3Ccircle cx='14' cy='14' r='2' fill='%23000'/%3E%3C/svg%3E") 14 14, crosshair`
@@ -83,6 +83,17 @@ function buildNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollection {
     features: nodes.map((n) => ({
       type: 'Feature',
       properties: { id: n.id, type: n.type },
+      geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
+    })),
+  }
+}
+
+function buildConnectionNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: nodes.map((n) => ({
+      type: 'Feature',
+      properties: { id: n.id, connection: true },
       geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
     })),
   }
@@ -132,6 +143,9 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addSource(SRC.NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
 
+  map.addSource(SRC.NODES_CONNECTION, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: LYR.NODES_CONNECTION, type: 'circle', source: SRC.NODES_CONNECTION, paint: { 'circle-radius': 6, 'circle-color': '#22D3EE', 'circle-stroke-width': 2.5, 'circle-stroke-color': '#0E7490' } })
+
   map.addSource(SRC.TRACES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.TRACES_LINE, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.8 }, filter: ['==', ['get', 'type'], 'arterial'] })
   map.addLayer({ id: LYR.TRACES_INNER, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.5 }, filter: ['!=', ['get', 'type'], 'arterial'] })
@@ -152,19 +166,25 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     return from?.floor === activeFloor && to?.floor === activeFloor
   })
   const visibleNodes = filteredNodes.filter((n) => !HIDDEN_NODE_TYPES.has(n.type))
+  const connNodes = visibleNodes.filter(n => n.metadata?.connectionNode === true)
+  const connNodeIds = new Set(connNodes.map((n) => n.id))
+  const regNodes = visibleNodes.filter(n => !connNodeIds.has(n.id))
   const visibleNodeIds = new Set(visibleNodes.map((n) => n.id))
   const visibleEdges = filteredEdges.filter((e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to))
   const buildingGeo = buildBuildingGeo(graph.buildings)
-  const nodeGeo = buildNodeGeo(visibleNodes)
+  const nodeGeo = buildNodeGeo(regNodes)
+  const connNodeGeo = buildConnectionNodeGeo(connNodes)
   const edgeGeo = buildEdgeGeo(visibleEdges, visibleNodes)
   const tracesGeo = buildTracesGeo(graph.traces)
   try {
     const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
     const nodeSrc = map.getSource(SRC.NODES) as maplibregl.GeoJSONSource
+    const connNodeSrc = map.getSource(SRC.NODES_CONNECTION) as maplibregl.GeoJSONSource
     const edgeSrc = map.getSource(SRC.EDGES) as maplibregl.GeoJSONSource
     const tracesSrc = map.getSource(SRC.TRACES) as maplibregl.GeoJSONSource
     if (buildingSrc) buildingSrc.setData(buildingGeo)
     if (nodeSrc) nodeSrc.setData(nodeGeo)
+    if (connNodeSrc) connNodeSrc.setData(connNodeGeo)
     if (edgeSrc) edgeSrc.setData(edgeGeo)
     if (tracesSrc) tracesSrc.setData(tracesGeo)
   } catch { console.warn('[StudioCanvas] source not ready') }
@@ -229,6 +249,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
 
   const toolRef = useRef(tool)
   const tracePointsRef = useRef(tracePoints)
@@ -290,6 +311,17 @@ useEffect(() => {
     map.on('load', () => {
       if (!mounted) return
       addSourcesAndLayers(map)
+      map.on('mouseenter', LYR.NODES_CONNECTION, (e) => {
+        setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', LYR.NODES_CONNECTION, () => {
+        setTooltip(null)
+        const ct = toolRef.current
+        const canvas = map.getCanvas()
+        if (ct === 'select') canvas.style.cursor = 'pointer'
+        else canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+      })
       readyRef.current = true
       setMapInstance(map)
       syncAllData(map, graphRef.current, activeFloorRef.current)
@@ -342,7 +374,7 @@ useEffect(() => {
       }
       if (curTool === 'select') {
         const features = map.queryRenderedFeatures(e.point)
-        const hitNode = features.find((f) => f.layer.id === LYR.NODES)
+        const hitNode = features.find((f) => f.layer.id === LYR.NODES || f.layer.id === LYR.NODES_CONNECTION)
         if (hitNode) { setSelectedNode(hitNode.properties?.id ?? null); return }
         const hitBuilding = features.find((f) => f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL)
         if (hitBuilding) {
@@ -593,6 +625,16 @@ useEffect(() => {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {tooltip && (
+        <div style={{
+          position: 'absolute', left: tooltip.x + 12, top: tooltip.y - 12,
+          background: '#0F172A', color: '#fff', padding: '4px 10px', borderRadius: 6,
+          fontSize: 11, whiteSpace: 'nowrap', zIndex: 20, pointerEvents: 'none',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)', border: '1px solid #334155',
+        }}>
+          {tooltip.text}
+        </div>
+      )}
       {showConfirmBar && (
         <div style={{
           position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',

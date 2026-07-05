@@ -17,7 +17,7 @@ describe('compileTrace', () => {
   }
 
   it('generates endpoint nodes for a simple trace', () => {
-    const result = compileTrace(hallway, [], [], [])
+    const result = compileTrace(hallway, [], [])
     expect(result.nodes.length).toBeGreaterThanOrEqual(2)
     const firstNode = result.nodes[0]
     expect(firstNode.type).toBe('intersection')
@@ -26,28 +26,18 @@ describe('compileTrace', () => {
   })
 
   it('generates edges between consecutive nodes', () => {
-    const result = compileTrace(hallway, [], [], [])
+    const result = compileTrace(hallway, [], [])
     expect(result.edges.length).toBeGreaterThanOrEqual(1)
     for (const edge of result.edges) {
       expect(edge.type).toBe('walk')
     }
   })
 
-  it('generates nodes at intersection points', () => {
-    const existingTrace: TracePath = {
-      id: 'T002',
-      floor: 1,
-      points: [
-        { lat: 11.8190, lng: 122.0923 },
-        { lat: 11.8200, lng: 122.0923 },
-      ],
-      type: 'connector',
-    }
-    const result = compileTrace(hallway, [existingTrace], [], [])
-    const intersectionNodes = result.nodes.filter(
-      (n) => n.metadata?.source === 'intersection'
-    )
-    expect(intersectionNodes.length).toBeGreaterThanOrEqual(1)
+  it('does not create extra nodes for wall traces', () => {
+    const wall: TracePath = { id: 'W01', floor: 1, points: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }], type: 'connector', metadata: { role: 'wall' } }
+    const result = compileTrace(wall, [], [])
+    expect(result.nodes.length).toBe(0)
+    expect(result.edges.length).toBe(0)
   })
 
   it('generates edges to existing room entrance nodes within proximity', () => {
@@ -56,7 +46,7 @@ describe('compileTrace', () => {
       buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 1,
       position: { lat: 11.81955, lng: 122.09225 },
     }
-    const result = compileTrace(hallway, [], [roomNode], [])
+    const result = compileTrace(hallway, [], [], [roomNode])
     const hasRoomConnection = result.edges.some(
       (e) => e.to === 'N010' || e.from === 'N010'
     )
@@ -64,10 +54,10 @@ describe('compileTrace', () => {
   })
 
   it('does not duplicate existing edges', () => {
-    const firstResult = compileTrace(hallway, [], [], [])
+    const firstResult = compileTrace(hallway, [], [])
     const firstEdge = firstResult.edges[0]
     const existingEdges: NavEdge[] = [firstEdge]
-    const secondResult = compileTrace(hallway, [], [], existingEdges)
+    const secondResult = compileTrace(hallway, [], existingEdges)
     const duplicateCount = secondResult.edges.filter(
       (e) => e.from === firstEdge.from && e.to === firstEdge.to
     ).length

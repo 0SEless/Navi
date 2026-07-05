@@ -30,13 +30,13 @@ function addTracerSourceAndLayers(map: maplibregl.Map) {
   })
   map.addLayer({
     id: TRACER_LINE, type: 'line', source: TRACER_SOURCE,
-    paint: { 'line-color': '#8B5CF6', 'line-width': 3, 'line-dasharray': [4, 4] },
+    paint: { 'line-color': '#06B6D4', 'line-width': 3, 'line-dasharray': [4, 4] },
   })
   map.addLayer({
     id: TRACER_VERTICES, type: 'circle', source: TRACER_SOURCE,
     paint: {
-      'circle-radius': 6, 'circle-color': '#8B5CF6',
-      'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF',
+      'circle-radius': 10, 'circle-color': '#06B6D4',
+      'circle-stroke-width': 3, 'circle-stroke-color': '#FFFFFF',
     },
   })
 }
@@ -95,7 +95,13 @@ export function useBuildingTracer(
 
   useEffect(() => {
     if (!map) return
+    const onStyleLoad = () => {
+      addTracerSourceAndLayers(map)
+      if (pointsRef.current.length > 0) renderTracerDrawing(map, pointsRef.current)
+    }
+    map.on('style.load', onStyleLoad)
     addTracerSourceAndLayers(map)
+    return () => { map.off('style.load', onStyleLoad) }
   }, [map])
 
   useEffect(() => {

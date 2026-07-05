@@ -1,5 +1,5 @@
 import type { TracePath, NavNode, NavEdge, LatLng } from '../types/nav-types'
-import { findLineIntersections, findEndpointNodes, findProximityConnections } from './intersection-engine'
+import { findEndpointNodes, findProximityConnections } from './intersection-engine'
 
 export interface CompileTraceResult {
   nodes: NavNode[]
@@ -7,7 +7,7 @@ export interface CompileTraceResult {
 }
 
 let _idCounter = 0
-function genId(prefix: string): string {
+export function genId(prefix: string): string {
   _idCounter++
   return `${prefix}${String(_idCounter).padStart(4, '0')}`
 }
@@ -32,7 +32,6 @@ function pointToLatLng(pt: LatLng): string {
 
 export function compileTrace(
   trace: TracePath,
-  existingTraces: TracePath[],
   existingNodes: NavNode[],
   existingEdges: NavEdge[],
   roomNodes?: NavNode[]
@@ -43,11 +42,8 @@ export function compileTrace(
   const edges: NavEdge[] = []
   const generatedNodePositions = new Set<string>()
 
-  // 1. Find all node positions
+  // 1. Collect node positions from trace endpoints and all points
   const nodePositions: LatLng[] = []
-  const intersectionPositions = new Set<string>()
-
-  // Endpoints of this trace
   const endpoints = findEndpointNodes(trace)
   for (const ep of endpoints) {
     const key = pointToLatLng(ep)
@@ -56,26 +52,11 @@ export function compileTrace(
       generatedNodePositions.add(key)
     }
   }
-
-  // All trace points
   for (const pt of trace.points) {
     const key = pointToLatLng(pt)
     if (!generatedNodePositions.has(key)) {
       nodePositions.push(pt)
       generatedNodePositions.add(key)
-    }
-  }
-
-  // Intersections with other traces
-  for (const other of existingTraces) {
-    const intersections = findLineIntersections(trace.points, other.points)
-    for (const inter of intersections) {
-      const key = pointToLatLng(inter)
-      if (!generatedNodePositions.has(key)) {
-        nodePositions.push({ lat: inter.lat, lng: inter.lng })
-        generatedNodePositions.add(key)
-      }
-      intersectionPositions.add(key)
     }
   }
 
@@ -85,15 +66,13 @@ export function compileTrace(
     const id = genId('N')
     const key = pointToLatLng(pos)
     const node: NavNode = {
-      id,
-      label: `${trace.name ?? 'Path'} Node`,
+      id, label: `${trace.name ?? 'Path'} Node`,
       name: `${trace.name ?? 'Path'} Node`,
       type: 'intersection',
       buildingId: trace.buildingId ?? '',
       campusId: trace.campusId ?? '',
       floor: trace.floor,
       position: pos,
-      metadata: intersectionPositions.has(key) ? { source: 'intersection' } : undefined,
     }
     nodeMap.set(key, node)
     nodes.push(node)
@@ -113,8 +92,7 @@ export function compileTrace(
       if (!edgeExists && fromNode.id !== toNode.id) {
         edges.push({
           id: genId('E'),
-          from: fromNode.id,
-          to: toNode.id,
+          from: fromNode.id, to: toNode.id,
           type: 'walk',
           distance: haversine(fromNode.position, toNode.position),
           weight: haversine(fromNode.position, toNode.position),
@@ -140,8 +118,7 @@ export function compileTrace(
         if (!edgeExists) {
           edges.push({
             id: genId('E'),
-            from: node.id,
-            to: roomNode.id,
+            from: node.id, to: roomNode.id,
             type: 'transition',
             distance: haversine(node.position, roomNode.position),
             weight: haversine(node.position, roomNode.position),

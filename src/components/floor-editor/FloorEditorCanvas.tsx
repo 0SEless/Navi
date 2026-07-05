@@ -1,10 +1,10 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
-import type { Building, LatLng } from '@/types/nav-types'
+import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { useFloorDrawing, computeWidthBuffer } from './useFloorDrawing'
 
@@ -98,7 +98,7 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'floor-selection-outline', type: 'line', source: 'floor-selection', filter: ['==', ['get', 'type'], 'line'], paint: { 'line-color': '#FFFFFF', 'line-width': 3, 'line-opacity': 0.9 } })
 
   map.addSource('floor-vertex-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: 'floor-vertex-handles-layer', type: 'circle', source: 'floor-vertex-handles', paint: { 'circle-radius': 6, 'circle-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-stroke-color': '#1C6BEB' } })
+  map.addLayer({ id: 'floor-vertex-handles-layer', type: 'circle', source: 'floor-vertex-handles', paint: { 'circle-radius': 8, 'circle-color': '#FFFFFF', 'circle-stroke-width': 3, 'circle-stroke-color': '#1C6BEB' } })
 }
 
 interface FloorEditorCanvasProps {
@@ -110,6 +110,32 @@ interface FloorEditorCanvasProps {
   onSelect?: (id: string | null) => void
 }
 
+function componentToFeature(c: Component, overridePolygon?: LatLng[]): GeoJSON.Feature | null {
+  const polygon = overridePolygon ?? c.polygon
+  if (!polygon || polygon.length < (c.type === 'hallway' ? 2 : 3)) return null
+  if (c.type === 'hallway') {
+    const width = c.dimensions?.width ?? 3
+    const buffer = computeWidthBuffer(polygon, width)
+    return {
+      type: 'Feature', properties: { id: c.id, name: c.name },
+      geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
+    }
+  }
+  return {
+    type: 'Feature', properties: { id: c.id, name: c.name },
+    geometry: { type: 'Polygon', coordinates: [[...polygon.map((p) => [p.lng, p.lat] as [number, number]), [polygon[0].lng, polygon[0].lat] as [number, number]]] },
+  }
+}
+
+function componentCenterlineToFeature(c: Component, overridePolygon?: LatLng[]): GeoJSON.Feature | null {
+  const polygon = overridePolygon ?? c.polygon
+  if (!polygon || polygon.length < 2) return null
+  return {
+    type: 'Feature', properties: { id: c.id, name: c.name },
+    geometry: { type: 'LineString', coordinates: polygon.map((p) => [p.lng, p.lat] as [number, number]) },
+  }
+}
+
 export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -117,6 +143,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   const readyRef = useRef(false)
 
   const graph = useGraphStore((s) => s.graph)
+  const renderVersion = useGraphStore((s) => s.renderVersion)
   const campusId = graph.buildings[0]?.campusId ?? ''
 
   // Wire drawing interactions (state-driven so hook sees map after init)
@@ -250,7 +277,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { /* source not ready */ }
-  }, [graph.components, graph.traces, building.id, floor])
+  }, [graph.components, graph.traces, building.id, floor, renderVersion])
 
   // Selection highlight
   useEffect(() => {
@@ -297,7 +324,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         ],
       })
     }
-  }, [selectedId, graph.components])
+  }, [selectedId, graph.components, renderVersion])
 
   // Layer visibility
   useEffect(() => {
@@ -359,7 +386,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] as [number, number] },
       })),
     })
-  }, [selectedId, graph.components])
+  }, [selectedId, graph.components, renderVersion])
 
   // Drag vertex interaction
   useEffect(() => {
@@ -400,36 +427,36 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         const isHallway = comp.type === 'hallway'
         const isElevator = comp.type === 'elevator'
         const srcId = isRoom ? 'floor-rooms' : isHallway ? 'floor-hallways' : isElevator ? 'floor-elevator-areas' : undefined
+        const allFloor = graph.components.filter(
+          (c) => c.buildingId === building.id && c.floor === floor
+        )
 
-        // Live preview: update the polygon source
         if (srcId && working.length >= (isHallway ? 2 : 3)) {
           const src = map.getSource(srcId) as maplibregl.GeoJSONSource
           if (src) {
-            const existing = (src as unknown as { _data?: GeoJSON.FeatureCollection })._data
-            const features = existing ? [...existing.features] : []
-            const origId = features.findIndex((f) => f.properties?.id === drag.componentId)
-            if (origId >= 0) {
-              if (isHallway) {
-                const width = comp.dimensions?.width ?? 3
-                const buffer = computeWidthBuffer(working, width)
-                features[origId] = {
-                  type: 'Feature',
-                  properties: { id: comp.id, name: comp.name },
-                  geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
-                }
-              } else {
-                features[origId] = {
-                  type: 'Feature',
-                  properties: { id: comp.id, name: comp.name },
-                  geometry: { type: 'Polygon', coordinates: [[...working.map((p) => [p.lng, p.lat] as [number, number]), [working[0].lng, working[0].lat] as [number, number]]] },
-                }
-              }
-              src.setData({ type: 'FeatureCollection', features })
+            const features: GeoJSON.Feature[] = []
+            for (const c of allFloor) {
+              if (c.type !== comp.type || !c.polygon) continue
+              const f = componentToFeature(c, c.id === drag.componentId ? working : undefined)
+              if (f) features.push(f)
             }
+            src.setData({ type: 'FeatureCollection', features })
           }
         }
 
-        // Update vertex handles position
+        if (isHallway) {
+          const clSrc = map.getSource('floor-hallway-centerlines') as maplibregl.GeoJSONSource
+          if (clSrc) {
+            const features: GeoJSON.Feature[] = []
+            for (const c of allFloor) {
+              if (c.type !== 'hallway' || !c.polygon) continue
+              const f = componentCenterlineToFeature(c, c.id === drag.componentId ? working : undefined)
+              if (f) features.push(f)
+            }
+            clSrc.setData({ type: 'FeatureCollection', features })
+          }
+        }
+
         const handleSrc = map.getSource('floor-vertex-handles') as maplibregl.GeoJSONSource
         if (handleSrc) {
           handleSrc.setData({
@@ -442,25 +469,6 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           })
         }
 
-        // Update centerline during hallway drag
-        if (isHallway) {
-          const clSrc = map.getSource('floor-hallway-centerlines') as maplibregl.GeoJSONSource
-          if (clSrc) {
-            const existing = (clSrc as unknown as { _data?: GeoJSON.FeatureCollection })._data
-            const features = existing ? [...existing.features] : []
-            const origId = features.findIndex((f) => f.properties?.id === drag.componentId)
-            if (origId >= 0) {
-              features[origId] = {
-                type: 'Feature',
-                properties: { id: comp.id, name: comp.name },
-                geometry: { type: 'LineString', coordinates: working.map((p) => [p.lng, p.lat] as [number, number]) },
-              }
-              clSrc.setData({ type: 'FeatureCollection', features })
-            }
-          }
-        }
-
-        // Update selection highlight
         if (isRoom || isHallway || isElevator) {
           const selSrc = map.getSource('floor-selection') as maplibregl.GeoJSONSource
           if (selSrc && working.length >= (isHallway ? 2 : 3)) {
@@ -518,7 +526,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       map.off('mousemove', onMouseMove)
       map.off('mouseup', onMouseUp)
     }
-  }, [selectedId, graph.components, tool, updateComponent, saveGraph])
+  }, [selectedId, graph.components, tool, updateComponent, saveGraph, renderVersion])
 
   // Keyboard shortcuts
   useEffect(() => {
