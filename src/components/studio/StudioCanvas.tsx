@@ -236,6 +236,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const undoLastTracePoint = useStudioStore((s) => s.undoLastTracePoint)
   const editTargetType = useStudioStore((s) => s.editTargetType)
+  const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
   const editTargetId = useStudioStore((s) => s.editTargetId)
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
   const updateTrace = useGraphStore((s) => s.updateTrace)
@@ -652,6 +653,25 @@ useEffect(() => {
     setVis(LYR.BUILDINGS_EXTRUSION, layers.buildings)
     setVis(LYR.BUILDINGS_OUTLINE, layers.buildings)
   }, [layers, mapInstance])
+
+  // Auto-show node layers during vertex editing
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+
+    const setVis = (layerId: string, visible: boolean) => {
+      try { map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none') } catch { /* ok */ }
+    }
+
+    if (isVertexEditing) {
+      setVis(LYR.NODES, true)
+      setVis(LYR.NODES_CONNECTION, true)
+    } else {
+      // Restore to user's layer preference
+      setVis(LYR.NODES, layers.nodes)
+      setVis(LYR.NODES_CONNECTION, layers.nodes)
+    }
+  }, [isVertexEditing, mapInstance])
 
   useEffect(() => {
     const map = mapRef.current
