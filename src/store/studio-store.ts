@@ -37,6 +37,9 @@ interface StudioState {
   selectedTraceId: string | null
   setSelectedTraceId: (id: string | null) => void
 
+  selectedNodeId: string | null
+  setSelectedNodeId: (id: string | null) => void
+
   drawPoints: LatLng[]
   setDrawPoints: (points: LatLng[]) => void
   clearDrawPoints: () => void
@@ -101,7 +104,10 @@ export const useStudioStore = create<StudioState>((set) => ({
   clearPendingConfirm: () => set({ pendingConfirm: null }),
 
   selectedTraceId: null,
-  setSelectedTraceId: (id) => set({ selectedTraceId: id }),
+  setSelectedTraceId: (id) => set({ selectedTraceId: id, selectedNodeId: null }),
+
+  selectedNodeId: null,
+  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedTraceId: null }),
 
   isVertexEditing: false,
   editTargetType: null,

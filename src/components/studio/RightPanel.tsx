@@ -4,6 +4,7 @@ import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { MetadataPanel } from './MetadataPanel'
 import { TracePropertiesPanel } from './TracePropertiesPanel'
+import { NodePropertiesPanel } from './NodePropertiesPanel'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import {
   MousePointer2, Move, Square, Package, Route, MapPin, Building2,
@@ -49,11 +50,14 @@ export function RightPanel() {
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
   const selectedTraceId = useStudioStore((s) => s.selectedTraceId)
   const setSelectedTraceId = useStudioStore((s) => s.setSelectedTraceId)
+  const selectedNodeId = useStudioStore((s) => s.selectedNodeId)
+  const setSelectedNodeId = useStudioStore((s) => s.setSelectedNodeId)
 
   const graph = useGraphStore((s) => s.graph)
 
   const tools = editorMode === 'floor' ? FLOOR_TOOLS : ALL_CAMPUS_TOOLS
   const selectedTrace = selectedTraceId ? graph.traces.find((t) => t.id === selectedTraceId) : null
+  const selectedNode = selectedNodeId ? graph.nodes.find((n) => n.id === selectedNodeId) : null
 
   return (
     <div style={{
@@ -73,6 +77,15 @@ export function RightPanel() {
             </div>
           </div>
           <TracePropertiesPanel key={selectedTrace.id} trace={selectedTrace} onClose={() => setSelectedTraceId(null)} />
+        </div>
+      ) : selectedNode ? (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Node
+            </div>
+          </div>
+          <NodePropertiesPanel key={selectedNode.id} node={selectedNode} onClose={() => setSelectedNodeId(null)} />
         </div>
       ) : activeBuildingId ? (
         <MetadataPanel />

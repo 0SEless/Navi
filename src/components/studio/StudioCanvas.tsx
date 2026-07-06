@@ -244,6 +244,8 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const save = useGraphStore((s) => s.save)
   const adjustBuildingId = useStudioStore((s) => s.adjustBuildingId)
   const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
+  const selectedNode = useStudioStore((s) => s.selectedNodeId)
+  const setSelectedNode = useStudioStore((s) => s.setSelectedNodeId)
   const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) ?? null : null
 
   const currentEditTrace = editTargetType === 'trace' && editTargetId
@@ -259,7 +261,6 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   })
 
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
-  const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
 
   const toolRef = useRef(tool)
