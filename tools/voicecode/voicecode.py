@@ -3,7 +3,6 @@
 Press Ctrl+Shift+Space to toggle recording.
 Transcribed text is auto-typed at the cursor position.
 """
-import sys
 import threading
 import keyboard
 import pystray
@@ -70,6 +69,9 @@ class VoiceCodeApp:
     def _stop_recording(self) -> None:
         self._recording = False
         self._update_icon(BUSY_ICON, "VoiceCode — Transcribing...")
+        threading.Thread(target=self._finish_recording, daemon=True).start()
+
+    def _finish_recording(self) -> None:
         try:
             text = self._transcriber.stop_and_transcribe()
         except Exception as exc:
@@ -78,8 +80,7 @@ class VoiceCodeApp:
             return
 
         if text:
-            # type text in a background thread to avoid blocking the tray
-            threading.Thread(target=self._type_text, args=(text,), daemon=True).start()
+            self._type_text(text)
         else:
             self._update_icon(IDLE_ICON, "VoiceCode (Ctrl+Shift+Space)")
 
