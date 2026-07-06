@@ -274,6 +274,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
   const adjustBuildingIdRef = useRef(adjustBuildingId)
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
+  const preEditLayerVisRef = useRef<{ nodes: boolean }>({ nodes: true })
   const lastSelectedNodeRef = useRef<string | null>(null)
 
   useEffect(() => { toolRef.current = tool }, [tool])
@@ -664,12 +665,14 @@ useEffect(() => {
     }
 
     if (isVertexEditing) {
+      // Snapshot current pre-editing state
+      preEditLayerVisRef.current = { nodes: layers.nodes }
       setVis(LYR.NODES, true)
       setVis(LYR.NODES_CONNECTION, true)
     } else {
-      // Restore to user's layer preference
-      setVis(LYR.NODES, layers.nodes)
-      setVis(LYR.NODES_CONNECTION, layers.nodes)
+      // Restore from pre-editing snapshot
+      setVis(LYR.NODES, preEditLayerVisRef.current.nodes)
+      setVis(LYR.NODES_CONNECTION, preEditLayerVisRef.current.nodes)
     }
   }, [isVertexEditing, mapInstance])
 

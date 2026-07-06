@@ -229,6 +229,15 @@ export class Graph {
       this._nodes.delete(nid)
     }
 
+    // Cleanup: remove stale traceId from surviving nodes
+    for (const [, node] of this._nodes) {
+      const meta = node.metadata as Record<string, unknown> | undefined
+      if (meta && (meta.traceId as string) === id && (meta.traceIds as string[] | undefined)?.length) {
+        const { traceId: _, ...rest } = meta
+        node.metadata = rest
+      }
+    }
+
     for (const [eid, edge] of this._edges) {
       if (!this._nodes.has(edge.from) || !this._nodes.has(edge.to)) {
         this._edges.delete(eid)
