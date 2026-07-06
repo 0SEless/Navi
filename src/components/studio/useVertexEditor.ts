@@ -4,6 +4,7 @@ import { useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng, TracePath } from '@/types/nav-types'
+import { haversine } from '@/engine/geo-utils'
 
 const VERTEX_SOURCE = 'vertex-source'
 const VERTEX_LAYER = 'vertex-points'
@@ -60,6 +61,7 @@ export function useVertexEditor(
   const pointsRef = useRef<LatLng[]>(trace?.points ?? [])
   const selectedIdxRef = useRef<number | null>(null)
   const dragStartRef = useRef<LatLng | null>(null)
+  const dragOriginalsRef = useRef<{ adjacentPoint?: LatLng; isEndpoint: boolean }>({ isEndpoint: false })
 
   useEffect(() => {
     pointsRef.current = trace?.points ?? []
@@ -147,11 +149,43 @@ export function useVertexEditor(
         const idx = features[0].properties?.index as number
         selectedIdxRef.current = idx
         dragStartRef.current = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+        dragOriginalsRef.current = {
+          isEndpoint: idx === 0 || idx === pointsRef.current.length - 1,
+          adjacentPoint: idx === 0 && pointsRef.current.length > 1
+            ? { ...pointsRef.current[1] }
+            : idx === pointsRef.current.length - 1 && pointsRef.current.length > 1
+              ? { ...pointsRef.current[pointsRef.current.length - 2] }
+              : undefined,
+        }
       }
     }
     const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
       if (selectedIdxRef.current == null || !dragStartRef.current) return
       const idx = selectedIdxRef.current
+      const { isEndpoint, adjacentPoint } = dragOriginalsRef.current
+
+      if (isEndpoint && adjacentPoint) {
+        const distToAdj = haversine(
+          { lat: e.lngLat.lat, lng: e.lngLat.lng },
+          adjacentPoint
+        )
+        const originalDist = haversine(
+          dragStartRef.current,
+          adjacentPoint
+        )
+        if (distToAdj > originalDist * 1.1) {
+          // Extend: keep original endpoint, append new point
+          const newPoints = [...pointsRef.current]
+          const insertAt = idx === 0 ? 0 : newPoints.length
+          newPoints.splice(insertAt, 0, { lat: e.lngLat.lat, lng: e.lngLat.lng })
+          pointsRef.current = newPoints
+          selectedIdxRef.current = insertAt
+          updateDisplay(newPoints, insertAt)
+          return
+        }
+      }
+
+      // Normal move
       const newPoints = [...pointsRef.current]
       newPoints[idx] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
       pointsRef.current = newPoints
