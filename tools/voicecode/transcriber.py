@@ -13,6 +13,7 @@ class VoiceTranscriber:
         self.sample_rate = sample_rate
         self._model: WhisperModel | None = None
         self._audio_frames: list[bytes] = []
+        self._lock = threading.Lock()
         self._is_recording = False
         self._thread: threading.Thread | None = None
 
@@ -26,7 +27,8 @@ class VoiceTranscriber:
     # ── public API ───────────────────────────────────────────────
     def start_recording(self) -> None:
         """Begin capturing audio from the default microphone."""
-        self._audio_frames = []
+        with self._lock:
+            self._audio_frames = []
         self._is_recording = True
         self._thread = threading.Thread(target=self._record_loop, daemon=True)
         self._thread.start()
@@ -37,10 +39,12 @@ class VoiceTranscriber:
         if self._thread:
             self._thread.join(timeout=5.0)
 
-        if not self._audio_frames:
-            return ""
+        with self._lock:
+            if not self._audio_frames:
+                return ""
+            frames = self._audio_frames[:]
 
-        raw = np.frombuffer(b"".join(self._audio_frames), dtype=np.int16)
+        raw = np.frombuffer(b"".join(frames), dtype=np.int16)
         audio = raw.astype(np.float32) / 32768.0
 
         segments, _ = self.model.transcribe(audio, language="en")
@@ -62,7 +66,8 @@ class VoiceTranscriber:
 
             while self._is_recording and frames_collected < max_frames:
                 data = stream.read(1024, exception_on_overflow=False)
-                self._audio_frames.append(data)
+                with self._lock:
+                    self._audio_frames.append(data)
                 frames_collected += 1
 
             stream.stop_stream()
