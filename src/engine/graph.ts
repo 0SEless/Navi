@@ -202,16 +202,39 @@ export class Graph {
 
   removeTrace(id: string): void {
     this._traces.delete(id)
-    for (const node of this.nodes) {
-      if (node.metadata?.traceId === id) {
-        this._nodes.delete(node.id)
+    const nodesToDelete: string[] = []
+
+    for (const [nid, node] of this._nodes) {
+      const meta = node.metadata as Record<string, unknown> | undefined
+      if (!meta) continue
+
+      const metaTraceId = meta.traceId as string | undefined
+      const metaTraceIds = meta.traceIds as string[] | undefined
+
+      if (metaTraceIds?.includes(id)) {
+        // Shared intersection node — remove this trace's ID
+        const remaining = metaTraceIds.filter(tid => tid !== id)
+        if (remaining.length > 0) {
+          node.metadata = { ...meta, traceIds: remaining }
+        } else {
+          nodesToDelete.push(nid)
+        }
+      } else if (metaTraceId === id && !metaTraceIds?.length) {
+        // Fully owned node (only has traceId, no traceIds array)
+        nodesToDelete.push(nid)
       }
     }
+
+    for (const nid of nodesToDelete) {
+      this._nodes.delete(nid)
+    }
+
     for (const [eid, edge] of this._edges) {
       if (!this._nodes.has(edge.from) || !this._nodes.has(edge.to)) {
         this._edges.delete(eid)
       }
     }
+
     this._cachedTraces = null
     this._cachedNodes = null
     this._cachedEdges = null
