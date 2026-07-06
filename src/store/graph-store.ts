@@ -33,6 +33,7 @@ interface GraphState {
   addTrace: (trace: TracePath) => void
   updateTrace: (id: string, partial: Partial<TracePath>) => void
   removeTrace: (id: string) => void
+  recompileTrace: (id: string) => void
   addComponentWithPolygon: (component: Component) => void
 
   setNodes: (nodes: NavNode[]) => void
@@ -176,6 +177,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   removeTrace: (id) => {
     get().graph.removeTrace(id)
+    set({ renderVersion: get().renderVersion + 1 })
+  },
+
+  recompileTrace: (id: string) => {
+    get().graph.recompileTrace(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
 

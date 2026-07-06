@@ -24,6 +24,7 @@ export function ConfirmOverlay() {
   const [traceColor, setTraceColor] = useState('#FFFFFF')
   const routeWidth = useStudioStore((s) => s.routeWidth)
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
+  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
 
   if (!pendingConfirm) return null
 
@@ -74,8 +75,6 @@ export function ConfirmOverlay() {
 
     clearPendingConfirm()
   }
-
-  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
 
   const handleCancel = () => {
     if (pendingConfirm.type === 'route') {

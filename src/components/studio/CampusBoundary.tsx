@@ -82,6 +82,7 @@ export function useCampusBoundary(
   onComplete?: (polygon: BoundaryPolygon) => void,
 ) {
   const tool = useStudioStore((s) => s.tool)
+  const drawPoints = useStudioStore((s) => s.drawPoints)
   const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const pointsRef = useRef<LatLng[]>([])
@@ -93,6 +94,13 @@ export function useCampusBoundary(
     if (!map) return
     addBoundarySourceAndLayers(map)
   }, [map])
+
+  // Sync visual from store when drawPoints changes externally (undo/cancel)
+  useEffect(() => {
+    if (!map || tool !== 'boundary') return
+    pointsRef.current = [...drawPoints]
+    renderBoundaryDrawing(map, pointsRef.current)
+  }, [map, tool, drawPoints])
 
   useEffect(() => {
     if (!map) return

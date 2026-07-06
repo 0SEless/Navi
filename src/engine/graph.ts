@@ -235,6 +235,69 @@ export class Graph {
     for (const edge of result.edges) {
       this.addEdge(edge)
     }
+    this.syncTraceIntersections(trace.id)
+  }
+
+  recompileTrace(id: string): void {
+    const trace = this._traces.get(id)
+    if (!trace) return
+
+    // 1. Collect old nodes for this trace, handling shared intersection nodes
+    const fullyOwned: string[] = []
+    const sharedNodes: { nodeId: string; traceIds: string[] }[] = []
+    for (const [nid, node] of this._nodes) {
+      const meta = node.metadata as Record<string, unknown> | undefined
+      const metaTraceId = meta?.traceId as string | undefined
+      const metaTraceIds = meta?.traceIds as string[] | undefined
+      if (metaTraceId === id && (!metaTraceIds || metaTraceIds.length <= 1)) {
+        // Fully owned by this trace (single traceId or just traceId field)
+        fullyOwned.push(nid)
+      } else if (metaTraceIds?.includes(id)) {
+        // Shared intersection node — remove this trace's ID
+        sharedNodes.push({ nodeId: nid, traceIds: metaTraceIds.filter(tid => tid !== id) })
+      }
+    }
+
+    // 2. Update shared nodes: remove this trace's ID
+    for (const { nodeId, traceIds } of sharedNodes) {
+      const node = this._nodes.get(nodeId)!
+      if (traceIds.length > 0) {
+        node.metadata = { ...node.metadata, traceIds }
+      } else {
+        // No other traces reference it — delete
+        fullyOwned.push(nodeId)
+      }
+    }
+
+    // 3. Remove fully owned nodes
+    for (const nid of fullyOwned) {
+      this._nodes.delete(nid)
+    }
+
+    // 4. Remove orphaned edges
+    for (const [eid, edge] of this._edges) {
+      if (!this._nodes.has(edge.from) || !this._nodes.has(edge.to)) {
+        this._edges.delete(eid)
+      }
+    }
+
+    // 5. Recompile with updated trace points
+    const result = compileTrace(trace, this.nodes, this.edges)
+    for (const node of result.nodes) {
+      node.metadata = { ...node.metadata, traceId: trace.id }
+      this.addNode(node)
+    }
+    for (const edge of result.edges) {
+      this.addEdge(edge)
+    }
+
+    // 6. Re-run intersection detection against other routes
+    this.syncTraceIntersections(id)
+
+    // 7. Invalidate all caches
+    this._cachedTraces = null
+    this._cachedNodes = null
+    this._cachedEdges = null
   }
 
   connectNodes(idA: string, idB: string): NavEdge | null {
@@ -477,6 +540,200 @@ export class Graph {
         for (const ep of bEndpoints) connectEndpoint(ep, a.nodes, a.edges)
       }
     }
+  }
+
+  syncTraceIntersections(traceId: string): void {
+    const trace = this._traces.get(traceId)
+    if (!trace || trace.points.length < 2) return
+
+    const TARGET_THRESHOLD = 5
+    const SAME_POS = 0.5
+
+    // Collect new trace's compiled nodes
+    const newNodes = this.nodes.filter(n => n.metadata?.traceId === traceId)
+    if (newNodes.length < 2) return
+
+    // Get existing traces (excluding the one being added/recompiled)
+    const existingTraces = this.traces.filter(t => t.id !== traceId && t.points.length >= 2)
+    if (existingTraces.length === 0) return
+
+    // Build ordered node+edge chain for each existing trace
+    const chains: { traceId: string; nodes: NavNode[]; edges: NavEdge[] }[] = []
+    for (const et of existingTraces) {
+      const nodes: NavNode[] = []
+      for (const p of et.points) {
+        const n = this.nodes.find(nn =>
+          nn.metadata?.traceId === et.id &&
+          Math.abs(nn.position.lat - p.lat) < 0.00001 &&
+          Math.abs(nn.position.lng - p.lng) < 0.00001
+        )
+        if (n) nodes.push(n)
+      }
+      if (nodes.length < 2) continue
+      const edges: NavEdge[] = []
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const e = this.edges.find(edge =>
+          (edge.from === nodes[i].id && edge.to === nodes[i + 1].id) ||
+          (edge.from === nodes[i + 1].id && edge.to === nodes[i].id)
+        )
+        if (e) edges.push(e)
+      }
+      if (edges.length > 0) chains.push({ traceId: et.id, nodes, edges })
+    }
+    if (chains.length === 0) return
+
+    const edgeExists = (a: string, b: string) =>
+      this.edges.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a))
+
+    // ---- Phase 1: Endpoint T-junctions ----
+    const endpoints = [newNodes[0], newNodes[newNodes.length - 1]]
+    for (const ep of endpoints) {
+      for (const chain of chains) {
+        for (let sj = 0; sj < chain.nodes.length - 1; sj++) {
+          const d = pointToSegmentDistance(
+            ep.position, chain.nodes[sj].position, chain.nodes[sj + 1].position
+          )
+          if (d > TARGET_THRESHOLD) continue
+
+          const closest = closestPointOnSegment(
+            ep.position, chain.nodes[sj].position, chain.nodes[sj + 1].position
+          )
+
+          // Snap trace endpoint to the closest point (trim excess)
+          if (ep === newNodes[0]) {
+            trace.points[0] = { ...closest }
+          } else {
+            trace.points[trace.points.length - 1] = { ...closest }
+          }
+          ep.position = { ...closest }
+
+          // Check for existing node at the closest point
+          const near = this.nodes.find(n =>
+            n.type === 'intersection' && haversine(n.position, closest) < SAME_POS
+          )
+
+          let intersectionNode: NavNode
+          if (near) {
+            intersectionNode = near
+            const meta = near.metadata || {}
+            const existingIds = (meta.traceIds as string[]) || (meta.traceId ? [meta.traceId as string] : [])
+            const ids = [...new Set([...existingIds, traceId, chain.traceId])]
+            near.metadata = { ...meta, traceIds: ids, connectionNode: true }
+          } else {
+            // Capture edge info before splitting
+            const edgeFrom = chain.edges[sj].from
+            const edgeTo = chain.edges[sj].to
+            const edgeType = chain.edges[sj].type
+            const edgeCampusId = chain.edges[sj].campusId
+
+            const id = genId('N')
+            const buildingId = trace.buildingId ?? chain.nodes[sj].buildingId
+            intersectionNode = {
+              id, label: 'Route Junction', name: 'Route Junction',
+              type: 'intersection',
+              campusId: trace.campusId ?? '',
+              floor: trace.floor,
+              buildingId,
+              position: closest,
+              metadata: { traceIds: [chain.traceId, traceId], connectionNode: true },
+            }
+            this.removeEdge(chain.edges[sj].id)
+            this.addNode(intersectionNode)
+            this.addEdge({
+              id: genId('E'), from: edgeFrom, to: id,
+              type: edgeType,
+              distance: haversine(this._nodePosition(edgeFrom), closest),
+              weight: haversine(this._nodePosition(edgeFrom), closest),
+              campusId: edgeCampusId ?? '',
+            })
+            this.addEdge({
+              id: genId('E'), from: id, to: edgeTo,
+              type: edgeType,
+              distance: haversine(closest, this._nodePosition(edgeTo)),
+              weight: haversine(closest, this._nodePosition(edgeTo)),
+              campusId: edgeCampusId ?? '',
+            })
+          }
+
+          // Connect the new trace's endpoint node to the intersection node
+          if (!edgeExists(ep.id, intersectionNode.id)) {
+            const dist = haversine(ep.position, intersectionNode.position)
+            this.addEdge({
+              id: genId('E'), from: ep.id, to: intersectionNode.id,
+              type: 'walk', distance: dist, weight: dist,
+              campusId: trace.campusId ?? '',
+            })
+          }
+          break // only one connection per endpoint
+        }
+      }
+    }
+
+    // ---- Phase 2: Crossings (X-intersections) ----
+    for (let si = 0; si < newNodes.length - 1; si++) {
+      for (const chain of chains) {
+        for (let sj = 0; sj < chain.nodes.length - 1; sj++) {
+          const intersection = lineSegmentIntersection(
+            newNodes[si].position, newNodes[si + 1].position,
+            chain.nodes[sj].position, chain.nodes[sj + 1].position
+          )
+          if (!intersection) continue
+          if (this.nodes.some(n => haversine(n.position, intersection) < SAME_POS)) continue
+
+          // Capture edge info before splitting
+          const edgeId = chain.edges[sj].id
+          const edgeFrom = chain.edges[sj].from
+          const edgeTo = chain.edges[sj].to
+          const edgeType = chain.edges[sj].type
+          const edgeCampusId = chain.edges[sj].campusId
+
+          const id = genId('N')
+          const buildingId = trace.buildingId ?? chain.nodes[sj].buildingId
+          const intersectionNode: NavNode = {
+            id, label: 'Route Junction', name: 'Route Junction',
+            type: 'intersection',
+            campusId: trace.campusId ?? '',
+            floor: trace.floor,
+            buildingId,
+            position: intersection,
+            metadata: { traceIds: [chain.traceId, traceId], connectionNode: true },
+          }
+          this.removeEdge(edgeId)
+          this.addNode(intersectionNode)
+          this.addEdge({
+            id: genId('E'), from: edgeFrom, to: id,
+            type: edgeType,
+            distance: haversine(this._nodePosition(edgeFrom), intersection),
+            weight: haversine(this._nodePosition(edgeFrom), intersection),
+            campusId: edgeCampusId ?? '',
+          })
+          this.addEdge({
+            id: genId('E'), from: id, to: edgeTo,
+            type: edgeType,
+            distance: haversine(intersection, this._nodePosition(edgeTo)),
+            weight: haversine(intersection, this._nodePosition(edgeTo)),
+            campusId: edgeCampusId ?? '',
+          })
+
+          // Connect the closer new trace node to the intersection
+          const dFrom = haversine(newNodes[si].position, intersection)
+          const dTo = haversine(newNodes[si + 1].position, intersection)
+          const closestNode = dFrom <= dTo ? newNodes[si] : newNodes[si + 1]
+          if (!edgeExists(closestNode.id, id)) {
+            const dist = haversine(closestNode.position, intersection)
+            this.addEdge({
+              id: genId('E'), from: closestNode.id, to: id,
+              type: 'walk', distance: dist, weight: dist,
+              campusId: trace.campusId ?? '',
+            })
+          }
+        }
+      }
+    }
+
+    this._cachedNodes = null
+    this._cachedEdges = null
+    this._cachedTraces = null
   }
 
   getAdjacencyList(): Record<string, { nodeId: string; weight: number }[]> {

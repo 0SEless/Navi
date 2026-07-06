@@ -50,11 +50,11 @@ const SATELLITE_STYLE = {
   layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
 }
 
-const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', NODES_CONNECTION: 's-nodes-connection', TRACES: 's-traces', DRAWING: 's-drawing', CURSOR: 's-cursor' } as const
-const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', NODES_CONNECTION: 'l-nodes-connection', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points', CURSOR_PREVIEW: 'l-cursor-preview' } as const
+const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', NODES_CONNECTION: 's-nodes-connection', TRACES: 's-traces', DRAWING: 's-drawing' } as const
+const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', NODES_CONNECTION: 'l-nodes-connection', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points' } as const
 const HIDDEN_NODE_TYPES = new Set(['room', 'staircase', 'elevator'])
 
-const CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23000' stroke-width='1.5' opacity='0.4'/%3E%3Ccircle cx='14' cy='14' r='12' fill='none' stroke='%23fff' stroke-width='0.5' opacity='0.6'/%3E%3Cline x1='14' y1='2' x2='14' y2='26' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='2' y1='14' x2='26' y2='14' stroke='%23000' stroke-width='1.5' opacity='0.5'/%3E%3Cline x1='14' y1='3' x2='14' y2='25' stroke='%23fff' stroke-width='0.5'/%3E%3Cline x1='3' y1='14' x2='25' y2='14' stroke='%23fff' stroke-width='0.5'/%3E%3Ccircle cx='14' cy='14' r='2' fill='%23000'/%3E%3C/svg%3E") 14 14, crosshair`
+const CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='2' x2='12' y2='10' stroke='%23000' stroke-width='2'/%3E%3Cline x1='12' y1='14' x2='12' y2='22' stroke='%23000' stroke-width='2'/%3E%3Cline x1='2' y1='12' x2='10' y2='12' stroke='%23000' stroke-width='2'/%3E%3Cline x1='14' y1='12' x2='22' y2='12' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 12 12, crosshair`
 
 function getInitialStyle() {
   if (typeof window !== 'undefined') {
@@ -140,11 +140,21 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addSource(SRC.EDGES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.EDGES, type: 'line', source: SRC.EDGES, paint: { 'line-color': '#475569', 'line-width': 2 } })
 
-  map.addSource(SRC.NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: { 'circle-radius': 5, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' } })
+  map.addSource(SRC.NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' })
+  map.addLayer({ id: LYR.NODES, type: 'circle', source: SRC.NODES, paint: {
+    'circle-radius': ['case', ['boolean', ['feature-state', 'selected'], false], 8, 5],
+    'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#22D3EE', '#F59E0B'],
+    'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 2],
+    'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#0E7490', '#1E293B'],
+  } })
 
-  map.addSource(SRC.NODES_CONNECTION, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.NODES_CONNECTION, type: 'circle', source: SRC.NODES_CONNECTION, paint: { 'circle-radius': 6, 'circle-color': '#22D3EE', 'circle-stroke-width': 2.5, 'circle-stroke-color': '#0E7490' } })
+  map.addSource(SRC.NODES_CONNECTION, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, promoteId: 'id' })
+  map.addLayer({ id: LYR.NODES_CONNECTION, type: 'circle', source: SRC.NODES_CONNECTION, paint: {
+    'circle-radius': ['case', ['boolean', ['feature-state', 'selected'], false], 9, 6],
+    'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#67E8F9', '#22D3EE'],
+    'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 2.5],
+    'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#155E75', '#0E7490'],
+  } })
 
   map.addSource(SRC.TRACES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.TRACES_LINE, type: 'line', source: SRC.TRACES, paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': 0.8 }, filter: ['==', ['get', 'type'], 'arterial'] })
@@ -153,9 +163,6 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addSource(SRC.DRAWING, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.DRAWING_LINE, type: 'line', source: SRC.DRAWING, paint: { 'line-color': '#06B6D4', 'line-width': 3, 'line-dasharray': [4, 4], 'line-opacity': 0.6 } })
   map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 9, 6], 'circle-color': '#06B6D4', 'circle-opacity': 0.8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } })
-
-  map.addSource(SRC.CURSOR, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: LYR.CURSOR_PREVIEW, type: 'circle', source: SRC.CURSOR, paint: { 'circle-radius': 8, 'circle-color': '#06B6D4', 'circle-opacity': 0.25, 'circle-stroke-width': 2, 'circle-stroke-color': '#06B6D4', 'circle-stroke-opacity': 0.5 } })
 }
 
 function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
@@ -232,6 +239,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const editTargetId = useStudioStore((s) => s.editTargetId)
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
   const updateTrace = useGraphStore((s) => s.updateTrace)
+  const recompileTrace = useGraphStore((s) => s.recompileTrace)
   const updateBuilding = useGraphStore((s) => s.updateBuilding)
   const save = useGraphStore((s) => s.save)
   const adjustBuildingId = useStudioStore((s) => s.adjustBuildingId)
@@ -245,11 +253,11 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   useVertexEditor(mapInstance, currentEditTrace, (points) => {
     if (currentEditTrace) {
       updateTrace(currentEditTrace.id, { points })
+      recompileTrace(currentEditTrace.id)
       save()
     }
   })
 
-  const [cursorLL, setCursorLL] = useState<LatLng | null>(null)
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
@@ -264,6 +272,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
   const adjustBuildingIdRef = useRef(adjustBuildingId)
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
+  const lastSelectedNodeRef = useRef<string | null>(null)
 
   useEffect(() => { toolRef.current = tool }, [tool])
   useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
@@ -338,7 +347,14 @@ useEffect(() => {
 
   useEffect(() => {
     if (!readyRef.current || !mapRef.current) return
-    syncAllData(mapRef.current, graphRef.current, activeFloorRef.current)
+    const map = mapRef.current
+    syncAllData(map, graphRef.current, activeFloorRef.current)
+    // Restore selected node highlight after data refresh (feature-state cleared by setData)
+    if (selectedNodeRef.current) {
+      try {
+        map.setFeatureState({ source: SRC.NODES, id: selectedNodeRef.current }, { selected: true })
+      } catch { /* node may no longer exist */ }
+    }
   }, [graph, activeFloor, renderVersion])
 
   useEffect(() => {
@@ -382,7 +398,27 @@ useEffect(() => {
       if (curTool === 'select') {
         const features = map.queryRenderedFeatures(e.point)
         const hitNode = features.find((f) => f.layer.id === LYR.NODES || f.layer.id === LYR.NODES_CONNECTION)
-        if (hitNode) { setSelectedNode(hitNode.properties?.id ?? null); return }
+        if (hitNode) {
+          const nodeId = hitNode.properties?.id as string | null
+          // Deselect previous
+          if (lastSelectedNodeRef.current && lastSelectedNodeRef.current !== nodeId) {
+            try {
+              map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
+              map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
+            } catch { /* ok */ }
+          }
+          // Select new
+          if (nodeId) {
+            try {
+              const layerId = hitNode.layer.id
+              const source = layerId === LYR.NODES_CONNECTION ? SRC.NODES_CONNECTION : SRC.NODES
+              map.setFeatureState({ source, id: nodeId }, { selected: true })
+            } catch { /* ok */ }
+            lastSelectedNodeRef.current = nodeId
+          }
+          setSelectedNode(nodeId)
+          return
+        }
         const hitBuilding = features.find((f) => f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL)
         if (hitBuilding) {
           const bid = hitBuilding.properties?.id
@@ -393,6 +429,14 @@ useEffect(() => {
         if (hitTrace) {
           const tid = hitTrace.properties?.id
           if (tid) { setSelectedTraceId(tid); return }
+        }
+        // Deselect
+        if (lastSelectedNodeRef.current) {
+          try {
+            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
+            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
+          } catch { /* ok */ }
+          lastSelectedNodeRef.current = null
         }
         setSelectedNode(null)
         setSelectedTraceId(null)
@@ -446,7 +490,6 @@ useEffect(() => {
     }
 
     const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
-      setCursorLL({ lat: e.lngLat.lat, lng: e.lngLat.lng })
       const drag = dragVertexRef.current
       if (drag) {
         drag.points[drag.index] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
@@ -540,9 +583,25 @@ useEffect(() => {
           syncAllData(map, graphRef.current, activeFloorRef.current)
           return
         }
+        // Deselect node visually
+        if (lastSelectedNodeRef.current) {
+          try {
+            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
+            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
+          } catch { /* ok */ }
+          lastSelectedNodeRef.current = null
+        }
         clearTracePoints(); clearDrawPoints(); setRoomDrag(null); setVertexEditing(null, null)
       }
       if (e.key === 'Delete' && selectedNodeRef.current) {
+        // Deselect before deleting
+        if (lastSelectedNodeRef.current) {
+          try {
+            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
+            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
+          } catch { /* ok */ }
+          lastSelectedNodeRef.current = null
+        }
         graphRef.current.removeNode(selectedNodeRef.current)
         setSelectedNode(null)
       }
@@ -643,24 +702,6 @@ useEffect(() => {
 
     updateDrawingSource(m, drawFeatures)
   }, [tracePoints, roomDrag, tool, pendingConfirm])
-
-  useEffect(() => {
-    const m = mapRef.current
-    if (!m || !readyRef.current) return
-    const isDrawing = tool === 'route' || tool === 'building' || tool === 'boundary'
-    const features: GeoJSON.Feature[] = []
-    if (cursorLL && isDrawing && !pendingConfirm) {
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [cursorLL.lng, cursorLL.lat] },
-        properties: {},
-      })
-    }
-    try {
-      const src = m.getSource(SRC.CURSOR) as maplibregl.GeoJSONSource
-      if (src) src.setData({ type: 'FeatureCollection', features })
-    } catch { /* source not ready */ }
-  }, [cursorLL, tool, pendingConfirm])
 
   const showConfirmBar =
     tool === 'route' && tracePoints.length > 0 ||

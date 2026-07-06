@@ -21,9 +21,11 @@ function addDrawLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'floor-draw-buffer-fill', type: 'fill', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'buffer'], paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
   map.addLayer({ id: 'floor-draw-buffer-outline', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'buffer'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-dasharray': [4, 3] } })
   // placement vertices
-  map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': 8, 'circle-color': '#F59E0B', 'circle-stroke-width': 3, 'circle-stroke-color': '#FFFFFF' } })
+  const zoomV = ['interpolate', ['linear'], ['zoom'], 15, 3, 20, 6]
+  const zoomP = ['interpolate', ['linear'], ['zoom'], 15, 4, 20, 8]
+  map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': zoomV, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
   // placed item icons (door, stairs, elevator, asset)
-  map.addLayer({ id: 'floor-draw-placed', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'], paint: { 'circle-radius': 10, 'circle-color': '#8B5CF6', 'circle-stroke-width': 3, 'circle-stroke-color': '#FFFFFF' } })
+  map.addLayer({ id: 'floor-draw-placed', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'], paint: { 'circle-radius': zoomP, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
   map.addLayer({
     id: 'floor-draw-placed-label', type: 'symbol', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'],
     layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -1.5], 'text-anchor': 'bottom' },

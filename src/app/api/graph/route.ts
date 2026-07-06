@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const supabase = await getClient("secret");
     const body = await request.json();
 
-    const { data: result, error: rpcError } = await supabase.rpc("sync_graph_snapshot", body as never);
+    const { data: result, error: rpcError } = await supabase.rpc("sync_graph_snapshot", { payload: body });
 
     if (rpcError) {
       return NextResponse.json({ error: rpcError.message }, { status: 500 });

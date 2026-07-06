@@ -35,8 +35,8 @@ function addTracerSourceAndLayers(map: maplibregl.Map) {
   map.addLayer({
     id: TRACER_VERTICES, type: 'circle', source: TRACER_SOURCE,
     paint: {
-      'circle-radius': 10, 'circle-color': '#06B6D4',
-      'circle-stroke-width': 3, 'circle-stroke-color': '#FFFFFF',
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 3, 20, 7], 'circle-color': '#06B6D4',
+      'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF',
     },
   })
 }
@@ -86,6 +86,7 @@ export function useBuildingTracer(
   onComplete?: (footprint: BuildingFootprint) => void,
 ) {
   const tool = useStudioStore((s) => s.tool)
+  const drawPoints = useStudioStore((s) => s.drawPoints)
   const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const pointsRef = useRef<LatLng[]>([])
@@ -103,6 +104,13 @@ export function useBuildingTracer(
     addTracerSourceAndLayers(map)
     return () => { map.off('style.load', onStyleLoad) }
   }, [map])
+
+  // Sync visual from store when drawPoints changes externally (undo/cancel)
+  useEffect(() => {
+    if (!map || tool !== 'building') return
+    pointsRef.current = [...drawPoints]
+    renderTracerDrawing(map, pointsRef.current)
+  }, [map, tool, drawPoints])
 
   useEffect(() => {
     if (!map) return
