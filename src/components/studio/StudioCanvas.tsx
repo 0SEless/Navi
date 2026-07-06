@@ -379,6 +379,8 @@ useEffect(() => {
       if (dragVertexRef.current) { dragVertexRef.current = null; return }
       if (buildingDragRef.current) { buildingDragRef.current = null; map.dragPan.enable(); return }
       const curTool = toolRef.current
+      // In vertex editing mode, useVertexEditor handles all clicks — don't interfere
+      if (curTool === 'vertex') return
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
 
       if (curTool === 'route') {
