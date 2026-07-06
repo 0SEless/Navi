@@ -636,6 +636,23 @@ useEffect(() => {
     else map.dragPan.enable()
   }, [tool])
 
+  // Apply layer visibility toggles
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+
+    const setVis = (layerId: string, visible: boolean) => {
+      try { map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none') } catch { /* layer may not exist */ }
+    }
+
+    setVis(LYR.NODES, layers.nodes)
+    setVis(LYR.NODES_CONNECTION, layers.nodes)
+    setVis(LYR.EDGES, layers.edges)
+    setVis(LYR.BUILDINGS_FILL, layers.buildings)
+    setVis(LYR.BUILDINGS_EXTRUSION, layers.buildings)
+    setVis(LYR.BUILDINGS_OUTLINE, layers.buildings)
+  }, [layers, mapInstance])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
@@ -649,7 +666,7 @@ useEffect(() => {
       addSourcesAndLayers(map)
       syncAllData(map, graphRef.current, activeFloorRef.current)
     })
-  }, [layers, mapInstance])
+  }, [layers.satellite, mapInstance])
 
   useCampusBoundary(mapInstance, (result: BoundaryPolygon) => {
     setPendingConfirm('boundary', result.points)

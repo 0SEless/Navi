@@ -64,7 +64,7 @@ const defaultLayers: LayerVisibility = {
   rooms: true,
   hallways: true,
   assets: true,
-  nodes: false,
+  nodes: true,
   edges: false,
   labels: true,
 }
