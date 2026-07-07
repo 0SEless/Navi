@@ -60,7 +60,7 @@ export function SplashOnboarding() {
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col bg-white transition-opacity duration-400
+      className={`fixed inset-0 z-[100] flex flex-col bg-white transition-opacity duration-500
         ${animatingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
     >
       <div className="flex justify-end p-4">
