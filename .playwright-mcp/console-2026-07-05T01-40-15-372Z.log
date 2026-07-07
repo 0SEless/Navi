@@ -1,0 +1,11 @@
+[    1272ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rX (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:47213)
+    at rY (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:48246)
+    at https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:142594
+    at sh (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:147755)
+    at sd (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:139005)
+    at https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:133830
+    at se (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:133931)
+    at s$ (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:160495)
+    at MessagePort.O (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:8660)
+[   13286ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0

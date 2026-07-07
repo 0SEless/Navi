@@ -1,0 +1,132 @@
+[    2865ms] [LOG] [StudioWorkspace] render {mapId: map-1782480639497-sb96j, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2868ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2870ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2885ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2886ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2886ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2887ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2887ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2887ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2888ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2888ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2889ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2889ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2889ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2890ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2890ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2890ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2891ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2891ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2891ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2892ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2892ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2892ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2893ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2893ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2894ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2894ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2894ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2895ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2895ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2895ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2896ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2896ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2896ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2897ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2897ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2897ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2897ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2898ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2898ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2898ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2899ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2899ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2899ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2899ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2900ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2900ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2900ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2900ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2901ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2901ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2901ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2902ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2902ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2903ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[    2942ms] Error: Minified React error #185; visit https://react.dev/errors/185 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rh (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42845)
+    at rp (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42417)
+    at aU (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68599)
+    at aF (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68425)
+    at iv (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+[   26257ms] [LOG] [StudioWorkspace] render {mapId: map-1782480639497-sb96j, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26259ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26260ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26274ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26275ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26276ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26277ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26278ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26278ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26279ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26279ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26280ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26280ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26280ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26280ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26281ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26281ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26281ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26281ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26282ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26282ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26282ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26283ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26283ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26283ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26284ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26284ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26284ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26285ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26285ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26285ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26286ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26286ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26286ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26287ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26288ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26288ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26288ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26288ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26289ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26289ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26289ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26289ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26290ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26290ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26290ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26291ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26291ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26291ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26291ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/18b3av6cilbcl.js:0
+[   26331ms] Error: Minified React error #185; visit https://react.dev/errors/185 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rh (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42845)
+    at rp (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42417)
+    at aU (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68599)
+    at aF (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68425)
+    at iv (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)

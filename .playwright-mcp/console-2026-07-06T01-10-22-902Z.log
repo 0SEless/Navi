@@ -1,0 +1,22 @@
+[    9926ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[   21644ms] [ERROR] Error: layers.vertex-points.paint.circle-radius: Only one zoom-based "step" or "interpolate" subexpression may be used in an expression.
+    at Object.aA [as C] (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:2:12845)
+    at t2 (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:76482)
+    at t5._validate (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:102653)
+    at t5.addLayer (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:91370)
+    at aU.addLayer (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:53:114778)
+    at https://navi-next.vercel.app/_next/static/chunks/0lmz2vjysbsat.js:1:36564
+    at iv (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:127053) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[   49878ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[   49878ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/2wvf74ifhq02t.js:0
+[   80257ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[   80258ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/2wvf74ifhq02t.js:0
+[  109921ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  109922ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/2wvf74ifhq02t.js:0
+[  140588ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  140588ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/2wvf74ifhq02t.js:0
+[  170331ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  170332ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/2wvf74ifhq02t.js:0

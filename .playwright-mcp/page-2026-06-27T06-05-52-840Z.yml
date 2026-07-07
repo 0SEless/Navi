@@ -1,0 +1,57 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e10]: NAVIADMIN
+      - generic [ref=e11]:
+        - img [ref=e12]
+        - textbox "Search..." [ref=e15]
+      - generic [ref=e16]:
+        - generic [ref=e17]: Online
+        - generic [ref=e20]: ASU Ibajay
+    - generic [ref=e21]:
+      - complementary [ref=e22]:
+        - button [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - navigation [ref=e27]:
+          - button "Dashboard" [ref=e28] [cursor=pointer]:
+            - img [ref=e29]
+            - generic [ref=e34]: Dashboard
+          - button "Panoramas 3" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+            - generic [ref=e39]: Panoramas
+            - generic [ref=e40]: "3"
+          - button "QR Checkpoints" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - generic [ref=e48]: QR Checkpoints
+          - button "Route Testing" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - generic [ref=e54]: Route Testing
+          - button "Dataset Mgmt" [ref=e55] [cursor=pointer]:
+            - img [ref=e56]
+            - generic [ref=e60]: Dataset Mgmt
+          - button "NAVI Studio" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e66]: NAVI Studio
+        - button "Sign Out" [ref=e68] [cursor=pointer]:
+          - img [ref=e69]
+          - generic [ref=e72]: Sign Out
+      - main [ref=e73]:
+        - generic [ref=e118]:
+          - generic [ref=e119]:
+            - heading "Create New Map" [level=2] [ref=e120]
+            - paragraph [ref=e121]: Enter the details of your campus map
+          - generic [ref=e122]:
+            - generic [ref=e123]: Map Name *
+            - textbox "e.g., Main Campus" [ref=e124]
+          - generic [ref=e125]:
+            - generic [ref=e126]: School Name *
+            - textbox "e.g., Aklan State University" [ref=e127]
+          - generic [ref=e128]:
+            - generic [ref=e129]: Campus (optional)
+            - textbox "e.g., Ibajay Campus" [ref=e130]
+          - generic [ref=e131]:
+            - button "Cancel" [ref=e132] [cursor=pointer]
+            - button "Next" [disabled] [ref=e133]
+  - alert [ref=e115]

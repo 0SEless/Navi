@@ -1,0 +1,14 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "OSM Workflow Prototype" [level=2] [ref=e6]
+      - paragraph [ref=e7]: Create a campus map, draw boundary, auto-import buildings from OSM
+    - generic [ref=e8]:
+      - generic [ref=e9]: Map Name *
+      - textbox "e.g., Main Campus" [ref=e10]
+    - generic [ref=e11]:
+      - generic [ref=e12]: School Name *
+      - textbox "e.g., Aklan State University" [ref=e13]
+    - button "Next — Set Boundary" [disabled] [ref=e15]
+  - button "Open Next.js Dev Tools" [ref=e21] [cursor=pointer]:
+    - img [ref=e22]

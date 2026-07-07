@@ -1,0 +1,12 @@
+[   16384ms] Error: Minified React error #185; visit https://react.dev/errors/185 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rh (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:42845)
+    at rp (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:42417)
+    at aU (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:68599)
+    at https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:68477
+    at https://navi-next.vercel.app/_next/static/chunks/2vieq72oolm2h.js:1:331
+    at Set.forEach (<anonymous>)
+    at s (https://navi-next.vercel.app/_next/static/chunks/2vieq72oolm2h.js:1:320)
+    at clearDrawPoints (https://navi-next.vercel.app/_next/static/chunks/33esd4m5ih4ap.js:1:1531)
+    at https://navi-next.vercel.app/_next/static/chunks/33esd4m5ih4ap.js:1:46861
+    at iy (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:103211)
+[   16390ms] [WARNING] [BuildingTracer] clear source not ready @ https://navi-next.vercel.app/_next/static/chunks/33esd4m5ih4ap.js:0

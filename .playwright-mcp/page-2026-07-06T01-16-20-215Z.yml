@@ -1,0 +1,84 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - img [ref=f1e6]
+        - generic [ref=f1e10]: NAVIADMIN
+      - generic [ref=f1e11]:
+        - img [ref=f1e12]
+        - textbox "Search..." [ref=f1e15]
+      - generic [ref=f1e16]:
+        - generic [ref=f1e17]: Online
+        - generic [ref=f1e20]: ASU Ibajay
+    - generic [ref=f1e21]:
+      - complementary [ref=f1e22]:
+        - button [ref=f1e24] [cursor=pointer]:
+          - img [ref=f1e25]
+        - navigation [ref=f1e27]:
+          - button "Dashboard" [ref=f1e28] [cursor=pointer]:
+            - img [ref=f1e29]
+            - generic [ref=f1e34]: Dashboard
+          - button "Panoramas 3" [ref=f1e35] [cursor=pointer]:
+            - img [ref=f1e36]
+            - generic [ref=f1e39]: Panoramas
+            - generic [ref=f1e40]: "3"
+          - button "QR Checkpoints" [ref=f1e41] [cursor=pointer]:
+            - img [ref=f1e42]
+            - generic [ref=f1e48]: QR Checkpoints
+          - button "Route Testing" [ref=f1e49] [cursor=pointer]:
+            - img [ref=f1e50]
+            - generic [ref=f1e54]: Route Testing
+          - button "Dataset Mgmt" [ref=f1e55] [cursor=pointer]:
+            - img [ref=f1e56]
+            - generic [ref=f1e60]: Dataset Mgmt
+          - button "NAVI Studio" [ref=f1e61] [cursor=pointer]:
+            - img [ref=f1e62]
+            - generic [ref=f1e66]: NAVI Studio
+        - button "Sign Out" [ref=f1e68] [cursor=pointer]:
+          - img [ref=f1e69]
+          - generic [ref=f1e72]: Sign Out
+      - main [ref=f1e73]:
+        - generic [ref=f1e75]:
+          - generic [ref=f1e77]:
+            - heading "NAVI Studio" [level=1] [ref=f1e78]
+            - paragraph [ref=f1e79]: 2 maps · 7 buildings
+          - generic [ref=f1e81]:
+            - generic [ref=f1e83] [cursor=pointer]:
+              - img [ref=f1e85]
+              - generic [ref=f1e86]: Create New Map
+              - generic [ref=f1e87]: Set up a new campus map with buildings and landmarks
+            - generic [ref=f1e88] [cursor=pointer]:
+              - generic [ref=f1e89]: A
+              - generic [ref=f1e90]:
+                - generic [ref=f1e91]: ASU-Ibajay
+                - generic [ref=f1e92]: Aklan State University · Ibajay Campus
+                - generic [ref=f1e93]:
+                  - generic [ref=f1e94]:
+                    - img [ref=f1e95]
+                    - text: "2"
+                  - generic [ref=f1e99]:
+                    - img [ref=f1e100]
+                    - text: "0"
+                  - generic [ref=f1e103]:
+                    - img [ref=f1e104]
+                    - text: "0"
+              - button [ref=f1e110]:
+                - img [ref=f1e111]
+            - generic [ref=f1e115] [cursor=pointer]:
+              - generic [ref=f1e116]: E
+              - generic [ref=f1e117]:
+                - generic [ref=f1e118]: ertyed
+                - generic [ref=f1e119]: dghd · dydhf
+                - generic [ref=f1e120]:
+                  - generic [ref=f1e121]:
+                    - img [ref=f1e122]
+                    - text: "5"
+                  - generic [ref=f1e126]:
+                    - img [ref=f1e127]
+                    - text: "0"
+                  - generic [ref=f1e130]:
+                    - img [ref=f1e131]
+                    - text: "0"
+              - button [ref=f1e137]:
+                - img [ref=f1e138]
+  - alert [ref=f1e142]

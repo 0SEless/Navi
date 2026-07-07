@@ -1,0 +1,21 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - generic [ref=f4e3]:
+      - generic [ref=f4e5]:
+        - img
+        - combobox "Search nodes" [ref=f4e6]
+      - generic [ref=f4e8]:
+        - img
+        - combobox "Search nodes" [ref=f4e9]
+      - button "Route" [ref=f4e10] [cursor=pointer]
+      - button "QR" [ref=f4e11] [cursor=pointer]
+      - generic [ref=f4e12]: locating...
+    - generic [ref=f4e13]:
+      - region "Map" [ref=f4e14]
+      - group [ref=f4e15]:
+        - generic "Toggle attribution" [ref=f4e16] [cursor=pointer]
+        - generic [ref=f4e17]:
+          - text: © OpenStreetMap contributors |
+          - link "MapLibre" [ref=f4e18] [cursor=pointer]:
+            - /url: https://maplibre.org/
+  - alert [ref=f4e19]

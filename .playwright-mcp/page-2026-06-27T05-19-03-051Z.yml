@@ -1,0 +1,159 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content":
+    - /url: "#geist-skip-nav"
+  - main [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - button "Open sidebar" [ref=e10] [cursor=pointer]:
+            - img [ref=e12]
+          - generic [ref=e16]:
+            - link "Other navi-next" [ref=e17] [cursor=pointer]:
+              - /url: /navi01/navi-next
+              - img "Other" [ref=e18]:
+                - img "Other" [ref=e19]
+              - generic [ref=e21]: navi-next
+            - button [ref=e22] [cursor=pointer]:
+              - img [ref=e24]
+            - link "Back to team view" [ref=e28] [cursor=pointer]:
+              - /url: /navi01/~/deployments
+              - img [ref=e30]
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - link "Deployments" [ref=e34] [cursor=pointer]:
+              - /url: /navi01/navi-next/deployments
+            - img [ref=e35]
+          - generic [ref=e37]:
+            - generic [ref=e40]: G7pDDPhA5
+            - button "Copy ID" [ref=e42] [cursor=pointer]:
+              - generic [ref=e43]:
+                - img [ref=e45]
+                - img [ref=e48]
+      - generic [ref=e51]:
+        - generic [ref=e53]:
+          - link "Deployment" [ref=e54] [cursor=pointer]:
+            - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck
+          - link "Logs" [ref=e55] [cursor=pointer]:
+            - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck/logs
+          - link "Resources" [ref=e56] [cursor=pointer]:
+            - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck/resources
+          - link "Source" [ref=e57] [cursor=pointer]:
+            - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck/source
+          - link "Open Graph" [ref=e58] [cursor=pointer]:
+            - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck/og
+        - generic [ref=e59]:
+          - generic [ref=e61]:
+            - generic [ref=e62]:
+              - heading "Deployment Details" [level=3] [ref=e64]
+              - generic [ref=e65]:
+                - button "Redeploy" [ref=e67] [cursor=pointer]:
+                  - img [ref=e69]
+                  - generic [ref=e71]: Redeploy
+                - button "Deployment Actions" [ref=e72] [cursor=pointer]:
+                  - img [ref=e75]
+            - generic [ref=e77]:
+              - generic [ref=e83]:
+                - img [ref=e85]
+                - heading "Deployment Blocked" [level=3] [ref=e87]
+              - generic [ref=e102]:
+                - generic [ref=e103]:
+                  - generic [ref=e104]:
+                    - generic [ref=e105]: Created
+                    - generic [ref=e106]:
+                      - img [ref=e110] [cursor=pointer]
+                      - generic [ref=e111]: 0seless
+                      - generic [ref=e113]: 10m ago
+                  - generic [ref=e114]:
+                    - generic [ref=e115]: Status
+                    - generic "This deployment has been blocked." [ref=e116]:
+                      - generic [ref=e120]: Blocked
+                      - link "Latest" [ref=e121] [cursor=pointer]:
+                        - /url: /navi01/navi-next/deployments?filterBranch=master
+                  - generic [ref=e122]:
+                    - generic [ref=e123]: Duration
+                    - generic [ref=e124]:
+                      - img [ref=e125]
+                      - text: —
+                  - generic [ref=e127]:
+                    - generic [ref=e128]: Environment
+                    - generic [ref=e129]:
+                      - img [ref=e130]
+                      - link "Production" [ref=e132] [cursor=pointer]:
+                        - /url: /navi01/navi-next/settings/environments/production
+                - generic [ref=e133]:
+                  - generic [ref=e134]: Domains
+                  - generic [ref=e135]:
+                    - img [ref=e137]
+                    - link "navi-next-5rzbc8b6a-navi01.vercel.app" [ref=e139] [cursor=pointer]:
+                      - /url: https://navi-next-5rzbc8b6a-navi01.vercel.app
+                - generic [ref=e140]:
+                  - generic [ref=e141]: Source
+                  - generic [ref=e142]:
+                    - img [ref=e143]
+                    - link "View code" [ref=e145] [cursor=pointer]:
+                      - /url: /navi01/navi-next/G7pDDPhA51f9mSBG4XwSdnXVDHck/source
+                  - generic [ref=e146]:
+                    - img [ref=e147]
+                    - link "vercel deploy" [ref=e149] [cursor=pointer]:
+                      - /url: /docs/cli/deploy
+            - button "Deployment Settings" [ref=e153] [cursor=pointer]:
+              - generic [ref=e154]:
+                - img [ref=e155]
+                - generic [ref=e158]: Deployment Settings
+          - generic [ref=e159]:
+            - generic [ref=e160]:
+              - heading "Deployment Summary" [level=2] [ref=e162]:
+                - generic:
+                  - img
+                  - generic:
+                    - generic: Deployment Summary
+                  - generic:
+                    - img
+              - heading "Deployment Checks" [level=2] [ref=e164]:
+                - generic:
+                  - img
+                  - generic:
+                    - generic: Deployment Checks
+                  - generic:
+                    - img
+              - heading "Assigning Custom Domains" [level=2] [ref=e166]:
+                - generic:
+                  - img
+                  - generic: Assigning Custom Domains
+                  - generic:
+                    - img
+            - generic [ref=e168]:
+              - link "Runtime Logs View and debug runtime logs & errors" [ref=e169] [cursor=pointer]:
+                - /url: /navi01/navi-next/logs
+                - img [ref=e171]
+                - generic [ref=e173]:
+                  - paragraph [ref=e175]: Runtime Logs
+                  - paragraph [ref=e176]: View and debug runtime logs & errors
+              - link "Observability Monitor app health & performance" [ref=e177] [cursor=pointer]:
+                - /url: /navi01/navi-next/observability/serverless-functions
+                - img [ref=e179]
+                - generic [ref=e181]:
+                  - paragraph [ref=e183]: Observability
+                  - paragraph [ref=e184]: Monitor app health & performance
+              - link "Speed Insights Not Enabled Performance metrics from real users" [ref=e185] [cursor=pointer]:
+                - /url: /navi01/navi-next/speed-insights
+                - img [ref=e187]
+                - generic [ref=e189]:
+                  - generic [ref=e190]:
+                    - paragraph [ref=e191]: Speed Insights
+                    - generic [ref=e192]: Not Enabled
+                  - paragraph [ref=e193]: Performance metrics from real users
+              - link "Web Analytics Not Enabled Analyze visitors & traffic in real-time" [ref=e194] [cursor=pointer]:
+                - /url: /navi01/navi-next/analytics
+                - img [ref=e196]
+                - generic [ref=e198]:
+                  - generic [ref=e199]:
+                    - paragraph [ref=e200]: Web Analytics
+                    - generic [ref=e201]: Not Enabled
+                  - paragraph [ref=e202]: Analyze visitors & traffic in real-time
+  - alert [ref=e203]
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - img

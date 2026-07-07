@@ -1,0 +1,8 @@
+[    1955ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rX (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:47213)
+    at iu (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:98254)
+    at sd (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:138944)
+    at https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:133830
+    at se (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:133931)
+    at s$ (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:160495)
+    at MessagePort.O (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:8660)

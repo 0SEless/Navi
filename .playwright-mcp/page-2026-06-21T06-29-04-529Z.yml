@@ -1,0 +1,105 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e10]:
+          - generic [ref=e11]: NAVI
+          - generic [ref=e12]: ADMIN CONSOLE
+      - generic [ref=e13]:
+        - img [ref=e14]
+        - textbox "Search nodes, buildings, QR codes..." [ref=e17]
+        - generic [ref=e18]: ⌘K
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - img [ref=e21]
+          - generic [ref=e25]: System Online
+        - generic [ref=e27]:
+          - img [ref=e28]
+          - generic [ref=e30]: ASU Ibajay
+        - button "2" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+          - generic [ref=e36]: "2"
+        - generic [ref=e37]:
+          - img [ref=e39]
+          - generic [ref=e42]:
+            - generic [ref=e43]: Admin User
+            - generic [ref=e44]: System Administrator
+    - generic [ref=e45]:
+      - complementary [ref=e46]:
+        - button [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: OVERVIEW
+            - button "Dashboard" [ref=e54] [cursor=pointer]:
+              - img [ref=e55]
+              - generic [ref=e60]: Dashboard
+          - generic [ref=e61]:
+            - generic [ref=e62]: NAVIGATION
+            - button "Map Editor" [ref=e63] [cursor=pointer]:
+              - img [ref=e64]
+              - generic [ref=e66]: Map Editor
+          - generic [ref=e67]:
+            - generic [ref=e68]: MEDIA
+            - button "Panoramas 3" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Panoramas
+              - generic [ref=e74]: "3"
+            - button "QR Checkpoints" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - generic [ref=e82]: QR Checkpoints
+          - generic [ref=e83]:
+            - generic [ref=e84]: TOOLS
+            - button "Route Testing" [ref=e85] [cursor=pointer]:
+              - img [ref=e86]
+              - generic [ref=e90]: Route Testing
+            - button "Dataset Mgmt" [ref=e91] [cursor=pointer]:
+              - img [ref=e92]
+              - generic [ref=e96]: Dataset Mgmt
+        - generic [ref=e97]:
+          - button "Settings" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e102]: Settings
+          - button "Sign Out" [ref=e103] [cursor=pointer]:
+            - img [ref=e104]
+            - generic [ref=e107]: Sign Out
+      - main [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - img [ref=e111]
+            - img [ref=e113]
+            - generic [ref=e129]:
+              - generic [ref=e130]:
+                - img [ref=e132]
+                - generic [ref=e136]:
+                  - generic [ref=e137]: NAVI
+                  - generic [ref=e138]: WAYFINDING SYSTEM
+              - heading "Virtual Campus Navigation Admin" [level=1] [ref=e139]:
+                - text: Virtual Campus
+                - text: Navigation Admin
+              - paragraph [ref=e140]: Manage navigation nodes, floor plans, QR checkpoints, and panoramic waypoints for Aklan State University – Ibajay Campus.
+            - generic [ref=e141]:
+              - generic [ref=e142]:
+                - img [ref=e143]
+                - text: A* Pathfinding
+              - generic [ref=e147]:
+                - img [ref=e148]
+                - text: Secure Access
+              - generic [ref=e150]:
+                - img [ref=e151]
+                - text: Live Sync
+            - generic [ref=e155]: AKLAN STATE UNIVERSITY – IBAJAY CAMPUS © 2025
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - heading "Administrator Login" [level=2] [ref=e159]
+              - paragraph [ref=e160]: Sign in to access the NAVI admin console. Authorized personnel only.
+            - button "Sign in with Google" [ref=e161] [cursor=pointer]:
+              - img [ref=e162]
+              - text: Sign in with Google
+            - generic [ref=e167]:
+              - img [ref=e168]
+              - paragraph [ref=e170]: This system is restricted to authorized ASU personnel. All access attempts are logged and monitored. Unauthorized access is strictly prohibited.
+            - generic [ref=e171]: NAVI v2.4.1 · ASU Ibajay Campus · Build 2025.05
+  - button "Open Next.js Dev Tools" [ref=e177] [cursor=pointer]:
+    - img [ref=e178]

@@ -1,0 +1,8 @@
+[   18017ms] [LOG] %c%s color: red; background: yellow; font-size: 24px; WARNING! @ https://www.gstatic.com/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.en.Y_a67XG-aJc.es5.O/am=EQ0AAAAwULyQAcD-_28AAAIIsh3wPQugCRAyAAAAAAAAAABgAQAAGgE/d=1/excm=_b,_tp,accountchooserview/ed=1/dg=0/wt=2/ujg=1/rs=AOaEmlECLBpvB6bMkqefTyecu62H0M1nBg/dti=1/m=_b,_tp:551
+[   18017ms] [LOG] %c%s font-size: 18px; Using this console may allow attackers to impersonate you and steal your information using an attack called Self-XSS.
+Do not enter or paste code that you do not understand. @ https://www.gstatic.com/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.en.Y_a67XG-aJc.es5.O/am=EQ0AAAAwULyQAcD-_28AAAIIsh3wPQugCRAyAAAAAAAAAABgAQAAGgE/d=1/excm=_b,_tp,accountchooserview/ed=1/dg=0/wt=2/ujg=1/rs=AOaEmlECLBpvB6bMkqefTyecu62H0M1nBg/dti=1/m=_b,_tp:551
+[   22506ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://github.com/github-copilot/chat/entitlement:0
+[   22945ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://github.com/github-copilot/chat/repositories_search?limit=10:0
+[   23300ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://github.com/github-copilot/chat/entitlement:0
+[   27546ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://github.com/github-copilot/chat/entitlement:0
+[   28283ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://github.com/github-copilot/chat/entitlement:0

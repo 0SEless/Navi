@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - combobox [ref=e4]:
+        - option "From..." [selected]
+      - combobox [ref=e5]:
+        - option "To..." [selected]
+      - button "Route" [ref=e6] [cursor=pointer]
+      - button "QR Scan" [ref=e7] [cursor=pointer]
+      - generic [ref=e8]: 📍 locating...
+    - generic [ref=e9]:
+      - region "Map" [ref=e10]
+      - group [ref=e11]:
+        - generic "Toggle attribution" [ref=e12] [cursor=pointer]
+        - generic [ref=e13]:
+          - text: © OpenStreetMap contributors |
+          - link "MapLibre" [ref=e14] [cursor=pointer]:
+            - /url: https://maplibre.org/
+  - alert [ref=e15]

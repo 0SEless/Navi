@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - img
+        - combobox "Search nodes" [ref=e6]
+      - generic [ref=e8]:
+        - img
+        - combobox "Search nodes" [ref=e9]
+      - button "Route" [ref=e10] [cursor=pointer]
+      - button "QR" [ref=e11] [cursor=pointer]
+      - generic [ref=e12]: locating...
+    - generic [ref=e13]:
+      - region "Map" [ref=e14]
+      - group [ref=e15]:
+        - generic "Toggle attribution" [ref=e16] [cursor=pointer]
+        - link "MapLibre" [ref=e18] [cursor=pointer]:
+          - /url: https://maplibre.org/
+  - alert [ref=e19]

@@ -1,0 +1,49 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Map" [ref=e3]
+    - generic [ref=e4]:
+      - button "Zoom in" [ref=e5] [cursor=pointer]
+      - button "Zoom out" [ref=e7] [cursor=pointer]
+      - button "Drag to rotate map, click to reset north" [ref=e9]
+  - generic [ref=e11]:
+    - heading "🗺️ NAVI · Our Mapbox" [level=2] [ref=e12]:
+      - text: 🗺️
+      - generic [ref=e13]: NAVI
+      - text: · Our Mapbox
+    - generic [ref=e14]: ASU Ibajay Campus · Google Satellite + 3D Terrain
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: OVERLAYS
+        - button "Buildings" [ref=e18] [cursor=pointer]
+        - button "Nodes" [ref=e19] [cursor=pointer]
+        - button "Edges" [ref=e20] [cursor=pointer]
+        - button "Labels" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - generic [ref=e23]: STYLE
+        - combobox [ref=e24]:
+          - option "Google Satellite" [selected]
+          - option "Satellite + Labels"
+          - option "OSM Standard"
+          - option "CartoDB Positron"
+          - option "CartoDB Dark Matter"
+        - generic [ref=e25]: 3D PITCH
+        - combobox [ref=e26]:
+          - option "55° (steep 3D)" [selected]
+          - option "35° (gentle 3D)"
+          - option "0° (flat 2D)"
+  - generic [ref=e27]:
+    - generic [ref=e28]: TOUR
+    - generic [ref=e30]: ADMIN
+    - generic [ref=e32]: LRC
+    - generic [ref=e34]: SCI
+    - generic [ref=e36]: CAS
+    - generic [ref=e38]: COE
+    - generic [ref=e40]: GYM
+    - generic [ref=e42]: SC
+    - generic [ref=e44]: CHP
+    - generic [ref=e46]: Walkway
+  - generic [ref=e48]:
+    - generic [ref=e49]:
+      - text: 📍 11.81802°N, 122.17081°E ·
+      - strong [ref=e50]: 9 buildings · 16 nodes · 24 edges
+    - generic [ref=e51]: MapLibre GL JS v5.24 · Google Satellite + AWS Terrain · 3D Extrusions

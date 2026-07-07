@@ -1,0 +1,42 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - img [ref=f2e6]
+        - generic [ref=f2e10]: NAVIADMIN
+      - generic [ref=f2e11]:
+        - img [ref=f2e12]
+        - textbox "Search..." [ref=f2e15]
+      - generic [ref=f2e16]:
+        - generic [ref=f2e17]: Online
+        - generic [ref=f2e20]: ASU Ibajay
+    - generic [ref=f2e21]:
+      - complementary [ref=f2e22]:
+        - button [ref=f2e24] [cursor=pointer]:
+          - img [ref=f2e25]
+        - navigation [ref=f2e27]:
+          - button "Dashboard" [ref=f2e28] [cursor=pointer]:
+            - img [ref=f2e29]
+            - generic [ref=f2e34]: Dashboard
+          - button "Panoramas 3" [ref=f2e35] [cursor=pointer]:
+            - img [ref=f2e36]
+            - generic [ref=f2e39]: Panoramas
+            - generic [ref=f2e40]: "3"
+          - button "QR Checkpoints" [ref=f2e41] [cursor=pointer]:
+            - img [ref=f2e42]
+            - generic [ref=f2e48]: QR Checkpoints
+          - button "Route Testing" [ref=f2e49] [cursor=pointer]:
+            - img [ref=f2e50]
+            - generic [ref=f2e54]: Route Testing
+          - button "Dataset Mgmt" [ref=f2e55] [cursor=pointer]:
+            - img [ref=f2e56]
+            - generic [ref=f2e60]: Dataset Mgmt
+          - button "NAVI Studio" [ref=f2e61] [cursor=pointer]:
+            - img [ref=f2e62]
+            - generic [ref=f2e66]: NAVI Studio
+        - button "Sign Out" [ref=f2e68] [cursor=pointer]:
+          - img [ref=f2e69]
+          - generic [ref=f2e72]: Sign Out
+      - main [ref=f2e73]:
+        - generic [ref=f2e75]: Map not found
+  - alert [ref=f2e76]

@@ -1,0 +1,67 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e10]: NAVIADMIN
+      - generic [ref=e11]:
+        - img [ref=e12]
+        - textbox "Search..." [ref=e15]
+      - generic [ref=e16]:
+        - generic [ref=e17]: Online
+        - generic [ref=e20]: ASU Ibajay
+    - generic [ref=e21]:
+      - complementary [ref=e22]:
+        - button [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - navigation [ref=e27]:
+          - button "Dashboard" [ref=e28] [cursor=pointer]:
+            - img [ref=e29]
+            - generic [ref=e34]: Dashboard
+          - button "Panoramas 3" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+            - generic [ref=e39]: Panoramas
+            - generic [ref=e40]: "3"
+          - button "QR Checkpoints" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - generic [ref=e48]: QR Checkpoints
+          - button "Route Testing" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - generic [ref=e54]: Route Testing
+          - button "Dataset Mgmt" [ref=e55] [cursor=pointer]:
+            - img [ref=e56]
+            - generic [ref=e60]: Dataset Mgmt
+          - button "NAVI Studio" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e66]: NAVI Studio
+        - button "Sign Out" [ref=e68] [cursor=pointer]:
+          - img [ref=e69]
+          - generic [ref=e72]: Sign Out
+      - main [ref=e73]:
+        - generic [ref=e76]:
+          - generic [ref=e78]:
+            - generic [ref=e94]:
+              - textbox "Search location..." [ref=e95]
+              - button [ref=e96] [cursor=pointer]:
+                - img [ref=e97]
+            - button "Back" [ref=e100] [cursor=pointer]:
+              - img [ref=e101]
+              - text: Back
+          - generic [ref=e103]:
+            - generic [ref=e119]: 2 more points needed to close boundary
+            - generic [ref=e104]:
+              - button "Cancel" [ref=e105] [cursor=pointer]:
+                - img [ref=e106]
+                - text: Cancel
+              - button "Confirm Boundary" [disabled] [ref=e109]:
+                - img [ref=e110]
+                - text: Confirm Boundary
+          - generic [ref=e112]:
+            - region "Map" [active] [ref=e113]
+            - group [ref=e114]:
+              - generic "Toggle attribution" [ref=e115] [cursor=pointer]
+              - generic [ref=e116]:
+                - text: © OpenStreetMap contributors |
+                - link "MapLibre" [ref=e118] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+  - alert [ref=e93]

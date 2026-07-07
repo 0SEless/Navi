@@ -1,0 +1,18 @@
+[  156015ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/campus-maps:0
+[  156326ms] [LOG] [StudioWorkspace] render {mapId: map-1782540485612-nm70j, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:0
+[  156328ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:0
+[  156329ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:0
+[  156350ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:0
+[  156350ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:0
+[  156388ms] Error: Style is not done loading.
+    at t5._checkLoaded (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:84982)
+    at t5.addSource (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:89516)
+    at aU.addSource (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:53:109431)
+    at https://navi-next.vercel.app/_next/static/chunks/1oj_iwejn_xxt.js:1:26320
+    at iv (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+[  156563ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/campus-maps:0

@@ -1,0 +1,119 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - img [ref=f2e6]
+        - generic [ref=f2e10]: NAVIADMIN
+      - generic [ref=f2e11]:
+        - img [ref=f2e12]
+        - textbox "Search..." [ref=f2e15]
+      - generic [ref=f2e16]:
+        - generic [ref=f2e17]: Online
+        - generic [ref=f2e20]: ASU Ibajay
+    - generic [ref=f2e21]:
+      - complementary [ref=f2e22]:
+        - button [ref=f2e24] [cursor=pointer]:
+          - img [ref=f2e25]
+        - navigation [ref=f2e27]:
+          - button "Dashboard" [ref=f2e28] [cursor=pointer]:
+            - img [ref=f2e29]
+            - generic [ref=f2e34]: Dashboard
+          - button "Panoramas 3" [ref=f2e35] [cursor=pointer]:
+            - img [ref=f2e36]
+            - generic [ref=f2e39]: Panoramas
+            - generic [ref=f2e40]: "3"
+          - button "QR Checkpoints" [ref=f2e41] [cursor=pointer]:
+            - img [ref=f2e42]
+            - generic [ref=f2e48]: QR Checkpoints
+          - button "Route Testing" [ref=f2e49] [cursor=pointer]:
+            - img [ref=f2e50]
+            - generic [ref=f2e54]: Route Testing
+          - button "Dataset Mgmt" [ref=f2e55] [cursor=pointer]:
+            - img [ref=f2e56]
+            - generic [ref=f2e60]: Dataset Mgmt
+          - button "NAVI Studio" [ref=f2e61] [cursor=pointer]:
+            - img [ref=f2e62]
+            - generic [ref=f2e66]: NAVI Studio
+        - button "Sign Out" [ref=f2e68] [cursor=pointer]:
+          - img [ref=f2e69]
+          - generic [ref=f2e72]: Sign Out
+      - main [ref=f2e73]:
+        - generic [ref=f2e76]:
+          - generic [ref=f2e77]:
+            - generic [ref=f2e79]: Outliner
+            - generic [ref=f2e80]:
+              - button "Buildings 1" [ref=f2e81] [cursor=pointer]:
+                - img [ref=f2e82]
+                - img [ref=f2e84]
+                - text: Buildings
+                - generic [ref=f2e88]: "1"
+              - button "Building -RJBA2" [ref=f2e90] [cursor=pointer]:
+                - generic [ref=f2e92]: Building -RJBA2
+              - button "Landmarks 0" [ref=f2e94] [cursor=pointer]:
+                - img [ref=f2e95]
+                - img [ref=f2e97]
+                - text: Landmarks
+                - generic [ref=f2e100]: "0"
+              - generic [ref=f2e101]:
+                - generic [ref=f2e102]: No types yet
+                - button "New Type" [ref=f2e103] [cursor=pointer]:
+                  - img [ref=f2e104]
+                  - text: New Type
+          - generic [ref=f2e107]:
+            - region "Map" [ref=f2e108]
+            - group [ref=f2e109]:
+              - generic "Toggle attribution" [ref=f2e110] [cursor=pointer]
+              - generic [ref=f2e111]:
+                - text: © OpenStreetMap contributors |
+                - link "MapLibre" [ref=f2e112] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+          - generic [ref=f2e113]:
+            - generic [ref=f2e115]: Tools
+            - generic [ref=f2e116]:
+              - button "Select" [ref=f2e117] [cursor=pointer]:
+                - img [ref=f2e118]
+                - text: Select
+              - button "Move" [ref=f2e120] [cursor=pointer]:
+                - img [ref=f2e121]
+                - text: Move
+              - button "Route" [ref=f2e126] [cursor=pointer]:
+                - img [ref=f2e127]
+                - text: Route
+              - button "Building" [active] [ref=f2e131] [cursor=pointer]:
+                - img [ref=f2e132]
+                - text: Building
+              - button "Boundary" [ref=f2e136] [cursor=pointer]:
+                - img [ref=f2e137]
+                - text: Boundary
+            - generic [ref=f2e140]:
+              - generic [ref=f2e141]: Layers
+              - generic [ref=f2e142]:
+                - button "OSM Base" [ref=f2e143] [cursor=pointer]:
+                  - img [ref=f2e144]
+                  - text: OSM Base
+                - button "Satellite" [ref=f2e147] [cursor=pointer]:
+                  - img [ref=f2e148]
+                  - text: Satellite
+                - button "Buildings" [ref=f2e153] [cursor=pointer]:
+                  - img [ref=f2e154]
+                  - text: Buildings
+                - button "Rooms" [ref=f2e157] [cursor=pointer]:
+                  - img [ref=f2e158]
+                  - text: Rooms
+                - button "Hallways" [ref=f2e161] [cursor=pointer]:
+                  - img [ref=f2e162]
+                  - text: Hallways
+                - button "Assets" [ref=f2e165] [cursor=pointer]:
+                  - img [ref=f2e166]
+                  - text: Assets
+                - button "Nodes" [ref=f2e169] [cursor=pointer]:
+                  - img [ref=f2e170]
+                  - text: Nodes
+                - button "Edges" [ref=f2e175] [cursor=pointer]:
+                  - img [ref=f2e176]
+                  - text: Edges
+                - button "Labels" [ref=f2e181] [cursor=pointer]:
+                  - img [ref=f2e182]
+                  - text: Labels
+            - generic [ref=f2e185]: Click a building on the map to edit its properties
+  - alert [ref=f2e186]

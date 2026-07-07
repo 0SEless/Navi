@@ -1,0 +1,3 @@
+[  196286ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://localhost:3456/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:0
+[  198682ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3456/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_1xx01vv._.js:0
+[  198958ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3456/favicon.ico?favicon.2vob68tjqpejf.ico:0

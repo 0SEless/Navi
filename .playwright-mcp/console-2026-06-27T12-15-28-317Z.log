@@ -1,0 +1,750 @@
+[     115ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     147ms] [LOG] [Fast Refresh] done in 139ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     205ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     228ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  272562ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272563ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  272566ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272567ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272567ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489617.png:0
+[  272567ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272567ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272567ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489616.png:0
+[  272568ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272568ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272568ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  272568ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272568ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272568ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489616.png:0
+[  272569ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272569ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272569ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489618.png:0
+[  272569ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272570ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272570ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489616.png:0
+[  272570ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272570ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  272571ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489617.png:0
+[  272571ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  272680ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  272714ms] [LOG] [Fast Refresh] done in 135ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  274563ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274563ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489617.png:0
+[  274565ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274568ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274568ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489615.png:0
+[  274568ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274569ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274569ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489616.png:0
+[  274570ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274571ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274571ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489615.png:0
+[  274571ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274571ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274571ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489618.png:0
+[  274571ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274571ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274571ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489619.png:0
+[  274572ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274572ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274572ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489619.png:0
+[  274572ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274572ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274572ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489615.png:0
+[  274572ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274572ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274572ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489619.png:0
+[  274573ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  274573ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  274573ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489617.png:0
+[  274573ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276569ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276569ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489618.png:0
+[  276570ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276573ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276573ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489616.png:0
+[  276573ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276573ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276573ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489615.png:0
+[  276573ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276573ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276574ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489619.png:0
+[  276574ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276574ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276574ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489617.png:0
+[  276574ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276574ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276574ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489616.png:0
+[  276574ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276575ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276575ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489619.png:0
+[  276575ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276575ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276575ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489618.png:0
+[  276575ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  276575ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  276575ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489615.png:0
+[  276576ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318573ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318574ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  318574ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318576ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318576ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489619.png:0
+[  318576ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318577ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318577ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489618.png:0
+[  318577ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318577ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318577ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489619.png:0
+[  318578ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318578ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318578ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489618.png:0
+[  318578ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318579ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318579ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489619.png:0
+[  318579ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318579ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318579ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489617.png:0
+[  318580ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  318580ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  318580ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  318580ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320578ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320578ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489620.png:0
+[  320578ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320582ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320582ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489618.png:0
+[  320583ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489620.png:0
+[  320585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320585ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320585ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489619.png:0
+[  320585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489617.png:0
+[  320586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489617.png:0
+[  320587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489620.png:0
+[  320587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  320588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  320588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489620.png:0
+[  320588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322579ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322579ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489618.png:0
+[  322580ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322585ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489619.png:0
+[  322585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322585ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322585ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489618.png:0
+[  322586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489619.png:0
+[  322587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489617.png:0
+[  322587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489620.png:0
+[  322588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489616.png:0
+[  322589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  322589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  322589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489616.png:0
+[  322590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354608ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354609ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489618.png:0
+[  354611ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354612ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354612ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489617.png:0
+[  354612ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354613ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354613ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489618.png:0
+[  354613ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354614ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354614ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489617.png:0
+[  354614ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354614ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354614ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489618.png:0
+[  354615ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354615ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354615ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489617.png:0
+[  354615ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  354616ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  354616ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489619.png:0
+[  354616ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  355599ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  355599ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489619.png:0
+[  355600ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489619.png:0
+[  356590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356593ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356593ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  356594ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356594ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356594ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489618.png:0
+[  356595ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356595ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356595ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  356595ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356595ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356596ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489617.png:0
+[  356596ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356596ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356596ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489619.png:0
+[  356597ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356597ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356597ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489620.png:0
+[  356597ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356597ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356598ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489616.png:0
+[  356598ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356598ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356598ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489620.png:0
+[  356599ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356599ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356599ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489620.png:0
+[  356599ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356599ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356600ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489618.png:0
+[  356600ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356600ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356600ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489620.png:0
+[  356601ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356601ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356601ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489619.png:0
+[  356601ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356601ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356601ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489619.png:0
+[  356602ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  356602ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  356602ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489620.png:0
+[  356602ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  357584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  357584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489621.png:0
+[  357585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489621.png:0
+[  358584ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358585ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358585ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489621.png:0
+[  358586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489620.png:0
+[  358586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489621.png:0
+[  358587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489621.png:0
+[  358588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489621.png:0
+[  358588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489622.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489622.png:0
+[  358589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489622.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489620.png:0
+[  358589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489622.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489622.png:0
+[  358590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489622.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  358590ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  358590ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489621.png:0
+[  358590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360582ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360582ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489617.png:0
+[  360584ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489617.png:0
+[  360586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489617.png:0
+[  360587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489616.png:0
+[  360587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489618.png:0
+[  360588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489616.png:0
+[  360588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  360588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  360588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489619.png:0
+[  360588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  361591ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  361592ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489616.png:0
+[  361593ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362583ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362583ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489620.png:0
+[  362584ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362585ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489616.png:0
+[  362586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489616.png:0
+[  362587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489617.png:0
+[  362588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489618.png:0
+[  362589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  362589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  362589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489619.png:0
+[  362590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  363583ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  363583ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489616.png:0
+[  363585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  363586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  363586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489615.png:0
+[  363586ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  363586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  363586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489615.png:0
+[  363587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  364587ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  364587ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489620.png:0
+[  364588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  364588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  364588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  364589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  364589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  364589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489620.png:0
+[  364590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  364590ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  364590ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489619.png:0
+[  364591ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  364591ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  364591ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489615.png:0
+[  364591ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  365584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  365584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  365584ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  365584ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489618.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  365585ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489618.png:0
+[  365585ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  366588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  366588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489615.png:0
+[  366588ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  366589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  366589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489616.png:0
+[  366589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  367599ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489615.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  367599ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489615.png:0
+[  367601ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489615.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  367602ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489616.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  367602ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489616.png:0
+[  367603ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489616.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  367603ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489614.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  367604ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489614.png:0
+[  367604ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489614.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  367604ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489614.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  367604ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489614.png:0
+[  367605ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489614.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  367605ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489614.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  367605ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489614.png:0
+[  367606ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489614.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369586ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489619.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489619.png:0
+[  369587ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489619.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369588ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489620.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489620.png:0
+[  369589ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369589ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369589ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489621.png:0
+[  369590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369590ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369590ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489621.png:0
+[  369590ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369591ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369591ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489621.png:0
+[  369591ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369591ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489621.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369591ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489621.png:0
+[  369592ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489621.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369592ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489622.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369592ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489622.png:0
+[  369593ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489622.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[  369593ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489622.png' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3000/sandbox/osm-workflow:0
+[  369593ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489622.png:0
+[  369593ms] [ERROR] pt: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489622.png
+    at http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:520:39
+    at Generator.throw (<anonymous>)
+    at a (http://localhost:3000/_next/static/chunks/node_modules_maplibre-gl_dist_maplibre-gl_1w0u9x2.js:52:34) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318

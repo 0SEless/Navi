@@ -1,0 +1,19 @@
+[  172567ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/campus-maps:0
+[  173087ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/campus-maps:0
+[  173441ms] [LOG] [StudioWorkspace] render {mapId: map-1782540930723-d90qa, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:0
+[  173443ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:0
+[  173445ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:0
+[  173464ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 0} @ https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:0
+[  173464ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:0
+[  173508ms] Error: Style is not done loading.
+    at t5._checkLoaded (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:84982)
+    at t5.addSource (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:51:89516)
+    at aU.addSource (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:53:109431)
+    at https://navi-next.vercel.app/_next/static/chunks/0925gjcj9oj9f.js:1:26384
+    at iv (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+[  173602ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/campus-maps:0

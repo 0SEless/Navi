@@ -1,0 +1,97 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "🗺️ NAVI Map Style Explorer" [level=1] [ref=e4]:
+        - text: 🗺️
+        - generic [ref=e5]: NAVI
+        - text: Map Style Explorer
+      - generic [ref=e6]: ASU Ibajay Campus · Aklan State University · Philippines
+    - generic [ref=e8]:
+      - button "Grid View" [ref=e9] [cursor=pointer]
+      - button "Single View" [ref=e10] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13]: MAP STYLE
+    - generic [ref=e14]:
+      - button "Current (OSM Raster)" [ref=e15] [cursor=pointer]
+      - button "CartoDB Voyager colorful" [ref=e16] [cursor=pointer]:
+        - text: CartoDB Voyager
+        - generic [ref=e17]: colorful
+      - button "CartoDB Positron light" [ref=e18] [cursor=pointer]:
+        - text: CartoDB Positron
+        - generic [ref=e19]: light
+      - button "CartoDB Dark Matter dark" [ref=e20] [cursor=pointer]:
+        - text: CartoDB Dark Matter
+        - generic [ref=e21]: dark
+      - button "OpenFreeMap Liberty classic" [ref=e22] [cursor=pointer]:
+        - text: OpenFreeMap Liberty
+        - generic [ref=e23]: classic
+      - button "OpenFreeMap Bright vibrant" [ref=e24] [cursor=pointer]:
+        - text: OpenFreeMap Bright
+        - generic [ref=e25]: vibrant
+      - button "OpenFreeMap Positron minimal" [ref=e26] [cursor=pointer]:
+        - text: OpenFreeMap Positron
+        - generic [ref=e27]: minimal
+      - button "LFMaps Bright" [ref=e28] [cursor=pointer]
+  - generic [ref=e29]:
+    - generic [ref=e30]: OVERLAYS
+    - button "Buildings" [ref=e31] [cursor=pointer]
+    - button "Nodes" [ref=e32] [cursor=pointer]
+    - button "Edges" [ref=e33] [cursor=pointer]
+    - button "Labels" [ref=e34] [cursor=pointer]
+    - generic [ref=e35]: OVERLAY STYLE
+    - combobox [ref=e36]:
+      - option "Default" [selected]
+      - option "Glow / Neon"
+      - option "Minimal"
+      - option "Elevated + Shadows"
+    - generic [ref=e37]:
+      - generic [ref=e38]: Building Entrance
+      - generic [ref=e40]: Intersection
+      - generic [ref=e42]: Outdoor
+      - generic [ref=e44]: Walkway
+      - generic [ref=e46]: QR
+      - generic [ref=e48]: Panorama
+  - generic [ref=e50]:
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]: Current (OSM Raster)
+        - generic [ref=e54]: OpenStreetMap
+      - region "Map" [active] [ref=e56]
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - generic [ref=e59]: CartoDB Voyager
+        - generic [ref=e60]: CartoDB
+      - region "Map" [ref=e62]
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]: CartoDB Positron
+        - generic [ref=e66]: CartoDB
+      - region "Map" [ref=e68]
+    - generic [ref=e69]:
+      - generic [ref=e70]:
+        - generic [ref=e71]: CartoDB Dark Matter
+        - generic [ref=e72]: CartoDB
+      - region "Map" [ref=e74]
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - generic [ref=e77]: OpenFreeMap Liberty
+        - generic [ref=e78]: OpenFreeMap
+      - region "Map" [ref=e80]
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - generic [ref=e83]: OpenFreeMap Bright
+        - generic [ref=e84]: OpenFreeMap
+      - region "Map" [ref=e86]
+    - generic [ref=e87]:
+      - generic [ref=e88]:
+        - generic [ref=e89]: OpenFreeMap Positron
+        - generic [ref=e90]: OpenFreeMap
+      - region "Map" [ref=e92]
+    - generic [ref=e93]:
+      - generic [ref=e94]:
+        - generic [ref=e95]: LFMaps Bright
+        - generic [ref=e96]: LFMaps
+      - region "Map" [ref=e98]
+  - generic [ref=e99]:
+    - generic [ref=e100]: 📍 ASU Ibajay Campus · 11.81802°N, 122.17081°E
+    - generic [ref=e101]: MapLibre GL JS v5.24 · Free map styles · No API keys required

@@ -1,0 +1,118 @@
+<h2>NAVI Studio &mdash; Workspace Redesign</h2>
+<p class="subtitle">A three-mode visual campus editor with a dark, map-first interface</p>
+
+<div class="mockup" style="max-width:100%;overflow:hidden;border-radius:8px;">
+  <div class="mockup-header" style="background:#0F5132;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:12px;font-size:13px;border-bottom:2px solid #D1A11F;">
+    <span style="font-weight:700;">NAVI STUDIO</span>
+    <span style="color:rgba(255,255,255,0.4);">|</span>
+    <div style="display:flex;background:rgba(0,0,0,0.25);border-radius:6px;padding:2px;">
+      <span style="padding:4px 14px;border-radius:4px;background:#D1A11F;color:#0F5132;font-weight:600;font-size:12px;">Campus</span>
+      <span style="padding:4px 14px;border-radius:4px;color:rgba(255,255,255,0.6);font-size:12px;">Building</span>
+      <span style="padding:4px 14px;border-radius:4px;color:rgba(255,255,255,0.6);font-size:12px;">Floor</span>
+    </div>
+    <span style="color:rgba(255,255,255,0.4);">|</span>
+    <span style="font-size:12px;opacity:0.7;">Draft</span>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <span style="background:rgba(255,255,255,0.12);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;">Validate</span>
+      <span style="background:#D1A11F;color:#0F5132;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;">Publish</span>
+    </div>
+  </div>
+  <div style="display:flex;height:380px;">
+    <!-- Toolbar left -->
+    <div style="width:44px;background:#111122;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;border-right:1px solid #222244;">
+      <div style="width:30px;height:30px;border-radius:6px;background:#D1A11F;display:flex;align-items:center;justify-content:center;color:#0F5132;font-weight:bold;font-size:13px;cursor:pointer;">S</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #333355;display:flex;align-items:center;justify-content:center;color:#777;font-size:13px;cursor:pointer;">T</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #333355;display:flex;align-items:center;justify-content:center;color:#777;font-size:13px;cursor:pointer;">R</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #333355;display:flex;align-items:center;justify-content:center;color:#777;font-size:13px;cursor:pointer;">A</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #333355;display:flex;align-items:center;justify-content:center;color:#777;font-size:13px;cursor:pointer;">G</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #333355;display:flex;align-items:center;justify-content:center;color:#777;font-size:13px;cursor:pointer;">P</div>
+      <div style="flex:1;"></div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #222244;display:flex;align-items:center;justify-content:center;color:#555;font-size:9px;cursor:pointer;">QR</div>
+      <div style="width:30px;height:30px;border-radius:6px;border:1px solid #222244;display:flex;align-items:center;justify-content:center;color:#555;font-size:9px;cursor:pointer;">360</div>
+    </div>
+    <!-- Layers -->
+    <div style="width:150px;background:#131325;border-right:1px solid #222244;padding:10px;font-size:12px;">
+      <div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:6px;letter-spacing:1px;">Layers</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#4ade80;font-size:8px;">&#9679;</span> Campus Boundary</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#60a5fa;font-size:8px;">&#9679;</span> Buildings</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#f59e0b;font-size:8px;">&#9679;</span> Walkways</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#a78bfa;font-size:8px;">&#9679;</span> Rooms</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#f472b6;font-size:8px;">&#9679;</span> Hallways</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#34d399;font-size:8px;">&#9679;</span> Nodes</div>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;"><span style="color:#f87171;font-size:8px;">&#9679;</span> Edges</div>
+      <div style="border-top:1px solid #222244;margin:8px 0;padding-top:8px;">
+        <div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:6px;letter-spacing:1px;">Floor Assets</div>
+        <div style="padding:3px 0;font-size:11px;color:#999;cursor:pointer;">QR Markers <span style="color:#666;">(3)</span></div>
+        <div style="padding:3px 0;font-size:11px;color:#999;cursor:pointer;">Panoramas <span style="color:#666;">(2)</span></div>
+        <div style="padding:3px 0;font-size:11px;color:#999;cursor:pointer;">Access Points <span style="color:#666;">(1)</span></div>
+      </div>
+    </div>
+    <!-- Canvas -->
+    <div style="flex:1;background:#0a0a18;display:flex;align-items:center;justify-content:center;position:relative;color:#333;font-size:14px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="width:48px;height:48px;border:2px dashed #333;border-radius:8px;display:flex;align-items:center;align-items:center;justify-content:center;font-size:20px;">&#127758;</div>
+        <div>Map Canvas (MapLibre GL)</div>
+        <div style="font-size:11px;color:#444;">OSM &bull; ASU Ibajay Campus</div>
+      </div>
+      <!-- Floor selector -->
+      <div style="position:absolute;top:10px;right:10px;background:#111122;border-radius:8px;padding:3px;border:1px solid #222244;">
+        <div style="padding:5px 14px;border-radius:4px;background:#D1A11F;color:#0F5132;font-size:11px;font-weight:600;cursor:pointer;">GF</div>
+        <div style="padding:5px 14px;border-radius:4px;font-size:11px;color:#777;cursor:pointer;">1F</div>
+        <div style="padding:5px 14px;border-radius:4px;font-size:11px;color:#777;cursor:pointer;">2F</div>
+        <div style="padding:5px 14px;border-radius:4px;font-size:11px;color:#777;cursor:pointer;">3F</div>
+      </div>
+    </div>
+    <!-- Properties -->
+    <div style="width:220px;background:#131325;border-left:1px solid #222244;padding:10px;font-size:12px;">
+      <div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:8px;letter-spacing:1px;">Properties</div>
+      <div style="color:#777;font-size:11px;text-align:center;padding:50px 0;">
+        Select an element<br>
+        <span style="color:#555;font-size:10px;">on the map to edit</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Three Modes &mdash; Three Tool Sets</h3>
+  <p>The active mode changes which tools and panels are shown:</p>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr);">
+    <div class="card">
+      <div class="card-body">
+        <h3>Campus Mode</h3>
+        <p>Boundary tool, Building tool, Path tool, Gate tool, Search. Creates the outdoor campus shell.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Building Mode</h3>
+        <p>Building info panel, floor management, color/image config. Exterior focus, activates on building click.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Floor Mode</h3>
+        <p>Asset library, Canvas with floor plan, Properties panel. Rooms, hallways, stairs, elevators, QR, panoramas.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Improvements Over Current UI</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <ul>
+        <li><strong>Dark theme</strong> &mdash; map-focused work benefits from reduced glare</li>
+        <li><strong>ASU brand colors</strong> &mdash; green #0F5132, gold #D1A11F, dark surface</li>
+        <li><strong>Mode-aware tools</strong> &mdash; toolbar swaps per mode, context-sensitive</li>
+        <li><strong>Floating floor strip</strong> &mdash; over the map, not in the toolbar</li>
+        <li><strong>Publish workflow</strong> &mdash; Draft &rarr; Validate &rarr; Publish always visible in top bar</li>
+        <li><strong>Dedicated asset section</strong> &mdash; QR, panoramas, access points listed in layers panel</li>
+        <li><strong>Inline styles &rarr; Tailwind/shadcn</strong> &mdash; consistent, maintainable UI code</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p style="text-align:center;color:#888;font-size:13px;margin-top:16px;">Does this overall layout and direction feel right? Any changes to the workspace structure before we go deeper into each mode?</p>

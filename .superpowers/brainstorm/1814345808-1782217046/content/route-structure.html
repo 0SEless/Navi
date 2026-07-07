@@ -1,0 +1,86 @@
+<h2>NAVI Studio &mdash; Route Structure</h2>
+<p class="subtitle">Page-based hierarchy mirrors the campus &rarr; building &rarr; floor domain model</p>
+
+<div style="display:flex;justify-content:center;margin:20px 0;">
+  <div style="font-family:monospace;font-size:13px;line-height:2;background:#111122;padding:20px 30px;border-radius:8px;border:1px solid #222244;">
+    <div style="color:#D1A11F;">/studio/dashboard</div>
+    <div style="padding-left:20px;color:#aaa;">&boxur; Campus cards, recent activity, validation summary</div>
+    <div style="color:#D1A11F;margin-top:8px;">/studio/campuses</div>
+    <div style="padding-left:20px;color:#aaa;">&boxur; Create, list, delete campuses</div>
+    <div style="color:#D1A11F;margin-top:8px;">/studio/campuses/[campusId]/map</div>
+    <div style="padding-left:20px;color:#aaa;">&boxur; <strong style="color:#4ade80;">Campus Mode</strong> &mdash; MapLibre, boundary, buildings, paths, gates</div>
+    <div style="color:#D1A11F;margin-top:8px;">/studio/campuses/[campusId]/buildings/[buildingId]</div>
+    <div style="padding-left:20px;color:#aaa;">&boxur; <strong style="color:#60a5fa;">Building Mode</strong> &mdash; floors, metadata, 2.5D preview</div>
+    <div style="color:#D1A11F;margin-top:8px;">/studio/campuses/[campusId]/buildings/[buildingId]/floors/[floorId]</div>
+    <div style="padding-left:20px;color:#aaa;">&boxur; <strong style="color:#f472b6;">Floor Mode</strong> &mdash; Asset library, canvas, properties, graph engine</div>
+    <div style="color:#D1A11F;margin-top:8px;margin-bottom:4px;">/studio/validation &nbsp; /studio/publish &nbsp; /studio/settings</div>
+  </div>
+</div>
+
+<div class="mockup" style="max-width:100%;overflow:hidden;border-radius:8px;">
+  <div class="mockup-header" style="background:#0F5132;color:#fff;padding:8px 16px;display:flex;align-items:center;gap:8px;font-size:12px;">
+    <span style="font-weight:600;">NAVI STUDIO</span>
+    <span style="color:rgba(255,255,255,0.3);">/</span>
+    <span style="color:rgba(255,255,255,0.6);">ASU-Ibajay</span>
+    <span style="color:rgba(255,255,255,0.3);">/</span>
+    <span style="color:#D1A11F;">ICT Building</span>
+    <span style="color:rgba(255,255,255,0.3);">/</span>
+    <span style="color:rgba(255,255,255,0.6);">Ground Floor</span>
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <span style="background:rgba(255,255,255,0.1);padding:3px 10px;border-radius:3px;font-size:10px;">Validate</span>
+      <span style="background:#D1A11F;color:#0F5132;padding:3px 10px;border-radius:3px;font-size:10px;font-weight:600;">Publish</span>
+    </div>
+  </div>
+
+  <h3 style="text-align:center;margin:16px 0 8px;font-size:15px;">Three Map Canvas Pages</h3>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr);">
+    <div class="card" style="cursor:default;">
+      <div class="card-body">
+        <h4 style="color:#4ade80;">Campus Map</h4>
+        <p style="font-size:11px;">/studio/campuses/[id]/map</p>
+        <hr style="border-color:#222244;margin:8px 0;">
+        <p style="font-size:11px;">Boundary, buildings, outdoor paths, gates. MapLibre with OSM/satellite.</p>
+      </div>
+    </div>
+    <div class="card" style="cursor:default;">
+      <div class="card-body">
+        <h4 style="color:#60a5fa;">Building Config</h4>
+        <p style="font-size:11px;">/studio/campuses/[id]/buildings/[id]</p>
+        <hr style="border-color:#222244;margin:8px 0;">
+        <p style="font-size:11px;">Floor list, metadata (name, color, photo), 2.5D preview. No map canvas.</p>
+      </div>
+    </div>
+    <div class="card" style="cursor:default;">
+      <div class="card-body">
+        <h4 style="color:#f472b6;">Floor Editor</h4>
+        <p style="font-size:11px;">/studio/campuses/[id]/buildings/[id]/floors/[id]</p>
+        <hr style="border-color:#222244;margin:8px 0;">
+        <p style="font-size:11px;">Asset library, floor plan canvas, properties. Rooms, hallways, stairs, QR, panoramas.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Layout Patterns Per Page</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+    <div style="background:#131325;padding:12px;border-radius:6px;border:1px solid #222244;">
+      <div style="font-weight:600;color:#4ade80;margin-bottom:4px;">Campus Map</div>
+      <code style="font-size:10px;color:#888;">Tools | Map Canvas | Properties</code>
+    </div>
+    <div style="background:#131325;padding:12px;border-radius:6px;border:1px solid #222244;">
+      <div style="font-weight:600;color:#60a5fa;margin-bottom:4px;">Building</div>
+      <code style="font-size:10px;color:#888;">Floor List | Details + 2.5D</code>
+    </div>
+    <div style="background:#131325;padding:12px;border-radius:6px;border:1px solid #222244;">
+      <div style="font-weight:600;color:#f472b6;margin-bottom:4px;">Floor Editor</div>
+      <code style="font-size:10px;color:#888;">Asset Library | Canvas | Properties</code>
+    </div>
+    <div style="background:#131325;padding:12px;border-radius:6px;border:1px solid #222244;">
+      <div style="font-weight:600;color:#f59e0b;margin-bottom:4px;">Dashboard</div>
+      <code style="font-size:10px;color:#888;">Campus Cards | Activity | Validation</code>
+    </div>
+  </div>
+</div>
+
+<p style="text-align:center;color:#888;font-size:13px;margin-top:16px;">This route structure cleanly separates concerns. Each page has a focused purpose. Shall we dive into the Campus Map page next and detail its tools/layout?</p>

@@ -1,0 +1,252 @@
+﻿Final whole-branch review: 78a9e73..4b04bc9
+
+
+ tools/voicecode/README.md      |  30 ++++++++++
+ tools/voicecode/transcriber.py |  15 +++--
+ tools/voicecode/voicecode.py   | 121 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 161 insertions(+), 5 deletions(-)
+
+diff --git a/tools/voicecode/README.md b/tools/voicecode/README.md
+new file mode 100644
+index 0000000..f71de08
+--- /dev/null
++++ b/tools/voicecode/README.md
+@@ -0,0 +1,30 @@
++# VoiceCode ΓÇö Voice Transcriber for OpenCode
++
++Offline speech-to-text tool that types your voice into any app.
++
++## Usage
++
++1. Install: `pip install -r requirements.txt`
++2. Run: `python voicecode.py`
++3. Press `Ctrl+Shift+Space` to start/stop recording
++4. Transcribed text appears at cursor
++
++## Admin Rights
++
++The `keyboard` library needs admin privileges for global hotkeys on Windows.
++Run PowerShell/Terminal **as Administrator** before launching.
++
++If you prefer not to run as admin, the hotkey will only work when the
++terminal window is focused.
++
++## Model
++
++Uses `faster-whisper` with the `tiny.en` model (~75MB). Auto-downloaded
++on first transcription. Swap to `small.en` in `VoiceTranscriber()` for
++better accuracy (slower, ~500MB).
++
++## Files
++
++- `voicecode.py` ΓÇö Tray app entry point
++- `transcriber.py` ΓÇö Audio recording + Whisper transcription
++- `requirements.txt` ΓÇö Python dependencies
+diff --git a/tools/voicecode/transcriber.py b/tools/voicecode/transcriber.py
+index 3ee0338..81df6af 100644
+--- a/tools/voicecode/transcriber.py
++++ b/tools/voicecode/transcriber.py
+@@ -6,48 +6,52 @@ from faster_whisper import WhisperModel
+ 
+ 
+ class VoiceTranscriber:
+     """Captures mic audio and transcribes it using a local Whisper model."""
+ 
+     def __init__(self, model_size: str = "tiny.en", sample_rate: int = 16000):
+         self.model_size = model_size
+         self.sample_rate = sample_rate
+         self._model: WhisperModel | None = None
+         self._audio_frames: list[bytes] = []
++        self._lock = threading.Lock()
+         self._is_recording = False
+         self._thread: threading.Thread | None = None
+ 
+     # ΓöÇΓöÇ lazy model load ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+     @property
+     def model(self) -> WhisperModel:
+         if self._model is None:
+             self._model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+         return self._model
+ 
+     # ΓöÇΓöÇ public API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+     def start_recording(self) -> None:
+         """Begin capturing audio from the default microphone."""
+-        self._audio_frames = []
++        with self._lock:
++            self._audio_frames = []
+         self._is_recording = True
+         self._thread = threading.Thread(target=self._record_loop, daemon=True)
+         self._thread.start()
+ 
+     def stop_and_transcribe(self) -> str:
+         """Stop recording, transcribe audio, return the text."""
+         self._is_recording = False
+         if self._thread:
+             self._thread.join(timeout=5.0)
+ 
+-        if not self._audio_frames:
+-            return ""
++        with self._lock:
++            if not self._audio_frames:
++                return ""
++            frames = self._audio_frames[:]
+ 
+-        raw = np.frombuffer(b"".join(self._audio_frames), dtype=np.int16)
++        raw = np.frombuffer(b"".join(frames), dtype=np.int16)
+         audio = raw.astype(np.float32) / 32768.0
+ 
+         segments, _ = self.model.transcribe(audio, language="en")
+         return " ".join(seg.text.strip() for seg in segments).strip()
+ 
+     # ΓöÇΓöÇ internal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+     def _record_loop(self) -> None:
+         p = pyaudio.PyAudio()
+         try:
+             stream = p.open(
+@@ -55,17 +59,18 @@ class VoiceTranscriber:
+                 channels=1,
+                 rate=self.sample_rate,
+                 input=True,
+                 frames_per_buffer=1024,
+             )
+             frames_collected = 0
+             max_frames = int(30 * self.sample_rate / 1024)  # 30-second cap
+ 
+             while self._is_recording and frames_collected < max_frames:
+                 data = stream.read(1024, exception_on_overflow=False)
+-                self._audio_frames.append(data)
++                with self._lock:
++                    self._audio_frames.append(data)
+                 frames_collected += 1
+ 
+             stream.stop_stream()
+             stream.close()
+         finally:
+             p.terminate()
+diff --git a/tools/voicecode/voicecode.py b/tools/voicecode/voicecode.py
+new file mode 100644
+index 0000000..62d95d2
+--- /dev/null
++++ b/tools/voicecode/voicecode.py
+@@ -0,0 +1,121 @@
++"""Voice transcriber system-tray app for OpenCode.
++
++Press Ctrl+Shift+Space to toggle recording.
++Transcribed text is auto-typed at the cursor position.
++"""
++import sys
++import threading
++import keyboard
++import pystray
++from PIL import Image, ImageDraw
++from transcriber import VoiceTranscriber
++
++
++# ΓöÇΓöÇ icon helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++def _make_icon(color: str) -> Image.Image:
++    """16x16 microphone icon in the given colour."""
++    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
++    draw = ImageDraw.Draw(img)
++    # simple mic shape
++    draw.rectangle((5, 2, 11, 10), fill=color)          # body
++    draw.rectangle((4, 9, 12, 11), fill=color)          # base
++    draw.rectangle((6, 11, 10, 14), fill=color)          # stem
++    draw.ellipse((6, 13, 10, 15), fill=color)            # foot
++    return img
++
++
++IDLE_ICON = _make_icon("#888")
++REC_ICON = _make_icon("#e33")
++BUSY_ICON = _make_icon("#fa0")
++
++
++# ΓöÇΓöÇ app ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++class VoiceCodeApp:
++    """Tray application for voice-to-text via hotkey."""
++
++    def __init__(self):
++        self._transcriber = VoiceTranscriber()
++        self._recording = False
++        self._icon: pystray.Icon | None = None
++
++    # ΓöÇΓöÇ public ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++    def run(self) -> None:
++        """Start the tray icon and hotkey listener (blocks)."""
++        self._icon = pystray.Icon(
++            "voicecode",
++            IDLE_ICON,
++            "VoiceCode (Ctrl+Shift+Space)",
++            menu=pystray.Menu(pystray.MenuItem("Quit", self._quit)),
++        )
++        keyboard.add_hotkey("ctrl+shift+space", self._toggle, suppress=True)
++        self._icon.run()
++
++    # ΓöÇΓöÇ internal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++    def _toggle(self) -> None:
++        """Start or stop recording based on current state."""
++        if self._recording:
++            self._stop_recording()
++        else:
++            self._start_recording()
++
++    def _start_recording(self) -> None:
++        self._recording = True
++        self._update_icon(REC_ICON, "VoiceCode ΓÇö Recording...")
++        self._transcriber.start_recording()
++
++    def _stop_recording(self) -> None:
++        self._recording = False
++        self._update_icon(BUSY_ICON, "VoiceCode ΓÇö Transcribing...")
++        try:
++            text = self._transcriber.stop_and_transcribe()
++        except Exception as exc:
++            print(f"[voicecode] Transcription error: {exc}")
++            self._update_icon(IDLE_ICON, "VoiceCode ΓÇö Error (see terminal)")
++            return
++
++        if text:
++            # type text in a background thread to avoid blocking the tray
++            threading.Thread(target=self._type_text, args=(text,), daemon=True).start()
++        else:
++            self._update_icon(IDLE_ICON, "VoiceCode (Ctrl+Shift+Space)")
++
++    def _type_text(self, text: str) -> None:
++        keyboard.write(text)
++        self._update_icon(IDLE_ICON, "VoiceCode (Ctrl+Shift+Space)")
++
++    def _update_icon(self, icon_img: Image.Image, tooltip: str) -> None:
++        if self._icon:
++            self._icon.icon = icon_img
++            self._icon.title = tooltip
++
++    def _quit(self) -> None:
++        if self._recording:
++            self._transcriber.stop_and_transcribe()
++        if self._icon:
++            self._icon.stop()
++
++
++# ΓöÇΓöÇ entry point ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++
++def main() -> None:
++    app = VoiceCodeApp()
++    try:
++        app.run()
++    except PermissionError:
++        import tkinter.messagebox as mb
++        mb.showerror(
++            "VoiceCode",
++            "Global hotkey requires admin privileges.\n"
++            "Run PowerShell/Terminal as Administrator and try again.",
++        )
++    except Exception as exc:
++        print(f"[voicecode] Fatal error: {exc}")
++        raise
++
++
++if __name__ == "__main__":
++    main()

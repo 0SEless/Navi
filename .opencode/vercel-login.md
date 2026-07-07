@@ -1,0 +1,53 @@
+- generic [ref=e1]:
+  - link "Skip to content":
+    - /url: "#geist-skip-nav"
+  - alert [ref=e2]
+  - generic [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]:
+          - img [ref=e10]
+          - img [ref=e11]
+          - img [ref=e14]
+        - generic [ref=e16]:
+          - heading "Continue with Vercel" [level=1] [ref=e17]
+          - paragraph [ref=e18]: Use your Vercel account to sign in to Vercel
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - textbox "Email" [active] [ref=e22]:
+            - /placeholder: Email Address
+          - button "Continue with Email" [ref=e23] [cursor=pointer]:
+            - generic [ref=e24]: Continue with Email
+        - generic [ref=e26]:
+          - button "Continue with Google" [ref=e27] [cursor=pointer]:
+            - img [ref=e30]
+            - generic [ref=e36]:
+              - generic [ref=e37]: Continue with
+              - text: Google
+          - button "Continue with GitHub" [ref=e38] [cursor=pointer]:
+            - img [ref=e40]
+            - generic [ref=e44]:
+              - generic [ref=e45]: Continue with
+              - text: GitHub
+          - button "Continue with Apple" [ref=e46] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e51]:
+              - generic [ref=e52]: Continue with
+              - text: Apple
+          - button "Show other options" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]: Show other options
+      - paragraph [ref=e56]:
+        - text: Don't have an account?
+        - link "Sign Up" [ref=e57] [cursor=pointer]:
+          - /url: /oauth/device?user_code=CDRR-XDWL&mode=signup
+    - contentinfo [ref=e58]:
+      - generic [ref=e60]:
+        - link "Terms" [ref=e61] [cursor=pointer]:
+          - /url: /legal/terms
+        - link "Privacy Policy" [ref=e62] [cursor=pointer]:
+          - /url: /legal/privacy-policy
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - img

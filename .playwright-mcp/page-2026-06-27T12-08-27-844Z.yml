@@ -1,0 +1,25 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e26]:
+    - generic [ref=e29]:
+      - textbox "Search location & fly to..." [ref=e30]
+      - button [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+    - generic [ref=e36]: Click on the map to add boundary points
+    - generic [ref=e37]:
+      - button "Clear Points" [disabled] [ref=e38]:
+        - img [ref=e39]
+        - text: Clear Points
+      - button "Confirm & Import Buildings" [disabled] [ref=e42]:
+        - img [ref=e43]
+        - text: Confirm & Import Buildings
+    - generic [ref=e46]:
+      - region "Map" [ref=e47]
+      - group [ref=e48]:
+        - generic "Toggle attribution" [ref=e49] [cursor=pointer]
+        - generic [ref=e50]:
+          - text: © OpenStreetMap contributors |
+          - link "MapLibre" [ref=e51] [cursor=pointer]:
+            - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=e21] [cursor=pointer]:
+    - img [ref=e22]
+  - alert [ref=e25]

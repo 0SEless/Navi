@@ -1,0 +1,32 @@
+- main [ref=f2e5]:
+  - iframe [active] [ref=f2e7]:
+    - main [ref=f3e5]:
+      - generic [ref=f3e6]:
+        - generic [ref=f3e7]:
+          - link "Product name, Stitch (beta)" [ref=f3e10] [cursor=pointer]:
+            - img "Product name, Stitch (beta)" [ref=f3e11]
+          - generic [ref=f3e12]:
+            - link "Docs" [ref=f3e14] [cursor=pointer]:
+              - generic "Docs" [ref=f3e15]:
+                - img [ref=f3e17]
+                - generic [ref=f3e19]: Docs
+            - link "Discord" [ref=f3e21] [cursor=pointer]:
+              - /url: https://discord.com/invite/googlelabs
+              - generic "Discord" [ref=f3e22]:
+                - img [ref=f3e24]
+            - link "X" [ref=f3e27] [cursor=pointer]:
+              - /url: https://x.com/stitchbygoogle
+              - generic "X" [ref=f3e28]:
+                - img [ref=f3e30]
+            - button "What's New" [ref=f3e32] [cursor=pointer]:
+              - img [ref=f3e34]
+            - button [ref=f3e36] [cursor=pointer]:
+              - img [ref=f3e37]
+            - button "Sign In" [ref=f3e40] [cursor=pointer]
+        - main [ref=f3e41]:
+          - generic [ref=f3e43]:
+            - heading "404" [level=2] [ref=f3e44]
+            - heading "This page doesn't exist or isn't shared with you." [level=1] [ref=f3e45]
+            - link "Go to Homepage" [ref=f3e47] [cursor=pointer]
+        - button "Appearance" [ref=f3e50] [cursor=pointer]:
+          - img [ref=f3e52]

@@ -1,0 +1,5 @@
+[    7916ms] [LOG] [StudioWorkspace] render {mapId: map-1782480639497-sb96j, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/38chi7sedovsr.js:0
+[    7918ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 1} @ https://navi-next.vercel.app/_next/static/chunks/38chi7sedovsr.js:0
+[    7920ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/38chi7sedovsr.js:0
+[   14154ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: bldg-1782551969947-rjba2, buildingsCount: 1} @ https://navi-next.vercel.app/_next/static/chunks/38chi7sedovsr.js:0
+[   14155ms] [LOG] [MetadataPanel] render {activeBuildingId: bldg-1782551969947-rjba2, building: bldg-1782551969947-rjba2} @ https://navi-next.vercel.app/_next/static/chunks/38chi7sedovsr.js:0

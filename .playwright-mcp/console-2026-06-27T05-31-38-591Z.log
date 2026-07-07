@@ -1,0 +1,12 @@
+[  101450ms] ReferenceError: activeBuildingId is not defined
+    at N (https://navi-next.vercel.app/_next/static/chunks/0lr5yabvk4huz.js:1:17208)
+    at ay (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:63845)
+    at oJ (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:84102)
+    at iu (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:95704)
+    at sd (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:138944)
+    at https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:138789
+    at sf (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:138797)
+    at se (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:134718)
+    at s$ (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:160495)
+    at MessagePort.O (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:8660)
+[  104459ms] [WARNING] The resource https://navi-next.vercel.app/_next/static/chunks/2onuoye2b_g2z.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0

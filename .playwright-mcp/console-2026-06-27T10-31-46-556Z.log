@@ -1,0 +1,3 @@
+[    2461ms] [LOG] [StudioWorkspace] render {mapId: map-1782480639497-sb96j, editorMode: campus} @ https://navi-next.vercel.app/_next/static/chunks/34tyyp27gcaxu.js:0
+[    2464ms] [LOG] [RightPanel] render {tool: select, editorMode: campus, activeBuildingId: null, buildingsCount: 1} @ https://navi-next.vercel.app/_next/static/chunks/34tyyp27gcaxu.js:0
+[    2465ms] [LOG] [MetadataPanel] render {activeBuildingId: null, building: undefined} @ https://navi-next.vercel.app/_next/static/chunks/34tyyp27gcaxu.js:0

@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAVI Design Concepts - Selection Studio</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons (via CDN or SVG) -->
+  <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.1.0/font/lucide.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Smooth transitions */
+    .transition-all {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            asu: {
+              green: '#0F5132',
+              gold: '#D1A11F',
+              lightGreen: '#E8F5E9',
+              dark: '#082c1b',
+            },
+            linear: {
+              bg: '#121214',
+              surface: '#1c1c1f',
+              border: '#2e2e33',
+              accent: '#5e6ad2',
+              textMuted: '#8a8f98',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- Top bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="bg-asu-green text-asu-gold p-2.5 rounded-xl font-black text-xl tracking-wider shadow-inner">N</div>
+      <div>
+        <h1 class="font-extrabold text-xl text-slate-900 tracking-tight">NAVI Redesign Concept Studio</h1>
+        <p class="text-xs text-slate-500 font-medium">Select the design direction for your new BSIT multi-campus thesis platform</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
+        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+        Interactive Design Preview
+      </span>
+    </div>
+  </header>
+
+  <!-- Instructions Banner -->
+  <div class="bg-amber-50 border-b border-amber-200 px-6 py-3.5 flex items-center gap-3 text-amber-900 text-sm">
+    <svg class="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <div class="font-medium">
+      <span class="font-bold">How to view:</span> Open this file (<code class="bg-amber-100 px-1 py-0.5 rounded text-xs font-mono">preview.html</code>) directly in any web browser on your machine. You can click options to swap between design directions in real-time.
+    </div>
+  </div>
+
+  <main class="flex-1 flex flex-col lg:flex-row min-h-[calc(100vh-120px)]">
+    
+    <!-- LEFT SIDEBAR: Choices & Details -->
+    <div class="w-full lg:w-[400px] bg-white border-r border-slate-200 p-6 flex flex-col justify-between flex-shrink-0">
+      <div class="space-y-6">
+        <div>
+          <span class="text-xs font-extrabold text-asu-green uppercase tracking-widest block mb-1">Step 3: Visual Selection</span>
+          <h2 class="text-2xl font-bold text-slate-950 tracking-tight">Select Design Direction</h2>
+          <p class="text-slate-500 text-sm mt-1">We are starting over to eliminate complexity. Choose the design system that best supports your dual Canva-style Admin Editor and Seamless Student Map views.</p>
+        </div>
+
+        <!-- Tab Buttons (The Options) -->
+        <div class="space-y-3" id="options-container">
+          <!-- OPTION A -->
+          <button id="btn-option-a" onclick="switchTheme('a')" class="w-full text-left p-4 rounded-xl border-2 transition-all duration-200 border-asu-green bg-asu-lightGreen/40 ring-4 ring-asu-green/5 shadow-md">
+            <div class="flex items-start gap-3">
+              <div class="w-7 h-7 bg-asu-green text-asu-gold rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">A</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-900 text-sm">Clean & Minimal</span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-slate-900 text-white rounded">Linear Style</span>
+                </div>
+                <p class="text-slate-500 text-xs leading-relaxed">Extreme simplicity. High contrast dark sidebars with clean typography, plenty of whitespace, floating toolbar. Runs incredibly fast.</p>
+              </div>
+            </div>
+          </button>
+
+          <!-- OPTION B -->
+          <button id="btn-option-b" onclick="switchTheme('b')" class="w-full text-left p-4 rounded-xl border-2 transition-all duration-200 border-slate-200 hover:border-slate-300 hover:bg-slate-50">
+            <div class="flex items-start gap-3">
+              <div class="w-7 h-7 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">B</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-900 text-sm">Figma Studio Style</span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded">Dark Theme</span>
+                </div>
+                <p class="text-slate-500 text-xs leading-relaxed">Immersive dark editor. Fixed property panels on left and right, center visual canvas, colored tools. Looks highly professional and creative.</p>
+              </div>
+            </div>
+          </button>
+
+          <!-- OPTION C -->
+          <button id="btn-option-c" onclick="switchTheme('c')" class="w-full text-left p-4 rounded-xl border-2 transition-all duration-200 border-slate-200 hover:border-slate-300 hover:bg-slate-50">
+            <div class="flex items-start gap-3">
+              <div class="w-7 h-7 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">C</div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-900 text-sm">ASU Brand Hybrid</span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-asu-green text-asu-gold rounded">University Style</span>
+                </div>
+                <p class="text-slate-500 text-xs leading-relaxed">Beautiful light design with ASU Green and Gold accents. Balanced sidebars, structured tables, highly readable maps. Feels authoritative and formal.</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Quick Specs -->
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3 text-xs text-slate-600">
+          <div class="font-bold text-slate-900 text-sm">Selected Path Specifications:</div>
+          <div id="spec-list" class="space-y-2">
+            <div class="flex justify-between border-b border-slate-100 pb-1.5">
+              <span class="font-medium text-slate-500">Framework:</span>
+              <span class="font-bold text-slate-900">Next.js 16 (Clean Rebuild)</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-1.5">
+              <span class="font-medium text-slate-500">Data & DB:</span>
+              <span class="font-bold text-slate-900 text-asu-green">Supabase (PostgreSQL + PostGIS)</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-1.5">
+              <span class="font-medium text-slate-500">Map Rendering:</span>
+              <span class="font-bold text-slate-900">MapLibre GL JS + SVG Engine</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="font-medium text-slate-500">Multitenancy:</span>
+              <span class="font-bold text-slate-900">Path-Based (/campuses/ibajay)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer action description -->
+      <div class="pt-6 border-t border-slate-200 mt-6 text-center">
+        <p class="text-xs text-slate-400">Once you select a design in your browser, head back to your terminal and tell me your choice to proceed with spec compilation!</p>
+      </div>
+    </div>
+
+    <!-- RIGHT SECTION: Interactive Mockup Showcase -->
+    <div class="flex-1 bg-slate-100 p-6 flex flex-col gap-6">
+      
+      <!-- Preview Mode Selector -->
+      <div class="bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm flex items-center justify-between">
+        <div class="flex gap-1.5">
+          <button id="view-admin" onclick="switchView('admin')" class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-asu-green text-white shadow-sm">
+            Admin Map Editor (NAVI Studio)
+          </button>
+          <button id="view-student" onclick="switchView('student')" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all">
+            Student Map & Navigation View
+          </button>
+        </div>
+        <div class="text-xs text-slate-400 font-medium px-2">
+          Toggle views to see both sides of the application
+        </div>
+      </div>
+
+      <!-- SCREEN CONTAINER -->
+      <div class="flex-1 relative bg-white border border-slate-200 rounded-2xl shadow-md overflow-hidden flex flex-col transition-all duration-300" id="showcase-card">
+        
+        <!-- Mockup Header -->
+        <div class="bg-slate-900 text-white px-5 py-3 flex items-center justify-between border-b" id="mockup-header-bar">
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+            <span class="w-3 h-3 rounded-full bg-yellow-500 inline-block"></span>
+            <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+            <span class="text-xs font-bold font-mono ml-2 text-slate-400" id="browser-address">https://navi.asu.edu.ph/admin/studio?campus=ibajay</span>
+          </div>
+          <div class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300" id="active-theme-pill">
+            Clean & Minimal (Linear) Theme
+          </div>
+        </div>
+
+        <!-- MOCKUP CONTENT CONTAINER (DYNAMIC RENDERING) -->
+        <div class="flex-1 flex overflow-hidden relative" id="mockup-content">
+          <!-- Will be injected and managed dynamically via JavaScript below -->
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // App State
+    let currentTheme = 'a'; // 'a', 'b', 'c'
+    let currentView = 'admin'; // 'admin', 'student'
+
+    // Mock Data State for preview interactions
+    let placedComponents = [
+      { id: '1', type: 'Room', label: 'IT Office', x: 220, y: 150, w: 120, h: 80 },
+      { id: '2', type: 'Room', label: 'Computer Lab 1', x: 380, y: 150, w: 140, h: 100 },
+      { id: '3', type: 'Stair', label: 'Main Stairs', x: 140, y: 220, w: 50, h: 50 },
+      { id: '4', type: 'Restroom', label: 'Male/Female CR', x: 550, y: 150, w: 90, h: 70 },
+      { id: '5', type: 'Hallway', label: 'Main Lobby Hallway', x: 100, y: 280, w: 550, h: 40 }
+    ];
+
+    let selectedComponentId = '1';
+
+    // Node placement interaction mock helper
+    function selectComp(id) {
+      selectedComponentId = id;
+      render();
+    }
+
+    function addMockComponent(type) {
+      const id = Date.now().toString();
+      let newComp = {
+        id,
+        type,
+        label: `${type} ${placedComponents.length + 1}`,
+        x: 200 + Math.random() * 200,
+        y: 180 + Math.random() * 80,
+        w: type === 'Room' ? 100 : 50,
+        h: type === 'Room' ? 70 : 50
+      };
+      placedComponents.push(newComp);
+      selectedComponentId = id;
+      render();
+    }
+
+    function deleteSelected() {
+      placedComponents = placedComponents.filter(c => c.id !== selectedComponentId);
+      selectedComponentId = placedComponents[0]?.id || null;
+      render();
+    }
+
+    // Switch theme and update sidebar states
+    function switchTheme(theme) {
+      currentTheme = theme;
+      
+      // Update sidebar list styling
+      ['a', 'b', 'c'].forEach(t => {
+        const btn = document.getElementById(`btn-option-${t}`);
+        if (t === theme) {
+          btn.className = "w-full text-left p-4 rounded-xl border-2 transition-all duration-200 border-asu-green bg-asu-lightGreen/40 ring-4 ring-asu-green/5 shadow-md";
+          // set the index badge color
+          btn.querySelector('.w-7').className = "w-7 h-7 bg-asu-green text-asu-gold rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0";
+        } else {
+          btn.className = "w-full text-left p-4 rounded-xl border-2 transition-all duration-200 border-slate-200 hover:border-slate-300 hover:bg-slate-50";
+          btn.querySelector('.w-7').className = "w-7 h-7 bg-slate-200 text-slate-700 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0";
+        }
+      });
+
+      // Update mockup header theme pills and styling
+      const bar = document.getElementById('mockup-header-bar');
+      const pill = document.getElementById('active-theme-pill');
+      
+      if (theme === 'a') {
+        bar.className = "bg-slate-900 text-white px-5 py-3 flex items-center justify-between border-b";
+        pill.innerText = "Clean & Minimal (Linear) Theme";
+        pill.className = "text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300";
+      } else if (theme === 'b') {
+        bar.className = "bg-[#18181c] text-white px-5 py-3 flex items-center justify-between border-b border-[#2e2e33]";
+        pill.innerText = "Figma Studio Theme";
+        pill.className = "text-xs font-semibold px-2 py-0.5 rounded bg-[#2e2e33] text-indigo-400";
+      } else {
+        bar.className = "bg-asu-green text-white px-5 py-3 flex items-center justify-between border-b border-asu-dark";
+        pill.innerText = "ASU Brand Hybrid Theme";
+        pill.className = "text-xs font-semibold px-2 py-0.5 rounded bg-asu-dark text-asu-gold";
+      }
+
+      render();
+    }
+
+    // Switch viewpoint (Admin editor vs student)
+    function switchView(view) {
+      currentView = view;
+      
+      const adminBtn = document.getElementById('view-admin');
+      const studentBtn = document.getElementById('view-student');
+      const address = document.getElementById('browser-address');
+
+      if (view === 'admin') {
+        adminBtn.className = "px-4 py-2 rounded-lg text-xs font-bold transition-all bg-asu-green text-white shadow-sm";
+        studentBtn.className = "px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all";
+        address.innerText = "https://navi.asu.edu.ph/admin/studio?campus=ibajay";
+      } else {
+        studentBtn.className = "px-4 py-2 rounded-lg text-xs font-bold transition-all bg-asu-green text-white shadow-sm";
+        adminBtn.className = "px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all";
+        address.innerText = "https://navi.asu.edu.ph/map?campus=ibajay";
+      }
+
+      render();
+    }
+
+    // Main Renderer
+    function render() {
+      const container = document.getElementById('mockup-content');
+      
+      if (currentView === 'admin') {
+        renderAdminStudio(container);
+      } else {
+        renderStudentView(container);
+      }
+    }
+
+    // Render Canva-like Map Editor
+    function renderAdminStudio(container) {
+      // Background classes based on theme
+      let bgCanvas = "bg-slate-100";
+      let textClass = "text-slate-900";
+      let textMutedClass = "text-slate-500";
+      let borderClass = "border-slate-200";
+      let panelBg = "bg-white";
+      let activeIconClass = "text-asu-green bg-asu-lightGreen";
+      
+      if (currentTheme === 'a') { // Linear style
+        bgCanvas = "bg-slate-50";
+        borderClass = "border-slate-100";
+        panelBg = "bg-white";
+      } else if (currentTheme === 'b') { // Figma Style
+        bgCanvas = "bg-[#1e1e24]";
+        textClass = "text-slate-100";
+        textMutedClass = "text-slate-400";
+        borderClass = "border-[#2e2e33]";
+        panelBg = "bg-[#18181c]";
+        activeIconClass = "text-indigo-400 bg-indigo-500/10 border border-indigo-500/20";
+      } else if (currentTheme === 'c') { // ASU Brand
+        bgCanvas = "bg-slate-50";
+        borderClass = "border-slate-200";
+        panelBg = "bg-white";
+        activeIconClass = "text-white bg-asu-green";
+      }
+
+      const activeComp = placedComponents.find(c => c.id === selectedComponentId);
+
+      // Construct properties panel HTML
+      let propertiesHtml = `<div class="p-4 text-xs font-bold ${textClass} border-b ${borderClass}">Properties Panel</div>`;
+      if (activeComp) {
+        propertiesHtml += `
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Component Type</label>
+              <div class="px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-bold ${textClass}">${activeComp.type}</div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Label Name</label>
+              <input type="text" value="${activeComp.label}" oninput="updateLabel('${activeComp.id}', this.value)" class="w-full px-2 py-1.5 rounded border ${borderClass} bg-transparent text-xs font-medium ${textClass} focus:outline-none focus:ring-1 focus:ring-asu-green">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">X Coord</label>
+                <div class="px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-500">${activeComp.x.toFixed(0)}px</div>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Y Coord</label>
+                <div class="px-2 py-1.5 rounded bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-500">${activeComp.y.toFixed(0)}px</div>
+              </div>
+            </div>
+            <div class="pt-2">
+              <button onclick="deleteSelected()" class="w-full py-1.5 rounded text-xs font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all">Delete Component</button>
+            </div>
+          </div>
+        `;
+      } else {
+        propertiesHtml += `<div class="p-4 text-xs text-slate-400 text-center">Select an element on the canvas to edit its metadata.</div>`;
+      }
+
+      // Render the entire canvas SVG layout
+      let canvasSvgItems = '';
+      placedComponents.forEach(comp => {
+        const isSel = comp.id === selectedComponentId;
+        const color = comp.type === 'Room' ? '#3b82f6' : comp.type === 'Restroom' ? '#10b981' : comp.type === 'Stair' ? '#f59e0b' : '#6b7280';
+        const fillOp = isSel ? '0.2' : '0.08';
+        const strokeW = isSel ? '2.5' : '1.5';
+        const borderCol = isSel ? '#0F5132' : color;
+        
+        if (comp.type === 'Hallway') {
+          // Render line
+          canvasSvgItems += `
+            <g onclick="selectComp('${comp.id}')" class="cursor-pointer">
+              <line x1="${comp.x}" y1="${comp.y}" x2="${comp.x + comp.w}" y2="${comp.y}" stroke="${borderCol}" stroke-width="12" stroke-linecap="round" opacity="${isSel ? '0.9' : '0.4'}"/>
+              <text x="${comp.x + comp.w/2}" y="${comp.y - 12}" fill="${currentTheme==='b'?'#fff':'#000'}" font-size="10" font-weight="600" text-anchor="middle">${comp.label}</text>
+            </g>
+          `;
+        } else {
+          // Render box
+          canvasSvgItems += `
+            <g onclick="selectComp('${comp.id}')" class="cursor-pointer">
+              <rect x="${comp.x}" y="${comp.y}" width="${comp.w}" height="${comp.h}" fill="${color}" fill-opacity="${fillOp}" stroke="${borderCol}" stroke-width="${strokeW}" rx="4" />
+              <!-- Small anchor nodes inside the room for compiler demonstration -->
+              <circle cx="${comp.x + 10}" cy="${comp.y + comp.h/2}" r="3" fill="#ef4444" />
+              <circle cx="${comp.x + comp.w - 10}" cy="${comp.y + comp.h/2}" r="3" fill="#ef4444" />
+              <circle cx="${comp.x + comp.w/2}" cy="${comp.y + comp.h/2}" r="3.5" fill="#10b981" />
+              <text x="${comp.x + comp.w/2}" y="${comp.y + comp.h/2 + 4}" fill="${currentTheme==='b'?'#e2e8f0':'#1e293b'}" font-size="9" font-weight="700" text-anchor="middle">${comp.label}</text>
+            </g>
+          `;
+        }
+      });
+
+      container.innerHTML = `
+        <div class="flex-1 flex overflow-hidden ${bgCanvas}">
+          
+          <!-- Tool Palette (Figma-style floating toolbar or left-anchored) -->
+          <div class="w-16 border-r ${borderClass} ${panelBg} flex flex-col items-center py-4 gap-4 flex-shrink-0">
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block text-center mb-2">Tools</span>
+            <button onclick="addMockComponent('Room')" class="p-3 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all" title="Draw Room">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"></path></svg>
+              <span class="text-[8px] font-bold block mt-0.5">Room</span>
+            </button>
+            <button onclick="addMockComponent('Hallway')" class="p-3 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all" title="Draw Hallway">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+              <span class="text-[8px] font-bold block mt-0.5">Hallway</span>
+            </button>
+            <button onclick="addMockComponent('Stair')" class="p-3 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all" title="Place Stair Connector">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+              <span class="text-[8px] font-bold block mt-0.5">Stair</span>
+            </button>
+          </div>
+
+          <!-- Canvas Workspace -->
+          <div class="flex-1 flex flex-col overflow-hidden relative">
+            <!-- Canvas Top Info Bar -->
+            <div class="px-4 py-2 bg-white/70 dark:bg-slate-900/50 backdrop-blur border-b ${borderClass} flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-bold ${textClass}">ASU Ibajay Campus</span>
+                <span class="text-slate-400">/</span>
+                <span class="text-slate-500">SIT Building</span>
+                <span class="text-slate-400">/</span>
+                <span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold">1st Floor</span>
+              </div>
+              <div class="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>
+                Compiler Active (Realtime Graph Sync)
+              </div>
+            </div>
+
+            <!-- The Visual Canvas Grid -->
+            <div class="flex-1 overflow-auto p-4 flex items-center justify-center relative">
+              <div class="w-[800px] h-[400px] bg-white dark:bg-slate-950 border ${borderClass} rounded-xl shadow-inner relative overflow-hidden" style="background-size: 20px 20px; background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);">
+                <!-- Blueprint Layer (PNG architectural plan loaded behind) -->
+                <div class="absolute inset-0 opacity-15 select-none pointer-events-none flex items-center justify-center">
+                  <div class="text-xs uppercase font-extrabold tracking-widest text-slate-400 border-2 border-dashed border-slate-300 px-6 py-4 rounded-xl">Architectural Floor Plan Reference Background</div>
+                </div>
+
+                <!-- SVG Component Overlay -->
+                <svg class="absolute inset-0 w-full h-full" id="svg-canvas-content">
+                  ${canvasSvgItems}
+                </svg>
+              </div>
+            </div>
+
+            <!-- Compiler Log Panel -->
+            <div class="h-24 bg-slate-900 border-t ${borderClass} px-5 py-3 font-mono text-[10px] text-slate-300 flex flex-col justify-between">
+              <div class="flex items-center justify-between text-slate-500 border-b border-slate-800 pb-1 mb-1">
+                <span>COMPILER LOGS</span>
+                <span>0 errors | 0 warnings</span>
+              </div>
+              <div class="flex-1 overflow-y-auto space-y-0.5">
+                <div>[INFO] Compiler detected change in room component geometry...</div>
+                <div class="text-emerald-400">[SUCCESS] Compiled 5 components: Generated ${placedComponents.length * 3} route nodes and ${placedComponents.length * 2} connections.</div>
+                <div class="text-indigo-400">[SYNC] Successfully synced graph snapshot cache to Supabase in 24ms.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Properties panel (Right-anchored) -->
+          <div class="w-64 border-l ${borderClass} ${panelBg} flex flex-col flex-shrink-0">
+            ${propertiesHtml}
+          </div>
+
+        </div>
+      `;
+    }
+
+    // Render Student Public Navigation UI
+    function renderStudentView(container) {
+      // Style tokens
+      let searchBg = "bg-white";
+      let textClass = "text-slate-900";
+      let borderClass = "border-slate-200";
+      
+      if (currentTheme === 'b') { // Dark/Figma
+        searchBg = "bg-[#18181c]";
+        textClass = "text-slate-100";
+        borderClass = "border-[#2e2e33]";
+      }
+
+      container.innerHTML = `
+        <div class="flex-1 flex overflow-hidden bg-slate-50">
+          
+          <!-- Sidebar: Collapsible Directory & Routing -->
+          <div class="w-80 border-r ${borderClass} bg-white flex flex-col flex-shrink-0 z-10">
+            
+            <!-- Search Destination -->
+            <div class="p-4 border-b ${borderClass} space-y-3">
+              <div class="relative">
+                <input type="text" placeholder="Search rooms, offices..." class="w-full pl-9 pr-4 py-2.5 rounded-xl border ${borderClass} bg-slate-50 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-asu-green">
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              </div>
+              <div class="flex gap-2">
+                <button class="flex-1 py-2 bg-asu-green text-asu-gold rounded-lg text-xs font-bold shadow-sm">Get Route</button>
+                <button class="py-2 px-3 border ${borderClass} rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50">QR Code Scan</button>
+              </div>
+            </div>
+
+            <!-- Step by Step Instructions -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+              <div>
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">A* ROUTE GENERATED</span>
+                <h3 class="font-bold text-slate-900 text-sm mt-0.5">SIT Hallway → IT Office</h3>
+                <div class="text-xs text-slate-500 mt-0.5">Distance: 45 meters • Est. Time: 1 min</div>
+              </div>
+
+              <!-- Directions Step sequence -->
+              <div class="space-y-4 relative pl-4 border-l-2 border-slate-200">
+                <div class="relative">
+                  <div class="absolute -left-[21px] top-1 bg-asu-green text-asu-gold rounded-full w-2 h-2"></div>
+                  <div class="text-xs font-bold text-slate-900">Start: Current Location (SIT Hallway)</div>
+                  <p class="text-slate-500 text-[11px] mt-0.5">Start on the main hallway facing north.</p>
+                </div>
+                <div class="relative">
+                  <div class="absolute -left-[21px] top-1 bg-slate-400 rounded-full w-2 h-2"></div>
+                  <div class="text-xs font-bold text-slate-900">Walk 15 meters on Hallway</div>
+                  <p class="text-slate-500 text-[11px] mt-0.5">Head straight past Computer Lab 1.</p>
+                </div>
+                <div class="relative">
+                  <div class="absolute -left-[21px] top-1 bg-asu-green text-asu-gold rounded-full w-2.5 h-2.5 flex items-center justify-center font-bold text-[6px]">✔</div>
+                  <div class="text-xs font-bold text-slate-900">Destination Arrived</div>
+                  <p class="text-slate-500 text-[11px] mt-0.5">IT Office will be on your left side.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Campus/Building Switcher -->
+            <div class="p-4 border-t ${borderClass} bg-slate-50 flex items-center justify-between text-xs">
+              <span class="font-semibold text-slate-600">ASU Ibajay Campus</span>
+              <button class="text-asu-green font-bold hover:underline">Change Campus</button>
+            </div>
+          </div>
+
+          <!-- Interactive Public Map View (Canvas Overlay) -->
+          <div class="flex-1 relative flex flex-col">
+            <!-- Map Control Panels -->
+            <div class="absolute top-4 right-4 z-10 flex flex-col gap-2">
+              <button class="w-9 h-9 bg-white border ${borderClass} rounded-lg shadow-md flex items-center justify-center text-slate-600 hover:text-slate-900 font-bold">+</button>
+              <button class="w-9 h-9 bg-white border ${borderClass} rounded-lg shadow-md flex items-center justify-center text-slate-600 hover:text-slate-900 font-bold">-</button>
+              <button class="w-9 h-9 bg-white border ${borderClass} rounded-lg shadow-md flex items-center justify-center text-slate-600 hover:text-slate-900" title="Locate Me">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              </button>
+            </div>
+
+            <!-- Simulated Map Engine -->
+            <div class="flex-1 bg-slate-100 relative overflow-hidden" style="background-size: 30px 30px; background-image: radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px);">
+              
+              <!-- Clean Campus Base Layout (ASU Building Outline) -->
+              <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-white border-2 border-slate-300 rounded-3xl shadow-xl p-6 flex flex-col justify-between">
+                
+                <!-- Floor Map SVG -->
+                <svg class="absolute inset-0 w-full h-full" style="pointer-events: none;">
+                  <!-- Main Hallway Base -->
+                  <line x1="80" y1="180" x2="520" y2="180" stroke="#f1f5f9" stroke-width="32" stroke-linecap="round" />
+                  <line x1="80" y1="180" x2="520" y2="180" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 4" />
+                  
+                  <!-- Room Blocks -->
+                  <rect x="100" y="50" width="100" height="80" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2" rx="6" />
+                  <rect x="220" y="50" width="120" height="80" fill="#eff6ff" stroke="#3b82f6" stroke-width="2" rx="6" /> <!-- IT Office (Sel) -->
+                  <rect x="360" y="50" width="140" height="80" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2" rx="6" />
+                  
+                  <text x="150" y="95" fill="#64748b" font-size="11" font-weight="600" text-anchor="middle">Registrar</text>
+                  <text x="280" y="95" fill="#1d4ed8" font-size="11" font-weight="700" text-anchor="middle">IT Office</text>
+                  <text x="430" y="95" fill="#64748b" font-size="11" font-weight="600" text-anchor="middle">Computer Lab 1</text>
+                  
+                  <!-- Blue Glowing Path Route Line (The A* result) -->
+                  <path d="M 80,180 L 280,180 L 280,130" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.8" />
+                  <!-- Animated Dash Array overlay -->
+                  <path d="M 80,180 L 280,180 L 280,130" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-dasharray="10 10" stroke-dashoffset="5" opacity="0.9" />
+
+                  <!-- User Marker -->
+                  <circle cx="80" cy="180" r="8" fill="#3b82f6" stroke="#ffffff" stroke-width="2" />
+                  <circle cx="80" cy="180" r="14" fill="#3b82f6" fill-opacity="0.2" class="animate-ping" />
+
+                  <!-- Destination Target pin -->
+                  <g transform="translate(280, 110)">
+                    <circle cx="0" cy="0" r="6" fill="#ef4444" stroke="#ffffff" stroke-width="2" />
+                  </g>
+                </svg>
+
+              </div>
+
+              <!-- Zoom Map Floor Switcher -->
+              <div class="absolute bottom-4 left-4 z-10 bg-white border ${borderClass} rounded-xl shadow-md p-1.5 flex gap-1">
+                <button class="px-2.5 py-1 text-[10px] font-bold rounded-lg text-slate-500 hover:bg-slate-50">GF</button>
+                <button class="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-asu-green text-asu-gold shadow-sm">1F</button>
+                <button class="px-2.5 py-1 text-[10px] font-bold rounded-lg text-slate-500 hover:bg-slate-50">2F</button>
+                <button class="px-2.5 py-1 text-[10px] font-bold rounded-lg text-slate-500 hover:bg-slate-50">3F</button>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      `;
+    }
+
+    // Dynamic state manipulation handlers (for simulation in the browser)
+    function updateLabel(id, newLabel) {
+      const comp = placedComponents.find(c => c.id === id);
+      if (comp) {
+        comp.label = newLabel;
+        render();
+      }
+    }
+
+    // Initial load
+    render();
+  </script>
+</body>
+</html>

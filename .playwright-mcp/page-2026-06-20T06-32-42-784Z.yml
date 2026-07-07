@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Map" [ref=e3]
+    - group [ref=e4]:
+      - generic "Toggle attribution" [ref=e5] [cursor=pointer]
+      - generic [ref=e6]:
+        - link "MapLibre" [ref=e7] [cursor=pointer]:
+          - /url: https://maplibre.org/
+        - text: "|"
+        - link "OpenFreeMap" [ref=e8] [cursor=pointer]:
+          - /url: https://openfreemap.org
+        - link "© OpenMapTiles" [ref=e9] [cursor=pointer]:
+          - /url: https://www.openmaptiles.org/
+        - text: Data from
+        - link "OpenStreetMap" [ref=e10] [cursor=pointer]:
+          - /url: https://www.openstreetmap.org/copyright
+  - generic [ref=e11]:
+    - heading "NAVI Campus Map" [level=2] [ref=e12]
+    - generic [ref=e13]: ASU Ibajay · OpenFreeMap Vector
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: LAYERS
+        - button "Buildings" [ref=e17] [cursor=pointer]
+        - button "Labels" [ref=e18] [cursor=pointer]
+      - generic [ref=e19]:
+        - generic [ref=e20]: PITCH
+        - combobox [ref=e21]:
+          - option "0° (top-down)" [selected]
+          - option "35°"
+          - option "55°"
+          - option "70°"
+        - button "Reset" [ref=e22] [cursor=pointer]
+  - generic [ref=e24]: 9 buildings · OpenFreeMap vector tiles + AWS terrain

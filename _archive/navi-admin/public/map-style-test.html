@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NAVI — Campus Vector Map</title>
+  <script src="https://unpkg.com/maplibre-gl@^5.24/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@^5.24/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0A0F1E; color: #E2E8F0; overflow: hidden; height: 100vh; }
+    #map { width: 100%; height: 100vh; }
+
+    .panel {
+      position: absolute; top: 16px; left: 16px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      padding: 14px 18px;
+      z-index: 10;
+      min-width: 190px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+      color: #1E293B;
+    }
+    .panel h2 { font-size: 15px; font-weight: 700; }
+    .panel h2 span { color: #2563EB; }
+    .panel .sub { font-size: 10px; color: #64748B; margin-top: 1px; }
+
+    .ctrl-group { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+    .ctrl-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ctrl-row label { font-size: 9px; color: #64748B; font-weight: 600; letter-spacing: 0.04em; min-width: 44px; }
+
+    .toggle-btn {
+      padding: 3px 10px; border-radius: 5px;
+      border: 1px solid #D1D5DB; background: transparent;
+      color: #64748B; font-size: 10px; cursor: pointer; font-weight: 500;
+      transition: all 0.15s;
+    }
+    .toggle-btn.on { background: #2563EB; border-color: #2563EB; color: white; }
+
+    select {
+      background: white; border: 1px solid #D1D5DB; border-radius: 5px;
+      padding: 3px 6px; color: #1E293B; font-size: 10px; outline: none;
+    }
+
+    /* Popup */
+    .mapboxgl-popup-content {
+      background: white !important;
+      border: none !important;
+      border-radius: 10px !important;
+      padding: 12px 14px !important;
+      color: #1E293B !important;
+      font-size: 12px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+    }
+    .mapboxgl-popup-tip { border-top-color: white !important; }
+    .mapboxgl-popup-close-button { color: #94A3B8 !important; font-size: 16px !important; }
+    .popup-title { font-weight: 700; font-size: 14px; }
+    .popup-code { color: #64748B; font-size: 10px; margin-top: 1px; }
+
+    .info {
+      position: absolute; bottom: 24px; right: 24px;
+      font-size: 9px; color: #475569; z-index: 10; text-align: right;
+      background: rgba(255,255,255,0.9); padding: 6px 12px;
+      border-radius: 8px; border: 1px solid #E2E8F0;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="panel">
+  <h2><span>NAVI</span> Campus Map</h2>
+  <div class="sub">ASU Ibajay · OpenFreeMap Vector</div>
+  <div class="ctrl-group">
+    <div class="ctrl-row">
+      <label>LAYERS</label>
+      <button class="toggle-btn on" data-layer="buildings">Buildings</button>
+      <button class="toggle-btn on" data-layer="labels">Labels</button>
+    </div>
+    <div class="ctrl-row">
+      <label>PITCH</label>
+      <select id="pitchSelect">
+        <option value="0">0° (top-down)</option>
+        <option value="35">35°</option>
+        <option value="55">55°</option>
+        <option value="70">70°</option>
+      </select>
+      <button id="resetView" class="toggle-btn">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="info">
+  <div>9 buildings · OpenFreeMap vector tiles + AWS terrain</div>
+</div>
+
+<script>
+  // ============================================================
+  // Building data
+  // ============================================================
+  const BUILDINGS = [
+    { id: "admin", name: "Administration Building", code: "ADMIN", center: { lat: 11.81835, lng: 122.1705 }, outline: [{ lat: 11.81845, lng: 122.17038 }, { lat: 11.81825, lng: 122.17038 }, { lat: 11.81825, lng: 122.17062 }, { lat: 11.81845, lng: 122.17062 }], floors: 3, color: "#3B82F6" },
+    { id: "lib", name: "Learning Resource Center", code: "LRC", center: { lat: 11.81845, lng: 122.17105 }, outline: [{ lat: 11.81855, lng: 122.17095 }, { lat: 11.81835, lng: 122.17095 }, { lat: 11.81835, lng: 122.17115 }, { lat: 11.81855, lng: 122.17115 }], floors: 2, color: "#8B5CF6" },
+    { id: "sci", name: "Science Laboratory", code: "SCI", center: { lat: 11.81775, lng: 122.1703 }, outline: [{ lat: 11.81785, lng: 122.1702 }, { lat: 11.81765, lng: 122.1702 }, { lat: 11.81765, lng: 122.1704 }, { lat: 11.81785, lng: 122.1704 }], floors: 2, color: "#10B981" },
+    { id: "cas", name: "College of Arts & Sciences", code: "CAS", center: { lat: 11.8175, lng: 122.1705 }, outline: [{ lat: 11.8176, lng: 122.17038 }, { lat: 11.81735, lng: 122.17038 }, { lat: 11.81735, lng: 122.17062 }, { lat: 11.8176, lng: 122.17062 }], floors: 3, color: "#F59E0B" },
+    { id: "coe", name: "College of Engineering", code: "COE", center: { lat: 11.81705, lng: 122.1705 }, outline: [{ lat: 11.81715, lng: 122.17038 }, { lat: 11.8169, lng: 122.17038 }, { lat: 11.8169, lng: 122.17062 }, { lat: 11.81715, lng: 122.17062 }], floors: 3, color: "#EF4444" },
+    { id: "gym", name: "Gymnasium", code: "GYM", center: { lat: 11.8172, lng: 122.1715 }, outline: [{ lat: 11.8173, lng: 122.1714 }, { lat: 11.8171, lng: 122.1714 }, { lat: 11.8171, lng: 122.1716 }, { lat: 11.8173, lng: 122.1716 }], floors: 1, color: "#06B6D4" },
+    { id: "sc", name: "Student Center", code: "SC", center: { lat: 11.8170, lng: 122.1720 }, outline: [{ lat: 11.8171, lng: 122.1719 }, { lat: 11.8169, lng: 122.1719 }, { lat: 11.8169, lng: 122.1721 }, { lat: 11.8171, lng: 122.1721 }], floors: 2, color: "#F97316" },
+    { id: "chapel", name: "Chapel", code: "CHP", center: { lat: 11.8177, lng: 122.1715 }, outline: [{ lat: 11.8178, lng: 122.17142 }, { lat: 11.8176, lng: 122.17142 }, { lat: 11.8176, lng: 122.17158 }, { lat: 11.8178, lng: 122.17158 }], floors: 1, color: "#EC4899" },
+    { id: "tourism", name: "College of Hospitality & Tourism", code: "TOUR", center: { lat: 11.818639, lng: 122.172651 }, outline: [{ lat: 11.81872, lng: 122.17251 }, { lat: 11.81856, lng: 122.17251 }, { lat: 11.81856, lng: 122.17279 }, { lat: 11.81872, lng: 122.17279 }], floors: 2, color: "#D946EF" }
+  ];
+
+  const CAMPUS_CENTER = { lng: 122.170308, lat: 11.818074 };
+
+  function buildingGeoJSON() {
+    return {
+      type: "FeatureCollection",
+      features: BUILDINGS.map(b => ({
+        type: "Feature", id: b.id,
+        properties: { id: b.id, name: b.name, code: b.code, color: b.color, floors: b.floors },
+        geometry: { type: "Polygon", coordinates: [b.outline.map(p => [p.lng, p.lat])] }
+      }))
+    };
+  }
+
+  // ============================================================
+  // Map style — vector tiles from OpenFreeMap
+  // ============================================================
+  const STYLE = {
+    version: 8,
+    name: "NAVI Campus",
+    sources: {
+      openfreemap: {
+        type: "vector",
+        url: "https://tiles.openfreemap.org/planet"
+      },
+      terrain_source: {
+        type: "raster-dem",
+        tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        encoding: "terrarium",
+        maxzoom: 15
+      },
+      buildings: {
+        type: "geojson",
+        data: buildingGeoJSON()
+      }
+    },
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    layers: [
+      // --- BACKGROUND ---
+      { id: "background", type: "background", paint: { "background-color": "#F8F4F0" } },
+
+      // --- LANDUSE ---
+      { id: "landuse", type: "fill", source: "openfreemap", "source-layer": "landuse",
+        filter: ["match", ["get", "class"], ["residential", "education", "commercial", "industrial", "institutional", "cemetery", "construction"], true, false],
+        paint: { "fill-color": "#F2EDE9" } },
+      { id: "landuse-park", type: "fill", source: "openfreemap", "source-layer": "landuse",
+        filter: ["match", ["get", "class"], ["park", "recreation_ground", "playground", "golf_course", "stadium"], true, false],
+        paint: { "fill-color": "#E2ECD2" } },
+
+      // --- LANDCOVER ---
+      { id: "landcover-grass", type: "fill", source: "openfreemap", "source-layer": "landcover",
+        filter: ["match", ["get", "class"], ["grass", "meadow", "scrub", "heath"], true, false],
+        paint: { "fill-color": "#E2ECD2" } },
+      { id: "landcover-forest", type: "fill", source: "openfreemap", "source-layer": "landcover",
+        filter: ["match", ["get", "class"], ["forest", "wood"], true, false],
+        paint: { "fill-color": "#D4E6C4" } },
+      { id: "landcover-agriculture", type: "fill", source: "openfreemap", "source-layer": "landcover",
+        filter: ["match", ["get", "class"], ["farmland", "farm", "orchard", "vineyard"], true, false],
+        paint: { "fill-color": "#E8E8C8" } },
+      { id: "landcover-sand", type: "fill", source: "openfreemap", "source-layer": "landcover",
+        filter: ["match", ["get", "class"], ["sand", "beach", "dune"], true, false],
+        paint: { "fill-color": "#F0EDE4" } },
+
+      // --- WATER ---
+      { id: "water", type: "fill", source: "openfreemap", "source-layer": "water",
+        paint: { "fill-color": "#BCD8E3" } },
+      { id: "waterway", type: "line", source: "openfreemap", "source-layer": "waterway",
+        paint: { "line-color": "#BCD8E3", "line-width": 1.5 } },
+
+      // --- TRANSPORTATION (roads) ---
+      // Motorway casing
+      { id: "road-motorway-casing", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["motorway"], true, false],
+        paint: { "line-color": "#D4CEC9", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 4, 18, 10] } },
+      // Motorway fill
+      { id: "road-motorway", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["motorway"], true, false],
+        paint: { "line-color": "#FFFFFF", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 2, 18, 7] } },
+      // Trunk/Primary casing
+      { id: "road-trunk-casing", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["trunk", "primary"], true, false],
+        paint: { "line-color": "#D4CEC9", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 3, 18, 8] } },
+      { id: "road-trunk", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["trunk", "primary"], true, false],
+        paint: { "line-color": "#FFFFFF", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1.5, 18, 5] } },
+      // Secondary/Tertiary casing
+      { id: "road-secondary-casing", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["secondary", "tertiary"], true, false],
+        paint: { "line-color": "#D4CEC9", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 2.5, 18, 6] } },
+      { id: "road-secondary", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["secondary", "tertiary"], true, false],
+        paint: { "line-color": "#FFFFFF", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1, 18, 3.5] } },
+      // Residential casing
+      { id: "road-residential-casing", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["residential", "living_street"], true, false],
+        paint: { "line-color": "#D4CEC9", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 2, 18, 5] } },
+      { id: "road-residential", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["residential", "living_street"], true, false],
+        paint: { "line-color": "#FFFFFF", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.8, 18, 3] } },
+      // Service/Path
+      { id: "road-service", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["service", "track"], true, false],
+        paint: { "line-color": "#E0D9D3", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1.5, 18, 3] } },
+      { id: "road-path", type: "line", source: "openfreemap", "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["path", "footway", "pedestrian", "cycleway", "bridleway", "steps"], true, false],
+        paint: { "line-color": "#E0D9D3", "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1, 18, 2], "line-dasharray": [2, 2] } },
+
+      // --- BUILDINGS (from OSM vector tiles, behind our buildings) ---
+      { id: "buildings-osm", type: "fill", source: "openfreemap", "source-layer": "building",
+        minzoom: 13,
+        paint: { "fill-color": "#EBE5DF", "fill-antialias": true, "fill-opacity": 0.6 } },
+      { id: "buildings-osm-top", type: "fill", source: "openfreemap", "source-layer": "building",
+        minzoom: 13,
+        paint: { "fill-color": "#EBE5DF", "fill-translate": [0, 0], "fill-opacity": 0.9 } },
+
+      // --- OUR BUILDINGS (fill, visible from top) ---
+      { id: "buildings-fill", type: "fill", source: "buildings",
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.5 } },
+
+      // --- OUR BUILDINGS (extrusion for when pitch > 0) ---
+      { id: "buildings-extrusion", type: "fill-extrusion", source: "buildings",
+        paint: {
+          "fill-extrusion-color": ["get", "color"],
+          "fill-extrusion-height": ["*", ["get", "floors"], 3],
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.7
+        } },
+
+      // --- POI LABELS ---
+      { id: "poi-label", type: "symbol", source: "openfreemap", "source-layer": "poi",
+        minzoom: 14,
+        layout: {
+          "text-field": ["get", "name:latin"],
+          "text-size": 9,
+          "text-font": ["Noto Sans Regular"],
+          "text-max-width": 8,
+          "text-allow-overlap": false,
+          "text-offset": [0, 0.6],
+          "text-anchor": "top"
+        },
+        paint: {
+          "text-color": "#6B5E52",
+          "text-halo-color": "rgba(255,255,255,0.8)",
+          "text-halo-width": 1.5
+        } },
+
+      // --- PLACE LABELS ---
+      { id: "place-label", type: "symbol", source: "openfreemap", "source-layer": "place",
+        layout: {
+          "text-field": ["get", "name:latin"],
+          "text-size": ["match", ["get", "class"], "city", 14, "town", 12, "village", 10, 9],
+          "text-font": ["Noto Sans Bold"],
+          "text-max-width": 10,
+          "text-allow-overlap": false
+        },
+        paint: {
+          "text-color": "#3D3328",
+          "text-halo-color": "rgba(255,255,255,0.8)",
+          "text-halo-width": 2
+        } },
+
+      // --- ROAD LABELS ---
+      { id: "road-label", type: "symbol", source: "openfreemap", "source-layer": "transportation_name",
+        layout: {
+          "text-field": ["get", "name:latin"],
+          "text-size": 10,
+          "text-font": ["Noto Sans Regular"],
+          "symbol-placement": "line",
+          "symbol-spacing": 400,
+          "text-max-angle": 30
+        },
+        paint: {
+          "text-color": "#6B5E52",
+          "text-halo-color": "rgba(255,255,255,0.8)",
+          "text-halo-width": 1.5
+        } },
+
+      // --- WATER LABELS ---
+      { id: "water-label", type: "symbol", source: "openfreemap", "source-layer": "water_name",
+        layout: {
+          "text-field": ["get", "name:latin"],
+          "text-size": 11,
+          "text-font": ["Noto Sans Regular"],
+          "symbol-placement": "line",
+          "symbol-spacing": 500
+        },
+        paint: {
+          "text-color": "#6B9EB0",
+          "text-halo-color": "rgba(255,255,255,0.7)",
+          "text-halo-width": 1.5
+        } },
+
+      // --- OUR BUILDING LABELS ---
+      { id: "buildings-labels", type: "symbol", source: "buildings",
+        layout: {
+          "text-field": ["get", "code"],
+          "text-size": 11,
+          "text-font": ["Noto Sans Bold"],
+          "text-transform": "uppercase",
+          "text-allow-overlap": true
+        },
+        paint: {
+          "text-color": "#1E293B",
+          "text-halo-color": "rgba(255,255,255,0.9)",
+          "text-halo-width": 3
+        } }
+    ]
+  };
+
+  // ============================================================
+  // Map
+  // ============================================================
+  let map, popup;
+
+  function init() {
+    map = new maplibregl.Map({
+      container: "map",
+      style: STYLE,
+      center: [CAMPUS_CENTER.lng, CAMPUS_CENTER.lat],
+      zoom: 18.21,
+      pitch: 0,
+      bearing: 0,
+      antialias: true,
+      attributionControl: true,
+      maxPitch: 85
+    });
+
+    map.on("load", () => {
+      setupInteractions();
+      map.resize();
+    });
+  }
+
+  function setupInteractions() {
+    // Click building → popup
+    map.on("click", "buildings-fill", (e) => {
+      if (!e.features?.[0]) return;
+      const p = e.features[0].properties;
+      showPopup(e.lngLat,
+        `<div class="popup-title">${p.name}</div>` +
+        `<div class="popup-code">${p.code} · ${p.floors} floor${p.floors > 1 ? "s" : ""}</div>`
+      );
+    });
+    map.on("click", "buildings-extrusion", (e) => {
+      if (!e.features?.[0]) return;
+      const p = e.features[0].properties;
+      showPopup(e.lngLat,
+        `<div class="popup-title">${p.name}</div>` +
+        `<div class="popup-code">${p.code} · ${p.floors} floor${p.floors > 1 ? "s" : ""}</div>`
+      );
+    });
+
+    // Cursor
+    map.on("mouseenter", "buildings-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "buildings-fill", () => { map.getCanvas().style.cursor = ""; });
+    map.on("mouseenter", "buildings-extrusion", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "buildings-extrusion", () => { map.getCanvas().style.cursor = ""; });
+  }
+
+  function showPopup(lngLat, html) {
+    if (popup) popup.remove();
+    popup = new maplibregl.Popup({ closeButton: true, maxWidth: "220px" })
+      .setLngLat(lngLat).setHTML(html).addTo(map);
+  }
+
+  // ============================================================
+  // Controls
+  // ============================================================
+
+  // Layer toggles
+  document.querySelectorAll("[data-layer]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const layer = btn.dataset.layer;
+      const visibility = btn.classList.toggle("on") ? "visible" : "none";
+      if (layer === "buildings") {
+        ["buildings-fill", "buildings-extrusion", "buildings-osm", "buildings-osm-top"].forEach(id => {
+          try { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility); } catch {}
+        });
+      }
+      if (layer === "labels") {
+        ["buildings-labels", "poi-label", "place-label", "road-label", "water-label"].forEach(id => {
+          try { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility); } catch {}
+        });
+      }
+    });
+  });
+
+  // Pitch
+  document.getElementById("pitchSelect").addEventListener("change", (e) => {
+    map.easeTo({ pitch: parseInt(e.target.value), duration: 500 });
+  });
+
+  // Reset view
+  document.getElementById("resetView").addEventListener("click", () => {
+    map.flyTo({ center: [CAMPUS_CENTER.lng, CAMPUS_CENTER.lat], zoom: 18.21, pitch: 0, bearing: 0, duration: 1000 });
+    document.getElementById("pitchSelect").value = "0";
+  });
+
+  // Keyboard
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "r" || e.key === "R") {
+      document.getElementById("resetView").click();
+    }
+  });
+
+  // ============================================================
+  // Start
+  // ============================================================
+  init();
+</script>
+</body>
+</html>

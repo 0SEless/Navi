@@ -1,0 +1,608 @@
+[   33465ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[   33465ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[   63228ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[   63229ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[   92647ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[   92649ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  123287ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  123288ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  153096ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  153096ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  182824ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  182824ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  212793ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  212793ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  242586ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  242587ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  273030ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  273030ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  303160ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  303160ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  333192ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  333193ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  362589ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  362589ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  392579ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  392580ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  423176ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  423177ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  452770ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  452770ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  482549ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  482550ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  512961ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  512961ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  543186ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  543186ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  572804ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  572804ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  602948ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  602949ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  632978ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  632978ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  662761ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  662761ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  693273ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  693274ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  722573ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  722574ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  752542ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  752542ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  782757ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  782758ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  812547ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  812547ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  842854ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  842854ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  872269ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  872270ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  872535ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  872535ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  875500ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  875500ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  881096ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  881097ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  882872ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  882873ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  884282ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  884283ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  905395ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  905395ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  906378ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  906378ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  907395ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  907397ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  908035ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  908035ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  909098ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  909099ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  910096ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  910096ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  912604ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  912604ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  913201ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  913202ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  920896ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  920897ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  922589ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  922589ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  938377ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  938377ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  945834ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  945835ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  948192ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  948193ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  953200ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  953201ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  955985ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  955985ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  957126ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  957126ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  959637ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  959637ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  962462ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962462ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489618.png:0
+[  962465ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962465ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962465ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  962466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962466ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962466ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489619.png:0
+[  962466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489619.png:0
+[  962467ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489617.png:0
+[  962468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489618.png:0
+[  962469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489618.png:0
+[  962469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  962469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  962469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  962470ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  963746ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  963746ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  964463ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964463ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489620.png:0
+[  964463ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964466ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964466ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489619.png:0
+[  964466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964466ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964466ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489619.png:0
+[  964466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489620.png:0
+[  964467ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489617.png:0
+[  964467ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489620.png:0
+[  964467ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489620.png:0
+[  964468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489618.png:0
+[  964468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489619.png:0
+[  964468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489620.png:0
+[  964468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489618.png:0
+[  964468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489617.png:0
+[  964469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489617.png:0
+[  964469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489619.png:0
+[  964469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489617.png:0
+[  964469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  964469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  964470ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489620.png:0
+[  964470ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  965091ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  965093ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  967576ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  967576ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  969239ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  969239ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  971846ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  971848ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  972558ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  972558ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  973832ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  973833ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  975100ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  975100ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  975622ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  975623ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  975952ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  975952ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  980951ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[  980952ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[  986465ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986465ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489618.png:0
+[  986466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986467ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986467ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489618.png:0
+[  986467ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489619.png:0
+[  986468ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986468ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986468ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489619.png:0
+[  986469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986469ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489617.png:0
+[  986469ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986470ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986470ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489618.png:0
+[  986470ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986470ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986470ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489619.png:0
+[  986471ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  986471ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  986471ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489617.png:0
+[  986471ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988466ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988466ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489618.png:0
+[  988466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988471ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988471ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489619.png:0
+[  988471ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988471ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988471ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489617.png:0
+[  988472ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988472ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988472ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489620.png:0
+[  988472ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988472ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988472ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489620.png:0
+[  988473ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988473ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988473ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489616.png:0
+[  988473ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988473ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988473ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489620.png:0
+[  988474ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988474ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988474ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489616.png:0
+[  988474ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988474ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988474ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489618.png:0
+[  988475ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988475ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988475ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489619.png:0
+[  988475ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988475ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988475ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489616.png:0
+[  988476ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988476ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988476ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489618.png:0
+[  988476ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988476ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988476ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489617.png:0
+[  988477ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489620.png:0
+[  988477ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489617.png:0
+[  988478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  988478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  988478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489616.png:0
+[  988478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990465ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990466ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489619.png:0
+[  990466ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990470ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880134/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990470ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880134/489621.png:0
+[  990471ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990471ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880135/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990471ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880135/489621.png:0
+[  990472ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990472ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990472ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489617.png:0
+[  990472ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990472ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990472ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489620.png:0
+[  990473ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990473ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990473ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489620.png:0
+[  990473ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990473ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990473ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489616.png:0
+[  990474ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990474ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880136/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990474ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880136/489621.png:0
+[  990474ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990475ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880133/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990475ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880133/489621.png:0
+[  990475ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990475ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990475ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489618.png:0
+[  990475ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990476ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990476ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489616.png:0
+[  990476ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990476ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990476ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489619.png:0
+[  990476ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489617.png:0
+[  990477ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880132/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880132/489621.png:0
+[  990477ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489619.png:0
+[  990478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  990478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  990478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489618.png:0
+[  990478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992473ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992473ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489617.png:0
+[  992474ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489620.png:0
+[  992477ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992477ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880137/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992477ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880137/489621.png:0
+[  992478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489616.png:0
+[  992478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489620.png:0
+[  992478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489618.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489618.png:0
+[  992478ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489618.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992478ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992478ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489621.png:0
+[  992479ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992479ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489619.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992479ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489619.png:0
+[  992479ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489619.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992479ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489617.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992479ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489617.png:0
+[  992479ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489617.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992479ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489620.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992479ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489620.png:0
+[  992479ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489620.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992479ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992479ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489616.png:0
+[  992480ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992480ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489616.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992480ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489616.png:0
+[  992480ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489616.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992480ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880138/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992480ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880138/489621.png:0
+[  992480ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[  992480ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489621.png' from origin 'https://navi-next.vercel.app' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://navi-next.vercel.app/studio/map-1782480639497-sb96j/edit:0
+[  992480ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489621.png:0
+[  992480ms] [ERROR] eZ: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489621.png
+    at https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:10566
+    at Generator.throw (<anonymous>)
+    at l (https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:1:673) @ https://navi-next.vercel.app/_next/static/chunks/261cq39jf3lqt.js:0
+[ 1014355ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1014355ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1043850ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1043850ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1074560ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1074560ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1103919ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1103919ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1134141ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1134141ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1163658ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1163658ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1194003ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1194003ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0
+[ 1224593ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://navi-next.vercel.app/api/graph:0
+[ 1224594ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ https://navi-next.vercel.app/_next/static/chunks/0btti7a1e02sl.js:0

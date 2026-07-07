@@ -1,0 +1,205 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "~/.config/opencode/node_modules/superpowers",
+    ".opencode/plugins/graphify.js"
+  ],
+  "default_agent": "supervisor",
+  "agent": {
+    "supervisor": {
+      "description": "Project manager that coordinates all specialized agents, breaks down tasks, reviews outputs, and manages NAVI project progress.",
+      "mode": "primary",
+      "permission": {
+        "edit": "ask",
+        "bash": "ask",
+        "task": "allow",
+        "question": "allow",
+        "webfetch": "allow",
+        "websearch": "allow"
+      },
+      "prompt": "You are the Supervisor Agent for the NAVI multi-campus navigation platform. Your job is to understand the user's request, break it down into tasks, and delegate to specialized subagents using the `task` tool. Available agents: memory-agent, research-agent, architect-agent, qa-agent, documentation-agent, mentor-agent. Always ask for human approval before making major changes. Review outputs from subagents before accepting them."
+    },
+    "memory-agent": {
+      "description": "Records decisions, tracks completed tasks, maintains project history in the Obsidian vault.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "research-agent": {
+      "description": "Investigates frameworks, libraries, APIs, and industry best practices.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow",
+        "webfetch": "allow",
+        "websearch": "allow"
+      }
+    },
+    "architect-agent": {
+      "description": "Designs software architecture, database schemas, APIs, and system workflows.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "qa-agent": {
+      "description": "Performs code review, creates tests, detects bugs, and verifies requirements.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow"
+      }
+    },
+    "documentation-agent": {
+      "description": "Writes technical documentation, API docs, READMEs, and user manuals.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "ask"
+      }
+    },
+    "mentor-agent": {
+      "description": "Explains concepts, tradeoffs, and best practices for learning and skill development.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    }
+  },
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp"
+      ],
+      "enabled": true,
+      "description": "Browser automation for end-to-end testing of NAVI web interfaces"
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.github.com/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_TOKEN}",
+        "User-Agent": "opencode-navi"
+      },
+      "description": "GitHub integration for issue tracking, PR review, and repository management"
+    },
+    "filesystem": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ],
+      "enabled": true,
+      "description": "Sandboxed filesystem access for reading/writing project files"
+    },
+    "supabase": {
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=oltfaepqcktrumfhadzb",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:SUPABASE_ACCESS_TOKEN}"
+      },
+      "description": "Supabase database management — list tables, run SQL, manage migrations"
+    },
+    "cloudinary-asset-mgmt": {
+      "type": "remote",
+      "url": "https://asset-management.mcp.cloudinary.com/mcp",
+      "enabled": true,
+      "description": "Cloudinary asset management — upload, search, delete, transform images",
+      "headers": {
+        "cloudinary-url": "cloudinary://{env:CLOUDINARY_API_KEY}:{env:CLOUDINARY_API_SECRET}@{env:NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}"
+      }
+    },
+    "cloudinary-env-config": {
+      "type": "remote",
+      "url": "https://environment-config.mcp.cloudinary.com/mcp",
+      "enabled": true,
+      "description": "Cloudinary environment configuration — upload presets, transformations, webhooks",
+      "headers": {
+        "cloudinary-cloud-name": "{env:NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}",
+        "cloudinary-api-key": "{env:CLOUDINARY_API_KEY}",
+        "cloudinary-api-secret": "{env:CLOUDINARY_API_SECRET}"
+      }
+    },
+    "cloudinary-smd": {
+      "type": "remote",
+      "url": "https://structured-metadata.mcp.cloudinary.com/mcp",
+      "enabled": true,
+      "description": "Cloudinary structured metadata — define and manage metadata fields",
+      "headers": {
+        "cloudinary-url": "cloudinary://{env:CLOUDINARY_API_KEY}:{env:CLOUDINARY_API_SECRET}@{env:NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}"
+      }
+    }
+  },
+  "command": {
+    "back-up": {
+      "description": "Show available custom skills and pick one",
+      "template": "You are demonstrating available custom skills. List the defined commands and agents, explain what each does, and help the user choose the right one for their current task."
+    },
+    "guide": {
+      "description": "Recommends first with reasoning, then asks — for any decision",
+      "template": "You are a technical advisor. Analyze the user's situation, recommend the best approach with clear reasoning, then ask for confirmation before proceeding. Cover trade-offs and alternatives when relevant."
+    },
+    "plan": {
+      "description": "Full system design: domain model, structure, validate, trim",
+      "template": "You are a system architect. Produce a full design covering domain model, module structure, data flow, and API surface. Validate the design against requirements, then trim scope to the minimal viable version. Output a structured plan."
+    },
+    "build": {
+      "description": "Prototype, test, simplify — implement features",
+      "template": "You are a feature developer. Build a working prototype first, write tests to validate it, then simplify the implementation. Prioritize correctness and readability over premature optimization."
+    },
+    "fix": {
+      "description": "Diagnose, fix, audit — debug and security check",
+      "template": "You are a debugger and security auditor. Diagnose the reported issue, implement the fix, then audit the surrounding code for related bugs or security concerns. Explain the root cause and the applied fix."
+    },
+    "design": {
+      "description": "Flutter UI/UX: design system, styling, accessibility",
+      "template": "You are a Flutter UI/UX specialist. Focus on design system consistency, proper widget composition, styling with Theme, and accessibility (semantics, contrast, touch targets). Provide code snippets and explain design decisions."
+    },
+    "vet": {
+      "description": "Reality check — is your idea feasible?",
+      "template": "You are a feasibility analyst. Evaluate the user's idea against technical constraints, existing codebase, dependencies, timeline, and team capability. Be honest about risks and blockers. If feasible, suggest a path forward; if not, explain why."
+    },
+    "research": {
+      "description": "Look up docs, libraries, patterns on-the-fly",
+      "template": "You are a research agent. Use web search and documentation to find up-to-date information on the topic. Summarize findings, cite sources, and recommend the best option with rationale."
+    },
+    "dev-team": {
+      "description": "Full AI dev team — PM, Architect, Dev, QA, DevOps, Docs with project vault",
+      "template": "You are a full AI development team. Break the work into phases: requirements (PM), design (Architect), implementation (Dev), testing (QA), deployment (DevOps), and documentation (Docs). Coordinate using the task tool. Use the project vault for decisions and references."
+    }
+  },
+  "references": {
+    "decisions": {
+      "path": "05 Decisions",
+      "description": "Architecture Decision Records — use for understanding past design choices and project conventions"
+    },
+    "engineering": {
+      "path": "02 Engineering",
+      "description": "Engineering docs — use for system architecture, database design, and API specs"
+    },
+    "templates": {
+      "path": "08 Templates",
+      "description": "Project templates for ADRs, features, and implementation plans"
+    }
+  },
+  "permission": {
+    "read": {
+      "C:/Users/Administrator/Desktop/CODEme/Navi/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "C:/Users/Administrator/Desktop/CODEme/Navi/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}

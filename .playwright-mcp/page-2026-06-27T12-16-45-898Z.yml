@@ -1,0 +1,32 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e29]:
+      - textbox "Search location & fly to..." [active] [ref=e30]: Ibajay, Aklan
+      - button [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+    - generic [ref=e51]:
+      - button "Ibajay, Aklan, Western Visayas, Philippines" [ref=e52] [cursor=pointer]:
+        - img [ref=e53]
+        - generic [ref=e56]: Ibajay, Aklan, Western Visayas, Philippines
+      - button "Ibajay, Aklan, Western Visayas, Philippines" [ref=e57] [cursor=pointer]:
+        - img [ref=e58]
+        - generic [ref=e61]: Ibajay, Aklan, Western Visayas, Philippines
+    - generic [ref=e36]: Click on the map to add boundary points
+    - generic [ref=e37]:
+      - button "Clear Points" [disabled] [ref=e38]:
+        - img [ref=e39]
+        - text: Clear Points
+      - button "Confirm & Import Buildings" [disabled] [ref=e42]:
+        - img [ref=e43]
+        - text: Confirm & Import Buildings
+    - generic [ref=e16]:
+      - region "Map" [ref=e46]
+      - group [ref=e47]:
+        - generic "Toggle attribution" [ref=e48] [cursor=pointer]
+        - generic [ref=e49]:
+          - text: © OpenStreetMap contributors |
+          - link "MapLibre" [ref=e50] [cursor=pointer]:
+            - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]:
+    - img [ref=e23]
+  - alert [ref=e26]

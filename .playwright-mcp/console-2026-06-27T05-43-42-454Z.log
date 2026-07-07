@@ -1,0 +1,11 @@
+[     866ms] Error: Minified React error #185; visit https://react.dev/errors/185 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rh (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42845)
+    at rp (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:42417)
+    at aU (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68599)
+    at aF (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:68425)
+    at iv (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:102969)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127008)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)
+    at ud (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:126670)
+    at up (https://navi-next.vercel.app/_next/static/chunks/2nykiepra7i1k.js:1:127053)

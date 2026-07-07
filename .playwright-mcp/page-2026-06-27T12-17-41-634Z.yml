@@ -1,0 +1,31 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - img [ref=e66]
+        - strong [ref=e70]: "20"
+        - text: buildings imported
+      - generic [ref=e71]: "|"
+      - button "Visible" [ref=e72] [cursor=pointer]:
+        - img [ref=e73]
+        - text: Visible
+      - generic [ref=e76]: "|"
+      - button "Start Over" [ref=e77] [cursor=pointer]
+    - generic [ref=e79]:
+      - img [ref=e80]
+      - text: Campus map "Test Campus" created with 20 buildings
+      - generic [ref=e82]: "— ID: map-1782562653455-8hali"
+    - generic [ref=e84]:
+      - img [ref=e85]
+      - text: Imported 20 buildings from OSM
+    - generic [ref=e16]:
+      - region "Map" [ref=e46]
+      - group [ref=e47]:
+        - generic "Toggle attribution" [ref=e48] [cursor=pointer]
+        - generic [ref=e49]:
+          - text: © OpenStreetMap contributors |
+          - link "MapLibre" [ref=e50] [cursor=pointer]:
+            - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]:
+    - img [ref=e23]
+  - alert [ref=e26]

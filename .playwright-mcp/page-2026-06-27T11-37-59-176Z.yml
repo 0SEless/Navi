@@ -1,0 +1,32 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "OSM Building Import — Sandbox" [level=1] [ref=e3]
+    - paragraph [ref=e4]:
+      - text: Query Overpass API for building footprints around a center point. Parsed buildings match the app's
+      - code [ref=e5]: Building
+      - text: type.
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - text: Center Lat
+        - textbox "Center Lat" [ref=e8]: "11.8195"
+      - generic [ref=e9]:
+        - text: Center Lng
+        - textbox "Center Lng" [ref=e10]: "122.0922"
+      - generic [ref=e11]:
+        - text: Radius (degrees)
+        - textbox "Radius (degrees)" [ref=e12]: "0.008"
+      - button "Fetch from OSM" [ref=e13] [cursor=pointer]
+    - generic [ref=e32]:
+      - strong [ref=e33]: "Error:"
+      - text: Overpass returned 406
+    - generic [ref=e14]:
+      - strong [ref=e15]: "⚠ Edge cases to test:"
+      - list [ref=e16]:
+        - listitem [ref=e17]: Empty area (ocean) → 0 buildings
+        - listitem [ref=e18]: Very dense area (CBD) → many buildings, check response time
+        - listitem [ref=e19]: Building with hole (courtyard) → geometry may self-intersect
+        - listitem [ref=e20]: Missing tags → all fallbacks should work
+        - listitem [ref=e21]: Very large radius → Overpass timeout (25s)
+  - button "Open Next.js Dev Tools" [ref=e27] [cursor=pointer]:
+    - img [ref=e28]
+  - alert [ref=e31]
