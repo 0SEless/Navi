@@ -2,10 +2,12 @@ export { RuntimeEngine, DataAPI, SearchAPI, RoutingAPI, PositionAPI, NotImplemen
 export { ArtifactLoader, LoadError } from './loader'
 export { SearchEngine } from './search'
 export { RoutingEngine, AStar } from './routing'
+export { PositionEngine, GpsResolver } from './position'
 export type { RuntimeSnapshot } from './types'
 export type { LoaderOptions } from './loader'
 export type { SearchResult, SearchConfig } from './search'
 export type { Route, RouteStep, Instruction, InstructionType } from './routing'
+export type { CurrentPosition } from './position'
 export type {
   NavigationGraph,
   SearchIndex,

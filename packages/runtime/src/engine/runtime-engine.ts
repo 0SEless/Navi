@@ -6,6 +6,7 @@ import { RoutingAPI } from './routing-api'
 import { PositionAPI } from './position-api'
 import { SearchEngine } from '../search/search-engine'
 import { RoutingEngine } from '../routing/routing-engine'
+import { PositionEngine } from '../position/position-engine'
 
 export class RuntimeEngine {
   readonly data: DataAPI
@@ -20,6 +21,7 @@ export class RuntimeEngine {
     this.routing = new RoutingAPI()
     this.routing.setEngine(new RoutingEngine(snapshot.graph))
     this.position = new PositionAPI()
+    this.position.setEngine(new PositionEngine(snapshot.graph.nodes))
   }
 
   static async create(loader: ArtifactLoader): Promise<RuntimeEngine> {
