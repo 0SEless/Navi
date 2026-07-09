@@ -1,4 +1,4 @@
-import { NotImplementedError } from './search-api'
+import { NotImplementedError } from './errors'
 
 export class PositionAPI {
   getCurrentFloor(): never {

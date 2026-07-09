@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { RuntimeEngine } from '../runtime-engine'
 import { ArtifactLoader } from '../../loader/artifact-loader'
 import { LoadError } from '../../loader/types'
-import { NotImplementedError } from '../search-api'
+import { NotImplementedError } from '../errors'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
@@ -40,7 +40,6 @@ describe('RuntimeEngine', () => {
   it('future APIs throw NotImplementedError', async () => {
     const loader = new ArtifactLoader({ baseUrl, fetch })
     const engine = await RuntimeEngine.create(loader)
-    expect(() => engine.search.query('test')).toThrow(NotImplementedError)
     expect(() => engine.routing.findRoute('a', 'b')).toThrow(NotImplementedError)
     expect(() => engine.position.getCurrentFloor()).toThrow(NotImplementedError)
   })

@@ -1,12 +1,14 @@
-export class NotImplementedError extends Error {
-  constructor(method: string) {
-    super(`${method} is not implemented yet`)
-    this.name = 'NotImplementedError'
-  }
-}
+import { SearchEngine, type SearchResult, type SearchConfig } from '../search/search-engine'
 
 export class SearchAPI {
-  query(_text: string): never {
-    throw new NotImplementedError('SearchAPI.query')
+  private engine: SearchEngine | null = null
+
+  setEngine(engine: SearchEngine): void {
+    this.engine = engine
+  }
+
+  query(text: string, config?: SearchConfig): SearchResult[] {
+    if (!this.engine) throw new Error('SearchEngine not initialized')
+    return this.engine.query(text, config)
   }
 }
