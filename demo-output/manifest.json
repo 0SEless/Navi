@@ -1,13 +1,13 @@
 {
   "projectId": "ASU-Ibajay Campus",
   "campusId": "ASU-Ibajay Campus",
-  "publishedAt": "2026-07-09T06:02:31.314Z",
+  "publishedAt": "2026-07-09T06:27:40.638Z",
   "schemaVersion": 1,
   "compilerVersion": "0.1.0",
   "artifacts": {
     "navigationGraph": {
       "filename": "navigation.graph.json",
-      "checksum": "7e8290275228d7aed0d3744e57a1da26388c0a460a0ae3b76b9892b7c64a066f",
+      "checksum": "04cde54af08fd5e38b2d2ec7a7fe526cea3f6f82753c997e21bebe6c3cc012ba",
       "size": 23326
     },
     "searchIndex": {

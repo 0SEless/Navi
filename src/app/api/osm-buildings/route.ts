@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const lat = parseFloat(searchParams.get('lat') || '11.8195')
   const lng = parseFloat(searchParams.get('lng') || '122.0922')
-  const radius = parseFloat(searchParams.get('radius') || '0.01')
+  const radius = parseFloat(searchParams.get('radius') || '0.02')
 
   const bbox = `${lat - radius},${lng - radius},${lat + radius},${lng + radius}`
   const query = `[out:json][timeout:25];

@@ -60,7 +60,9 @@ export async function POST(request: NextRequest) {
     const supabase = await getClient("secret");
     const body = await request.json();
 
-    const { data: result, error: rpcError } = await supabase.rpc("sync_campus_map", body as never);
+    // RPC expects a single `payload` parameter — normalize caller-friendly formats
+    const rpcArgs = body.payload ? body : { payload: body };
+    const { data: result, error: rpcError } = await supabase.rpc("sync_campus_map", rpcArgs as never);
 
     if (rpcError) {
       return NextResponse.json({ error: rpcError.message }, { status: 500 });
