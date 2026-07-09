@@ -1,17 +1,12 @@
 import type { CampusDocument } from '@navi/core'
 import type { CompilerConfig, CompileResult } from '../types'
-import { ExtractionCoordinator } from '../extractors/coordinator'
-import type { ExtractionContext } from '../extractors/types'
+import { directExtract } from '../extractors/direct-extract'
 import { buildGraph, buildSearchIndex } from '../artifacts'
+import { createHash } from 'crypto'
 
 export function compile(document: CampusDocument, config: CompilerConfig): CompileResult {
   const start = performance.now()
-  const coordinator = new ExtractionCoordinator()
-  const campusId = document.metadata.name
-  const context: ExtractionContext = { campusId, campusDocument: document, projectId: '' }
-  const extraction = coordinator.extractAll(document, context)
-
-  // Build graph from extraction results
+  const extraction = directExtract(document)
   const graph = buildGraph(document, extraction)
 
   // Count buildings/floors from the campus document
@@ -24,7 +19,7 @@ export function compile(document: CampusDocument, config: CompilerConfig): Compi
   return {
     graph: {
       ...graph,
-      checksum: require('crypto').createHash('sha256').update(JSON.stringify(graph)).digest('hex'),
+      checksum: createHash('sha256').update(JSON.stringify(graph)).digest('hex'),
       metadata: {
         ...graph.metadata,
         buildings: bldSet.size,
@@ -42,5 +37,6 @@ export function compile(document: CampusDocument, config: CompilerConfig): Compi
       validation: [],
     },
     duration: performance.now() - start,
+    extraction,
   }
 }

@@ -3,7 +3,7 @@ import { join } from 'path'
 import { createHash } from 'crypto'
 import type { CampusDocument } from '@navi/core'
 import type { CompileResult, PublishedManifest } from '../types'
-import type { ArtifactSet } from '../artifacts'
+import { generateArtifacts } from '../artifacts'
 
 function sha256(data: string): string {
   return createHash('sha256').update(data).digest('hex')
@@ -19,15 +19,9 @@ export function publish(campus: CampusDocument, result: CompileResult, options: 
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true })
 
-  const artifacts: ArtifactSet = {
-    navigationGraph: result.graph,
-    searchIndex: { version: '1.0.0', entries: [] },
-    poiData: { version: '1.0.0', points: result.graph.nodes.map(n => ({
-      id: `poi-${n.id}`, label: n.label, category: n.type,
-      position: n.position, buildingId: n.buildingId, floor: n.floor, nodeId: n.id, properties: n.properties,
-    }))},
-    buildingIndex: { version: '1.0.0', buildings: [] },
-  }
+  // Build complete artifact set from campus doc + extraction data
+  const extraction = result.extraction ?? { spaces: [], transitions: [], corridors: [], duration: 0 }
+  const artifacts = generateArtifacts(campus, extraction)
 
   // Write files first, then compute checksums from actual content
   const files: Record<string, string> = {

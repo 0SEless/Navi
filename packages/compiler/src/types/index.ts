@@ -68,6 +68,7 @@ export interface CompileResult {
   graph: NavigationGraph
   report: CompileReport
   duration: number
+  extraction?: ExtractionResult
 }
 
 export type NavigationSpaceType = 'room' | 'lobby' | 'hallway' | 'stairwell' | 'elevator_shaft' | 'outdoor'

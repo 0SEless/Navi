@@ -16,6 +16,7 @@
     "stress": "npx tsx scripts/stress-test.ts",
     "publish": "npx tsx scripts/publish.ts",
     "validate": "npx tsx scripts/validate-release.ts",
+    "demo": "npx tsx scripts/demo-run.ts",
     "test:core": "cd packages/core && npx vitest run"
   },
   "dependencies": {

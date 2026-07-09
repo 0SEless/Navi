@@ -62,6 +62,50 @@ export function buildGraph(campus: CampusDocument, extraction: ExtractionResult)
     }
   }
 
+  // Connect rooms to nearest entrance on same building/floor + nearby rooms
+  const spaceNodes = nodes.filter(n => n.type === 'space')
+  const entranceNodes = nodes.filter(n => n.type === 'transition')
+  const corridorNodes = nodes.filter(n => n.type === 'corridor')
+  const seenConnections = new Set<string>()
+  const edgeKey = (a: string, b: string) => a < b ? `${a}--${b}` : `${b}--${a}`
+
+  for (const sn of spaceNodes) {
+    const sameBuildingFloor = entranceNodes.filter(en => en.buildingId === sn.buildingId && en.floor === sn.floor)
+    let bestDist = Infinity
+    let bestNode: NavNode | null = null
+    for (const en of sameBuildingFloor) {
+      const d = haversine(sn.position, en.position)
+      if (d < bestDist) { bestDist = d; bestNode = en }
+    }
+    if (bestNode && !seenConnections.has(edgeKey(sn.id, bestNode.id))) {
+      seenConnections.add(edgeKey(sn.id, bestNode.id))
+      edges.push({ id: `edge-${edgeIdx++}`, from: sn.id, to: bestNode.id, type: 'walk', distance: bestDist, weight: bestDist })
+    }
+    // Connect nearby rooms on same floor
+    for (const sn2 of spaceNodes) {
+      if (sn2.id >= sn.id) continue
+      if (sn2.buildingId !== sn.buildingId || sn2.floor !== sn.floor) continue
+      const d2 = haversine(sn.position, sn2.position)
+      if (d2 < 50 && d2 > 0 && !seenConnections.has(edgeKey(sn.id, sn2.id))) {
+        seenConnections.add(edgeKey(sn.id, sn2.id))
+        edges.push({ id: `edge-${edgeIdx++}`, from: sn.id, to: sn2.id, type: 'walk', distance: d2, weight: d2 })
+      }
+    }
+  }
+
+  // Connect entrances to nearest corridor endpoints
+  for (const en of entranceNodes) {
+    let bestDist = Infinity
+    let bestNode: NavNode | null = null
+    for (const cn of corridorNodes) {
+      const d = haversine(en.position, cn.position)
+      if (d < bestDist) { bestDist = d; bestNode = cn }
+    }
+    if (bestNode && bestDist < 200) {
+      edges.push({ id: `edge-${edgeIdx++}`, from: en.id, to: bestNode.id, type: 'walk', distance: bestDist, weight: bestDist })
+    }
+  }
+
   // Bounding box
   const bbox: BoundingBox = nodes.length > 0
     ? nodes.reduce((bb, n) => ({
