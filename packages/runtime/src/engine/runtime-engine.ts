@@ -5,6 +5,7 @@ import { SearchAPI } from './search-api'
 import { RoutingAPI } from './routing-api'
 import { PositionAPI } from './position-api'
 import { SearchEngine } from '../search/search-engine'
+import { RoutingEngine } from '../routing/routing-engine'
 
 export class RuntimeEngine {
   readonly data: DataAPI
@@ -17,6 +18,7 @@ export class RuntimeEngine {
     this.search = new SearchAPI()
     this.search.setEngine(new SearchEngine(snapshot.searchIndex))
     this.routing = new RoutingAPI()
+    this.routing.setEngine(new RoutingEngine(snapshot.graph))
     this.position = new PositionAPI()
   }
 

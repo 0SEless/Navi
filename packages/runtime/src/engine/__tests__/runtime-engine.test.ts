@@ -40,7 +40,6 @@ describe('RuntimeEngine', () => {
   it('future APIs throw NotImplementedError', async () => {
     const loader = new ArtifactLoader({ baseUrl, fetch })
     const engine = await RuntimeEngine.create(loader)
-    expect(() => engine.routing.findRoute('a', 'b')).toThrow(NotImplementedError)
     expect(() => engine.position.getCurrentFloor()).toThrow(NotImplementedError)
   })
 

@@ -1,7 +1,15 @@
-import { NotImplementedError } from './errors'
+import { RoutingEngine } from '../routing/routing-engine'
+import type { Route } from '../routing/route'
 
 export class RoutingAPI {
-  findRoute(_from: string, _to: string): never {
-    throw new NotImplementedError('RoutingAPI.findRoute')
+  private engine: RoutingEngine | null = null
+
+  setEngine(engine: RoutingEngine): void {
+    this.engine = engine
+  }
+
+  findRoute(fromId: string, toId: string): Route | null {
+    if (!this.engine) throw new Error('RoutingEngine not initialized')
+    return this.engine.findRoute(fromId, toId)
   }
 }
