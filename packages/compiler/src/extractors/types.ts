@@ -10,7 +10,7 @@ export interface ExtractionContext {
 export interface CompileContext {
   campusId: string
   projectId: string
-  options: import('../types').CompileOptions
+  config: import('../types').CompilerConfig
 }
 
 export interface Extractor<TInput, TOutput> {

@@ -1,0 +1,201 @@
+import { describe, it, expect } from 'vitest'
+import type { CampusDocument, Building, Floor, Entrance, Road, Panorama, QRCheckpoint } from '@navi/core'
+import { Graph } from '@/engine/graph'
+import { GraphAdapter } from './graph-adapter'
+
+function createTestDocument(extraBuilding?: Building): CampusDocument {
+  const buildings: Building[] = [
+    {
+      id: 'bld-1',
+      name: 'Test Building',
+      code: 'TB',
+      category: 'academic',
+      description: '',
+      footprint: {
+        points: [
+          { lat: 33.42, lng: -111.93 },
+          { lat: 33.421, lng: -111.93 },
+          { lat: 33.421, lng: -111.929 },
+          { lat: 33.42, lng: -111.929 },
+          { lat: 33.42, lng: -111.93 },
+        ],
+      },
+      baseElevation: 0,
+      height: 20,
+      floors: [
+        {
+          id: 'flr-0',
+          level: 0,
+          label: 'Ground',
+          elevation: 0,
+          rooms: [],
+          hallways: [],
+          staircases: [],
+          elevators: [],
+          entrances: [
+            {
+              id: 'ent-1',
+              label: 'Main Entrance',
+              position: { lat: 33.4205, lng: -111.9295 },
+              level: 0,
+              type: 'main',
+              hasQR: true,
+              hasPanorama: true,
+            },
+          ],
+          metadata: {},
+        },
+      ],
+      aliases: [],
+      color: '#ff0000',
+      metadata: {},
+    },
+  ]
+
+  if (extraBuilding) {
+    buildings.push(extraBuilding)
+  }
+
+  const roads: Road[] = [
+    {
+      id: 'road-1',
+      name: 'Main Road',
+      polyline: {
+        points: [
+          { lat: 33.42, lng: -111.93 },
+          { lat: 33.421, lng: -111.929 },
+          { lat: 33.422, lng: -111.928 },
+        ],
+      },
+      width: 5,
+      surface: 'paved',
+      type: 'arterial',
+      metadata: {},
+    },
+  ]
+
+  const panoramas: Panorama[] = [
+    {
+      id: 'pano-1',
+      label: 'Front Gate',
+      position: { lat: 33.42, lng: -111.93 },
+      heading: 180,
+      imageAssetId: 'asset-pano-1',
+      hotspots: [],
+    },
+  ]
+
+  const qrCheckpoints: QRCheckpoint[] = [
+    {
+      id: 'qr-1',
+      label: 'Building Entrance QR',
+      position: { lat: 33.4205, lng: -111.9295 },
+      floor: 0,
+      buildingId: 'bld-1',
+      code: 'https://navi.app/checkin/bld-1',
+      metadata: {},
+    },
+  ]
+
+  return {
+    schemaVersion: 1,
+    metadata: {
+      name: 'Test Campus',
+      description: '',
+      lastModified: '2026-07-08T00:00:00Z',
+      editorVersion: '1.0.0',
+    },
+    buildings,
+    roads,
+    panoramas,
+    qrCheckpoints,
+  }
+}
+
+describe('GraphAdapter', () => {
+  it('sync() populates graph from document', () => {
+    const graph = new Graph()
+    const adapter = new GraphAdapter(graph)
+    const doc = createTestDocument()
+
+    adapter.sync(doc)
+
+    expect(graph.buildingCount).toBe(1)
+    expect(graph.nodeCount).toBeGreaterThan(0)
+    expect(graph.edgeCount).toBeGreaterThan(0)
+    expect(graph.componentCount).toBe(1)
+    expect(graph.traces.length).toBe(1)
+
+    const building = graph.buildings[0]
+    expect(building.name).toBe('Test Building')
+    expect(building.floors).toEqual([0])
+
+    const panoNodes = graph.nodes.filter(n => n.label.startsWith('Panorama:'))
+    expect(panoNodes.length).toBe(1)
+    expect(panoNodes[0].label).toBe('Panorama: Front Gate')
+
+    const qrNodes = graph.nodes.filter(n => n.type === 'qr_marker')
+    expect(qrNodes.length).toBe(1)
+    expect(qrNodes[0].label).toBe('QR: Building Entrance QR')
+  })
+
+  it('sync() handles empty document gracefully', () => {
+    const graph = new Graph()
+    const adapter = new GraphAdapter(graph)
+    const emptyDoc: CampusDocument = {
+      schemaVersion: 1,
+      metadata: { name: '', description: '', lastModified: '', editorVersion: '' },
+      buildings: [],
+      roads: [],
+      panoramas: [],
+      qrCheckpoints: [],
+    }
+
+    adapter.sync(emptyDoc)
+
+    expect(graph.buildingCount).toBe(0)
+    expect(graph.nodeCount).toBe(0)
+    expect(graph.edgeCount).toBe(0)
+    expect(graph.componentCount).toBe(0)
+    expect(graph.traces.length).toBe(0)
+  })
+
+  it('syncEntity() re-syncs entire document', () => {
+    const graph = new Graph()
+    const adapter = new GraphAdapter(graph)
+    const doc = createTestDocument()
+
+    adapter.sync(doc)
+    expect(graph.buildingCount).toBe(1)
+
+    const extraBuilding: Building = {
+      id: 'bld-2',
+      name: 'Second Building',
+      code: 'SB',
+      category: 'library',
+      description: '',
+      footprint: {
+        points: [
+          { lat: 33.43, lng: -111.92 },
+          { lat: 33.431, lng: -111.92 },
+          { lat: 33.431, lng: -111.919 },
+          { lat: 33.43, lng: -111.919 },
+          { lat: 33.43, lng: -111.92 },
+        ],
+      },
+      baseElevation: 0,
+      height: 15,
+      floors: [],
+      aliases: [],
+      color: '#00ff00',
+      metadata: {},
+    }
+
+    const extendedDoc = createTestDocument(extraBuilding)
+    adapter.syncEntity('bld-2', extendedDoc)
+
+    expect(graph.buildingCount).toBe(2)
+    const names = graph.buildings.map(b => b.name).sort()
+    expect(names).toEqual(['Second Building', 'Test Building'])
+  })
+})

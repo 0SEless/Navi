@@ -1,7 +1,4 @@
-export interface LatLng {
-  lng: number
-  lat: number
-}
+import type { LatLng } from '@navi/core'
 
 export interface BoundingBox {
   minLng: number
@@ -49,7 +46,7 @@ export interface NavigationGraph {
   }
 }
 
-export interface CompileOptions {
+export interface CompilerConfig {
   nodeInterval: number
   mergeThreshold: number
   optimizationLevel: 'none' | 'moderate' | 'aggressive'
@@ -71,7 +68,6 @@ export interface CompileResult {
   graph: NavigationGraph
   report: CompileReport
   duration: number
-  cached: boolean
 }
 
 export type NavigationSpaceType = 'room' | 'lobby' | 'hallway' | 'stairwell' | 'elevator_shaft' | 'outdoor'
@@ -126,8 +122,9 @@ export interface ValidationResult {
   severity: 'error' | 'warning'
   code: string
   message: string
-  nodeIds?: string[]
-  edgeIds?: string[]
+  entityId?: string
+  location?: string
+  references?: string[]
 }
 
 export interface PublishedArtifact {
