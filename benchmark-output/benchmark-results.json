@@ -1,0 +1,117 @@
+[
+  {
+    "name": "Baseline heap used",
+    "value": 8810280,
+    "unit": "MB",
+    "scale": "process",
+    "status": "INFO"
+  },
+  {
+    "name": "Compilation",
+    "value": 0.06599999999999777,
+    "unit": "ms",
+    "scale": "1 building, 20 rooms",
+    "status": "PASS",
+    "threshold": 5000
+  },
+  {
+    "name": "  rooms",
+    "value": 20,
+    "unit": "",
+    "scale": "1 building, 20 rooms",
+    "status": "INFO"
+  },
+  {
+    "name": "Compilation",
+    "value": 0.010633333333340525,
+    "unit": "ms",
+    "scale": "10 buildings, 500 rooms",
+    "status": "PASS",
+    "threshold": 5000
+  },
+  {
+    "name": "  rooms",
+    "value": 500,
+    "unit": "",
+    "scale": "10 buildings, 500 rooms",
+    "status": "INFO"
+  },
+  {
+    "name": "Compilation",
+    "value": 0.01633333333333553,
+    "unit": "ms",
+    "scale": "50 buildings, 2000 rooms",
+    "status": "PASS",
+    "threshold": 5000
+  },
+  {
+    "name": "  rooms",
+    "value": 2000,
+    "unit": "",
+    "scale": "50 buildings, 2000 rooms",
+    "status": "INFO"
+  },
+  {
+    "name": "A* routing (10 nodes)",
+    "value": 0.014705000000000723,
+    "unit": "ms",
+    "scale": "10 nodes",
+    "status": "PASS",
+    "threshold": 1
+  },
+  {
+    "name": "A* routing (100 nodes)",
+    "value": 0.0678350000000009,
+    "unit": "ms",
+    "scale": "100 nodes",
+    "status": "PASS",
+    "threshold": 1
+  },
+  {
+    "name": "A* routing (1000 nodes)",
+    "value": 0.6818100000000001,
+    "unit": "ms",
+    "scale": "1000 nodes",
+    "status": "PASS",
+    "threshold": 50
+  },
+  {
+    "name": "Search (10 entries)",
+    "value": 0.014336000000000126,
+    "unit": "ms",
+    "scale": "10 entries",
+    "status": "PASS",
+    "threshold": 1
+  },
+  {
+    "name": "Search (100 entries)",
+    "value": 0.02625,
+    "unit": "ms",
+    "scale": "100 entries",
+    "status": "PASS",
+    "threshold": 1
+  },
+  {
+    "name": "Search (1000 entries)",
+    "value": 0.15744100000000003,
+    "unit": "ms",
+    "scale": "1000 entries",
+    "status": "PASS",
+    "threshold": 1
+  },
+  {
+    "name": "Memory (5000 nodes + 5000 entries)",
+    "value": 6284224,
+    "unit": "MB",
+    "scale": "5000",
+    "status": "INFO"
+  },
+  {
+    "name": "Runtime startup (fixtures)",
+    "value": 4.847140000000001,
+    "unit": "ms",
+    "scale": "5 nodes, 1 entry",
+    "status": "PASS",
+    "threshold": 100
+  }
+]

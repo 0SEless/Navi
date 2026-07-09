@@ -1,0 +1,41 @@
+[
+  {
+    "scale": "50 buildings / 500 rooms / 2 floors",
+    "buildings": 50,
+    "rooms": 500,
+    "floors": 2,
+    "compilerOk": true,
+    "routingOk": true,
+    "searchOk": true,
+    "compilerMs": 0.16020000000000323,
+    "routingMs": 1.497399999999999,
+    "searchMs": 0.5726000000000226,
+    "errors": []
+  },
+  {
+    "scale": "50 buildings / 1000 rooms / 2 floors",
+    "buildings": 50,
+    "rooms": 1000,
+    "floors": 2,
+    "compilerOk": true,
+    "routingOk": true,
+    "searchOk": true,
+    "compilerMs": 0.03499999999999659,
+    "routingMs": 2.3537999999999784,
+    "searchMs": 0.5199000000000069,
+    "errors": []
+  },
+  {
+    "scale": "50 buildings / 5000 rooms / 2 floors",
+    "buildings": 50,
+    "rooms": 5000,
+    "floors": 2,
+    "compilerOk": true,
+    "routingOk": true,
+    "searchOk": true,
+    "compilerMs": 0.06880000000001019,
+    "routingMs": 45.6138,
+    "searchMs": 4.213599999999985,
+    "errors": []
+  }
+]
