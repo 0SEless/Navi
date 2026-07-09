@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "campusId": "ASU-Ibajay Campus",
+  "createdAt": "2026-07-09T05:55:38.116Z",
+  "checksum": "793b976eeba33e15c2874cb543c5de77131f63f604fd2d990c10b0e47187d152",
+  "nodes": [],
+  "edges": [],
+  "metadata": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "buildings": 3,
+    "floors": 5,
+    "boundingBox": {
+      "minLng": 0,
+      "maxLng": 0,
+      "minLat": 0,
+      "maxLat": 0
+    }
+  }
+}

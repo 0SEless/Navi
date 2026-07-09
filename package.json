@@ -14,6 +14,8 @@
     "test:watch": "vitest",
     "benchmark": "npx tsx scripts/benchmark.ts",
     "stress": "npx tsx scripts/stress-test.ts",
+    "publish": "npx tsx scripts/publish.ts",
+    "validate": "npx tsx scripts/validate-release.ts",
     "test:core": "cd packages/core && npx vitest run"
   },
   "dependencies": {
