@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "campusId": "test-campus",
+  "createdAt": "2026-07-08T00:00:00Z",
+  "checksum": "abc",
+  "nodes": [{ "id": "n1", "label": "Room 101", "type": "space", "position": { "lng": 121.0, "lat": 14.0 }, "floor": 1, "buildingId": "b1", "properties": {} }],
+  "edges": [],
+  "metadata": { "nodeCount": 1, "edgeCount": 0, "buildings": 1, "floors": 1, "boundingBox": { "minLng": 121.0, "maxLng": 121.001, "minLat": 14.0, "maxLat": 14.001 } }
+}

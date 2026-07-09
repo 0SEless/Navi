@@ -1,0 +1,1 @@
+{ "version": "1.0.0", "buildings": [{ "id": "b1", "name": "Building A", "code": "BA", "category": "academic", "position": { "lng": 121.0, "lat": 14.0 }, "floors": [{ "level": 1, "label": "Ground", "elevation": 0, "rooms": [] }], "entrances": [], "nodeId": "n1" }] }

@@ -1,0 +1,13 @@
+{
+  "projectId": "test-project",
+  "campusId": "test-campus",
+  "publishedAt": "2026-07-08T00:00:00Z",
+  "schemaVersion": 1,
+  "compilerVersion": "0.1.0",
+  "artifacts": {
+    "navigationGraph": { "filename": "navigation.graph.json", "checksum": "abc", "size": 100 },
+    "searchIndex": { "filename": "search.index.json", "checksum": "def", "size": 50 },
+    "poiData": { "filename": "poi.json", "checksum": "ghi", "size": 30 },
+    "buildingIndex": { "filename": "building-index.json", "checksum": "jkl", "size": 40 }
+  }
+}
