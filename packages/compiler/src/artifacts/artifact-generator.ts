@@ -233,7 +233,9 @@ export function generateArtifacts(campus: CampusDocument, extraction: Extraction
   const poiData = buildPOIData(graph)
   const buildingIndex = buildBuildingIndex(campus, graph)
 
-  graph.checksum = sha256(JSON.stringify(graph))
+  // Exclude createdAt from checksum so identical input produces identical hash
+  const { createdAt: _, checksum: __, ...contentOnly } = graph
+  graph.checksum = sha256(JSON.stringify(contentOnly))
 
   return { navigationGraph: graph, searchIndex, poiData, buildingIndex }
 }

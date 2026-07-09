@@ -1,5 +1,5 @@
-import type { CampusDocument } from '@navi/core'
-import type { ExtractionResult, NavigationSpace, TransitionPoint, WalkableCorridor } from '../types'
+import type { CampusDocument, RoadType } from '@navi/core'
+import type { CorridorType, ExtractionResult, NavigationSpace, TransitionPoint, WalkableCorridor } from '../types'
 
 /** Convert local (x,y) meters to lat/lng using building footprint as origin reference.
  *  1 meter ≈ 1/111320 degrees near equator. */
@@ -39,6 +39,7 @@ export function directExtract(campus: CampusDocument): ExtractionResult {
           spaces.push({
             id: room.id,
             label: room.name,
+            type: 'room',
             position,
             floor: floor.level,
             buildingId: building.id,
@@ -66,13 +67,20 @@ export function directExtract(campus: CampusDocument): ExtractionResult {
     }
   }
 
+  // Map RoadType ('arterial' | 'connector' | 'service') to CorridorType ('hallway' | 'road' | 'walkway')
+  const corridorTypeMap: Record<RoadType, CorridorType> = {
+    arterial: 'road',
+    connector: 'walkway',
+    service: 'walkway',
+  }
+
   for (const road of campus.roads) {
     const points = (road as any).polyline?.points
     if (points && points.length >= 2) {
       corridors.push({
         id: road.id,
         name: road.name || `Road ${road.id}`,
-        type: road.type as 'walkway' | 'road' | 'path',
+        type: corridorTypeMap[road.type] ?? 'walkway',
         polyline: points,
         surface: road.surface ?? 'paved',
         width: road.width ?? 2,

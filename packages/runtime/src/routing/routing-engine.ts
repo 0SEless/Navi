@@ -68,7 +68,6 @@ export class RoutingEngine {
       const edge = edges.find(e => e.to === next.id || e.from === next.id)
 
       if (i < result.path.length - 2) {
-        const afterNext = this.nodes.get(result.path[i + 2])!
         const currBearing = bearing(curr.position, next.position)
         if (prevBearing !== null) {
           const turn = turnInstruction(prevBearing, currBearing)
@@ -76,7 +75,8 @@ export class RoutingEngine {
             instructions.push({ type: turn, text: turn === 'turn_left' ? 'Turn left' : 'Turn right', distance: 0, fromNode: curr.id, toNode: next.id })
           }
         }
-        prevBearing = bearing(next.position, afterNext.position)
+        // Track bearing of this segment for comparison on the next iteration
+        prevBearing = currBearing
       }
 
       const edgeTypeMap: Record<string, InstructionType> = { stairs: 'stairs', elevator: 'elevator', walk: 'walk', transition: 'walk' }

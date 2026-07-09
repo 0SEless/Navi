@@ -16,10 +16,12 @@ export function compile(document: CampusDocument, config: CompilerConfig): Compi
     for (const f of b.floors) flrSet.add(`${b.id}-${f.level}`)
   }
 
+  // Exclude createdAt from checksum so identical input produces identical hash
+  const { createdAt: _, checksum: __, ...contentOnly } = graph
   return {
     graph: {
       ...graph,
-      checksum: createHash('sha256').update(JSON.stringify(graph)).digest('hex'),
+      checksum: createHash('sha256').update(JSON.stringify(contentOnly)).digest('hex'),
       metadata: {
         ...graph.metadata,
         buildings: bldSet.size,
