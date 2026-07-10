@@ -14,7 +14,7 @@ interface ExplorerProps {
   onDelete?: (id: EntityId) => void
 }
 
-export function Explorer({ nodes, selectedId, onSelect, onRename }: ExplorerProps) {
+export function Explorer({ nodes, selectedId, onSelect, onRename, onDelete }: ExplorerProps) {
   const {
     expandedIds,
     searchQuery,
@@ -55,6 +55,7 @@ export function Explorer({ nodes, selectedId, onSelect, onRename }: ExplorerProp
             onSelect={handleSelect}
             onToggle={toggleExpanded}
             onRename={onRename}
+            onDelete={onDelete}
           />
         )}
       </div>

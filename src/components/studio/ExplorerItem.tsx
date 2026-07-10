@@ -1,9 +1,12 @@
 'use client'
 
 import React from 'react'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import type { ExplorerNode, EntityId, EntitySelector, SelectionOrigin } from '@navi/editor'
+import { ExplorerContextMenu } from './ExplorerContextMenu'
+import type { ContextMenuAction } from './ExplorerContextMenu'
+import { getExplorerActions } from './getExplorerActions'
 
 interface ExplorerItemProps {
   node: ExplorerNode
@@ -14,6 +17,8 @@ interface ExplorerItemProps {
   onToggle: (id: EntityId) => void
   onSelect: (selector: EntitySelector, origin: SelectionOrigin) => void
   onRename?: (id: EntityId, newName: string) => void
+  onDelete?: (id: EntityId) => void
+  contextMenuActions?: ContextMenuAction[]
 }
 
 const typeLabels: Record<string, string> = {
@@ -39,12 +44,15 @@ function ExplorerItemImpl({
   onToggle,
   onSelect,
   onRename,
+  onDelete,
+  contextMenuActions,
 }: ExplorerItemProps) {
   const hasChildren = node.children && node.children.length > 0
 
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(node.label)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -72,6 +80,23 @@ function ExplorerItemImpl({
     if (e.key === 'Escape') setEditing(false)
   }, [submitRename])
 
+  const menuActions = useMemo(
+    () =>
+      contextMenuActions ??
+      getExplorerActions(node, {
+        onRename: () => handleDoubleClick(),
+        onDelete: (id) => onDelete?.(id as EntityId),
+      }),
+    [contextMenuActions, node, onRename, onDelete, handleDoubleClick],
+  )
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    if (menuActions.length > 0) {
+      setContextMenu({ x: e.clientX, y: e.clientY })
+    }
+  }, [menuActions])
+
   const renderLabel = () => {
     if (!searchQuery) return node.label
     const idx = node.label.toLowerCase().indexOf(searchQuery.toLowerCase())
@@ -88,9 +113,10 @@ function ExplorerItemImpl({
   }
 
   return (
-    <div
-      role="treeitem"
-      aria-selected={selected}
+    <>
+      <div
+        role="treeitem"
+        aria-selected={selected}
       aria-expanded={hasChildren ? expanded : undefined}
       data-selected={selected ? 'true' : 'false'}
       style={{
@@ -106,6 +132,7 @@ function ExplorerItemImpl({
         borderBottom: '1px solid #f3f4f6',
       }}
       onClick={() => onSelect(node.entitySelector, 'explorer' as SelectionOrigin)}
+      onContextMenu={handleContextMenu}
     >
       {hasChildren ? (
         <span
@@ -143,6 +170,14 @@ function ExplorerItemImpl({
         </span>
       )}
     </div>
+    {contextMenu && (
+      <ExplorerContextMenu
+        actions={menuActions}
+        position={contextMenu}
+        onClose={() => setContextMenu(null)}
+      />
+    )}
+    </>
   )
 }
 

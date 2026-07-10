@@ -2,6 +2,7 @@
 
 import React from 'react'
 import type { ExplorerNode, EntityId, EntitySelector, SelectionOrigin } from '@navi/editor'
+import type { ContextMenuAction } from './ExplorerContextMenu'
 import { ExplorerItem } from './ExplorerItem'
 
 interface ExplorerTreeProps {
@@ -13,6 +14,8 @@ interface ExplorerTreeProps {
   onSelect: (selector: EntitySelector, origin: SelectionOrigin) => void
   onToggle: (id: EntityId) => void
   onRename?: (id: EntityId, newName: string) => void
+  onDelete?: (id: EntityId) => void
+  contextMenuActions?: ContextMenuAction[]
 }
 
 function ExplorerTreeImpl({
@@ -24,6 +27,8 @@ function ExplorerTreeImpl({
   onSelect,
   onToggle,
   onRename,
+  onDelete,
+  contextMenuActions,
 }: ExplorerTreeProps) {
   const tree = (
     <>
@@ -41,6 +46,8 @@ function ExplorerTreeImpl({
               onToggle={onToggle}
               onSelect={onSelect}
               onRename={onRename}
+              onDelete={onDelete}
+              contextMenuActions={contextMenuActions}
             />
             {isExpanded && node.children && node.children.length > 0 && (
               <ExplorerTree
@@ -52,6 +59,8 @@ function ExplorerTreeImpl({
                 onSelect={onSelect}
                 onToggle={onToggle}
                 onRename={onRename}
+                onDelete={onDelete}
+                contextMenuActions={contextMenuActions}
               />
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useMemo, useCallback } from 'react'
 import {
   ExplorerAdapter,
+  findNodeById,
   useSelection,
   useEditor,
 } from '@navi/editor'
@@ -43,12 +44,30 @@ export function ExplorerPanel() {
     [services],
   )
 
+  const handleDelete = useCallback(
+    (id: EntityId) => {
+      const dispatcher = services.get('dispatcher')
+      const node = findNodeById(nodes, id)
+      // No delete command exists for the campus root node.
+      if (!node || node.type === 'campus') return
+      // Each entity type has its own delete command with a type-specific
+      // payload key (`<type>Id`), e.g. building.delete → { buildingId }.
+      dispatcher?.execute({
+        id: `${node.type}.delete`,
+        label: 'Delete',
+        payload: { [`${node.type}Id`]: id },
+      })
+    },
+    [services, nodes],
+  )
+
   return (
     <Explorer
       nodes={nodes}
       selectedId={selectedId}
       onSelect={selection.select}
       onRename={handleRename}
+      onDelete={handleDelete}
     />
   )
 }
