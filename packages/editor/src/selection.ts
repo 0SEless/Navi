@@ -2,11 +2,35 @@ import type { CampusDocument } from '@navi/core'
 import { BaseEditorService } from './context'
 import type { EditorServiceContext } from './context/service-registry'
 import type { DocumentEventBus } from './eventbus'
+import type { EntitySelector, SelectionMode, SelectionOrigin, SelectionState } from './context/entity-id'
+import { asEntityId } from './context/entity-id'
 
-export interface SelectionState {
+export { SelectionOrigin } from './context/entity-id'
+export type { EntitySelector, SelectionMode, SelectionState } from './context/entity-id'
+
+/**
+ * Input type for select/toggle — accepts either a raw string ID
+ * or a fully-qualified EntitySelector.
+ */
+export type SelectionInput = string | EntitySelector
+
+/** @deprecated Use the new EntitySelector-based SelectionState. */
+export interface LegacySelectionState {
   entityIds: string[]
   hoveredEntityId: string | null
   lastSelectedId: string | null
+}
+
+/** Resolve a SelectionInput to a plain string ID. */
+function resolveId(input: SelectionInput): string {
+  return typeof input === 'string' ? input : input.id
+}
+
+/** Resolve a SelectionInput to an EntitySelector (pass-through if already one). */
+function resolveSelector(input: SelectionInput): EntitySelector {
+  return typeof input === 'string'
+    ? { type: 'building' as const, id: asEntityId(input) }
+    : input
 }
 
 export class SelectionManager extends BaseEditorService {
@@ -14,10 +38,49 @@ export class SelectionManager extends BaseEditorService {
   readonly dependencies: readonly string[] = ['eventBus']
 
   private entityIds = new Set<string>()
+  private entitySelectors = new Map<string, EntitySelector>()
   private _hoveredEntityId: string | null = null
+  private _hoveredSelector: EntitySelector | null = null
   private _lastSelectedId: string | null = null
+  private _lastSelectedSelector: EntitySelector | null = null
+  private _mode: SelectionMode = 'single'
+  private _origin: SelectionOrigin = 'programmatic' as SelectionOrigin
   private document!: CampusDocument
   private eventBus!: DocumentEventBus
+
+  // ── listener support (for SelectionStore) ──────────────────
+
+  // ── revision counter for external store sync ───────────────
+  private _revision = 0
+  private cachedState: SelectionState | null = null
+
+  /** Monotonically increasing revision counter. Bumps on every mutation. */
+  get revision(): number {
+    return this._revision
+  }
+
+  /** Returns the current SelectionState, cached and reused until the next mutation. */
+  get selectionState(): SelectionState {
+    if (!this.cachedState) {
+      this.cachedState = {
+        selected: this.selectors,
+        hovered: this._hoveredSelector,
+        mode: this._mode,
+        origin: this._origin,
+        lastSelected: this._lastSelectedSelector,
+      }
+    }
+    return this.cachedState
+  }
+
+  private changeListeners = new Set<() => void>()
+
+  onChange(fn: () => void): () => void {
+    this.changeListeners.add(fn)
+    return () => this.changeListeners.delete(fn)
+  }
+
+  // ── construction / init ──────────────────────────────────────
 
   constructor(document?: CampusDocument, eventBus?: DocumentEventBus) {
     super()
@@ -31,73 +94,149 @@ export class SelectionManager extends BaseEditorService {
     this.document = context.document
   }
 
-  select(id: string): void {
-    this.clear()
-    this.entityIds.add(id)
-    this._lastSelectedId = id
-    this.emitChange()
+  // ── mode ────────────────────────────────────────────────────
+
+  get mode(): SelectionMode {
+    return this._mode
   }
 
-  toggle(id: string): void {
+  setMode(mode: SelectionMode): void {
+    this._mode = mode
+    this.notify()
+  }
+
+  // ── origin ──────────────────────────────────────────────────
+
+  get origin(): SelectionOrigin {
+    return this._origin
+  }
+
+  // ── select / toggle / clear ──────────────────────────────────
+
+  select(input: SelectionInput, origin?: SelectionOrigin): void {
+    this._origin = origin ?? ('canvas' as SelectionOrigin)
+    const id = resolveId(input)
+    const sel = resolveSelector(input)
+    this.clearInternal()
+    this.entityIds.add(id)
+    this.entitySelectors.set(id, sel)
+    this._lastSelectedId = id
+    this._lastSelectedSelector = sel
+    this.notify()
+  }
+
+  toggle(input: SelectionInput, origin?: SelectionOrigin): void {
+    this._origin = origin ?? ('canvas' as SelectionOrigin)
+    const id = resolveId(input)
+    const sel = resolveSelector(input)
     if (this.entityIds.has(id)) {
       this.entityIds.delete(id)
+      this.entitySelectors.delete(id)
       if (this._lastSelectedId === id) {
         this._lastSelectedId = this.entityIds.values().next().value || null
+        this._lastSelectedSelector = this._lastSelectedId
+          ? this.entitySelectors.get(this._lastSelectedId) ?? null
+          : null
       }
     } else {
       this.entityIds.add(id)
+      this.entitySelectors.set(id, sel)
       this._lastSelectedId = id
+      this._lastSelectedSelector = sel
     }
-    this.emitChange()
+    this.notify()
   }
 
-  clear(): void {
-    this.entityIds.clear()
-    this._lastSelectedId = null
-    this.emitChange()
+  clear(origin?: SelectionOrigin): void {
+    if (origin !== undefined) this._origin = origin
+    this.clearInternal()
+    this.notify()
   }
+
+  // ── queries ─────────────────────────────────────────────────
 
   isSelected(id: string): boolean {
     return this.entityIds.has(id)
-  }
-
-  setHover(entityId: string | null): void {
-    this._hoveredEntityId = entityId
-    this.eventBus.emit('selection.changed', { entityIds: this.selectedIds, hoveredEntityId: entityId, lastSelectedId: this._lastSelectedId })
-  }
-
-  clearHover(): void {
-    this._hoveredEntityId = null
-  }
-
-  resetOnToolChange(): void {
-    this.clear()
-    this._hoveredEntityId = null
   }
 
   get selectedIds(): string[] {
     return Array.from(this.entityIds)
   }
 
+  get selectors(): EntitySelector[] {
+    return Array.from(this.entitySelectors.values())
+  }
+
   get count(): number {
     return this.entityIds.size
+  }
+
+  // ── hover ───────────────────────────────────────────────────
+
+  setHover(input: SelectionInput | null): void {
+    if (input === null) {
+      this._hoveredEntityId = null
+      this._hoveredSelector = null
+    } else {
+      this._hoveredEntityId = resolveId(input)
+      this._hoveredSelector = resolveSelector(input)
+    }
+    this.notify()
+  }
+
+  clearHover(): void {
+    this._hoveredEntityId = null
+    this._hoveredSelector = null
+    this.notify()
   }
 
   get hoveredEntityId(): string | null {
     return this._hoveredEntityId
   }
 
+  get hoveredSelector(): EntitySelector | null {
+    return this._hoveredSelector
+  }
+
   get lastSelectedId(): string | null {
     return this._lastSelectedId
   }
 
-  get state(): SelectionState {
+  get lastSelectedSelector(): EntitySelector | null {
+    return this._lastSelectedSelector
+  }
+
+  // ── lifecycle helpers ───────────────────────────────────────
+
+  resetOnToolChange(): void {
+    this.clearInternal()
+    this._hoveredEntityId = null
+    this._hoveredSelector = null
+    this.notify()
+  }
+
+  // ── state snapshots ─────────────────────────────────────────
+
+  /** @deprecated Use `selectionState` instead. */
+  get state(): LegacySelectionState {
     return {
       entityIds: this.selectedIds,
       hoveredEntityId: this._hoveredEntityId,
       lastSelectedId: this._lastSelectedId,
     }
   }
+
+  get selectionState(): SelectionState {
+    return {
+      selected: this.selectors,
+      hovered: this._hoveredSelector,
+      mode: this._mode,
+      origin: this._origin,
+      lastSelected: this._lastSelectedSelector,
+    }
+  }
+
+  // ── bounding box (building-only for now) ─────────────────────
 
   get boundingBox(): { minX: number; minY: number; maxX: number; maxY: number } | null {
     const ids = this.selectedIds
@@ -119,7 +258,35 @@ export class SelectionManager extends BaseEditorService {
     return { minX, minY, maxX, maxY }
   }
 
-  private emitChange(): void {
-    this.eventBus.emit('selection.changed', this.state)
+  // ── private ─────────────────────────────────────────────────
+
+  private clearInternal(): void {
+    this.entityIds.clear()
+    this.entitySelectors.clear()
+    this._lastSelectedId = null
+    this._lastSelectedSelector = null
+  }
+
+  private notify(): void {
+    this._revision++
+    this.cachedState = null
+    const payload = this.buildEventPayload()
+    this.eventBus.emit('selection.changed', payload)
+    for (const fn of this.changeListeners) {
+      fn()
+    }
+  }
+
+  private buildEventPayload() {
+    return {
+      entityIds: this.selectedIds,
+      hoveredEntityId: this._hoveredEntityId,
+      lastSelectedId: this._lastSelectedId,
+      selectors: this.selectors,
+      hoveredSelector: this._hoveredSelector,
+      lastSelectedSelector: this._lastSelectedSelector,
+      mode: this._mode,
+      origin: this._origin,
+    }
   }
 }
