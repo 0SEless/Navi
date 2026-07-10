@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import {
   EditorProvider,
   ServiceRegistry,
@@ -11,9 +11,14 @@ import {
   CommandDispatcher,
   HistoryStack,
   entityUpdateHandler,
+  SelectionBridge,
+  SelectionOrigin,
+  findEntityById,
 } from '@navi/editor'
+import type { EntitySelector } from '@navi/editor'
 import type { CampusDocument } from '@navi/core'
 import { useGraphStore } from '@/store/graph-store'
+import { useStudioStore } from '@/store/studio-store'
 
 /**
  * Minimal bridge: converts legacy Graph → CampusDocument and provides
@@ -105,6 +110,48 @@ function buildContext(graph: any): EditorContextValue {
 export function EditorBridge({ children }: { children: ReactNode }) {
   // Created ONCE from the initial graph — enforces the document lifetime invariant.
   const [context] = useState(() => buildContext(useGraphStore.getState().graph))
+
+  // Wire SelectionBridge once per mount: keep the legacy studio store and the
+  // new SelectionManager in sync (selection only, loop-guarded).
+  useEffect(() => {
+    const selectionManager = context.services.get('selection')
+    if (!selectionManager) return
+
+    const bridge = new SelectionBridge(selectionManager)
+
+    // Direction A — SelectionManager → legacy store.
+    const unsubBridge = bridge.connect({
+      onSelectionChanged(_state, legacy) {
+        useStudioStore.setState({
+          selectedNodeId: legacy.selectedNodeId,
+          activeBuildingId: legacy.activeBuildingId,
+        })
+      },
+    })
+
+    // Direction B — legacy store → SelectionManager (loop-guarded).
+    const unsubLegacy = useStudioStore.subscribe(() => {
+      const s = useStudioStore.getState()
+      const legacyId = s.selectedNodeId ?? s.activeBuildingId
+      if (!legacyId) {
+        bridge.pushExternal(null, SelectionOrigin.Canvas)
+        return
+      }
+      // Id-equality short-circuit: SelectionManager already reflects this id,
+      // so pushing again would be a redundant cycle (also blocked by `syncing`).
+      if (legacyId === selectionManager.lastSelectedId) return
+      const found = findEntityById(context.document, legacyId)
+      const selector = found
+        ? ({ type: found.path, id: legacyId } as unknown as EntitySelector)
+        : ({ type: 'building', id: legacyId } as unknown as EntitySelector)
+      bridge.pushExternal(selector, SelectionOrigin.Canvas)
+    })
+
+    return () => {
+      unsubBridge()
+      unsubLegacy()
+    }
+  }, [context])
 
   return (
     <EditorProvider context={context}>
