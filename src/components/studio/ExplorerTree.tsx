@@ -12,6 +12,7 @@ interface ExplorerTreeProps {
   depth?: number
   onSelect: (selector: EntitySelector, origin: SelectionOrigin) => void
   onToggle: (id: EntityId) => void
+  onRename?: (id: EntityId, newName: string) => void
 }
 
 function ExplorerTreeImpl({
@@ -22,6 +23,7 @@ function ExplorerTreeImpl({
   depth = 0,
   onSelect,
   onToggle,
+  onRename,
 }: ExplorerTreeProps) {
   const tree = (
     <>
@@ -38,6 +40,7 @@ function ExplorerTreeImpl({
               searchQuery={searchQuery}
               onToggle={onToggle}
               onSelect={onSelect}
+              onRename={onRename}
             />
             {isExpanded && node.children && node.children.length > 0 && (
               <ExplorerTree
@@ -48,6 +51,7 @@ function ExplorerTreeImpl({
                 depth={depth + 1}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                onRename={onRename}
               />
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import type { ExplorerNode, EntityId, EntitySelector, SelectionOrigin } from '@navi/editor'
 
@@ -12,6 +13,7 @@ interface ExplorerItemProps {
   searchQuery: string
   onToggle: (id: EntityId) => void
   onSelect: (selector: EntitySelector, origin: SelectionOrigin) => void
+  onRename?: (id: EntityId, newName: string) => void
 }
 
 const typeLabels: Record<string, string> = {
@@ -36,8 +38,39 @@ function ExplorerItemImpl({
   searchQuery,
   onToggle,
   onSelect,
+  onRename,
 }: ExplorerItemProps) {
   const hasChildren = node.children && node.children.length > 0
+
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState(node.label)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editing])
+
+  const handleDoubleClick = useCallback(() => {
+    if (!onRename) return
+    setEditing(true)
+    setEditValue(node.label)
+  }, [node.label, onRename])
+
+  const submitRename = useCallback(() => {
+    setEditing(false)
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== node.label && onRename) {
+      onRename(node.id, trimmed)
+    }
+  }, [editValue, node.label, node.id, onRename])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') submitRename()
+    if (e.key === 'Escape') setEditing(false)
+  }, [submitRename])
 
   const renderLabel = () => {
     if (!searchQuery) return node.label
@@ -88,9 +121,27 @@ function ExplorerItemImpl({
       <span style={{ marginRight: 4, fontSize: 12, flexShrink: 0 }}>
         {typeLabels[node.type] ?? '•'}
       </span>
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {renderLabel()}
-      </span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={submitRename}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            flex: 1, border: '1px solid #60a5fa', borderRadius: 2,
+            padding: '0 4px', fontSize: 13, outline: 'none',
+          }}
+        />
+      ) : (
+        <span
+          style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          onDoubleClick={handleDoubleClick}
+        >
+          {renderLabel()}
+        </span>
+      )}
     </div>
   )
 }
