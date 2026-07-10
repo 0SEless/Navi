@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Viewport } from './viewport'
+import { Viewport, BoundsLike } from './viewport'
 import { DocumentEventBus } from './eventbus'
 
 describe('Viewport', () => {
@@ -65,5 +65,61 @@ describe('Viewport', () => {
     expect(vp.zoom).toBe(15)
     expect(vp.center).toEqual({ lat: 0, lng: 0 })
     expect(vp.activeBuildingId).toBeNull()
+  })
+})
+
+describe('Viewport camera commands', () => {
+  let viewport: Viewport
+  let eventBus: DocumentEventBus
+
+  beforeEach(() => {
+    eventBus = new DocumentEventBus()
+    viewport = new Viewport(eventBus)
+  })
+
+  it('enqueues a flyTo command', () => {
+    viewport.flyTo({ lat: 10, lng: 20 }, { zoom: 18 })
+    const cmd = viewport.consumePendingCommand()
+    expect(cmd).not.toBeNull()
+    expect(cmd!.type).toBe('flyTo')
+    if (cmd!.type === 'flyTo') {
+      expect(cmd!.center).toEqual({ lat: 10, lng: 20 })
+      expect(cmd!.zoom).toBe(18)
+    }
+  })
+
+  it('enqueues a fitBounds command', () => {
+    const bounds: BoundsLike = { sw: { lat: 0, lng: 0 }, ne: { lat: 1, lng: 1 } }
+    viewport.fitBounds(bounds, { padding: 50 })
+    const cmd = viewport.consumePendingCommand()
+    expect(cmd!.type).toBe('fitBounds')
+  })
+
+  it('enqueues an easeTo command', () => {
+    viewport.easeTo({ center: { lat: 5, lng: 5 }, zoom: 16 })
+    const cmd = viewport.consumePendingCommand()
+    expect(cmd!.type).toBe('easeTo')
+  })
+
+  it('enqueues a reset command', () => {
+    viewport.reset()
+    const cmd = viewport.consumePendingCommand()
+    expect(cmd!.type).toBe('reset')
+  })
+
+  it('enqueues a zoomToSelection command', () => {
+    viewport.zoomToSelection()
+    const cmd = viewport.consumePendingCommand()
+    expect(cmd!.type).toBe('zoomToSelection')
+  })
+
+  it('returns null when no command is pending', () => {
+    expect(viewport.consumePendingCommand()).toBeNull()
+  })
+
+  it('clears command after consume', () => {
+    viewport.flyTo({ lat: 0, lng: 0 })
+    viewport.consumePendingCommand()
+    expect(viewport.consumePendingCommand()).toBeNull()
   })
 })

@@ -3,6 +3,18 @@ import { BaseEditorService } from './context'
 import type { EditorServiceContext } from './context/service-registry'
 import type { DocumentEventBus } from './eventbus'
 
+export interface BoundsLike {
+  sw: { lat: number; lng: number }
+  ne: { lat: number; lng: number }
+}
+
+export type ViewportCommand =
+  | { type: 'flyTo'; center: LatLng; zoom?: number; duration?: number }
+  | { type: 'fitBounds'; bounds: BoundsLike; padding?: number; duration?: number }
+  | { type: 'easeTo'; center?: LatLng; zoom?: number; bearing?: number; pitch?: number; duration?: number }
+  | { type: 'reset' }
+  | { type: 'zoomToSelection' }
+
 export interface ViewportState {
   zoom: number
   center: LatLng
@@ -25,6 +37,8 @@ export class Viewport extends BaseEditorService {
   private _activeFloorId: string | null = null
   private _activeLayer: string | null = null
   private eventBus!: DocumentEventBus
+  private _pendingCommand: ViewportCommand | null = null
+  private _revision = 0
 
   constructor(eventBus?: DocumentEventBus) {
     super()
@@ -84,6 +98,8 @@ export class Viewport extends BaseEditorService {
     this._activeBuildingId = null
     this._activeFloorId = null
     this._activeLayer = null
+    this._pendingCommand = { type: 'reset' }
+    this._revision++
     this.emit()
   }
 
@@ -106,6 +122,38 @@ export class Viewport extends BaseEditorService {
   get activeBuildingId(): string | null { return this._activeBuildingId }
   get activeFloorId(): string | null { return this._activeFloorId }
   get activeLayer(): string | null { return this._activeLayer }
+
+  get revision(): number { return this._revision }
+
+  flyTo(center: LatLng, opts?: { zoom?: number; duration?: number }): void {
+    this._pendingCommand = { type: 'flyTo', center, ...opts }
+    this._revision++
+    this.emit()
+  }
+
+  fitBounds(bounds: BoundsLike, opts?: { padding?: number; duration?: number }): void {
+    this._pendingCommand = { type: 'fitBounds', bounds, ...opts }
+    this._revision++
+    this.emit()
+  }
+
+  easeTo(opts: { center?: LatLng; zoom?: number; bearing?: number; pitch?: number; duration?: number }): void {
+    this._pendingCommand = { type: 'easeTo', ...opts }
+    this._revision++
+    this.emit()
+  }
+
+  zoomToSelection(): void {
+    this._pendingCommand = { type: 'zoomToSelection' }
+    this._revision++
+    this.emit()
+  }
+
+  consumePendingCommand(): ViewportCommand | null {
+    const cmd = this._pendingCommand
+    this._pendingCommand = null
+    return cmd
+  }
 
   private emit(): void {
     this.eventBus.emit('viewport.changed', this.state)
