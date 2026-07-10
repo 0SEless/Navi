@@ -15,6 +15,7 @@ import { SelectionOverlay } from './SelectionOverlay'
 import { DrawingOverlay } from './DrawingOverlay'
 import { PreviewOverlay } from './PreviewOverlay'
 import { DrawingSessionProvider, type DrawingSessionValue } from './useDrawingSession'
+import { ViewportController } from './ViewportController'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -315,12 +316,9 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 useEffect(() => {
     if (mapRef.current) return
     let mounted = true
-    const c = center ?? { lat: 11.8195, lng: 122.0922 }
     const map = new maplibregl.Map({
       container: mapContainerRef.current!,
       style: getInitialStyle(),
-      center: [c.lng, c.lat],
-      zoom: 17,
     })
     map.on('load', () => {
       if (!mounted) return
@@ -357,20 +355,6 @@ useEffect(() => {
   }, [graph, activeFloor, renderVersion])
 
   // Selection highlight is managed by <SelectionOverlay />
-
-  useEffect(() => {
-    if (!selectedBuilding || !mapRef.current || !readyRef.current) return
-    const map = mapRef.current
-    const b = selectedBuilding
-    const opts = { pitch: map.getPitch(), bearing: map.getBearing(), duration: 500 }
-    if (b.footprint.length >= 2) {
-      const bounds = new maplibregl.LngLatBounds()
-      b.footprint.forEach((p) => bounds.extend([p.lng, p.lat]))
-      map.fitBounds(bounds, { padding: 120, ...opts })
-    } else if (b.center) {
-      map.flyTo({ center: [b.center.lng, b.center.lat], zoom: 18, ...opts })
-    }
-  }, [selectedBuilding, readyRef])
 
   useEffect(() => {
     const map = mapRef.current
@@ -783,6 +767,7 @@ useEffect(() => {
         {mapInstance && <PreviewOverlay map={mapInstance} />}
       </DrawingSessionProvider>
       {mapInstance && <SelectionOverlay map={mapInstance} />}
+      {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
     </div>
   )
 }
