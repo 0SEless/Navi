@@ -85,7 +85,10 @@ function ExplorerItemImpl({
       contextMenuActions ??
       getExplorerActions(node, {
         onRename: () => handleDoubleClick(),
-        onDelete: (id) => onDelete?.(id as EntityId),
+        onDelete:
+          node.type === 'campus'
+            ? undefined
+            : (id) => onDelete?.(id as EntityId),
       }),
     [contextMenuActions, node, onRename, onDelete, handleDoubleClick],
   )

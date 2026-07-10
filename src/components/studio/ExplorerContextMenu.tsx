@@ -19,18 +19,18 @@ interface ExplorerContextMenuProps {
 export function ExplorerContextMenu({ actions, position, onClose }: ExplorerContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
 
+  const handleOutsideClick = (e: MouseEvent) => {
+    if (ref.current && !ref.current.contains(e.target as Node)) {
+      onClose()
+    }
+  }
+
   useEffect(() => {
     document.addEventListener('mousedown', handleOutsideClick)
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
     }
   }, [])
-
-  const handleOutsideClick = (e: MouseEvent) => {
-    if (ref.current && !ref.current.contains(e.target as Node)) {
-      onClose()
-    }
-  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onContextMenu={(e) => e.preventDefault()}>
