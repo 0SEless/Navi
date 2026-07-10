@@ -16,6 +16,7 @@ import { DrawingOverlay } from './DrawingOverlay'
 import { PreviewOverlay } from './PreviewOverlay'
 import { DrawingSessionProvider, type DrawingSessionValue } from './useDrawingSession'
 import { ViewportController } from './ViewportController'
+import { useToolController } from './useToolController'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -653,6 +654,8 @@ useEffect(() => {
       syncAllData(map, graphRef.current, activeFloorRef.current)
     })
   }, [layers.satellite, mapInstance])
+
+  useToolController()
 
   useCampusBoundary(mapInstance, (result: BoundaryPolygon) => {
     setPendingConfirm('boundary', result.points)
