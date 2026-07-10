@@ -2,7 +2,7 @@
 
 import { EditorBridge } from './EditorBridge'
 import { ExplorerPanel } from './ExplorerPanel'
-import { RightPanel } from './RightPanel'
+import { PropertiesPanel } from '@navi/editor'
 import { StudioCanvas } from './StudioCanvas'
 import { ConfirmOverlay } from './ConfirmOverlay'
 import { useGraphStore } from '@/store/graph-store'
@@ -21,27 +21,25 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
     return () => clearInterval(interval)
   }, [save])
 
-  const mapContent = (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-      <div style={{ width: 220, borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
-        <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb' }}>
-          Explorer
-        </div>
-        <EditorBridge>
-          <ExplorerPanel />
-        </EditorBridge>
-      </div>
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <StudioCanvas center={center} />
-        <ConfirmOverlay />
-      </div>
-      <RightPanel />
-    </div>
-  )
-
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {mapContent}
+      <EditorBridge>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <div style={{ width: 220, borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+            <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb' }}>
+              Explorer
+            </div>
+            <ExplorerPanel />
+          </div>
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <StudioCanvas center={center} />
+            <ConfirmOverlay />
+          </div>
+          <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+            <PropertiesPanel />
+          </div>
+        </div>
+      </EditorBridge>
     </div>
   )
 }
