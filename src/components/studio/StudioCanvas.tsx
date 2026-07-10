@@ -10,7 +10,7 @@ import type { Graph } from '@/engine/graph'
 import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
 import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
 import { useVertexEditor } from './useVertexEditor'
-import { Trash2, Check, X } from 'lucide-react'
+import { ConfirmBar } from './ConfirmBar'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -771,10 +771,6 @@ useEffect(() => {
     updateDrawingSource(m, drawFeatures)
   }, [tracePoints, roomDrag, tool, pendingConfirm])
 
-  const showConfirmBar =
-    tool === 'route' && tracePoints.length > 0 ||
-    (tool === 'building' || tool === 'boundary') && drawPoints.length > 0
-
   const routeWidth = useStudioStore((s) => s.routeWidth)
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
 
@@ -802,9 +798,7 @@ useEffect(() => {
     }
   }, [tool, undoLastTracePoint, drawPoints, setDrawPoints])
 
-  const minPoints = tool === 'route' ? 2 : 3
   const canConfirm = tool === 'route' ? tracePoints.length >= 2 : drawPoints.length >= 3
-  const currentPoints = tool === 'route' ? tracePoints : drawPoints
   const toolLabel =
     tool === 'route' ? 'Campus route' :
     tool === 'building' ? 'Building footprint' :
@@ -823,74 +817,20 @@ useEffect(() => {
           {tooltip.text}
         </div>
       )}
-      {showConfirmBar && (
-        <div style={{
-          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', gap: 6, background: '#1E293B', borderRadius: 8, padding: '4px 6px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 10, alignItems: 'center',
-        }}>
-          <span style={{
-            fontSize: 10, color: '#06B6D4',
-            padding: '0 4px', fontWeight: 600, whiteSpace: 'nowrap',
-          }}>
-            {toolLabel}
-          </span>
-          <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 4px' }}>
-            {currentPoints.length} point{currentPoints.length !== 1 ? 's' : ''} (need {minPoints})
-          </span>
-          {tool === 'route' && (
-            <>
-              <button onClick={() => setRouteWidth(routeWidth - 1)}
-                style={{
-                  width: 24, height: 24, borderRadius: 4, border: 'none',
-                  background: '#475569', color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, lineHeight: 1,
-                }}
-              >−</button>
-              <span style={{ fontSize: 10, color: '#06B6D4', fontWeight: 600, minWidth: 16, textAlign: 'center' }}>
-                {routeWidth}
-              </span>
-              <button onClick={() => setRouteWidth(routeWidth + 1)}
-                style={{
-                  width: 24, height: 24, borderRadius: 4, border: 'none',
-                  background: '#475569', color: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, lineHeight: 1,
-                }}
-              >+</button>
-            </>
-          )}
-          <button onClick={handleUndo} disabled={currentPoints.length < 1}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderRadius: 6,
-              border: 'none', background: currentPoints.length < 1 ? '#374151' : '#475569',
-              color: currentPoints.length < 1 ? '#6B7280' : '#fff', fontSize: 11,
-              cursor: currentPoints.length < 1 ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <Trash2 size={12} />
-          </button>
-          <button onClick={handleConfirm} disabled={!canConfirm}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
-              border: 'none', background: !canConfirm ? '#374151' : '#10B981',
-              color: !canConfirm ? '#6B7280' : '#fff', fontSize: 11,
-              cursor: !canConfirm ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <Check size={12} /> Confirm
-          </button>
-          <button onClick={handleCancel}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
-              border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer',
-            }}
-          >
-            <X size={12} /> Cancel
-          </button>
-        </div>
-      )}
+      {(tool === 'route' && tracePoints.length > 0) || (tool === 'building' || tool === 'boundary') && drawPoints.length > 0 ? (
+        <ConfirmBar
+          tracePoints={tracePoints}
+          drawPoints={drawPoints}
+          routeWidth={routeWidth}
+          tool={tool}
+          canConfirm={canConfirm}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          onUndo={handleUndo}
+          onSetWidth={setRouteWidth}
+          toolLabel={toolLabel}
+        />
+      ) : null}
     </div>
   )
 }
