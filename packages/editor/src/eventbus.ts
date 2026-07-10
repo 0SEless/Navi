@@ -1,4 +1,6 @@
-import type { CampusDocument, Building, Floor, Room, LatLng } from '@navi/core'
+import type { LatLng, CampusDocument } from '@navi/core'
+import { BaseEditorService } from './context'
+import type { EditorServiceContext } from './context/service-registry'
 
 export type EditorEventType =
   | 'entity.created'
@@ -62,10 +64,22 @@ export type EditorEventPayload =
 
 export type EditorEventHandler = (payload: any) => void
 
-export class DocumentEventBus {
+export class DocumentEventBus extends BaseEditorService {
+  readonly id = 'eventBus'
+  readonly dependencies: readonly string[] = []
+
   private listeners = new Map<EditorEventType, Set<EditorEventHandler>>()
   private txCounter = 0
   private txQueue: Array<{ type: EditorEventType; payload: any }> = []
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+  }
+
+  async destroy(): Promise<void> {
+    this.removeAllListeners()
+    await super.destroy()
+  }
 
   on(type: EditorEventType, handler: EditorEventHandler): () => void {
     if (!this.listeners.has(type)) {

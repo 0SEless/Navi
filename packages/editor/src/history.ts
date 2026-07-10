@@ -3,6 +3,8 @@ import type { Command } from './commands/types'
 import { CommandDispatcher } from './commands/dispatcher'
 import { CommandRegistry } from './commands/registry'
 import type { PreHook, PostHook } from './commands/types'
+import { BaseEditorService } from './context'
+import type { EditorServiceContext } from './context/service-registry'
 
 export interface HistoryEntry {
   command: Command
@@ -29,8 +31,9 @@ function estimateSize(obj: unknown): number {
   return JSON.stringify(obj).length * 2
 }
 
-export class HistoryStack implements PreHook, PostHook {
-  id = 'history-stack'
+export class HistoryStack extends BaseEditorService implements PreHook, PostHook {
+  readonly id = 'history'
+  readonly dependencies: readonly string[] = ['dispatcher']
 
   private past: HistoryEntry[] = []
   private future: HistoryEntry[] = []
@@ -38,14 +41,22 @@ export class HistoryStack implements PreHook, PostHook {
   private currentMemory = 0
   private pendingBeforeHash: string | null = null
   private pendingSnapshot: CampusDocument | null = null
+  private dispatcher!: CommandDispatcher
+  private document!: CampusDocument
+  private registry: CommandRegistry
 
-  constructor(
-    private dispatcher: CommandDispatcher,
-    private document: CampusDocument,
-    private registry: CommandRegistry,
-    maxMemoryMB = 200,
-  ) {
+  constructor(dispatcher?: CommandDispatcher, document?: CampusDocument, registry?: CommandRegistry, maxMemoryMB = 200) {
+    super()
     this.maxMemory = maxMemoryMB * 1024 * 1024
+    this.registry = registry ?? new CommandRegistry()
+    if (dispatcher) this.dispatcher = dispatcher
+    if (document) this.document = document
+  }
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+    this.dispatcher = context.get('dispatcher')
+    this.document = context.document
   }
 
   before(command: Command): void {

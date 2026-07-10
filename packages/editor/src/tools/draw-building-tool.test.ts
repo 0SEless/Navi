@@ -4,7 +4,7 @@ import type { ToolContext, ToolPointerEvent } from './types'
 
 function createCtx(): ToolContext {
   const dispatch = vi.fn()
-  return { getService: (name: string) => name === 'dispatcher' ? { execute: dispatch } : undefined }
+  return { services: { dispatcher: { execute: dispatch } } as any }
 }
 
 function makeEvent(lng: number, lat: number): ToolPointerEvent {
@@ -29,7 +29,7 @@ describe('drawBuildingTool', () => {
     drawBuildingTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawBuildingTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
   })
 
@@ -40,7 +40,7 @@ describe('drawBuildingTool', () => {
     drawBuildingTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawBuildingTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
     const cmd = dispatch.execute.mock.calls[0][0]
     expect(cmd.id).toBe('building.create')
@@ -54,7 +54,7 @@ describe('drawBuildingTool', () => {
     drawBuildingTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Escape'), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -66,7 +66,7 @@ describe('drawBuildingTool', () => {
     drawBuildingTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Backspace'), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -76,7 +76,7 @@ describe('drawBuildingTool', () => {
     drawBuildingTool.onPointerDown?.(makeEvent(10, 20), ctx)
     drawBuildingTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawBuildingTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 })

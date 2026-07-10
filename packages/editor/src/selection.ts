@@ -1,5 +1,7 @@
-import type { CampusDocument, Building, Floor, Room } from '@navi/core'
-import { DocumentEventBus } from './eventbus'
+import type { CampusDocument } from '@navi/core'
+import { BaseEditorService } from './context'
+import type { EditorServiceContext } from './context/service-registry'
+import type { DocumentEventBus } from './eventbus'
 
 export interface SelectionState {
   entityIds: string[]
@@ -7,15 +9,27 @@ export interface SelectionState {
   lastSelectedId: string | null
 }
 
-export class SelectionManager {
+export class SelectionManager extends BaseEditorService {
+  readonly id = 'selection'
+  readonly dependencies: readonly string[] = ['eventBus']
+
   private entityIds = new Set<string>()
   private _hoveredEntityId: string | null = null
   private _lastSelectedId: string | null = null
+  private document!: CampusDocument
+  private eventBus!: DocumentEventBus
 
-  constructor(
-    private document: CampusDocument,
-    private eventBus: DocumentEventBus,
-  ) {}
+  constructor(document?: CampusDocument, eventBus?: DocumentEventBus) {
+    super()
+    if (document) this.document = document
+    if (eventBus) this.eventBus = eventBus
+  }
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+    this.eventBus = context.get('eventBus')
+    this.document = context.document
+  }
 
   select(id: string): void {
     this.clear()

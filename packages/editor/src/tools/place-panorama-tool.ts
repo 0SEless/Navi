@@ -1,14 +1,4 @@
 import type { Tool, ToolPointerEvent, ToolContext } from './types'
-import type { ToolRegistry } from './registry'
-import type { CommandDispatcher } from '../commands'
-
-function getDispatcher(ctx: ToolContext): CommandDispatcher | undefined {
-  return ctx.getService<CommandDispatcher>('dispatcher')
-}
-
-function getRegistry(ctx: ToolContext): ToolRegistry | undefined {
-  return ctx.getService<ToolRegistry>('toolRegistry')
-}
 
 export const placePanoramaTool: Tool = {
   id: 'place-panorama',
@@ -16,10 +6,7 @@ export const placePanoramaTool: Tool = {
   cursor: 'crosshair',
 
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
-    const dispatcher = getDispatcher(ctx)
-    if (!dispatcher) return
-
-    dispatcher.execute({
+    ctx.services.dispatcher.execute({
       id: 'panorama.create',
       label: 'Create Panorama',
       payload: {
@@ -32,12 +19,12 @@ export const placePanoramaTool: Tool = {
       },
     })
 
-    getRegistry(ctx)?.activate('select', ctx)
+    ctx.services.toolRegistry?.activate('select', ctx)
   },
 
   onKeyDown(event: KeyboardEvent, ctx: ToolContext): void {
     if (event.key === 'Escape') {
-      getRegistry(ctx)?.activate('select', ctx)
+      ctx.services.toolRegistry?.activate('select', ctx)
     }
   },
 }

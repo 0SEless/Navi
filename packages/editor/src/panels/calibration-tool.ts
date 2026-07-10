@@ -32,41 +32,29 @@ export const calibrationTool: Tool = {
   cursor: 'crosshair',
 
   onActivate(ctx: ToolContext): void {
-    const viewport = ctx.getService<any>('viewport')
-    const eventBus = ctx.getService<any>('eventBus')
-    if (eventBus) {
-      eventBus.emit('calibration.activated', { floorId: viewport.activeFloorId, buildingId: viewport.activeBuildingId })
-    }
+    ctx.services.eventBus.emit('calibration.activated', { floorId: ctx.services.viewport.activeFloorId, buildingId: ctx.services.viewport.activeBuildingId })
   },
 
   onDeactivate(ctx: ToolContext): void {
-    const eventBus = ctx.getService<any>('eventBus')
-    if (eventBus) {
-      eventBus.emit('calibration.deactivated', {})
-    }
+    ctx.services.eventBus.emit('calibration.deactivated', {})
   },
 
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
-    const eventBus = ctx.getService<any>('eventBus')
-    if (eventBus) {
-      eventBus.emit('calibration.addPoint', {
-        world: { lat: event.lat, lng: event.lng },
-        pixel: { x: event.x, y: event.y },
-      })
-    }
+    ctx.services.eventBus.emit('calibration.addPoint', {
+      world: { lat: event.lat, lng: event.lng },
+      pixel: { x: event.x, y: event.y },
+    })
   },
 
   onKeyDown(event: KeyboardEvent, ctx: ToolContext): void {
-    const eventBus = ctx.getService<any>('eventBus')
-    if (!eventBus) return
     if (event.key === 'Backspace' || event.key === 'Delete') {
-      eventBus.emit('calibration.removeLastPoint', {})
+      ctx.services.eventBus.emit('calibration.removeLastPoint', {})
     }
     if (event.key === 'Enter') {
-      eventBus.emit('calibration.compute', {})
+      ctx.services.eventBus.emit('calibration.compute', {})
     }
     if (event.key === 'Escape') {
-      eventBus.emit('calibration.cancel', {})
+      ctx.services.eventBus.emit('calibration.cancel', {})
     }
   },
 }

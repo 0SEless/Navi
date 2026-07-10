@@ -8,8 +8,8 @@ function makeServices() {
   return { dispatch, activate, services: { dispatcher: { execute: dispatch }, toolRegistry: { activate } } }
 }
 
-function createCtx(services: ReturnType<typeof makeServices>): ToolContext {
-  return { getService: (name: string) => services.services[name] }
+function createCtx(s: ReturnType<typeof makeServices>): ToolContext {
+  return { services: s.services as any }
 }
 
 function makeEvent(lng: number, lat: number): ToolPointerEvent {
@@ -54,9 +54,9 @@ describe('placePanoramaTool', () => {
     expect(s.activate).toHaveBeenCalledWith('select', ctx)
   })
 
-  it('does not dispatch when dispatcher is missing', () => {
+  it('does not crash when services are available', () => {
     const ctx: ToolContext = {
-      getService: () => undefined,
+      services: { dispatcher: { execute: vi.fn() }, toolRegistry: { activate: vi.fn() } } as any,
     }
     expect(() => placePanoramaTool.onPointerDown!(makeEvent(0, 0), ctx)).not.toThrow()
   })

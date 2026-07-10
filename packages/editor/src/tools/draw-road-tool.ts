@@ -1,5 +1,4 @@
 import type { Tool, ToolPointerEvent, ToolContext } from './types'
-import type { CommandDispatcher } from '../commands'
 
 let active = false
 let vertices: { lat: number; lng: number }[] = []
@@ -38,8 +37,7 @@ export const drawRoadTool: Tool = {
 
 function finish(ctx: ToolContext): void {
   if (vertices.length < 2) return
-  const dispatcher = ctx.getService<CommandDispatcher>('dispatcher')
-  if (!dispatcher) return
+  const dispatcher = ctx.services.dispatcher
 
   const id = `rd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
   dispatcher.execute({

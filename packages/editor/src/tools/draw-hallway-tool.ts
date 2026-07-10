@@ -1,5 +1,4 @@
 import type { Tool, ToolPointerEvent, ToolContext } from './types'
-import type { CommandDispatcher } from '../commands'
 
 let active = false
 let vertices: { x: number; y: number }[] = []
@@ -45,8 +44,7 @@ export const drawHallwayTool: Tool = {
 function finish(ctx: ToolContext): void {
   if (vertices.length < 2) return
   if (!currentBuildingId || !currentFloorId) return
-  const dispatcher = ctx.getService<CommandDispatcher>('dispatcher')
-  if (!dispatcher) return
+  const dispatcher = ctx.services.dispatcher
 
   const id = `hw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
   dispatcher.execute({

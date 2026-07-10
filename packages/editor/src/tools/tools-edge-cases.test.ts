@@ -33,24 +33,24 @@ function makePlacementServices(hasViewport = true) {
 
 function makeDrawCtx(): ToolContext {
   const dispatch = vi.fn()
-  return { getService: (name: string) => (name === 'dispatcher' ? { execute: dispatch } : undefined) }
+  return { services: { dispatcher: { execute: dispatch } } as any }
 }
 
 function makeDrawCtxWithBld(buildingId = 'bld-1', floorId = 'flr-1'): ToolContext {
   const dispatch = vi.fn()
   return {
-    getService: (name: string) => (name === 'dispatcher' ? { execute: dispatch } : undefined),
+    services: { dispatcher: { execute: dispatch } } as any,
     buildingId,
     floorId,
   } as ToolContext
 }
 
 function makePlacementCtx(s: { services: Record<string, unknown> }): ToolContext {
-  return { getService: (name: string) => s.services[name] }
+  return { services: s.services as any }
 }
 
 function getDispatch(ctx: ToolContext): any {
-  return ctx.getService<any>('dispatcher')
+  return ctx.services.dispatcher
 }
 
 // ========================================================================
@@ -296,18 +296,17 @@ describe('placeEntranceTool edge cases', () => {
     expect(s.dispatch).toHaveBeenCalledTimes(2)
   })
 
-  it('missing dispatcher does not throw', () => {
-    const ctx: ToolContext = { getService: () => undefined }
-    expect(() => placeEntranceTool.onPointerDown!(makeEvent(0, 0), ctx)).not.toThrow()
-  })
-
-  it('missing toolRegistry still dispatches without crashing', () => {
+  it('missing viewport defaults to empty buildingId/floorId', () => {
     const dispatch = vi.fn()
     const ctx: ToolContext = {
-      getService: (name: string) => (name === 'dispatcher' ? { execute: dispatch } : undefined),
+      services: { dispatcher: { execute: dispatch }, toolRegistry: { activate: vi.fn() } } as any,
     }
-    placeEntranceTool.onPointerDown!(makeEvent(10, 20), ctx)
-    expect(dispatch).toHaveBeenCalledTimes(1)
+    placeEntranceTool.onPointerDown!(makeEvent(0, 0), ctx)
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ buildingId: '', floorId: '' }),
+      }),
+    )
   })
 
   it('enter key does nothing', () => {
@@ -330,9 +329,17 @@ describe('placeStaircaseTool edge cases', () => {
     expect(s.dispatch).toHaveBeenCalledTimes(2)
   })
 
-  it('missing dispatcher does not throw', () => {
-    const ctx: ToolContext = { getService: () => undefined }
-    expect(() => placeStaircaseTool.onPointerDown!(makeEvent(0, 0), ctx)).not.toThrow()
+  it('missing viewport defaults to empty buildingId/floorId', () => {
+    const dispatch = vi.fn()
+    const ctx: ToolContext = {
+      services: { dispatcher: { execute: dispatch }, toolRegistry: { activate: vi.fn() } } as any,
+    }
+    placeStaircaseTool.onPointerDown!(makeEvent(0, 0), ctx)
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ buildingId: '', floorId: '' }),
+      }),
+    )
   })
 
   it('enter key does nothing', () => {
@@ -355,9 +362,17 @@ describe('placeElevatorTool edge cases', () => {
     expect(s.dispatch).toHaveBeenCalledTimes(2)
   })
 
-  it('missing dispatcher does not throw', () => {
-    const ctx: ToolContext = { getService: () => undefined }
-    expect(() => placeElevatorTool.onPointerDown!(makeEvent(0, 0), ctx)).not.toThrow()
+  it('missing viewport defaults to empty buildingId/floorId', () => {
+    const dispatch = vi.fn()
+    const ctx: ToolContext = {
+      services: { dispatcher: { execute: dispatch }, toolRegistry: { activate: vi.fn() } } as any,
+    }
+    placeElevatorTool.onPointerDown!(makeEvent(0, 0), ctx)
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ buildingId: '', floorId: '' }),
+      }),
+    )
   })
 
   it('enter key does nothing', () => {
@@ -383,7 +398,7 @@ describe('placePanoramaTool edge cases', () => {
   it('missing toolRegistry still dispatches without crashing', () => {
     const dispatch = vi.fn()
     const ctx: ToolContext = {
-      getService: (name: string) => (name === 'dispatcher' ? { execute: dispatch } : undefined),
+      services: { dispatcher: { execute: dispatch } } as any,
     }
     placePanoramaTool.onPointerDown!(makeEvent(10, 20), ctx)
     expect(dispatch).toHaveBeenCalledTimes(1)
@@ -412,7 +427,7 @@ describe('placeQrTool edge cases', () => {
   it('missing toolRegistry still dispatches without crashing', () => {
     const dispatch = vi.fn()
     const ctx: ToolContext = {
-      getService: (name: string) => (name === 'dispatcher' ? { execute: dispatch } : undefined),
+      services: { dispatcher: { execute: dispatch } } as any,
     }
     placeQrTool.onPointerDown!(makeEvent(10, 20), ctx)
     expect(dispatch).toHaveBeenCalledTimes(1)

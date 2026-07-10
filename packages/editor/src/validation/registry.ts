@@ -1,4 +1,5 @@
 import type { CampusDocument } from '@navi/core'
+import { BaseEditorService } from '../context'
 
 export type ValidationScope = 'entity' | 'building' | 'campus'
 
@@ -20,7 +21,10 @@ export interface ValidatorPlugin {
   validate(document: CampusDocument): ValidationIssue[]
 }
 
-export class ValidationRegistry {
+export class ValidationRegistry extends BaseEditorService {
+  readonly id = 'validation'
+  readonly dependencies: readonly string[] = []
+
   private plugins = new Map<string, ValidatorPlugin>()
 
   register(plugin: ValidatorPlugin): void {

@@ -35,7 +35,7 @@ const mockViewport: ViewportState = {
 }
 
 const mockToolContext: ToolContext = {
-  getService: () => undefined,
+  services: new Proxy({} as any, { get: () => undefined }),
 }
 
 describe('MapCanvas', () => {

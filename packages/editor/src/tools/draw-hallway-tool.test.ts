@@ -5,7 +5,7 @@ import type { ToolContext, ToolPointerEvent } from './types'
 function createCtx(buildingId = 'bld-1', floorId = 'flr-1'): ToolContext {
   const dispatch = vi.fn()
   return {
-    getService: (name: string) => name === 'dispatcher' ? { execute: dispatch } : undefined,
+    services: { dispatcher: { execute: dispatch } } as any,
     buildingId,
     floorId,
   } as ToolContext
@@ -32,7 +32,7 @@ describe('drawHallwayTool', () => {
     drawHallwayTool.onPointerDown?.(makeEvent(10, 20), ctx)
     drawHallwayTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
   })
 
@@ -42,7 +42,7 @@ describe('drawHallwayTool', () => {
     drawHallwayTool.onPointerDown?.(makeEvent(10, 20), ctx)
     drawHallwayTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
     const cmd = dispatch.execute.mock.calls[0][0]
     expect(cmd.id).toBe('hallway.create')
@@ -59,7 +59,7 @@ describe('drawHallwayTool', () => {
     drawHallwayTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Escape'), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -70,7 +70,7 @@ describe('drawHallwayTool', () => {
     drawHallwayTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Backspace'), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -79,7 +79,7 @@ describe('drawHallwayTool', () => {
     drawHallwayTool.onActivate?.(ctx)
     drawHallwayTool.onPointerDown?.(makeEvent(10, 20), ctx)
     drawHallwayTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 })

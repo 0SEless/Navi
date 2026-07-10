@@ -15,8 +15,8 @@ function makeServices(overrides?: { viewport?: boolean }) {
   return { dispatch, activate, services }
 }
 
-function createCtx(services: ReturnType<typeof makeServices>): ToolContext {
-  return { getService: (name: string) => services.services[name] }
+function createCtx(s: ReturnType<typeof makeServices>): ToolContext {
+  return { services: s.services as any }
 }
 
 function makeEvent(lng: number, lat: number): ToolPointerEvent {

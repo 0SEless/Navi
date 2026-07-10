@@ -5,7 +5,7 @@ import type { ToolContext, ToolPointerEvent } from './types'
 function createCtx(buildingId = 'bld-1', floorId = 'flr-1'): ToolContext {
   const dispatch = vi.fn()
   return {
-    getService: (name: string) => name === 'dispatcher' ? { execute: dispatch } : undefined,
+    services: { dispatcher: { execute: dispatch } } as any,
     buildingId,
     floorId,
   } as ToolContext
@@ -33,7 +33,7 @@ describe('drawRoomTool', () => {
     drawRoomTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawRoomTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
   })
 
@@ -44,7 +44,7 @@ describe('drawRoomTool', () => {
     drawRoomTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawRoomTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).toHaveBeenCalledTimes(1)
     const cmd = dispatch.execute.mock.calls[0][0]
     expect(cmd.id).toBe('room.create')
@@ -61,7 +61,7 @@ describe('drawRoomTool', () => {
     drawRoomTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Escape'), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -73,7 +73,7 @@ describe('drawRoomTool', () => {
     drawRoomTool.onPointerDown?.(makeEvent(12, 22), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Backspace'), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 
@@ -83,7 +83,7 @@ describe('drawRoomTool', () => {
     drawRoomTool.onPointerDown?.(makeEvent(10, 20), ctx)
     drawRoomTool.onPointerDown?.(makeEvent(11, 21), ctx)
     drawRoomTool.onKeyDown?.(makeKeyEvent('Enter'), ctx)
-    const dispatch = ctx.getService<any>('dispatcher')
+    const dispatch = ctx.services.dispatcher
     expect(dispatch.execute).not.toHaveBeenCalled()
   })
 })

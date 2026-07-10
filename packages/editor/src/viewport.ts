@@ -1,5 +1,7 @@
 import type { LatLng } from '@navi/core'
-import { DocumentEventBus } from './eventbus'
+import { BaseEditorService } from './context'
+import type { EditorServiceContext } from './context/service-registry'
+import type { DocumentEventBus } from './eventbus'
 
 export interface ViewportState {
   zoom: number
@@ -11,7 +13,10 @@ export interface ViewportState {
   activeLayer: string | null
 }
 
-export class Viewport {
+export class Viewport extends BaseEditorService {
+  readonly id = 'viewport'
+  readonly dependencies: readonly string[] = ['eventBus']
+
   private _zoom = 15
   private _center: LatLng = { lat: 0, lng: 0 }
   private _bearing = 0
@@ -19,8 +24,17 @@ export class Viewport {
   private _activeBuildingId: string | null = null
   private _activeFloorId: string | null = null
   private _activeLayer: string | null = null
+  private eventBus!: DocumentEventBus
 
-  constructor(private eventBus: DocumentEventBus) {}
+  constructor(eventBus?: DocumentEventBus) {
+    super()
+    if (eventBus) this.eventBus = eventBus
+  }
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+    this.eventBus = context.get('eventBus')
+  }
 
   setZoom(zoom: number): void {
     this._zoom = Math.max(1, Math.min(22, zoom))

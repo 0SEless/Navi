@@ -1,21 +1,36 @@
 import type { CampusDocument } from '@navi/core'
 import type { Command, PreHook, PostHook } from './types'
 import { CommandRegistry } from './registry'
-import { DocumentEventBus } from '../eventbus'
+import { BaseEditorService } from '../context'
+import type { EditorServiceContext } from '../context/service-registry'
+import type { DocumentEventBus } from '../eventbus'
 
 export interface ExecuteOptions {
   skipHooks?: boolean
 }
 
-export class CommandDispatcher {
+export class CommandDispatcher extends BaseEditorService {
+  readonly id = 'dispatcher'
+  readonly dependencies: readonly string[] = ['eventBus']
+
+  private registry: CommandRegistry
+  private document: CampusDocument
+  private eventBus!: DocumentEventBus
   private preHooks: PreHook[] = []
   private postHooks: PostHook[] = []
 
-  constructor(
-    private registry: CommandRegistry,
-    private document: CampusDocument,
-    private eventBus: DocumentEventBus,
-  ) {}
+  constructor(registry?: CommandRegistry, document?: CampusDocument, eventBus?: DocumentEventBus) {
+    super()
+    this.registry = registry ?? new CommandRegistry()
+    this.document = document ?? ({} as CampusDocument)
+    this.eventBus = eventBus ?? ({} as DocumentEventBus)
+  }
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+    this.eventBus = context.get('eventBus')
+    this.document = context.document
+  }
 
   addPreHook(hook: PreHook): void {
     this.preHooks.push(hook)

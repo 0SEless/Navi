@@ -1,6 +1,11 @@
 import type { Tool, ToolContext } from './types'
+import type { ServiceAccessor } from '../context'
+import { BaseEditorService } from '../context'
 
-export class ToolRegistry {
+export class ToolRegistry extends BaseEditorService {
+  readonly id = 'toolRegistry'
+  readonly dependencies: readonly string[] = []
+
   private tools = new Map<string, Tool>()
   private _activeId: string | null = null
 
@@ -53,4 +58,10 @@ export class ToolRegistry {
   }
 }
 
-const emptyCtx: ToolContext = { getService: () => undefined }
+const emptyCtx: ToolContext = {
+  services: new Proxy({} as ServiceAccessor, {
+    get() {
+      throw new Error('ToolContext not provided — services unavailable')
+    },
+  }),
+}

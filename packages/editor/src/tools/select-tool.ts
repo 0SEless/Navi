@@ -1,5 +1,4 @@
 import type { Tool, ToolPointerEvent, ToolContext } from './types'
-import type { SelectionManager } from '../selection'
 
 export const selectTool: Tool = {
   id: 'select',
@@ -7,8 +6,7 @@ export const selectTool: Tool = {
   cursor: 'default',
 
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
-    const selection = ctx.getService<SelectionManager>('selection')
-    if (!selection) return
+    const selection = ctx.services.selection
 
     if (event.shiftKey) {
       const id = entityAtEvent(event)
@@ -27,8 +25,7 @@ export const selectTool: Tool = {
 
   onKeyDown(event: KeyboardEvent, ctx: ToolContext): void {
     if (event.key === 'Escape') {
-      const selection = ctx.getService<SelectionManager>('selection')
-      selection?.clear()
+      ctx.services.selection.clear()
     }
   },
 }

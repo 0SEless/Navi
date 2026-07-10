@@ -9,8 +9,11 @@ export interface ToolPointerEvent {
   altKey: boolean
 }
 
+import type { ServiceAccessor } from '../context'
+
 export interface ToolContext {
-  getService<T>(name: string): T | undefined
+  /** Typed access to editor services. */
+  services: ServiceAccessor
 }
 
 export interface Tool {
