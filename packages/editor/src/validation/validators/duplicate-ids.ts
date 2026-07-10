@@ -4,6 +4,7 @@ import type { ValidatorPlugin, ValidationIssue } from '../registry'
 export const duplicateIdsValidator: ValidatorPlugin = {
   id: 'duplicate-ids',
   label: 'Duplicate IDs',
+  scope: 'campus',
   validate(document: CampusDocument): ValidationIssue[] {
     const issues: ValidationIssue[] = []
     const seen = new Map<string, string[]>()

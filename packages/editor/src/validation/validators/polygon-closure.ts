@@ -5,6 +5,7 @@ import type { ValidatorPlugin, ValidationIssue } from '../registry'
 export const polygonClosureValidator: ValidatorPlugin = {
   id: 'polygon-closure',
   label: 'Polygon Closure',
+  scope: 'entity',
   validate(document: CampusDocument): ValidationIssue[] {
     const issues: ValidationIssue[] = []
 

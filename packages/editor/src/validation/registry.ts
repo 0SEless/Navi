@@ -1,5 +1,7 @@
 import type { CampusDocument } from '@navi/core'
 
+export type ValidationScope = 'entity' | 'building' | 'campus'
+
 export interface ValidationIssue {
   severity: 'error' | 'warning' | 'info'
   entityId?: string
@@ -10,6 +12,11 @@ export interface ValidationIssue {
 export interface ValidatorPlugin {
   id: string
   label: string
+  /** Minimum scope needed for this validator to produce meaningful results.
+   *  'entity': checks properties of a single entity (e.g., polygon closure).
+   *  'building': checks relationships within a building (e.g., room overlap).
+   *  'campus': needs the full document (e.g., duplicate IDs across all buildings). */
+  scope: ValidationScope
   validate(document: CampusDocument): ValidationIssue[]
 }
 

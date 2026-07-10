@@ -48,6 +48,7 @@ function checkSelfIntersection(
 export const selfIntersectionValidator: ValidatorPlugin = {
   id: 'self-intersection',
   label: 'Self-Intersection',
+  scope: 'entity',
   validate(document: CampusDocument): ValidationIssue[] {
     const issues: ValidationIssue[] = []
 
