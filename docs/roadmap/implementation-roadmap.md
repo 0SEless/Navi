@@ -267,14 +267,16 @@ The renderer subscribes to `DocumentEventBus` events rather than being called im
 
 ---
 
-## Phase 4 — Retire Legacy Graph
+## Phase 4 — Navigation Compiler (formerly "Retire Legacy Graph")
 
-**Goal**: Delete the legacy Graph subsystem entirely.
+**Goal**: Make `CampusDocument` the single source of truth and turn the legacy Graph into a **compiled navigation artifact** produced by the Navigation Compiler — no longer an editable model.
 
 ### Current Bridge
 ```
 CampusDocument → GraphAdapter → Legacy Graph → graph-store → UI
 ```
+
+> **Reframing (2026-07-10, M2.3):** The Graph is not being "retired" so much as **re-roled**. Today `Graph = Editor + Navigation`. The target architecture separates these: `CampusDocument` owns editing; the Navigation Compiler produces a read-only `NavigationGraph` used exclusively by the routing engine. The Graph becomes a compiled runtime artifact, not an editable model.
 
 ### Steps
 1. **M4.1**: Migrate remaining consumers from `Graph` to `CampusDocument`
@@ -283,7 +285,7 @@ CampusDocument → GraphAdapter → Legacy Graph → graph-store → UI
 
 **Final state**:
 ```
-CampusDocument → Compiler → NavigationGraph (read-only artifact)
+CampusDocument → Navigation Compiler → NavigationGraph → Routing Engine
 ```
 
 ---
@@ -363,3 +365,5 @@ Track this in `MIGRATION.md` at the project root.
 | Date | Change |
 |------|--------|
 | 2026-07-09 | Initial roadmap created after architecture audit. M1.1 (scoped validation) identified as next milestone. |
+| 2026-07-10 | **M2.2 Explorer Migration COMPLETE** — read-only structural projection of CampusDocument mounted in StudioWorkspace. |
+| 2026-07-10 | **M2.3 Inspector Migration COMPLETE** — PropertiesPanel mounted in single EditorBridge; `entity.update` command + HistoryStack wired; `SelectionBridge` syncs canvas↔Inspector; `DocumentStore` drives version-based re-render. **CampusDocument is now the editable model; the Graph is a rendering artifact.** Phase 4 reframed as **Navigation Compiler** (Graph → compiled navigation artifact). |
