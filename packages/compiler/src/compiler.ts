@@ -1,1 +1,1 @@
-export { compile } from './pipeline/compile.js'
+export { compile, CampusCompiler } from './pipeline/compile.js'

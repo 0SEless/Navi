@@ -1,9 +1,19 @@
 import type { CampusDocument } from '@navi/core'
 import type { CompilerConfig, CompileResult } from '../types'
+import { CampusCompiler } from './campus-compiler'
 import { directExtract } from '../extractors/direct-extract'
 import { buildGraph, buildSearchIndex } from '../artifacts'
 import { createHash } from 'crypto'
 
+/**
+ * Legacy compile function — kept for backward compatibility.
+ *
+ * Uses the old pipeline path (directExtract → buildGraph) directly
+ * without the new stage plugin system.
+ *
+ * @deprecated Use `new CampusCompiler(config).compile(document)` for
+ * plugin support and the new CompileResultV2 format.
+ */
 export function compile(document: CampusDocument, config: CompilerConfig): CompileResult {
   const start = performance.now()
   const extraction = directExtract(document)
@@ -42,3 +52,5 @@ export function compile(document: CampusDocument, config: CompilerConfig): Compi
     extraction,
   }
 }
+
+export { CampusCompiler } from './campus-compiler'

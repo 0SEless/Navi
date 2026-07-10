@@ -51,6 +51,19 @@ export interface CompilerConfig {
   mergeThreshold: number
   optimizationLevel: 'none' | 'moderate' | 'aggressive'
   includeAccessibility: boolean
+
+  /** Built-in stage overrides (optional — defaults use internal implementations) */
+  stages?: {
+    parse?: new () => CompilerStagePlugin
+    'build-nodes'?: new () => CompilerStagePlugin
+    'build-edges'?: new () => CompilerStagePlugin
+    'connect-campuses'?: new () => CompilerStagePlugin
+    'optimize'?: new () => CompilerStagePlugin
+    'validate'?: new () => CompilerStagePlugin
+  }
+
+  /** Third-party plugins to inject into the compile pipeline */
+  plugins?: CompilerStagePlugin[]
 }
 
 export interface CompileReport {
@@ -64,11 +77,22 @@ export interface CompileReport {
   validation: ValidationResult[]
 }
 
+/** @deprecated Use CompileResultV2 for new code. Legacy for backward compat. */
 export interface CompileResult {
   graph: NavigationGraph
   report: CompileReport
   duration: number
   extraction?: ExtractionResult
+}
+
+/** V2 compile result matching architecture spec — returned by CampusCompiler */
+export interface CompileResultV2 {
+  success: boolean
+  graph: NavigationGraph | null
+  stats: CompileStats
+  warnings: CompileWarning[]
+  errors: CompileError[]
+  duration: number
 }
 
 export type NavigationSpaceType = 'room' | 'lobby' | 'hallway' | 'stairwell' | 'elevator_shaft' | 'outdoor'
@@ -202,4 +226,183 @@ export interface BuildingEntry {
 export interface BuildingIndex {
   version: string
   buildings: BuildingEntry[]
+}
+
+// ──────────────────────────────────────────────
+// Compiler Stage Plugin System
+// ──────────────────────────────────────────────
+
+export type CompileStageId =
+  | 'parse'
+  | 'build-nodes'
+  | 'build-edges'
+  | 'connect-campuses'
+  | 'optimize'
+  | 'validate'
+
+export type PluginMode = 'replace' | 'augment'
+
+export interface CompilerStagePlugin {
+  /** Plugin identifier (must be namespaced: "compiler-{name}") */
+  id: string
+
+  /** Which stage this plugin replaces or augments */
+  targetStage: CompileStageId
+
+  /** Plugin metadata */
+  meta: {
+    name: string
+    version: string
+    description: string
+    author?: string
+  }
+
+  /** Execution mode: 'replace' takes full control, 'augment' wraps the default */
+  mode: PluginMode
+
+  /** Execute the plugin (replaces or wraps the default stage) */
+  execute(input: CompilerStageInput, next: CompilerStageNext): CompilerStageOutput
+}
+
+export interface CompilerStageInput {
+  /** The document being compiled (available at all stages) */
+  document: import('@navi/core').CampusDocument
+
+  /** Parsed document (available after parse stage) */
+  parsed?: ParsedDocument
+
+  /** Current graph state (available after build-nodes stage) */
+  nodes?: import('../types').NavNode[]
+  edges?: import('../types').NavEdge[]
+
+  /** Stage-specific context */
+  context: Record<string, unknown>
+}
+
+export interface CompilerStageOutput {
+  /** Modified nodes (if stage operates on nodes) */
+  nodes?: import('../types').NavNode[]
+
+  /** Modified edges (if stage operates on edges) */
+  edges?: import('../types').NavEdge[]
+
+  /** Warnings to add to result */
+  warnings?: CompileWarning[]
+
+  /** Errors (returning errors halts the pipeline) */
+  errors?: CompileError[]
+
+  /** Pass-through data for later stages */
+  context?: Record<string, unknown>
+}
+
+export type CompilerStageNext = (input: CompilerStageInput) => CompilerStageOutput
+
+/** Parsed document representation produced by the Parse stage */
+export interface ParsedDocument {
+  buildings: ParsedBuilding[]
+  rooms: ParsedRoom[]
+  hallways: ParsedHallway[]
+  entrances: ParsedEntrance[]
+  stairs: ParsedStair[]
+  elevators: ParsedElevator[]
+  roads: ParsedRoad[]
+}
+
+export interface ParsedBuilding {
+  id: string
+  name: string
+  code: string
+  category: string
+  position: LatLng
+  baseElevation: number
+  height: number
+  floors: number[]
+  color: string
+}
+
+export interface ParsedRoom {
+  id: string
+  name: string
+  number: string
+  category: string
+  polygon: LatLng[]
+  centroid: LatLng
+  floorId: string
+  floorLevel: number
+  buildingId: string
+}
+
+export interface ParsedHallway {
+  id: string
+  name: string
+  polyline: LatLng[]
+  width: number
+  floorId: string
+  floorLevel: number
+  buildingId: string
+}
+
+export interface ParsedEntrance {
+  id: string
+  name: string
+  position: LatLng
+  level: number
+  buildingId: string
+  isAccessible: boolean
+  hasQR: boolean
+  hasPanorama: boolean
+}
+
+export interface ParsedStair {
+  id: string
+  name: string
+  position: LatLng
+  buildingId: string
+  isAccessible: boolean
+}
+
+export interface ParsedElevator {
+  id: string
+  name: string
+  position: LatLng
+  buildingId: string
+  isAccessible: boolean
+}
+
+export interface ParsedRoad {
+  id: string
+  name: string
+  polyline: LatLng[]
+  width: number
+  surface: string
+  type: string
+}
+
+export interface CompileStats {
+  totalNodes: number
+  totalEdges: number
+  buildingsProcessed: number
+  floorsProcessed: number
+  roomsProcessed: number
+  hallwaysProcessed: number
+  totalRouteLength: number // meters
+  connectivityScore: number // 0–1
+}
+
+export interface CompileWarning {
+  code: string    // 'ORPHANED_ROOM'
+  message: string  // "Room 203 has no hallway connection"
+  entityId: string
+}
+
+export interface CompileError {
+  code: string
+  message: string
+  entityId?: string
+}
+
+export interface CompileStage {
+  name: string     // "Building nodes", "Connecting edges", etc.
+  progress: number  // 0–1
 }
