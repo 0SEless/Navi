@@ -21,9 +21,33 @@ import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 
 /**
- * Minimal bridge: converts legacy Graph → CampusDocument and provides
- * a single EditorProvider context so Explorer + PropertiesPanel share one
- * document, one SelectionManager, one dispatcher, one history.
+ * ── Selection Ownership Invariant ─────────────────────────────────
+ *
+ * `SelectionManager` (inside the editor package) is the single
+ * authoritative source of "what is currently selected." All panels
+ * (PropertiesPanel, Inspector) MUST consume selection via the
+ * `useSelection()` hook rather than reading `useStudioStore` directly.
+ *
+ * `useStudioStore.{selectedNodeId, activeBuildingId}` are legacy
+ * compatibility values — a view-only projection of SelectionManager
+ * state, maintained by the bridge's Direction A callback. They are
+ * NOT the source of truth. Canvas highlight sync / camera fly-to may
+ * read them, but they MUST NOT drive panel rendering.
+ *
+ * The bridge (SelectionBridge) synchronizes in both directions:
+ *   Direction A: SelectionManager → Zustand (legacy store).
+ *   Direction B: Zustand → SelectionManager (canvas click origin).
+ *
+ * Origin gating: Explorer-originated selections pass through Direction
+ * A to set `activeBuildingId` → StudioCanvas flyTo. Canvas-originated
+ * selections are suppressed by `SelectionBridge.syncing` (Direction B
+ * sets `syncing=true`, preventing Direction A from firing for the
+ * canvas-initiated cycle). See `useEffect` below for details.
+ * ──────────────────────────────────────────────────────────────────
+ *
+ * Bridge: converts legacy Graph → CampusDocument and provides
+ * a single EditorProvider context so Explorer + PropertiesPanel share
+ * one document, one SelectionManager, one dispatcher, one history.
  *
  * The context (document + services) is created ONCE per bridge mount
  * (lifetime invariant) — never recreated on graph/selection/edit changes.
@@ -120,10 +144,19 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const bridge = new SelectionBridge(selectionManager)
 
     // Direction A — SelectionManager → legacy store.
+    // Origin gating:
+    //   Explorer origin → sets activeBuildingId → map flyTo in StudioCanvas
+    //   Canvas origin   → suppressed by SelectionBridge.syncing guard
+    //                     (canvas already handled its own camera)
+    //   Programmatic    → sets activeBuildingId (no map in test, no-op)
     const unsubBridge = bridge.connect({
-      onSelectionChanged(_state, legacy) {
+      onSelectionChanged(state, legacy) {
         useStudioStore.setState({
           selectedNodeId: legacy.selectedNodeId,
+          // activeBuildingId triggers the camera fly-to effect in StudioCanvas.
+          // Canvas-origin selections are already suppressed by the syncing guard
+          // in SelectionBridge (Direction B sets syncing=true, so this callback
+          // is skipped during canvas→SelectionManager cycles).
           activeBuildingId: legacy.activeBuildingId,
         })
       },

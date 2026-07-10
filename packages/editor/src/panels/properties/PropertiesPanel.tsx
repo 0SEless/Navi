@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useEditor, useDocumentVersion } from '../../context'
+import { useEditor, useDocumentVersion, useSelection } from '../../context'
 import { BuildingProperties } from './building-props'
 import { FloorProperties } from './floor-props'
 import { RoomProperties } from './room-props'
@@ -13,25 +12,10 @@ import { QRProperties } from './qr-props'
 import { findEntityById } from './property-utils'
 
 export function PropertiesPanel() {
-  const { document, services } = useEditor()
-  const selection = services.get<any>('selection')
-  const eventBus = services.get<any>('eventBus')
+  const { document } = useEditor()
+  const selection = useSelection()
   const version = useDocumentVersion()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-
-  const syncSelection = useCallback(() => {
-    setSelectedId(selection?.lastSelectedId ?? null)
-  }, [selection])
-
-  useEffect(() => {
-    syncSelection()
-  }, [syncSelection])
-
-  useEffect(() => {
-    if (!eventBus) return
-    eventBus.on('selection.changed', syncSelection)
-    return () => eventBus.off('selection.changed', syncSelection)
-  }, [eventBus, syncSelection])
+  const selectedId = selection.lastSelected?.id ?? null
 
   if (!selectedId) {
     return (

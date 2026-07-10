@@ -21,7 +21,6 @@ describe('SelectionOrigin', () => {
   it('has all expected values', () => {
     expect(SelectionOrigin.Canvas).toBe('canvas')
     expect(SelectionOrigin.Explorer).toBe('explorer')
-    expect(SelectionOrigin.Inspector).toBe('inspector')
     expect(SelectionOrigin.Keyboard).toBe('keyboard')
     expect(SelectionOrigin.Programmatic).toBe('programmatic')
   })

@@ -106,7 +106,6 @@ export type EntitySelector =
 export enum SelectionOrigin {
   Canvas = 'canvas',
   Explorer = 'explorer',
-  Inspector = 'inspector',
   Keyboard = 'keyboard',
   Programmatic = 'programmatic',
 }

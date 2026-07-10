@@ -360,6 +360,33 @@ useEffect(() => {
     }
   }, [graph, activeFloor, renderVersion])
 
+  // ── Selection highlight sync ──────────────────────────────────────────
+  // Applies map.setFeatureState when selectedNodeId changes from any source
+  // (Explorer, Canvas click, Inspector — any origin).
+  // This is the bridge between SelectionManager-driven selection and the
+  // canvas visual highlight. See also: click handler inline feature-state.
+  const lastHighlightedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!readyRef.current || !mapRef.current) return
+    const map = mapRef.current
+    const prevId = lastHighlightedRef.current
+    const currId = selectedNode
+
+    if (prevId && prevId !== currId) {
+      try {
+        map.setFeatureState({ source: SRC.NODES, id: prevId }, { selected: false })
+        map.setFeatureState({ source: SRC.NODES_CONNECTION, id: prevId }, { selected: false })
+      } catch { /* node may no longer exist */ }
+    }
+    if (currId) {
+      try {
+        map.setFeatureState({ source: SRC.NODES, id: currId }, { selected: true })
+        map.setFeatureState({ source: SRC.NODES_CONNECTION, id: currId }, { selected: true })
+      } catch { /* node may no longer exist */ }
+    }
+    lastHighlightedRef.current = currId
+  }, [selectedNode])
+
   useEffect(() => {
     if (!selectedBuilding || !mapRef.current || !readyRef.current) return
     const map = mapRef.current

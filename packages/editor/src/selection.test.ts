@@ -136,8 +136,8 @@ describe('SelectionManager — M2.1 extensions', () => {
     })
 
     it('toggle with origin stores it', () => {
-      selection.toggle('bld-1', SelectionOrigin.Inspector)
-      expect(selection.origin).toBe('inspector')
+      selection.toggle('bld-1', SelectionOrigin.Explorer)
+      expect(selection.origin).toBe('explorer')
     })
 
     it('clear with origin stores it', () => {
@@ -165,14 +165,14 @@ describe('SelectionManager — M2.1 extensions', () => {
 
     it('selectionState returns full enriched state', () => {
       const sel: EntitySelector = { type: 'road', id: 'rd-1' as any }
-      selection.select(sel, SelectionOrigin.Inspector)
+      selection.select(sel, SelectionOrigin.Explorer)
       selection.setMode('multi')
 
       const state = selection.selectionState
       expect(state.selected).toHaveLength(1)
       expect(state.selected[0]).toEqual(sel)
       expect(state.mode).toBe('multi')
-      expect(state.origin).toBe('inspector')
+      expect(state.origin).toBe('explorer')
       expect(state.hovered).toBeNull()
       expect(state.lastSelected).toEqual(sel)
     })

@@ -3,7 +3,8 @@
 import React from 'react'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
-import type { ExplorerNode, EntityId, EntitySelector, SelectionOrigin } from '@navi/editor'
+import { SelectionOrigin } from '@navi/editor'
+import type { ExplorerNode, EntityId, EntitySelector } from '@navi/editor'
 import { ExplorerContextMenu } from './ExplorerContextMenu'
 import type { ContextMenuAction } from './ExplorerContextMenu'
 import { getExplorerActions } from './getExplorerActions'
@@ -134,7 +135,7 @@ function ExplorerItemImpl({
         userSelect: 'none',
         borderBottom: '1px solid #f3f4f6',
       }}
-      onClick={() => onSelect(node.entitySelector, 'explorer' as SelectionOrigin)}
+      onClick={() => onSelect(node.entitySelector, SelectionOrigin.Explorer)}
       onContextMenu={handleContextMenu}
     >
       {hasChildren ? (
