@@ -1,0 +1,99 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render } from '@testing-library/react'
+import { InteractionController } from '../InteractionController'
+
+const mockSubscribe = vi.fn(() => vi.fn())
+const mockGetStudioState = vi.fn(() => ({
+  tool: 'select',
+  tracePoints: [],
+  drawPoints: [],
+  activeFloor: 0,
+  activeBuildingId: null,
+  selectedNodeId: null,
+  adjustBuildingId: null,
+  addTracePoint: vi.fn(),
+  setTracePoints: vi.fn(),
+  setDrawPoints: vi.fn(),
+  setSelectedNodeId: vi.fn(),
+  setSelectedTraceId: vi.fn(),
+  setActiveBuilding: vi.fn(),
+  setPendingConfirm: vi.fn(),
+  setAdjustBuilding: vi.fn(),
+  setVertexEditing: vi.fn(),
+  clearTracePoints: vi.fn(),
+  clearDrawPoints: vi.fn(),
+}))
+const mockGetGraphState = vi.fn(() => ({
+  graph: { nodes: [], edges: [], buildings: [], traces: [] } as any,
+  addComponent: vi.fn(),
+  addComponentWithPolygon: vi.fn(),
+  updateBuilding: vi.fn(),
+  save: vi.fn(),
+}))
+
+vi.mock('@/store/graph-store', () => ({
+  useGraphStore: Object.assign(vi.fn(), { getState: vi.fn(), subscribe: vi.fn() }),
+}))
+
+vi.mock('@/store/studio-store', () => ({
+  useStudioStore: Object.assign(vi.fn(), { getState: vi.fn(), subscribe: vi.fn() }),
+}))
+
+import { useGraphStore } from '@/store/graph-store'
+import { useStudioStore } from '@/store/studio-store'
+
+describe('InteractionController', () => {
+  const mockOn = vi.fn()
+  const mockOff = vi.fn()
+  const mockMap = {
+    on: mockOn,
+    off: mockOff,
+    getCanvas: () => ({ style: {} }),
+    project: vi.fn(() => ({ x: 0, y: 0 })),
+    queryRenderedFeatures: vi.fn(() => []),
+    getSource: vi.fn(),
+    dragPan: { enable: vi.fn(), disable: vi.fn() },
+  } as any
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(useGraphStore as any).getState.mockReturnValue(mockGetGraphState())
+    ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribe)
+    ;(useStudioStore as any).getState.mockReturnValue(mockGetStudioState())
+    ;(useStudioStore as any).subscribe.mockImplementation(mockSubscribe)
+  })
+
+  it('registers map event listeners on mount', () => {
+    render(<InteractionController map={mockMap} />)
+    expect(mockOn).toHaveBeenCalledWith('click', expect.any(Function))
+    expect(mockOn).toHaveBeenCalledWith('dblclick', expect.any(Function))
+    expect(mockOn).toHaveBeenCalledWith('mousedown', expect.any(Function))
+    expect(mockOn).toHaveBeenCalledWith('mousemove', expect.any(Function))
+    expect(mockOn).toHaveBeenCalledWith('mouseup', expect.any(Function))
+  })
+
+  it('unregisters event listeners on unmount', () => {
+    const { unmount } = render(<InteractionController map={mockMap} />)
+    unmount()
+    expect(mockOff).toHaveBeenCalledWith('click', expect.any(Function))
+    expect(mockOff).toHaveBeenCalledWith('dblclick', expect.any(Function))
+    expect(mockOff).toHaveBeenCalledWith('mousedown', expect.any(Function))
+    expect(mockOff).toHaveBeenCalledWith('mousemove', expect.any(Function))
+    expect(mockOff).toHaveBeenCalledWith('mouseup', expect.any(Function))
+  })
+
+  it('subscribes to studio store on mount', () => {
+    render(<InteractionController map={mockMap} />)
+    expect(useStudioStore.subscribe).toHaveBeenCalled()
+  })
+
+  it('subscribes to graph store on mount', () => {
+    render(<InteractionController map={mockMap} />)
+    expect(useGraphStore.subscribe).toHaveBeenCalled()
+  })
+
+  it('renders nothing visible', () => {
+    const { container } = render(<InteractionController map={mockMap} />)
+    expect(container.firstChild).toBeNull()
+  })
+})

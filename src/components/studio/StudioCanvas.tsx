@@ -17,6 +17,7 @@ import { PreviewOverlay } from './PreviewOverlay'
 import { DrawingSessionProvider, type DrawingSessionValue } from './useDrawingSession'
 import { ViewportController } from './ViewportController'
 import { useToolController } from './useToolController'
+import { InteractionController } from './InteractionController'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -56,8 +57,8 @@ const SATELLITE_STYLE = {
   layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
 }
 
-const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', NODES_CONNECTION: 's-nodes-connection', TRACES: 's-traces', DRAWING: 's-drawing' } as const
-const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', NODES_CONNECTION: 'l-nodes-connection', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points' } as const
+export const SRC = { BUILDINGS: 's-buildings', EDGES: 's-edges', NODES: 's-nodes', NODES_CONNECTION: 's-nodes-connection', TRACES: 's-traces', DRAWING: 's-drawing' } as const
+export const LYR = { BUILDINGS_FILL: 'l-buildings-fill', BUILDINGS_EXTRUSION: 'l-buildings-extrusion', BUILDINGS_OUTLINE: 'l-buildings-outline', EDGES: 'l-edges', NODES: 'l-nodes', NODES_CONNECTION: 'l-nodes-connection', TRACES_LINE: 'l-traces-line', TRACES_INNER: 'l-traces-inner', DRAWING_LINE: 'l-drawing-line', DRAWING_POINTS: 'l-drawing-points' } as const
 const HIDDEN_NODE_TYPES = new Set(['room', 'staircase', 'elevator'])
 
 const CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='2' x2='12' y2='10' stroke='%23000' stroke-width='2'/%3E%3Cline x1='12' y1='14' x2='12' y2='22' stroke='%23000' stroke-width='2'/%3E%3Cline x1='2' y1='12' x2='10' y2='12' stroke='%23000' stroke-width='2'/%3E%3Cline x1='14' y1='12' x2='22' y2='12' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 12 12, crosshair`
@@ -171,7 +172,7 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: LYR.DRAWING_POINTS, type: 'circle', source: SRC.DRAWING, paint: { 'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 9, 6], 'circle-color': '#06B6D4', 'circle-opacity': 0.8, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' } })
 }
 
-function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
+export function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
   const filteredEdges = graph.edges.filter((e: NavEdge) => {
     const from = graph.getNode(e.from)
@@ -215,20 +216,18 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 
   const graph = useGraphStore((s) => s.graph)
   const renderVersion = useGraphStore((s) => s.renderVersion)
-  const addComponent = useGraphStore((s) => s.addComponent)
-  const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
+  const updateTrace = useGraphStore((s) => s.updateTrace)
+  const recompileTrace = useGraphStore((s) => s.recompileTrace)
+  const save = useGraphStore((s) => s.save)
   const tool = useStudioStore((s) => s.tool)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const layers = useStudioStore((s) => s.layers)
   const tracePoints = useStudioStore((s) => s.tracePoints)
   const addTracePoint = useStudioStore((s) => s.addTracePoint)
-  const setTracePoints = useStudioStore((s) => s.setTracePoints)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const setPendingConfirm = useStudioStore((s) => s.setPendingConfirm)
   const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
-  const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
-  const setSelectedTraceId = useStudioStore((s) => s.setSelectedTraceId)
   const drawPoints = useStudioStore((s) => s.drawPoints)
   const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
@@ -236,15 +235,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const editTargetType = useStudioStore((s) => s.editTargetType)
   const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
   const editTargetId = useStudioStore((s) => s.editTargetId)
-  const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
-  const updateTrace = useGraphStore((s) => s.updateTrace)
-  const recompileTrace = useGraphStore((s) => s.recompileTrace)
-  const updateBuilding = useGraphStore((s) => s.updateBuilding)
-  const save = useGraphStore((s) => s.save)
-  const adjustBuildingId = useStudioStore((s) => s.adjustBuildingId)
-  const setAdjustBuilding = useStudioStore((s) => s.setAdjustBuilding)
   const selectedNode = useStudioStore((s) => s.selectedNodeId)
-  const setSelectedNode = useStudioStore((s) => s.setSelectedNodeId)
   const selectedBuilding = activeBuildingId ? graph.buildings.find((b) => b.id === activeBuildingId) ?? null : null
 
   const currentEditTrace = editTargetType === 'trace' && editTargetId
@@ -261,58 +252,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 
   const [roomDrag, setRoomDrag] = useState<{ start: LatLng; current: LatLng } | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
-
-  const toolRef = useRef(tool)
-  const tracePointsRef = useRef(tracePoints)
-  const graphRef = useRef(graph)
-  const activeFloorRef = useRef(activeFloor)
-  const activeBuildingIdRef = useRef(activeBuildingId)
-  const selectedNodeRef = useRef(selectedNode)
-  const drawPointsRef = useRef(drawPoints)
-  const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
-  const adjustBuildingIdRef = useRef(adjustBuildingId)
-  const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
   const preEditLayerVisRef = useRef<{ nodes: boolean }>({ nodes: true })
-  const lastSelectedNodeRef = useRef<string | null>(null)
-
-  useEffect(() => { toolRef.current = tool }, [tool])
-  useEffect(() => { tracePointsRef.current = tracePoints }, [tracePoints])
-  useEffect(() => { graphRef.current = graph }, [graph])
-  useEffect(() => { activeFloorRef.current = activeFloor }, [activeFloor])
-  useEffect(() => { activeBuildingIdRef.current = activeBuildingId }, [activeBuildingId])
-  useEffect(() => { adjustBuildingIdRef.current = adjustBuildingId }, [adjustBuildingId])
-  useEffect(() => { selectedNodeRef.current = selectedNode }, [selectedNode])
-  useEffect(() => { drawPointsRef.current = drawPoints }, [drawPoints])
-
-  function getCurrentPoints() {
-    const curTool = toolRef.current
-    if (curTool === 'route') return tracePointsRef.current
-    if (curTool === 'building' || curTool === 'boundary') return drawPointsRef.current
-    return []
-  }
-
-  function setCurrentPoints(points: LatLng[]) {
-    const curTool = toolRef.current
-    if (curTool === 'route') { setTracePoints(points) }
-    if (curTool === 'building' || curTool === 'boundary') { setDrawPoints(points) }
-  }
-
-  function findNearestVertex(mouseScreen: { x: number; y: number }, map: maplibregl.Map, points: LatLng[]): number {
-    const THRESHOLD = 10
-    let nearest = -1
-    let nearestDist = THRESHOLD
-    for (let i = 0; i < points.length; i++) {
-      const screen = map.project([points[i].lng, points[i].lat])
-      const dx = screen.x - mouseScreen.x
-      const dy = screen.y - mouseScreen.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      if (dist < nearestDist) {
-        nearestDist = dist
-        nearest = i
-      }
-    }
-    return nearest
-  }
 
 useEffect(() => {
     if (mapRef.current) return
@@ -330,14 +270,14 @@ useEffect(() => {
       })
       map.on('mouseleave', LYR.NODES_CONNECTION, () => {
         setTooltip(null)
-        const ct = toolRef.current
+        const ct = useStudioStore.getState().tool
         const canvas = map.getCanvas()
         if (ct === 'select') canvas.style.cursor = 'pointer'
         else canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
       })
       readyRef.current = true
       setMapInstance(map)
-      syncAllData(map, graphRef.current, activeFloorRef.current)
+      syncAllData(map, graph, activeFloor)
     })
     mapRef.current = map
     return () => { mounted = false; map.remove() }
@@ -346,250 +286,15 @@ useEffect(() => {
   useEffect(() => {
     if (!readyRef.current || !mapRef.current) return
     const map = mapRef.current
-    syncAllData(map, graphRef.current, activeFloorRef.current)
-    // Restore selected node highlight after data refresh (feature-state cleared by setData)
-    if (selectedNodeRef.current) {
+    syncAllData(map, graph, activeFloor)
+    if (selectedNode) {
       try {
-        map.setFeatureState({ source: SRC.NODES, id: selectedNodeRef.current }, { selected: true })
+        map.setFeatureState({ source: SRC.NODES, id: selectedNode }, { selected: true })
       } catch { /* node may no longer exist */ }
     }
   }, [graph, activeFloor, renderVersion])
 
   // Selection highlight is managed by <SelectionOverlay />
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    const handleClick = (e: maplibregl.MapMouseEvent) => {
-      if (dragVertexRef.current) { dragVertexRef.current = null; return }
-      if (buildingDragRef.current) { buildingDragRef.current = null; map.dragPan.enable(); return }
-      const curTool = toolRef.current
-      const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-
-      if (curTool === 'route') {
-        const points = tracePointsRef.current
-        const nearIdx = findNearestVertex(e.point, map, points)
-        if (nearIdx >= 0) {
-          dragVertexRef.current = { index: nearIdx, points: [...points], source: 'trace' }
-          return
-        }
-        addTracePoint(pos)
-        return
-      }
-      if (curTool === 'asset') {
-        addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: pos })
-        return
-      }
-      if (curTool === 'select') {
-        const features = map.queryRenderedFeatures(e.point)
-        const hitNode = features.find((f) => f.layer.id === LYR.NODES || f.layer.id === LYR.NODES_CONNECTION)
-        if (hitNode) {
-          const nodeId = hitNode.properties?.id as string | null
-          lastSelectedNodeRef.current = nodeId
-          setSelectedNode(nodeId)
-          return
-        }
-        const hitBuilding = features.find((f) => f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL)
-        if (hitBuilding) {
-          const bid = hitBuilding.properties?.id
-          if (bid) setActiveBuilding(bid)
-          return
-        }
-        const hitTrace = features.find((f) => f.layer.id === LYR.TRACES_LINE || f.layer.id === LYR.TRACES_INNER)
-        if (hitTrace) {
-          const tid = hitTrace.properties?.id
-          if (tid) { setSelectedTraceId(tid); return }
-        }
-        lastSelectedNodeRef.current = null
-        setSelectedNode(null)
-        setSelectedTraceId(null)
-        return
-      }
-    }
-
-    const handleDblClick = () => {
-      const curTool = toolRef.current
-      if (curTool === 'route' && tracePointsRef.current.length >= 2) {
-        setPendingConfirm('route', [...tracePointsRef.current])
-      }
-    }
-
-    let dragStart: LatLng | null = null
-
-    const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
-      if (e.originalEvent.button !== 0) return
-      const curTool = toolRef.current
-      if (curTool === 'select' && adjustBuildingIdRef.current) {
-        const features = map.queryRenderedFeatures(e.point)
-        const hitBuilding = features.find((f) =>
-          (f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL) &&
-          f.properties?.id === adjustBuildingIdRef.current
-        )
-        if (hitBuilding) {
-          const building = graphRef.current.buildings.find(b => b.id === adjustBuildingIdRef.current)
-          if (building) {
-            buildingDragRef.current = {
-              buildingId: adjustBuildingIdRef.current,
-              originalFootprint: building.footprint.map(p => ({ ...p })),
-              startPoint: { lat: e.lngLat.lat, lng: e.lngLat.lng },
-            }
-            map.dragPan.disable()
-            return
-          }
-        }
-      }
-      if (curTool === 'room') {
-        dragStart = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        setRoomDrag({ start: dragStart, current: dragStart })
-        return
-      }
-      if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
-        const points = getCurrentPoints()
-        const nearIdx = findNearestVertex(e.point, map, points)
-        if (nearIdx >= 0) {
-          dragVertexRef.current = { index: nearIdx, points: [...points], source: curTool === 'route' ? 'trace' : 'draw' }
-        }
-      }
-    }
-
-    const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
-      const drag = dragVertexRef.current
-      if (drag) {
-        drag.points[drag.index] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        const coords = drag.points.map((p) => [p.lng, p.lat])
-        const drawFeatures: GeoJSON.Feature[] = []
-        drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
-        for (const p of drag.points) {
-          drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
-        }
-        try {
-          const src = mapRef.current?.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
-          if (src) src.setData({ type: 'FeatureCollection', features: drawFeatures })
-        } catch {}
-        return
-      }
-      if (dragStart && toolRef.current === 'room') {
-        setRoomDrag({ start: dragStart, current: { lat: e.lngLat.lat, lng: e.lngLat.lng } })
-      }
-      const buildingDrag = buildingDragRef.current
-      if (buildingDrag) {
-        const dLat = e.lngLat.lat - buildingDrag.startPoint.lat
-        const dLng = e.lngLat.lng - buildingDrag.startPoint.lng
-        const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource
-        if (buildingSrc) {
-          const features = graphRef.current.buildings.map((bb) => {
-            const footprint = bb.id === buildingDrag.buildingId
-              ? buildingDrag.originalFootprint.map(p => ({ lat: p.lat + dLat, lng: p.lng + dLng }))
-              : bb.footprint
-            return {
-              type: 'Feature',
-              properties: { id: bb.id, name: bb.name, color: bb.color || '#1C6BEB', height: bb.height || 15 },
-              geometry: {
-                type: 'Polygon',
-                coordinates: [footprint.map(p => [p.lng, p.lat]).concat([[footprint[0].lng, footprint[0].lat]])],
-              },
-            }
-          })
-          buildingSrc.setData({ type: 'FeatureCollection', features })
-        }
-        return
-      }
-    }
-
-    const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
-      const drag = dragVertexRef.current
-      if (drag) {
-        setCurrentPoints(drag.points)
-        dragVertexRef.current = null
-        return
-      }
-      const buildingDrag = buildingDragRef.current
-      if (buildingDrag) {
-        map.dragPan.enable()
-        const dLat = e.lngLat.lat - buildingDrag.startPoint.lat
-        const dLng = e.lngLat.lng - buildingDrag.startPoint.lng
-        if (dLat !== 0 || dLng !== 0) {
-          const movedFootprint = buildingDrag.originalFootprint.map(p => ({
-            lat: p.lat + dLat,
-            lng: p.lng + dLng,
-          }))
-          const centroid = {
-            lat: movedFootprint.reduce((s, p) => s + p.lat, 0) / movedFootprint.length,
-            lng: movedFootprint.reduce((s, p) => s + p.lng, 0) / movedFootprint.length,
-          }
-          updateBuilding(buildingDrag.buildingId, { footprint: movedFootprint, center: centroid })
-          save()
-        }
-        setAdjustBuilding(null)
-        buildingDragRef.current = null
-        syncAllData(map, graphRef.current, activeFloorRef.current)
-        return
-      }
-      if (dragStart && toolRef.current === 'room') {
-        const start = dragStart
-        const end = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        const polygon = [
-          { lat: Math.min(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
-          { lat: Math.min(start.lat, end.lat), lng: Math.max(start.lng, end.lng) },
-          { lat: Math.max(start.lat, end.lat), lng: Math.max(start.lng, end.lng) },
-          { lat: Math.max(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
-        ]
-        const center = { lat: (start.lat + end.lat) / 2, lng: (start.lng + end.lng) / 2 }
-        addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: center, polygon })
-        dragStart = null
-        setRoomDrag(null)
-      }
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (buildingDragRef.current) {
-          buildingDragRef.current = null
-          map.dragPan.enable()
-          syncAllData(map, graphRef.current, activeFloorRef.current)
-          return
-        }
-        // Deselect node visually
-        if (lastSelectedNodeRef.current) {
-          try {
-            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
-            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
-          } catch { /* ok */ }
-          lastSelectedNodeRef.current = null
-        }
-        clearTracePoints(); clearDrawPoints(); setRoomDrag(null); setVertexEditing(null, null)
-      }
-      if (e.key === 'Delete' && selectedNodeRef.current) {
-        // Deselect before deleting
-        if (lastSelectedNodeRef.current) {
-          try {
-            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
-            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
-          } catch { /* ok */ }
-          lastSelectedNodeRef.current = null
-        }
-        graphRef.current.removeNode(selectedNodeRef.current)
-        setSelectedNode(null)
-      }
-    }
-
-    map.on('click', handleClick)
-    map.on('dblclick', handleDblClick)
-    map.on('mousedown', handleMouseDown)
-    map.on('mousemove', handleMouseMove)
-    map.on('mouseup', handleMouseUp)
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      map.off('click', handleClick)
-      map.off('dblclick', handleDblClick)
-      map.off('mousedown', handleMouseDown)
-      map.off('mousemove', handleMouseMove)
-      map.off('mouseup', handleMouseUp)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current
@@ -651,7 +356,7 @@ useEffect(() => {
     map.setStyle(targetStyle)
     map.once('style.load', () => {
       addSourcesAndLayers(map)
-      syncAllData(map, graphRef.current, activeFloorRef.current)
+      syncAllData(map, graph, activeFloor)
     })
   }, [layers.satellite, mapInstance])
 
@@ -771,6 +476,7 @@ useEffect(() => {
       </DrawingSessionProvider>
       {mapInstance && <SelectionOverlay map={mapInstance} />}
       {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
+      {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={setRoomDrag} />}
     </div>
   )
 }
