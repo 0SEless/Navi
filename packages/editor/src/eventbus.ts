@@ -11,6 +11,7 @@ export type EditorEventType =
   | 'viewport.changed'
   | 'document.loaded'
   | 'document.saved'
+  | 'document.changed'
   | 'transaction.begin'
   | 'transaction.end'
   | 'transaction.flush'
@@ -30,6 +31,11 @@ export interface EntityEventPayload {
 
 export interface SelectionEventPayload {
   entityIds: string[]
+  selectors?: Array<{ type: string; id: string }>
+  hoveredSelector?: { type: string; id: string } | null
+  lastSelectedSelector?: { type: string; id: string } | null
+  mode?: string
+  origin?: string
 }
 
 export interface ToolEventPayload {

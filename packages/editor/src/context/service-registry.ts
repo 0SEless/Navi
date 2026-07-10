@@ -9,6 +9,7 @@ import type { Viewport } from '../viewport'
 import type { ToolRegistry } from '../tools/registry'
 import type { ValidationRegistry } from '../validation/registry'
 import type { HistoryStack } from '../history'
+import type { DocumentStore } from './document-store'
 
 // ── Service status state machine ─────────────────────────────
 
@@ -79,6 +80,7 @@ export interface ServiceMap {
   toolRegistry: ToolRegistry
   validation: ValidationRegistry
   history: HistoryStack
+  documentStore: DocumentStore
 }
 
 /** Typed dotted-access interface — mirrors ServiceMap with `T` (not `T | undefined`). */

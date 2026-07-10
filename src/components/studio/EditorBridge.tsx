@@ -1,16 +1,27 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
-import { EditorProvider, ServiceRegistry, SelectionManager } from '@navi/editor'
+import { useState, type ReactNode } from 'react'
+import {
+  EditorProvider,
+  ServiceRegistry,
+  SelectionManager,
+  DocumentStore,
+  DocumentEventBus,
+  CommandRegistry,
+  CommandDispatcher,
+  HistoryStack,
+  entityUpdateHandler,
+} from '@navi/editor'
 import type { CampusDocument } from '@navi/core'
 import { useGraphStore } from '@/store/graph-store'
 
 /**
  * Minimal bridge: converts legacy Graph → CampusDocument and provides
- * EditorProvider context so Explorer can use SelectionManager.
+ * a single EditorProvider context so Explorer + PropertiesPanel share one
+ * document, one SelectionManager, one dispatcher, one history.
  *
- * This component will be replaced once CampusDocument is the primary model.
- * Its only job is to create the editor context from legacy data.
+ * The context (document + services) is created ONCE per bridge mount
+ * (lifetime invariant) — never recreated on graph/selection/edit changes.
  */
 function createDocument(graph: any): CampusDocument {
   return {
@@ -52,22 +63,48 @@ function createDocument(graph: any): CampusDocument {
   }
 }
 
+interface EditorContextValue {
+  document: CampusDocument
+  services: ServiceRegistry
+}
+
+function buildContext(graph: any): EditorContextValue {
+  const document = createDocument(graph)
+  const documentStore = new DocumentStore(document)
+
+  const registry = new ServiceRegistry()
+
+  // ServiceRegistry does not auto-create defaults, so register a real eventBus.
+  const eventBus = new DocumentEventBus()
+  registry.register('eventBus', eventBus)
+
+  const registryCmd = new CommandRegistry()
+  registryCmd.register(entityUpdateHandler)
+
+  const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
+
+  const history = new HistoryStack(dispatcher, document, registryCmd)
+  dispatcher.addPreHook(history)
+  dispatcher.addPostHook(history)
+
+  const selectionManager = new SelectionManager(document, eventBus)
+
+  // documentStore must be registered before registry.init so dispatcher.init
+  // can resolve it via context.get('documentStore').
+  registry.register('documentStore', documentStore)
+  registry.register('dispatcher', dispatcher)
+  registry.register('history', history)
+  registry.register('selection', selectionManager)
+
+  // Initialize services in dependency order (async work is sync for these services).
+  void registry.init(document)
+
+  return { document, services: registry }
+}
+
 export function EditorBridge({ children }: { children: ReactNode }) {
-  const graph = useGraphStore((s) => s.graph)
-
-  const context = useMemo(() => {
-    const document = createDocument(graph)
-    const registry = new ServiceRegistry()
-
-    // Register only the services Explorer needs
-    const eventBus = registry.get('eventBus')
-    const selectionManager = new SelectionManager(document, eventBus)
-    registry.register('selection', selectionManager)
-
-    registry.init(document)
-
-    return { document, services: registry }
-  }, [graph])
+  // Created ONCE from the initial graph — enforces the document lifetime invariant.
+  const [context] = useState(() => buildContext(useGraphStore.getState().graph))
 
   return (
     <EditorProvider context={context}>

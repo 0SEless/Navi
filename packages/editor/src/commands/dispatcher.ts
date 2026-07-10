@@ -3,6 +3,7 @@ import type { Command, PreHook, PostHook } from './types'
 import { CommandRegistry } from './registry'
 import { BaseEditorService } from '../context'
 import type { EditorServiceContext } from '../context/service-registry'
+import type { DocumentStore } from '../context/document-store'
 import type { DocumentEventBus } from '../eventbus'
 
 export interface ExecuteOptions {
@@ -16,6 +17,7 @@ export class CommandDispatcher extends BaseEditorService {
   private registry: CommandRegistry
   private document: CampusDocument
   private eventBus!: DocumentEventBus
+  private documentStore?: DocumentStore
   private preHooks: PreHook[] = []
   private postHooks: PostHook[] = []
 
@@ -30,6 +32,7 @@ export class CommandDispatcher extends BaseEditorService {
     await super.init(context)
     this.eventBus = context.get('eventBus')
     this.document = context.document
+    this.documentStore = context.get('documentStore')
   }
 
   addPreHook(hook: PreHook): void {
@@ -71,6 +74,18 @@ export class CommandDispatcher extends BaseEditorService {
           entityId: result.entityId,
           entityType: command.id.split('.')[0],
         })
+      })
+    }
+
+    // FROZEN order: handler → (postHooks + entity.updated) → documentStore.commit() → document.changed
+    // commit() + document.changed run on every successful command, including skipHooks (undo/redo),
+    // so React re-renders (useDocumentVersion) even when history recording is suppressed.
+    if (result.success) {
+      this.documentStore?.commit()
+      this.eventBus.emit('document.changed', {
+        version: this.documentStore?.version,
+        entityId: result.entityId,
+        entityType: command.id.split('.')[0],
       })
     }
 
