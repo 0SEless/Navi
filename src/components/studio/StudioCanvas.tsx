@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useGraphStore } from '@/store/graph-store'
@@ -12,6 +12,9 @@ import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
 import { useVertexEditor } from './useVertexEditor'
 import { ConfirmBar } from './ConfirmBar'
 import { SelectionOverlay } from './SelectionOverlay'
+import { DrawingOverlay } from './DrawingOverlay'
+import { PreviewOverlay } from './PreviewOverlay'
+import { DrawingSessionProvider, type DrawingSessionValue } from './useDrawingSession'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -196,14 +199,6 @@ function syncAllData(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     if (edgeSrc) edgeSrc.setData(edgeGeo)
     if (tracesSrc) tracesSrc.setData(tracesGeo)
   } catch { console.warn('[StudioCanvas] source not ready') }
-}
-
-function updateDrawingSource(map: maplibregl.Map | null, features: GeoJSON.Feature[]) {
-  if (!map) return
-  try {
-    const src = map.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
-    if (src) src.setData({ type: 'FeatureCollection', features })
-  } catch { /* source not ready */ }
 }
 
 interface StudioCanvasProps {
@@ -483,7 +478,10 @@ useEffect(() => {
         for (const p of drag.points) {
           drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
         }
-        updateDrawingSource(mapRef.current, drawFeatures)
+        try {
+          const src = mapRef.current?.getSource(SRC.DRAWING) as maplibregl.GeoJSONSource
+          if (src) src.setData({ type: 'FeatureCollection', features: drawFeatures })
+        } catch {}
         return
       }
       if (dragStart && toolRef.current === 'room') {
@@ -680,51 +678,6 @@ useEffect(() => {
     setPendingConfirm('building', result.points)
   })
 
-  useEffect(() => {
-    const m = mapRef.current
-    if (!m || !readyRef.current) return
-    const drawFeatures: GeoJSON.Feature[] = []
-
-    if (tracePoints.length > 0 && tool === 'route') {
-      const coords = tracePoints.map((p) => [p.lng, p.lat])
-      drawFeatures.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
-      for (const p of tracePoints) {
-        drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {} })
-      }
-    }
-
-    if (pendingConfirm && pendingConfirm.points.length >= 2) {
-      const isPolygon = pendingConfirm.type === 'building' || pendingConfirm.type === 'boundary'
-      const coords = pendingConfirm.points.map((p) => [p.lng, p.lat])
-      if (isPolygon && pendingConfirm.points.length >= 3) {
-        drawFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [[...coords, coords[0]]] },
-          properties: { pending: true },
-        })
-      }
-      drawFeatures.push({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: isPolygon && pendingConfirm.points.length >= 3 ? [...coords, coords[0]] : coords },
-        properties: { pending: true },
-      })
-      for (const p of pendingConfirm.points) {
-        drawFeatures.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: { pending: true } })
-      }
-    }
-
-    if (roomDrag && tool === 'room') {
-      const s = roomDrag.start; const c = roomDrag.current
-      drawFeatures.push({
-        type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [[[s.lng, s.lat], [c.lng, s.lat], [c.lng, c.lat], [s.lng, c.lat], [s.lng, s.lat]]] },
-        properties: {},
-      })
-    }
-
-    updateDrawingSource(m, drawFeatures)
-  }, [tracePoints, roomDrag, tool, pendingConfirm])
-
   const routeWidth = useStudioStore((s) => s.routeWidth)
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
 
@@ -758,6 +711,46 @@ useEffect(() => {
     tool === 'building' ? 'Building footprint' :
     tool === 'boundary' ? 'Campus boundary' : ''
 
+  const drawingSessionValue = useMemo<DrawingSessionValue>(() => ({
+    tracePoints,
+    drawPoints,
+    routeWidth,
+    roomDrag,
+    pendingConfirm: pendingConfirm as any,
+    addTracePoint,
+    undoLastPoint: undoLastTracePoint,
+    clearTracePoints,
+    addDrawPoint,
+    undoLastDrawPoint: () => setDrawPoints(drawPoints.slice(0, -1)),
+    clearDrawPoints,
+    setRoomDrag,
+    requestConfirm: () => {
+      if (tool === 'route' && tracePoints.length >= 2) {
+        setPendingConfirm('route', tracePoints as any)
+      } else if ((tool === 'building' || tool === 'boundary') && drawPoints.length >= 3) {
+        setPendingConfirm(tool, drawPoints as any)
+      }
+    },
+    confirm: () => {
+      const pts = pendingConfirm?.points ?? []
+      setPendingConfirm(undefined as any)
+      clearTracePoints()
+      clearDrawPoints()
+      return pts as any
+    },
+    cancel: () => {
+      setPendingConfirm(undefined as any)
+      clearTracePoints()
+      clearDrawPoints()
+    },
+    setRouteWidth,
+  }), [
+    tracePoints, drawPoints, routeWidth, roomDrag, pendingConfirm,
+    addTracePoint, undoLastTracePoint, clearTracePoints,
+    addDrawPoint, clearDrawPoints, setRoomDrag, setRouteWidth,
+    tool, setPendingConfirm,
+  ])
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
@@ -785,6 +778,10 @@ useEffect(() => {
           toolLabel={toolLabel}
         />
       ) : null}
+      <DrawingSessionProvider value={drawingSessionValue}>
+        {mapInstance && <DrawingOverlay map={mapInstance} />}
+        {mapInstance && <PreviewOverlay map={mapInstance} />}
+      </DrawingSessionProvider>
       {mapInstance && <SelectionOverlay map={mapInstance} />}
     </div>
   )
