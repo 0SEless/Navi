@@ -6,6 +6,7 @@ import {
   findNodeById,
   useSelection,
   useEditor,
+  useDocumentVersion,
 } from '@navi/editor'
 import type { EntityId, EntitySelector } from '@navi/editor'
 import { Explorer } from './Explorer'
@@ -24,8 +25,9 @@ import { Explorer } from './Explorer'
 export function ExplorerPanel() {
   const { document, services } = useEditor()
   const selection = useSelection()
+  const version = useDocumentVersion()
 
-  const nodes = useMemo(() => ExplorerAdapter(document), [document])
+  const nodes = useMemo(() => ExplorerAdapter(document), [document, version])
 
   const selectedId: EntityId | null = selection.lastSelected?.id ?? null
 

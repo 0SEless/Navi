@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useEditor } from '../../context'
+import { useEditor, useDocumentVersion } from '../../context'
 import { BuildingProperties } from './building-props'
 import { FloorProperties } from './floor-props'
 import { RoomProperties } from './room-props'
@@ -16,6 +16,7 @@ export function PropertiesPanel() {
   const { document, services } = useEditor()
   const selection = services.get<any>('selection')
   const eventBus = services.get<any>('eventBus')
+  const version = useDocumentVersion()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const syncSelection = useCallback(() => {
@@ -34,7 +35,7 @@ export function PropertiesPanel() {
 
   if (!selectedId) {
     return (
-      <div style={{ padding: 12, fontSize: 13, fontFamily: 'system-ui, sans-serif', color: '#666', fontStyle: 'italic' }}>
+      <div data-version={version} style={{ padding: 12, fontSize: 13, fontFamily: 'system-ui, sans-serif', color: '#666', fontStyle: 'italic' }}>
         Select an entity to edit its properties
       </div>
     )
