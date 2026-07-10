@@ -11,6 +11,7 @@ import { useCampusBoundary, type BoundaryPolygon } from './CampusBoundary'
 import { useBuildingTracer, type BuildingFootprint } from './BuildingTracer'
 import { useVertexEditor } from './useVertexEditor'
 import { ConfirmBar } from './ConfirmBar'
+import { SelectionOverlay } from './SelectionOverlay'
 
 const FALLBACK_STYLE = {
   version: 8 as const,
@@ -360,32 +361,7 @@ useEffect(() => {
     }
   }, [graph, activeFloor, renderVersion])
 
-  // ── Selection highlight sync ──────────────────────────────────────────
-  // Applies map.setFeatureState when selectedNodeId changes from any source
-  // (Explorer, Canvas click, Inspector — any origin).
-  // This is the bridge between SelectionManager-driven selection and the
-  // canvas visual highlight. See also: click handler inline feature-state.
-  const lastHighlightedRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!readyRef.current || !mapRef.current) return
-    const map = mapRef.current
-    const prevId = lastHighlightedRef.current
-    const currId = selectedNode
-
-    if (prevId && prevId !== currId) {
-      try {
-        map.setFeatureState({ source: SRC.NODES, id: prevId }, { selected: false })
-        map.setFeatureState({ source: SRC.NODES_CONNECTION, id: prevId }, { selected: false })
-      } catch { /* node may no longer exist */ }
-    }
-    if (currId) {
-      try {
-        map.setFeatureState({ source: SRC.NODES, id: currId }, { selected: true })
-        map.setFeatureState({ source: SRC.NODES_CONNECTION, id: currId }, { selected: true })
-      } catch { /* node may no longer exist */ }
-    }
-    lastHighlightedRef.current = currId
-  }, [selectedNode])
+  // Selection highlight is managed by <SelectionOverlay />
 
   useEffect(() => {
     if (!selectedBuilding || !mapRef.current || !readyRef.current) return
@@ -430,22 +406,7 @@ useEffect(() => {
         const hitNode = features.find((f) => f.layer.id === LYR.NODES || f.layer.id === LYR.NODES_CONNECTION)
         if (hitNode) {
           const nodeId = hitNode.properties?.id as string | null
-          // Deselect previous
-          if (lastSelectedNodeRef.current && lastSelectedNodeRef.current !== nodeId) {
-            try {
-              map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
-              map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
-            } catch { /* ok */ }
-          }
-          // Select new
-          if (nodeId) {
-            try {
-              const layerId = hitNode.layer.id
-              const source = layerId === LYR.NODES_CONNECTION ? SRC.NODES_CONNECTION : SRC.NODES
-              map.setFeatureState({ source, id: nodeId }, { selected: true })
-            } catch { /* ok */ }
-            lastSelectedNodeRef.current = nodeId
-          }
+          lastSelectedNodeRef.current = nodeId
           setSelectedNode(nodeId)
           return
         }
@@ -460,14 +421,7 @@ useEffect(() => {
           const tid = hitTrace.properties?.id
           if (tid) { setSelectedTraceId(tid); return }
         }
-        // Deselect
-        if (lastSelectedNodeRef.current) {
-          try {
-            map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })
-            map.setFeatureState({ source: SRC.NODES_CONNECTION, id: lastSelectedNodeRef.current }, { selected: false })
-          } catch { /* ok */ }
-          lastSelectedNodeRef.current = null
-        }
+        lastSelectedNodeRef.current = null
         setSelectedNode(null)
         setSelectedTraceId(null)
         return
@@ -831,6 +785,7 @@ useEffect(() => {
           toolLabel={toolLabel}
         />
       ) : null}
+      {mapInstance && <SelectionOverlay map={mapInstance} />}
     </div>
   )
 }
