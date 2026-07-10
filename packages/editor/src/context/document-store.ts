@@ -1,6 +1,13 @@
 import type { CampusDocument } from '@navi/core'
 
+/**
+ * DocumentStore is a plain data holder (editor-owned render-subscription
+ * source). It carries a `dependencies` field so it can be safely registered
+ * in the ServiceRegistry (registry.init reads `dependencies` for its
+ * topological sort) without needing full EditorService lifecycle.
+ */
 export class DocumentStore {
+  readonly dependencies: readonly string[] = []
   version = 0
   revision = '' // reserved changeId/revisionId
 
