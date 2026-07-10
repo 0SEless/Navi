@@ -274,8 +274,8 @@ describe('InspectorMigration (M2.3 T6)', () => {
       </EditorBridge>,
     )
 
-    // Empty state before any canvas selection.
-    expect(screen.getByText(/Select an entity/i)).toBeDefined()
+    // Empty state before any canvas selection — shows WorkflowCard
+    expect(screen.getByText('Workflow')).toBeDefined()
 
     // Selection arrives from the legacy store (canvas click simulation).
     act(() => {

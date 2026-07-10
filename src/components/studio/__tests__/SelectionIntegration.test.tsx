@@ -204,7 +204,7 @@ describe('M2.4 Selection Integration', () => {
       expect(screen.getByDisplayValue('Main Building')).toBeDefined()
     })
 
-    it('no selection → PropertiesPanel shows placeholder', () => {
+    it('no selection → PropertiesPanel shows WorkflowCard', () => {
       const { context } = buildEditorContext()
 
       render(
@@ -213,10 +213,10 @@ describe('M2.4 Selection Integration', () => {
         </EditorProvider>,
       )
 
-      expect(screen.getByText(/Select an entity/i)).toBeDefined()
+      expect(screen.getByText('Workflow')).toBeDefined()
     })
 
-    it('clear selection → PropertiesPanel reverts to placeholder', () => {
+    it('clear selection → PropertiesPanel reverts to WorkflowCard', () => {
       const { context, selectionManager } = buildEditorContext()
 
       act(() => { selectionManager.select('bld-1', SelectionOrigin.Explorer) })
@@ -232,7 +232,7 @@ describe('M2.4 Selection Integration', () => {
 
       act(() => { selectionManager.clear(SelectionOrigin.Programmatic) })
 
-      expect(screen.getByText(/Select an entity/i)).toBeDefined()
+      expect(screen.getByText('Workflow')).toBeDefined()
     })
   })
 

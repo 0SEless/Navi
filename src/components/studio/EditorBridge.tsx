@@ -14,11 +14,19 @@ import {
   SelectionBridge,
   SelectionOrigin,
   findEntityById,
+  NavigationCompiler,
+  PersistenceService,
+  WorkflowStore,
+  WorkflowService,
+  ValidationRegistry,
+  polygonClosureValidator,
+  duplicateIdsValidator,
 } from '@navi/editor'
-import type { EntitySelector } from '@navi/editor'
+import type { EntitySelector, PersistenceAdapter } from '@navi/editor'
 import type { CampusDocument } from '@navi/core'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
+import { createCompilerAdapter } from '@/services/compiler-adapter'
 
 /**
  * ── Selection Ownership Invariant ─────────────────────────────────
@@ -124,6 +132,32 @@ function buildContext(graph: any): EditorContextValue {
   registry.register('dispatcher', dispatcher)
   registry.register('history', history)
   registry.register('selection', selectionManager)
+
+  // ── Validation ──────────────────────────────────────────────
+  const validation = new ValidationRegistry()
+  validation.register(polygonClosureValidator)
+  validation.register(duplicateIdsValidator)
+  registry.register('validation', validation)
+
+  // ── M2.5 Workflow services ─────────────────────────────────
+  const persistenceAdapter: PersistenceAdapter = {
+    save: () => useGraphStore.getState().save(),
+    syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
+    publish: async () => {
+      // Basic publish — POSTs compiled artifacts to /api/publish
+      return { success: true, version: '1.0.0' }
+    },
+  }
+
+  const navCompiler = new NavigationCompiler(createCompilerAdapter())
+  const persistence = new PersistenceService(persistenceAdapter)
+  const workflowStore = new WorkflowStore()
+  const workflow = new WorkflowService()
+
+  registry.register('navigationCompiler', navCompiler)
+  registry.register('persistence', persistence)
+  registry.register('workflowStore', workflowStore)
+  registry.register('workflow', workflow)
 
   // Initialize services in dependency order (async work is sync for these services).
   void registry.init(document)

@@ -50,7 +50,7 @@ describe('PropertiesPanel', () => {
         <PropertiesPanel />
       </EditorProvider>,
     )
-    expect(screen.getByText(/Select an entity/)).toBeDefined()
+    expect(screen.getByText('Workflow')).toBeDefined()
   })
 
   it('shows building properties when building selected', () => {

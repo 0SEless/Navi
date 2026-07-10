@@ -1,0 +1,146 @@
+import { BaseEditorService } from '../context'
+import type { EditorServiceContext } from '../context/service-registry'
+import type { CampusDocument } from '@navi/core'
+import type { NavigationCompiler, CompileResult } from './navigation-compiler'
+import type { PersistenceService, PublishResult } from './persistence-service'
+import type { WorkflowStore, ValidationResult, SyncStatus } from './workflow-store'
+import type { ValidationRegistry } from '../validation/registry'
+import type { DocumentStore } from '../context/document-store'
+import type { DocumentEventBus } from '../eventbus'
+
+// ── WorkflowService ───────────────────────────────────────────
+
+/**
+ * Orchestration service for the editor workflow.
+ *
+ * Coordinates NavigationCompiler, PersistenceService, ValidationRegistry,
+ * and DocumentStore. Owns the manual/autosave distinction and event logic.
+ *
+ * WorkflowService is a pure orchestrator — it owns NO state.
+ * All state lives in WorkflowStore.
+ *
+ * INVARIANT: WorkflowService is the ONLY public workflow API.
+ * UI code calls WorkflowService.validate/compile/save/publish.
+ * No UI code calls PersistenceService or NavigationCompiler directly.
+ */
+export class WorkflowService extends BaseEditorService {
+  readonly id = 'workflow'
+  readonly dependencies: readonly string[] = [
+    'navigationCompiler', 'persistence', 'validation',
+    'documentStore', 'workflowStore', 'eventBus',
+  ] as const
+
+  private navCompiler!: NavigationCompiler
+  private persistence!: PersistenceService
+  private validation!: ValidationRegistry
+  private documentStore!: DocumentStore
+  private workflowStore!: WorkflowStore
+  private eventBus!: DocumentEventBus
+  private document!: CampusDocument
+
+  async init(context: EditorServiceContext): Promise<void> {
+    await super.init(context)
+    this.navCompiler = context.get('navigationCompiler')
+    this.persistence = context.get('persistence')
+    this.validation = context.get('validation')
+    this.documentStore = context.get('documentStore')
+    this.workflowStore = context.get('workflowStore')
+    this.eventBus = context.get('eventBus')
+    this.document = context.document
+  }
+
+  // ── Derived state ───────────────────────────────────────────
+
+  /**
+   * Returns true if the document has changed since the last save.
+   * Uses DocumentStore.version as source of truth — no deep comparison.
+   * Gracefully returns false if services haven't been initialized yet.
+   */
+  isDirty(): boolean {
+    if (!this.documentStore) return false
+    return this.documentStore.version > this.workflowStore.getSnapshot().lastSaveVersion
+  }
+
+  // ── Actions ─────────────────────────────────────────────────
+
+  /**
+   * Run full validation on the current document.
+   * Writes result to WorkflowStore.
+   */
+  async validate(): Promise<ValidationResult> {
+    const issues = this.validation.validateAll(this.document)
+
+    const result: ValidationResult = {
+      passed: issues.filter((i) => i.severity !== 'error' && i.severity !== 'warning').length,
+      failed: issues.filter((i) => i.severity === 'error' || i.severity === 'warning').length,
+      errors: issues
+        .filter((i) => i.severity === 'error')
+        .map((i) => i.message),
+      timestamp: Date.now(),
+    }
+
+    this.workflowStore.setValidation(result)
+    return result
+  }
+
+  /**
+   * Compile the current document into navigation artifacts.
+   * Delegates to NavigationCompiler. Writes result to WorkflowStore.
+   */
+  async compile(): Promise<CompileResult> {
+    const result = await this.navCompiler.compile(this.document)
+    this.workflowStore.setCompile(result)
+    return result
+  }
+
+  /**
+   * Save the current document.
+   *
+   * - manual: emits 'workflow.saved' event, busy/ready status transitions
+   * - autosave: silent (no events, no UI feedback)
+   *
+   * Both update WorkflowStore.lastSave and WorkflowStore.lastSaveVersion.
+   */
+  async save(reason: 'manual' | 'autosave'): Promise<void> {
+    try {
+      if (reason === 'manual') {
+        this.eventBus.emit('workflow.saved', { timestamp: Date.now(), reason })
+      }
+      await this.persistence.save()
+      this.workflowStore.setSave(Date.now(), reason)
+      this.workflowStore.setLastSaveVersion(this.documentStore.version)
+    } catch (err: any) {
+      // On failure, still record the attempt
+      this.workflowStore.setSave(Date.now(), reason)
+      throw err
+    }
+  }
+
+  /**
+   * Publish the campus.
+   *
+   * 1. Checks isDirty() → rejects if dirty (user must save first)
+   * 2. Runs compile fresh (never uses cached result)
+   * 3. On compile error → writes to WorkflowStore, returns error
+   * 4. On compile success → publishes via PersistenceService
+   * 5. On publish success → writes to WorkflowStore
+   */
+  async publish(): Promise<PublishResult> {
+    if (this.isDirty()) {
+      return { success: false, message: 'Save your changes before publishing' }
+    }
+
+    // Always compile fresh
+    const compileResult = await this.compile()
+    if (compileResult.status !== 'success' || !compileResult.artifacts) {
+      return { success: false, message: compileResult.message ?? 'Compilation failed' }
+    }
+
+    // Publish compiled artifacts
+    const publishResult = await this.persistence.publish(compileResult.artifacts)
+    if (publishResult.success) {
+      this.workflowStore.setPublish(Date.now())
+    }
+    return publishResult
+  }
+}

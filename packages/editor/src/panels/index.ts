@@ -1,3 +1,4 @@
+export * from './workflow'
 export { LayersPanel } from './LayersPanel'
 export { ProblemsPanel } from './ProblemsPanel'
 export { FloorManager } from './FloorManager'

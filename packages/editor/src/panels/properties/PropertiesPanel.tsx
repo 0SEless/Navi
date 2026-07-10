@@ -10,6 +10,7 @@ import { ElevatorProperties } from './elevator-props'
 import { PanoramaProperties } from './panorama-props'
 import { QRProperties } from './qr-props'
 import { findEntityById } from './property-utils'
+import { WorkflowCard } from '../workflow/workflow-card'
 
 export function PropertiesPanel() {
   const { document } = useEditor()
@@ -18,11 +19,7 @@ export function PropertiesPanel() {
   const selectedId = selection.lastSelected?.id ?? null
 
   if (!selectedId) {
-    return (
-      <div data-version={version} style={{ padding: 12, fontSize: 13, fontFamily: 'system-ui, sans-serif', color: '#666', fontStyle: 'italic' }}>
-        Select an entity to edit its properties
-      </div>
-    )
+    return <WorkflowCard />
   }
 
   const found = findEntityById(document, selectedId)
