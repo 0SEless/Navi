@@ -321,3 +321,194 @@
 - **Verification**: 753/753 tests passing (93 files, +11 new integration tests), navi-next committed at `280c573`, parent submodule reference updated
 - **Working tree**: Clean in both repos
 - **Next**: M3.0 — data import/wizard or TBD per roadmap
+
+## 2026-07-10 � T2: DrawingSession hook + context
+
+- **Created**: src/components/studio/useDrawingSession.tsx and src/components/studio/__tests__/useDrawingSession.test.ts
+- **Verification**: 13/13 tests pass (all drawing session tests), 817/817 full suite
+- **Commit**: 36eb2e6 � eat(studio): T2 create DrawingSession hook + context for ephemeral editing state
+- **Next**: T3 onward per milestone plan
+
+## 2026-07-10 — Phase 4: T9 MapRenderer Extraction
+
+### T9 — Create MapRenderer (passive rendering component)
+
+- **What**: Extracted rendering layer from StudioCanvas into a self-contained `rendering/` module.
+- **Files created** (4 new):
+  - `src/components/studio/rendering/constants.ts` — SRC, LYR, HIDDEN_NODE_TYPES
+  - `src/components/studio/rendering/geojson.ts` — 5 pure GeoJSON builder functions (buildBuildings, buildNodes, buildConnectionNodes, buildEdges, buildTraces)
+  - `src/components/studio/rendering/layers.ts` — `addSourcesAndLayers()` — idempotent source+layer registration
+  - `src/components/studio/rendering/MapRenderer.tsx` — passive renderer component with `style.load` listener
+- **Files edited**:
+  - `src/components/studio/StudioCanvas.tsx` — removed ~142 lines of rendering logic, now imports `<MapRenderer>`
+  - `src/components/studio/InteractionController.tsx` — imports SRC/LYR from `./rendering/constants`, replaced `syncAllData` calls with renderVersion bump
+- **Test file created**: `src/components/studio/__tests__/MapRenderer.test.tsx` — 5 tests (sources on mount, idempotency, data push, style.load listener, graceful error handling)
+- **Verification**: All 857 tests pass across 108 test files, TypeScript compiles with no new errors
+- **StudioCanvas**: 340 lines (down from 482)
+
+### Key design decisions
+1. MapRenderer is completely passive — no selection, hover, tool, or command logic
+2. `syncAllData()` not exported — data flow is purely reactive via props deps
+3. `style.load` listener handles satellite/OSM style toggles without imperative sync calls
+4. Building drag cancel uses `renderVersion` bump instead of imperative `syncAllData()`
+5. SRC/LYR constants moved to `rendering/constants.ts` with updated import in InteractionController
+
+- **Next**: T10 — Final cleanup (tooltip → InteractionController, roomDrag → DrawingSession, DrawingSession bridge removal)
+
+## 2026-07-10 — T10: StudioCanvas Final Cleanup (complete)
+
+### T10a — Extend useDrawingSession with setTracePoints/setDrawPoints
+- **What**: Added `setTracePoints` and `setDrawPoints` to `DrawingSessionValue` interface and hook implementation. Needed by InteractionController for bulk-replacing points after vertex drag.
+- **Tests**: 2 new tests (setTracePoints replaces all, setDrawPoints replaces all) — 15 total for useDrawingSession
+
+### T10b — Move tooltip into InteractionController
+- **What**: Moved tooltip state, mouseenter/mouseleave handlers, and tooltip JSX from StudioCanvas into InteractionController.
+- **Changes**:
+  - Added `CURSOR_CROSSHAIR` to `rendering/constants.ts` (shared constant)
+  - InteractionController: added `useState` for tooltip, handlers in main useEffect, returns `<>{tooltip && <div>...</div>}</>`
+  - StudioCanvas: removed tooltip state, mouseenter/mouseleave from map creation effect, tooltip JSX from return
+
+### T10c — Replace drawing bridge with real useDrawingSession + simplify ConfirmBar
+- **What**: Removed the legacy `useMemo` bridge that wrapped Zustand drawing state into a `DrawingSessionValue`. Replaced with direct `useDrawingSession(tool)` call.
+- **Changes**:
+  - StudioCanvas: removed 17 Zustand drawing selectors (tracePoints, drawPoints, routeWidth, pendingConfirm, etc.), removed 6 handler functions (handleConfirm/handleCancel/handleUndo/canConfirm/toolLabel/addDrawPoint), removed 40-line useMemo bridge
+  - Added `const drawing = useDrawingSession(tool as ...)` — single source of truth for drawing state
+  - ConfirmBar: simplified from 9 individual props to `{ drawing: DrawingSessionValue, tool }`. Derives everything internally (toolLabel, canConfirm, onUndo, etc.). Calls `drawing.requestConfirm()` and `drawing.cancel()` directly.
+  - Added bidirectional pendingConfirm sync between drawing session and Zustand (for ConfirmOverlay compatibility)
+  - CampusBoundary/BuildingTracer callbacks: use `drawing.setDrawPoints()` + `drawing.requestConfirm()` instead of Zustand `setPendingConfirm`
+  - InteractionController: receives `onSetRoomDrag={drawing.setRoomDrag}` instead of local setter
+
+### T10d — Cleanup & dead code removal
+- **What**: Removed unused imports (`SRC`, `type LatLng`, `type Graph`, `useCallback`, `useMemo`, `BoundaryPolygon`, `BuildingFootprint` types)
+- **StudioCanvas**: 236 lines (down from 340, down from 482, down from 896 in original)
+
+### Verification
+- **108 test files, 860 tests — ALL PASSING** (up from 857 before T10)
+- **Zero new TypeScript errors** (pre-existing errors in legacy files only)
+
+### Architecture
+```
+StudioCanvas (236 lines — pure composition root)
+  ├── MapRenderer        ← passive rendering (graph → GeoJSON → sources)
+  ├── InteractionController  ← events + tooltip + vertex/building drag
+  ├── DrawingSessionProvider ← real useDrawingSession() value
+  │   ├── DrawingOverlay
+  │   └── PreviewOverlay
+  ├── ConfirmBar          ← derives from drawing session
+  ├── SelectionOverlay
+  └── ViewportController
+```
+
+## 2026-07-11 — M2.6 StudioCanvas Decomposition (complete)
+
+### T0 — Freeze legacy StudioCanvas as `StudioCanvas.legacy.tsx` (896-line reference)
+- **Commit**: `085a83e`
+
+### T2 — DrawingSession hook + context
+- **Commit**: `36eb2e6`
+- **Tests**: 13/13 drawing session tests, 817/817 full suite
+
+### T3 — Extract ConfirmBar
+- **Commit**: `a61091b`
+
+### T4 — Extract SelectionOverlay (sole owner of `map.setFeatureState()`)
+- **Commit**: `452d23a`
+
+### T5 — Extract DrawingOverlay + PreviewOverlay
+- **Commit**: `001e488`
+
+### T6 — Extract ViewportController (sole owner of MapLibre camera methods)
+- **Commit**: `f0591ef`
+- **Note**: Leverages Viewport service's camera command API (`61079b0`)
+
+### T7 — useToolController hook (bridges tool completion to CommandDispatcher)
+- **Commit**: `0366fe9`
+
+### T8 — Extract InteractionController (all pointer and keyboard event handling)
+- **Commit**: `4fdb3d6`
+
+### M2.1 — Migrate StudioToolbar to editor architecture
+- **Commits**: `06a2565` (migration, toolbar unmounted), `05c70d8` (mount in StudioWorkspace)
+- **What**: Introduced `EditingContextService` (mode only), registered in ServiceMap + EditorBridge, StudioToolbar rewritten to consume services via `useEditor()` — zero Zustand imports
+- **Design constraints**: No EditorViewState, no bridges, no SelectionBridge extension
+
+### M2.6 final — StudioCanvas composition root (cleanup + consolidation)
+- **Commit**: `cf9ab52` (tagged `phase2-pre-floorcanvas`)
+- **Architecture audit**: All 5 invariants confirmed — StudioCanvas store-free; StudioToolbar editor-service driven; WorkflowCard→WorkflowService; Selection→SelectionManager; no new `useGraphStore` in migrated roots.
+- **Known debt**: M2.6 children (MapRenderer, InteractionController, ConfirmBar, useVertexEditor, ConfirmOverlay) still read legacy Zustand stores — accepted incremental baseline for M2.7
+
+## 2026-07-11 — M2.7 FloorEditor UI State Migration (complete)
+
+### Implementation (deviated from plan)
+
+Key architectural decisions that differed from the original plan:
+- **No `buildEditorContext()` extraction**: Instead of extracting a shared `buildEditorContext()` into `@navi/editor`, we registered ToolRegistry + Viewport directly in the existing `buildContext()` in `EditorBridge.tsx` (T1) and duplicated the bootstrap sequence in the floor route page wrapper (T2). The Plan A/B/C gate confirmed this is correct — extraction is deferred to Phase 3 (P3.1 Editor Bootstrap Consolidation).
+- **Adaptation, not extension**: FloorAdapter (T3) and ToolAdapter (T4) are new application-layer hooks in `src/components/floor-editor/adapters/`, NOT in `@navi/editor`. They translate between editor services and FloorEditor concepts.
+- **Building.floors is `number[]`**: Viewport stores `activeFloorId: string`. FloorAdapter converts with private helpers (`indexToId`, `idToIndex`). No type leak.
+
+### Files changed/created
+| File | Change |
+|------|--------|
+| `src/components/studio/EditorBridge.tsx` | T1 — Import + register ToolRegistry, Viewport |
+| `src/components/floor-editor/configure-floor-editor-tools.ts` | T2 (NEW) — Idempotent floor tool registration |
+| `src/app/.../floor/[floor]/page.tsx` | T2 — Wrap FloorEditor in EditorProvider with duplicated buildContext |
+| `src/components/floor-editor/adapters/floor-adapter.ts` | T3 (NEW) — `useFloorAdapter()` hook |
+| `src/components/floor-editor/adapters/tool-adapter.ts` | T4 (NEW) — `useToolAdapter()` hook |
+| `src/components/floor-editor/FloorEditor.tsx` | T5+T6 — Consume SelectionManager, adapters; cleanup |
+| `src/components/floor-editor/__tests__/FloorEditor185.test.tsx` | T7 — Add `useEditor` mock |
+
+### Verification
+- **Build**: `npm run build` — ✓ Compiled successfully
+- **Tests**: **108 test files, 864 tests — all passing** (zero regressions)
+- **Ownership greps**: Zero `useState<StudioTool>`, `useState<string | null>`, `viewport.*direct`, `useStudioStore`, `useUiStore` in FloorEditor.tsx
+- **Acceptance checks** (all 7 pass):
+  1. ToolRegistry in `services.get('toolRegistry')` — ✓
+  2. Viewport in `services.get('viewport')` — ✓
+  3. FloorAdapter only reads Viewport — ✓
+  4. ToolAdapter only reads ToolRegistry — ✓
+  5. SelectionManager replaces useState selection — ✓
+  6. No dead state — ✓
+  7. No direct ToolRegistry/Viewport imports in FloorEditor — ✓
+
+### Commit
+```
+e5e6db4 feat(studio): M2.7 migrate FloorEditor UI state to editor services
+```
+### Next
+Phase 3 — Editor Bootstrap Consolidation (P3.1) + Drawing Interaction (P3.2) + Phase 3 canvas migration
+
+## 2026-07-11 — M2.8 FloorEditorCanvas Bugfixes (complete)
+
+### What
+Fixed 7 of 16 findings from the floor editor component review (`.planning/phases/floor-editor-review.md`). 6 CRITICAL/HIGH bugs resolved, 2 MEDIUM quality improvements.
+
+### Tasks
+| Task | Finding | Fix |
+|------|---------|-----|
+| T1 | #1 Floor plan image never loads | Added `mapInstance` to dep array |
+| T2 | #5 Empty footprint NaN | Early return for `footprint.length === 0` |
+| T3 | #6 Empty URL request | Removed `updateImage` with empty URL |
+| T4 | #4 `graph.traces` unused | Removed from dep array |
+| T5 | #8 Keyboard shortcuts need focus | Window-level `keydown` listener + input guard |
+| T6 | #9 Empty catch blocks | Added `console.warn` with context |
+| T7 | #15 `toggleLayer` not memoized | Wrapped in `useCallback` |
+
+### Already fixed by graph.ts caching (June 3 bugfix)
+- #3 Effects re-run on every render (graph.components now cached)
+- #10 Drag handlers re-register on every store mutation
+- #11 graph.buildings defeats useMemo
+
+### Verification
+- **Build**: `npm run build` — ✓ Compiled successfully
+- **Tests**: **108 test files, 864 tests — all passing**
+- **Files changed**: `FloorEditorCanvas.tsx` (7 edits), `FloorEditor.tsx` (1 edit)
+
+### Commits
+```
+085a83e — legacy StudioCanvas freeze (M2.6)
+e5e6db4 — M2.7 FloorEditor UI state migration
+318dba5 — M2.8 FloorEditorCanvas bugfixes
+```
+
+### Next
+Phase 3 — Editor Bootstrap Consolidation (P3.1) + Drawing Interaction (P3.2) + Phase 3 canvas migration

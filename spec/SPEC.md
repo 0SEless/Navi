@@ -1,29 +1,30 @@
-# Route Connection + Vertex Recompile + Node Selection
+# M2.7 — FloorEditor UI State Migration
 
 ## WHAT
 
-Three features for the NAVI studio campus map editor:
-
-### Feature 1: Route-to-Route Intersection (Auto-Connect)
-When a new route is saved or edited, detect where its polyline crosses or touches existing routes' polylines. At each crossing, create an intersection node, split the existing route's edge at that point, and connect the new route's endpoint to the intersection node. Also handle the endpoint-overlapping-centerline case (T-junction).
-
-### Feature 2: Recompile Trace on Vertex Edit
-When a user adjusts route vertices via the "Edit Vertices" button (vertex drag/add/delete), the TracePath's points array is updated, but the compiled graph nodes/edges are stale. A `recompileTrace` method removes old compiled nodes/edges and re-runs compileTrace with the updated points, including re-running intersection detection.
-
-### Feature 3: Selected Node Visual Highlight
-When a user clicks a node with the Select tool, the node should visually change color/size to indicate it's selected. Deselect on clicking empty space or pressing Escape.
+Integrate FloorEditor's UI state into the editor service infrastructure — ToolRegistry, SelectionManager, Viewport, EditingContext — while leaving floor-specific logic (useFloorDrawing, rendering, graph model) untouched. Follows the same pattern as M2.1 (Toolbar) and M2.6 (StudioCanvas decomposition).
 
 ## Success Criteria
 
-1. **Route auto-connect**: Drawing a connector route that crosses/touches an arterial route creates an intersection node at the crossing. The two routes are connected in the graph. Deleting one route doesn't orphan the intersection node if the other route still references it.
-
-2. **Vertex recompile**: Dragging a trace vertex via "Edit Vertices" updates the graph nodes/edges to match the new trace shape. Old nodes at old positions are removed.
-
-3. **Node highlight**: Clicking a node changes its color from amber (#F59E0B) to cyan (#22D3EE) and increases radius. Clicking empty space restores it. Pressing Escape deselects.
-
-4. **No regressions**: Existing graph operations (add/remove traces, add/remove nodes/edges, syncAllData) continue working. React #185 infinite loop is not reintroduced.
+1. FloorEditor is wrapped in `EditorProvider` (same `DocumentFrame` / `useEditor()` contract used by StudioCanvas)
+2. `useState<StudioTool>('select')` is replaced by `ToolRegistry.activeTool` + `ToolRegistry.setTool()`
+3. `useState<string | null>(null)` selection is replaced by `SelectionManager.selectedId` + `SelectionManager.select()`
+4. `Viewport.activeFloorId` (string) is the UI source of truth for the active floor; `floor: number` becomes a domain detail, converted via a boundary adapter at the graph API boundary
+5. `useFloorDrawing` is **untouched** — its signature stays the same, still receives `floor: number`
+6. `EditorBridge` is already registered — FloorEditor picks up services from the existing `DocumentFrame` without registering new ones
+7. No duplicated UI state: the three React `useState` calls (tool, selectedId, layers) are either migrated or owned by services
+8. TypeScript passes with no new errors; existing tests pass
 
 ## Pitfalls from ERRORS.md
 
-- **React #185**: All new mutation methods must invalidate `_cachedNodes`, `_cachedEdges`, and `_cachedTraces` after any change
-- **Trace intersection edge splitting**: When splitting an existing route's edge at a crossing, the intersection node must track ALL route IDs that reference it via `traceIds: string[]`. When removing a trace, intersection nodes shared with other traces must not be deleted.
+- **React #185 (infinite re-render)**: FloorEditor reads `useGraphStore((s) => s.graph)` — the graph getter cache fix prevents this. Any new selector that derives arrays from the graph must also be cached.
+- **Map#getSource on removed map**: `useFloorDrawing`'s effect cleanup has try-catch, but any new editor services that touch the maplibre map in cleanup need the same guard.
+- **SelectionManager version clash**: SelectionManager already renamed its getter to `revision`. No collision risk. Just use the existing class.
+
+## Non-goals
+
+- ❌ Rewrite FloorEditorCanvas renderer
+- ❌ Rewrite useFloorDrawing or draw-reducer
+- ❌ Rewrite graph model (Component.floor stays number)
+- ❌ Rewrite commands
+- ❌ Convert graph store to string floor IDs
