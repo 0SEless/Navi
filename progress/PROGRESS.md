@@ -508,7 +508,32 @@ Fixed 7 of 16 findings from the floor editor component review (`.planning/phases
 085a83e — legacy StudioCanvas freeze (M2.6)
 e5e6db4 — M2.7 FloorEditor UI state migration
 318dba5 — M2.8 FloorEditorCanvas bugfixes
+75bc9b4 — M2.9 remaining review findings
 ```
+
+## 2026-07-11 — M2.9 Remaining FloorEditor Review Findings (complete)
+
+### What
+Fixed 4 more findings from the floor editor component review:
+
+| Task | Finding | Fix |
+|------|---------|-----|
+| T1 | #2 Double-click adds 2 points | Skip `detail > 1` clicks + dblclick handler calls `confirmPolygon` |
+| T2 | #7 `as unknown as EventHandler` cast | Single `as EventHandler` cast |
+| T3 | #12 Mock never fires 'load' | `setTimeout(() => m.fire('load'), 0)` in MapCtor + `setData`/`updateImage` on mock sources |
+| T4 | #13 Magic number defaults | Named constants: `DEFAULT_ROOM_WIDTH`, `DEFAULT_ROOM_HEIGHT`, `DEFAULT_FLOOR` |
+
+### From M2.8
+- Findings #1, #4, #5, #6, #8, #9, #15 (7 findings)
+### Already fixed by graph.ts caching
+- Findings #3, #10, #11
+### Deferred (INFO/LOW)
+- #14 (getState bypass — intentional pattern for callback use)
+- #16 (save pattern — consistent across all delete paths)
+
+### Verification
+- **Build**: `npm run build` — ✓ Compiled successfully
+- **Tests**: **108 test files, 864 tests — all passing**
 
 ### Next
 Phase 3 — Editor Bootstrap Consolidation (P3.1) + Drawing Interaction (P3.2) + Phase 3 canvas migration

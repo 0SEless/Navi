@@ -186,6 +186,15 @@
 - **Prevention**: Any checksum MUST be computed from deterministic, content-only data. Timestamps, random seeds, or nonce values must be excluded from the hash input. Add a test verifying that two calls to `compile()` with the same input produce identical checksums.
 - **Related files**: `packages/compiler/src/pipeline/compile.ts`, `packages/compiler/src/artifacts/artifact-generator.ts`
 
+## 2026-07-11: M2.9 FloorEditorCanvas — 4 more review findings fixed
+- **Source**: `.planning/phases/floor-editor-review.md` (findings #2, #7, #12, #13)
+- **T2** — Double-click added 2 points: `handleMapClick` fires twice on dblclick. Fixed by skipping clicks with `(e.originalEvent as MouseEvent).detail > 1` + register dblclick handler that calls `confirmPolygon`.
+- **T7** — `as unknown as maplibregl.EventHandler` cast: unnecessary double cast. Fixed to single `as maplibregl.EventHandler`.
+- **T12** — MapLibre mock never fired 'load': `addSourcesAndLayers` never tested. Fixed by adding `setTimeout(() => m.fire('load'), 0)` in MapCtor + mock sources with `setData`/`updateImage` fns.
+- **T13** — Magic number defaults in ComponentProperties: `DEFAULT_ROOM_WIDTH`, `DEFAULT_ROOM_HEIGHT`, `DEFAULT_FLOOR` extracted as named constants.
+- **Not fixed**: #14 (getState bypass — intentional for callbacks), #16 (save pattern — consistent).
+- **Related files**: `FloorEditorCanvas.tsx`, `useFloorDrawing.ts`, `FloorEditorCanvas.test.tsx`, `ComponentProperties.tsx`
+
 ## 2026-07-11: M2.8 FloorEditorCanvas Bugs Fixed (7 findings from review)
 - **Source**: `.planning/phases/floor-editor-review.md` (16 total findings, 7 fixed)
 - **T1 (CRITICAL)** — Floor plan image never loaded: `mapInstance` missing from useEffect deps. Effect never re-ran after `readyRef.current` became true.
