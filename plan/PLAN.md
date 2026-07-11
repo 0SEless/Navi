@@ -1,39 +1,23 @@
-# M2.8 Plan
+# M2.9 Plan
 
 ## Tasks
 
-### T1 — Fix floor plan image never loading (finding #1)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:181-204`
-- **Fix**: Add `mapInstance` to dependency array
-- **Acceptance**: Floor plan effect re-runs after map load, calls `src.updateImage()` with actual URL
-- **Error prevention**: Stale closure — the effect body uses `mapRef.current` which is always current
+### T1 — Fix double-click adds 2 points instead of confirming (finding #2)
+- **Files**: `src/components/floor-editor/useFloorDrawing.ts`, `FloorEditorCanvas.tsx`
+- **Fix**: In `handleMapClick`, skip clicks where `(e.originalEvent as MouseEvent).detail > 1` (double-click part). Move dblclick confirmation into `useFloorDrawing` (expose `handleDblClick` callback), register dblclick handler in FloorEditorCanvas.
+- **Acceptance**: Double-click during polygon/line placement adds one point then confirms.
 
-### T2 — Guard empty footprint in buildBuildingGeo (finding #5)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:26-50`
-- **Fix**: Return empty FeatureCollection when `building.footprint.length === 0`
-- **Acceptance**: Zero-length footprint produces `{ type: 'FeatureCollection', features: [] }`
+### T2 — Fix as unknown as maplibregl.EventHandler cast (finding #7)
+- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:398,518,525`
+- **Fix**: Remove double cast. Define `onMouseDown` as `maplibregl.EventHandler` compatible signature. Since MapLibre overloads `map.on(event, layerId, handler)` where handler receives `MapMouseEvent & { features? }`, extract the features access into a wrapper or use the `map.queryRenderedFeatures()` pattern.
+- **Acceptance**: No `as unknown` cast in FloorEditorCanvas drag interaction effect.
 
-### T3 — Skip empty URL in floor plan updateImage (finding #6)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:201-203`
-- **Fix**: Only call `src.updateImage()` when `imgUrl` is truthy
-- **Acceptance**: No fetch to `""` (current page URL) when no floor plan URL
+### T3 — Fire 'load' event in MapLibre test mock (finding #12)
+- **File**: `src/components/floor-editor/__tests__/FloorEditorCanvas.test.tsx`
+- **Fix**: In mock MapCtor, fire 'load' event after construction via `setTimeout` or synchronously in constructor.
+- **Acceptance**: The 'load' event fires during tests; addSourcesAndLayers is executed.
 
-### T4 — Remove graph.traces from unused dependency array (finding #4)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:280`
-- **Fix**: Remove `graph.traces` from useEffect dependency list
-- **Acceptance**: Effect works identically; deps only contain used values
-
-### T5 — Auto-focus canvas for keyboard shortcuts (finding #8)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:531-553`
-- **Fix**: Call `canvas.focus()` after map load; register `keydown` on window instead of canvas
-- **Acceptance**: Delete/Backspace and Escape work without manual canvas click
-
-### T6 — Log warnings in empty catch blocks (finding #9)
-- **File**: `src/components/floor-editor/FloorEditorCanvas.tsx:279, 357`
-- **Fix**: Replace empty catch blocks with `console.warn` including source identifier
-- **Acceptance**: Catch blocks log useful context instead of silently swallowing
-
-### T7 — Wrap toggleLayer in useCallback (finding #15)
-- **File**: `src/components/floor-editor/FloorEditor.tsx:68-70`
-- **Fix**: Wrap `toggleLayer` in `useCallback`
-- **Acceptance**: Function reference stable across renders (no measurable perf impact, but consistent with codebase patterns)
+### T4 — Named constants for ComponentProperties defaults (finding #13)
+- **File**: `src/components/floor-editor/ComponentProperties.tsx`
+- **Fix**: Extract `DEFAULT_ROOM_WIDTH = 4`, `DEFAULT_ROOM_HEIGHT = 5`, `DEFAULT_FLOOR = 0` constants.
+- **Acceptance**: No magic numbers in useState initializers.

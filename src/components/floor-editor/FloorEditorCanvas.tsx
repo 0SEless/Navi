@@ -516,14 +516,14 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
     map.on('mouseenter', 'floor-vertex-handles-layer', onVertexEnter)
     map.on('mouseleave', 'floor-vertex-handles-layer', onVertexLeave)
-    map.on('mousedown', 'floor-vertex-handles-layer', onMouseDown as unknown as maplibregl.EventHandler)
+    map.on('mousedown', 'floor-vertex-handles-layer', onMouseDown as maplibregl.EventHandler)
     map.on('mousemove', onMouseMove)
     map.on('mouseup', onMouseUp)
     return () => {
       if (pendingFrame != null) cancelAnimationFrame(pendingFrame)
       map.off('mouseenter', 'floor-vertex-handles-layer', onVertexEnter)
       map.off('mouseleave', 'floor-vertex-handles-layer', onVertexLeave)
-      map.off('mousedown', 'floor-vertex-handles-layer', onMouseDown as unknown as maplibregl.EventHandler)
+      map.off('mousedown', 'floor-vertex-handles-layer', onMouseDown as maplibregl.EventHandler)
       map.off('mousemove', onMouseMove)
       map.off('mouseup', onMouseUp)
     }

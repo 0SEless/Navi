@@ -60,7 +60,9 @@ vi.mock('maplibre-gl', () => {
     }
 
     getSource(id: string) { return this._sources[id] ?? null }
-    addSource(id: string) { this._sources[id] = {} }
+    addSource(id: string, options?: Record<string, unknown>) {
+      this._sources[id] = { setData: vi.fn(), updateImage: vi.fn(), type: options?.type ?? 'geojson' }
+    }
     addLayer(layer: Record<string, unknown>) { this._layers[layer.id as string] = layer }
     getLayer(id: string) { return this._layers[id] ?? null }
     setLayoutProperty(layer: string, prop: string, value: unknown) {
@@ -75,7 +77,9 @@ vi.mock('maplibre-gl', () => {
   }
 
   function MapCtor() {
-    return new MockEvented()
+    const m = new MockEvented()
+    setTimeout(() => m.fire('load'), 0)
+    return m
   }
 
   return {

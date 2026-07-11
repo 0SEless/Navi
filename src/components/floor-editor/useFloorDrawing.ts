@@ -247,6 +247,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
 
   // Map click handler
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    if ((e.originalEvent as MouseEvent).detail > 1) return
     const currentTool = toolRef.current
     if (currentTool === 'select') {
       const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-fill', 'floor-hallways-outline', 'floor-hallway-centerlines-layer', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-draw-placed']
@@ -290,12 +291,23 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     return () => { map.off('contextmenu', handleContext) }
   }, [map, drawState.drawMode])
 
-  // Attach click handler
+  // Double-click confirms polygon drawing
+  const handleDblClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    if (drawState.drawMode === 'idle') return
+    e.originalEvent.preventDefault()
+    confirmPolygon()
+  }, [drawState.drawMode, confirmPolygon])
+
+  // Attach click and double-click handlers
   useEffect(() => {
     if (!map) return
     map.on('click', handleMapClick)
-    return () => { map.off('click', handleMapClick) }
-  }, [map, handleMapClick])
+    map.on('dblclick', handleDblClick)
+    return () => {
+      map.off('click', handleMapClick)
+      map.off('dblclick', handleDblClick)
+    }
+  }, [map, handleMapClick, handleDblClick])
 
   const removeLastPoint = useCallback(() => {
     dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })

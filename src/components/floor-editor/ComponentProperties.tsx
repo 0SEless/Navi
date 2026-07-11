@@ -4,6 +4,10 @@ import { useState } from 'react'
 import { useGraphStore } from '@/store/graph-store'
 import type { Component } from '@/types/nav-types'
 
+const DEFAULT_ROOM_WIDTH = 4
+const DEFAULT_ROOM_HEIGHT = 5
+const DEFAULT_FLOOR = 0
+
 interface ComponentPropertiesProps {
   componentId: string | null
   onClose: () => void
@@ -20,10 +24,10 @@ export function ComponentProperties({ componentId, onClose }: ComponentPropertie
   const save = useGraphStore((s) => s.save)
 
   const [name, setName] = useState(component?.name ?? '')
-  const [width, setWidth] = useState(component?.dimensions?.width ?? 4)
-  const [height, setHeight] = useState(component?.dimensions?.height ?? 5)
-  const [rangeFrom, setRangeFrom] = useState(component?.range?.from ?? component?.floor ?? 0)
-  const [rangeTo, setRangeTo] = useState(component?.range?.to ?? (component?.floor ?? 0) + 1)
+  const [width, setWidth] = useState(component?.dimensions?.width ?? DEFAULT_ROOM_WIDTH)
+  const [height, setHeight] = useState(component?.dimensions?.height ?? DEFAULT_ROOM_HEIGHT)
+  const [rangeFrom, setRangeFrom] = useState(component?.range?.from ?? component?.floor ?? DEFAULT_FLOOR)
+  const [rangeTo, setRangeTo] = useState(component?.range?.to ?? (component?.floor ?? DEFAULT_FLOOR) + 1)
 
   if (!component) return null
 
