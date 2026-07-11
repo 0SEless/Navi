@@ -99,6 +99,23 @@ describe('useDrawingSession', () => {
     expect(result.current.drawPoints).toEqual([])
   })
 
+  it('setTracePoints replaces all trace points', () => {
+    const { result } = renderHook(() => useDrawingSession('route'))
+    act(() => result.current.setTracePoints([{ lat: 10, lng: 20 }, { lat: 30, lng: 40 }]))
+    expect(result.current.tracePoints).toHaveLength(2)
+    expect(result.current.tracePoints[0]).toEqual({ lat: 10, lng: 20 })
+    act(() => result.current.setTracePoints([{ lat: 50, lng: 60 }]))
+    expect(result.current.tracePoints).toHaveLength(1)
+  })
+
+  it('setDrawPoints replaces all draw points', () => {
+    const { result } = renderHook(() => useDrawingSession('building'))
+    act(() => result.current.setDrawPoints([{ lat: 10, lng: 20 }, { lat: 30, lng: 40 }, { lat: 50, lng: 60 }]))
+    expect(result.current.drawPoints).toHaveLength(3)
+    act(() => result.current.setDrawPoints([{ lat: 99, lng: 88 }]))
+    expect(result.current.drawPoints).toHaveLength(1)
+  })
+
   it('manages room drag state', () => {
     const { result } = renderHook(() => useDrawingSession())
     const drag = { start: { lat: 0, lng: 0 }, current: { lat: 10, lng: 10 } }

@@ -1,34 +1,31 @@
 'use client'
 
 import { Trash2, Check, X } from 'lucide-react'
+import { useStudioStore } from '@/store/studio-store'
+import type { DrawingSessionValue } from './useDrawingSession'
 
 interface ConfirmBarProps {
-  tracePoints: Array<{ lat: number; lng: number }>
-  drawPoints: Array<{ lat: number; lng: number }>
-  routeWidth: number
-  tool: 'route' | 'building' | 'boundary'
-  canConfirm: boolean
-  onConfirm: () => void
-  onCancel: () => void
-  onUndo: () => void
-  onSetWidth: (width: number) => void
-  toolLabel: string
+  drawing: DrawingSessionValue
 }
 
-export function ConfirmBar({
-  tracePoints,
-  drawPoints,
-  routeWidth,
-  tool,
-  canConfirm,
-  onConfirm,
-  onCancel,
-  onUndo,
-  onSetWidth,
-  toolLabel,
-}: ConfirmBarProps) {
-  const currentPoints = tool === 'route' ? tracePoints : drawPoints
-  const minPoints = tool === 'route' ? 2 : 3
+export function ConfirmBar({ drawing }: ConfirmBarProps) {
+  const tool = useStudioStore((s) => s.tool)
+
+  // Only shown for drawing tools with points placed
+  if (tool !== 'route' && tool !== 'building' && tool !== 'boundary') return null
+
+  const { tracePoints, drawPoints, routeWidth, requestConfirm, cancel, undoLastPoint, undoLastDrawPoint, setRouteWidth } = drawing
+
+  const isRoute = tool === 'route'
+  const currentPoints = isRoute ? tracePoints : drawPoints
+
+  // Don't show bar if no points placed
+  if (currentPoints.length === 0) return null
+
+  const toolLabel = isRoute ? 'Campus route' : tool === 'building' ? 'Building footprint' : 'Campus boundary'
+  const minPoints = isRoute ? 2 : 3
+  const canConfirm = currentPoints.length >= minPoints
+  const onUndo = isRoute ? undoLastPoint : undoLastDrawPoint
 
   return (
     <div style={{
@@ -45,9 +42,9 @@ export function ConfirmBar({
       <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 4px' }}>
         {currentPoints.length} point{currentPoints.length !== 1 ? 's' : ''} (need {minPoints})
       </span>
-      {tool === 'route' && (
+      {isRoute && (
         <>
-          <button onClick={() => onSetWidth(routeWidth - 1)}
+          <button onClick={() => setRouteWidth(routeWidth - 1)}
             style={{
               width: 24, height: 24, borderRadius: 4, border: 'none',
               background: '#475569', color: '#fff', cursor: 'pointer',
@@ -58,7 +55,7 @@ export function ConfirmBar({
           <span style={{ fontSize: 10, color: '#06B6D4', fontWeight: 600, minWidth: 16, textAlign: 'center' }}>
             {routeWidth}
           </span>
-          <button onClick={() => onSetWidth(routeWidth + 1)}
+          <button onClick={() => setRouteWidth(routeWidth + 1)}
             style={{
               width: 24, height: 24, borderRadius: 4, border: 'none',
               background: '#475569', color: '#fff', cursor: 'pointer',
@@ -78,7 +75,7 @@ export function ConfirmBar({
       >
         <Trash2 size={12} />
       </button>
-      <button onClick={onConfirm} disabled={!canConfirm}
+      <button onClick={requestConfirm} disabled={!canConfirm}
         style={{
           display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
           border: 'none', background: !canConfirm ? '#374151' : '#10B981',
@@ -88,7 +85,7 @@ export function ConfirmBar({
       >
         <Check size={12} /> Confirm
       </button>
-      <button onClick={onCancel}
+      <button onClick={cancel}
         style={{
           display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
           border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer',

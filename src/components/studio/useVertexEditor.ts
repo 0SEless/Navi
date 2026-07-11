@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
+import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng, TracePath } from '@/types/nav-types'
 import { haversine } from '@/engine/geo-utils'
@@ -51,21 +52,41 @@ function addVertexLayers(map: maplibregl.Map) {
   map.addLayer({ id: VERTEX_LAYER, type: 'circle', source: VERTEX_SOURCE, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, ['case', ['boolean', ['get', 'selected'], false], 12, 8], 20, ['case', ['boolean', ['get', 'selected'], false], 18, 14]], 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' }, filter: ['==', ['get', 'segment'], -1] })
 }
 
-export function useVertexEditor(
-  map: maplibregl.Map | null,
-  trace: TracePath | null,
-  onSave: (points: LatLng[]) => void,
-) {
+/**
+ * Manages vertex editing for traces.
+ * Reads current edit target from Zustand internally.
+ */
+export function useVertexEditor(map: maplibregl.Map | null) {
+  const editTargetType = useStudioStore((s) => s.editTargetType)
+  const editTargetId = useStudioStore((s) => s.editTargetId)
+  const graph = useGraphStore((s) => s.graph)
+  const updateTrace = useGraphStore((s) => s.updateTrace)
+  const recompileTrace = useGraphStore((s) => s.recompileTrace)
+  const save = useGraphStore((s) => s.save)
   const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
-  const pointsRef = useRef<LatLng[]>(trace?.points ?? [])
+
+  const currentEditTrace: TracePath | null =
+    editTargetType === 'trace' && editTargetId
+      ? graph.traces.find((t: TracePath) => t.id === editTargetId) ?? null
+      : null
+
+  const pointsRef = useRef<LatLng[]>(currentEditTrace?.points ?? [])
   const selectedIdxRef = useRef<number | null>(null)
   const dragStartRef = useRef<LatLng | null>(null)
   const dragOriginalsRef = useRef<{ adjacentPoint?: LatLng; isEndpoint: boolean }>({ isEndpoint: false })
 
   useEffect(() => {
-    pointsRef.current = trace?.points ?? []
-  }, [trace])
+    pointsRef.current = currentEditTrace?.points ?? []
+  }, [currentEditTrace])
+
+  const handleSave = useCallback((points: LatLng[]) => {
+    if (currentEditTrace) {
+      updateTrace(currentEditTrace.id, { points })
+      recompileTrace(currentEditTrace.id)
+      save()
+    }
+  }, [currentEditTrace, updateTrace, recompileTrace, save])
 
   const updateDisplay = useCallback((points: LatLng[], selectedIdx?: number) => {
     if (!map || !map.getSource(VERTEX_SOURCE)) return
@@ -93,9 +114,9 @@ export function useVertexEditor(
 
   // Toggle vertex editing visibility
   useEffect(() => {
-    if (!map || !isVertexEditing || !trace) return
+    if (!map || !isVertexEditing || !currentEditTrace) return
     updateDisplay(pointsRef.current)
-  }, [isVertexEditing, trace, map, updateDisplay])
+  }, [isVertexEditing, currentEditTrace, map, updateDisplay])
 
   // Clean up on disable
   useEffect(() => {
@@ -117,7 +138,6 @@ export function useVertexEditor(
         updateDisplay(pointsRef.current, idx)
         return
       }
-      // Double-click on midpoint to add vertex
       const midFeatures = map.queryRenderedFeatures(e.point, { layers: [VERTEX_MIDPOINT_LAYER] })
       if (midFeatures.length > 0) {
         const segIdx = midFeatures[0].properties?.segment as number
@@ -167,21 +187,16 @@ export function useVertexEditor(
       if (isEndpoint && adjacentPoint) {
         const distToAdj = haversine(
           { lat: e.lngLat.lat, lng: e.lngLat.lng },
-          adjacentPoint
+          adjacentPoint,
         )
-        const originalDist = haversine(
-          dragStartRef.current,
-          adjacentPoint
-        )
+        const originalDist = haversine(dragStartRef.current, adjacentPoint)
         if (distToAdj > originalDist * 1.1) {
-          // Extend: keep original endpoint, append new point
           const newPoints = [...pointsRef.current]
           const insertAt = idx === 0 ? 0 : newPoints.length
           newPoints.splice(insertAt, 0, { lat: e.lngLat.lat, lng: e.lngLat.lng })
           pointsRef.current = newPoints
           selectedIdxRef.current = insertAt
           updateDisplay(newPoints, insertAt)
-          // Update adjacent point ref for subsequent mousemoves
           dragOriginalsRef.current = {
             ...dragOriginalsRef.current,
             adjacentPoint: idx === 0
@@ -192,7 +207,6 @@ export function useVertexEditor(
         }
       }
 
-      // Normal move
       const newPoints = [...pointsRef.current]
       newPoints[idx] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
       pointsRef.current = newPoints
@@ -200,7 +214,7 @@ export function useVertexEditor(
     }
     const handleMouseUp = () => {
       if (selectedIdxRef.current != null) {
-        onSave(pointsRef.current)
+        handleSave(pointsRef.current)
       }
       dragStartRef.current = null
     }
@@ -214,7 +228,7 @@ export function useVertexEditor(
         pointsRef.current = newPoints
         selectedIdxRef.current = null
         updateDisplay(newPoints)
-        onSave(newPoints)
+        handleSave(newPoints)
       }
     }
     map.on('mousedown', handleMouseDown)
@@ -227,7 +241,7 @@ export function useVertexEditor(
       map.off('mouseup', handleMouseUp)
       map.off('contextmenu', handleContextMenu)
     }
-  }, [map, isVertexEditing, updateDisplay, onSave])
+  }, [map, isVertexEditing, updateDisplay, handleSave])
 
   return { active: isVertexEditing, getPoints: () => pointsRef.current, cancel: () => setVertexEditing(null, null) }
 }

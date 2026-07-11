@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import { SRC, LYR, syncAllData } from './StudioCanvas'
+import { SRC, LYR, CURSOR_CROSSHAIR } from './rendering/constants'
 import type { LatLng } from '@/types/nav-types'
 
 interface InteractionControllerProps {
@@ -13,6 +13,7 @@ interface InteractionControllerProps {
 }
 
 export function InteractionController({ map, onSetRoomDrag }: InteractionControllerProps) {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const toolRef = useRef(useStudioStore.getState().tool)
   const tracePointsRef = useRef(useStudioStore.getState().tracePoints)
   const drawPointsRef = useRef(useStudioStore.getState().drawPoints)
@@ -25,8 +26,27 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
   const lastSelectedNodeRef = useRef<string | null>(null)
 
+  const tool = useStudioStore((s) => s.tool)
+
   const setRoomDragRef = useRef(onSetRoomDrag)
   useEffect(() => { setRoomDragRef.current = onSetRoomDrag }, [onSetRoomDrag])
+
+  // ── Cursor + dragPan management ──
+  useEffect(() => {
+    const canvas = map.getCanvas()
+    if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') {
+      canvas.style.cursor = CURSOR_CROSSHAIR
+    } else if (tool === 'select') {
+      canvas.style.cursor = 'pointer'
+    } else {
+      canvas.style.cursor = ''
+    }
+    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'vertex') {
+      map.dragPan.disable()
+    } else {
+      map.dragPan.enable()
+    }
+  }, [tool, map])
 
   useEffect(() => {
     const unsub = useStudioStore.subscribe((state) => {
@@ -243,7 +263,6 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
         }
         useStudioStore.getState().setAdjustBuilding(null)
         buildingDragRef.current = null
-        syncAllData(map, graphRef.current, activeFloorRef.current)
         return
       }
       if (dragStart && toolRef.current === 'room') {
@@ -267,7 +286,8 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
         if (buildingDragRef.current) {
           buildingDragRef.current = null
           map.dragPan.enable()
-          syncAllData(map, graphRef.current, activeFloorRef.current)
+          // Bump renderVersion so MapRenderer restores building source after cancelled drag
+          useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
           return
         }
         if (lastSelectedNodeRef.current) {
@@ -295,11 +315,26 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
       }
     }
 
+    const handleTooltipEnter = (e: maplibregl.MapMouseEvent) => {
+      setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
+      map.getCanvas().style.cursor = 'pointer'
+    }
+
+    const handleTooltipLeave = () => {
+      setTooltip(null)
+      const ct = useStudioStore.getState().tool
+      const canvas = map.getCanvas()
+      if (ct === 'select') canvas.style.cursor = 'pointer'
+      else canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+    }
+
     map.on('click', handleClick)
     map.on('dblclick', handleDblClick)
     map.on('mousedown', handleMouseDown)
     map.on('mousemove', handleMouseMove)
     map.on('mouseup', handleMouseUp)
+    map.on('mouseenter', LYR.NODES_CONNECTION, handleTooltipEnter)
+    map.on('mouseleave', LYR.NODES_CONNECTION, handleTooltipLeave)
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
@@ -308,9 +343,24 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
       map.off('mousedown', handleMouseDown)
       map.off('mousemove', handleMouseMove)
       map.off('mouseup', handleMouseUp)
+      map.off('mouseenter', LYR.NODES_CONNECTION, handleTooltipEnter)
+      map.off('mouseleave', LYR.NODES_CONNECTION, handleTooltipLeave)
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [map])
 
-  return null
+  return (
+    <>
+      {tooltip && (
+        <div style={{
+          position: 'absolute', left: tooltip.x + 12, top: tooltip.y - 12,
+          background: '#0F172A', color: '#fff', padding: '4px 10px', borderRadius: 6,
+          fontSize: 11, whiteSpace: 'nowrap', zIndex: 20, pointerEvents: 'none',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)', border: '1px solid #334155',
+        }}>
+          {tooltip.text}
+        </div>
+      )}
+    </>
+  )
 }

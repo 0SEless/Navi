@@ -23,13 +23,15 @@ export interface DrawingSessionValue {
   roomDrag: DragState | null
   pendingConfirm: PendingConfirm | null
   addTracePoint: (pt: LatLng) => void
+  setTracePoints: (pts: LatLng[]) => void
   undoLastPoint: () => void
   clearTracePoints: () => void
   addDrawPoint: (pt: LatLng) => void
+  setDrawPoints: (pts: LatLng[]) => void
   undoLastDrawPoint: () => void
   clearDrawPoints: () => void
   setRoomDrag: (drag: DragState | null) => void
-  requestConfirm: () => void
+  requestConfirm: (type?: 'route' | 'building' | 'boundary') => void
   confirm: () => LatLng[]
   cancel: () => void
   setRouteWidth: (width: number) => void
@@ -48,6 +50,10 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
     setTracePoints(prev => [...prev, pt])
   }, [])
 
+  const setTracePointsFn = useCallback((pts: LatLng[]) => {
+    setTracePoints(pts)
+  }, [])
+
   const undoLastPoint = useCallback(() => {
     setTracePoints(prev => prev.slice(0, -1))
   }, [])
@@ -60,6 +66,10 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
     setDrawPoints(prev => [...prev, pt])
   }, [])
 
+  const setDrawPointsFn = useCallback((pts: LatLng[]) => {
+    setDrawPoints(pts)
+  }, [])
+
   const undoLastDrawPoint = useCallback(() => {
     setDrawPoints(prev => prev.slice(0, -1))
   }, [])
@@ -68,13 +78,21 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
     setDrawPoints([])
   }, [])
 
-  const requestConfirm = useCallback(() => {
-    if (initialTool === 'route' && tracePoints.length >= 2) {
-      setPendingConfirm({ type: 'route', points: [...tracePoints] })
-    } else if ((initialTool === 'building' || initialTool === 'boundary') && drawPoints.length >= 3) {
-      setPendingConfirm({ type: initialTool, points: [...drawPoints] })
+  const requestConfirm = useCallback((type?: 'route' | 'building' | 'boundary') => {
+    if (!type) {
+      if (tracePoints.length >= 2) {
+        setPendingConfirm({ type: 'route', points: [...tracePoints] })
+      } else if (drawPoints.length >= 3) {
+        setPendingConfirm({ type: 'building', points: [...drawPoints] })
+      }
+      return
     }
-  }, [initialTool, tracePoints, drawPoints])
+    if (type === 'route' && tracePoints.length >= 2) {
+      setPendingConfirm({ type: 'route', points: [...tracePoints] })
+    } else if ((type === 'building' || type === 'boundary') && drawPoints.length >= 3) {
+      setPendingConfirm({ type, points: [...drawPoints] })
+    }
+  }, [tracePoints, drawPoints])
 
   const confirm = useCallback((): LatLng[] => {
     const points = pendingConfirm?.points ?? []
@@ -101,9 +119,11 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
     roomDrag,
     pendingConfirm,
     addTracePoint,
+    setTracePoints: setTracePointsFn,
     undoLastPoint,
     clearTracePoints,
     addDrawPoint,
+    setDrawPoints: setDrawPointsFn,
     undoLastDrawPoint,
     clearDrawPoints,
     setRoomDrag,
