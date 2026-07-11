@@ -15,6 +15,7 @@ export const serviceNames = {
   validation: 'validation',
   eventBus: 'eventBus',
   viewport: 'viewport',
+  editingContext: 'editingContext',
 } as const
 
 const EditorReactContext = createContext<EditorContext | null>(null)

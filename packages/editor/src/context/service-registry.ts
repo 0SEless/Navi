@@ -7,6 +7,7 @@ import type { CommandDispatcher } from '../commands/dispatcher'
 import type { SelectionManager } from '../selection'
 import type { Viewport } from '../viewport'
 import type { ToolRegistry } from '../tools/registry'
+import type { EditingContextService } from '../editing-context'
 import type { ValidationRegistry } from '../validation/registry'
 import type { HistoryStack } from '../history'
 import type { DocumentStore } from './document-store'
@@ -78,6 +79,7 @@ export interface ServiceMap {
   dispatcher: CommandDispatcher
   selection: SelectionManager
   viewport: Viewport
+  editingContext: EditingContextService
   toolRegistry: ToolRegistry
   validation: ValidationRegistry
   history: HistoryStack

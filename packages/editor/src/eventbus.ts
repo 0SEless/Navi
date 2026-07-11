@@ -9,6 +9,7 @@ export type EditorEventType =
   | 'selection.changed'
   | 'tool.changed'
   | 'viewport.changed'
+  | 'editingcontext.changed'
   | 'document.loaded'
   | 'document.saved'
   | 'document.changed'

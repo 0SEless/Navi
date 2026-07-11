@@ -18,6 +18,7 @@ import {
   PersistenceService,
   WorkflowStore,
   WorkflowService,
+  EditingContextService,
   ValidationRegistry,
   polygonClosureValidator,
   duplicateIdsValidator,
@@ -154,10 +155,13 @@ function buildContext(graph: any): EditorContextValue {
   const workflowStore = new WorkflowStore()
   const workflow = new WorkflowService()
 
+  const editingContext = new EditingContextService()
+
   registry.register('navigationCompiler', navCompiler)
   registry.register('persistence', persistence)
   registry.register('workflowStore', workflowStore)
   registry.register('workflow', workflow)
+  registry.register('editingContext', editingContext)
 
   // Initialize services in dependency order (async work is sync for these services).
   void registry.init(document)
