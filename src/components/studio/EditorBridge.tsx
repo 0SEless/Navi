@@ -22,6 +22,8 @@ import {
   ValidationRegistry,
   polygonClosureValidator,
   duplicateIdsValidator,
+  ToolRegistry,
+  Viewport,
 } from '@navi/editor'
 import type { EntitySelector, PersistenceAdapter } from '@navi/editor'
 import type { CampusDocument } from '@navi/core'
@@ -133,6 +135,12 @@ function buildContext(graph: any): EditorContextValue {
   registry.register('dispatcher', dispatcher)
   registry.register('history', history)
   registry.register('selection', selectionManager)
+
+  // ── M2.7 ToolRegistry + Viewport ────────────────────────────
+  const toolRegistry = new ToolRegistry()
+  const viewport = new Viewport(eventBus)
+  registry.register('toolRegistry', toolRegistry)
+  registry.register('viewport', viewport)
 
   // ── Validation ──────────────────────────────────────────────
   const validation = new ValidationRegistry()

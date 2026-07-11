@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { useEditor } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
+import { useFloorAdapter } from './adapters/floor-adapter'
+import { useToolAdapter } from './adapters/tool-adapter'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 
 const FloorEditorCanvas = dynamic(
@@ -44,15 +47,19 @@ const LAYER_ITEMS: { key: keyof LayerVisibility; label: string }[] = [
 ]
 
 export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
+  const { services } = useEditor()
+  const viewport = services.get('viewport')
+  const selectionManager = services.get('selection')
+
   const graph = useGraphStore((s) => s.graph)
   const syncStatus = useGraphStore((s) => s.syncStatus)
   const syncError = useGraphStore((s) => s.syncError)
   const building = useMemo(() => graph.buildings.find((b) => b.id === buildingId), [graph.buildings, buildingId])
 
-  const [tool, setTool] = useState<StudioTool>('select')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const handleToolChange = useCallback((t: StudioTool) => { setTool(t); setSelectedId(null) }, [])
-  const handleSelect = useCallback((id: string | null) => setSelectedId(id), [])
+  const { activeTool, activateTool, isActive } = useToolAdapter(services.get('toolRegistry'))
+  const floorAdapter = useFloorAdapter(viewport, building ?? null, floor)
+  const selectedId = selectionManager?.selectedId ?? null
+
   const [layers, setLayers] = useState<LayerVisibility>({
     osm: false, satellite: false, floor_plan: true, buildings: false,
     rooms: true, hallways: true, assets: true, nodes: false, edges: false, labels: true,
@@ -104,10 +111,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={handleSelect} />
+        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => selectionManager?.select(id)} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floor} tool={tool} layers={layers} selectedId={selectedId} onSelect={handleSelect} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={activeTool} layers={layers} selectedId={selectedId} onSelect={(id) => selectionManager?.select(id)} />
           {!building.floorPlanUrls?.[floor] && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0,
@@ -133,15 +140,15 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
           <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: 2, borderBottom: '1px solid var(--navi-border)' }}>
             {FLOOR_TOOLS.map(({ tool: t, icon: Icon, label, color }) => (
-              <button key={t} onClick={() => handleToolChange(t)}
+              <button key={t} onClick={() => { activateTool(t); selectionManager?.select(null) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6,
                   border: 'none', cursor: 'pointer',
-                  background: tool === t ? `${color}15` : 'transparent',
-                  color: tool === t ? color : 'var(--navi-text)', fontSize: 11, textAlign: 'left',
+                  background: isActive(t) ? `${color}15` : 'transparent',
+                  color: isActive(t) ? color : 'var(--navi-text)', fontSize: 11, textAlign: 'left',
                 }}
-                onMouseEnter={(e) => { if (tool !== t) e.currentTarget.style.background = 'var(--navi-content)' }}
-                onMouseLeave={(e) => { if (tool !== t) e.currentTarget.style.background = 'transparent' }}
+                onMouseEnter={(e) => { if (!isActive(t)) e.currentTarget.style.background = 'var(--navi-content)' }}
+                onMouseLeave={(e) => { if (!isActive(t)) e.currentTarget.style.background = 'transparent' }}
               >
                 <Icon size={14} />
                 {label}
@@ -176,7 +183,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           </div>
 
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => setSelectedId(null)} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => selectionManager?.select(null)} />
           )}
         </div>
       </div>

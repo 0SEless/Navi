@@ -44,6 +44,30 @@ const mockBuilding: Building = {
 
 let graphComponents: Component[] = []
 
+vi.mock('@navi/editor', async () => {
+  const actual = await vi.importActual('@navi/editor')
+  return {
+    ...actual,
+    useEditor: () => ({
+      services: {
+        get: (name: string) => {
+          if (name === 'toolRegistry') {
+            const { ToolRegistry } = actual as { ToolRegistry: new () => { activeToolId: string | null; activate: () => void; get: () => undefined } }
+            return new ToolRegistry()
+          }
+          if (name === 'viewport') {
+            return { activeFloorId: null, setActiveFloor: vi.fn() }
+          }
+          if (name === 'selection') {
+            return { selectedId: null, select: vi.fn() }
+          }
+          return null
+        },
+      },
+    }),
+  }
+})
+
 vi.mock('@/store/graph-store', () => ({
   useGraphStore: (selector: (s: Record<string, unknown>) => unknown) => {
     const mockStore = {
