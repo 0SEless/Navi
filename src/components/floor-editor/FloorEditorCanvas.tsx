@@ -24,6 +24,9 @@ const CURSOR_MAP: Record<string, string> = {
 }
 
 function buildBuildingGeo(building: Building): GeoJSON.FeatureCollection {
+  if (building.footprint.length === 0) {
+    return { type: 'FeatureCollection', features: [] }
+  }
   return {
     type: 'FeatureCollection',
     features: [{
@@ -198,10 +201,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           [sw.lng, sw.lat],
         ],
       })
-    } else {
-      src.updateImage({ url: '', coordinates: [[0, 0], [0, 0], [0, 0], [0, 0]] })
     }
-  }, [building.floorPlanUrls, floor, building.footprint])
+  }, [building.floorPlanUrls, floor, building.footprint, mapInstance])
 
   // Sync rooms + hallways for this floor
   useEffect(() => {
@@ -276,8 +277,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         }))
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
-    } catch { /* source not ready */ }
-  }, [graph.components, graph.traces, building.id, floor, renderVersion])
+    } catch { console.warn('FloorEditorCanvas: source not ready for setData') }
+  }, [graph.components, building.id, floor, renderVersion])
 
   // Selection highlight
   useEffect(() => {
@@ -354,7 +355,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       try {
         if (visible) map.setLayoutProperty(id, 'visibility', 'visible')
         else map.setLayoutProperty(id, 'visibility', 'none')
-      } catch { /* layer not found */ }
+      } catch { console.warn('FloorEditorCanvas: layer not found for visibility toggle', id) }
     }
   }, [layers])
 
@@ -528,12 +529,11 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
   }, [selectedId, graph.components, tool, updateComponent, saveGraph, renderVersion])
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (window-level — no canvas focus needed)
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    const canvas = map.getCanvas()
     const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return
       if (e.key === 'Escape') {
         if (drawMode !== 'idle') {
           cancelDrawing()
@@ -547,9 +547,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         onSelect?.(null)
       }
     }
-    canvas.addEventListener('keydown', handleKey)
-    canvas.setAttribute('tabindex', '0')
-    return () => canvas.removeEventListener('keydown', handleKey)
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
   }, [selectedId, onSelect, removeComponent, saveGraph, drawMode, cancelDrawing])
 
   // Cursor based on tool

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
@@ -65,9 +65,9 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     rooms: true, hallways: true, assets: true, nodes: false, edges: false, labels: true,
   })
 
-  const toggleLayer = (key: keyof LayerVisibility) => {
+  const toggleLayer = useCallback((key: keyof LayerVisibility) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
+  }, [])
 
   if (!building) {
     return (
