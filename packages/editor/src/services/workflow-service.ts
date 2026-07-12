@@ -2,7 +2,7 @@ import { BaseEditorService } from '../context'
 import type { EditorServiceContext } from '../context/service-registry'
 import type { CampusDocument } from '@navi/core'
 import type { NavigationCompiler, CompileResult } from './navigation-compiler'
-import type { PersistenceService, PublishResult } from './persistence-service'
+import type { PersistenceService } from './persistence-service'
 import type { WorkflowStore, ValidationResult, SyncStatus } from './workflow-store'
 import type { ValidationRegistry } from '../validation/registry'
 import type { DocumentStore } from '../context/document-store'
@@ -20,7 +20,7 @@ import type { DocumentEventBus } from '../eventbus'
  * All state lives in WorkflowStore.
  *
  * INVARIANT: WorkflowService is the ONLY public workflow API.
- * UI code calls WorkflowService.validate/compile/save/publish.
+ * UI code calls WorkflowService.validate/compile/save.
  * No UI code calls PersistenceService or NavigationCompiler directly.
  */
 export class WorkflowService extends BaseEditorService {
@@ -157,31 +157,4 @@ export class WorkflowService extends BaseEditorService {
     }
   }
 
-  /**
-   * Publish the campus.
-   *
-   * 1. Checks isDirty() → rejects if dirty (user must save first)
-   * 2. Runs compile fresh (never uses cached result)
-   * 3. On compile error → writes to WorkflowStore, returns error
-   * 4. On compile success → publishes via PersistenceService
-   * 5. On publish success → writes to WorkflowStore
-   */
-  async publish(): Promise<PublishResult> {
-    if (this.isDirty()) {
-      return { success: false, message: 'Save your changes before publishing' }
-    }
-
-    // Always compile fresh
-    const compileResult = await this.compile()
-    if (compileResult.status !== 'success' || !compileResult.artifacts) {
-      return { success: false, message: compileResult.message ?? 'Compilation failed' }
-    }
-
-    // Publish compiled artifacts
-    const publishResult = await this.persistence.publish(compileResult.artifacts)
-    if (publishResult.success) {
-      this.workflowStore.setPublish(Date.now())
-    }
-    return publishResult
-  }
 }

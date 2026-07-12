@@ -88,15 +88,14 @@ describe('WorkflowService', () => {
 
     it('validation result with errors', async () => {
       const ctx = buildContext()
-      // Store the original get to preserve other lookups
       const originalGet = ctx.get.bind(ctx)
       ctx.get = (id: string) => {
         if (id === 'validation') return {
           validateAll: () => [
             { severity: 'error', message: 'Missing name', validatorId: 'test' },
           ],
-        }
-        return originalGet(id)
+        } as any
+        return originalGet(id as any)
       }
       await service.init(ctx as EditorServiceContext)
       const result = await service.validate()
@@ -188,35 +187,6 @@ describe('WorkflowService', () => {
       expect(emitSpy).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'manual', timestamp: expect.any(Number) })
       )
-    })
-  })
-
-  describe('publish', () => {
-    it('rejects if document is dirty', async () => {
-      documentStore.version = 10
-      workflowStore.setLastSaveVersion(5)
-      const result = await service.publish()
-      expect(result.success).toBe(false)
-      expect(result.message).toContain('Save')
-    })
-
-    it('rejects if compile fails', async () => {
-      // Re-init with failing compile
-      const failCtx = buildContext({ compileSuccess: false })
-      await service.init(failCtx)
-      documentStore.version = 5
-      workflowStore.setLastSaveVersion(5)
-      const result = await service.publish()
-      expect(result.success).toBe(false)
-      expect(result.message).toContain('Compile')
-    })
-
-    it('publishes successfully when clean and compile succeeds', async () => {
-      documentStore.version = 5
-      workflowStore.setLastSaveVersion(5)
-      const result = await service.publish()
-      expect(result.success).toBe(true)
-      expect(workflowStore.getSnapshot().lastPublish).not.toBeNull()
     })
   })
 })

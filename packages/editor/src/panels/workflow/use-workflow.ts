@@ -14,6 +14,10 @@ const EMPTY_SNAPSHOT: WorkflowSnapshot = Object.freeze({
   lastPublish: null,
   syncStatus: 'idle',
   lastSaveVersion: 0,
+  saveState: 'idle',
+  saveError: null,
+  lastSaveReason: null,
+  lastSavedAt: 0,
 })
 
 const noopSubscribe = (_: () => void) => () => {}
@@ -29,7 +33,6 @@ const FALLBACK_SERVICE: WorkflowService = {
   validate: async () => {},
   compile: async () => {},
   save: async () => {},
-  publish: async () => Promise.resolve({ success: false, message: 'Workflow service not available' }),
 } as unknown as WorkflowService
 
 // ── useWorkflow hook ──────────────────────────────────────────
@@ -52,8 +55,6 @@ export function useWorkflow(): WorkflowProgress & {
   compile: () => Promise<void>
   /** Save document */
   save: () => Promise<void>
-  /** Publish campus (recompiles, then publishes) */
-  publish: () => Promise<void>
   /** Whether the document has unsaved changes */
   isDirty: boolean
   /** Raw snapshot for advanced consumers */
@@ -92,16 +93,11 @@ export function useWorkflow(): WorkflowProgress & {
     await svcRef.current.save('manual')
   }, [])
 
-  const publish = useCallback(async () => {
-    await svcRef.current.publish()
-  }, [])
-
   return {
     ...progress,
     validate,
     compile,
     save,
-    publish,
     isDirty,
     snapshot,
   }
