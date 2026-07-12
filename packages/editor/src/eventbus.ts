@@ -23,6 +23,9 @@ export type EditorEventType =
   | 'calibration.removeLastPoint'
   | 'calibration.compute'
   | 'calibration.cancel'
+  // Workflow events
+  | 'workflow.saved'
+  | 'publish.completed'
 
 export interface EntityEventPayload {
   entityId: string
