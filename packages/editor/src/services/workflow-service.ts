@@ -73,6 +73,15 @@ export class WorkflowService extends BaseEditorService {
     return this.isDirty() && this.workflowStore.getSnapshot().saveState !== 'saving'
   }
 
+  isSaving(): boolean {
+    if (!this.workflowStore) return false
+    return this.workflowStore.getSnapshot().saveState === 'saving'
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.isDirty()
+  }
+
   // ── Actions ─────────────────────────────────────────────────
 
   /**
