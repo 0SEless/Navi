@@ -77,20 +77,28 @@ export class WorkflowService extends BaseEditorService {
 
   /**
    * Run full validation on the current document.
-   * Writes result to WorkflowStore.
+   * @deprecated Use ValidationService instead. This method now delegates to
+   * ValidationService and converts the result to the legacy format.
    */
   async validate(): Promise<ValidationResult> {
+    const validationService = this._context?.get('validationService')
+    if (validationService) {
+      await validationService.validateNow()
+      const snap = validationService.getSnapshot()
+      return {
+        passed: snap.summary.total - snap.summary.errors - snap.summary.warnings,
+        failed: snap.summary.errors + snap.summary.warnings,
+        errors: snap.issues.filter(i => i.severity === 'error').map(i => i.message),
+        timestamp: Date.now(),
+      }
+    }
     const issues = this.validation.validateAll(this.document)
-
     const result: ValidationResult = {
       passed: issues.filter((i) => i.severity !== 'error' && i.severity !== 'warning').length,
       failed: issues.filter((i) => i.severity === 'error' || i.severity === 'warning').length,
-      errors: issues
-        .filter((i) => i.severity === 'error')
-        .map((i) => i.message),
+      errors: issues.filter((i) => i.severity === 'error').map((i) => i.message),
       timestamp: Date.now(),
     }
-
     this.workflowStore.setValidation(result)
     return result
   }

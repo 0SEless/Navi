@@ -15,15 +15,22 @@ import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
 import { SelectionManager } from '../selection'
 import { ToolRegistry } from '../tools/registry'
 import { Viewport } from '../viewport'
-import { ValidationRegistry } from '../validation/registry'
+import { ValidationRegistry, ValidationEngine } from '../validation'
 import { polygonClosureValidator } from '../validation/validators/polygon-closure'
+import { selfIntersectionValidator } from '../validation/validators/self-intersection'
 import { duplicateIdsValidator } from '../validation/validators/duplicate-ids'
+import { entranceConnectivityValidator } from '../validation/validators/entrance-connectivity'
+import { floorMetadataValidator } from '../validation/validators/floor-metadata'
+import { roadConnectivityValidator } from '../validation/validators/road-connectivity'
+import { referenceValidator } from '../validation/validators/reference'
 import { NavigationCompiler } from '../services/navigation-compiler'
 import { PersistenceService } from '../services/persistence-service'
 import type { PersistenceAdapter } from '../services/persistence-service'
 import { WorkflowStore } from '../services/workflow-store'
 import { WorkflowService } from '../services/workflow-service'
 import { AutosaveService } from '../services/autosave-service'
+import { ValidationStore } from '../services/validation-store'
+import { ValidationService } from '../services/validation-service'
 import { EditingContextService } from '../editing-context'
 import { CoordinateTransformer } from '@navi/core'
 import type { CampusDocument, Room, Hallway, Staircase, Elevator, Entrance, LocalCoord } from '@navi/core'
@@ -276,8 +283,18 @@ export function createEditorContext(
 
   const validation = new ValidationRegistry()
   validation.register(polygonClosureValidator)
+  validation.register(selfIntersectionValidator)
   validation.register(duplicateIdsValidator)
+  validation.register(entranceConnectivityValidator)
+  validation.register(floorMetadataValidator)
+  validation.register(roadConnectivityValidator)
+  validation.register(referenceValidator)
   registry.register('validation', validation)
+
+  const validationEngine = new ValidationEngine(validation)
+  const validationStore = new ValidationStore()
+  const validationService = new ValidationService(validationEngine, validationStore, { debounceMs: 750 })
+  registry.register('validationService', validationService)
 
   const persistence = new PersistenceService(persistenceAdapter)
   const workflowStore = new WorkflowStore()

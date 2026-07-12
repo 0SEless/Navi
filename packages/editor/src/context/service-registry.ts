@@ -12,6 +12,7 @@ import type { ValidationRegistry } from '../validation/registry'
 import type { HistoryStack } from '../history'
 import type { DocumentStore } from './document-store'
 import type { NavigationCompiler, PersistenceService, WorkflowStore, WorkflowService, AutosaveService } from '../services'
+import type { ValidationService } from '../services/validation-service'
 
 // ── Service status state machine ─────────────────────────────
 
@@ -89,6 +90,7 @@ export interface ServiceMap {
   workflowStore: WorkflowStore
   workflow: WorkflowService
   autosave: AutosaveService
+  validationService: ValidationService
 }
 
 /** Typed dotted-access interface — mirrors ServiceMap with `T` (not `T | undefined`). */
