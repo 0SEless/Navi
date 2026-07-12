@@ -4,6 +4,24 @@ import maplibregl from 'maplibre-gl'
 import { MapRenderer, getInitialMapStyle } from '../rendering/MapRenderer'
 import { SRC } from '../rendering/constants'
 
+const mockDoc = {
+  schemaVersion: 1,
+  metadata: { name: 'Test', description: '', lastModified: '', editorVersion: '1.0.0' },
+  buildings: [],
+  roads: [],
+  panoramas: [],
+  qrCheckpoints: [],
+}
+
+vi.mock('@navi/editor', async () => {
+  const actual = await vi.importActual('@navi/editor')
+  return {
+    ...(actual as any),
+    useEditor: vi.fn(() => ({ document: mockDoc, services: { get: vi.fn() } })),
+    useDocumentVersion: vi.fn(() => 0),
+  }
+})
+
 vi.mock('@/store/graph-store', () => {
   const current = {
     graph: {

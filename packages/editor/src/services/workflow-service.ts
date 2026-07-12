@@ -47,6 +47,13 @@ export class WorkflowService extends BaseEditorService {
     this.workflowStore = context.get('workflowStore')
     this.eventBus = context.get('eventBus')
     this.document = context.document
+
+    // Document is clean on load — no edits since initialization
+    this.workflowStore.updateLifecycle({
+      saveState: 'saved',
+      lastSavedAt: Date.now(),
+    })
+    this.workflowStore.setLastSaveVersion(this.documentStore.version)
   }
 
   // ── Derived state ───────────────────────────────────────────
@@ -59,6 +66,11 @@ export class WorkflowService extends BaseEditorService {
   isDirty(): boolean {
     if (!this.documentStore) return false
     return this.documentStore.version > this.workflowStore.getSnapshot().lastSaveVersion
+  }
+
+  canAutosave(): boolean {
+    if (!this.documentStore) return false
+    return this.isDirty() && this.workflowStore.getSnapshot().saveState !== 'saving'
   }
 
   // ── Actions ─────────────────────────────────────────────────
@@ -96,22 +108,34 @@ export class WorkflowService extends BaseEditorService {
   /**
    * Save the current document.
    *
-   * - manual: emits 'workflow.saved' event, busy/ready status transitions
-   * - autosave: silent (no events, no UI feedback)
+   * Lifecycle: saved → saving → saved (success) | error (failure)
    *
-   * Both update WorkflowStore.lastSave and WorkflowStore.lastSaveVersion.
+   * On success: updates lastSavedAt, lastSaveReason, emits workflow.saved event.
+   * On failure: captures saveError, does NOT update lastSavedAt or lastSaveReason.
+   *             Rethrows so callers can handle (toast, retry, etc.).
+   *
+   * Both paths update WorkflowStore.lastSave and WorkflowStore.lastSaveVersion.
    */
   async save(reason: 'manual' | 'autosave'): Promise<void> {
+    this.workflowStore.updateLifecycle({ saveState: 'saving' })
     try {
-      if (reason === 'manual') {
-        this.eventBus.emit('workflow.saved', { timestamp: Date.now(), reason })
-      }
       await this.persistence.save()
       this.workflowStore.setSave(Date.now(), reason)
       this.workflowStore.setLastSaveVersion(this.documentStore.version)
+      this.workflowStore.updateLifecycle({
+        saveState: 'saved',
+        saveError: null,
+        lastSaveReason: reason,
+        lastSavedAt: Date.now(),
+      })
+      if (reason === 'manual') {
+        this.eventBus.emit('workflow.saved', { timestamp: Date.now(), reason })
+      }
     } catch (err: any) {
-      // On failure, still record the attempt
-      this.workflowStore.setSave(Date.now(), reason)
+      this.workflowStore.updateLifecycle({
+        saveState: 'error',
+        saveError: err?.message ?? 'Save failed',
+      })
       throw err
     }
   }

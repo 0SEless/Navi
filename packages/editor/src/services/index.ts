@@ -8,3 +8,6 @@ export { WorkflowStore } from './workflow-store'
 export type { WorkflowSnapshot, ValidationResult, SaveRecord, PublishRecord, SyncStatus } from './workflow-store'
 
 export { WorkflowService } from './workflow-service'
+
+export { AutosaveService } from './autosave-service'
+export type { AutosaveOptions } from './autosave-service'

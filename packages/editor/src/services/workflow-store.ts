@@ -4,6 +4,8 @@ import type { CompileResult } from './navigation-compiler'
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success'
 
+export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
 export interface ValidationResult {
   passed: number
   failed: number
@@ -32,6 +34,10 @@ export interface WorkflowSnapshot {
   lastPublish: PublishRecord | null
   syncStatus: SyncStatus
   lastSaveVersion: number
+  saveState: SaveState
+  saveError: string | null
+  lastSaveReason: 'manual' | 'autosave' | null
+  lastSavedAt: number
 }
 
 // ── WorkflowStore ─────────────────────────────────────────────
@@ -62,6 +68,10 @@ export class WorkflowStore {
   private _lastPublish: PublishRecord | null = null
   private _syncStatus: SyncStatus = 'idle'
   private _lastSaveVersion = 0
+  private _saveState: SaveState = 'idle'
+  private _saveError: string | null = null
+  private _lastSaveReason: 'manual' | 'autosave' | null = null
+  private _lastSavedAt = 0
 
   private listeners = new Set<() => void>()
   private cachedSnapshot: WorkflowSnapshot | null = null
@@ -90,6 +100,10 @@ export class WorkflowStore {
         lastPublish: this._lastPublish,
         syncStatus: this._syncStatus,
         lastSaveVersion: this._lastSaveVersion,
+        saveState: this._saveState,
+        saveError: this._saveError,
+        lastSaveReason: this._lastSaveReason,
+        lastSavedAt: this._lastSavedAt,
       })
     }
     return this.cachedSnapshot
@@ -125,6 +139,24 @@ export class WorkflowStore {
   setLastSaveVersion(version: number): void {
     this._lastSaveVersion = version
     // No commit needed — lastSaveVersion is read synchronously by isDirty()
+  }
+
+  /**
+   * Atomic lifecycle update. Accepts a partial update object and calls
+   * commit() exactly once — even when multiple fields change.
+   * Prevents cascading React re-renders from individual field setters.
+   */
+  updateLifecycle(update: {
+    saveState?: SaveState
+    saveError?: string | null
+    lastSaveReason?: 'manual' | 'autosave' | null
+    lastSavedAt?: number
+  }): void {
+    if (update.saveState !== undefined) this._saveState = update.saveState
+    if (update.saveError !== undefined) this._saveError = update.saveError
+    if (update.lastSaveReason !== undefined) this._lastSaveReason = update.lastSaveReason
+    if (update.lastSavedAt !== undefined) this._lastSavedAt = update.lastSavedAt
+    this.commit()
   }
 
   // ── Internal ────────────────────────────────────────────────

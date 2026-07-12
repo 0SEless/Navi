@@ -1,15 +1,21 @@
-# M2.9 — Remaining FloorEditor Review Findings
+# M3.2.2 Wave B — FloorEditor reads from CampusDocument + writes via Commands
 
 ## What
-Fix the remaining actionable findings from `.planning/phases/floor-editor-review.md`. Target: 4 findings (#2, #7, #12, #13). #15 was already fixed in M2.8. #14 (getState bypass) and #16 (save pattern) are INFO/deferred.
+
+Migrate FloorEditor subsystem from reading `graph.components` via graph-store to reading entity geometry from **CampusDocument** (the source document), and from writing through graph-store actions to dispatching **commands**.
 
 ## Success Criteria
-1. Double-click during drawing skips the intermediate click event and confirms the drawing (finding #2)
-2. `as unknown as maplibregl.EventHandler` cast replaced with proper typing (finding #7)
-3. MapLibre mock fires 'load' event in tests, enabling source/layer initialization coverage (finding #12)
-4. ComponentProperties uses named constants instead of magic numbers for defaults (finding #13)
-5. All 864 tests still pass, build succeeds
 
-## Known Pitfalls (from ERRORS.md)
-- Effect dependency changes: adding a dblclick handler must not create stale closures
-- Test mock changes must not break existing tests
+1. `createDocument(graph)` populates floor-level entities (rooms, hallways, staircases, elevators, entrances) with real geometry from `graph.components`, converting world coords → local coords via `CoordinateTransformer`
+2. `CoordinateTransformer` registered as an editor service, initialized with building-local systems from building footprints
+3. `floor-graph-selectors.ts` reads from `CampusDocument` via `useEditor()` + `useDocumentSelector()`, converting local-coord geometry back to world-coord `Component[]` for backward compat
+4. FloorEditorCanvas dispatches `room.delete` / `hallway.delete` / `entity.update` commands instead of `removeComponent()` / `updateComponent()`
+5. useFloorDrawing dispatches `room.create` instead of `addComponentWithPolygon()`
+6. FloorOutliner dispatches entity delete commands instead of `removeComponent()`
+7. ComponentProperties dispatches `entity.update` / delete commands instead of `updateComponent()` / `removeComponent()`
+8. All 896+ tests pass; no new type errors
+
+## Known Pitfalls
+- CoordinateTransformer must be initialized before createDocument to convert graph components (world→local)
+- World→local and local→world round-trip must be exact (test with real building footprints)
+- GraphAdapter.sync() must run after document mutations to keep graph-store in sync for navigation compiler

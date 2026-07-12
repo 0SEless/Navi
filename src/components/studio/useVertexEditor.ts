@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useGraphStore } from '@/store/graph-store'
+import { useEditor } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
-import type { LatLng, TracePath } from '@/types/nav-types'
+import type { LatLng } from '@/types/nav-types'
 import { haversine } from '@/engine/geo-utils'
 
 const VERTEX_SOURCE = 'vertex-source'
@@ -53,40 +53,47 @@ function addVertexLayers(map: maplibregl.Map) {
 }
 
 /**
- * Manages vertex editing for traces.
- * Reads current edit target from Zustand internally.
+ * Vertex editor for road geometry.
+ *
+ * Reads the current road (via edit target ID matching road ID) from
+ * CampusDocument and edits its polyline points through commands.
+ * The GraphAdapter (when wired) will regenerate compiled traces
+ * from the updated Road entity.
  */
 export function useVertexEditor(map: maplibregl.Map | null) {
   const editTargetType = useStudioStore((s) => s.editTargetType)
   const editTargetId = useStudioStore((s) => s.editTargetId)
-  const graph = useGraphStore((s) => s.graph)
-  const updateTrace = useGraphStore((s) => s.updateTrace)
-  const recompileTrace = useGraphStore((s) => s.recompileTrace)
-  const save = useGraphStore((s) => s.save)
   const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
 
-  const currentEditTrace: TracePath | null =
+  const { document, services } = useEditor()
+  const dispatcher = services.get('dispatcher')!
+  const workflow = services.get('workflow')!
+
+  const currentEditRoad =
     editTargetType === 'trace' && editTargetId
-      ? graph.traces.find((t: TracePath) => t.id === editTargetId) ?? null
+      ? document.roads.find((r) => r.id === editTargetId) ?? null
       : null
 
-  const pointsRef = useRef<LatLng[]>(currentEditTrace?.points ?? [])
+  const pointsRef = useRef<LatLng[]>(currentEditRoad?.polyline.points ?? [])
   const selectedIdxRef = useRef<number | null>(null)
   const dragStartRef = useRef<LatLng | null>(null)
   const dragOriginalsRef = useRef<{ adjacentPoint?: LatLng; isEndpoint: boolean }>({ isEndpoint: false })
 
   useEffect(() => {
-    pointsRef.current = currentEditTrace?.points ?? []
-  }, [currentEditTrace])
+    pointsRef.current = currentEditRoad?.polyline.points ?? []
+  }, [currentEditRoad])
 
   const handleSave = useCallback((points: LatLng[]) => {
-    if (currentEditTrace) {
-      updateTrace(currentEditTrace.id, { points })
-      recompileTrace(currentEditTrace.id)
-      save()
+    if (currentEditRoad) {
+      dispatcher.execute({
+        id: 'entity.update',
+        label: 'Update Road Geometry',
+        payload: { entityId: currentEditRoad.id, changes: { polyline: { points } } },
+      })
+      workflow.save('manual')
     }
-  }, [currentEditTrace, updateTrace, recompileTrace, save])
+  }, [currentEditRoad, dispatcher, workflow])
 
   const updateDisplay = useCallback((points: LatLng[], selectedIdx?: number) => {
     if (!map || !map.getSource(VERTEX_SOURCE)) return
@@ -114,9 +121,9 @@ export function useVertexEditor(map: maplibregl.Map | null) {
 
   // Toggle vertex editing visibility
   useEffect(() => {
-    if (!map || !isVertexEditing || !currentEditTrace) return
+    if (!map || !isVertexEditing || !currentEditRoad) return
     updateDisplay(pointsRef.current)
-  }, [isVertexEditing, currentEditTrace, map, updateDisplay])
+  }, [isVertexEditing, currentEditRoad, map, updateDisplay])
 
   // Clean up on disable
   useEffect(() => {

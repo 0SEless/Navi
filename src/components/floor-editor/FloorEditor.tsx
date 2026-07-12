@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useEditor } from '@navi/editor'
-import { useGraphStore } from '@/store/graph-store'
+import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError } from '@/hooks/floor-graph-selectors'
 import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
 import { useFloorAdapter } from './adapters/floor-adapter'
@@ -51,10 +51,9 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const viewport = services.get('viewport')
   const selectionManager = services.get('selection')
 
-  const graph = useGraphStore((s) => s.graph)
-  const syncStatus = useGraphStore((s) => s.syncStatus)
-  const syncError = useGraphStore((s) => s.syncError)
-  const building = useMemo(() => graph.buildings.find((b) => b.id === buildingId), [graph.buildings, buildingId])
+  const building = useLegacyBuilding(buildingId)
+  const syncStatus = useFloorSyncStatus()
+  const syncError = useFloorSyncError()
 
   const { activeTool, activateTool, isActive } = useToolAdapter(services.get('toolRegistry'))
   const floorAdapter = useFloorAdapter(viewport, building ?? null, floor)

@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useEffect, useReducer, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useGraphStore } from '@/store/graph-store'
-import type { LatLng, Component, ComponentType } from '@/types/nav-types'
+import { useEditor, findBuilding } from '@navi/editor'
+import type { LatLng, ComponentType } from '@/types/nav-types'
 import type { StudioTool } from '@/types/studio-types'
 import { drawReducer } from './draw-reducer'
 
@@ -141,9 +141,10 @@ interface UseFloorDrawingOptions {
 }
 
 export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSelect }: UseFloorDrawingOptions) {
-  const addComponentWithPolygon = useGraphStore((s) => s.addComponentWithPolygon)
-  const updateBuilding = useGraphStore((s) => s.updateBuilding)
-  const save = useGraphStore((s) => s.save)
+  const editor = useEditor()
+  const doc = editor.document
+  const transformer = editor.transformer
+  const dispatcher = editor.services.get('dispatcher')!
 
   const [drawState, dispatch] = useReducer(drawReducer, { drawMode: 'idle', pendingPoints: [], pendingPolygon: [] })
   const [hallwayWidth, setHallwayWidth] = useState(3)
@@ -187,63 +188,74 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     if (drawState.pendingPolygon.length < minPoints || !map) return
 
     const id = `${tool}-${Date.now()}`
-    const graph = useGraphStore.getState().graph
-    const existingCount = graph.components.filter(
-      (c) => c.type === tool && c.buildingId === buildingId && c.floor === floor
-    ).length
+    const bld = findBuilding(doc, buildingId)
+    const fl = bld?.floors?.find((f: any) => f.level === floor)
+    const floorId = fl?.id
+    let existingCount = 0
+    if (fl && transformer) {
+      if (tool === 'room') existingCount = fl.rooms?.length ?? 0
+      else if (tool === 'hallway') existingCount = fl.hallways?.length ?? 0
+      else if (tool === 'elevator') existingCount = fl.elevators?.length ?? 0
+    }
 
     const name = tool === 'room' ? `Room ${existingCount + 1}` : `${tool.charAt(0).toUpperCase() + tool.slice(1)} ${existingCount + 1}`
+    if (!floorId || !transformer) return
 
-    const component: Component = {
-      id,
-      type: tool,
-      name,
-      buildingId,
-      campusId,
-      floor,
-      position: drawState.pendingPolygon[0],
-      polygon: drawState.pendingPolygon,
-      range: tool === 'elevator' ? { from: 0, to: 2 } : undefined,
-      dimensions: tool === 'hallway' ? { width: hallwayWidth } : undefined,
+    const localPoints: { x: number; y: number }[] = []
+    for (const p of drawState.pendingPolygon) {
+      const local = transformer.worldToBuildingLocal(p, buildingId)
+      if (local) localPoints.push(local)
     }
-    addComponentWithPolygon(component)
-    save()
+
+    if (tool === 'room') {
+      dispatcher.execute({
+        id: 'room.create', label: 'Create Room',
+        payload: { buildingId, floorId, id, name, points: localPoints, category: 'other' },
+      })
+    } else if (tool === 'hallway') {
+      dispatcher.execute({
+        id: 'hallway.create', label: 'Create Hallway',
+        payload: { buildingId, floorId, id, name, points: localPoints, width: hallwayWidth },
+      })
+    } else {
+      dispatcher.execute({
+        id: 'elevator.create', label: 'Create Elevator',
+        payload: { buildingId, floorId, id, name, position: localPoints[0] ?? { x: 0, y: 0 }, fromLevel: 0, toLevel: 2 },
+      })
+    }
+
     dispatch({ type: 'RESET' })
     clearPreview(map)
     onSelect?.(id)
-  }, [drawState.pendingPolygon, map, addComponentWithPolygon, floor, buildingId, campusId, save, onSelect, hallwayWidth])
+  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, hallwayWidth])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = `${type}-${Date.now()}`
-    const component: Component = {
-      id,
-      type,
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      buildingId,
-      campusId,
-      floor,
-      position,
-      range: type === 'stair' || type === 'elevator' ? { from: floor, to: floor + 1 } : undefined,
-    }
-    addComponentWithPolygon(component)
+    const bld = findBuilding(doc, buildingId)
+    const fl = bld?.floors?.find((f: any) => f.level === floor)
+    const floorId = fl?.id
+    if (!floorId || !transformer) return
+
     if (type === 'entrance') {
-      const graph = useGraphStore.getState().graph
-      const building = graph.buildings.find((b) => b.id === buildingId)
-      if (building) {
-        updateBuilding(buildingId, {
-          entrances: [...(building.entrances ?? []), { id, position, floor, label: 'Entrance' }],
-        })
-      }
+      dispatcher.execute({
+        id: 'entrance.create', label: 'Create Entrance',
+        payload: { buildingId, floorId, id, label: 'Entrance', position, level: floor, type: 'side' },
+      })
+    } else {
+      const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }
+      dispatcher.execute({
+        id: 'staircase.create', label: 'Create Staircase',
+        payload: { buildingId, floorId, id, name: 'Staircase', position: localPos, fromLevel: floor, toLevel: floor + 1, type: 'enclosed' },
+      })
     }
-    save()
+
     onSelect?.(id)
-    // Show brief placement feedback
     if (map) {
       const feedback = placedItem(position, type.charAt(0).toUpperCase() + type.slice(1))
       updatePreview(map, [feedback])
       setTimeout(() => { if (map) clearPreview(map) }, 1500)
     }
-  }, [addComponentWithPolygon, buildingId, campusId, floor, save, map, onSelect, updateBuilding])
+  }, [dispatcher, transformer, buildingId, floor, doc, map, onSelect])
 
   // Map click handler
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {

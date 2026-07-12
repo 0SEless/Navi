@@ -3,7 +3,9 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useGraphStore } from '@/store/graph-store'
+import { useEditor } from '@navi/editor'
+import type { Command } from '@navi/editor'
+import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { useFloorDrawing, computeWidthBuffer } from './useFloorDrawing'
@@ -145,9 +147,18 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
   const readyRef = useRef(false)
 
-  const graph = useGraphStore((s) => s.graph)
-  const renderVersion = useGraphStore((s) => s.renderVersion)
-  const campusId = graph.buildings[0]?.campusId ?? ''
+  const floorComponents = useFloorComponents(building.id, floor)
+  const selectedComponent = useFloorComponent(selectedId)
+  const renderVersion = useFloorRenderVersion()
+  const campusId = useFloorCampusId()
+
+  const editor = useEditor()
+  const dispatcher = editor.services.get('dispatcher')!
+  const transformer = editor.transformer
+
+  // Ref for drag interaction closures
+  const floorComponentsRef = useRef(floorComponents)
+  useEffect(() => { floorComponentsRef.current = floorComponents }, [floorComponents])
 
   // Wire drawing interactions (state-driven so hook sees map after init)
   const { drawMode, pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect })
@@ -208,7 +219,6 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-    const floorComponents = graph.components.filter((c) => c.buildingId === building.id && c.floor === floor)
 
     const roomFeatures: GeoJSON.Feature[] = floorComponents
       .filter((c) => c.type === 'room' && c.polygon && c.polygon.length >= 3)
@@ -278,7 +288,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { console.warn('FloorEditorCanvas: source not ready for setData') }
-  }, [graph.components, building.id, floor, renderVersion])
+  }, [floorComponents, renderVersion])
 
   // Selection highlight
   useEffect(() => {
@@ -286,12 +296,11 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     if (!map || !readyRef.current) return
     const src = map.getSource('floor-selection') as maplibregl.GeoJSONSource
     if (!src) return
-    if (!selectedId) {
+    if (!selectedId || !selectedComponent) {
       src.setData({ type: 'FeatureCollection', features: [] })
       return
     }
-    const comp = graph.components.find((c) => c.id === selectedId)
-    if (!comp) { src.setData({ type: 'FeatureCollection', features: [] }); return }
+    const comp = selectedComponent
 
     if (comp.polygon && comp.polygon.length >= (comp.type === 'hallway' ? 2 : 3)) {
       if (comp.type === 'hallway') {
@@ -325,7 +334,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         ],
       })
     }
-  }, [selectedId, graph.components, renderVersion])
+  }, [selectedId, selectedComponent, renderVersion])
 
   // Layer visibility
   useEffect(() => {
@@ -359,11 +368,6 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
   }, [layers])
 
-  // Shared store actions
-  const removeComponent = useGraphStore((s) => s.removeComponent)
-  const updateComponent = useGraphStore((s) => s.updateComponent)
-  const saveGraph = useGraphStore((s) => s.save)
-
   // Vertex handles + dragging for polygon components
   const dragRef = useRef<{ vertexIndex: number; componentId: string } | null>(null)
   const workingPolygonRef = useRef<LatLng[] | null>(null)
@@ -373,21 +377,20 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     if (!map || !readyRef.current) return
     const src = map.getSource('floor-vertex-handles') as maplibregl.GeoJSONSource
     if (!src) return
-    if (!selectedId) { src.setData({ type: 'FeatureCollection', features: [] }); return }
-    const comp = graph.components.find((c) => c.id === selectedId)
-    if (!comp || !comp.polygon || comp.polygon.length < 2) {
+    if (!selectedId || !selectedComponent) { src.setData({ type: 'FeatureCollection', features: [] }); return }
+    if (!selectedComponent.polygon || selectedComponent.polygon.length < 2) {
       src.setData({ type: 'FeatureCollection', features: [] })
       return
     }
     src.setData({
       type: 'FeatureCollection',
-      features: comp.polygon.map((p, i) => ({
+      features: selectedComponent.polygon.map((p, i) => ({
         type: 'Feature' as const,
-        properties: { vertexIndex: i, componentId: comp.id },
+        properties: { vertexIndex: i, componentId: selectedComponent.id },
         geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] as [number, number] },
       })),
     })
-  }, [selectedId, graph.components, renderVersion])
+  }, [selectedId, selectedComponent, renderVersion])
 
   // Drag vertex interaction
   useEffect(() => {
@@ -402,7 +405,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const vIdx = props.vertexIndex as number
       const cId = props.componentId as string
       if (vIdx == null || !cId) return
-      const comp = graph.components.find((c) => c.id === cId)
+      const comp = floorComponentsRef.current.find((c) => c.id === cId)
       if (!comp?.polygon) return
       dragRef.current = { vertexIndex: vIdx, componentId: cId }
       workingPolygonRef.current = comp.polygon.map((p) => ({ ...p }))
@@ -422,15 +425,13 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         const working = workingPolygonRef.current
         if (!drag || !working) return
 
-        const comp = graph.components.find((c) => c.id === drag.componentId)
+        const allFloor = floorComponentsRef.current
+        const comp = allFloor.find((c) => c.id === drag.componentId)
         if (!comp) return
         const isRoom = comp.type === 'room'
         const isHallway = comp.type === 'hallway'
         const isElevator = comp.type === 'elevator'
         const srcId = isRoom ? 'floor-rooms' : isHallway ? 'floor-hallways' : isElevator ? 'floor-elevator-areas' : undefined
-        const allFloor = graph.components.filter(
-          (c) => c.buildingId === building.id && c.floor === floor
-        )
 
         if (srcId && working.length >= (isHallway ? 2 : 3)) {
           const src = map.getSource(srcId) as maplibregl.GeoJSONSource
@@ -506,9 +507,22 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       workingPolygonRef.current = null
       canvas.style.cursor = CURSOR_MAP[tool] ?? 'default'
 
-      // Commit to store
-      updateComponent(drag.componentId, { polygon: working })
-      saveGraph()
+      const comp = floorComponentsRef.current.find((c) => c.id === drag.componentId)
+      if (comp && transformer) {
+        const localPoints: { x: number; y: number }[] = []
+        for (const p of working) {
+          const local = transformer.worldToBuildingLocal(p, building.id)
+          if (local) localPoints.push(local)
+        }
+        const changes: Record<string, unknown> = comp.type === 'hallway'
+          ? { polyline: { points: localPoints } }
+          : { polygon: { points: localPoints } }
+        dispatcher.execute({
+          id: 'entity.update',
+          label: `Update ${comp.type}`,
+          payload: { entityId: drag.componentId, changes },
+        })
+      }
     }
 
     const onVertexEnter = () => { canvas.style.cursor = 'grab' }
@@ -527,7 +541,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       map.off('mousemove', onMouseMove)
       map.off('mouseup', onMouseUp)
     }
-  }, [selectedId, graph.components, tool, updateComponent, saveGraph, renderVersion])
+  }, [selectedId, floorComponents, tool, dispatcher, transformer, renderVersion])
 
   // Keyboard shortcuts (window-level — no canvas focus needed)
   useEffect(() => {
@@ -542,14 +556,19 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         }
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        removeComponent(selectedId)
-        saveGraph()
+        if (selectedComponent) {
+          const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[selectedComponent.type]
+          const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[selectedComponent.type]
+          if (cmdId && payloadKey) {
+            dispatcher.execute({ id: cmdId, label: `Delete ${selectedComponent.type}`, payload: { [payloadKey]: selectedId } })
+          }
+        }
         onSelect?.(null)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [selectedId, onSelect, removeComponent, saveGraph, drawMode, cancelDrawing])
+  }, [selectedId, onSelect, selectedComponent, dispatcher, drawMode, cancelDrawing])
 
   // Cursor based on tool
   useEffect(() => {
@@ -605,7 +624,16 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           display: 'flex', gap: 6, background: '#1E293B', borderRadius: 8, padding: '4px 6px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 10,
         }}>
-          <button onClick={() => { removeComponent(selectedId); saveGraph(); onSelect?.(null) }}
+          <button onClick={() => {
+            if (selectedComponent) {
+              const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[selectedComponent.type]
+              const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[selectedComponent.type]
+              if (cmdId && payloadKey) {
+                dispatcher.execute({ id: cmdId, label: `Delete ${selectedComponent.type}`, payload: { [payloadKey]: selectedId } })
+              }
+            }
+            onSelect?.(null)
+          }}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             Delete

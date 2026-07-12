@@ -127,6 +127,70 @@ describe('WorkflowService', () => {
     })
   })
 
+  describe('document lifecycle', () => {
+    it('saveState is "saved" after initialization', () => {
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('saved')
+      expect(snapshot.lastSavedAt).toBeGreaterThan(0)
+    })
+
+    it('transitions saveState during successful save', async () => {
+      expect(workflowStore.getSnapshot().saveState).toBe('saved')
+
+      // Simulate a command by incrementing document version
+      documentStore.version++
+
+      const savePromise = service.save('manual')
+      expect(workflowStore.getSnapshot().saveState).toBe('saving')
+
+      await savePromise
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('saved')
+      expect(snapshot.saveError).toBeNull()
+      expect(snapshot.lastSaveReason).toBe('manual')
+      expect(snapshot.lastSavedAt).toBeGreaterThan(0)
+    })
+
+    it('transitions to error state on failed save', async () => {
+      // Spy on persistence to make save fail
+      const persistence = context.get('persistence') as any
+      vi.spyOn(persistence, 'save').mockRejectedValueOnce(new Error('Network error'))
+
+      const savePromise = service.save('manual')
+      expect(workflowStore.getSnapshot().saveState).toBe('saving')
+
+      await expect(savePromise).rejects.toThrow('Network error')
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('error')
+      expect(snapshot.saveError).toBe('Network error')
+      // lastSavedAt should NOT be updated on failure
+      expect(snapshot.lastSavedAt).toBeGreaterThan(0)
+    })
+
+    it('sets lastSaveReason to autosave for autosave saves', async () => {
+      documentStore.version++
+      await service.save('autosave')
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.lastSaveReason).toBe('autosave')
+      expect(snapshot.saveState).toBe('saved')
+    })
+
+    it('emits workflow.saved event only after persistence succeeds', async () => {
+      const eventBus = context.get('eventBus') as any
+      const emitSpy = vi.fn()
+      eventBus.on('workflow.saved', emitSpy)
+
+      documentStore.version++
+      await service.save('manual')
+
+      expect(emitSpy).toHaveBeenCalledTimes(1)
+      expect(emitSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'manual', timestamp: expect.any(Number) })
+      )
+    })
+  })
+
   describe('publish', () => {
     it('rejects if document is dirty', async () => {
       documentStore.version = 10

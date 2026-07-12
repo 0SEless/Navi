@@ -11,7 +11,7 @@ import type { EditingContextService } from '../editing-context'
 import type { ValidationRegistry } from '../validation/registry'
 import type { HistoryStack } from '../history'
 import type { DocumentStore } from './document-store'
-import type { NavigationCompiler, PersistenceService, WorkflowStore, WorkflowService } from '../services'
+import type { NavigationCompiler, PersistenceService, WorkflowStore, WorkflowService, AutosaveService } from '../services'
 
 // ── Service status state machine ─────────────────────────────
 
@@ -88,6 +88,7 @@ export interface ServiceMap {
   persistence: PersistenceService
   workflowStore: WorkflowStore
   workflow: WorkflowService
+  autosave: AutosaveService
 }
 
 /** Typed dotted-access interface — mirrors ServiceMap with `T` (not `T | undefined`). */

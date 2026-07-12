@@ -2,22 +2,19 @@
 
 import { useState } from 'react'
 import { Check, X } from 'lucide-react'
+import { useEditor } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
-import { useGraphStore } from '@/store/graph-store'
-import { useCampusMapStore } from '@/store/campus-map-store'
 
 export function ConfirmOverlay() {
+  const { services } = useEditor()
+  const dispatcher = services.get('dispatcher')!
+  const workflow = services.get('workflow')!
+
   const pendingConfirm = useStudioStore((s) => s.pendingConfirm)
   const clearPendingConfirm = useStudioStore((s) => s.clearPendingConfirm)
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const activeFloor = useStudioStore((s) => s.activeFloor)
-  const addBuilding = useGraphStore((s) => s.addBuilding)
-  const addTrace = useGraphStore((s) => s.addTrace)
-  const graph = useGraphStore((s) => s.graph)
-  const currentMapId = useGraphStore((s) => s.currentMapId)
-  const saveGraph = useGraphStore((s) => s.save)
-  const updateMapStats = useCampusMapStore((s) => s.updateMapStats)
 
   const [traceName, setTraceName] = useState('')
   const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
@@ -28,49 +25,42 @@ export function ConfirmOverlay() {
 
   if (!pendingConfirm) return null
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (pendingConfirm.type === 'building' && pendingConfirm.points.length >= 3) {
       const points = pendingConfirm.points
-      const centroid = {
-        lat: points.reduce((s, p) => s + p.lat, 0) / points.length,
-        lng: points.reduce((s, p) => s + p.lng, 0) / points.length,
-      }
       const id = `bldg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-      addBuilding({
-        id,
-        name: `Building ${id.slice(-6).toUpperCase()}`,
-        campusId: currentMapId || '',
-        floors: [0],
-        footprint: points,
-        center: centroid,
-        baseElevation: 0,
-        height: 15,
-        color: '#1C6BEB',
+      dispatcher.execute({
+        id: 'building.create',
+        label: 'Create Building',
+        payload: {
+          id,
+          name: `Building ${id.slice(-6).toUpperCase()}`,
+          footprint: { points },
+          floors: [{ id: `flr-${id}-0`, level: 0, label: 'Ground Floor', elevation: 0, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} }],
+          height: 15,
+          color: '#1C6BEB',
+        },
       })
       setActiveBuilding(id)
       clearDrawPoints()
-      saveGraph()
-      if (currentMapId) {
-        updateMapStats(currentMapId, {
-          buildings: graph.buildingCount,
-          nodes: graph.nodeCount,
-          edges: graph.edgeCount,
-        })
-      }
+      await workflow.save('manual')
     }
 
     if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
-      addTrace({
-        id: `T${Date.now()}`,
-        name: traceName || undefined,
-        floor: activeFloor,
-        points: pendingConfirm.points,
-        type: traceType,
-        color: traceColor,
-        width: routeWidth,
+      dispatcher.execute({
+        id: 'road.create',
+        label: 'Create Road',
+        payload: {
+          id: `T${Date.now()}`,
+          name: traceName || '',
+          points: pendingConfirm.points,
+          type: traceType,
+          width: routeWidth,
+          metadata: { color: traceColor },
+        },
       })
-      saveGraph()
       clearTracePoints()
+      await workflow.save('manual')
     }
 
     clearPendingConfirm()

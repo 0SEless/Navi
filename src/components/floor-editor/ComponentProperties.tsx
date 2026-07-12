@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useGraphStore } from '@/store/graph-store'
-import type { Component } from '@/types/nav-types'
+import { useEditor } from '@navi/editor'
+import { useFloorComponent } from '@/hooks/floor-graph-selectors'
 
 const DEFAULT_ROOM_WIDTH = 4
 const DEFAULT_ROOM_HEIGHT = 5
@@ -14,14 +14,8 @@ interface ComponentPropertiesProps {
 }
 
 export function ComponentProperties({ componentId, onClose }: ComponentPropertiesProps) {
-  const component = useGraphStore((s) =>
-    componentId ? s.graph.components.find((c) => c.id === componentId) ?? null : null
-  )
-  const graph = useGraphStore((s) => s.graph)
-  const updateComponent = useGraphStore((s) => s.updateComponent)
-  const removeComponent = useGraphStore((s) => s.removeComponent)
-  const updateBuilding = useGraphStore((s) => s.updateBuilding)
-  const save = useGraphStore((s) => s.save)
+  const component = useFloorComponent(componentId)
+  const dispatcher = useEditor().services.get('dispatcher')!
 
   const [name, setName] = useState(component?.name ?? '')
   const [width, setWidth] = useState(component?.dimensions?.width ?? DEFAULT_ROOM_WIDTH)
@@ -36,31 +30,29 @@ export function ComponentProperties({ componentId, onClose }: ComponentPropertie
   const isStairOrElevator = component.type === 'stair' || component.type === 'elevator'
 
   const handleSave = () => {
-    const partial: Partial<Component> = { name }
+    const changes: Record<string, unknown> = { name }
     if (isRoom) {
-      partial.dimensions = { width, height }
+      changes.dimensions = { width, height }
     }
     if (isStairOrElevator) {
-      partial.range = { from: rangeFrom, to: rangeTo }
+      changes.range = { from: rangeFrom, to: rangeTo }
     }
-    updateComponent(component.id, partial)
-    // Sync entrance label to building.entrances
     if (isEntrance) {
-      const building = graph.getBuilding(component.buildingId)
-      if (building?.entrances) {
-        updateBuilding(component.buildingId, {
-          entrances: building.entrances.map((e) =>
-            e.id === component.id ? { ...e, label: name } : e
-          ),
-        })
-      }
+      changes.label = name
     }
-    save()
+    dispatcher.execute({
+      id: 'entity.update',
+      label: 'Update Properties',
+      payload: { entityId: component.id, changes },
+    })
   }
 
   const handleDelete = () => {
-    removeComponent(component.id)
-    save()
+    const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[component.type]
+    const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[component.type]
+    if (cmdId && payloadKey) {
+      dispatcher.execute({ id: cmdId, label: `Delete ${component.type}`, payload: { [payloadKey]: component.id } })
+    }
     onClose()
   }
 

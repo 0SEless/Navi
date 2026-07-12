@@ -1,4 +1,4 @@
-import type { CampusDocument, BuildingCategory } from '@navi/core'
+import type { CampusDocument, BuildingCategory, Floor } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
 const defaultBuilding = (id: string, name: string, code: string) => ({
@@ -10,7 +10,7 @@ const defaultBuilding = (id: string, name: string, code: string) => ({
   footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },
   baseElevation: 0,
   height: 20,
-  floors: [],
+  floors: [] as Floor[],
   color: '#4A90D9',
   aliases: [],
   metadata: {},
@@ -28,6 +28,10 @@ export const buildingCreateHandler: CommandHandler = {
     if (footprint?.points) {
       building.footprint = footprint
     }
+    const floors = payload.floors as Floor[] | undefined
+    if (floors) building.floors = floors
+    if (typeof payload.height === 'number') building.height = payload.height
+    if (typeof payload.color === 'string') building.color = payload.color
     document.buildings.push(building)
 
     return { success: true, entityId: id, data: { id } }

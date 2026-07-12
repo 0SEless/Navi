@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Building2, ChevronDown, ChevronRight, Route, ArrowUpDown, Layers, Trash2, Square, LogIn } from 'lucide-react'
-import { useGraphStore } from '@/store/graph-store'
+import { useEditor } from '@navi/editor'
+import { useFloorComponentsAll } from '@/hooks/floor-graph-selectors'
 import type { Building, Component, ComponentType } from '@/types/nav-types'
 
 interface FloorOutlinerProps {
@@ -28,9 +29,8 @@ const TYPE_GROUPS: { type: ComponentType; label: string; icon: React.ElementType
 
 export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSelect }: FloorOutlinerProps) {
   const [expandedFloors, setExpandedFloors] = useState<Set<number>>(new Set([activeFloor]))
-  const components = useGraphStore((s) => s.graph.components)
-  const removeComponent = useGraphStore((s) => s.removeComponent)
-  const save = useGraphStore((s) => s.save)
+  const components = useFloorComponentsAll(building.id)
+  const dispatcher = useEditor().services.get('dispatcher')!
 
   const toggleFloor = (f: number) => {
     setExpandedFloors((prev) => {
@@ -55,8 +55,14 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    removeComponent(id)
-    save()
+    const comp = components.find((c) => c.id === id)
+    if (comp) {
+      const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[comp.type]
+      const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[comp.type]
+      if (cmdId && payloadKey) {
+        dispatcher.execute({ id: cmdId, label: `Delete ${comp.type}`, payload: { [payloadKey]: id } })
+      }
+    }
     if (selectedId === id) onSelect(null)
   }
 

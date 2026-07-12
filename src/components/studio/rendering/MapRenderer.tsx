@@ -4,17 +4,17 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
+import { useEditor, useDocumentVersion, buildingsToGeoJSON, roadsToTracesGeoJSON } from '@navi/editor'
 import type { Graph } from '@/engine/graph'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
+import type { CampusDocument } from '@navi/core'
 import { SRC, HIDDEN_NODE_TYPES, LYR } from './constants'
 import { addSourcesAndLayers } from './layers'
 import {
-  buildBuildingGeo,
   buildNodeGeo,
   buildConnectionNodeGeo,
   buildEdgeGeo,
-  buildTracesGeo,
 } from './geojson'
 
 // ── Base map styles ───────────────────────────────────────────────
@@ -69,7 +69,7 @@ export function getInitialMapStyle() {
 
 // ── GeoJSON pipeline ──────────────────────────────────────────────
 
-function renderAll(map: maplibregl.Map, graph: Graph, activeFloor: number) {
+function renderAll(map: maplibregl.Map, graph: Graph, document: CampusDocument, activeFloor: number) {
   addSourcesAndLayers(map)
 
   const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
@@ -88,11 +88,11 @@ function renderAll(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to),
   )
 
-  const buildingGeo = buildBuildingGeo(graph.buildings)
+  const buildingGeo = buildingsToGeoJSON(document.buildings)
   const nodeGeo = buildNodeGeo(regNodes)
   const connNodeGeo = buildConnectionNodeGeo(connNodes)
   const edgeGeo = buildEdgeGeo(visibleEdges, visibleNodes)
-  const tracesGeo = buildTracesGeo(graph.traces)
+  const tracesGeo = roadsToTracesGeoJSON(document.roads)
 
   try {
     const buildingSrc = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource | undefined
@@ -142,14 +142,17 @@ export interface MapRendererProps {
  *  - Vertex editing layer visibility
  */
 export function MapRenderer({ map }: MapRendererProps) {
+  const { document } = useEditor()
   const graph = useGraphStore((s) => s.graph)
-  const renderVersion = useGraphStore((s) => s.renderVersion)
+  const docVersion = useDocumentVersion()
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const layers = useStudioStore((s) => s.layers)
   const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
 
   const graphRef = useRef(graph)
   graphRef.current = graph
+  const docRef = useRef(document)
+  docRef.current = document
   const floorRef = useRef(activeFloor)
   floorRef.current = activeFloor
   const layersRef = useRef(layers)
@@ -159,13 +162,13 @@ export function MapRenderer({ map }: MapRendererProps) {
 
   // ── Primary render: push GeoJSON data to sources ──
   useEffect(() => {
-    renderAll(map, graph, activeFloor)
-  }, [map, graph, activeFloor, renderVersion])
+    renderAll(map, graph, document, activeFloor)
+  }, [map, graph, document, activeFloor, docVersion])
 
   // ── Style reload handler ──
   useEffect(() => {
     const onStyleLoad = () => {
-      renderAll(map, graphRef.current, floorRef.current)
+      renderAll(map, graphRef.current, docRef.current, floorRef.current)
       setLayerVisibility(map, layersRef.current)
     }
     map.on('style.load', onStyleLoad)

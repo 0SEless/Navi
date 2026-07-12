@@ -44,11 +44,30 @@ const mockBuilding: Building = {
 
 let graphComponents: Component[] = []
 
+vi.mock('@/hooks/floor-graph-selectors', () => ({
+  useFloorComponents: () => [] as any[],
+  useFloorComponent: () => null,
+  useFloorComponentsAll: () => [],
+  useFloorRenderVersion: () => 0,
+  useFloorCampusId: () => 'asu-ibajay',
+  useFloorSyncStatus: () => 'synced',
+  useFloorSyncError: () => null,
+  useLegacyBuilding: (id: string) => ({
+    id, name: 'Test Building', campusId: 'asu-ibajay', floors: [0, 1],
+    footprint: [{ lat: 11.8195, lng: 122.0922 }], color: '#1C6BEB',
+  }),
+  useGraphBuilding: () => null,
+  useFloorPlanUrls: () => undefined,
+  countFloorComponents: () => 0,
+  findGraphBuilding: () => null,
+}))
+
 vi.mock('@navi/editor', async () => {
   const actual = await vi.importActual('@navi/editor')
   return {
     ...actual,
     useEditor: () => ({
+      document: { schemaVersion: 1, metadata: {} as any, buildings: [], roads: [], panoramas: [], qrCheckpoints: [] },
       services: {
         get: (name: string) => {
           if (name === 'toolRegistry') {

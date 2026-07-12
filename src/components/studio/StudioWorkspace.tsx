@@ -1,12 +1,12 @@
 'use client'
 
+import { useEditor } from '@navi/editor'
 import { EditorBridge } from './EditorBridge'
 import { ExplorerPanel } from './ExplorerPanel'
 import { PropertiesPanel } from '@navi/editor'
 import { StudioCanvas } from './StudioCanvas'
 import { StudioToolbar } from './StudioToolbar'
 import { ConfirmOverlay } from './ConfirmOverlay'
-import { useGraphStore } from '@/store/graph-store'
 import { useEffect } from 'react'
 
 interface StudioWorkspaceProps {
@@ -15,12 +15,14 @@ interface StudioWorkspaceProps {
 }
 
 export function StudioWorkspace({ center }: StudioWorkspaceProps) {
-  const save = useGraphStore((s) => s.save)
+  const { services } = useEditor()
+  const workflow = services.get('workflow')
+  if (!workflow) throw new Error('WorkflowService not registered')
 
   useEffect(() => {
-    const interval = setInterval(() => save(), 30000)
+    const interval = setInterval(() => workflow.save('autosave'), 30000)
     return () => clearInterval(interval)
-  }, [save])
+  }, [workflow])
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>

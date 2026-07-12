@@ -34,4 +34,26 @@ export { useSelection } from './selection-store'
 export { SelectionBridge } from './selection-bridge'
 export type { LegacySyncState, BridgeSyncTarget } from './selection-bridge'
 export { useWorkspace } from './workspace-context'
+export { createEditorContext } from './create-editor-context'
 export type { WorkspaceMode, Workspace } from '../projections/workspace'
+
+export {
+  findBuilding,
+  findFloorByLevel,
+  findFloorById,
+  getBuildingFloors,
+  getBuildingFloorCount,
+  getFloorEntities,
+  findRoom,
+  findEntity,
+  findComponent,
+} from './selectors'
+export type { FloorEntities, EntityResult } from './selectors'
+export {
+  useDocumentSelector,
+  useActiveBuilding,
+  useBuilding,
+  useFloorCount,
+  useFloor,
+  useBuildingFloors,
+} from './use-document-selector'

@@ -5,10 +5,7 @@ import { FloorEditorCanvas } from '../FloorEditorCanvas'
 import type { Building } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
 
-let mockGraphComponents: unknown[] = []
-let mockRemoveComponent = vi.fn()
-let mockUpdateComponent = vi.fn()
-let mockSaveGraph = vi.fn()
+let mockDispatcherExecute = vi.fn()
 
 vi.mock('maplibre-gl', () => {
   class MockLngLatBounds {
@@ -89,6 +86,27 @@ vi.mock('maplibre-gl', () => {
   }
 })
 
+vi.mock('@/hooks/floor-graph-selectors', () => ({
+  useFloorComponents: () => [] as any[],
+  useFloorComponent: (id: string | null) =>
+    id === 'C001' ? { id: 'C001', type: 'room', name: 'Room 1', buildingId: 'BLD01', floor: 0 } : null,
+  useFloorRenderVersion: () => 0,
+  useFloorCampusId: () => 'asu-ibajay',
+  useFloorComponentsAll: () => [],
+  useFloorSyncStatus: () => 'synced',
+  useFloorSyncError: () => null,
+  useLegacyBuilding: () => null,
+  useGraphBuilding: () => null,
+  useFloorPlanUrls: () => undefined,
+  countFloorComponents: () => 0,
+  findGraphBuilding: () => null,
+}))
+
+vi.mock('@navi/editor', () => ({
+  useEditor: () => ({ document: {}, services: { get: () => mockDispatcherExecute ? { execute: mockDispatcherExecute } : null }, transformer: { buildingLocalToWorld: () => ({ lat: 0, lng: 0 }), worldToBuildingLocal: () => null } }),
+  findBuilding: () => null,
+}))
+
 vi.mock('@/store/graph-store', () => ({
   useGraphStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector({
@@ -114,10 +132,7 @@ const layers: LayerVisibility = {
 
 describe('FloorEditorCanvas', () => {
   beforeEach(() => {
-    mockGraphComponents = []
-    mockRemoveComponent = vi.fn()
-    mockUpdateComponent = vi.fn()
-    mockSaveGraph = vi.fn()
+    mockDispatcherExecute = vi.fn()
   })
 
   afterEach(cleanup)
@@ -165,7 +180,7 @@ describe('FloorEditorCanvas', () => {
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
   })
 
-  it('calls removeComponent and saveGraph on delete click', async () => {
+  it('dispatches room.delete command on delete click', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     render(
@@ -179,8 +194,9 @@ describe('FloorEditorCanvas', () => {
       />
     )
     await user.click(screen.getByRole('button', { name: /delete/i }))
-    expect(mockRemoveComponent).toHaveBeenCalledWith('C001')
-    expect(mockSaveGraph).toHaveBeenCalled()
+    expect(mockDispatcherExecute).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'room.delete', payload: { roomId: 'C001' } })
+    )
     expect(onSelect).toHaveBeenCalledWith(null)
   })
 

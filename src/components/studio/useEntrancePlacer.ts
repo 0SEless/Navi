@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useGraphStore } from '@/store/graph-store'
+import { useEditor } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
-import type { LatLng, BuildingEntrance } from '@/types/nav-types'
+import type { LatLng } from '@/types/nav-types'
 
 interface EntranceFormState {
   position: LatLng | null
@@ -11,86 +11,77 @@ interface EntranceFormState {
   label: string
 }
 
+function pointInPolygon(position: LatLng, footprint: { lat: number; lng: number }[]): boolean {
+  const { lat, lng } = position
+  const pts = footprint
+  if (!pts || pts.length < 3) return false
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].lng, yi = pts[i].lat
+    const xj = pts[j].lng, yj = pts[j].lat
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+function findFloorId(building: { id: string; floors: { id: string; level: number }[] }, level: number): string | null {
+  return building.floors.find((f) => f.level === level)?.id ?? null
+}
+
 export function useEntrancePlacer() {
   const [formState, setFormState] = useState<EntranceFormState | null>(null)
   const tool = useStudioStore((s) => s.tool)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
-  const graph = useGraphStore((s) => s.graph)
-  const updateBuilding = useGraphStore((s) => s.updateBuilding)
-  const save = useGraphStore((s) => s.save)
-  const addNode = useGraphStore((s) => s.addNode)
+
+  const { document, services } = useEditor()
+  const dispatcher = services.get('dispatcher')!
+  const workflow = services.get('workflow')!
+
   const handleMapClick = useCallback((position: LatLng) => {
     if (tool !== 'entrance') return
-    // Find which building this click falls within
-    const buildings = graph.buildings
+    const buildings = document.buildings
     const hitBuilding = buildings.find((b) => {
-      if (!b.footprint || b.footprint.length < 3) return false
-      // Simple point-in-polygon test
-      const { lat, lng } = position
-      const pts = b.footprint
-      let inside = false
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const xi = pts[i].lng, yi = pts[i].lat
-        const xj = pts[j].lng, yj = pts[j].lat
-        if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
-          inside = !inside
-        }
-      }
-      return inside
+      const pts = b.footprint.points
+      return pts.length >= 3 && pointInPolygon(position, pts)
     })
     if (hitBuilding) {
       setFormState({ position, floor: activeFloor, label: '' })
     }
-  }, [tool, graph.buildings, activeFloor])
+  }, [tool, document.buildings, activeFloor])
 
   const confirmPlacement = useCallback(() => {
     if (!formState?.position) return
     const targetBuilding = activeBuildingId
-      ? graph.buildings.find((b) => b.id === activeBuildingId)
-      : graph.buildings.find((b) => {
-          const { lat, lng } = formState.position!
-          const pts = b.footprint
-          if (!pts || pts.length < 3) return false
-          let inside = false
-          for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-            const xi = pts[i].lng, yi = pts[i].lat
-            const xj = pts[j].lng, yj = pts[j].lat
-            if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
-              inside = !inside
-            }
-          }
-          return inside
-        })
+      ? document.buildings.find((b) => b.id === activeBuildingId)
+      : document.buildings.find((b) => pointInPolygon(formState.position!, b.footprint.points))
     if (!targetBuilding) return
 
+    const floorId = findFloorId(targetBuilding, formState.floor)
+    if (!floorId) return
+
     const entranceId = `ent-${Date.now()}`
-    const entrance: BuildingEntrance = {
-      id: entranceId,
-      position: formState.position!,
-      floor: formState.floor,
-      label: formState.label || undefined,
-    }
-
-    const existing = targetBuilding.entrances ?? []
-    updateBuilding(targetBuilding.id, { entrances: [...existing, entrance] })
-    save()
-
-    // Also create a NavNode for routing
-    addNode({
-      id: entranceId,
-      label: formState.label || `Entrance (${targetBuilding.name})`,
-      name: formState.label || `Entrance ${targetBuilding.name}`,
-      position: formState.position!,
-      floor: formState.floor,
-      buildingId: targetBuilding.id,
-      campusId: targetBuilding.campusId,
-      type: 'building_entrance',
+    dispatcher.execute({
+      id: 'entrance.create',
+      label: 'Create Entrance',
+      payload: {
+        id: entranceId,
+        buildingId: targetBuilding.id,
+        floorId,
+        position: formState.position!,
+        level: formState.floor,
+        label: formState.label || '',
+        type: 'side',
+        hasQR: true,
+        hasPanorama: false,
+      },
     })
-    save()
+    workflow.save('manual')
 
     setFormState(null)
-  }, [formState, graph.buildings, activeBuildingId, updateBuilding, save, addNode])
+  }, [formState, document.buildings, activeBuildingId, dispatcher, workflow])
 
   const cancelPlacement = useCallback(() => {
     setFormState(null)

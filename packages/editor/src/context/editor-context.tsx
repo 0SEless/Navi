@@ -1,10 +1,11 @@
 import { createContext, useContext } from 'react'
-import type { CampusDocument } from '@navi/core'
+import type { CampusDocument, CoordinateTransformer } from '@navi/core'
 import { ServiceRegistry } from './service-registry'
 
 export interface EditorContext {
   document: CampusDocument
   services: ServiceRegistry
+  transformer?: CoordinateTransformer
 }
 
 export const serviceNames = {
