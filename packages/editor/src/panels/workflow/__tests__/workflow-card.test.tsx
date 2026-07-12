@@ -9,6 +9,8 @@ import { WorkflowStore } from '../../../services/workflow-store'
 import { WorkflowService } from '../../../services/workflow-service'
 import { NavigationCompiler } from '../../../services/navigation-compiler'
 import { PersistenceService } from '../../../services/persistence-service'
+import { PublishStore } from '../../../services/publish-store'
+import { PublishService } from '../../../services/publish-service'
 import type { CompilerAdapter } from '../../../services/navigation-compiler'
 import type { PersistenceAdapter } from '../../../services/persistence-service'
 
@@ -36,6 +38,8 @@ function createWorkflowContext(): EditorContext {
   const persistence = new PersistenceService(persistAdapter)
   const workflowStore = new WorkflowStore()
   const workflow = new WorkflowService()
+  const publishStore = new PublishStore()
+  const publishService = new PublishService(publishStore)
   const docStore = { version: 0, document }
 
   // Initialise services so they can be used immediately
@@ -48,6 +52,8 @@ function createWorkflowContext(): EditorContext {
       if (name === 'workflow') return workflow
       if (name === 'validation') return { validateAll: () => [] }
       if (name === 'documentStore') return docStore
+      if (name === 'publishStore') return publishStore
+      if (name === 'publish') return publishService
     },
     document,
   } as any
@@ -67,6 +73,8 @@ function createWorkflowContext(): EditorContext {
       if (name === 'workflow') return workflow
       if (name === 'validation') return { validateAll: () => [] }
       if (name === 'documentStore') return docStore
+      if (name === 'publishStore') return publishStore
+      if (name === 'publish') return publishService
     },
   }
 
@@ -85,7 +93,7 @@ describe('WorkflowCard', () => {
     expect(screen.getByText('Validate')).toBeDefined()
     expect(screen.getByText('Compile')).toBeDefined()
     expect(screen.getByText('Save')).toBeDefined()
-    expect(screen.getByText('Publish')).toBeDefined()
+    expect(screen.getAllByText('Publish').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows next action hint when no validation done', () => {

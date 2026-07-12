@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useWorkflow } from './use-workflow'
+import { usePublish } from './use-publish'
 
 // ── Style constants ───────────────────────────────────────────
 
@@ -106,6 +107,18 @@ function statusLabel(status: string): string {
   }
 }
 
+function publishColor(state: string): string {
+  switch (state) {
+    case 'success': return '#16a34a'
+    case 'error': return '#dc2626'
+    case 'preparing':
+    case 'validating':
+    case 'compiling':
+    case 'uploading': return '#2563eb'
+    default: return '#d0d0d0'
+  }
+}
+
 // ── WorkflowCard ──────────────────────────────────────────────
 
 /**
@@ -122,9 +135,10 @@ export function WorkflowCard() {
     validate,
     compile,
     save,
-    publish,
     isDirty,
   } = useWorkflow()
+
+  const { snapshot: publishSnap, publish: handlePublishNew } = usePublish()
 
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -145,7 +159,7 @@ export function WorkflowCard() {
 
   async function handlePublish() {
     setBusy('publish')
-    try { await publish() } finally { setBusy(null) }
+    try { await handlePublishNew() } finally { setBusy(null) }
   }
 
   return (
@@ -212,7 +226,7 @@ export function WorkflowCard() {
       {/* Publish step */}
       <div style={styles.step}>
         <div style={styles.stepLabel}>
-          <span style={styles.indicator(statusColor(steps.publish.status))} />
+          <span style={styles.indicator(publishColor(publishSnap.publishState))} />
           <span>Publish</span>
         </div>
         <button
@@ -220,7 +234,10 @@ export function WorkflowCard() {
           onClick={handlePublish}
           disabled={busy !== null}
         >
-          {busy === 'publish' ? '⋯' : statusLabel(steps.publish.status) || 'Publish'}
+          {publishSnap.publishState === 'success' ? '✓ Published' :
+           publishSnap.publishState === 'error' ? '✗ Failed' :
+           publishSnap.publishState !== 'idle' ? '...' :
+           busy === 'publish' ? '...' : 'Publish'}
         </button>
       </div>
 
