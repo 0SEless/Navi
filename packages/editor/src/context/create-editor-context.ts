@@ -29,6 +29,8 @@ import type { PersistenceAdapter } from '../services/persistence-service'
 import { WorkflowStore } from '../services/workflow-store'
 import { WorkflowService } from '../services/workflow-service'
 import { AutosaveService } from '../services/autosave-service'
+import { PublishStore } from '../services/publish-store'
+import { PublishService } from '../services/publish-service'
 import { ValidationStore } from '../services/validation-store'
 import { ValidationService } from '../services/validation-service'
 import { EditingContextService } from '../editing-context'
@@ -307,6 +309,10 @@ export function createEditorContext(
   registry.register('workflow', workflow)
   const autosave = new AutosaveService()
   registry.register('autosave', autosave)
+  const publishStore = new PublishStore()
+  const publishService = new PublishService(publishStore)
+  registry.register('publishStore', publishStore)
+  registry.register('publish', publishService)
   registry.register('editingContext', editingContext)
 
   void registry.init(document)
