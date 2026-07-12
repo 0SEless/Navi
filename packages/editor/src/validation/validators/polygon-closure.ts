@@ -6,6 +6,7 @@ export const polygonClosureValidator: ValidatorPlugin = {
   id: 'polygon-closure',
   label: 'Polygon Closure',
   scope: 'entity',
+  cost: 'cheap',
   validate(document: CampusDocument): ValidationIssue[] {
     const issues: ValidationIssue[] = []
 

@@ -50,6 +50,7 @@ describe('ValidationEngine', () => {
         id: 'crashy',
         label: 'Crashy',
         scope: 'entity',
+        cost: 'cheap',
         validate: () => { throw new Error('boom') },
       })
       const engine = new ValidationEngine(reg)
@@ -139,6 +140,7 @@ describe('ValidationEngine', () => {
         id: 'entity-crash',
         label: 'Entity Crash',
         scope: 'entity',
+        cost: 'cheap',
         validate: () => { throw new Error('entity crash') },
       })
       const engine = new ValidationEngine(reg)

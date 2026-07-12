@@ -1,8 +1,6 @@
 import type { CampusDocument } from '@navi/core'
-import type { ValidationIssue, ValidationScope, ValidatorPlugin } from './registry'
+import type { ValidationIssue, ValidationScope, ValidatorPlugin, ValidatorGroup } from './registry'
 import { ValidationRegistry } from './registry'
-
-// ─── Scope Context ────────────────────────────────────────────────
 
 export interface EntityScopeContext {
   entityId: string
@@ -14,15 +12,7 @@ export interface BuildingScopeContext {
 
 export type ScopeContext = EntityScopeContext | BuildingScopeContext
 
-// ─── ScopeRouter ──────────────────────────────────────────────────
-
 export class ScopeRouter {
-  /**
-   * Filter rules to only those that can operate at the given scope.
-   * A rule with scope 'entity' is valid at entity, building, or campus scope.
-   * A rule with scope 'building' is valid at building or campus scope.
-   * A rule with scope 'campus' is valid only at campus scope.
-   */
   static filterRules(rules: ValidatorPlugin[], scope: ValidationScope): ValidatorPlugin[] {
     switch (scope) {
       case 'entity':
@@ -30,11 +20,10 @@ export class ScopeRouter {
       case 'building':
         return rules.filter(r => r.scope === 'entity' || r.scope === 'building')
       case 'campus':
-        return rules // all rules run at campus scope
+        return rules
     }
   }
 
-  /** Collect all entity IDs from a document that belong to a specific building. */
   static getBuildingEntityIds(document: CampusDocument, buildingId: string): string[] {
     const ids: string[] = []
     for (const bld of document.buildings) {
@@ -52,7 +41,6 @@ export class ScopeRouter {
     return ids
   }
 
-  /** Collect ALL entity IDs from a document. */
   static getAllEntityIds(document: CampusDocument): string[] {
     const ids: string[] = []
     for (const bld of document.buildings) {
@@ -72,7 +60,6 @@ export class ScopeRouter {
     return ids
   }
 
-  /** Find which building an entity belongs to, or null if top-level. */
   static resolveBuilding(document: CampusDocument, entityId: string): string | null {
     for (const bld of document.buildings) {
       if (bld.id === entityId) return bld.id
@@ -89,25 +76,15 @@ export class ScopeRouter {
   }
 }
 
-// ─── ValidationEngine ─────────────────────────────────────────────
-
 export class ValidationEngine {
   constructor(private registry: ValidationRegistry) {}
 
-  /**
-   * Run all validators at campus scope.
-   * Produces identical results to ValidationRegistry.validateAll().
-   */
-  validateAll(document: CampusDocument): ValidationIssue[] {
-    return this.registry.validateAll(document)
+  validateAll(document: CampusDocument, group?: ValidatorGroup): ValidationIssue[] {
+    return this.registry.validateAll(document, group)
   }
 
-  /**
-   * Run entity-scoped validators and return only issues for the given entity.
-   * Runs entity-level checks only (no cross-entity validators).
-   */
   validateEntity(document: CampusDocument, entityId: string): ValidationIssue[] {
-    const rules = ScopeRouter.filterRules(this.registry.all, 'entity')
+    const rules = ScopeRouter.filterRules(this.registry.editorValidators, 'entity')
     const issues: ValidationIssue[] = []
     for (const rule of rules) {
       try {
@@ -115,9 +92,9 @@ export class ValidationEngine {
         issues.push(...results.filter(i => i.entityId === entityId))
       } catch (e) {
         issues.push({
-          id: `crash-${rule.id}-${Date.now()}`,
+          id: `system:crash:${hash(rule.id)}`,
           severity: 'error',
-          category: 'system',
+          category: 'reference',
           scope: 'campus',
           entityId: null,
           entityType: null,
@@ -130,17 +107,13 @@ export class ValidationEngine {
     return issues
   }
 
-  /**
-   * Run validators at a specific scope, optionally filtered to a building or entity context.
-   */
   validateScope(
     document: CampusDocument,
     scope: ValidationScope,
     context?: ScopeContext,
   ): ValidationIssue[] {
-    // Campus scope: run everything unfiltered
     if (scope === 'campus') {
-      return this.registry.validateAll(document)
+      return this.registry.validateAll(document, 'editor')
     }
 
     const rules = ScopeRouter.filterRules(this.registry.all, scope)
@@ -161,9 +134,9 @@ export class ValidationEngine {
         }
       } catch (e) {
         allIssues.push({
-          id: `crash-${rule.id}-${Date.now()}`,
+          id: `system:crash:${hash(rule.id)}`,
           severity: 'error',
-          category: 'system',
+          category: 'reference',
           scope: 'campus',
           entityId: null,
           entityType: null,
@@ -176,4 +149,13 @@ export class ValidationEngine {
 
     return allIssues
   }
+}
+
+function hash(s: string): string {
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h).toString(36)
 }
