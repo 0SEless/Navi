@@ -4,9 +4,14 @@ import { BaseEditorService } from '../context'
 export type ValidationScope = 'entity' | 'building' | 'campus'
 
 export interface ValidationIssue {
+  id: string
   severity: 'error' | 'warning' | 'info'
-  entityId?: string
+  category: string
+  scope: ValidationScope
+  entityId: string | null
+  entityType: string | null
   message: string
+  fixable: boolean
   validatorId: string
 }
 
@@ -50,8 +55,14 @@ export class ValidationRegistry extends BaseEditorService {
         issues.push(...results)
       } catch (e) {
         issues.push({
+          id: `crash-${plugin.id}-${Date.now()}`,
           severity: 'error',
+          category: 'system',
+          scope: 'campus',
+          entityId: null,
+          entityType: null,
           message: `Validator "${plugin.id}" crashed: ${e}`,
+          fixable: false,
           validatorId: 'system',
         })
       }

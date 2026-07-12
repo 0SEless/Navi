@@ -22,9 +22,14 @@ export const duplicateIdsValidator: ValidatorPlugin = {
     for (const [id, labels] of seen) {
       if (labels.length > 1) {
         issues.push({
+          id: `dup-${id}`,
           severity: 'error',
+          category: 'duplicate',
+          scope: 'campus',
           entityId: id,
+          entityType: null,
           message: `Duplicate entity ID "${id}" (${labels.join(', ')})`,
+          fixable: false,
           validatorId: 'duplicate-ids',
         })
       }

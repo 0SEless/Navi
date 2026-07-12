@@ -33,9 +33,14 @@ function checkSelfIntersection(
     for (let j = i + 2; j < points.length - 1; j++) {
       if (segmentsIntersect(points[i], points[i + 1], points[j], points[j + 1])) {
         issues.push({
+          id: `si-${entityId}`,
           severity: 'error',
+          category: 'geometry',
+          scope: 'entity',
           entityId,
+          entityType: null,
           message: `${entityLabel} has self-intersecting edges`,
+          fixable: false,
           validatorId,
         })
         return issues

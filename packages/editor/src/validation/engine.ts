@@ -115,8 +115,14 @@ export class ValidationEngine {
         issues.push(...results.filter(i => i.entityId === entityId))
       } catch (e) {
         issues.push({
+          id: `crash-${rule.id}-${Date.now()}`,
           severity: 'error',
+          category: 'system',
+          scope: 'campus',
+          entityId: null,
+          entityType: null,
           message: `Validator "${rule.id}" crashed: ${e}`,
+          fixable: false,
           validatorId: 'system',
         })
       }
@@ -155,8 +161,14 @@ export class ValidationEngine {
         }
       } catch (e) {
         allIssues.push({
+          id: `crash-${rule.id}-${Date.now()}`,
           severity: 'error',
+          category: 'system',
+          scope: 'campus',
+          entityId: null,
+          entityType: null,
           message: `Validator "${rule.id}" crashed: ${e}`,
+          fixable: false,
           validatorId: 'system',
         })
       }
