@@ -25,6 +25,9 @@ function validateDocument(doc: unknown): asserts doc is CampusDocument {
   if (typeof d.schemaVersion !== 'number') {
     throw new Error('Invalid document: missing or invalid schemaVersion')
   }
+  if (typeof d.version !== 'number') {
+    throw new Error('Invalid document: missing or invalid version')
+  }
   if (!d.metadata || typeof d.metadata !== 'object') {
     throw new Error('Invalid document: missing metadata')
   }

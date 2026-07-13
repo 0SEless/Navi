@@ -6,6 +6,7 @@ import type { BuildingCategory } from '../types'
 function makeTestDoc(): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: {
       name: 'ASU Ibajay',
       description: 'Test campus',
@@ -94,7 +95,7 @@ describe('serialization', () => {
   })
 
   it('throws on missing buildings array', () => {
-    expect(() => deserializeDocument('{"schemaVersion":1,"metadata":{},"roads":[],"panoramas":[],"qrCheckpoints":[]}')).toThrow('buildings')
+    expect(() => deserializeDocument('{"schemaVersion":1,"version":0,"metadata":{},"roads":[],"panoramas":[],"qrCheckpoints":[]}')).toThrow('buildings')
   })
 
   it('preserves all fields through round-trip', () => {
