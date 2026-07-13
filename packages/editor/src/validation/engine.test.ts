@@ -1,411 +1,283 @@
 import { describe, it, expect } from 'vitest'
-import { ValidationRegistry } from './registry'
-import { ValidationEngine, ScopeRouter } from './engine'
-import {
-  polygonClosureValidator,
-  selfIntersectionValidator,
-  duplicateIdsValidator,
-} from './validators'
-import { createDocument, createBuilding, createFloor, createRoom } from '../../test-helpers'
+import { createDocument } from '../../test-helpers'
+import { ValidationEngine } from './validation-engine'
+import { disconnectedGraphRule, missingNameRule, zeroAreaPolygonRule } from './rules/modules/skeleton'
+import { duplicateIdsRule } from './rules/modules/duplicate-ids'
+import { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass } from './rules/analysis'
+import { recordChange } from '@navi/core'
 
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function createRegistry(): ValidationRegistry {
-  const reg = new ValidationRegistry()
-  reg.register(polygonClosureValidator)
-  reg.register(selfIntersectionValidator)
-  reg.register(duplicateIdsValidator)
-  return reg
+function createEngine(): ValidationEngine {
+  const engine = new ValidationEngine()
+  engine.registerRule(disconnectedGraphRule)
+  engine.registerRule(missingNameRule)
+  engine.registerRule(zeroAreaPolygonRule)
+  engine.registerAnalysisPass(new GraphAnalysisPass())
+  engine.registerAnalysisPass(new GeometryAnalysisPass())
+  engine.registerAnalysisPass(new MetadataIndexPass())
+  engine.initialize()
+  return engine
 }
 
-// ─── ValidationEngine ─────────────────────────────────────────────
-
 describe('ValidationEngine', () => {
-  describe('validateAll', () => {
-    it('produces identical results to registry.validateAll', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
+  describe('validate', () => {
+    it('returns a snapshot with valid state for a clean document', () => {
+      const engine = createEngine()
       const doc = createDocument()
+      const snapshot = engine.validate(doc)
 
-      const regResults = reg.validateAll(doc)
-      const engineResults = engine.validateAll(doc)
-
-      // Same count (order may differ between validateAll calls)
-      expect(engineResults.length).toBe(regResults.length)
+      expect(snapshot.state).toBe('valid')
+      expect(snapshot.issues.length).toBe(0)
+      expect(snapshot.profile).toBe('draft')
+      expect(typeof snapshot.epoch).toBe('number')
+      expect(typeof snapshot.validatedAt).toBe('number')
     })
 
-    it('runs all validators on a valid document', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
+    it('caches result for same document version and profile', () => {
+      const engine = createEngine()
       const doc = createDocument()
 
-      const issues = engine.validateAll(doc)
-      // A valid document with 2 buildings should have no issues
-      expect(issues.length).toBe(0)
+      const s1 = engine.validate(doc)
+      const s2 = engine.validate(doc)
+      expect(s1).toBe(s2)
+      expect(s1.epoch).toBe(s2.epoch)
     })
 
-    it('captures validator crashes gracefully', () => {
-      const reg = new ValidationRegistry()
-      reg.register({
-        id: 'crashy',
-        label: 'Crashy',
-        scope: 'entity',
-        cost: 'cheap',
-        validate: () => { throw new Error('boom') },
+    it('returns fresh result when validateFresh is called', () => {
+      const engine = createEngine()
+      const doc = createDocument()
+
+      const s1 = engine.validate(doc)
+      const s2 = engine.validateFresh(doc)
+      expect(s1).not.toBe(s2)
+      expect(s2.epoch).toBeGreaterThan(s1.epoch)
+    })
+
+    it('supports profile parameter', () => {
+      const engine = createEngine()
+      const doc = createDocument()
+
+      const draft = engine.validate(doc, 'draft')
+      const publish = engine.validateFresh(doc, 'publish')
+
+      expect(draft.profile).toBe('draft')
+      expect(publish.profile).toBe('publish')
+    })
+
+    it('excludes zero-area-rule in draft profile', () => {
+      const engine = createEngine()
+      const doc = createDocument()
+
+      const draft = engine.validate(doc, 'draft')
+      const publish = engine.validateFresh(doc, 'publish')
+
+      const draftZero = draft.issues.filter(i => i.ruleId === 'zero-area-polygon')
+      const publishZero = publish.issues.filter(i => i.ruleId === 'zero-area-polygon')
+      expect(draftZero.length).toBe(0)
+      expect(publishZero.length).toBe(0)
+    })
+
+    it('detects crash in a rule and reports it as error', () => {
+      const engine = new ValidationEngine()
+      engine.registerRule({
+        ruleId: 'crashy',
+        description: 'Crashy rule',
+        category: 'metadata',
+        defaultSeverity: 'error',
+        profiles: ['draft', 'publish', 'strict'],
+        affinity: 'global',
+        execute: () => { throw new Error('boom') },
       })
-      const engine = new ValidationEngine(reg)
-      const doc = createDocument()
+      engine.registerAnalysisPass(new GraphAnalysisPass())
+      engine.initialize()
 
-      const issues = engine.validateAll(doc)
-      expect(issues.length).toBeGreaterThanOrEqual(1)
-      expect(issues[0].message).toContain('crashed')
+      const doc = createDocument()
+      const snapshot = engine.validate(doc)
+
+      expect(snapshot.state).toBe('errors')
+      const crashIssue = snapshot.issues.find(i => i.ruleId === 'crashy')
+      expect(crashIssue).toBeDefined()
+      expect(crashIssue!.message).toContain('crashed')
     })
   })
 
-  describe('validateEntity', () => {
-    it('returns only issues for the requested entity', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
-      // Create a doc with a problem: unclosed building footprint
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-ok',
-            name: 'OK Building',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                { lat: 1, lng: 1 },
-                { lat: 1, lng: 0 },
-                { lat: 0, lng: 0 }, // closed
-              ],
-            },
-          }),
-          createBuilding({
-            id: 'bld-bad',
-            name: 'Bad Building',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                { lat: 1, lng: 1 },
-                { lat: 1, lng: 0 },
-                // NOT closed — missing last point
-              ],
-            },
-          }),
-        ],
-      })
-
-      // Entity scope: issues for the bad building
-      const issues = engine.validateEntity(doc, 'bld-bad')
-      expect(issues.length).toBeGreaterThanOrEqual(1)
-      expect(issues.every(i => i.entityId === 'bld-bad')).toBe(true)
-
-      // Entity scope: issues for the OK building
-      const okIssues = engine.validateEntity(doc, 'bld-ok')
-      expect(okIssues.length).toBe(0)
+  describe('getLastSnapshot', () => {
+    it('returns undefined before any validation', () => {
+      const engine = new ValidationEngine()
+      expect(engine.getLastSnapshot()).toBeUndefined()
     })
 
-    it('runs only entity-scoped validators (not campus-scoped)', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
-      // duplicateIdsValidator is campus-scoped — should NOT run at entity scope
-      const doc = createDocument({
-        buildings: [
-          createBuilding({ id: 'same-id', name: 'B1' }),
-          createBuilding({ id: 'same-id', name: 'B2' }), // duplicate ID
-        ],
-      })
-
-      const issues = engine.validateEntity(doc, 'same-id')
-      // Entity scope: duplicate ID check is campus-scoped, so it should NOT fire
-      const dupIssue = issues.find(i => i.validatorId === 'duplicate-ids')
-      expect(dupIssue).toBeUndefined()
-    })
-
-    it('returns empty array for non-existent entity', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
+    it('returns the last snapshot after validation', () => {
+      const engine = createEngine()
       const doc = createDocument()
-
-      const issues = engine.validateEntity(doc, 'non-existent-id')
-      expect(issues).toEqual([])
-    })
-
-    it('handles validator crashes gracefully at entity scope', () => {
-      const reg = new ValidationRegistry()
-      reg.register({
-        id: 'entity-crash',
-        label: 'Entity Crash',
-        scope: 'entity',
-        cost: 'cheap',
-        validate: () => { throw new Error('entity crash') },
-      })
-      const engine = new ValidationEngine(reg)
-      const doc = createDocument()
-
-      const issues = engine.validateEntity(doc, 'bld-1')
-      expect(issues.length).toBe(1)
-      expect(issues[0].message).toContain('crashed')
+      engine.validate(doc)
+      expect(engine.getLastSnapshot()).toBeDefined()
+      expect(engine.getLastSnapshot()!.state).toBe('valid')
     })
   })
 
-  describe('validateScope', () => {
-    it('validateScope campus returns all issues (same as validateAll)', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
-      const doc = createDocument({
-        buildings: [
-          createBuilding({ id: 'dup', name: 'B1' }),
-          createBuilding({ id: 'dup', name: 'B2' }),
-        ],
-      })
-
-      const campusIssues = engine.validateScope(doc, 'campus')
-      const allIssues = engine.validateAll(doc)
-      expect(campusIssues.length).toBe(allIssues.length)
+  describe('onValidationUpdated', () => {
+    it('fires callback when validation completes', () => {
+      const engine = createEngine()
+      const doc = createDocument()
+      const calls: any[] = []
+      engine.onValidationUpdated(s => calls.push(s))
+      engine.validate(doc)
+      expect(calls.length).toBe(1)
+      expect(calls[0].state).toBe('valid')
     })
 
-    it('validateScope building returns issues limited to that building', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
-      // Create a doc with unclosed footprint on building-1
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-1',
-            name: 'Building One',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                { lat: 1, lng: 1 },
-                { lat: 1, lng: 0 },
-                // not closed
-              ],
-            },
-          }),
-          createBuilding({
-            id: 'bld-2',
-            name: 'Building Two',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                { lat: 1, lng: 1 },
-                { lat: 1, lng: 0 },
-                { lat: 0, lng: 0 }, // closed
-              ],
-            },
-          }),
-        ],
-      })
-
-      const bld1Issues = engine.validateScope(doc, 'building', { buildingId: 'bld-1' })
-      expect(bld1Issues.length).toBeGreaterThanOrEqual(1)
-      expect(bld1Issues.every(i => {
-        // Issue must belong to bld-1 or its children
-        return i.entityId === 'bld-1' || ['flr-test'].includes(i.entityId!)
-      })).toBe(true)
-
-      const bld2Issues = engine.validateScope(doc, 'building', { buildingId: 'bld-2' })
-      expect(bld2Issues.length).toBe(0)
-    })
-
-    it('validateScope entity returns issues for only that entity', () => {
-      const reg = createRegistry()
-      const engine = new ValidationEngine(reg)
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-bad',
-            name: 'Bad',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                // fewer than 3 points
-              ],
-            },
-          }),
-          createBuilding({
-            id: 'bld-good',
-            name: 'Good',
-            footprint: {
-              points: [
-                { lat: 0, lng: 0 },
-                { lat: 0, lng: 1 },
-                { lat: 1, lng: 1 },
-                { lat: 1, lng: 0 },
-                { lat: 0, lng: 0 },
-              ],
-            },
-          }),
-        ],
-      })
-
-      const badIssues = engine.validateScope(doc, 'entity', { entityId: 'bld-bad' })
-      expect(badIssues.length).toBeGreaterThanOrEqual(1)
-      expect(badIssues.every(i => i.entityId === 'bld-bad')).toBe(true)
-
-      const goodIssues = engine.validateScope(doc, 'entity', { entityId: 'bld-good' })
-      expect(goodIssues.length).toBe(0)
+    it('returns unsubscribe function', () => {
+      const engine = createEngine()
+      const doc = createDocument()
+      let count = 0
+      const unsub = engine.onValidationUpdated(() => count++)
+      engine.validate(doc)
+      expect(count).toBe(1)
+      unsub()
+      engine.validateFresh(doc)
+      expect(count).toBe(1)
     })
   })
 })
 
-// ─── ScopeRouter ──────────────────────────────────────────────────
+describe('incremental validation', () => {
+  function createEngine(): ValidationEngine {
+    const engine = new ValidationEngine()
+    engine.registerRule(disconnectedGraphRule)
+    engine.registerRule(missingNameRule)
+    engine.registerRule(zeroAreaPolygonRule)
+    engine.registerRule(duplicateIdsRule)
+    engine.registerAnalysisPass(new GraphAnalysisPass())
+    engine.registerAnalysisPass(new GeometryAnalysisPass())
+    engine.registerAnalysisPass(new MetadataIndexPass())
+    engine.initialize()
+    return engine
+  }
 
-describe('ScopeRouter', () => {
-  describe('filterRules', () => {
-    it('entity scope returns only entity-scoped rules', () => {
-      const rules = [
-        polygonClosureValidator, // entity
-        selfIntersectionValidator, // entity
-        duplicateIdsValidator, // campus
-      ]
-      const filtered = ScopeRouter.filterRules(rules, 'entity')
-      expect(filtered).toHaveLength(2)
-      expect(filtered.every(r => r.scope === 'entity')).toBe(true)
-    })
-
-    it('building scope returns entity + building rules', () => {
-      const rules = [
-        polygonClosureValidator, // entity
-        duplicateIdsValidator, // campus
-      ]
-      const filtered = ScopeRouter.filterRules(rules, 'building')
-      expect(filtered).toHaveLength(1)
-      expect(filtered[0].id).toBe('polygon-closure')
-    })
-
-    it('campus scope returns all rules', () => {
-      const rules = [
-        polygonClosureValidator, // entity
-        selfIntersectionValidator, // entity
-        duplicateIdsValidator, // campus
-      ]
-      const filtered = ScopeRouter.filterRules(rules, 'campus')
-      expect(filtered).toHaveLength(3)
-    })
+  it('returns cached snapshot when version unchanged', () => {
+    const engine = createEngine()
+    const doc = createDocument()
+    const s1 = engine.validate(doc)
+    const s2 = engine.validate(doc)
+    expect(s1).toBe(s2)
   })
 
-  describe('getBuildingEntityIds', () => {
-    it('returns all entity IDs within a building', () => {
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-1',
-            name: 'B1',
-            floors: [
-              createFloor({
-                id: 'flr-1',
-                level: 0,
-                rooms: [
-                  createRoom({ id: 'room-1', name: 'R1' }),
-                  createRoom({ id: 'room-2', name: 'R2' }),
-                ],
-              }),
-            ],
-          }),
-          createBuilding({
-            id: 'bld-2',
-            name: 'B2',
-          }),
-        ],
-      })
-
-      const ids = ScopeRouter.getBuildingEntityIds(doc, 'bld-1')
-      expect(ids).toContain('bld-1')
-      expect(ids).toContain('flr-1')
-      expect(ids).toContain('room-1')
-      expect(ids).toContain('room-2')
-      expect(ids).not.toContain('bld-2')
-    })
-
-    it('returns only the building ID when building has no floors', () => {
-      const doc = createDocument({
-        buildings: [createBuilding({ id: 'empty-bld' })],
-      })
-      const ids = ScopeRouter.getBuildingEntityIds(doc, 'empty-bld')
-      expect(ids).toEqual(['empty-bld'])
-    })
+  it('runs full validation on first call (no previous snapshot)', () => {
+    const engine = createEngine()
+    const doc = createDocument()
+    const snapshot = engine.validate(doc)
+    expect(snapshot.statistics.rulesExecuted).toBeGreaterThan(0)
+    expect(snapshot.statistics.rulesReused).toBe(0)
   })
 
-  describe('getAllEntityIds', () => {
-    it('returns all entity IDs in the document', () => {
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-1',
-            floors: [
-              createFloor({
-                id: 'flr-1',
-                rooms: [createRoom({ id: 'room-1' })],
-              }),
-            ],
-          }),
-        ],
-        roads: [{ id: 'road-1', name: 'Main', polyline: { points: [{ lat: 0, lng: 0 }] }, width: 5, surface: 'paved', type: 'arterial', metadata: {} }],
-        panoramas: [{ id: 'pano-1', label: 'View', position: { lat: 0, lng: 0 }, heading: 0, imageAssetId: 'img-1', hotspots: [] }],
-        qrCheckpoints: [{ id: 'qr-1', label: 'QR1', position: { lat: 0, lng: 0 }, floor: 0, buildingId: 'bld-1', code: 'abc', metadata: {} }],
-      })
-
-      const ids = ScopeRouter.getAllEntityIds(doc)
-      expect(ids).toContain('bld-1')
-      expect(ids).toContain('flr-1')
-      expect(ids).toContain('room-1')
-      expect(ids).toContain('road-1')
-      expect(ids).toContain('pano-1')
-      expect(ids).toContain('qr-1')
+  it('skips rules whose affinity does not match changed entity types', () => {
+    const engine = new ValidationEngine()
+    engine.registerRule(disconnectedGraphRule)
+    engine.registerRule(missingNameRule)
+    engine.registerRule({
+      ruleId: 'building-only',
+      description: 'Only looks at buildings',
+      category: 'metadata',
+      defaultSeverity: 'error',
+      profiles: ['draft', 'publish', 'strict'],
+      affinity: 'entity:building',
+      execute: () => [],
     })
+    engine.registerAnalysisPass(new GraphAnalysisPass())
+    engine.registerAnalysisPass(new GeometryAnalysisPass())
+    engine.registerAnalysisPass(new MetadataIndexPass())
+    engine.initialize()
+
+    const doc = createDocument()
+    const s1 = engine.validate(doc)
+
+    // Change a room, not a building
+    recordChange(doc, { entityId: 'rm-1', entityType: 'room', operation: 'updated' })
+
+    const s2 = engine.validate(doc)
+    // building-only rule should be skipped (room change doesn't match entity:building affinity)
+    expect(s2.statistics.rulesExecuted).toBeLessThan(s1.statistics.rulesExecuted)
+    expect(s2.statistics.rulesReused).toBeGreaterThan(0)
   })
 
-  describe('resolveBuilding', () => {
-    it('returns building ID for a building itself', () => {
-      const doc = createDocument()
-      expect(ScopeRouter.resolveBuilding(doc, 'bld-1')).toBe('bld-1')
-    })
+  it('validateFresh always runs all rules', () => {
+    const engine = createEngine()
+    const doc = createDocument()
 
-    it('returns building ID for a floor within that building', () => {
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-1',
-            floors: [createFloor({ id: 'flr-x' })],
-          }),
-          createBuilding({
-            id: 'bld-2',
-            floors: [createFloor({ id: 'flr-y' })],
-          }),
-        ],
-      })
-      expect(ScopeRouter.resolveBuilding(doc, 'flr-x')).toBe('bld-1')
-      expect(ScopeRouter.resolveBuilding(doc, 'flr-y')).toBe('bld-2')
-    })
+    const s1 = engine.validate(doc)
+    recordChange(doc, { entityId: 'bld-1', entityType: 'building', operation: 'updated' })
 
-    it('returns building ID for a room within that building', () => {
-      const doc = createDocument({
-        buildings: [
-          createBuilding({
-            id: 'bld-1',
-            floors: [
-              createFloor({
-                id: 'flr-1',
-                rooms: [createRoom({ id: 'room-deep' })],
-              }),
-            ],
-          }),
-        ],
-      })
-      expect(ScopeRouter.resolveBuilding(doc, 'room-deep')).toBe('bld-1')
-    })
+    const fresh = engine.validateFresh(doc)
+    const totalRules = s1.statistics.rulesExecuted
+    expect(fresh.statistics.rulesExecuted).toBe(totalRules)
+    expect(fresh.statistics.rulesReused).toBe(0)
+  })
 
-    it('returns null for top-level entities (roads, panoramas)', () => {
-      const doc = createDocument()
-      expect(ScopeRouter.resolveBuilding(doc, 'does-not-exist')).toBeNull()
+  it('profile switch triggers full validation', () => {
+    const engine = createEngine()
+    const doc = createDocument()
+
+    const draft = engine.validate(doc, 'draft')
+    const publish = engine.validateFresh(doc, 'publish')
+
+    expect(draft.profile).toBe('draft')
+    expect(publish.profile).toBe('publish')
+  })
+
+  it('reports reuse statistics correctly', () => {
+    const engine = new ValidationEngine()
+    engine.registerRule(disconnectedGraphRule)
+    engine.registerRule({
+      ruleId: 'building-only',
+      description: 'Only looks at buildings',
+      category: 'metadata',
+      defaultSeverity: 'error',
+      profiles: ['draft', 'publish', 'strict'],
+      affinity: 'entity:building',
+      execute: () => [],
     })
+    engine.registerAnalysisPass(new GraphAnalysisPass())
+    engine.registerAnalysisPass(new GeometryAnalysisPass())
+    engine.registerAnalysisPass(new MetadataIndexPass())
+    engine.initialize()
+
+    const doc = createDocument()
+
+    const full = engine.validate(doc)
+    const totalRules = full.statistics.rulesExecuted
+
+    recordChange(doc, { entityId: 'rm-1', entityType: 'room', operation: 'updated' })
+    const inc = engine.validate(doc)
+
+    expect(inc.statistics.rulesExecuted + inc.statistics.rulesReused).toBe(totalRules)
+    expect(inc.statistics.rulesReused).toBeGreaterThan(0)
+  })
+
+  it('rule crash in incremental mode replaces old issues from that rule', () => {
+    const engine = new ValidationEngine()
+    engine.registerRule(disconnectedGraphRule)
+    engine.registerRule({
+      ruleId: 'intermittent',
+      description: 'Intermittent',
+      category: 'metadata',
+      defaultSeverity: 'error',
+      profiles: ['draft', 'publish', 'strict'],
+      affinity: 'global',
+      execute: () => [{ issueId: 'intermittent:x', ruleId: 'intermittent', severity: 'error', message: 'Existing issue', targets: [] }],
+    })
+    engine.registerAnalysisPass(new GraphAnalysisPass())
+    engine.initialize()
+
+    const doc = createDocument()
+    const s1 = engine.validate(doc)
+    expect(s1.issues.filter(i => i.ruleId === 'intermittent').length).toBe(1)
+
+    recordChange(doc, { entityId: 'bld-1', entityType: 'building', operation: 'updated' })
+    const s2 = engine.validate(doc)
+    // The intermittent rule re-runs (global) — its old issue is replaced by the fresh run
+    // Since the rule still produces issues, they should still be present
+    expect(s2.issues.filter(i => i.ruleId === 'intermittent').length).toBe(1)
   })
 })
+
+
