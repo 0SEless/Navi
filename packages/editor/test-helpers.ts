@@ -3,6 +3,7 @@ import type { CampusDocument, Building, Floor, Room } from '@navi/core'
 export function createDocument(overrides?: Partial<CampusDocument>): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: {
       name: 'Test Campus',
       description: '',
