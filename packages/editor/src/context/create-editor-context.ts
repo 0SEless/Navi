@@ -15,14 +15,17 @@ import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
 import { SelectionManager } from '../selection'
 import { ToolRegistry } from '../tools/registry'
 import { Viewport } from '../viewport'
-import { ValidationRegistry, ValidationEngine } from '../validation'
-import { polygonClosureValidator } from '../validation/validators/polygon-closure'
-import { selfIntersectionValidator } from '../validation/validators/self-intersection'
-import { duplicateIdsValidator } from '../validation/validators/duplicate-ids'
-import { entranceConnectivityValidator } from '../validation/validators/entrance-connectivity'
-import { floorMetadataValidator } from '../validation/validators/floor-metadata'
-import { roadConnectivityValidator } from '../validation/validators/road-connectivity'
-import { referenceValidator } from '../validation/validators/reference'
+import { ValidationEngine } from '../validation/validation-engine'
+import { AutoFixRegistry, assignUntitledFix, assignFloorLevelFix, clearRoadReferenceFix, clearEntranceReferenceFix, closePolygonFix } from '../validation/fix'
+import { disconnectedGraphRule, missingNameRule, zeroAreaPolygonRule } from '../validation/rules/modules/skeleton'
+import { polygonClosureRule } from '../validation/rules/modules/polygon-closure'
+import { selfIntersectionRule } from '../validation/rules/modules/self-intersection'
+import { duplicateIdsRule } from '../validation/rules/modules/duplicate-ids'
+import { entranceConnectivityRule } from '../validation/rules/modules/entrance-connectivity'
+import { floorMetadataRule } from '../validation/rules/modules/floor-metadata'
+import { roadConnectivityRule } from '../validation/rules/modules/road-connectivity'
+import { referenceRule } from '../validation/rules/modules/reference'
+import { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass } from '../validation/rules/analysis'
 import { NavigationCompiler } from '../services/navigation-compiler'
 import { PersistenceService } from '../services/persistence-service'
 import type { PersistenceAdapter } from '../services/persistence-service'
@@ -31,8 +34,6 @@ import { WorkflowService } from '../services/workflow-service'
 import { AutosaveService } from '../services/autosave-service'
 import { PublishStore } from '../services/publish-store'
 import { PublishService } from '../services/publish-service'
-import { ValidationStore } from '../services/validation-store'
-import { ValidationService } from '../services/validation-service'
 import { EditingContextService } from '../editing-context'
 import { CoordinateTransformer } from '@navi/core'
 import type { CampusDocument, Room, Hallway, Staircase, Elevator, Entrance, LocalCoord } from '@navi/core'
@@ -283,20 +284,35 @@ export function createEditorContext(
   registry.register('toolRegistry', toolRegistry)
   registry.register('viewport', viewport)
 
-  const validation = new ValidationRegistry()
-  validation.register(polygonClosureValidator)
-  validation.register(selfIntersectionValidator)
-  validation.register(duplicateIdsValidator)
-  validation.register(entranceConnectivityValidator)
-  validation.register(floorMetadataValidator)
-  validation.register(roadConnectivityValidator)
-  validation.register(referenceValidator)
-  registry.register('validation', validation)
+  const validationEngine = new ValidationEngine()
+  validationEngine.registerRule(disconnectedGraphRule)
+  validationEngine.registerRule(missingNameRule)
+  validationEngine.registerRule(zeroAreaPolygonRule)
+  validationEngine.registerRule(polygonClosureRule)
+  validationEngine.registerRule(selfIntersectionRule)
+  validationEngine.registerRule(duplicateIdsRule)
+  validationEngine.registerRule(entranceConnectivityRule)
+  validationEngine.registerRule(floorMetadataRule)
+  validationEngine.registerRule(roadConnectivityRule)
+  validationEngine.registerRule(referenceRule)
+  validationEngine.registerAnalysisPass(new GraphAnalysisPass())
+  validationEngine.registerAnalysisPass(new GeometryAnalysisPass())
+  validationEngine.registerAnalysisPass(new MetadataIndexPass())
+  validationEngine.initialize()
+  registry.register('validationEngine', validationEngine)
 
-  const validationEngine = new ValidationEngine(validation)
-  const validationStore = new ValidationStore()
-  const validationService = new ValidationService(validationEngine, validationStore, { debounceMs: 750 })
-  registry.register('validationService', validationService)
+  eventBus.on('document.changed', () => {
+    validationEngine.markDirty()
+  })
+
+  const autoFixRegistry = new AutoFixRegistry()
+  autoFixRegistry.registerFix(assignUntitledFix)
+  autoFixRegistry.registerFix(assignFloorLevelFix)
+  autoFixRegistry.registerFix(clearRoadReferenceFix)
+  autoFixRegistry.registerFix(clearEntranceReferenceFix)
+  autoFixRegistry.registerFix(closePolygonFix)
+  autoFixRegistry.initialize()
+  registry.register('autoFixRegistry', autoFixRegistry)
 
   const persistence = new PersistenceService(persistenceAdapter)
   const workflowStore = new WorkflowStore()
