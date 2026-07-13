@@ -1,5 +1,24 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, MutationResult } from './types'
+
+export function detectEntityType(document: CampusDocument, id: string): string {
+  for (const bld of document.buildings) {
+    if (bld.id === id) return 'building'
+    for (const flr of bld.floors) {
+      if (flr.id === id) return 'floor'
+      for (const rm of flr.rooms) if (rm.id === id) return 'room'
+      for (const hw of flr.hallways) if (hw.id === id) return 'hallway'
+      for (const st of flr.staircases) if (st.id === id) return 'staircase'
+      for (const el of flr.elevators) if (el.id === id) return 'elevator'
+      for (const ent of flr.entrances) if (ent.id === id) return 'entrance'
+    }
+  }
+  for (const rd of document.roads) if (rd.id === id) return 'road'
+  for (const pan of document.panoramas) if (pan.id === id) return 'panorama'
+  for (const qr of document.qrCheckpoints) if (qr.id === id) return 'checkpoint'
+  return 'unknown'
+}
 
 function resolveEntity(document: CampusDocument, id: string): Record<string, any> | null {
   for (const bld of document.buildings) {
@@ -36,6 +55,7 @@ export const entityUpdateHandler: CommandHandler = {
       entity[key] = value
     }
 
+    recordChange(document, { entityId, entityType: detectEntityType(document, entityId), operation: 'updated' })
     return { success: true, entityId, data: { oldValues } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): any {

@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, RoomCategory, LocalCoord } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -32,6 +33,7 @@ export const roomCreateHandler: CommandHandler = {
       metadata: {},
     })
 
+    recordChange(document, { entityId: id, entityType: 'room', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId, floorId } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -55,6 +57,7 @@ export const roomRenameHandler: CommandHandler = {
         if (room) {
           const oldName = room.name
           room.name = newName
+          recordChange(document, { entityId: roomId, entityType: 'room', operation: 'updated' })
           return { success: true, entityId: roomId, data: { oldName } }
         }
       }
@@ -79,6 +82,7 @@ export const roomDeleteHandler: CommandHandler = {
         const index = flr.rooms.findIndex(r => r.id === roomId)
         if (index !== -1) {
           flr.rooms.splice(index, 1)
+          recordChange(document, { entityId: roomId, entityType: 'room', operation: 'deleted' })
           return { success: true, entityId: roomId }
         }
       }

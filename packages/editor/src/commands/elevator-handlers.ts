@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -26,6 +27,7 @@ export const elevatorCreateHandler: CommandHandler = {
 
     ctx.floor.elevators.push({ id, name, position, fromLevel, toLevel })
 
+    recordChange(document, { entityId: id, entityType: 'elevator', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId, floorId } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -47,6 +49,7 @@ export const elevatorDeleteHandler: CommandHandler = {
         const index = flr.elevators.findIndex(e => e.id === elevatorId)
         if (index !== -1) {
           flr.elevators.splice(index, 1)
+          recordChange(document, { entityId: elevatorId, entityType: 'elevator', operation: 'deleted' })
           return { success: true, entityId: elevatorId }
         }
       }

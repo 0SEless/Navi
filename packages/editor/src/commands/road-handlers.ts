@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, LatLng, RoadSurface, RoadType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -17,6 +18,7 @@ export const roadCreateHandler: CommandHandler = {
 
     document.roads.push({ id, name, polyline: { points }, width, surface, type, metadata: {} })
 
+    recordChange(document, { entityId: id, entityType: 'road', operation: 'created' })
     return { success: true, entityId: id, data: { id } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -36,6 +38,7 @@ export const roadRenameHandler: CommandHandler = {
     const oldName = road.name
     road.name = newName
 
+    recordChange(document, { entityId: roadId, entityType: 'road', operation: 'updated' })
     return { success: true, entityId: roadId, data: { oldName } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -55,6 +58,7 @@ export const roadDeleteHandler: CommandHandler = {
     if (index === -1) return { success: false, error: `Road not found: ${roadId}` }
 
     document.roads.splice(index, 1)
+    recordChange(document, { entityId: roadId, entityType: 'road', operation: 'deleted' })
     return { success: true, entityId: roadId }
   },
   inverse(): Command | null {

@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, LatLng } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -16,6 +17,7 @@ export const qrCreateHandler: CommandHandler = {
 
     document.qrCheckpoints.push({ id, label, position, floor, buildingId, code, metadata: {} })
 
+    recordChange(document, { entityId: id, entityType: 'checkpoint', operation: 'created' })
     return { success: true, entityId: id, data: { id } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -32,6 +34,7 @@ export const qrDeleteHandler: CommandHandler = {
     if (index === -1) return { success: false, error: `QR checkpoint not found: ${qrId}` }
 
     document.qrCheckpoints.splice(index, 1)
+    recordChange(document, { entityId: qrId, entityType: 'checkpoint', operation: 'deleted' })
     return { success: true, entityId: qrId }
   },
   inverse(): Command | null {

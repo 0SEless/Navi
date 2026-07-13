@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, LatLng } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -17,6 +18,7 @@ export const panoramaCreateHandler: CommandHandler = {
 
     document.panoramas.push({ id, label, position, heading, imageAssetId, buildingId, floor, hotspots: [] })
 
+    recordChange(document, { entityId: id, entityType: 'panorama', operation: 'created' })
     return { success: true, entityId: id, data: { id } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -33,6 +35,7 @@ export const panoramaDeleteHandler: CommandHandler = {
     if (index === -1) return { success: false, error: `Panorama not found: ${panoramaId}` }
 
     document.panoramas.splice(index, 1)
+    recordChange(document, { entityId: panoramaId, entityType: 'panorama', operation: 'deleted' })
     return { success: true, entityId: panoramaId }
   },
   inverse(): Command | null {

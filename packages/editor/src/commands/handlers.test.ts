@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CampusDocument } from '@navi/core'
+import { getChangesSince } from '@navi/core'
 import { roomCreateHandler, roomRenameHandler, roomDeleteHandler } from './room-handlers'
 import { hallwayCreateHandler, hallwayRenameHandler, hallwayDeleteHandler } from './hallway-handlers'
 import { staircaseCreateHandler, staircaseDeleteHandler } from './staircase-handlers'
@@ -9,6 +10,7 @@ import { roadCreateHandler, roadRenameHandler, roadDeleteHandler } from './road-
 import { panoramaCreateHandler, panoramaDeleteHandler } from './panorama-handlers'
 import { qrCreateHandler, qrDeleteHandler } from './qr-handlers'
 import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler } from './floor-handlers'
+import { entityUpdateHandler } from './entity-update-handler'
 
 function createDoc(): CampusDocument {
   return {
@@ -307,5 +309,39 @@ describe('floor handlers', () => {
     expect(doc.buildings[0].floors[1].rooms).toHaveLength(1)
     expect(doc.buildings[0].floors[1].rooms[0].id).not.toBe('rm-1')
     expect(doc.buildings[0].floors[1].label).toContain('copy')
+  })
+})
+
+describe('change recording', () => {
+  it('records change on room creation', () => {
+    const doc = createDoc()
+    roomCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', name: '101', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] })
+    const changes = getChangesSince(doc, 0)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ entityType: 'room', operation: 'created' })
+  })
+
+  it('records change on road creation', () => {
+    const doc = createDoc()
+    roadCreateHandler.execute(doc, { name: 'Main Rd', points: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }] })
+    const changes = getChangesSince(doc, 0)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ entityType: 'road', operation: 'created' })
+  })
+
+  it('records change on floor creation', () => {
+    const doc = createDoc()
+    floorCreateHandler.execute(doc, { buildingId: 'bld-1', label: 'Second' })
+    const changes = getChangesSince(doc, 0)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ entityType: 'floor', operation: 'created' })
+  })
+
+  it('records change on entity update', () => {
+    const doc = createDoc()
+    entityUpdateHandler.execute(doc, { entityId: 'bld-1', changes: { name: 'Renamed' } })
+    const changes = getChangesSince(doc, 0)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ entityType: 'building', operation: 'updated' })
   })
 })

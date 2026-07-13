@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, BuildingCategory, Floor } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -34,6 +35,7 @@ export const buildingCreateHandler: CommandHandler = {
     if (typeof payload.color === 'string') building.color = payload.color
     document.buildings.push(building)
 
+    recordChange(document, { entityId: id, entityType: 'building', operation: 'created' })
     return { success: true, entityId: id, data: { id } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -53,6 +55,7 @@ export const buildingRenameHandler: CommandHandler = {
     const oldName = building.name
     building.name = newName
 
+    recordChange(document, { entityId: buildingId, entityType: 'building', operation: 'updated' })
     return { success: true, entityId: buildingId, data: { oldName } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -73,6 +76,7 @@ export const buildingDeleteHandler: CommandHandler = {
 
     const removed = document.buildings.splice(index, 1)[0]
 
+    recordChange(document, { entityId: buildingId, entityType: 'building', operation: 'deleted' })
     return { success: true, entityId: buildingId, data: { removed } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {

@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -14,6 +15,7 @@ export const floorCreateHandler: CommandHandler = {
 
     building.floors.push({ id, level, label, elevation: level * 4, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} })
 
+    recordChange(document, { entityId: id, entityType: 'floor', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -32,6 +34,7 @@ export const floorRenameHandler: CommandHandler = {
       if (floor) {
         const oldLabel = floor.label
         floor.label = newLabel
+        recordChange(document, { entityId: floorId, entityType: 'floor', operation: 'updated' })
         return { success: true, entityId: floorId, data: { oldLabel } }
       }
     }
@@ -54,6 +57,7 @@ export const floorDeleteHandler: CommandHandler = {
       const index = bld.floors.findIndex(f => f.id === floorId)
       if (index !== -1) {
         bld.floors.splice(index, 1)
+        recordChange(document, { entityId: floorId, entityType: 'floor', operation: 'deleted' })
         return { success: true, entityId: floorId }
       }
     }
@@ -85,6 +89,7 @@ export const floorDuplicateHandler: CommandHandler = {
           entrances: JSON.parse(JSON.stringify(sourceFloor.entrances.map(e => ({ ...e, id: `ent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
           metadata: {},
         })
+        recordChange(document, { entityId: newId, entityType: 'floor', operation: 'created' })
         return { success: true, entityId: newId, data: { id: newId } }
       }
     }

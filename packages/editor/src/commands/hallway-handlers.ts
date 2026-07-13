@@ -1,3 +1,4 @@
+import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 
@@ -27,6 +28,7 @@ export const hallwayCreateHandler: CommandHandler = {
 
     ctx.floor.hallways.push({ id, name, polyline: { points }, width })
 
+    recordChange(document, { entityId: id, entityType: 'hallway', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId, floorId } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -50,6 +52,7 @@ export const hallwayRenameHandler: CommandHandler = {
         if (hw) {
           const oldName = hw.name
           hw.name = newName
+          recordChange(document, { entityId: hallwayId, entityType: 'hallway', operation: 'updated' })
           return { success: true, entityId: hallwayId, data: { oldName } }
         }
       }
@@ -74,6 +77,7 @@ export const hallwayDeleteHandler: CommandHandler = {
         const index = flr.hallways.findIndex(h => h.id === hallwayId)
         if (index !== -1) {
           flr.hallways.splice(index, 1)
+          recordChange(document, { entityId: hallwayId, entityType: 'hallway', operation: 'deleted' })
           return { success: true, entityId: hallwayId }
         }
       }
