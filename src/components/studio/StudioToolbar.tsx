@@ -1,8 +1,9 @@
 'use client'
 
-import { MousePointer2, Move, Route, Building2, ArrowUpDown, DoorOpen, CornerUpRight, Square, Undo2, Redo2, Save } from 'lucide-react'
+import { MousePointer2, Move, Route, Building2, ArrowUpDown, DoorOpen, CornerUpRight, Square, Undo2, Redo2, Save, Rocket } from 'lucide-react'
 import { useEditor } from '@navi/editor'
 import type { EditorMode } from '@navi/editor'
+import { useState, useEffect } from 'react'
 
 const CAMPUS_TOOLS: { tool: string; icon: typeof MousePointer2; label: string; color: string }[] = [
   { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
@@ -31,6 +32,29 @@ export function StudioToolbar() {
   const editingContext = services.get('editingContext')
   const history = services.get('history')
   const workflow = services.get('workflow')
+
+  const publishService = services.get('publish') as any
+  const [publishState, setPublishState] = useState<string>('idle')
+  const [publishError, setPublishError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!publishService) return
+    const unsub = publishService.getSnapshot
+      ? () => {
+          const snap = publishService.getSnapshot()
+          setPublishState(snap.publishState)
+          setPublishError(snap.publishError)
+        }
+      : () => {}
+    const interval = setInterval(() => {
+      if (publishService.getSnapshot) {
+        const snap = publishService.getSnapshot()
+        setPublishState(snap.publishState)
+        setPublishError(snap.publishError)
+      }
+    }, 500)
+    return () => clearInterval(interval)
+  }, [publishService])
 
   const mode = editingContext?.mode ?? 'campus'
   const activeToolId = toolRegistry?.activeToolId ?? null
@@ -130,6 +154,19 @@ export function StudioToolbar() {
           fontSize: 11, fontWeight: 600, cursor: 'pointer',
         }}
       ><Save size={13} /> {workflow?.isDirty() ? 'Save*' : 'Save'}</button>
+
+      <button
+        onClick={() => { publishService?.publish(); }}
+        disabled={publishState === 'compiling' || publishState === 'uploading' || publishState === 'preparing'}
+        title={publishError ?? 'Publish campus'}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4,
+          border: '1px solid var(--navi-primary)',
+          background: publishState === 'success' ? 'var(--navi-primary)' : 'transparent',
+          color: publishState === 'success' ? 'white' : 'var(--navi-primary)',
+          fontSize: 11, fontWeight: 600, cursor: publishState === 'compiling' ? 'not-allowed' : 'pointer',
+        }}
+      ><Rocket size={13} /> {publishState === 'success' ? 'Published' : publishState === 'error' ? 'Error' : publishState === 'compiling' ? 'Compiling...' : publishState === 'uploading' ? 'Uploading...' : 'Publish'}</button>
     </div>
   )
 }
