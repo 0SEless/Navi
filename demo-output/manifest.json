@@ -1,29 +1,29 @@
 {
-  "projectId": "ASU-Ibajay Campus",
-  "campusId": "ASU-Ibajay Campus",
-  "publishedAt": "2026-07-09T06:27:40.638Z",
+  "projectId": "Demo Campus",
+  "campusId": "Demo Campus",
+  "publishedAt": "2026-07-14T00:04:01.428Z",
   "schemaVersion": 1,
   "compilerVersion": "0.1.0",
   "artifacts": {
     "navigationGraph": {
       "filename": "navigation.graph.json",
-      "checksum": "04cde54af08fd5e38b2d2ec7a7fe526cea3f6f82753c997e21bebe6c3cc012ba",
-      "size": 23326
+      "checksum": "0a3b6f3738d07fa8de3a3b8a9540b6099f39e2434451626a184bd1aa6b6755a8",
+      "size": 2003
     },
     "searchIndex": {
       "filename": "search.index.json",
-      "checksum": "04327ac7cdb2c772ba7f5b869e46563820ff5ec4431f7e7a64fdbebeb62bc646",
-      "size": 8829
+      "checksum": "16c13f1d7bf7154931d7a9cb04ba7bac67ca921756843a6976f775f9989f52a4",
+      "size": 636
     },
     "poiData": {
       "filename": "poi.json",
-      "checksum": "eb1a6f4b2d7de3f673471ee0146ce50fc50a1dc547b3f82de9f101ea9b3fa69d",
-      "size": 11950
+      "checksum": "098974a80df7c4985ac806b7c11cda64c8b1d19449bf9680ab4de8821fbde514",
+      "size": 1058
     },
     "buildingIndex": {
       "filename": "building-index.json",
-      "checksum": "dedb22438c384943a9610c7d83f91f4fa88ec3dc134574fa5e404ab63e0d53d0",
-      "size": 6354
+      "checksum": "c1f0d68cf1a046e5b9be359ebbbd89f75a31a761940bb7232df2ba30ca3749b5",
+      "size": 482
     }
   }
 }

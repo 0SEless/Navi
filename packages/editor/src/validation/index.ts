@@ -1,9 +1,9 @@
-export { ValidationRegistry } from './registry'
-export type {
-  ValidationIssue, ValidationScope, ValidationSeverity, ValidationCategory,
-  ValidationIssueScope, CampusEntityType, ValidationLocation,
-  ValidatorPlugin, ValidatorGroup,
-} from './registry'
-export { ValidationEngine, ScopeRouter } from './engine'
-export type { ScopeContext, EntityScopeContext, BuildingScopeContext } from './engine'
-export { polygonClosureValidator, selfIntersectionValidator, duplicateIdsValidator } from './validators'
+export type { ValidationSnapshot, ValidationIssue, ValidationStatistics, AnalysisCache, ValidationState } from './snapshot'
+export { buildSnapshot } from './snapshot'
+export type { ValidationRule, ValidationContext, ValidationProfileId, ValidationProfile, ProfileConfig, ValidationAffinity } from './rules/types'
+export { getProfile, getProfiles, getDefaultProfile, resolveConfig } from './profiles'
+export type { RuleProvider, RuleRegistry } from './rules/registry'
+export { DefaultRuleRegistry } from './rules/registry'
+export type { AnalysisPass } from './rules/analysis'
+export { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass, SpatialIndexPass } from './rules/analysis'
+export { ValidationEngine } from './validation-engine'

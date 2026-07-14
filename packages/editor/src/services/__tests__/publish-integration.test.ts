@@ -27,10 +27,15 @@ describe('Publish integration', () => {
             isSaving: vi.fn().mockReturnValue(false),
             hasUnsavedChanges: vi.fn().mockReturnValue(false),
           },
-          validationService: {
-            getSnapshot: vi.fn().mockReturnValue({ lastValidatedRevision: 1, summary: { errors: 0 } }),
-            hasErrors: vi.fn().mockReturnValue(false),
-            validateNow: vi.fn().mockResolvedValue(undefined),
+          validationEngine: {
+            validate: vi.fn().mockReturnValue({
+              issues: [],
+              statistics: { totalIssues: 0, errors: 0, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+            }),
+            getLastSnapshot: vi.fn().mockReturnValue({
+              issues: [],
+              statistics: { totalIssues: 0, errors: 0, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+            }),
           },
           navigationCompiler: {
             compile: vi.fn().mockResolvedValue({
@@ -93,10 +98,15 @@ describe('Publish integration', () => {
             isSaving: vi.fn().mockReturnValue(false),
             hasUnsavedChanges: vi.fn().mockReturnValue(false),
           },
-          validationService: {
-            getSnapshot: vi.fn().mockReturnValue({ lastValidatedRevision: 2, summary: { errors: 0 } }),
-            hasErrors: vi.fn().mockReturnValue(false),
-            validateNow: vi.fn().mockResolvedValue(undefined),
+          validationEngine: {
+            validate: vi.fn().mockReturnValue({
+              issues: [],
+              statistics: { totalIssues: 0, errors: 0, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+            }),
+            getLastSnapshot: vi.fn().mockReturnValue({
+              issues: [],
+              statistics: { totalIssues: 0, errors: 0, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+            }),
           },
           navigationCompiler: { compile: compileMock },
           persistence: { publish: publishMock },
@@ -125,10 +135,13 @@ describe('Publish integration', () => {
     expect(publishMock).toHaveBeenCalledTimes(1)
   })
 
-  it('validation caching skips re-validation when revision matches', async () => {
+  it('fails publish when validation errors exist', async () => {
     const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
     const documentStore = { version: 1, document: { metadata: { name: 'test' } } }
-    const validateNow = vi.fn().mockResolvedValue(undefined)
+    const validate = vi.fn().mockReturnValue({
+      issues: [{ severity: 'error', message: 'Test error', ruleId: 'test' }],
+      statistics: { totalIssues: 1, errors: 1, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+    })
 
     const context = {
       get: (id: string) => {
@@ -137,24 +150,20 @@ describe('Publish integration', () => {
             isSaving: vi.fn().mockReturnValue(false),
             hasUnsavedChanges: vi.fn().mockReturnValue(false),
           },
-          validationService: {
-            getSnapshot: vi.fn().mockReturnValue({ lastValidatedRevision: 1, summary: { errors: 0 } }),
-            hasErrors: vi.fn().mockReturnValue(false),
-            validateNow,
+          validationEngine: {
+            validate,
+            getLastSnapshot: vi.fn().mockReturnValue({
+              issues: [{ severity: 'error', message: 'Test error', ruleId: 'test' }],
+              statistics: { totalIssues: 1, errors: 1, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+            }),
           },
           navigationCompiler: {
             compile: vi.fn().mockResolvedValue({
-              status: 'success',
-              timestamp: Date.now(),
-              artifacts: {
-                navigationGraph: { version: '1.0.0', nodes: [], edges: [] },
-                searchIndex: null, poiData: null, buildingIndex: null,
-              },
+              status: 'success', timestamp: Date.now(),
+              artifacts: { navigationGraph: { version: '1.0.0', nodes: [], edges: [] }, searchIndex: null, poiData: null, buildingIndex: null },
             }),
           },
-          persistence: {
-            publish: vi.fn().mockResolvedValue({ success: true }),
-          },
+          persistence: { publish: vi.fn().mockResolvedValue({ success: true }) },
           documentStore,
           eventBus,
         }
@@ -164,7 +173,6 @@ describe('Publish integration', () => {
     } as unknown as EditorServiceContext
 
     await service.init(context)
-    await service.publish()
-    expect(validateNow).not.toHaveBeenCalled()
+    await expect(service.publish()).rejects.toThrow('Validation has errors')
   })
 })

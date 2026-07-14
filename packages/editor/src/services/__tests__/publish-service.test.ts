@@ -3,31 +3,32 @@ import { PublishService } from '../publish-service'
 import { PublishStore } from '../publish-store'
 import type { EditorServiceContext } from '../../context/service-registry'
 
+function makeSnapshot(overrides?: { errors?: number }) {
+  const errs = overrides?.errors ?? 0
+  return {
+    issues: errs > 0 ? [{ severity: 'error', message: 'Validation error', ruleId: 'test' }] : [],
+    statistics: { totalIssues: errs, errors: errs, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+  }
+}
+
 function createMockContext(overrides?: {
   isSaving?: boolean
   hasUnsavedChanges?: boolean
-  lastValidatedRevision?: number
-  documentVersion?: number
   hasErrors?: boolean
   compileResult?: any
   publishResult?: any
 }): { context: EditorServiceContext } {
   const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
-  const documentVersion = overrides?.documentVersion ?? 1
-  const documentStore = { version: documentVersion, document: { metadata: { name: 'test-campus' } } }
+  const documentStore = { version: 1, document: { metadata: { name: 'test-campus' } } }
 
   const workflowService = {
     isSaving: vi.fn().mockReturnValue(overrides?.isSaving ?? false),
     hasUnsavedChanges: vi.fn().mockReturnValue(overrides?.hasUnsavedChanges ?? false),
   }
 
-  const validationService = {
-    getSnapshot: vi.fn().mockReturnValue({
-      lastValidatedRevision: overrides?.lastValidatedRevision ?? documentVersion,
-      summary: { errors: 0 },
-    }),
-    hasErrors: vi.fn().mockReturnValue(overrides?.hasErrors ?? false),
-    validateNow: vi.fn().mockResolvedValue(undefined),
+  const validationEngine = {
+    validate: vi.fn().mockReturnValue(makeSnapshot({ errors: overrides?.hasErrors ? 1 : 0 })),
+    getLastSnapshot: vi.fn().mockReturnValue(makeSnapshot({ errors: overrides?.hasErrors ? 1 : 0 })),
   }
 
   const navCompiler = {
@@ -44,7 +45,7 @@ function createMockContext(overrides?: {
     get: (id: string) => {
       const map: Record<string, any> = {
         workflow: workflowService,
-        validationService,
+        validationEngine,
         navigationCompiler: navCompiler,
         persistence,
         documentStore,
@@ -102,17 +103,12 @@ describe('PublishService', () => {
     await expect(service.publish()).rejects.toThrow('Save in progress')
   })
 
-  it('runs validation if revision is stale', async () => {
-    const { context } = createMockContext({ lastValidatedRevision: 0, documentVersion: 5 })
+  it('runs validation during publish', async () => {
+    const { context } = createMockContext()
     await service.init(context)
     await service.publish()
-    expect(service.getSnapshot().publishState).toBe('success')
-  })
-
-  it('skips validation if cached revision matches', async () => {
-    const { context } = createMockContext({ lastValidatedRevision: 1, documentVersion: 1 })
-    await service.init(context)
-    await service.publish()
+    const engine = context.get('validationEngine') as any
+    expect(engine.validate).toHaveBeenCalled()
     expect(service.getSnapshot().publishState).toBe('success')
   })
 

@@ -3,21 +3,21 @@ import type { EditorServiceContext } from '../context/service-registry'
 import type { DocumentEventBus } from '../eventbus'
 import type { DocumentStore } from '../context/document-store'
 import type { WorkflowService } from './workflow-service'
-import type { ValidationService } from './validation-service'
 import type { NavigationCompiler, CompileResult } from './navigation-compiler'
+import type { ValidationEngine } from '../validation/validation-engine'
 import type { PersistenceService } from './persistence-service'
 import type { PublishStore, PublishSnapshot, PublishState, PublishResult } from './publish-store'
 
 export class PublishService extends BaseEditorService {
   readonly id = 'publish'
   readonly dependencies: readonly string[] = [
-    'workflow', 'validationService', 'navigationCompiler', 'persistence',
+    'workflow', 'navigationCompiler', 'persistence',
     'documentStore', 'eventBus', 'publishStore',
   ] as const
 
   private publishStore!: PublishStore
   private workflowService!: WorkflowService
-  private validationService!: ValidationService
+  private validationEngine!: ValidationEngine
   private navCompiler!: NavigationCompiler
   private persistence!: PersistenceService
   private documentStore!: DocumentStore
@@ -33,7 +33,7 @@ export class PublishService extends BaseEditorService {
   async init(context: EditorServiceContext): Promise<void> {
     await super.init(context)
     this.workflowService = context.get('workflow')
-    this.validationService = context.get('validationService')
+    this.validationEngine = context.get('validationEngine')
     this.navCompiler = context.get('navigationCompiler')
     this.persistence = context.get('persistence')
     this.documentStore = context.get('documentStore')
@@ -72,11 +72,8 @@ export class PublishService extends BaseEditorService {
 
     this.transition('validating')
 
-    const vs = this.validationService.getSnapshot()
-    if (vs.lastValidatedRevision < revision) {
-      await this.validationService.validateNow()
-    }
-    if (this.validationService.hasErrors()) {
+    const snapshot = this.validationEngine.validate(this.documentStore.document as any, 'publish')
+    if (snapshot.statistics.errors > 0) {
       this.fail('Validation failed')
       return
     }
@@ -122,7 +119,8 @@ export class PublishService extends BaseEditorService {
 
   private assertCanPublish(): void {
     if (this.isPublishing()) throw new Error('Already publishing')
-    if (this.validationService.hasErrors()) throw new Error('Validation has errors')
+    const snap = this.validationEngine.getLastSnapshot()
+    if (snap && snap.statistics.errors > 0) throw new Error('Validation has errors')
     if (this.workflowService.isSaving()) throw new Error('Save in progress')
     if (this.workflowService.hasUnsavedChanges()) throw new Error('Document has unsaved changes')
   }

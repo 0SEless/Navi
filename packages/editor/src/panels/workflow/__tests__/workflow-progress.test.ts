@@ -10,6 +10,10 @@ const baseSnapshot: WorkflowSnapshot = {
   lastPublish: null,
   syncStatus: 'idle',
   lastSaveVersion: 0,
+  saveState: 'idle',
+  saveError: null,
+  lastSaveReason: null,
+  lastSavedAt: 0,
 }
 
 describe('computeProgress', () => {

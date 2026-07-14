@@ -8,7 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.{ts,tsx}', 'packages/core/src/**/*.test.ts', 'packages/editor/src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'packages/core/src/**/*.test.ts', 'packages/editor/src/**/*.test.{ts,tsx}', '__tests__/**/*.test.ts'],
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     server: {

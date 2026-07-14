@@ -13,7 +13,7 @@ export const serviceNames = {
   history: 'history',
   selection: 'selection',
   toolRegistry: 'toolRegistry',
-  validation: 'validation',
+  validationEngine: 'validationEngine',
   eventBus: 'eventBus',
   viewport: 'viewport',
   editingContext: 'editingContext',

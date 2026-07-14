@@ -15,9 +15,8 @@ import { accessibilityWeightPlugin } from '../plugins/accessibility-plugin'
 import { customValidationPlugin } from '../plugins/custom-validation-plugin'
 import { CampusCompiler } from '../pipeline/campus-compiler'
 import { compile } from '../pipeline/compile'
+import type { CampusDocument, Building, Floor, Room, Entrance, Road } from '@navi/core'
 import type {
-  CampusDocument,
-  Building, Floor, Room, Entrance, Road,
   CompilerStagePlugin,
   CompilerStageInput,
   CompilerStageOutput,

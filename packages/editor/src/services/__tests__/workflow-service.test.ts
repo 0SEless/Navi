@@ -42,7 +42,12 @@ describe('WorkflowService', () => {
     const store = new Map<string, any>()
     store.set('navigationCompiler', navCompiler)
     store.set('persistence', persistence)
-    store.set('validation', { validateAll: () => [] })
+    store.set('validationEngine', {
+      validate: () => ({
+        issues: [],
+        statistics: { totalIssues: 0, errors: 0, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+      }),
+    })
     store.set('documentStore', documentStore)
     store.set('workflowStore', workflowStore)
     store.set('eventBus', eventBus)
@@ -81,19 +86,20 @@ describe('WorkflowService', () => {
   })
 
   describe('validate', () => {
-    it('writes validation result to WorkflowStore', async () => {
-      await service.validate()
-      expect(workflowStore.getSnapshot().lastValidation).not.toBeNull()
+    it('returns validation result', async () => {
+      const result = await service.validate()
+      expect(result.timestamp).toBeGreaterThan(0)
     })
 
     it('validation result with errors', async () => {
       const ctx = buildContext()
       const originalGet = ctx.get.bind(ctx)
       ctx.get = (id: string) => {
-        if (id === 'validation') return {
-          validateAll: () => [
-            { severity: 'error', message: 'Missing name', validatorId: 'test' },
-          ],
+        if (id === 'validationEngine') return {
+          validate: () => ({
+            issues: [{ severity: 'error', message: 'Missing name', ruleId: 'test' }],
+            statistics: { totalIssues: 1, errors: 1, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },
+          }),
         } as any
         return originalGet(id as any)
       }

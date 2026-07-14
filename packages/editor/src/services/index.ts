@@ -12,11 +12,6 @@ export { WorkflowService } from './workflow-service'
 export { AutosaveService } from './autosave-service'
 export type { AutosaveOptions } from './autosave-service'
 
-export { ValidationStore } from './validation-store'
-export type { ValidationStoreSnapshot, ValidationSummary } from './validation-store'
-export { ValidationService } from './validation-service'
-export type { ValidationServiceOptions } from './validation-service'
-
 export { PublishStore } from './publish-store'
 export type { PublishState, PublishSnapshot } from './publish-store'
 export { PublishService } from './publish-service'

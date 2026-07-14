@@ -4,7 +4,6 @@ import type { CampusDocument } from '@navi/core'
 import type { NavigationCompiler, CompileResult } from './navigation-compiler'
 import type { PersistenceService } from './persistence-service'
 import type { WorkflowStore, ValidationResult, SyncStatus } from './workflow-store'
-import type { ValidationRegistry } from '../validation/registry'
 import type { DocumentStore } from '../context/document-store'
 import type { DocumentEventBus } from '../eventbus'
 
@@ -13,26 +12,25 @@ import type { DocumentEventBus } from '../eventbus'
 /**
  * Orchestration service for the editor workflow.
  *
- * Coordinates NavigationCompiler, PersistenceService, ValidationRegistry,
- * and DocumentStore. Owns the manual/autosave distinction and event logic.
+ * Coordinates NavigationCompiler, PersistenceService, and DocumentStore.
+ * Owns the manual/autosave distinction and event logic.
  *
  * WorkflowService is a pure orchestrator — it owns NO state.
  * All state lives in WorkflowStore.
  *
  * INVARIANT: WorkflowService is the ONLY public workflow API.
- * UI code calls WorkflowService.validate/compile/save.
+ * UI code calls WorkflowService.compile/save.
  * No UI code calls PersistenceService or NavigationCompiler directly.
  */
 export class WorkflowService extends BaseEditorService {
   readonly id = 'workflow'
   readonly dependencies: readonly string[] = [
-    'navigationCompiler', 'persistence', 'validation',
+    'navigationCompiler', 'persistence',
     'documentStore', 'workflowStore', 'eventBus',
   ] as const
 
   private navCompiler!: NavigationCompiler
   private persistence!: PersistenceService
-  private validation!: ValidationRegistry
   private documentStore!: DocumentStore
   private workflowStore!: WorkflowStore
   private eventBus!: DocumentEventBus
@@ -42,7 +40,6 @@ export class WorkflowService extends BaseEditorService {
     await super.init(context)
     this.navCompiler = context.get('navigationCompiler')
     this.persistence = context.get('persistence')
-    this.validation = context.get('validation')
     this.documentStore = context.get('documentStore')
     this.workflowStore = context.get('workflowStore')
     this.eventBus = context.get('eventBus')
@@ -85,31 +82,20 @@ export class WorkflowService extends BaseEditorService {
   // ── Actions ─────────────────────────────────────────────────
 
   /**
-   * Run full validation on the current document.
-   * @deprecated Use ValidationService instead. This method now delegates to
-   * ValidationService and converts the result to the legacy format.
+   * Run validation on the current document via the ValidationEngine.
    */
   async validate(): Promise<ValidationResult> {
-    const validationService = this._context?.get('validationService')
-    if (validationService) {
-      await validationService.validateNow()
-      const snap = validationService.getSnapshot()
+    const validationEngine = this._context?.get('validationEngine')
+    if (validationEngine) {
+      const snapshot = validationEngine.validate(this.document, 'publish')
       return {
-        passed: snap.summary.total - snap.summary.errors - snap.summary.warnings,
-        failed: snap.summary.errors + snap.summary.warnings,
-        errors: snap.issues.filter(i => i.severity === 'error').map(i => i.message),
+        passed: snapshot.statistics.totalIssues - snapshot.statistics.errors - snapshot.statistics.warnings,
+        failed: snapshot.statistics.errors + snapshot.statistics.warnings,
+        errors: snapshot.issues.filter(i => i.severity === 'error').map(i => i.message),
         timestamp: Date.now(),
       }
     }
-    const issues = this.validation.validateAll(this.document)
-    const result: ValidationResult = {
-      passed: issues.filter((i) => i.severity !== 'error' && i.severity !== 'warning').length,
-      failed: issues.filter((i) => i.severity === 'error' || i.severity === 'warning').length,
-      errors: issues.filter((i) => i.severity === 'error').map((i) => i.message),
-      timestamp: Date.now(),
-    }
-    this.workflowStore.setValidation(result)
-    return result
+    return { passed: 0, failed: 0, errors: [], timestamp: Date.now() }
   }
 
   /**

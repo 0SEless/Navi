@@ -8,11 +8,11 @@ import type { SelectionManager } from '../selection'
 import type { Viewport } from '../viewport'
 import type { ToolRegistry } from '../tools/registry'
 import type { EditingContextService } from '../editing-context'
-import type { ValidationRegistry } from '../validation/registry'
 import type { HistoryStack } from '../history'
 import type { DocumentStore } from './document-store'
 import type { NavigationCompiler, PersistenceService, WorkflowStore, WorkflowService, AutosaveService, PublishStore, PublishService } from '../services'
-import type { ValidationService } from '../services/validation-service'
+import type { ValidationEngine } from '../validation/validation-engine'
+import type { AutoFixRegistry } from '../validation/fix'
 
 // ── Service status state machine ─────────────────────────────
 
@@ -82,7 +82,6 @@ export interface ServiceMap {
   viewport: Viewport
   editingContext: EditingContextService
   toolRegistry: ToolRegistry
-  validation: ValidationRegistry
   history: HistoryStack
   documentStore: DocumentStore
   navigationCompiler: NavigationCompiler
@@ -90,7 +89,8 @@ export interface ServiceMap {
   workflowStore: WorkflowStore
   workflow: WorkflowService
   autosave: AutosaveService
-  validationService: ValidationService
+  validationEngine: ValidationEngine
+  autoFixRegistry: AutoFixRegistry
   publishStore: PublishStore
   publish: PublishService
 }

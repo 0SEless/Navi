@@ -19,19 +19,19 @@ export function createGoldenCampus(): CampusDocument {
 
   const room101: Room = {
     id: 'room-101', name: 'Room 101', number: '101', category: 'classroom',
-    polygon: [{ x: -5, y: -5 }, { x: 3, y: -5 }, { x: 3, y: 1 }, { x: -5, y: 1 }],
+    polygon: { points: [{ x: -5, y: -5 }, { x: 3, y: -5 }, { x: 3, y: 1 }, { x: -5, y: 1 }] },
     entrancePosition: { x: 3, y: -2 }, capacity: 30,
   }
 
   const room102: Room = {
     id: 'room-102', name: 'Room 102', number: '102', category: 'classroom',
-    polygon: [{ x: 17, y: -5 }, { x: 25, y: -5 }, { x: 25, y: 1 }, { x: 17, y: 1 }],
+    polygon: { points: [{ x: 17, y: -5 }, { x: 25, y: -5 }, { x: 25, y: 1 }, { x: 17, y: 1 }] },
     entrancePosition: { x: 17, y: -2 }, capacity: 30,
   }
 
   const hallway: Hallway = {
     id: 'hallway-h1', name: 'Main Hallway',
-    polyline: [{ x: 0, y: 0 }, { x: 20, y: 0 }], width: 3,
+    polyline: { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }] }, width: 3,
   }
 
   const entrance: Entrance = {
