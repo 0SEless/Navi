@@ -1,5 +1,59 @@
+import { CampusCompiler } from '@navi/compiler'
+import { buildSearchIndex, buildPOIData, buildBuildingIndex } from '@navi/compiler'
 import type { CampusDocument } from '@navi/core'
 import type { CompilerAdapter, CompileResult, CompiledArtifacts } from '@navi/editor'
+
+/**
+ * Concrete CompilerAdapter that directly imports @navi/compiler.
+ * Lazy-import pattern avoids Node crypto in browser bundles.
+ */
+export class CampusCompilerAdapter implements CompilerAdapter {
+  async compile(document: CampusDocument): Promise<CompileResult> {
+    try {
+      const compiler = new CampusCompiler({
+        nodeInterval: 5,
+        mergeThreshold: 3,
+        optimizationLevel: 'moderate',
+        includeAccessibility: false,
+      })
+
+      const result = compiler.compile(document)
+
+      if (!result.success || !result.graph) {
+        return {
+          status: 'error',
+          message: result.errors.map(e => e.message).join('; '),
+          timestamp: Date.now(),
+        }
+      }
+
+      const graph = result.graph
+      const searchIndex = buildSearchIndex(document, graph)
+      const poiData = buildPOIData(graph)
+      const buildingIndex = buildBuildingIndex(document, graph)
+
+      return {
+        status: 'success',
+        timestamp: Date.now(),
+        artifacts: {
+          navigationGraph: graph,
+          searchIndex,
+          poiData,
+          buildingIndex,
+        },
+      }
+    } catch (err) {
+      return {
+        status: 'error',
+        message: (err as Error).message,
+        timestamp: Date.now(),
+      }
+    }
+  }
+}
+
+/**
+ * Create a CompilerAdapter that delegates to the /api/compile endpoint.
 
 /**
  * Create a CompilerAdapter that delegates to the /api/compile endpoint.
