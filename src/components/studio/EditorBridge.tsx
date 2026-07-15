@@ -12,7 +12,7 @@ import {
 import type { EntitySelector, PersistenceAdapter } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+import { createCompilerAdapter } from '@/services/compiler-adapter'
 
 /**
  * ── Selection Ownership Invariant ─────────────────────────────────
@@ -54,7 +54,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
     publish: async () => ({ success: true, version: '1.0.0' }),
   }
-  const navCompiler = new NavigationCompiler(new CampusCompilerAdapter())
+  const navCompiler = new NavigationCompiler(createCompilerAdapter())
   const [context] = useState(() => createEditorContext(
     useGraphStore.getState().graph,
     persistenceAdapter,

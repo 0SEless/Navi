@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join, resolve } from 'path'
-import { compile, publish } from '@navi/compiler'
+import { compile } from '@navi/compiler'
+import { publish } from '@navi/compiler/publisher'
 import type { CampusDocument } from '@navi/core'
 
 const DEMO_DIR = join(__dirname, '..', 'demo-output')

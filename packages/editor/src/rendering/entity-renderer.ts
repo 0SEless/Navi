@@ -7,7 +7,7 @@ import type { Viewport } from '../viewport'
 import { documentToGeoJSON, toPreviewFeature } from './geojson'
 import {
   LAYER_IDS, SOURCE_IDS,
-  buildingFillPaint, buildingOutlinePaint,
+  buildingFillPaint, buildingOutlinePaint, buildingExtrusionPaint,
   roomFillPaint, roomOutlinePaint,
   hallwayLinePaint, roadLinePaint,
   entityCirclePaint, ENTITY_ICON_COLORS,
@@ -158,6 +158,7 @@ export class EntityRenderer {
 
   private addLayers(): void {
     const layerDefs: Array<{ id: LayerId; source: string; type: string; paint: any; filter?: any[] }> = [
+      { id: LAYER_IDS.BUILDING_EXTRUSION, source: SOURCE_IDS.BUILDINGS, type: 'fill-extrusion', paint: buildingExtrusionPaint() },
       { id: LAYER_IDS.BUILDING_FILL, source: SOURCE_IDS.BUILDINGS, type: 'fill', paint: buildingFillPaint() },
       { id: LAYER_IDS.BUILDING_OUTLINE, source: SOURCE_IDS.BUILDINGS, type: 'line', paint: buildingOutlinePaint() },
       { id: LAYER_IDS.ROOM_FILL, source: SOURCE_IDS.ROOMS, type: 'fill', paint: roomFillPaint() },

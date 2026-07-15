@@ -19,7 +19,7 @@ function buildingToFeature(b: Building): GeoJSON.Feature {
   return {
     type: 'Feature',
     id: b.id,
-    properties: { id: b.id, name: b.name, code: b.code, category: b.category, color: b.color, height: b.height },
+    properties: { id: b.id, name: b.name, code: b.code, category: b.category, color: b.color, height: b.height, base_elevation: b.baseElevation ?? 0 },
     geometry: {
       type: 'Polygon',
       coordinates: [b.footprint.points.map(latLngToCoords)],

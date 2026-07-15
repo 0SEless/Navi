@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import type { CampusDocument } from '@navi/core'
-import { compile, publish } from '@navi/compiler'
+import { compile } from '@navi/compiler'
+import { publish } from '@navi/compiler/publisher'
 
 const DEPLOY_DIR = 'deploy'
 

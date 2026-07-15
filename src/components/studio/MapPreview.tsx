@@ -40,29 +40,26 @@ const LYR = 'preview-buildings-extrusion'
 const BOUNDARY_SRC = 'preview-boundary'
 
 function buildBuildingGeo(buildings: Building[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: buildings.map((b) => ({
-      type: 'Feature',
-      properties: { id: b.id, name: b.name, color: b.color || '#1C6BEB', height: b.height || 15 },
-      geometry: {
-        type: 'Polygon',
-        coordinates: b.footprint.length >= 3
-          ? [[...b.footprint.map((p) => [p.lng, p.lat] as [number, number]), [b.footprint[0].lng, b.footprint[0].lat] as [number, number]]]
-          : (() => {
-              const c = b.footprint.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 })
-              const avg = { lat: c.lat / b.footprint.length, lng: c.lng / b.footprint.length }
-              return [[
-                [avg.lng - 0.0003, avg.lat - 0.0003],
-                [avg.lng + 0.0003, avg.lat - 0.0003],
-                [avg.lng + 0.0003, avg.lat + 0.0003],
-                [avg.lng - 0.0003, avg.lat + 0.0003],
-                [avg.lng - 0.0003, avg.lat - 0.0003],
-              ]]
-            })(),
-      },
-    })),
-  }
+  const features = buildings
+    .filter((b) => {
+      const fp = Array.isArray(b.footprint) ? b.footprint : (b.footprint as any)?.points ?? []
+      return fp.length >= 3
+    })
+    .map((b) => {
+      const fp = Array.isArray(b.footprint) ? b.footprint : (b.footprint as any).points
+      return {
+        type: 'Feature' as const,
+        properties: { id: b.id, name: b.name, color: b.color || '#1C6BEB', height: b.height || 15 },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [[
+            ...fp.map((p: any) => [p.lng, p.lat] as [number, number]),
+            [fp[0].lng, fp[0].lat] as [number, number],
+          ]],
+        },
+      }
+    })
+  return { type: 'FeatureCollection', features }
 }
 
 function initSources(map: maplibregl.Map) {

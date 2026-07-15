@@ -3,6 +3,7 @@
 export const LAYER_IDS = {
   BUILDING_FILL: 'navi-building-fill',
   BUILDING_OUTLINE: 'navi-building-outline',
+  BUILDING_EXTRUSION: 'navi-building-extrusion',
   ROOM_FILL: 'navi-room-fill',
   ROOM_OUTLINE: 'navi-room-outline',
   HALLWAY_LINE: 'navi-hallway-line',
@@ -93,6 +94,18 @@ export function buildingOutlinePaint(): maplibregl.LineLayerSpecification['paint
       '#4A90D9',
     ],
     'line-width': 2,
+  }
+}
+
+export function buildingExtrusionPaint(): maplibregl.FillExtrusionLayerSpecification['paint'] {
+  return {
+    'fill-extrusion-color': ['case',
+      ['has', 'color'], ['get', 'color'],
+      '#1C6BEB',
+    ],
+    'fill-extrusion-height': ['get', 'height'],
+    'fill-extrusion-base': ['get', 'base_elevation'],
+    'fill-extrusion-opacity': 0.65,
   }
 }
 

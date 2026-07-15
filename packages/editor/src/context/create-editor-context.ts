@@ -14,6 +14,12 @@ import { buildingCreateHandler, buildingDeleteHandler } from '../commands/buildi
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
 import { SelectionManager } from '../selection'
 import { ToolRegistry } from '../tools/registry'
+import {
+  selectTool, panTool, drawBuildingTool, drawRoomTool,
+  drawHallwayTool, drawRoadTool, placeEntranceTool,
+  placeStaircaseTool, placeElevatorTool, placePanoramaTool,
+  placeQrTool,
+} from '../tools'
 import { Viewport } from '../viewport'
 import { ValidationEngine } from '../validation/validation-engine'
 import { AutoFixRegistry, assignUntitledFix, assignFloorLevelFix, clearRoadReferenceFix, clearEntranceReferenceFix, closePolygonFix } from '../validation/fix'
@@ -59,7 +65,7 @@ function getFloorLevel(f: any): number {
   return typeof f === 'number' ? f : (f.level ?? 0)
 }
 
-function createDocument(graph: any, transformer?: CoordinateTransformer): CampusDocument {
+export function createDocument(graph: any, transformer?: CoordinateTransformer): CampusDocument {
   const compsByKey = new Map<string, any[]>()
   for (const c of (graph.components ?? [])) {
     const key = `${c.buildingId}:${c.floor}`
@@ -69,6 +75,7 @@ function createDocument(graph: any, transformer?: CoordinateTransformer): Campus
 
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: {
       name: graph.name ?? 'Campus',
       description: '',
@@ -77,6 +84,13 @@ function createDocument(graph: any, transformer?: CoordinateTransformer): Campus
     },
     buildings: (graph.buildings ?? []).map((b: any) => {
       const rawFloors: any[] = b.floors ?? []
+      // Footprint is stored inconsistently across the graph model:
+      // either a direct LatLng[] array OR an object { points: LatLng[] }.
+      // Normalize both into { points: LatLng[] } for the document model.
+      const rawFootprint: any = b.footprint
+      const rawFootprintPoints: Array<{ lat: number; lng: number }> = Array.isArray(rawFootprint)
+        ? rawFootprint
+        : (rawFootprint?.points ?? [])
       const floors = rawFloors.map((f: any) => {
         const level = getFloorLevel(f)
         const key = `${b.id}:${level}`
@@ -209,7 +223,7 @@ function createDocument(graph: any, transformer?: CoordinateTransformer): Campus
         category: 'academic',
         description: '',
         floors,
-        footprint: { points: (b.footprint?.points ?? []).map((p: any) => ({ lat: p.lat, lng: p.lng })) },
+        footprint: { points: rawFootprintPoints.map((p: any) => ({ lat: p.lat, lng: p.lng })) },
         baseElevation: 0,
         height: 10,
         color: b.color ?? '#1C6BEB',
@@ -280,6 +294,17 @@ export function createEditorContext(
   registry.register('selection', selectionManager)
 
   const toolRegistry = new ToolRegistry()
+  toolRegistry.register(selectTool)
+  toolRegistry.register(panTool)
+  toolRegistry.register(drawBuildingTool)
+  toolRegistry.register(drawRoomTool)
+  toolRegistry.register(drawHallwayTool)
+  toolRegistry.register(drawRoadTool)
+  toolRegistry.register(placeEntranceTool)
+  toolRegistry.register(placeStaircaseTool)
+  toolRegistry.register(placeElevatorTool)
+  toolRegistry.register(placePanoramaTool)
+  toolRegistry.register(placeQrTool)
   const viewport = new Viewport(eventBus)
   registry.register('toolRegistry', toolRegistry)
   registry.register('viewport', viewport)

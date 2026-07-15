@@ -1,0 +1,41 @@
+
+=== PREVIEW ===
+URL: http://localhost:3000/studio/map-1783994563934-02fbn/preview
+Title: NAVI - Virtual Campus Navigation
+Screenshot: scripts/screenshot-preview.png
+
+ERRORS (1):
+[HTTP 307] http://localhost:3000/studio/map-1783994563934-02fbn/preview
+
+LOGS (last 2):
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+
+=== EDIT ===
+URL: http://localhost:3000/studio/map-1783994563934-02fbn/edit
+Title: NAVI - Virtual Campus Navigation
+Screenshot: scripts/screenshot-edit.png
+
+ERRORS (1):
+[HTTP 307] http://localhost:3000/studio/map-1783994563934-02fbn/edit
+
+LOGS (last 2):
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+
+=== STUDIO ===
+URL: http://localhost:3000/studio
+Title: NAVI - Virtual Campus Navigation
+Screenshot: scripts/screenshot-studio.png
+
+ERRORS (1):
+[HTTP 307] http://localhost:3000/studio
+
+LOGS (last 2):
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+
+=== SUMMARY ===
+preview: 1 errors, 0 warnings
+edit: 1 errors, 0 warnings
+studio: 1 errors, 0 warnings

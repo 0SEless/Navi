@@ -1,0 +1,12 @@
+=== ERRORS (2) ===
+[NAV] page.goto: Timeout 20000ms exceeded.
+Call log:
+[2m  - navigating to "http://localhost:3000/studio/map-1783994563934-02fbn/edit", waiting until "domcontentloaded"[22m
+
+[SCREENSHOT] page.screenshot: Timeout 10000ms exceeded.
+Call log:
+[2m  - taking page screenshot[22m
+[2m  - waiting for fonts to load...[22m
+[2m  - fonts loaded[22m
+
+=== CONSOLE LOGS (0) ===

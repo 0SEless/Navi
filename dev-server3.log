@@ -1,0 +1,25 @@
+
+> navi@1.0.0 dev
+> next dev
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://100.65.41.135:3000
+- Environments: .env.local
+✓ Ready in 577ms
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+○ Compiling /dashboard ...
+ GET /dashboard 200 in 4.9s (next.js: 3.4s, proxy.ts: 1159ms, application-code: 384ms)
+ GET /studio 200 in 1105ms (next.js: 449ms, proxy.ts: 622ms, application-code: 33ms)
+ GET /api/campus-maps 200 in 1060ms (next.js: 417ms, application-code: 643ms)
+ GET /api/campus-maps 200 in 180ms (next.js: 3ms, application-code: 177ms)
+ GET /api/campus-maps 200 in 354ms (next.js: 4ms, application-code: 350ms)
+ GET /api/campus-maps 200 in 162ms (next.js: 3ms, application-code: 159ms)
+ GET /studio/map-1783994563934-02fbn/preview 200 in 2.5s (next.js: 1942ms, proxy.ts: 510ms, application-code: 54ms)
+[browser] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. (<anonymous>)
+ GET /studio/map-1783994563934-02fbn/preview 200 in 990ms (next.js: 19ms, proxy.ts: 795ms, application-code: 176ms)
+ GET /api/campus-maps 200 in 325ms (next.js: 4ms, application-code: 321ms)
+[?25h
+
+C:\Users\Administrator\Desktop\CODEme\Navi\navi-next>

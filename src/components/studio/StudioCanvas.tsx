@@ -59,17 +59,26 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 
   useEffect(() => {
     if (mapRef.current) return
+    const container = mapContainerRef.current
+    if (!container) return
     let mounted = true
+    const c = center ?? { lat: 11.8195, lng: 122.0922 }
     const map = new maplibregl.Map({
-      container: mapContainerRef.current!,
+      container,
       style: getInitialMapStyle(),
+      center: [c.lng, c.lat],
+      zoom: center ? 17 : 4,
     })
     map.on('load', () => {
       if (!mounted) return
       setMapInstance(map)
     })
     mapRef.current = map
-    return () => { mounted = false; map.remove() }
+    return () => {
+      mounted = false
+      map.remove()
+      mapRef.current = null
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Data sync + visibility + style switching are managed by <MapRenderer>

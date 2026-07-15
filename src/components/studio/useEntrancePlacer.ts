@@ -44,7 +44,7 @@ export function useEntrancePlacer() {
     if (tool !== 'entrance') return
     const buildings = document.buildings
     const hitBuilding = buildings.find((b) => {
-      const pts = b.footprint.points
+      const pts = b.footprint?.points ?? []
       return pts.length >= 3 && pointInPolygon(position, pts)
     })
     if (hitBuilding) {
@@ -56,7 +56,7 @@ export function useEntrancePlacer() {
     if (!formState?.position) return
     const targetBuilding = activeBuildingId
       ? document.buildings.find((b) => b.id === activeBuildingId)
-      : document.buildings.find((b) => pointInPolygon(formState.position!, b.footprint.points))
+      : document.buildings.find((b) => pointInPolygon(formState.position!, b.footprint?.points ?? []))
     if (!targetBuilding) return
 
     const floorId = findFloorId(targetBuilding, formState.floor)

@@ -23,22 +23,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Dynamic import — @navi/compiler uses Node crypto, only safe on server
-    const { CampusCompiler } = await import('@navi/compiler')
+    // Dynamic import — @navi/compiler uses Node crypto/fs, only safe on server
+    const { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } = await import('@navi/compiler')
     const compiler = new CampusCompiler()
     const result = compiler.compile(document)
 
+    if (!result.success || !result.graph) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          message: result.errors[0]?.message ?? 'Compilation failed',
+          timestamp: Date.now(),
+        },
+        { status: 500 },
+      )
+    }
+
+    const graph = result.graph
+    const searchIndex = buildSearchIndex(document, graph)
+    const poiData = buildPOIData(graph)
+    const buildingIndex = buildBuildingIndex(document, graph)
+
     return NextResponse.json({
-      status: result.success ? 'success' : 'error',
-      message: result.success
-        ? undefined
-        : result.errors[0]?.message ?? 'Compilation failed',
-      artifacts: result.success
-        ? {
-            navigationGraph: result.graph,
-            stats: result.stats,
-          }
-        : undefined,
+      status: 'success',
+      artifacts: {
+        navigationGraph: graph,
+        stats: result.stats,
+        searchIndex,
+        poiData,
+        buildingIndex,
+      },
       timestamp: Date.now(),
     })
   } catch (err: any) {

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROTOTYPE — Studio UX Refinement</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8f9fa;
+  --surface:#ffffff;
+  --border:#e5e7eb;
+  --text:#1a1a2e;
+  --text-muted:#6b7280;
+  --primary:#4f46e5;
+  --primary-light:#eef2ff;
+  --accent:#22c55e;
+  --amber:#f59e0b;
+  --red:#ef4444;
+  --radius:8px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px;line-height:1.5}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500}
+.badge--amber{background:#fef3c7;color:#92400e}
+.badge--green{background:#dcfce7;color:#166534}
+.badge--red{background:#fef2f2;color:#991b1b}
+.badge--gray{background:#f3f4f6;color:#6b7280}
+
+/* ── TOOLBAR ── */
+.toolbar{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 14px;background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;flex-wrap:wrap;
+}
+.toolbar__brand{font-size:12px;font-weight:700;color:var(--primary);letter-spacing:.05em;margin-right:8px}
+.toolbar__mode{display:flex;gap:2px;background:var(--bg);border-radius:6px;padding:2px}
+.toolbar__mode button{padding:4px 10px;border-radius:4px;border:none;background:transparent;font-size:11px;font-weight:600;cursor:pointer;color:var(--text-muted)}
+.toolbar__mode button.active{background:var(--primary);color:white}
+.toolbar__divider{width:1px;height:22px;background:var(--border);margin:0 4px}
+.tool-group{display:flex;gap:2px}
+.tool-group button{
+  display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:5px;
+  border:1px solid var(--border);background:transparent;font-size:11px;font-weight:500;
+  cursor:pointer;color:var(--text-muted);white-space:nowrap;
+}
+.tool-group button.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.tool-group button .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.spacer{flex:1}
+
+/* ── MAIN ── */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* ── LEFT PANEL ── */
+.panel--left{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.panel__header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);cursor:pointer;user-select:none}
+.panel__header:hover{background:var(--bg)}
+.panel__header .arrow{transition:transform .2s;font-size:10px}
+.panel__header.collapsed .arrow{transform:rotate(-90deg)}
+.panel__body{flex:1;overflow:auto;padding:4px 0}
+.panel__body.hidden{display:none}
+
+/* tree */
+.tree{padding:4px 8px}
+.tree-item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px}
+.tree-item:hover{background:var(--bg)}
+.tree-item.active{background:var(--primary-light);color:var(--primary);font-weight:500}
+.tree-item .icon{width:14px;text-align:center;font-size:12px;color:var(--text-muted);flex-shrink:0}
+.tree-item .count{margin-left:auto;font-size:10px;color:var(--text-muted)}
+.tree-item .chevron{font-size:10px;color:var(--text-muted);width:12px;flex-shrink:0;transition:transform .15s}
+.tree-item .chevron.open{transform:rotate(90deg)}
+.tree-children{padding-left:20px}
+.tree-children.hidden{display:none}
+
+/* ── CANVAS ── */
+.canvas{flex:1;position:relative;background:#e8ecf1;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.canvas__stage{width:92%;height:88%;border-radius:var(--radius);background:white;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.canvas__grid{position:absolute;inset:0;background-image:radial-gradient(circle,#d1d5db 1px,transparent 1px);background-size:20px 20px}
+.canvas__building{position:absolute;top:40%;left:38%;width:180px;height:120px;background:#4f46e522;border:2px solid var(--primary);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--primary);font-weight:600;cursor:pointer}
+.canvas__room{position:absolute;top:45%;left:42%;width:60px;height:50px;background:#22c55e22;border:2px solid var(--accent);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--accent);font-weight:600}
+.canvas__hallway{position:absolute;top:48%;left:30%;width:120px;height:4px;background:#f59e0b;border-radius:2px;transform:translateY(-2px)}
+.canvas__node{position:absolute;width:8px;height:8px;background:var(--text-muted);border-radius:50%;transform:translate(-50%,-50%);border:2px solid white;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.canvas__overlay{position:absolute;inset:0;pointer-events:none}
+.canvas__confirm{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:white;padding:8px 14px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:auto}
+.canvas__confirm .step{font-size:11px;color:var(--text-muted);padding:0 4px}
+
+/* ── RIGHT PANEL ── */
+.panel--right{width:280px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+
+/* inspector */
+.inspector{flex:1;overflow:auto;padding:12px}
+.inspector__empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:12px;font-style:italic}
+.inspector__label{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.inspector__field{margin-bottom:10px}
+.inspector__field label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px}
+.inspector__field input,.inspector__field select{
+  width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:var(--bg);color:var(--text);outline:none
+}
+.inspector__field input:focus,.inspector__field select:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+
+/* assistant */
+.assistant{border-top:1px solid var(--border);max-height:45%;overflow:auto}
+.assistant__card{padding:10px 12px;border-bottom:1px solid var(--border)}
+.assistant__card:last-child{border-bottom:none}
+.assistant__status{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;margin-bottom:6px}
+.assistant__dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.assistant__dot.green{background:var(--accent)}
+.assistant__dot.red{background:var(--red)}
+.assistant__dot.amber{background:var(--amber)}
+.assistant__dot.gray{background:var(--text-muted)}
+.assistant__row{display:flex;align-items:center;justify-content:space-between;padding:3px 0;font-size:12px}
+.assistant__row button{padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:white;font-size:11px;cursor:pointer;color:var(--text-muted)}
+.assistant__row button:hover{border-color:var(--primary);color:var(--primary)}
+
+/* variant info */
+.variant-info{position:fixed;bottom:12px;right:12px;font-size:10px;color:var(--text-muted);background:var(--surface);padding:4px 10px;border-radius:4px;border:1px solid var(--border);z-index:100}
+
+/* floor rows */
+.floor-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;margin-bottom:2px;cursor:pointer}
+.floor-row:hover{background:var(--bg)}
+.floor-btn{padding:2px 6px;border-radius:3px;border:1px solid var(--border);background:white;font-size:11px;cursor:pointer;line-height:1.4}
+.floor-btn--edit{color:var(--text-muted)}
+.floor-btn--edit:hover{border-color:var(--primary);color:var(--primary)}
+.floor-btn--delete{color:var(--red)}
+.floor-btn--delete:hover{border-color:var(--red);background:#fef2f2}
+
+.step-btn{width:24px;height:24px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:14px;line-height:1}
+.step-btn:hover{background:var(--bg)}
+.swatch{width:22px;height:22px;border-radius:4px;border:1px solid transparent;cursor:pointer;flex-shrink:0}
+.swatch.active{border-color:var(--text);box-shadow:0 0 0 1.5px white}
+.swatch:hover{border-color:var(--text);opacity:.85}
+.floor-upload{display:flex;align-items:center;padding:2px 5px;border-radius:3px;border:1px solid var(--border);cursor:pointer;font-size:11px;color:var(--text-muted);flex-shrink:0}
+.floor-upload:hover{border-color:var(--primary);color:var(--primary)}
+</head>
+<body>
+
+<!-- ════════════════ TOOLBAR ════════════════ -->
+<div class="toolbar">
+  <span class="toolbar__brand">NAVI STUDIO</span>
+
+  <div class="tool-group">
+    <button class="active">◎ Select</button>
+    <button>▢ Room</button>
+    <button>≡ Hallway</button>
+    <button>⤷ Entrance</button>
+    <button>⌃ Stair</button>
+    <button>⌄ Elevator</button>
+  </div>
+  <div class="spacer"></div>
+  <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);padding:0 4px;">
+    <span style="display:flex;align-items:center;gap:2px;"><span style="color:var(--amber);font-size:14px;">●</span> 1F</span>
+  </span>
+  <div class="toolbar__divider"></div>
+  <div class="tool-group">
+    <button style="border:none;color:var(--text-muted)">↩ Undo</button>
+    <button style="border:none;color:var(--text-muted)">↪ Redo</button>
+  </div>
+  <button style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;border:1px solid var(--primary);background:var(--primary);color:white;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 4px rgba(79,70,229,.25)">💾 Save</button>
+  <button style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 4px rgba(34,197,94,.25)">🚀 Publish</button>
+  <div class="toolbar__divider"></div>
+  <button style="display:flex;align-items:center;gap:4px;padding:6px 14px;border-radius:6px;border:1px solid #d0d0d0;background:white;font-size:12px;font-weight:500;cursor:pointer;color:var(--text)">↔ Adjust</button>
+</div>
+
+<!-- ════════════════ MAIN ════════════════ -->
+<div class="main">
+
+  <!-- ──── LEFT: STRUCTURE ──── -->
+  <div class="panel--left">
+    <div class="panel__header" onclick="togglePanel(this)">
+      <span>Structure</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel__body" id="structureBody">
+      <div class="tree">
+        <div class="tree-item active" onclick="selectBuilding(this)">
+          <span class="chevron open">▶</span>
+          <span class="icon">🏛</span>
+          Main Building
+          <span class="count">3 floors</span>
+        </div>
+        <div class="tree-children">
+          <div class="tree-item active" onclick="selectFloor(this)">
+            <span class="chevron open">▶</span>
+            <span class="icon">⬡</span>
+            Ground Floor
+            <span class="count">4</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-item">
+              <span style="width:14px;height:10px;border:1.5px solid var(--accent);border-radius:2px;background:rgba(34,197,94,0.15);flex-shrink:0"></span>
+              Room 101
+            </div>
+            <div class="tree-item active">
+              <span style="width:14px;height:10px;border:1.5px solid var(--accent);border-radius:2px;background:rgba(34,197,94,0.15);flex-shrink:0"></span>
+              Faculty Office
+            </div>
+            <div class="tree-item">
+              <span style="width:14px;height:3px;background:var(--amber);border-radius:2px;flex-shrink:0"></span>
+              Main Hallway
+            </div>
+            <div class="tree-item">
+              <span style="font-size:12px">⇲</span>
+              Main Entrance
+            </div>
+          </div>
+          <div class="tree-item" onclick="selectFloor(this)">
+            <span class="chevron">▶</span>
+            <span class="icon">⬡</span>
+            Floor 2
+            <span class="count">0</span>
+          </div>
+          <div class="tree-item" onclick="selectFloor(this)">
+            <span class="chevron">▶</span>
+            <span class="icon">⬡</span>
+            Floor 3
+            <span class="count">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel__header collapsed" onclick="togglePanel(this)">
+      <span>Layers</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel__body hidden" id="layersBody">
+      <div class="tree" style="padding:4px 8px">
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" checked> Buildings
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" checked> Rooms
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" checked> Hallways
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" checked> Entrances
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" checked> Nodes
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──── CANVAS ──── -->
+  <div class="canvas">
+    <div class="canvas__stage">
+      <div class="canvas__grid"></div>
+      <div class="canvas__building">
+        <span>Main Building</span>
+      </div>
+      <div class="canvas__room" style="top:35%;left:35%">
+        R101
+      </div>
+      <div class="canvas__room" style="top:35%;left:45%">
+        OFC
+      </div>
+      <div class="canvas__room" style="top:45%;left:45%">
+        R103
+      </div>
+      <div class="canvas__hallway" style="top:41%;left:20%;width:200px;transform:translateY(-2px)"></div>
+      <div class="canvas__hallway" style="top:35%;left:38%;width:4px;height:80px;border-radius:2px;background:var(--amber);transform:translateX(-2px)"></div>
+      <div class="canvas__node" style="top:35%;left:35%"></div>
+      <div class="canvas__node" style="top:35%;left:45%"></div>
+      <div class="canvas__node" style="top:41%;left:20%"></div>
+      <div class="canvas__node" style="top:41%;left:40%"></div>
+      <div class="canvas__node" style="top:45%;left:45%"></div>
+
+      <!-- Confirm bar -->
+      <div class="canvas__confirm">
+        <span style="font-size:11px;font-weight:600;color:var(--primary)">Draw Room</span>
+        <span class="step">4 points</span>
+        <span class="step">|</span>
+        <span style="display:flex;gap:4px">
+          <span style="cursor:pointer;padding:2px 4px;border-radius:3px;border:1px solid var(--border);font-size:11px;color:var(--text-muted)">−</span>
+          <span style="cursor:pointer;padding:2px 4px;border-radius:3px;border:1px solid var(--border);font-size:11px;color:var(--text-muted)">+</span>
+        </span>
+        <span style="cursor:pointer;padding:4px 12px;border-radius:4px;border:1px solid var(--red);font-size:11px;color:var(--red);background:white">Cancel</span>
+        <span style="cursor:pointer;padding:4px 12px;border-radius:4px;background:var(--accent);color:white;font-size:11px;font-weight:600">Confirm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──── RIGHT: INSPECTOR + ASSISTANT ──── -->
+  <div class="panel--right">
+    <!-- Inspector — Building view (MetadataPanel style) -->
+    <div class="inspector" id="inspector">
+      <div style="display:flex;align-items:center;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:12px">
+        <span class="inspector__label" style="margin:0">Inspector — Main Building</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--amber);font-weight:600">* unsaved</span>
+      </div>
+
+      <div class="inspector__field">
+        <label>Name</label>
+        <input type="text" value="Main Building">
+      </div>
+
+      <div class="inspector__field" style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label>Height</label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="step-btn" onclick="stepHeight(-1)">−</button>
+            <input type="number" value="20" style="width:48px;text-align:center">
+            <button class="step-btn" onclick="stepHeight(1)">+</button>
+            <span style="font-size:10px;color:var(--text-muted)">m</span>
+          </div>
+        </div>
+        <div style="flex:1">
+          <label>Floors</label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="step-btn" onclick="stepFloors(-1)">−</button>
+            <input type="number" value="3" style="width:48px;text-align:center">
+            <button class="step-btn" onclick="stepFloors(1)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector__field">
+        <label>Color</label>
+        <div id="colorSwatches" style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">
+          <button class="swatch active" style="background:#4f46e5" data-color="#4f46e5"></button>
+          <button class="swatch" style="background:#7c3aed" data-color="#7c3aed"></button>
+          <button class="swatch" style="background:#10b981" data-color="#10b981"></button>
+          <button class="swatch" style="background:#f59e0b" data-color="#f59e0b"></button>
+          <button class="swatch" style="background:#ef4444" data-color="#ef4444"></button>
+          <button class="swatch" style="background:#06b6d4" data-color="#06b6d4"></button>
+          <button class="swatch" style="background:#ec4899" data-color="#ec4899"></button>
+          <button class="swatch" style="background:#8b5cf6" data-color="#8b5cf6"></button>
+          <button class="swatch" style="background:#14b8a6" data-color="#14b8a6"></button>
+          <button class="swatch" style="background:#f97316" data-color="#f97316"></button>
+          <button class="swatch" style="background:#6366f1" data-color="#6366f1"></button>
+          <button class="swatch" style="background:#84cc16" data-color="#84cc16"></button>
+          <button class="swatch" style="background:#0ea5e9" data-color="#0ea5e9"></button>
+          <button class="swatch" style="background:#d946ef" data-color="#d946ef"></button>
+          <input type="color" value="#4f46e5" style="width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:none">
+        </div>
+      </div>
+
+      <div style="margin:12px 0 8px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="inspector__label" style="margin:0">Floor Images</span>
+          <button onclick="addFloor()" style="padding:2px 10px;border-radius:4px;border:1px solid var(--primary);background:var(--primary);color:white;font-size:11px;cursor:pointer;font-weight:500">+ Add Floor</button>
+        </div>
+
+        <div id="floorList">
+          <div class="floor-row" data-level="0">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span class="badge badge--gray" style="min-width:24px;text-align:center">GF</span>
+              <span style="font-size:12px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ground Floor</span>
+              <span style="font-size:10px;color:var(--text-muted);flex-shrink:0">3r·1h</span>
+            </div>
+            <label class="floor-upload" title="Upload floor plan">
+              <span>📁</span>
+              <input type="file" accept="image/*" style="display:none">
+            </label>
+            <span class="floor-check">✓</span>
+            <div style="display:flex;gap:2px">
+              <button class="floor-btn floor-btn--edit" onclick="editFloor(0)" title="Edit floor">✎</button>
+              <button class="floor-btn floor-btn--delete" onclick="deleteFloor(0)" title="Delete floor">✕</button>
+            </div>
+          </div>
+          <div class="floor-row" data-level="1">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span class="badge badge--gray" style="min-width:24px;text-align:center">1F</span>
+              <span style="font-size:12px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Floor 2</span>
+              <span style="font-size:10px;color:var(--text-muted);flex-shrink:0">0r</span>
+            </div>
+            <label class="floor-upload" title="Upload floor plan">
+              <span>📁</span>
+              <input type="file" accept="image/*" style="display:none">
+            </label>
+            <div style="display:flex;gap:2px">
+              <button class="floor-btn floor-btn--edit" onclick="editFloor(1)" title="Edit floor">✎</button>
+              <button class="floor-btn floor-btn--delete" onclick="deleteFloor(1)" title="Delete floor">✕</button>
+            </div>
+          </div>
+          <div class="floor-row" data-level="2">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span class="badge badge--gray" style="min-width:24px;text-align:center">2F</span>
+              <span style="font-size:12px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Floor 3</span>
+              <span style="font-size:10px;color:var(--text-muted);flex-shrink:0">0r</span>
+            </div>
+            <label class="floor-upload" title="Upload floor plan">
+              <span>📁</span>
+              <input type="file" accept="image/*" style="display:none">
+            </label>
+            <div style="display:flex;gap:2px">
+              <button class="floor-btn floor-btn--edit" onclick="editFloor(2)" title="Edit floor">✎</button>
+              <button class="floor-btn floor-btn--delete" onclick="deleteFloor(2)" title="Delete floor">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inspector__field">
+        <label>ID</label>
+        <div style="font-size:10px;color:var(--text-muted);word-break:break-all">bldg_main_001_a3f2c</div>
+      </div>
+
+      <div style="display:flex;gap:4px;margin-top:8px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap">
+        <span class="badge badge--amber">Rooms: 3</span>
+        <span class="badge badge--green">Hallways: 2</span>
+        <span class="badge badge--gray">Entrances: 1</span>
+        <span class="badge badge--gray">Area: 840m²</span>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <button onclick="alert('Saved!')" style="flex:1;padding:8px 12px;border-radius:6px;border:none;background:var(--primary);color:white;font-size:12px;font-weight:600;cursor:pointer">Save Changes</button>
+        <button onclick="alert('Adjust mode')" style="display:flex;align-items:center;gap:4px;padding:8px 12px;border-radius:6px;border:1px solid #06b6d4;background:transparent;color:#06b6d4;font-size:12px;font-weight:600;cursor:pointer">↔ Adjust</button>
+        <button onclick="alert('Deleted!')" style="display:flex;align-items:center;gap:4px;padding:8px 12px;border-radius:6px;border:1px solid var(--red);background:transparent;color:var(--red);font-size:12px;font-weight:600;cursor:pointer">✕</button>
+      </div>
+    </div>
+
+    <!-- Assistant -->
+    <div class="assistant">
+      <div class="panel__header" onclick="togglePanel(this)" style="border-bottom:none;border-top:1px solid var(--border)">
+        <span>Assistant</span>
+        <span class="arrow">▼</span>
+      </div>
+      <div id="assistantBody">
+        <div class="assistant__card">
+          <div class="assistant__status">
+            <span class="assistant__dot green"></span> Validation
+            <span style="margin-left:auto;font-weight:400;color:var(--text-muted)">2 issues</span>
+          </div>
+          <div class="assistant__row">
+            <span style="display:flex;align-items:center;gap:4px"><span style="color:var(--red)">●</span> Missing entrance — Building A</span>
+            <span style="font-size:10px;color:var(--text-muted)">error</span>
+          </div>
+          <div class="assistant__row">
+            <span style="display:flex;align-items:center;gap:4px"><span style="color:var(--red)">●</span> Disconnected graph — Floor 1</span>
+            <span style="font-size:10px;color:var(--text-muted)">error</span>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:4px">
+            <button style="padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:white;font-size:11px;cursor:pointer">Re-validate</button>
+            <button style="padding:3px 10px;border-radius:4px;border:1px solid var(--amber);background:#fef3c7;color:#92400e;font-size:11px;cursor:pointer">Fix All</button>
+          </div>
+        </div>
+        <div class="assistant__card">
+          <div class="assistant__status">
+            <span class="assistant__dot gray"></span> Publishing
+            <span style="margin-left:auto;font-weight:400;color:var(--text-muted)">Ready</span>
+          </div>
+          <div class="assistant__row">
+            <span>Campus saved</span>
+            <span style="font-size:10px;color:var(--text-muted)">2m ago</span>
+          </div>
+          <div class="assistant__row">
+            <span>Last published</span>
+            <span style="font-size:10px;color:var(--text-muted)">Rev 3 · 8 nodes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="variant-info">PROTOTYPE — Studio UX Refinement · MetadataPanel style</div>
+
+<script>
+function selectBuilding(el) {
+  document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'))
+  el.classList.add('active')
+}
+
+function selectFloor(el) {
+  document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'))
+  el.classList.add('active')
+  const chevron = el.querySelector('.chevron')
+  if (chevron) {
+    chevron.classList.toggle('open')
+    const children = el.parentElement?.querySelector(':scope > .tree-children')
+    if (children) children.style.display = chevron.classList.contains('open') ? '' : 'none'
+  }
+}
+
+function togglePanel(header) {
+  header.classList.toggle('collapsed')
+  const bodyId = header.textContent.trim().toLowerCase().includes('structure') ? 'structureBody' :
+                 header.textContent.trim().toLowerCase().includes('layer') ? 'layersBody' :
+                 header.textContent.trim().toLowerCase().includes('assistant') ? 'assistantBody' : null
+  if (bodyId) document.getElementById(bodyId).classList.toggle('hidden')
+}
+
+let floorCount = 3
+const floorLabels = ['GF','1F','2F','3F','4F','5F','6F','7F','8F','9F','10F','B1','B2','B3']
+const floorNames = ['Ground Floor','Floor 2','Floor 3','Floor 4','Floor 5','Floor 6','Floor 7','Floor 8','Floor 9','Floor 10','Basement 1','Basement 2','Basement 3']
+
+function addFloor() {
+  const list = document.getElementById('floorList')
+  const level = floorCount++
+  const label = floorLabels[level] || level+'F'
+  const name = floorNames[level] || 'Floor '+(level+1)
+  const div = document.createElement('div')
+  div.className = 'floor-row'
+  div.dataset.level = level
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex:1">
+      <span class="badge badge--gray" style="min-width:24px;text-align:center">${label}</span>
+      <span style="font-size:12px;font-weight:500">${name}</span>
+      <span style="font-size:10px;color:var(--text-muted)">0 rooms</span>
+    </div>
+    <div style="display:flex;gap:2px">
+      <button class="floor-btn floor-btn--edit" onclick="editFloor(${level})" title="Edit floor">✎</button>
+      <button class="floor-btn floor-btn--delete" onclick="deleteFloor(${level})" title="Delete floor">✕</button>
+    </div>`
+  list.appendChild(div)
+}
+
+function editFloor(level) {
+  const row = document.querySelector(`.floor-row[data-level="${level}"]`)
+  if (!row) return
+  const nameEl = row.querySelector('span:nth-child(2)')
+  const current = nameEl.textContent
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.value = current
+  input.style.cssText = 'padding:2px 6px;border:1px solid var(--primary);border-radius:4px;font-size:12px;font-family:inherit;width:120px;outline:none'
+  nameEl.replaceWith(input)
+  input.focus()
+  input.select()
+  const save = () => {
+    const span = document.createElement('span')
+    span.style.cssText = 'font-size:12px;font-weight:500'
+    span.textContent = input.value || current
+    input.replaceWith(span)
+  }
+  input.addEventListener('blur', save)
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { input.blur() } if (e.key === 'Escape') { input.value = current; input.blur() } })
+}
+
+function deleteFloor(level) {
+  const row = document.querySelector(`.floor-row[data-level="${level}"]`)
+  if (row && confirm('Delete this floor?')) row.remove()
+}
+
+let _height = 20, _floors = 3
+function stepHeight(delta) {
+  _height = Math.max(1, _height + delta)
+  document.querySelector('#inspector input[type="number"]').value = _height
+}
+function stepFloors(delta) {
+  _floors = Math.max(1, _floors + delta)
+  document.querySelectorAll('#inspector input[type="number"]')[1].value = _floors
+}
+// swatch picking
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.swatch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'))
+      btn.classList.add('active')
+    })
+  })
+})
+</script>
+</body>
+</html>
