@@ -1,0 +1,87 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - banner [ref=f11e3]:
+      - generic [ref=f11e4]: NAVIADMIN
+      - textbox "Search..." [ref=f11e15]
+      - generic [ref=f11e16]:
+        - generic [ref=f11e17]: Online
+        - generic [ref=f11e20]: ASU Ibajay
+    - generic [ref=f11e21]:
+      - complementary [ref=f11e22]:
+        - button [ref=f11e24] [cursor=pointer]
+        - navigation [ref=f11e27]:
+          - button "Dashboard" [ref=f11e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f11e35] [cursor=pointer]:
+            - generic [ref=f11e39]: Panoramas
+            - generic [ref=f11e40]: "3"
+          - button "QR Checkpoints" [ref=f11e41] [cursor=pointer]
+          - button "Route Testing" [ref=f11e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f11e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f11e61] [cursor=pointer]
+        - button "Sign Out" [ref=f11e68] [cursor=pointer]
+      - main [ref=f11e73]:
+        - generic [ref=f11e77]:
+          - generic [ref=f11e78]:
+            - generic [ref=f11e79]: NAVI STUDIO
+            - generic [ref=f11e80]:
+              - button "Campus" [ref=f11e81] [cursor=pointer]
+              - button "Building" [ref=f11e82] [cursor=pointer]
+              - button "Floor" [ref=f11e83] [cursor=pointer]
+            - button "Select" [ref=f11e85] [cursor=pointer]
+            - button "Move" [ref=f11e88] [cursor=pointer]
+            - button "Route" [ref=f11e94] [cursor=pointer]
+            - button "Building" [ref=f11e99] [cursor=pointer]
+            - button "Undo" [disabled] [ref=f11e105]
+            - button "Redo" [disabled] [ref=f11e109]
+            - button "Save" [ref=f11e113] [cursor=pointer]
+            - button "Publish" [ref=f11e118] [cursor=pointer]
+          - generic [ref=f11e124]:
+            - generic [ref=f11e125]:
+              - generic [ref=f11e126]: Explorer
+              - generic [ref=f11e127]: No entities in document
+            - generic [ref=f11e130]:
+              - region "Map" [ref=f11e131] [cursor=pointer]
+              - group [ref=f11e132]:
+                - generic "Toggle attribution" [ref=f11e133] [cursor=pointer]
+                - generic [ref=f11e134]:
+                  - text: © OpenStreetMap contributors |
+                  - link "MapLibre" [ref=f11e135] [cursor=pointer]:
+                    - /url: https://maplibre.org/
+            - generic [ref=f11e136]:
+              - generic [ref=f11e138]:
+                - generic [ref=f11e139]: Workflow
+                - generic [ref=f11e141]:
+                  - generic [ref=f11e142]: Validate
+                  - button "○" [ref=f11e145] [cursor=pointer]
+                - generic [ref=f11e146]:
+                  - generic [ref=f11e147]: Compile
+                  - button "⋯" [ref=f11e150] [cursor=pointer]
+                - generic [ref=f11e151]:
+                  - generic [ref=f11e152]: Save
+                  - button "○" [ref=f11e155] [cursor=pointer]
+                - generic [ref=f11e156]:
+                  - generic [ref=f11e157]: Publish
+                  - button "Publish" [ref=f11e160] [cursor=pointer]
+                - generic [ref=f11e161]: "Next: Validate your campus"
+              - generic [ref=f11e163]:
+                - generic [ref=f11e164]:
+                  - generic [ref=f11e165]: Problems
+                  - generic [ref=f11e166]:
+                    - combobox [ref=f11e167] [cursor=pointer]:
+                      - option "Draft" [selected]
+                      - option "Publish"
+                      - option "Strict"
+                    - button "↻" [ref=f11e168] [cursor=pointer]
+                - generic [ref=f11e169]: No problems
+  - generic [ref=f11e174] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=f11e175]
+    - generic [ref=f11e179]:
+      - button "Open issues overlay" [ref=f11e180]:
+        - generic [ref=f11e181]:
+          - generic [ref=f11e182]: "14"
+          - generic [ref=f11e183]: "15"
+        - generic [ref=f11e184]:
+          - text: Issue
+          - generic [ref=f11e185]: s
+      - button "Collapse issues badge" [ref=f11e186]
+  - alert [ref=f11e189]

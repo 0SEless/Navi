@@ -1,0 +1,58 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e3]:
+      - generic [ref=f5e4]: NAVIADMIN
+      - textbox "Search..." [ref=f5e15]
+      - generic [ref=f5e16]:
+        - generic [ref=f5e17]: Online
+        - generic [ref=f5e20]: ASU Ibajay
+    - generic [ref=f5e21]:
+      - complementary [ref=f5e22]:
+        - button [ref=f5e24] [cursor=pointer]
+        - navigation [ref=f5e27]:
+          - button "Dashboard" [ref=f5e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f5e35] [cursor=pointer]:
+            - generic [ref=f5e39]: Panoramas
+            - generic [ref=f5e40]: "3"
+          - button "QR Checkpoints" [ref=f5e41] [cursor=pointer]
+          - button "Route Testing" [ref=f5e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f5e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f5e61] [cursor=pointer]
+        - button "Sign Out" [ref=f5e68] [cursor=pointer]
+      - main [ref=f5e73]:
+        - generic [ref=f5e74]:
+          - generic [ref=f5e75]:
+            - generic [ref=f5e76]:
+              - generic [ref=f5e83]:
+                - generic [ref=f5e84]: NAVI
+                - generic [ref=f5e85]: CAMPUS NAVIGATION
+              - heading "Admin Console" [level=1] [ref=f5e86]
+              - paragraph [ref=f5e87]: Manage navigation nodes, floor plans, QR checkpoints, and panoramic waypoints for ASU Ibajay.
+            - button "Sign in with Google" [ref=f5e88] [cursor=pointer]
+            - generic [ref=f5e94]:
+              - generic [ref=f5e95]: Mock Auth (Dev Only)
+              - generic [ref=f5e96]:
+                - button "Dr. Admin admin@asu.edu super admin" [ref=f5e97] [cursor=pointer]:
+                  - generic [ref=f5e98]:
+                    - generic [ref=f5e99]: Dr. Admin
+                    - generic [ref=f5e100]: admin@asu.edu
+                  - generic [ref=f5e101]: super admin
+                - button "Campus Admin campus@asu.edu campus admin" [ref=f5e102] [cursor=pointer]:
+                  - generic [ref=f5e103]:
+                    - generic [ref=f5e104]: Campus Admin
+                    - generic [ref=f5e105]: campus@asu.edu
+                  - generic [ref=f5e106]: campus admin
+                - button "Mapper Staff mapper@asu.edu mapping staff" [ref=f5e107] [cursor=pointer]:
+                  - generic [ref=f5e108]:
+                    - generic [ref=f5e109]: Mapper Staff
+                    - generic [ref=f5e110]: mapper@asu.edu
+                  - generic [ref=f5e111]: mapping staff
+                - button "Viewer User viewer@asu.edu viewer" [ref=f5e112] [cursor=pointer]:
+                  - generic [ref=f5e113]:
+                    - generic [ref=f5e114]: Viewer User
+                    - generic [ref=f5e115]: viewer@asu.edu
+                  - generic [ref=f5e116]: viewer
+            - generic [ref=f5e117]: Authorized ASU personnel only. All access is logged.
+            - generic [ref=f5e121]: Aklan State University – Ibajay Campus
+          - paragraph [ref=f5e142]: Multi-campus navigation wayfinding system
+  - alert [ref=f5e143]

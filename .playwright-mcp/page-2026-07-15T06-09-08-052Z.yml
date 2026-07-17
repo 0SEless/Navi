@@ -1,0 +1,41 @@
+- generic [ref=f26e1]:
+  - generic [ref=f26e2]:
+    - banner [ref=f26e3]:
+      - generic [ref=f26e4]: NAVIADMIN
+      - textbox "Search..." [ref=f26e15]
+      - generic [ref=f26e16]:
+        - generic [ref=f26e17]: Online
+        - generic [ref=f26e20]: ASU Ibajay
+    - generic [ref=f26e21]:
+      - complementary [ref=f26e22]:
+        - button [ref=f26e24] [cursor=pointer]
+        - navigation [ref=f26e27]:
+          - button "Dashboard" [ref=f26e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f26e35] [cursor=pointer]:
+            - generic [ref=f26e39]: Panoramas
+            - generic [ref=f26e40]: "3"
+          - button "QR Checkpoints" [ref=f26e41] [cursor=pointer]
+          - button "Route Testing" [ref=f26e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f26e55] [cursor=pointer]
+          - button "NAVI Studio" [active] [ref=f26e61] [cursor=pointer]
+        - button "Sign Out" [ref=f26e68] [cursor=pointer]
+      - main [ref=f26e73]:
+        - generic [ref=f26e75]:
+          - generic [ref=f26e77]:
+            - heading "NAVI Studio" [level=1] [ref=f26e78]
+            - paragraph [ref=f26e79]: 1 map · 0 buildings
+          - generic [ref=f26e81]:
+            - generic [ref=f26e95] [cursor=pointer]:
+              - generic [ref=f26e98]: Create New Map
+              - generic [ref=f26e99]: Set up a new campus map with buildings and landmarks
+            - generic [ref=f26e100] [cursor=pointer]:
+              - generic [ref=f26e101]: V
+              - generic [ref=f26e102]:
+                - generic [ref=f26e103]: verify
+                - generic [ref=f26e104]:
+                  - generic [ref=f26e105]: "0"
+                  - generic [ref=f26e110]: "0"
+                  - generic [ref=f26e114]: "0"
+              - button [ref=f26e121]
+  - button "Open Next.js Dev Tools" [ref=f26e90] [cursor=pointer]
+  - alert [ref=f26e126]

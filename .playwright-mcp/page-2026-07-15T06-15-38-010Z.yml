@@ -1,0 +1,75 @@
+- generic [active] [ref=f28e1]:
+  - generic [ref=f28e2]:
+    - banner [ref=f28e3]:
+      - generic [ref=f28e4]: NAVIADMIN
+      - textbox "Search..." [ref=f28e15]
+      - generic [ref=f28e16]:
+        - generic [ref=f28e17]: Online
+        - generic [ref=f28e20]: ASU Ibajay
+    - generic [ref=f28e21]:
+      - complementary [ref=f28e22]:
+        - button [ref=f28e24] [cursor=pointer]
+        - navigation [ref=f28e27]:
+          - button "Dashboard" [ref=f28e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f28e35] [cursor=pointer]:
+            - generic [ref=f28e39]: Panoramas
+            - generic [ref=f28e40]: "3"
+          - button "QR Checkpoints" [ref=f28e41] [cursor=pointer]
+          - button "Route Testing" [ref=f28e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f28e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f28e61] [cursor=pointer]
+        - button "Sign Out" [ref=f28e68] [cursor=pointer]
+      - main [ref=f28e73]:
+        - generic [ref=f28e76]:
+          - generic [ref=f28e77]:
+            - generic [ref=f28e78]: NAVI STUDIO
+            - generic [ref=f28e79]:
+              - button "Campus" [ref=f28e80] [cursor=pointer]
+              - button "Building" [ref=f28e81] [cursor=pointer]
+              - button "Floor" [ref=f28e82] [cursor=pointer]
+            - button "Select" [ref=f28e84] [cursor=pointer]
+            - button "Move" [ref=f28e87] [cursor=pointer]
+            - button "Route" [ref=f28e93] [cursor=pointer]
+            - button "Building" [ref=f28e98] [cursor=pointer]
+            - button "Undo" [disabled] [ref=f28e104]
+            - button "Redo" [disabled] [ref=f28e108]
+            - button "Save" [ref=f28e112] [cursor=pointer]
+            - button "Publish" [ref=f28e117] [cursor=pointer]
+          - generic [ref=f28e123]:
+            - generic [ref=f28e124]:
+              - generic [ref=f28e125]: Explorer
+              - generic [ref=f28e126]: No entities in document
+            - generic [ref=f28e129]:
+              - region "Map" [ref=f28e130]
+              - group [ref=f28e131]:
+                - generic "Toggle attribution" [ref=f28e132] [cursor=pointer]
+                - link "MapLibre" [ref=f28e134] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+            - generic [ref=f28e135]:
+              - generic [ref=f28e137]:
+                - generic [ref=f28e138]: Workflow
+                - generic [ref=f28e140]:
+                  - generic [ref=f28e141]: Validate
+                  - button "○" [ref=f28e144] [cursor=pointer]
+                - generic [ref=f28e145]:
+                  - generic [ref=f28e146]: Compile
+                  - button "⋯" [ref=f28e149] [cursor=pointer]
+                - generic [ref=f28e150]:
+                  - generic [ref=f28e151]: Save
+                  - button "○" [ref=f28e154] [cursor=pointer]
+                - generic [ref=f28e155]:
+                  - generic [ref=f28e156]: Publish
+                  - button "Publish" [ref=f28e159] [cursor=pointer]
+                - generic [ref=f28e160]: "Next: Validate your campus"
+              - generic [ref=f28e162]:
+                - generic [ref=f28e163]:
+                  - generic [ref=f28e164]: Problems
+                  - generic [ref=f28e165]:
+                    - combobox [ref=f28e166] [cursor=pointer]:
+                      - option "Draft" [selected]
+                      - option "Publish"
+                      - option "Strict"
+                    - button "↻" [ref=f28e167] [cursor=pointer]
+                - generic [ref=f28e168]: No problems
+  - button "Open Next.js Dev Tools" [ref=f28e174] [cursor=pointer]
+  - alert [ref=f28e178]

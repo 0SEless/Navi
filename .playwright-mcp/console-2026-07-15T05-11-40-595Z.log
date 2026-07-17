@@ -1,0 +1,693 @@
+[     118ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     141ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1240881ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/graph:0
+[ 1240882ms] [WARNING] [graph-store] syncToSupabase failed: TypeError: fetch failed @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1548657ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1548684ms] [LOG] [Fast Refresh] done in 89ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1548795ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1548914ms] [LOG] [Fast Refresh] done in 225ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1566709ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1567666ms] [LOG] [Fast Refresh] done in 1037ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1567789ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1567887ms] [LOG] [Fast Refresh] done in 210ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1676114ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1676137ms] [LOG] [Fast Refresh] done in 70ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1676245ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1676357ms] [LOG] [Fast Refresh] done in 215ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1722605ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1722674ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[ 1722674ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[ 1722761ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/studio/verify-campus/edit?_rsc=xtae1HkRNmSuAXvi:0
+[ 1722791ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[ 1722791ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:3318
+[ 1722875ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/studio/verify-campus/edit?_rsc=xtae1HkRNmSuAXvi:0
+[ 1722915ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/studio/verify-campus/edit:0
+[ 1723015ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_react-dom_0kla17-._.js:15305
+[ 1723089ms] Error: ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./src/components/studio/EditorBridge.tsx:15:1)
+    at Object.getCompilationErrors (file://C:\Users\Administrator\Desktop\CODEme\Navi\navi-next\node_modules\next\dist\server\dev\hot-reloader-turbopack.js:1186:59)
+    at DevBundlerService.getCompilationError (file://C:\Users\Administrator\Desktop\CODEme\Navi\navi-next\node_modules\next\dist\server\lib\dev-bundler-service.js:44:55)
+    at DevServer.getCompilationError (file://C:\Users\Administrator\Desktop\CODEme\Navi\navi-next\node_modules\next\dist\server\dev\next-dev-server.js:720:42)
+    at DevServer.findPageComponents (file://C:\Users\Administrator\Desktop\CODEme\Navi\navi-next\node_modules\next\dist\server\dev\next-dev-server.js:690:43)
+    at async DevServer.renderErrorToResponseImpl (file://C:\Users\Administrator\Desktop\CODEme\Navi\navi-next\node_modules\next\dist\server\base-server.js:1753:26)
+[ 1723090ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1723097ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1723098ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1723168ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1723168ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1723214ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1727769ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1727770ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1727824ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1727927ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1727927ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1727993ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1728137ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728137ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728177ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728177ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728238ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1728355ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728355ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728401ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1728809ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728809ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728825ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1728954ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728955ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1728992ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1740568ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-client] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1740568ms] [ERROR] ./src/components/studio/EditorBridge.tsx:15:1
+Export CampusCompilerAdapter doesn't exist in target module
+  13 | import { useGraphStore } from '@/store/graph-store'
+  14 | import { useStudioStore } from '@/store/studio-store'
+> 15 | import { CampusCompilerAdapter } from '@/services/compiler-adapter'
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  16 |
+  17 | /**
+  18 |  * ── Selection Ownership Invariant ─────────────────────────────────
+
+The export CampusCompilerAdapter was not found in module [project]/src/services/compiler-adapter.ts [app-ssr] (ecmascript).
+Did you mean to import createCompilerAdapter?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+Import traces:
+  Client Component Browser:
+    ./src/components/studio/EditorBridge.tsx [Client Component Browser]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component Browser]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/studio/EditorBridge.tsx [Client Component SSR]
+    ./src/components/studio/StudioWorkspace.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Client Component SSR]
+    ./src/app/(admin)/studio/[id]/edit/page.tsx [Server Component] @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1945
+[ 1740638ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1740749ms] [LOG] [Fast Refresh] done in 168ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1740897ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1741279ms] [LOG] [Fast Refresh] done in 487ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1gdrd03._.js:1226
+[ 1741697ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1741844ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477

@@ -1,0 +1,13 @@
+[     619ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     640ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   30179ms] TypeError: Cannot read properties of undefined (reading 'buildings')
+    at https://navi-next.vercel.app/_next/static/chunks/02l_g76fkbird.js:1:6945
+    at Array.reduce (<anonymous>)
+    at h (https://navi-next.vercel.app/_next/static/chunks/02l_g76fkbird.js:1:6921)
+    at ay (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:63845)
+    at oJ (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:84102)
+    at iu (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:95704)
+    at sd (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:138944)
+    at https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:138789
+    at sf (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:138797)
+    at se (https://navi-next.vercel.app/_next/static/chunks/3peubv2924kx4.js:1:134718)

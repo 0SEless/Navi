@@ -1,0 +1,50 @@
+- generic [active] [ref=f25e1]:
+  - generic [ref=f25e2]:
+    - banner [ref=f25e3]:
+      - generic [ref=f25e4]:
+        - generic [ref=f25e5]:
+          - generic [ref=f25e6]: "N"
+          - generic [ref=f25e8]: NAVI
+        - navigation [ref=f25e9]:
+          - link "Sign in" [ref=f25e10] [cursor=pointer]:
+            - /url: /login
+          - link "View Map" [ref=f25e11] [cursor=pointer]:
+            - /url: /map
+    - main [ref=f25e12]:
+      - generic [ref=f25e13]:
+        - heading "Navigate Your Campus" [level=1] [ref=f25e14]
+        - paragraph [ref=f25e15]: Find your way across multiple campuses with turn-by-turn directions, indoor wayfinding, and real-time location tracking.
+        - generic [ref=f25e16]:
+          - link "Start Navigating" [ref=f25e17] [cursor=pointer]:
+            - /url: /map
+          - link "Explore Map" [ref=f25e18] [cursor=pointer]:
+            - /url: /map
+      - generic [ref=f25e22]:
+        - heading "Your Location" [level=2] [ref=f25e23]
+        - paragraph [ref=f25e24]: Location unavailable — Geolocation is not supported by this browser
+      - generic [ref=f25e25]:
+        - heading "Loading campuses..." [level=2] [ref=f25e26]
+        - generic [ref=f25e27]:
+          - link [ref=f25e28] [cursor=pointer]:
+            - /url: /map?campus=asu-main
+            - heading "ASU Main Campus" [level=3] [ref=f25e30]
+            - paragraph [ref=f25e31]: Located in Tempe, the largest of the ASU campuses with a vibrant academic community.
+            - paragraph [ref=f25e32]: Tempe, AZ
+          - link [ref=f25e33] [cursor=pointer]:
+            - /url: /map?campus=asu-west
+            - heading "ASU West Campus" [level=3] [ref=f25e35]
+            - paragraph [ref=f25e36]: Serves the West Valley with a growing academic community.
+            - paragraph [ref=f25e37]: Phoenix, AZ
+          - link [ref=f25e38] [cursor=pointer]:
+            - /url: /map?campus=asu-downtown
+            - heading "ASU Downtown Phoenix" [level=3] [ref=f25e40]
+            - paragraph [ref=f25e41]: Urban campus in the heart of downtown Phoenix.
+            - paragraph [ref=f25e42]: Phoenix, AZ
+          - link [ref=f25e43] [cursor=pointer]:
+            - /url: /map?campus=asu-poly
+            - heading "ASU Polytechnic" [level=3] [ref=f25e45]
+            - paragraph [ref=f25e46]: Located in Mesa, focusing on technology and innovation.
+            - paragraph [ref=f25e47]: Mesa, AZ
+    - contentinfo [ref=f25e48]:
+      - generic [ref=f25e49]: NAVI — Virtual Campus Navigation
+  - button "Open Next.js Dev Tools" [ref=f25e55] [cursor=pointer]

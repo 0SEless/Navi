@@ -1,0 +1,36 @@
+- generic [active] [ref=f26e1]:
+  - generic [ref=f26e2]:
+    - banner [ref=f26e3]:
+      - generic [ref=f26e4]: NAVIADMIN
+      - textbox "Search..." [ref=f26e15]
+      - generic [ref=f26e16]:
+        - generic [ref=f26e17]: Online
+        - generic [ref=f26e20]: ASU Ibajay
+    - generic [ref=f26e21]:
+      - complementary [ref=f26e22]:
+        - button [ref=f26e24] [cursor=pointer]
+        - navigation [ref=f26e27]:
+          - button "Dashboard" [ref=f26e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f26e35] [cursor=pointer]:
+            - generic [ref=f26e39]: Panoramas
+            - generic [ref=f26e40]: "3"
+          - button "QR Checkpoints" [ref=f26e41] [cursor=pointer]
+          - button "Route Testing" [ref=f26e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f26e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f26e61] [cursor=pointer]
+        - button "Sign Out" [ref=f26e68] [cursor=pointer]
+      - main [ref=f26e73]:
+        - generic [ref=f26e127]:
+          - button "Back" [ref=f26e129] [cursor=pointer]
+          - generic [ref=f26e132]:
+            - button "OSM" [ref=f26e133] [cursor=pointer]
+            - button "Edit Map" [ref=f26e136] [cursor=pointer]
+          - generic [ref=f26e140]: verify
+          - generic [ref=f26e143]:
+            - region "Map" [ref=f26e144]
+            - group [ref=f26e145]:
+              - generic "Toggle attribution" [ref=f26e146] [cursor=pointer]
+              - link "MapLibre" [ref=f26e148] [cursor=pointer]:
+                - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=f26e90] [cursor=pointer]
+  - alert [ref=f26e126]

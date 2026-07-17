@@ -1,0 +1,151 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - banner [ref=f6e3]:
+      - generic [ref=f6e4]: NAVIADMIN
+      - textbox "Search..." [ref=f6e15]
+      - generic [ref=f6e16]:
+        - generic [ref=f6e17]: Online
+        - generic [ref=f6e20]: ASU Ibajay
+    - generic [ref=f6e21]:
+      - complementary [ref=f6e22]:
+        - button [ref=f6e24] [cursor=pointer]
+        - navigation [ref=f6e27]:
+          - button "Dashboard" [ref=f6e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f6e35] [cursor=pointer]:
+            - generic [ref=f6e39]: Panoramas
+            - generic [ref=f6e40]: "3"
+          - button "QR Checkpoints" [ref=f6e41] [cursor=pointer]
+          - button "Route Testing" [ref=f6e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f6e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f6e61] [cursor=pointer]
+        - button "Sign Out" [ref=f6e68] [cursor=pointer]
+      - main [ref=f6e73]:
+        - generic [ref=f6e74]:
+          - generic [ref=f6e75]:
+            - generic [ref=f6e76]:
+              - heading "Dashboard" [level=1] [ref=f6e77]
+              - paragraph [ref=f6e78]: NAVI · ASU Ibajay Campus
+            - generic [ref=f6e79]:
+              - generic [ref=f6e80]: All Systems Operational
+              - button "Refresh" [ref=f6e84] [cursor=pointer]
+          - generic [ref=f6e90]:
+            - generic [ref=f6e91]:
+              - generic [ref=f6e92]:
+                - generic [ref=f6e93]: "+8"
+                - generic [ref=f6e102]: "100"
+                - generic [ref=f6e103]: Navigation Nodes
+                - generic [ref=f6e104]: 15 floors · 8 buildings
+              - generic [ref=f6e105]:
+                - generic [ref=f6e106]: "+1"
+                - generic [ref=f6e116]: "8"
+                - generic [ref=f6e117]: Campus Buildings
+                - generic [ref=f6e118]: 23 total floors mapped
+              - generic [ref=f6e119]:
+                - generic [ref=f6e120]: "+5"
+                - generic [ref=f6e132]: "47"
+                - generic [ref=f6e133]: QR Checkpoints
+                - generic [ref=f6e134]: 39 active · 8 pending
+              - generic [ref=f6e135]:
+                - generic [ref=f6e136]: 3 unlinked
+                - generic [ref=f6e145]: "34"
+                - generic [ref=f6e146]: Panoramas
+                - generic [ref=f6e147]: 28 linked to nodes
+            - generic [ref=f6e148]:
+              - generic [ref=f6e150]:
+                - generic [ref=f6e151]:
+                  - heading "Navigation Activity" [level=3] [ref=f6e152]
+                  - paragraph [ref=f6e153]: QR scans & route requests today
+                - generic [ref=f6e154]:
+                  - generic [ref=f6e155]: ● QR Scans
+                  - generic [ref=f6e156]: ● Route Requests
+              - generic [ref=f6e159]:
+                - heading "Building Usage" [level=3] [ref=f6e160]
+                - paragraph [ref=f6e161]: Nodes & scans per building
+              - generic [ref=f6e163]:
+                - heading "Node Types" [level=3] [ref=f6e164]
+                - paragraph [ref=f6e165]: Distribution by category
+                - generic [ref=f6e168]:
+                  - generic [ref=f6e169]:
+                    - generic [ref=f6e170]: Entrance
+                    - generic [ref=f6e173]: "28"
+                  - generic [ref=f6e174]:
+                    - generic [ref=f6e175]: Intersection
+                    - generic [ref=f6e178]: "19"
+                  - generic [ref=f6e179]:
+                    - generic [ref=f6e180]: Staircase
+                    - generic [ref=f6e183]: "14"
+                  - generic [ref=f6e184]:
+                    - generic [ref=f6e185]: Room
+                    - generic [ref=f6e188]: "22"
+                  - generic [ref=f6e189]:
+                    - generic [ref=f6e190]: Elevator
+                    - generic [ref=f6e193]: "6"
+                  - generic [ref=f6e194]:
+                    - generic [ref=f6e195]: Outdoor
+                    - generic [ref=f6e198]: "11"
+            - generic [ref=f6e199]:
+              - generic [ref=f6e200]:
+                - generic [ref=f6e201]:
+                  - heading "Recent Activity" [level=3] [ref=f6e202]
+                  - button "View all" [ref=f6e203] [cursor=pointer]
+                - generic [ref=f6e206]:
+                  - generic [ref=f6e207]:
+                    - generic [ref=f6e212]:
+                      - generic [ref=f6e213]: Node N047 added
+                      - generic [ref=f6e214]: COE Building, Floor 2
+                    - generic [ref=f6e215]: 2 min ago
+                  - generic [ref=f6e219]:
+                    - generic [ref=f6e227]:
+                      - generic [ref=f6e228]: QR checkpoint scanned
+                      - generic [ref=f6e229]: Main Plaza (N011)
+                    - generic [ref=f6e230]: 5 min ago
+                  - generic [ref=f6e234]:
+                    - generic [ref=f6e239]:
+                      - generic [ref=f6e240]: Panorama uploaded
+                      - generic [ref=f6e241]: Library Entrance (N002)
+                    - generic [ref=f6e242]: 12 min ago
+                  - generic [ref=f6e246]:
+                    - generic [ref=f6e252]:
+                      - generic [ref=f6e253]: Route validation failed
+                      - generic [ref=f6e254]: N031 → N045 (disconnected)
+                    - generic [ref=f6e255]: 18 min ago
+                  - generic [ref=f6e259]:
+                    - generic [ref=f6e264]:
+                      - generic [ref=f6e265]: Node N023 updated
+                      - generic [ref=f6e266]: Admin Building, Floor 1
+                    - generic [ref=f6e267]: 24 min ago
+                  - generic [ref=f6e271]:
+                    - generic [ref=f6e277]:
+                      - generic [ref=f6e278]: Building metadata edited
+                      - generic [ref=f6e279]: Science Laboratory
+                    - generic [ref=f6e280]: 31 min ago
+                  - generic [ref=f6e284]:
+                    - generic [ref=f6e290]:
+                      - generic [ref=f6e291]: Dataset exported
+                      - generic [ref=f6e292]: Full GeoJSON backup
+                    - generic [ref=f6e293]: 1 hr ago
+              - generic [ref=f6e297]:
+                - generic [ref=f6e298]:
+                  - heading "Dataset Health" [level=3] [ref=f6e299]
+                  - generic [ref=f6e301]:
+                    - generic [ref=f6e302]: Graph Connectivity
+                    - generic [ref=f6e303]: 94%
+                  - generic [ref=f6e307]:
+                    - generic [ref=f6e308]: QR Coverage
+                    - generic [ref=f6e309]: 78%
+                  - generic [ref=f6e313]:
+                    - generic [ref=f6e314]: Panorama Linkage
+                    - generic [ref=f6e315]: 62%
+                  - generic [ref=f6e319]:
+                    - generic [ref=f6e320]: Floor Coverage
+                    - generic [ref=f6e321]: 85%
+                - generic [ref=f6e324]:
+                  - heading "Quick Actions" [level=3] [ref=f6e325]
+                  - generic [ref=f6e326]:
+                    - button "Add QR Checkpoint" [ref=f6e327] [cursor=pointer]
+                    - button "Test Route" [ref=f6e338] [cursor=pointer]
+                    - button "Export Dataset" [ref=f6e347] [cursor=pointer]
+                - generic [ref=f6e359]:
+                  - generic [ref=f6e360]: 1 Disconnected Node
+                  - generic [ref=f6e361]: Node N031 has no valid path connections.
+  - button "Open Next.js Dev Tools" [ref=f6e367] [cursor=pointer]

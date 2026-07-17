@@ -55,6 +55,7 @@ Main progress tracker for the NAVI second brain.
 - [x] NAVI will use mobile-first animated 2D route lines inspired by SM-style visual route clarity. See [[ADR 003 - Mobile 2D Route Animation]].
 - [x] Obsidian will act as the project memory for goals, plans, decisions, errors, and build logs.
 - [x] opencode multi-agent system deployed: 6 subagents (memory, research, architect, QA, documentation, mentor) + 3 skills (PostGIS, ADR, lint guard) + supervisor role.
+- [x] Rendering is decomposed: EntityRenderer owns authored CampusDocument geometry; NavigationGraphRenderer owns the compiled nav-graph (derived via GraphAdapter). Legacy MapRenderer deleted. See [[ADR 004 - Rendering Responsibilities]].
 
 ## Key Links
 

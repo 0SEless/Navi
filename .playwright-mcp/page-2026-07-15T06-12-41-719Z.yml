@@ -1,0 +1,84 @@
+- generic [ref=f27e1]:
+  - generic [ref=f27e2]:
+    - banner [ref=f27e3]:
+      - generic [ref=f27e4]: NAVIADMIN
+      - textbox "Search..." [ref=f27e15]
+      - generic [ref=f27e16]:
+        - generic [ref=f27e17]: Online
+        - generic [ref=f27e20]: ASU Ibajay
+    - generic [ref=f27e21]:
+      - complementary [ref=f27e22]:
+        - button [ref=f27e24] [cursor=pointer]
+        - navigation [ref=f27e27]:
+          - button "Dashboard" [ref=f27e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f27e35] [cursor=pointer]:
+            - generic [ref=f27e39]: Panoramas
+            - generic [ref=f27e40]: "3"
+          - button "QR Checkpoints" [ref=f27e41] [cursor=pointer]
+          - button "Route Testing" [ref=f27e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f27e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f27e61] [cursor=pointer]
+        - button "Sign Out" [ref=f27e68] [cursor=pointer]
+      - main [ref=f27e73]:
+        - generic [ref=f27e86]:
+          - generic [ref=f27e87]:
+            - generic [ref=f27e88]: NAVI STUDIO
+            - generic [ref=f27e89]:
+              - button "Campus" [ref=f27e90] [cursor=pointer]
+              - button "Building" [ref=f27e91] [cursor=pointer]
+              - button "Floor" [ref=f27e92] [cursor=pointer]
+            - button "Select" [active] [ref=f27e94] [cursor=pointer]
+            - button "Move" [ref=f27e97] [cursor=pointer]
+            - button "Route" [ref=f27e103] [cursor=pointer]
+            - button "Building" [ref=f27e108] [cursor=pointer]
+            - button "Undo" [disabled] [ref=f27e114]
+            - button "Redo" [disabled] [ref=f27e118]
+            - button "Save" [ref=f27e122] [cursor=pointer]
+            - button "Publish" [ref=f27e127] [cursor=pointer]
+          - generic [ref=f27e133]:
+            - generic [ref=f27e134]:
+              - generic [ref=f27e135]: Explorer
+              - generic [ref=f27e136]:
+                - textbox "Search entities" [ref=f27e186]:
+                  - /placeholder: Search entities...
+                - tree [ref=f27e188]:
+                  - treeitem "↔ Road" [ref=f27e190] [cursor=pointer]:
+                    - generic [ref=f27e191]: ↔
+                    - generic [ref=f27e192]: Road
+                - generic [ref=f27e193]: 1 item
+            - generic [ref=f27e139]:
+              - region "Map" [ref=f27e140] [cursor=pointer]
+              - group [ref=f27e141]:
+                - generic "Toggle attribution" [ref=f27e142] [cursor=pointer]
+                - generic [ref=f27e143]:
+                  - text: © OpenStreetMap contributors |
+                  - link "MapLibre" [ref=f27e144] [cursor=pointer]:
+                    - /url: https://maplibre.org/
+            - generic [ref=f27e145]:
+              - generic [ref=f27e147]:
+                - generic [ref=f27e148]: Workflow
+                - generic [ref=f27e150]:
+                  - generic [ref=f27e151]: Validate
+                  - button "○" [ref=f27e154] [cursor=pointer]
+                - generic [ref=f27e155]:
+                  - generic [ref=f27e156]: Compile
+                  - button "⋯" [ref=f27e159] [cursor=pointer]
+                - generic [ref=f27e160]:
+                  - generic [ref=f27e161]: Save
+                  - button "✓" [ref=f27e181] [cursor=pointer]
+                - generic [ref=f27e165]:
+                  - generic [ref=f27e166]: Publish
+                  - button "Publish" [ref=f27e169] [cursor=pointer]
+                - generic [ref=f27e170]: "Next: Validate your campus"
+              - generic [ref=f27e172]:
+                - generic [ref=f27e173]:
+                  - generic [ref=f27e174]: Problems
+                  - generic [ref=f27e175]:
+                    - combobox [ref=f27e176] [cursor=pointer]:
+                      - option "Draft" [selected]
+                      - option "Publish"
+                      - option "Strict"
+                    - button "↻" [ref=f27e177] [cursor=pointer]
+                - generic [ref=f27e178]: No problems
+  - button "Open Next.js Dev Tools" [ref=f27e81] [cursor=pointer]
+  - alert [ref=f27e179]

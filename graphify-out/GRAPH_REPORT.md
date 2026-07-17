@@ -1,13 +1,18 @@
-# Graph Report - Navi  (2026-06-25)
+# Graph Report - Navi  (2026-07-15)
 
 ## Corpus Check
-- 803 files · ~650,277 words
+- 1453 files · ~1,540,156 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5406 nodes · 5094 edges · 732 communities (616 shown, 116 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.8)
+- 10373 nodes · 13571 edges · 1081 communities (926 shown, 155 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 22 edges (avg confidence: 0.77)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `57600fd2`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Community 0|Community 0]]
@@ -220,6 +225,7 @@
 - [[_COMMUNITY_Community 216|Community 216]]
 - [[_COMMUNITY_Community 217|Community 217]]
 - [[_COMMUNITY_Community 218|Community 218]]
+- [[_COMMUNITY_Community 219|Community 219]]
 - [[_COMMUNITY_Community 220|Community 220]]
 - [[_COMMUNITY_Community 221|Community 221]]
 - [[_COMMUNITY_Community 222|Community 222]]
@@ -455,6 +461,7 @@
 - [[_COMMUNITY_Community 483|Community 483]]
 - [[_COMMUNITY_Community 484|Community 484]]
 - [[_COMMUNITY_Community 485|Community 485]]
+- [[_COMMUNITY_Community 486|Community 486]]
 - [[_COMMUNITY_Community 487|Community 487]]
 - [[_COMMUNITY_Community 493|Community 493]]
 - [[_COMMUNITY_Community 494|Community 494]]
@@ -532,35 +539,376 @@
 - [[_COMMUNITY_Community 729|Community 729]]
 - [[_COMMUNITY_Community 730|Community 730]]
 - [[_COMMUNITY_Community 731|Community 731]]
+- [[_COMMUNITY_Community 732|Community 732]]
+- [[_COMMUNITY_Community 733|Community 733]]
+- [[_COMMUNITY_Community 734|Community 734]]
+- [[_COMMUNITY_Community 735|Community 735]]
+- [[_COMMUNITY_Community 736|Community 736]]
+- [[_COMMUNITY_Community 737|Community 737]]
+- [[_COMMUNITY_Community 738|Community 738]]
+- [[_COMMUNITY_Community 739|Community 739]]
+- [[_COMMUNITY_Community 740|Community 740]]
+- [[_COMMUNITY_Community 741|Community 741]]
+- [[_COMMUNITY_Community 742|Community 742]]
+- [[_COMMUNITY_Community 743|Community 743]]
+- [[_COMMUNITY_Community 744|Community 744]]
+- [[_COMMUNITY_Community 745|Community 745]]
+- [[_COMMUNITY_Community 746|Community 746]]
+- [[_COMMUNITY_Community 747|Community 747]]
+- [[_COMMUNITY_Community 748|Community 748]]
+- [[_COMMUNITY_Community 749|Community 749]]
+- [[_COMMUNITY_Community 750|Community 750]]
+- [[_COMMUNITY_Community 751|Community 751]]
+- [[_COMMUNITY_Community 752|Community 752]]
+- [[_COMMUNITY_Community 753|Community 753]]
+- [[_COMMUNITY_Community 754|Community 754]]
+- [[_COMMUNITY_Community 755|Community 755]]
+- [[_COMMUNITY_Community 756|Community 756]]
+- [[_COMMUNITY_Community 757|Community 757]]
+- [[_COMMUNITY_Community 758|Community 758]]
+- [[_COMMUNITY_Community 759|Community 759]]
+- [[_COMMUNITY_Community 760|Community 760]]
+- [[_COMMUNITY_Community 761|Community 761]]
+- [[_COMMUNITY_Community 762|Community 762]]
+- [[_COMMUNITY_Community 763|Community 763]]
+- [[_COMMUNITY_Community 764|Community 764]]
+- [[_COMMUNITY_Community 765|Community 765]]
+- [[_COMMUNITY_Community 766|Community 766]]
+- [[_COMMUNITY_Community 767|Community 767]]
+- [[_COMMUNITY_Community 768|Community 768]]
+- [[_COMMUNITY_Community 769|Community 769]]
+- [[_COMMUNITY_Community 770|Community 770]]
+- [[_COMMUNITY_Community 771|Community 771]]
+- [[_COMMUNITY_Community 772|Community 772]]
+- [[_COMMUNITY_Community 773|Community 773]]
+- [[_COMMUNITY_Community 774|Community 774]]
+- [[_COMMUNITY_Community 775|Community 775]]
+- [[_COMMUNITY_Community 776|Community 776]]
+- [[_COMMUNITY_Community 777|Community 777]]
+- [[_COMMUNITY_Community 778|Community 778]]
+- [[_COMMUNITY_Community 779|Community 779]]
+- [[_COMMUNITY_Community 780|Community 780]]
+- [[_COMMUNITY_Community 781|Community 781]]
+- [[_COMMUNITY_Community 782|Community 782]]
+- [[_COMMUNITY_Community 783|Community 783]]
+- [[_COMMUNITY_Community 784|Community 784]]
+- [[_COMMUNITY_Community 785|Community 785]]
+- [[_COMMUNITY_Community 786|Community 786]]
+- [[_COMMUNITY_Community 787|Community 787]]
+- [[_COMMUNITY_Community 788|Community 788]]
+- [[_COMMUNITY_Community 789|Community 789]]
+- [[_COMMUNITY_Community 790|Community 790]]
+- [[_COMMUNITY_Community 791|Community 791]]
+- [[_COMMUNITY_Community 792|Community 792]]
+- [[_COMMUNITY_Community 793|Community 793]]
+- [[_COMMUNITY_Community 794|Community 794]]
+- [[_COMMUNITY_Community 795|Community 795]]
+- [[_COMMUNITY_Community 796|Community 796]]
+- [[_COMMUNITY_Community 797|Community 797]]
+- [[_COMMUNITY_Community 798|Community 798]]
+- [[_COMMUNITY_Community 799|Community 799]]
+- [[_COMMUNITY_Community 800|Community 800]]
+- [[_COMMUNITY_Community 801|Community 801]]
+- [[_COMMUNITY_Community 802|Community 802]]
+- [[_COMMUNITY_Community 803|Community 803]]
+- [[_COMMUNITY_Community 804|Community 804]]
+- [[_COMMUNITY_Community 805|Community 805]]
+- [[_COMMUNITY_Community 806|Community 806]]
+- [[_COMMUNITY_Community 807|Community 807]]
+- [[_COMMUNITY_Community 808|Community 808]]
+- [[_COMMUNITY_Community 809|Community 809]]
+- [[_COMMUNITY_Community 810|Community 810]]
+- [[_COMMUNITY_Community 811|Community 811]]
+- [[_COMMUNITY_Community 812|Community 812]]
+- [[_COMMUNITY_Community 813|Community 813]]
+- [[_COMMUNITY_Community 814|Community 814]]
+- [[_COMMUNITY_Community 815|Community 815]]
+- [[_COMMUNITY_Community 816|Community 816]]
+- [[_COMMUNITY_Community 817|Community 817]]
+- [[_COMMUNITY_Community 818|Community 818]]
+- [[_COMMUNITY_Community 819|Community 819]]
+- [[_COMMUNITY_Community 820|Community 820]]
+- [[_COMMUNITY_Community 821|Community 821]]
+- [[_COMMUNITY_Community 822|Community 822]]
+- [[_COMMUNITY_Community 823|Community 823]]
+- [[_COMMUNITY_Community 824|Community 824]]
+- [[_COMMUNITY_Community 825|Community 825]]
+- [[_COMMUNITY_Community 826|Community 826]]
+- [[_COMMUNITY_Community 827|Community 827]]
+- [[_COMMUNITY_Community 828|Community 828]]
+- [[_COMMUNITY_Community 829|Community 829]]
+- [[_COMMUNITY_Community 830|Community 830]]
+- [[_COMMUNITY_Community 831|Community 831]]
+- [[_COMMUNITY_Community 832|Community 832]]
+- [[_COMMUNITY_Community 833|Community 833]]
+- [[_COMMUNITY_Community 834|Community 834]]
+- [[_COMMUNITY_Community 835|Community 835]]
+- [[_COMMUNITY_Community 836|Community 836]]
+- [[_COMMUNITY_Community 837|Community 837]]
+- [[_COMMUNITY_Community 838|Community 838]]
+- [[_COMMUNITY_Community 839|Community 839]]
+- [[_COMMUNITY_Community 840|Community 840]]
+- [[_COMMUNITY_Community 841|Community 841]]
+- [[_COMMUNITY_Community 842|Community 842]]
+- [[_COMMUNITY_Community 843|Community 843]]
+- [[_COMMUNITY_Community 844|Community 844]]
+- [[_COMMUNITY_Community 845|Community 845]]
+- [[_COMMUNITY_Community 846|Community 846]]
+- [[_COMMUNITY_Community 847|Community 847]]
+- [[_COMMUNITY_Community 848|Community 848]]
+- [[_COMMUNITY_Community 849|Community 849]]
+- [[_COMMUNITY_Community 850|Community 850]]
+- [[_COMMUNITY_Community 852|Community 852]]
+- [[_COMMUNITY_Community 853|Community 853]]
+- [[_COMMUNITY_Community 854|Community 854]]
+- [[_COMMUNITY_Community 855|Community 855]]
+- [[_COMMUNITY_Community 856|Community 856]]
+- [[_COMMUNITY_Community 857|Community 857]]
+- [[_COMMUNITY_Community 858|Community 858]]
+- [[_COMMUNITY_Community 859|Community 859]]
+- [[_COMMUNITY_Community 860|Community 860]]
+- [[_COMMUNITY_Community 861|Community 861]]
+- [[_COMMUNITY_Community 862|Community 862]]
+- [[_COMMUNITY_Community 863|Community 863]]
+- [[_COMMUNITY_Community 864|Community 864]]
+- [[_COMMUNITY_Community 865|Community 865]]
+- [[_COMMUNITY_Community 866|Community 866]]
+- [[_COMMUNITY_Community 867|Community 867]]
+- [[_COMMUNITY_Community 868|Community 868]]
+- [[_COMMUNITY_Community 869|Community 869]]
+- [[_COMMUNITY_Community 870|Community 870]]
+- [[_COMMUNITY_Community 871|Community 871]]
+- [[_COMMUNITY_Community 872|Community 872]]
+- [[_COMMUNITY_Community 873|Community 873]]
+- [[_COMMUNITY_Community 874|Community 874]]
+- [[_COMMUNITY_Community 875|Community 875]]
+- [[_COMMUNITY_Community 876|Community 876]]
+- [[_COMMUNITY_Community 877|Community 877]]
+- [[_COMMUNITY_Community 878|Community 878]]
+- [[_COMMUNITY_Community 879|Community 879]]
+- [[_COMMUNITY_Community 880|Community 880]]
+- [[_COMMUNITY_Community 881|Community 881]]
+- [[_COMMUNITY_Community 882|Community 882]]
+- [[_COMMUNITY_Community 883|Community 883]]
+- [[_COMMUNITY_Community 884|Community 884]]
+- [[_COMMUNITY_Community 885|Community 885]]
+- [[_COMMUNITY_Community 886|Community 886]]
+- [[_COMMUNITY_Community 887|Community 887]]
+- [[_COMMUNITY_Community 888|Community 888]]
+- [[_COMMUNITY_Community 889|Community 889]]
+- [[_COMMUNITY_Community 890|Community 890]]
+- [[_COMMUNITY_Community 891|Community 891]]
+- [[_COMMUNITY_Community 892|Community 892]]
+- [[_COMMUNITY_Community 893|Community 893]]
+- [[_COMMUNITY_Community 894|Community 894]]
+- [[_COMMUNITY_Community 895|Community 895]]
+- [[_COMMUNITY_Community 896|Community 896]]
+- [[_COMMUNITY_Community 897|Community 897]]
+- [[_COMMUNITY_Community 898|Community 898]]
+- [[_COMMUNITY_Community 899|Community 899]]
+- [[_COMMUNITY_Community 900|Community 900]]
+- [[_COMMUNITY_Community 901|Community 901]]
+- [[_COMMUNITY_Community 902|Community 902]]
+- [[_COMMUNITY_Community 903|Community 903]]
+- [[_COMMUNITY_Community 904|Community 904]]
+- [[_COMMUNITY_Community 905|Community 905]]
+- [[_COMMUNITY_Community 906|Community 906]]
+- [[_COMMUNITY_Community 907|Community 907]]
+- [[_COMMUNITY_Community 908|Community 908]]
+- [[_COMMUNITY_Community 909|Community 909]]
+- [[_COMMUNITY_Community 910|Community 910]]
+- [[_COMMUNITY_Community 911|Community 911]]
+- [[_COMMUNITY_Community 912|Community 912]]
+- [[_COMMUNITY_Community 913|Community 913]]
+- [[_COMMUNITY_Community 914|Community 914]]
+- [[_COMMUNITY_Community 915|Community 915]]
+- [[_COMMUNITY_Community 916|Community 916]]
+- [[_COMMUNITY_Community 917|Community 917]]
+- [[_COMMUNITY_Community 918|Community 918]]
+- [[_COMMUNITY_Community 919|Community 919]]
+- [[_COMMUNITY_Community 920|Community 920]]
+- [[_COMMUNITY_Community 921|Community 921]]
+- [[_COMMUNITY_Community 922|Community 922]]
+- [[_COMMUNITY_Community 923|Community 923]]
+- [[_COMMUNITY_Community 924|Community 924]]
+- [[_COMMUNITY_Community 925|Community 925]]
+- [[_COMMUNITY_Community 926|Community 926]]
+- [[_COMMUNITY_Community 927|Community 927]]
+- [[_COMMUNITY_Community 928|Community 928]]
+- [[_COMMUNITY_Community 929|Community 929]]
+- [[_COMMUNITY_Community 930|Community 930]]
+- [[_COMMUNITY_Community 931|Community 931]]
+- [[_COMMUNITY_Community 932|Community 932]]
+- [[_COMMUNITY_Community 933|Community 933]]
+- [[_COMMUNITY_Community 934|Community 934]]
+- [[_COMMUNITY_Community 935|Community 935]]
+- [[_COMMUNITY_Community 936|Community 936]]
+- [[_COMMUNITY_Community 937|Community 937]]
+- [[_COMMUNITY_Community 938|Community 938]]
+- [[_COMMUNITY_Community 939|Community 939]]
+- [[_COMMUNITY_Community 940|Community 940]]
+- [[_COMMUNITY_Community 941|Community 941]]
+- [[_COMMUNITY_Community 942|Community 942]]
+- [[_COMMUNITY_Community 943|Community 943]]
+- [[_COMMUNITY_Community 944|Community 944]]
+- [[_COMMUNITY_Community 945|Community 945]]
+- [[_COMMUNITY_Community 946|Community 946]]
+- [[_COMMUNITY_Community 947|Community 947]]
+- [[_COMMUNITY_Community 948|Community 948]]
+- [[_COMMUNITY_Community 949|Community 949]]
+- [[_COMMUNITY_Community 950|Community 950]]
+- [[_COMMUNITY_Community 951|Community 951]]
+- [[_COMMUNITY_Community 952|Community 952]]
+- [[_COMMUNITY_Community 953|Community 953]]
+- [[_COMMUNITY_Community 954|Community 954]]
+- [[_COMMUNITY_Community 955|Community 955]]
+- [[_COMMUNITY_Community 956|Community 956]]
+- [[_COMMUNITY_Community 957|Community 957]]
+- [[_COMMUNITY_Community 958|Community 958]]
+- [[_COMMUNITY_Community 959|Community 959]]
+- [[_COMMUNITY_Community 960|Community 960]]
+- [[_COMMUNITY_Community 961|Community 961]]
+- [[_COMMUNITY_Community 962|Community 962]]
+- [[_COMMUNITY_Community 963|Community 963]]
+- [[_COMMUNITY_Community 964|Community 964]]
+- [[_COMMUNITY_Community 965|Community 965]]
+- [[_COMMUNITY_Community 966|Community 966]]
+- [[_COMMUNITY_Community 967|Community 967]]
+- [[_COMMUNITY_Community 968|Community 968]]
+- [[_COMMUNITY_Community 969|Community 969]]
+- [[_COMMUNITY_Community 970|Community 970]]
+- [[_COMMUNITY_Community 971|Community 971]]
+- [[_COMMUNITY_Community 972|Community 972]]
+- [[_COMMUNITY_Community 973|Community 973]]
+- [[_COMMUNITY_Community 974|Community 974]]
+- [[_COMMUNITY_Community 975|Community 975]]
+- [[_COMMUNITY_Community 976|Community 976]]
+- [[_COMMUNITY_Community 977|Community 977]]
+- [[_COMMUNITY_Community 978|Community 978]]
+- [[_COMMUNITY_Community 979|Community 979]]
+- [[_COMMUNITY_Community 980|Community 980]]
+- [[_COMMUNITY_Community 981|Community 981]]
+- [[_COMMUNITY_Community 982|Community 982]]
+- [[_COMMUNITY_Community 983|Community 983]]
+- [[_COMMUNITY_Community 984|Community 984]]
+- [[_COMMUNITY_Community 985|Community 985]]
+- [[_COMMUNITY_Community 986|Community 986]]
+- [[_COMMUNITY_Community 987|Community 987]]
+- [[_COMMUNITY_Community 988|Community 988]]
+- [[_COMMUNITY_Community 989|Community 989]]
+- [[_COMMUNITY_Community 990|Community 990]]
+- [[_COMMUNITY_Community 991|Community 991]]
+- [[_COMMUNITY_Community 992|Community 992]]
+- [[_COMMUNITY_Community 993|Community 993]]
+- [[_COMMUNITY_Community 994|Community 994]]
+- [[_COMMUNITY_Community 995|Community 995]]
+- [[_COMMUNITY_Community 996|Community 996]]
+- [[_COMMUNITY_Community 997|Community 997]]
+- [[_COMMUNITY_Community 998|Community 998]]
+- [[_COMMUNITY_Community 999|Community 999]]
+- [[_COMMUNITY_Community 1000|Community 1000]]
+- [[_COMMUNITY_Community 1001|Community 1001]]
+- [[_COMMUNITY_Community 1002|Community 1002]]
+- [[_COMMUNITY_Community 1003|Community 1003]]
+- [[_COMMUNITY_Community 1004|Community 1004]]
+- [[_COMMUNITY_Community 1009|Community 1009]]
+- [[_COMMUNITY_Community 1010|Community 1010]]
+- [[_COMMUNITY_Community 1011|Community 1011]]
+- [[_COMMUNITY_Community 1013|Community 1013]]
+- [[_COMMUNITY_Community 1014|Community 1014]]
+- [[_COMMUNITY_Community 1015|Community 1015]]
+- [[_COMMUNITY_Community 1016|Community 1016]]
+- [[_COMMUNITY_Community 1017|Community 1017]]
+- [[_COMMUNITY_Community 1018|Community 1018]]
+- [[_COMMUNITY_Community 1019|Community 1019]]
+- [[_COMMUNITY_Community 1020|Community 1020]]
+- [[_COMMUNITY_Community 1021|Community 1021]]
+- [[_COMMUNITY_Community 1022|Community 1022]]
+- [[_COMMUNITY_Community 1023|Community 1023]]
+- [[_COMMUNITY_Community 1024|Community 1024]]
+- [[_COMMUNITY_Community 1040|Community 1040]]
+- [[_COMMUNITY_Community 1041|Community 1041]]
+- [[_COMMUNITY_Community 1042|Community 1042]]
+- [[_COMMUNITY_Community 1043|Community 1043]]
+- [[_COMMUNITY_Community 1044|Community 1044]]
+- [[_COMMUNITY_Community 1045|Community 1045]]
+- [[_COMMUNITY_Community 1046|Community 1046]]
+- [[_COMMUNITY_Community 1047|Community 1047]]
+- [[_COMMUNITY_Community 1048|Community 1048]]
+- [[_COMMUNITY_Community 1049|Community 1049]]
+- [[_COMMUNITY_Community 1050|Community 1050]]
+- [[_COMMUNITY_Community 1051|Community 1051]]
+- [[_COMMUNITY_Community 1052|Community 1052]]
+- [[_COMMUNITY_Community 1053|Community 1053]]
+- [[_COMMUNITY_Community 1054|Community 1054]]
+- [[_COMMUNITY_Community 1055|Community 1055]]
+- [[_COMMUNITY_Community 1056|Community 1056]]
+- [[_COMMUNITY_Community 1057|Community 1057]]
+- [[_COMMUNITY_Community 1058|Community 1058]]
+- [[_COMMUNITY_Community 1059|Community 1059]]
+- [[_COMMUNITY_Community 1060|Community 1060]]
+- [[_COMMUNITY_Community 1061|Community 1061]]
+- [[_COMMUNITY_Community 1062|Community 1062]]
+- [[_COMMUNITY_Community 1063|Community 1063]]
+- [[_COMMUNITY_Community 1064|Community 1064]]
+- [[_COMMUNITY_Community 1066|Community 1066]]
+- [[_COMMUNITY_Community 1068|Community 1068]]
+- [[_COMMUNITY_Community 1069|Community 1069]]
+- [[_COMMUNITY_Community 1070|Community 1070]]
+- [[_COMMUNITY_Community 1071|Community 1071]]
+- [[_COMMUNITY_Community 1072|Community 1072]]
+- [[_COMMUNITY_Community 1073|Community 1073]]
+- [[_COMMUNITY_Community 1076|Community 1076]]
+- [[_COMMUNITY_Community 1077|Community 1077]]
+- [[_COMMUNITY_Community 1078|Community 1078]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Ba()` - 49 edges
-2. `Graph` - 43 edges
-3. `Graph` - 35 edges
-4. `useStudioStore` - 20 edges
-5. `Core Workflow` - 18 edges
-6. `File Structure` - 18 edges
-7. `compilerOptions` - 17 edges
-8. `TracePath` - 17 edges
-9. `UI Styling Skill` - 17 edges
-10. `compilerOptions` - 16 edges
+1. `CampusDocument` - 162 edges
+2. `LatLng` - 98 edges
+3. `useEditor()` - 87 edges
+4. `DocumentEventBus` - 56 edges
+5. `SelectionManager` - 55 edges
+6. `Graph` - 54 edges
+7. `Communities (82 total, 12 thin omitted)` - 52 edges
+8. `Ba()` - 49 edges
+9. `BaseEditorService` - 48 edges
+10. `useStudioStore` - 48 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `LoginScreen()` --calls--> `isMockAuthEnabled()`  [INFERRED]
-  navi-next/src/components/pages/LoginScreen.tsx → navi-next/src/lib/mock-auth.ts
-- `WelcomePage()` --calls--> `useGeolocation()`  [EXTRACTED]
-  navi-next/src/app/page.tsx → navi-next/src/hooks/useGeolocation.ts
-- `Graph` --references--> `TracePath`  [EXTRACTED]
-  navi-next/src/engine/graph.ts → navi-next/src/types/nav-types.ts
-- `compileTrace()` --calls--> `findLineIntersections()`  [EXTRACTED]
-  navi-next/src/engine/trace-compiler.ts → navi-next/src/engine/intersection-engine.ts
-- `compileTrace()` --calls--> `findEndpointNodes()`  [EXTRACTED]
-  navi-next/src/engine/trace-compiler.ts → navi-next/src/engine/intersection-engine.ts
+- `generateManifest()` --calls--> `serialize()`  [INFERRED]
+  navi-next/packages/compiler/src/artifacts/artifact-generator.ts → navi-next/packages/runtime/src/engine/__tests__/pipeline-recovery.test.ts
+- `buildGraph()` --calls--> `edgeKey()`  [INFERRED]
+  navi-next/packages/compiler/src/artifacts/artifact-generator.ts → navi-next/packages/compiler/src/pipeline/stages/build-edges-stage.ts
+- `AdjacencyEntry` --references--> `NavEdge`  [EXTRACTED]
+  navi-next/packages/runtime/src/routing/astar.ts → navi-next/packages/compiler/src/types/index.ts
+- `BuildingLocalSystem` --references--> `LatLng`  [EXTRACTED]
+  navi-next/packages/core/src/coordinates/transformer.ts → navi-next/packages/core/src/types/coordinates.ts
+- `CameraState` --references--> `LatLng`  [EXTRACTED]
+  navi-next/packages/core/src/coordinates/transformer.ts → navi-next/packages/core/src/types/coordinates.ts
 
 ## Import Cycles
-- None detected.
+- 1-file cycle: `navi-next/packages/runtime/src/index.ts -> navi-next/packages/runtime/src/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/services/workflow-service.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/services/index.ts -> navi-next/packages/editor/src/services/workflow-service.ts -> navi-next/packages/editor/src/context/service-registry.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/selection-bridge.ts -> navi-next/packages/editor/src/selection.ts -> navi-next/packages/editor/src/context/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/commands/dispatcher.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/commands/dispatcher.ts`
+- 3-file cycle: `navi-next/packages/editor/src/commands/dispatcher.ts -> navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/history.ts -> navi-next/packages/editor/src/commands/dispatcher.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/selection-store.ts -> navi-next/packages/editor/src/selection.ts -> navi-next/packages/editor/src/context/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/editing-context.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/editing-context.ts -> navi-next/packages/editor/src/context/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/selection.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/selection.ts -> navi-next/packages/editor/src/context/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/history.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/history.ts -> navi-next/packages/editor/src/context/index.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/services/publish-service.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/service-registry.ts -> navi-next/packages/editor/src/services/index.ts -> navi-next/packages/editor/src/services/publish-service.ts -> navi-next/packages/editor/src/context/service-registry.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/services/autosave-service.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/services/navigation-compiler.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/services/persistence-service.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/eventbus.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
+- 3-file cycle: `navi-next/packages/editor/src/context/create-editor-context.ts -> navi-next/packages/editor/src/viewport.ts -> navi-next/packages/editor/src/context/index.ts -> navi-next/packages/editor/src/context/create-editor-context.ts`
 
-## Communities (732 total, 116 thin omitted)
+## Communities (1081 total, 155 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.05
@@ -571,8 +919,8 @@ Cohesion: 0.03
 Nodes (57): After Checkpoint, Balance Research and Reasoning, Binary Search / Divide and Conquer, Checkpoint Format, CHECKPOINT REACHED, Checkpoint Types, Combining Techniques, Comment Out Everything (+49 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.05
-Nodes (54): Building, Component, ComponentType, DirEntry, EdgeType, GraphSnapshot, LatLng, NavEdge (+46 more)
+Cohesion: 0.11
+Nodes (11): DrawAction, DrawMode, drawReducer(), DrawState, componentToFeature(), computeWidthBuffer(), pointsToBuffer(), UseFloorDrawingOptions (+3 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.05
@@ -583,8 +931,8 @@ Cohesion: 0.04
 Nodes (47): Anti-Patterns and Extended Examples, Authentication Gates, Building the Dependency Graph, Checkpoint Reached / Revision Complete, Checkpoint Types, Chunked Mode Returns, Context Budget for TDD, Context Budget Rules (+39 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.15
-Nodes (13): description, enabled, headers, type, url, description, enabled, headers (+5 more)
+Cohesion: 0.11
+Nodes (19): description, enabled, headers, type, url, description, enabled, headers (+11 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.05
@@ -671,8 +1019,8 @@ Cohesion: 0.09
 Nodes (22): Best Practices, Chart.js Integration, Command, Component Spec Pattern, Contextual Decision Flow, Decision System CSVs, Design System, Integration (+14 more)
 
 ### Community 30 - "Community 30"
-Cohesion: 0.07
-Nodes (20): CampusMapPreview, FALLBACK_CAMPUSES, MapErrorBoundary, WelcomePage(), BuildingInfo(), BuildingInfoProps, ResolveOptions, resolvePosition() (+12 more)
+Cohesion: 0.06
+Nodes (22): CampusMapPreview, FALLBACK_CAMPUSES, MapErrorBoundary, WelcomePage(), BuildingInfo(), BuildingInfoProps, ResolveOptions, resolvePosition() (+14 more)
 
 ### Community 31 - "Community 31"
 Cohesion: 0.09
@@ -735,8 +1083,8 @@ Cohesion: 0.11
 Nodes (18): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection, moduleResolution (+10 more)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.11
-Nodes (19): description, template, description, template, command, back-up, build, design (+11 more)
+Cohesion: 0.07
+Nodes (28): description, template, description, template, command, back-up, build, design (+20 more)
 
 ### Community 47 - "Community 47"
 Cohesion: 0.11
@@ -907,8 +1255,8 @@ Cohesion: 0.29
 Nodes (11): CompileContext, compileElevator(), compileEntrance(), compileHallway(), CompileResult, compileRoom(), COMPILERS, compileStair() (+3 more)
 
 ### Community 92 - "Community 92"
-Cohesion: 0.08
-Nodes (36): agent, architect-agent, documentation-agent, memory-agent, mentor-agent, qa-agent, research-agent, supervisor (+28 more)
+Cohesion: 0.12
+Nodes (23): agent, architect-agent, documentation-agent, memory-agent, mentor-agent, qa-agent, description, mode (+15 more)
 
 ### Community 93 - "Community 93"
 Cohesion: 0.05
@@ -1079,20 +1427,20 @@ Cohesion: 0.18
 Nodes (6): buildingUsageData, DashboardProps, nodeActivityData, nodeTypeData, recentActivity, StatCardProps
 
 ### Community 137 - "Community 137"
-Cohesion: 0.22
-Nodes (4): GraphState, SyncStatus, useGraphStore, TracePath
+Cohesion: 0.15
+Nodes (5): TracePropertiesPanelProps, GraphState, SyncStatus, useGraphStore, TracePath
 
 ### Community 138 - "Community 138"
 Cohesion: 0.18
 Nodes (10): Cloudinary Integration Guide, Environment Variables, Floor Plans (MapEditor), MCP Servers, Overview, Panoramas (PanoramaManagement), Prerequisites, Upload Wiring (+2 more)
 
 ### Community 139 - "Community 139"
-Cohesion: 0.18
-Nodes (10): name, private, scripts, build, dev, lint, start, test (+2 more)
+Cohesion: 0.14
+Nodes (14): scripts, benchmark, build, demo, demo:e2e, dev, lint, publish (+6 more)
 
 ### Community 140 - "Community 140"
-Cohesion: 0.18
-Nodes (11): devDependencies, autoprefixer, eslint, eslint-config-next, postcss, tailwindcss, @types/node, @types/react (+3 more)
+Cohesion: 0.11
+Nodes (18): devDependencies, autoprefixer, eslint, eslint-config-next, jsdom, playwright, @playwright/test, postcss (+10 more)
 
 ### Community 141 - "Community 141"
 Cohesion: 0.18
@@ -1172,7 +1520,7 @@ Nodes (9): Dimension 1: Copywriting, Dimension 2: Visuals, Dimension 3: Color, D
 
 ### Community 162 - "Community 162"
 Cohesion: 0.11
-Nodes (15): geistMono, geistSans, metadata, decodeMockSession(), isMockAuthEnabled(), MOCK_USERS, MockUser, createClient() (+7 more)
+Nodes (15): geistMono, geistSans, decodeMockSession(), isMockAuthEnabled(), MOCK_USERS, MockUser, createClient(), metadata (+7 more)
 
 ### Community 163 - "Community 163"
 Cohesion: 0.20
@@ -1191,8 +1539,8 @@ Cohesion: 0.20
 Nodes (9): Challenge against the glossary, Cross-reference with code, Discuss concrete scenarios, Domain Modeling, During the session, File structure, Offer ADRs sparingly, Sharpen fuzzy language (+1 more)
 
 ### Community 167 - "Community 167"
-Cohesion: 0.36
-Nodes (7): crossProduct(), findEndpointNodes(), findLineIntersections(), findProximityConnections(), IntersectionPoint, onSegment(), segmentsIntersect()
+Cohesion: 0.25
+Nodes (12): crossProduct(), findEndpointNodes(), findLineIntersections(), findProximityConnections(), IntersectionPoint, onSegment(), segmentsIntersect(), compileTrace() (+4 more)
 
 ### Community 168 - "Community 168"
 Cohesion: 0.20
@@ -1382,13 +1730,17 @@ Nodes (8): Available Domains, Available Stacks, How to Use, Output Formats, Prer
 Cohesion: 0.22
 Nodes (8): Step 1: Initialize, Step 2: Scout Codebase, Step 3: First Ambiguity Assessment, Step 4: Socratic Interview Loop, Step 5: (covered inline — ambiguity scoring is per-round), Step 6: Generate SPEC.md, Step 7: Commit, Step 8: Wrap Up
 
+### Community 219 - "Community 219"
+Cohesion: 0.17
+Nodes (7): Blocked, Done, In Progress, Links, Needs Review, Status, Up Next
+
 ### Community 220 - "Community 220"
 Cohesion: 0.25
 Nodes (7): Changed, <Date> - <Build Title>, Errors Or Issues, Follow-Ups, Goal, Links, Verified
 
 ### Community 221 - "Community 221"
-Cohesion: 0.25
-Nodes (7): Blocked, Done, In Progress, Links, Needs Review, Status, Up Next
+Cohesion: 0.05
+Nodes (32): DocumentStore, EditorServiceContext, ServiceMap, STATUS_TRANSITIONS, AutosaveOptions, AutosaveService, CampusCompilerAdapter, CompiledArtifacts (+24 more)
 
 ### Community 222 - "Community 222"
 Cohesion: 0.25
@@ -1407,8 +1759,8 @@ Cohesion: 0.25
 Nodes (7): #architect — Software Architect, #developer — Developer, #devops — DevOps Engineer, #docs — Documentation Writer, #pm — Project Manager, #qa — QA Engineer, Role System Prompts
 
 ### Community 227 - "Community 227"
-Cohesion: 0.46
-Nodes (5): compileTrace(), CompileTraceResult, genId(), haversine(), pointToLatLng()
+Cohesion: 0.61
+Nodes (4): closestPointOnSegment(), haversine(), lineSegmentIntersection(), pointToSegmentDistance()
 
 ### Community 228 - "Community 228"
 Cohesion: 0.25
@@ -1455,8 +1807,8 @@ Cohesion: 0.25
 Nodes (7): 1. Fault Tree Analysis, 2. Hypothesis-Driven Investigation, 3. Occam's Razor, 4. Counterfactual Thinking, Conflict Resolution, Thinking Models: Debug Cluster, When NOT to Think
 
 ### Community 240 - "Community 240"
-Cohesion: 0.25
-Nodes (7): Files Changed, Issues or Concerns, Self-Review Findings, Task 1: Type Definitions — Report, TDD Evidence, What I Implemented, What I Tested
+Cohesion: 0.29
+Nodes (6): Commit, Files changed, Issues, Task 1 Report: PublishStore, Test results, What was implemented
 
 ### Community 241 - "Community 241"
 Cohesion: 0.25
@@ -1535,8 +1887,8 @@ Cohesion: 0.29
 Nodes (6): Build Log: YYYY-MM-DD - Phase X: [Title], Issues Encountered, Next Steps, Status, Time Spent, What Was Built
 
 ### Community 261 - "Community 261"
-Cohesion: 0.25
-Nodes (7): ADR-005: Hybrid Positioning Architecture (GPS + QR), Alternatives Considered, Consequences, Context, Decision, Links, Status
+Cohesion: 0.12
+Nodes (14): ADR-005: Hybrid Positioning Architecture (GPS + QR), Alternatives Considered, Consequences, Context, Decision, Links, Status, ADR-008: useReducer Over useState for Floor Drawing State (+6 more)
 
 ### Community 262 - "Community 262"
 Cohesion: 0.25
@@ -1567,8 +1919,8 @@ Cohesion: 0.29
 Nodes (5): buildBuildingGeo(), CAMPUS_CENTER, CampusMapProps, OSM_STYLE, syncBuildings()
 
 ### Community 269 - "Community 269"
-Cohesion: 0.52
-Nodes (6): aStar(), buildAdjacencyList(), generateInstructions(), getAdjacencyList(), haversine(), heuristic()
+Cohesion: 0.29
+Nodes (9): FLOOR_LABELS, floorLabel(), nodeDisplayName(), aStar(), buildAdjacencyList(), generateInstructions(), getAdjacencyList(), haversine() (+1 more)
 
 ### Community 270 - "Community 270"
 Cohesion: 0.29
@@ -1807,8 +2159,8 @@ Cohesion: 0.33
 Nodes (5): Definition of Done, Edge Cases Checklist, Scope, Test Cases, Test Plan: Supabase MCP Integration
 
 ### Community 329 - "Community 329"
-Cohesion: 0.33
-Nodes (5): building, edgeAB, nodeA, nodeB, nodeC
+Cohesion: 0.18
+Nodes (12): loadStoredCampus(), createDocument(), doc, loadedGraphWithHeight(), createEmptyDocument(), loadDocumentFromLocal(), loadOrCreateDocument(), saveDocumentToLocal() (+4 more)
 
 ### Community 330 - "Community 330"
 Cohesion: 0.33
@@ -1865,6 +2217,10 @@ Nodes (4): Focus Areas, Output Style, Review Context Profile, Verbosity
 ### Community 344 - "Community 344"
 Cohesion: 0.40
 Nodes (4): fs, INJECTION_PATTERNS, path, stdinTimeout
+
+### Community 345 - "Community 345"
+Cohesion: 0.06
+Nodes (20): ImageWithFallbackProps, Image, PannellumViewer, PanoramaViewer(), PanoramaViewerProps, Window, Audio recording and offline transcription via faster-whisper., Begin capturing audio from the default microphone. (+12 more)
 
 ### Community 346 - "Community 346"
 Cohesion: 0.40
@@ -2087,8 +2443,8 @@ Cohesion: 0.50
 Nodes (4): Must Use, Recommended, Skip, When to Apply
 
 ### Community 435 - "Community 435"
-Cohesion: 0.18
-Nodes (11): command, description, enabled, type, mcp, filesystem, supabase, description (+3 more)
+Cohesion: 0.05
+Nodes (54): duplicateIdsRule, checkSelfIntersection(), segmentsIntersect(), disconnectedGraphRule, missingNameRule, zeroAreaPolygonRule, GroupedIssues, ProblemsPanel() (+46 more)
 
 ### Community 438 - "Community 438"
 Cohesion: 0.22
@@ -2099,12 +2455,12 @@ Cohesion: 0.22
 Nodes (8): Behaviour, Concerns, Created, Files Changed, Modified, Status: DONE, Task 4.1 Report — Login Page with Mock Auth, Usage
 
 ### Community 440 - "Community 440"
-Cohesion: 0.25
-Nodes (8): description, enabled, headers, type, url, Authorization, User-Agent, github
+Cohesion: 0.13
+Nodes (15): description, enabled, headers, type, url, Authorization, User-Agent, github (+7 more)
 
 ### Community 441 - "Community 441"
-Cohesion: 0.67
-Nodes (3): plan, description, template
+Cohesion: 0.07
+Nodes (49): buildingCreateHandler, buildingDeleteHandler, buildingRenameHandler, CommandDispatcher, ExecuteOptions, elevatorCreateHandler, elevatorDeleteHandler, detectEntityType() (+41 more)
 
 ### Community 442 - "Community 442"
 Cohesion: 0.29
@@ -2114,17 +2470,29 @@ Nodes (6): Behaviour, Concerns, Files Created, Files Modified, Status: DONE, Tas
 Cohesion: 0.67
 Nodes (3): 8.5.1 Outline Phase (outline-only mode, ~2 min), 8.5.2 Per-Plan Tasks (single-plan mode, ~3-5 min each), 8.5. Chunked Planning Mode
 
+### Community 461 - "Community 461"
+Cohesion: 0.17
+Nodes (11): Commands, Error Prevention Rule, File Structure, graphify, gsd, Hallucination Guard, Rules, Step Details (+3 more)
+
 ### Community 462 - "Community 462"
 Cohesion: 0.29
 Nodes (6): Auto-detect Location, Campus Grid, Existing patterns, Layout, Map Preview, Task 4.2: Welcome page with location detection
+
+### Community 486 - "Community 486"
+Cohesion: 0.06
+Nodes (27): asEntityId(), BuildingSelector, ElevatorSelector, EntityType, EntranceSelector, FloorSelector, HallwaySelector, PanoramaSelector (+19 more)
 
 ### Community 487 - "Community 487"
 Cohesion: 0.33
 Nodes (6): Architecture Overview, Data Flow, External Integrations, Key Constraints, Services, System Map
 
+### Community 538 - "Community 538"
+Cohesion: 0.06
+Nodes (48): FloorEntities, BUILDING_CENTROID, createBuilding(), createDocument(), FloorItemProps, FloorManager(), Props, Props (+40 more)
+
 ### Community 658 - "Community 658"
-Cohesion: 0.25
-Nodes (7): Phase 1 — Foundation ✅ (All complete), Phase 2 — Campus Map Editor, Phase 3 — Floor Editor + Components, Phase 4 — Public App + Auth, Phase 5 — Navigation + Positioning, Phase 6 — Polish + Thesis, SDD Progress Ledger
+Cohesion: 0.20
+Nodes (9): 2026-07-12: M3.3.4 Publish Pipeline � Complete, M3.3.4 Publish Pipeline, Phase 1 — Foundation ✅ (All complete), Phase 2 — Campus Map Editor, Phase 3 — Floor Editor + Components, Phase 4 — Public App + Auth, Phase 5 — Navigation + Positioning, Phase 6 — Polish + Thesis (+1 more)
 
 ### Community 714 - "Community 714"
 Cohesion: 0.33
@@ -2159,8 +2527,8 @@ Cohesion: 0.70
 Nodes (4): DELETE(), GET(), getClient(), POST()
 
 ### Community 722 - "Community 722"
-Cohesion: 0.40
-Nodes (5): playwright, command, description, enabled, type
+Cohesion: 0.05
+Nodes (36): 1.1 Rendering Sub-directory, 1.2 Core Canvas Components, 1.3 Explorer Components, 1.4 Tool/Interaction Utilities, 1.5 Other Studio Components, 1.6 Legacy Panel Components (`src/components/studio/legacy/`), 4.1 Repeated Type Definitions, 4.2 Repeated Rendering Logic (+28 more)
 
 ### Community 723 - "Community 723"
 Cohesion: 0.40
@@ -2179,32 +2547,1152 @@ Cohesion: 0.40
 Nodes (4): Existing patterns, Integration, SearchBar.tsx, Task 4.4: Search bar with autocomplete
 
 ### Community 727 - "Community 727"
-Cohesion: 0.67
-Nodes (3): guide, description, template
+Cohesion: 0.05
+Nodes (15): RendererOptions, EditingContextService, EditorMode, DocumentEventBus, DocumentEventPayload, EditorEventHandler, EditorEventPayload, EditorEventType (+7 more)
 
 ### Community 728 - "Community 728"
+Cohesion: 0.17
+Nodes (13): createCachedSnapshot(), useSelection(), useWorkspace(), ExplorerNodeType, findNodeById(), flattenNodes(), toExplorerNodes(), ExplorerAdapter() (+5 more)
+
+### Community 732 - "Community 732"
+Cohesion: 0.09
+Nodes (17): useEditor(), BuildingProperties(), ElevatorProperties(), EntranceProperties(), Field(), inputStyle, selectStyle, FloorProperties() (+9 more)
+
+### Community 733 - "Community 733"
+Cohesion: 0.09
+Nodes (31): EntityId, EntitySelector, ExplorerNode, countMatches(), filterTree(), findAncestors(), findMatchingIds(), markInPath() (+23 more)
+
+### Community 734 - "Community 734"
+Cohesion: 0.04
+Nodes (52): Communities (82 total, 12 thin omitted), Community 0 - "Community 0", Community 10 - "Community 10", Community 11 - "Community 11", Community 12 - "Community 12", Community 13 - "Community 13", Community 14 - "Community 14", Community 15 - "Community 15" (+44 more)
+
+### Community 735 - "Community 735"
+Cohesion: 0.18
+Nodes (16): buildBuildingIndex(), buildPOIData(), buildSearchIndex(), generateArtifacts(), generateManifest(), sha256(), POST(), createGoldenCampus() (+8 more)
+
+### Community 736 - "Community 736"
+Cohesion: 0.06
+Nodes (26): entityDeleteHandler, EditorContext, EditorProvider(), EditorReactContext, serviceNames, createDoc(), setupServices(), configureFloorEditorTools() (+18 more)
+
+### Community 737 - "Community 737"
+Cohesion: 0.08
+Nodes (21): NotImplementedError, RoutingAPI, RuntimeEngine, SearchAPI, AdjacencyEntry, AStar, haversine(), Instruction (+13 more)
+
+### Community 738 - "Community 738"
+Cohesion: 0.07
+Nodes (14): BaseEditorService, EditorService, ServiceRegistry, A, B, DepA, DepB, Main (+6 more)
+
+### Community 739 - "Community 739"
+Cohesion: 0.08
+Nodes (28): buildingsToGeoJSON(), documentToRenderingGeo(), roadsToTracesGeoJSON(), ENTITY_SOURCE_MAP, EntityRenderer, documentToGeoJSON(), floorFeatures(), localToWorld() (+20 more)
+
+### Community 740 - "Community 740"
+Cohesion: 0.08
+Nodes (43): buildCampus(), buildEngGroundFloor(), buildEngineeringBuilding(), buildEngSecondFloor(), Building, BuildingCategory, buildLibraryBuilding(), buildLibraryGroundFloor() (+35 more)
+
+### Community 741 - "Community 741"
+Cohesion: 0.05
+Nodes (43): 10. Selection Invariants, 11. Non-Goals, 12. Cross-References, 1. Purpose, 2. Selection Principles, 3. Selection Architecture, 4. Selection API, 5. Selection Lifecycle (+35 more)
+
+### Community 742 - "Community 742"
+Cohesion: 0.13
+Nodes (11): CalibrationEngine, FloorCalibration, CRS, CRSDefinition, CRSName, haversine(), webMercatorToWgs84(), wgs84ToWebMercator() (+3 more)
+
+### Community 743 - "Community 743"
+Cohesion: 0.13
+Nodes (28): DEFAULT_STAGES, STAGE_NAMES, STAGE_ORDER, buildEdges(), BuildEdgesStage, edgeKey(), haversine(), buildNodes() (+20 more)
+
+### Community 744 - "Community 744"
+Cohesion: 0.05
+Nodes (40): 10. GestureRecognizer, 11. InputController, 12. InputRouter, 13. EditorInputEvent, 14. PointerManager Integration, 15. Space-Hold Pan Override, 16. Event Flow Examples, 17. Non-Goals (+32 more)
+
+### Community 745 - "Community 745"
+Cohesion: 0.05
+Nodes (39): Accuracy, Analysis, Asset Management, Assets, Building Authoring, Buildings, Campus Authoring, Connections (+31 more)
+
+### Community 746 - "Community 746"
+Cohesion: 0.18
+Nodes (8): Props, RuntimeMapShell(), Route, iconMap, InstructionPanel(), Props, Props, RouteOverlay()
+
+### Community 747 - "Community 747"
+Cohesion: 0.05
+Nodes (42): 2026-07-03: Map#getSource Called on Removed Map, 2026-07-03: React #185 Maximum Update Depth Exceeded, 2026-07-04: Studio Canvas — No Confirm Bar for Trace/Route/Building/Boundary, 2026-07-08: Checksum/Size Mismatch in Manifest Validation, 2026-07-08: ExtractionCoordinator Produces Zero Results, 2026-07-08: M6 Release & Evaluation — Security Audit, 2026-07-08: No Route Found Between Buildings and Roads, 2026-07-08: Publisher Creating Empty Search/Building Artifacts (+34 more)
+
+### Community 748 - "Community 748"
+Cohesion: 0.05
+Nodes (37): 10. InputRouter Changes, 11. Interceptor Chain (Seam), 12. Cancel Priority, 13. Formal Shortcut Table, 14. Discoverability, 15. Event Flow Examples, 16. Non-Goals, 17. Cross-References (+29 more)
+
+### Community 749 - "Community 749"
+Cohesion: 0.09
+Nodes (22): AdaptiveNav(), NavItem, navItems, AdaptiveShell(), AdaptiveShellProps, pathToTab, tabToPath, emergencyContacts (+14 more)
+
+### Community 750 - "Community 750"
+Cohesion: 0.06
+Nodes (34): Already built (no change unless bug found), Architectural Rule (decided for this milestone), Architecture, Architecture gates, CampusDocument Contract, CommandDispatcher Execution Order (FROZEN INVARIANT), CommandDispatcher (modify — `packages/editor/src/commands/dispatcher.ts`), Components (+26 more)
+
+### Community 751 - "Community 751"
+Cohesion: 0.06
+Nodes (33): 1. Change Journal on CampusDocument, 2. Command Integration, 3. Incremental Execution Pipeline, 4. Analysis Pass Staleness, 5. Snapshot Merging, 6. Statistics, 7. Event-Driven Invalidation, 8. Implementation Plan (+25 more)
+
+### Community 752 - "Community 752"
+Cohesion: 0.13
+Nodes (7): ArtifactLoader, sha256(), LoaderOptions, LoadError, fetch, serialize(), fetch
+
+### Community 753 - "Community 753"
+Cohesion: 0.06
+Nodes (33): 10. DrawingSession (hook + context), 11. ViewportService Extension, 1. StudioCanvas (composition root), 2. ViewportController, 3. MapRenderer, 4. InteractionController, 5. ToolController (hook), 6. SelectionOverlay (+25 more)
+
+### Community 754 - "Community 754"
+Cohesion: 0.06
+Nodes (32): 10. Context Panel Invariants, 11. Non-Goals, 12. Cross-References, 1. Purpose, 2. Context Panel Principles, 3. Context Panel Architecture, 4. PanelRegistry, 5. ContextResolver (+24 more)
+
+### Community 755 - "Community 755"
+Cohesion: 0.06
+Nodes (5): building, layers, mockDispatcherExecute, MockEvented, MockLngLatBounds
+
+### Community 756 - "Community 756"
+Cohesion: 0.18
+Nodes (18): bufferPolygon(), coordVal(), lineIntersection(), nearestPointOnPolyline(), nearestPointOnSegment(), perpendicularDistance(), simplifyPolygon(), simplifyPolyline() (+10 more)
+
+### Community 757 - "Community 757"
+Cohesion: 0.07
+Nodes (28): A. Data Model, Acceptance Criteria, B. Visualization, C. Auto-Connect (Shared Junction Nodes), Crossing Detection, D. Editing, Detection, E. Extending Routes (+20 more)
+
+### Community 758 - "Community 758"
+Cohesion: 0.07
+Nodes (26): EntityRendererBridge(), EntityRendererBridgeProps, BuildingFootprint, EMPTY_FC, useBuildingTracer(), BoundaryPolygon, EMPTY_FC, useCampusBoundary() (+18 more)
+
+### Community 759 - "Community 759"
+Cohesion: 0.07
+Nodes (27): 10. Canvas Drawing Preview, 11. ConfirmBar / ConfirmOverlay, 12. Vertex Editing, 13. Undo/Redo, 14. Validation, 15. Publish Pipeline, 16. Data Persistence (Save), 17. Map Rendering (+19 more)
+
+### Community 760 - "Community 760"
+Cohesion: 0.12
+Nodes (19): BBox, coordVal(), isClosedPolygon(), pointInPolygon(), polygonArea(), polygonBBox(), polygonCentroid(), SpatialEntity (+11 more)
+
+### Community 761 - "Community 761"
+Cohesion: 0.07
+Nodes (27): Code Review Report, CR-01: NavNode type definition diverged from engine implementations — required fields missing, wrong property names, invalid type values, CR-02: Buffer usage in mock-auth.ts crashes client-side (ReferenceError), CR-03: SQL injection vulnerability in raw SQL string construction, CR-04: Missing authentication credentials on all Supabase API calls, CR-05: Null/undefined spread causes runtime crash in fetchFromSupabase, CR-06: GraphSnapshot type mismatch — toJSON() returns incompatible shape with missing required fields and extra fields, CR-07: Building type fields inconsistent between type definition and DB serialization (+19 more)
+
+### Community 762 - "Community 762"
+Cohesion: 0.07
+Nodes (27): 10. Completion Criteria, 11. Validation Epoch, 1. Purpose, 2. Strategy, 3. Change Detection, 4. Rule Affinity, 5. Analysis Pass Affinity, 6. Execution (+19 more)
+
+### Community 763 - "Community 763"
+Cohesion: 0.13
+Nodes (8): AutoFixRegistry, FixContext, FixProvider, closePolygonFix, assignFloorLevelFix, assignUntitledFix, clearEntranceReferenceFix, clearRoadReferenceFix
+
+### Community 764 - "Community 764"
+Cohesion: 0.07
+Nodes (26): 1. PublishStore, 2. PublishService, 3. Publish Panel (WorkflowCard integration), 4. Service Registry wiring, 5. Out of scope (deferred), 6. Files to create/modify, 7. Success criteria, 8. Risks and mitigations (+18 more)
+
+### Community 765 - "Community 765"
+Cohesion: 0.08
+Nodes (25): CR-01: ImageWithFallback passes incompatible props to `next/image` (5 TS errors), CR-02: osm-import — `unknown` not assignable to `ReactNode`, CR-03: osm-import — comma operator in JSX expression, CR-04: FloorEditorCanvas — `maplibregl.EventHandler` does not exist, CR-05: StudioWorkspace passes `mapId` to prop-less `RightPanel`, CR-06: FloorEditorCanvas test — Building missing required properties, CR-07: FloorEditorCanvas test — `Function` not assignable to handler type, Critical Issues (Block Compilation) (+17 more)
+
+### Community 766 - "Community 766"
+Cohesion: 0.09
+Nodes (19): COLOR_SWATCHES, INPUT_STYLE, MetadataPanel(), NodePropertiesPanel(), NodePropertiesPanelProps, ALL_CAMPUS_TOOLS, FLOOR_TOOLS, LAYER_ITEMS (+11 more)
+
+### Community 767 - "Community 767"
+Cohesion: 0.08
+Nodes (24): CR-1: handlersSetupRef blocks event handler re-attachment, CR-2: Boundary/building tracer hooks receive null map ref, CR-3: Stale graph.buildingCount after addBuilding, CR-4: Race condition in graph-store.load, CR-5: Asset tool creates orphaned components, 🔴 Critical, IN-1: Inline styles instead of Tailwind, IN-2: Hardcoded `countrycodes=ph` for Nominatim (+16 more)
+
+### Community 768 - "Community 768"
+Cohesion: 0.09
+Nodes (25): HIDDEN_NODE_TYPES, LYR, LyrKey, SRC, SrcKey, buildConnectionNodeGeo(), buildEdgeGeo(), buildNodeGeo() (+17 more)
+
+### Community 769 - "Community 769"
+Cohesion: 0.08
+Nodes (24): 1. Splash + Onboarding, 2. Home Dashboard, 3. Explore Map, 4. Navigate Map, 5. Search, 6. Destination Details, 7. Maps Tab (Campus Selector), 8. Auth Screens (+16 more)
+
+### Community 770 - "Community 770"
+Cohesion: 0.08
+Nodes (24): 10. Completion Criteria, 1. Purpose, 2. Architecture, 3. Panel Registration, 4. Data Flow, 5. Issue Display, 6. Issue Navigation, 7. Integration Points (+16 more)
+
+### Community 771 - "Community 771"
+Cohesion: 0.07
+Nodes (34): useFloorAdapter(), FLOOR_TOOL_IDS, toStudioTool(), useToolAdapter(), useBuilding(), useDocumentSelector(), ComponentProperties(), ComponentPropertiesProps (+26 more)
+
+### Community 772 - "Community 772"
+Cohesion: 0.08
+Nodes (24): 2026-07-03, 2026-07-03 (later), 2026-07-04 — Studio Canvas Editor Fixes, 2026-07-04 — Trace Intersection Edge Splitting, 2026-07-07 — Phase 2: HomeDashboard (Mobile UI Redesign), 2026-07-08 — M3 Wave 1 Complete (All Entity Commands), 2026-07-08 — M3 Waves 1–3 Complete (Commands, Rendering, Floor Manager), 2026-07-09 — B8/B9/B10 Compiler Bugs Fixed (+16 more)
+
+### Community 773 - "Community 773"
+Cohesion: 0.14
+Nodes (20): baseSnapshot, stateToColor(), usePublish(), EMPTY_SNAPSHOT, FALLBACK_SERVICE, FALLBACK_STORE, useWorkflow(), publishColor() (+12 more)
+
+### Community 774 - "Community 774"
+Cohesion: 0.09
+Nodes (22): dependencies, @navi/core, devDependencies, jsdom, @testing-library/react, @types/react, @types/react-dom, typescript (+14 more)
+
+### Community 775 - "Community 775"
+Cohesion: 0.09
+Nodes (22): artifacts, buildingIndex, navigationGraph, poiData, searchIndex, checksum, filename, size (+14 more)
+
+### Community 777 - "Community 777"
+Cohesion: 0.09
+Nodes (22): artifacts, buildingIndex, navigationGraph, poiData, searchIndex, checksum, filename, size (+14 more)
+
+### Community 778 - "Community 778"
+Cohesion: 0.12
+Nodes (21): FloorEditorCanvasProps, StaircasePropertiesPanelProps, defaultLayers, PendingConfirm, PendingType, StudioState, COMPONENTS, CAMPUS_TOOLS (+13 more)
+
+### Community 779 - "Community 779"
+Cohesion: 0.09
+Nodes (21): Architecture, Edge cases, Files to create, Files to modify, Future considerations, Implementation, Invariants, Layers (+13 more)
+
+### Community 780 - "Community 780"
+Cohesion: 0.25
+Nodes (19): buildCampus(), buildEngGroundFloor(), buildEngineeringBuilding(), buildEngSecondFloor(), buildLibraryBuilding(), buildLibraryGroundFloor(), buildMainBuilding(), buildMainGroundFloor() (+11 more)
+
+### Community 781 - "Community 781"
+Cohesion: 0.10
+Nodes (20): Active floor rules, Building Workflow, Canvas Rendering, Elevator Workflow, Entrance Workflow, Error Prevention, Floor Manager, Hallway Workflow (+12 more)
+
+### Community 782 - "Community 782"
+Cohesion: 0.05
+Nodes (36): 1. Overview — Two Parallel Tool Systems, 2. Legacy System: InteractionController, 3. New System: ToolRegistry, 4. Bridge: useToolController, 5. Available Tools, 6. The Sync Problem, 7. StudioToolbar: Where the Two Worlds Collide, 8. Drawing Session (+28 more)
+
+### Community 783 - "Community 783"
+Cohesion: 0.11
+Nodes (18): ConfirmBar(), ConfirmBarProps, ConfirmOverlayAdapter(), ConfirmOverlayAdapterProps, DrawingOverlay(), DrawingOverlayProps, PreviewOverlay(), PreviewOverlayProps (+10 more)
+
+### Community 784 - "Community 784"
+Cohesion: 0.14
+Nodes (17): euclideanToLatLng(), nearestPointOnSegment(), SnapEngine, ViewportEventPayload, footprintCentroid(), localToLatLng(), parseDocument(), polygonCentroid() (+9 more)
+
+### Community 785 - "Community 785"
+Cohesion: 0.10
+Nodes (19): 10. Completion Criteria, 1. Purpose, 2. Architecture, 3. ValidationRule, 4. Analysis Passes, 5. RuleProvider, 6. Rule Execution Flow, 7. Profile Filtering (+11 more)
+
+### Community 786 - "Community 786"
+Cohesion: 0.10
+Nodes (19): 10. Completion Criteria, 1. Purpose, 2. Architecture, 3. Profile Config, 4. Built-in Profiles, 5. Profile Definitions (configuration), 6. Profile Switching UI, 7. Determinism (+11 more)
+
+### Community 787 - "Community 787"
+Cohesion: 0.23
+Nodes (12): CalibrationResult, ControlPoint, addControlPoint(), CalibrationState, CalibrationStateListener, calibrationTool, computeCalibration(), createEmptyState() (+4 more)
+
+### Community 788 - "Community 788"
+Cohesion: 0.11
+Nodes (18): Architecture Decisions (Made 2026-06-27), Critical Fixes Applied, Data Sync, Graphify Context, Info Fixes Applied, Issue 1: "Page couldn't load" on first visit, Issue 2: Map doesn't go to saved anchor/center, Issue 3: Metadata editing doesn't persist (+10 more)
+
+### Community 790 - "Community 790"
+Cohesion: 0.11
+Nodes (18): 10. [MEDIUM] Drag interaction effects re-register listeners on every store mutation, 11. [MEDIUM] `FloorEditor.tsx` uses `graph.buildings` in useMemo dependency with volatile array, 12. [LOW] Test mock doesn't simulate 'load' event — no coverage of source/layer initialization, 13. [LOW] `ComponentProperties` initial state has unstabilized default values, 14. [LOW] `useFloorDrawing.ts` directly accesses store state via `getState()` bypassing reactivity, 15. [INFO] `toggleLayer` not wrapped in `useCallback`, 16. [INFO] `handleDelete` in `FloorOutliner.tsx` mutates store then calls separate `save()`, 1. [CRITICAL] Floor plan image never loads (+10 more)
+
+### Community 791 - "Community 791"
+Cohesion: 0.11
+Nodes (18): Architecture, Consistency across the codebase, Data flow: Publish, Files to Create/Modify, M2.5 — Workflow Card Design, Modified files, `NavigationCompiler` (stateless), New files (+10 more)
+
+### Community 792 - "Community 792"
+Cohesion: 0.23
+Nodes (10): ExtractionCoordinator, CompileContext, ExtractionContext, Extractor, FakeRoomExtractor, mockCampusDocument, ExtractionResult, NavigationSpace (+2 more)
+
+### Community 793 - "Community 793"
+Cohesion: 0.22
+Nodes (11): accessibilityWeightPlugin, CompilerStageNext, CompilerStageNext, customValidationPlugin, makeBuilding(), makeEntrance(), makeFloor(), makeRoad() (+3 more)
+
+### Community 794 - "Community 794"
+Cohesion: 0.11
+Nodes (17): dependencies, @navi/compiler, @navi/core, devDependencies, typescript, vitest, exports, name (+9 more)
+
+### Community 795 - "Community 795"
+Cohesion: 0.05
+Nodes (36): 1. @navi/core, 2. @navi/compiler, 3. @navi/editor, 4. @navi/runtime, 5. Gaps Analysis, 6. Dependency Graph, 7. Export Statistics, Canvas (+28 more)
+
+### Community 796 - "Community 796"
+Cohesion: 0.12
+Nodes (16): Global Constraints, M2.5 — Workflow Card Implementation Plan, T10 — Tests, T11 — Verify + Commit, T1 — Create NavigationCompiler, T2 — Create PersistenceService, T3 — Create WorkflowStore, T4 — Create WorkflowService (orchestrator) (+8 more)
+
+### Community 797 - "Community 797"
+Cohesion: 0.12
+Nodes (16): 10. Completion Criteria, 1. Purpose, 2. Service Design, 3. ValidationSnapshot, 4. Validation Pipeline, 5. Cache Ownership, 7. Determinism, 8. Relationship to M3.5.5 (Incremental Validation) (+8 more)
+
+### Community 798 - "Community 798"
+Cohesion: 0.12
+Nodes (16): 10. Non-Goals (Phase 5A), 1. Purpose, 2. Vertical Slice, 3. Quality Contract, 4. Principle: FixProviders Never Decide Policy, 5. Files to Create or Modify, 6.1 FixProvider (from M3.5.4, unchanged), 6.2 AutoFixRegistry (from M3.5.4, unchanged) (+8 more)
+
+### Community 799 - "Community 799"
+Cohesion: 0.13
+Nodes (14): Logging, P1.2 — Complete the Infrastructure Migration (PLAN), Seam 1 — Persistence: CampusDocument is the source of truth, Seam 2 — InteractionController → pure event router, Seam 3 — Canvas node selection (remove final legacy seam), T1.1 — Add `CampusDocument` serialization, T1.2 — `persistenceAdapter.save()` serializes the document, T1.3 — Load builds the graph FROM the document (+6 more)
+
+### Community 800 - "Community 800"
+Cohesion: 0.19
+Nodes (3): placePanoramaTool, placeQrTool, ToolPointerEvent
+
+### Community 801 - "Community 801"
+Cohesion: 0.12
+Nodes (15): File Map, Global Constraints, M2.6 StudioCanvas Migration — Implementation Plan, Task 10: Rewrite StudioCanvas as Composition Root, Task 11: Integration Tests, Task 12: Legacy State Cleanup (Optional), Task 1: ViewportService Extension, Task 2: Create DrawingSession hook + context (+7 more)
+
+### Community 802 - "Community 802"
+Cohesion: 0.12
+Nodes (15): 1. Vision, 2. Architecture, 3. Component Classification, 4. Sub-specs, 5. First Rule Set, 6. Relationship to Existing M3.3.3 Spec, 7. Non-Goals (M3.5), Accessibility Rules (+7 more)
+
+### Community 803 - "Community 803"
+Cohesion: 0.12
+Nodes (15): 1. Floor Plan Upload UI (new), 2. Validation Results Panel (new), 3. Tool Verification (test/fix only), 4. Publish Button Integration (verify only), Design Principles Applied, Downstream Phases, Existing State, Non-Goals (+7 more)
+
+### Community 805 - "Community 805"
+Cohesion: 0.13
+Nodes (14): Context, entrance-connectivity.test.ts, entrance-connectivity.ts, Files to Create/Modify, floor-metadata.test.ts, floor-metadata.ts, Implementation, reference.test.ts (+6 more)
+
+### Community 806 - "Community 806"
+Cohesion: 0.12
+Nodes (15): dependencies, @navi/core, devDependencies, typescript, vitest, exports, ./publisher, name (+7 more)
+
+### Community 807 - "Community 807"
+Cohesion: 0.13
+Nodes (14): compilerOptions, declaration, declarationMap, esModuleInterop, lib, module, moduleResolution, noEmit (+6 more)
+
+### Community 808 - "Community 808"
+Cohesion: 0.15
+Nodes (9): BuildingMetadataForm(), COLOR_SWATCHES, INPUT_STYLE, COLOR_SWATCHES, CreateMapWizard(), NominatimResult, OSM_STYLE, OsmBuilding (+1 more)
+
+### Community 809 - "Community 809"
+Cohesion: 0.13
+Nodes (14): Decision (locked), Definition of Done (per task), Global Constraints, Public API Freeze, Rollback Points, T1 — EditorBridge: single context + DocumentStore + dispatcher + history (frozen order), T2 — Version-driven re-render (Explorer + Inspector), T3 — Connect SelectionBridge (canvas ↔ SelectionManager, selection only) (+6 more)
+
+### Community 810 - "Community 810"
+Cohesion: 0.06
+Nodes (35): Architecture Overview, Build order:, Component dependency graph (new studio):, Delete (replaced by packages):, Keep (infrastructure reused by new app):, Keep (still used by public/consumer pages):, Phase 1: Scaffold, Phase 2: Create Files (app-only code) (+27 more)
+
+### Community 811 - "Community 811"
+Cohesion: 0.12
+Nodes (15): ADR 006 - CampusDocument as the Persistent Source of Truth, Alternatives Considered, Deferred UI elements (not product removals), Interaction Ownership Rule (promoted 2026-07-15), Invariant S0 (the architectural invariant this ADR enforces), Legacy Reachability Rule (promoted 2026-07-15), Consequences, Context (+7 more)
+
+### Community 812 - "Community 812"
+Cohesion: 0.15
+Nodes (9): PositionAPI, GpsResolver, haversineDist(), CurrentPosition, PositionEngine, BlueDot(), Props, nodes (+1 more)
+
+### Community 814 - "Community 814"
+Cohesion: 0.14
+Nodes (13): Error Prevention, Execution Waves Summary, Future: Vertex Editing (M3.5 / M4), M3: Campus Authoring — Execution Plan, Reorganized Task Order (per architecture review), T3.11 — Floor Plan Calibration UI, T3.31 — GraphDocumentAdapter, T3.33 — Recreate ASU-Ibajay Campus (+5 more)
+
+### Community 815 - "Community 815"
+Cohesion: 0.24
+Nodes (13): benchmarkCompiler(), BenchmarkResult, benchmarkRuntime(), benchmarkStartup(), countRooms(), formatBytes(), formatMs(), generateCampus() (+5 more)
+
+### Community 816 - "Community 816"
+Cohesion: 0.14
+Nodes (13): 1. Purpose, 2. Architecture, 3. FixProvider, 4. AutoFixRegistry, 5. Integration with Problems Panel, 6. Fix Result Lifecycle, 7. Fix Scope, 8. Non-Goals (M3.5.4) (+5 more)
+
+### Community 817 - "Community 817"
+Cohesion: 0.23
+Nodes (3): AssetEntry, AssetManager, generateId()
+
+### Community 818 - "Community 818"
+Cohesion: 0.15
+Nodes (12): devDependencies, typescript, vitest, main, name, private, scripts, test (+4 more)
+
+### Community 819 - "Community 819"
+Cohesion: 0.17
+Nodes (13): research-agent, supervisor, question, task, webfetch, websearch, description, mode (+5 more)
+
+### Community 820 - "Community 820"
+Cohesion: 0.15
+Nodes (12): File Structure, Global Constraints, Incremental Validation Implementation Plan, Modified files (core), Modified files (editor), Task 1: Add version, change journal, and helper functions to CampusDocument, Task 2: Update test-helpers and inline document factories, Task 3: Add recordChange() to all command handlers (+4 more)
+
+### Community 821 - "Community 821"
+Cohesion: 0.15
+Nodes (12): Architecture, AutosaveService concurrency guard, Changes to create-editor-context.ts, Changes to ServiceMap, Implementation, Invariants, M3.3.2 — Autosave Service, New file: `packages/editor/src/services/autosave-service.ts` (+4 more)
+
+### Community 822 - "Community 822"
+Cohesion: 0.17
+Nodes (11): Complete Code, Context, engine.test.ts, engine.ts, Files to Modify, index.ts, Objective, registry.test.ts (+3 more)
+
+### Community 823 - "Community 823"
+Cohesion: 0.17
+Nodes (11): Architecture, Base Skills, Bug Fix, Completion, Develop, Feature, Investigate, Phase 1 — Discover (+3 more)
+
+### Community 824 - "Community 824"
+Cohesion: 0.23
+Nodes (9): DEMO, getCanvasCenter(), navigateFloorEditor(), record(), results, run(), seedCampus, seedGraph (+1 more)
+
+### Community 825 - "Community 825"
+Cohesion: 0.17
+Nodes (11): Gate 4B — Studio Publish Workflow, Key principle, Prevention (from ERRORS.md), Relevant source files, Scope, T1 — Audit existing publish paths, T2 — Consolidate into one PublishService, T3 — Validation on publish (+3 more)
+
+### Community 826 - "Community 826"
+Cohesion: 0.17
+Nodes (10): File Structure, Global Constraints, M3.3.4 Publish Pipeline Implementation Plan, Self-Review Checklist, State Machine, Task 1: PublishStore, Task 2: PublishService, Task 3: Context Wiring (+2 more)
+
+### Community 827 - "Community 827"
+Cohesion: 0.17
+Nodes (11): Definition of Done, Exit Criteria, Gate 0 — Workspace, Gate 1 — Validation, Gate 2 — Floor Plan, Gate 3 — Publishing, Gate 4 — Editing, Gate 5 — End-to-End (+3 more)
+
+### Community 828 - "Community 828"
+Cohesion: 0.17
+Nodes (11): 1. `packages/editor/src/context/service-registry.ts`, 2. `packages/editor/src/services/index.ts`, 3. `packages/editor/src/context/create-editor-context.ts`, 4. `packages/editor/src/services/workflow-service.ts`, 5. Run tests, 6. TypeScript check, 7. Commit, Changes (+3 more)
+
+### Community 829 - "Community 829"
+Cohesion: 0.17
+Nodes (11): Core Rule, Root Cause Analysis, Step 1 — Understand the Symptom, Step 2 — Scope with Graphify, Step 3 — Reproduce, Step 4 — Trace the Control Flow, Step 5 — Gather Evidence, Step 6 — Formulate Hypothesis (+3 more)
+
+### Community 830 - "Community 830"
+Cohesion: 0.30
+Nodes (6): EditorShell(), EditorShellProps, MenuBar(), MenuBarProps, StatusBar(), StatusBarProps
+
+### Community 831 - "Community 831"
+Cohesion: 0.17
+Nodes (11): 1. Fix the Overlay (FloorEditor.tsx:99-106), 2. Add Point-Component Source (FloorEditorCanvas.tsx), 3. Sync Point Components (FloorEditorCanvas.tsx), 4. Layer Visibility Wiring, Design, Files Touched, Floor Editor: Component Visibility & Visual Identity, Future Visual Enhancements (Not in Scope) (+3 more)
+
+### Community 832 - "Community 832"
+Cohesion: 0.17
+Nodes (11): Architecture, Design Decisions, Implementation, Initial state on load, Invariants, M3.3.1 — Document Lifecycle (Dirty Tracking), Non-goals, Success Criteria (+3 more)
+
+### Community 833 - "Community 833"
+Cohesion: 0.14
+Nodes (23): directExtract(), footprintCentroid(), localToLatLng(), compile(), publish(), PublisherOptions, sha256(), DEMO_DIR (+15 more)
+
+### Community 834 - "Community 834"
+Cohesion: 0.06
+Nodes (35): 1. Overview — Dual Rendering Systems, 2. Legacy System: MapRenderer, 3. Legacy System: NavigationGraphRenderer, 4. New System: EntityRenderer, 5. Bridge: EntityRendererBridge, 6. Layer Naming Conflict, 7. GeoJSON Pipeline, 8. How They Coexist (+27 more)
+
+### Community 835 - "Community 835"
+Cohesion: 0.18
+Nodes (10): compilerOptions, esModuleInterop, lib, module, moduleResolution, noEmit, skipLibCheck, strict (+2 more)
+
+### Community 836 - "Community 836"
+Cohesion: 0.18
+Nodes (10): Community Hubs (Navigation), Corpus Check, God Nodes (most connected - your core abstractions), Graph Freshness, Graph Report - navi-next  (2026-06-26), Import Cycles, Knowledge Gaps, Suggested Questions (+2 more)
+
+### Community 837 - "Community 837"
+Cohesion: 0.18
+Nodes (10): Dependency Chain, Error Prevention, M2.1 — UI Integration Layer Plan, T1 — EntityId Branded Types and Selection Types, T2 — Extend SelectionManager, T3 — ExplorerAdapter, T4 — SelectionStore, T5 — SelectionBridge (+2 more)
+
+### Community 838 - "Community 838"
+Cohesion: 0.18
+Nodes (10): Global Constraints, M3.3.3 — Validation Engine & Problems Panel Implementation Plan, Task 1: ValidationStore, Task 2: Extend ValidationRegistry + ValidationEngine, Task 3: Update Existing Validators, Task 4: Create New Validators, Task 5: ValidationService, Task 6: Problems Panel (+2 more)
+
+### Community 839 - "Community 839"
+Cohesion: 0.20
+Nodes (4): MapPreview(), MapPreviewProps, OSM_STYLE, SATELLITE_STYLE
+
+### Community 840 - "Community 840"
+Cohesion: 0.18
+Nodes (11): 2026-07-11 — M2.6 StudioCanvas Decomposition (complete), M2.1 — Migrate StudioToolbar to editor architecture, M2.6 final — StudioCanvas composition root (cleanup + consolidation), T0 — Freeze legacy StudioCanvas as `StudioCanvas.legacy.tsx` (896-line reference), T2 — DrawingSession hook + context, T3 — Extract ConfirmBar, T4 — Extract SelectionOverlay (sole owner of `map.setFeatureState()`), T5 — Extract DrawingOverlay + PreviewOverlay (+3 more)
+
+### Community 841 - "Community 841"
+Cohesion: 0.18
+Nodes (11): 2026-07-13 — M3.5 Validation Architecture Baseline (complete), Architecture state (before → after), Cleanup, Next, Phase 3A — Engine Skeleton, Phase 3B — Rule Migration (Strangler Fig), Phase 4 — Problems Panel, Phase 5A spec written, not implemented (+3 more)
+
+### Community 842 - "Community 842"
+Cohesion: 0.18
+Nodes (10): Brief Bugs Fixed, engine.test.ts — Updated, engine.ts — Full rewrite, index.ts — Updated exports, registry.test.ts — Full rewrite, registry.ts — Full rewrite, Task 2 Report: Extend ValidationRegistry + ValidationEngine, Test Results (+2 more)
+
+### Community 843 - "Community 843"
+Cohesion: 0.18
+Nodes (10): 1. Spec Compliance, 2. Correctness, 3. Test Quality, 4. Pattern Alignment, 5. Scope Discipline, 6. Regressions, Notes, Task 2 Review: Extend ValidationRegistry + ValidationEngine (+2 more)
+
+### Community 844 - "Community 844"
+Cohesion: 0.18
+Nodes (11): Architecture State, Change Log, Dependency Graph, Migration Order, Migration Tracking, NAVI Studio — Implementation Roadmap, Phase 2 — UI Migration, Phase 5 — Product Features (+3 more)
+
+### Community 845 - "Community 845"
+Cohesion: 0.18
+Nodes (10): compilerOptions, esModuleInterop, lib, module, moduleResolution, noEmit, skipLibCheck, strict (+2 more)
+
+### Community 846 - "Community 846"
+Cohesion: 0.18
+Nodes (10): 10. Overlay Rendering Priority, Completion Criteria, Editor Interaction Principles, Future Extensions, Implementation Boundaries, Interaction Invariants, Interaction Pipeline, M3.4.1 — Editor Interaction & Workspace Specification (+2 more)
+
+### Community 847 - "Community 847"
+Cohesion: 0.56
+Nodes (10): crossBuildingGraph(), disconnectedGraph(), edge(), largeGraph(), makeGraph(), multiFloorElevatorGraph(), multiFloorStairsGraph(), node() (+2 more)
+
+### Community 848 - "Community 848"
+Cohesion: 0.18
+Nodes (7): MapCanvas(), MapCanvasProps, mockToolContext, mockViewport, ViewportState, ToolRegistry, Tool
+
+### Community 849 - "Community 849"
+Cohesion: 0.20
+Nodes (9): Context, create-editor-context.ts, Files to Modify, Implementation, service-registry.ts, services/index.ts, Steps, Task 7: Context Wiring + WorkflowService Deprecation (+1 more)
+
+### Community 850 - "Community 850"
+Cohesion: 0.20
+Nodes (7): ADR 0011: Extensible Compiler Pipeline, Alternatives Considered, Consequences, Context, Negative, Positive, Related
+
+### Community 852 - "Community 852"
+Cohesion: 0.14
+Nodes (13): Building, Component, ComponentType, DirEntry, EdgeType, GraphSnapshot, LatLng, NavEdge (+5 more)
+
+### Community 853 - "Community 853"
+Cohesion: 0.20
+Nodes (9): Administrator Experience, Design Principles, Elevator Pitch, NAVI Product Vision, Visitor Experience, What "Feature Complete" Means for v1, What Is Out of Scope for v1, What Problem Does NAVI Solve? (+1 more)
+
+### Community 854 - "Community 854"
+Cohesion: 0.20
+Nodes (9): Core Platform, Deployment, Extensibility, Features, Installation, Quick Start, Statistics, Tools & Scripts (+1 more)
+
+### Community 855 - "Community 855"
+Cohesion: 0.20
+Nodes (6): COLOR_SWATCHES, INPUT_STYLE, NominatimResult, OSM_STYLE, OsmBuilding, WorkflowStep
+
+### Community 856 - "Community 856"
+Cohesion: 0.20
+Nodes (10): T3.12 — Building Properties, T3.13 — Floor Properties, T3.14 — Room Properties, T3.15 — Hallway Properties, T3.16 — Road Properties, T3.17 — Entrance Properties, T3.18 — Staircase Properties, T3.19 — Elevator Properties (+2 more)
+
+### Community 857 - "Community 857"
+Cohesion: 0.20
+Nodes (9): Global Constraints, Plan Self-Review, Task 1: Golden Campus Factory, Task 2: E2E Verification Script (D1), Task 3: Concrete CompilerAdapter (D2), Task 4: Editor Publish Flow (D2), Task 5: Runtime Verification Page (D3), Task 6: Integration Test (D4) (+1 more)
+
+### Community 858 - "Community 858"
+Cohesion: 0.20
+Nodes (9): Commits, Concerns, Design Notes, Files Created, Files Modified (expanded `ValidationIssue` type), Status: DONE, Summary, Task 1 Report: ValidationStore (+1 more)
+
+### Community 859 - "Community 859"
+Cohesion: 0.20
+Nodes (9): 1. Spec Compliance, 2. Correctness, 3. Test Quality, 4. Pattern Alignment, 5. Scope Discipline, 6. Regressions, Summary, Task 1 Review: ValidationStore (+1 more)
+
+### Community 860 - "Community 860"
+Cohesion: 0.20
+Nodes (9): Architecture, Behavior, Caveats, Dependencies, Edge Cases & Error Handling, Files, Hotkey, Overview (+1 more)
+
+### Community 861 - "Community 861"
+Cohesion: 0.38
+Nodes (6): CampusMapState, MapCard(), MapCardProps, CampusMap, LandmarkInstance, LandmarkType
+
+### Community 862 - "Community 862"
+Cohesion: 0.12
+Nodes (14): buildingExtrusionPaint(), buildingFillPaint(), buildingOutlinePaint(), computeCentroid(), documentToSources(), EntityRenderer, floorFeatures(), GeoJSONSources (+6 more)
+
+### Community 863 - "Community 863"
+Cohesion: 0.20
+Nodes (10): Architecture Specification: Compiler Pipeline, Compiler Interface, Compiler Usage, Design Principles, Goals, NavigationGraph (Compiled Artifact), Performance Targets, Purpose (+2 more)
+
+### Community 864 - "Community 864"
+Cohesion: 0.14
+Nodes (8): ServiceAccessor, buildingAdjustTool, drawHallwayTool, vertices, panTool, emptyCtx, selectTool, ToolContext
+
+### Community 866 - "Community 866"
+Cohesion: 0.22
+Nodes (8): ADR 004 - Rendering Responsibilities, Alternatives Considered, Consequences, Context, Decision, Negative, Positive, Related
+
+### Community 867 - "Community 867"
+Cohesion: 0.22
+Nodes (8): Analyze, Base Skills, Step 1 — Load Graphify, Step 2 — Find Relevant Files, Step 3 — Identify Central Modules, Step 4 — Assess Impact, Step 5 — Output Summary, Workflow
+
+### Community 868 - "Community 868"
+Cohesion: 0.22
+Nodes (8): ADRs (7), Architecture Documents (22), Development Plan, Frozen Decisions, Milestones, NAVI Architecture v1.0 — Freeze Checkpoint, Repository Structure, What Comes Next
+
+### Community 869 - "Community 869"
+Cohesion: 0.22
+Nodes (8): Global Constraints (applies to all tasks), Implementation Steps, Step 1: Write the failing test file, Step 2: Run to verify failure, Step 3: Write minimal implementation, Step 4: Run to verify pass, Step 5: Commit, Task 1: ValidationStore
+
+### Community 870 - "Community 870"
+Cohesion: 0.22
+Nodes (8): Context, duplicate-ids.ts, Files to Modify, Implementation Details, polygon-closure.ts, self-intersection.ts, Steps, Task 3: Update Existing Validators
+
+### Community 871 - "Community 871"
+Cohesion: 0.22
+Nodes (8): Base Skills, Document, Step 1 — README, Step 2 — Changelog, Step 3 — Architecture Decision Records, Step 4 — Inline Documentation, Step 5 — Output, Workflow
+
+### Community 872 - "Community 872"
+Cohesion: 0.22
+Nodes (8): Base Skills, Implement, Step 1 — Load the Plan, Step 2 — Create TODO List, Step 3 — Task Loop, Step 4 — Decision Support, Step 5 — Completion, Workflow
+
+### Community 873 - "Community 873"
+Cohesion: 0.22
+Nodes (8): Commits, context/create-editor-context.ts, context/service-registry.ts, Files Modified, services/index.ts, Task 3 Report: Wire PublishStore and PublishService into Editor Context, Test Results, What Was Done
+
+### Community 874 - "Community 874"
+Cohesion: 0.22
+Nodes (9): T3.1 — Room Commands, T3.2 — Hallway Commands, T3.3 — Road Commands, T3.4 — Entrance Commands, T3.5 — Staircase Commands, T3.6 — Elevator Commands, T3.7 — Panorama Commands, T3.8 — QR Checkpoint Commands (+1 more)
+
+### Community 875 - "Community 875"
+Cohesion: 0.22
+Nodes (8): M2.4 Selection Integration — Execution Plan, T1 — Canvas highlight sync, T2 — Explorer → fly camera, T3 — PropertiesPanel → use `useSelection()`, T4 — Replace string literals with `SelectionOrigin`, T5 — Integration tests, T6 — Document selection ownership invariant, Tasks
+
+### Community 876 - "Community 876"
+Cohesion: 0.22
+Nodes (8): 1. `polygon-closure.ts`, 2. `self-intersection.ts`, 3. `duplicate-ids.ts`, Changes Made, Concerns, Task 3 Report: Update Existing Validators, Test File Changes, Test Results
+
+### Community 877 - "Community 877"
+Cohesion: 0.33
+Nodes (8): generateCampusDoc(), main(), makeGraph(), makeSearchIndex(), OUT, { performance }, runScale(), StressResult
+
+### Community 878 - "Community 878"
+Cohesion: 0.22
+Nodes (8): Changes, Commits, Concerns, Constraints honored, Status: DONE, Task 8 Report: Add inline rename, Test results, Verification
+
+### Community 879 - "Community 879"
+Cohesion: 0.22
+Nodes (8): After M2.4, Before M2.4, Files changed, Known Pitfalls, M2.4 — Selection Integration Design, Success Criteria, Verification, What
+
+### Community 880 - "Community 880"
+Cohesion: 0.22
+Nodes (8): 13. Tool Events, 14. Tool Invariants, 15. Migration from Current Dual System, 16. Non-Goals, 1. Purpose, 2. Tool Principles, Future Tool Interface Direction, M3.4.3 — Tool System Specification
+
+### Community 881 - "Community 881"
+Cohesion: 0.15
+Nodes (9): CoordinateTransformer, Line, YearnOptions, computeBBox(), computeCentroid(), coreLatLngToLegacy(), genId(), GraphAdapter (+1 more)
+
+### Community 884 - "Community 884"
+Cohesion: 0.25
+Nodes (7): New-architecture key files, Open decision (blocks T3.3 / T3.4), Tier 1 — Critical correctness bugs  ✅ DONE, Tier 2 — Port remaining legacy drawing behaviors  ⬜ TODO, Tier 3 — Selection & camera unification  ⬜ TODO, Tier 4 — Everything else  ⬜ TODO, Legacy → New Architecture Migration Matrix
+
+### Community 885 - "Community 885"
+Cohesion: 0.25
+Nodes (7): Context, Files to Create, Implementation, Steps, Task 5: ValidationService, validation-service.test.ts, validation-service.ts
+
+### Community 886 - "Community 886"
+Cohesion: 0.25
+Nodes (8): 2026-07-09: Localhost E2E Testing — Bugs Found, B1 — OSM Buildings API returns 502 with default radius (0.01°), B2 — POST /api/campus-maps requires `payload` wrapper key, B3 — POST /api/graph FK violation on building_id, B4 — POST /api/campus-maps also affected by payload wrapper, B5 — Dev server background jobs unreliable on Windows, B6 — Invoke-WebRequest corrupts Unicode in JSON payloads, B7 — 19/20 pages tested, all 200 OK except POST-only endpoints
+
+### Community 887 - "Community 887"
+Cohesion: 0.25
+Nodes (7): Base Skills, Graph Update, Step 1 — Load Graphify, Step 2 — Update Knowledge Graph, Step 3 — Record New Relationships, Step 4 — Output, Workflow
+
+### Community 888 - "Community 888"
+Cohesion: 0.25
+Nodes (7): DEMO, feedbackOk, pageErrors, pngBuffer, published, seedCampus, seedGraph
+
+### Community 889 - "Community 889"
+Cohesion: 0.09
+Nodes (21): Files changed, Progress Log, Verification, What was done, 2025-07-16: P3.1 Editor Bootstrap Consolidation — Complete, 2026-07-11: M3.2.3 Phase E (useVertexEditor) — Complete, 2026-07-11: M3.2 Phase C Reclassification + Phase D (useEntrancePlacer) — Complete, 2026-07-12: M3.3.1 Document Lifecycle (Dirty Tracking) — Complete (+13 more)
+
+### Community 890 - "Community 890"
+Cohesion: 0.25
+Nodes (7): 2026-07-08: Initial Security Audit, Accepted Risks, Audit Trail, Remediation Guidance, Security Audit — M6 Release & Evaluation (v1.0.0), Summary, Threat Register
+
+### Community 891 - "Community 891"
+Cohesion: 0.25
+Nodes (7): Step 1: Write the PublishService source file, Step 2: Add isSaving() and hasUnsavedChanges() to WorkflowService, Step 3: Write PublishService tests, Step 4: Run PublishService tests, Step 5: Commit, Steps, Task 2: PublishService
+
+### Community 892 - "Community 892"
+Cohesion: 0.32
+Nodes (7): BuildingResult, GET(), OverpassNode, OverpassResponse, OverpassWay, parseElements(), POST()
+
+### Community 893 - "Community 893"
+Cohesion: 0.25
+Nodes (7): Global Constraints, Route System Implementation Plan, Spec Coverage Check, Task 1: Fix Vertex Editor Bugs (midpoint filter + handle size), Task 2: Fix `removeTrace` for Shared Junction Nodes, Task 3: Auto-toggle Node/Edge Layers During Vertex Editing, Task 4: Route Endpoint Extend via Drag
+
+### Community 894 - "Community 894"
+Cohesion: 0.25
+Nodes (8): 2026-07-09 — M2.1 UI Integration Layer (complete), T1 — EntityId branded types, T2 — Extended SelectionManager, T3 — ExplorerAdapter, T4 — SelectionStore, T5 — SelectionBridge, T6 — WorkspaceContext, T7 — Full verification
+
+### Community 895 - "Community 895"
+Cohesion: 0.25
+Nodes (8): 2026-07-09 — M3 Waves 3–6 Complete (Routing, Performance, Pipeline, Release), Errors fixed, New test files created, Test count progression, Wave 3 — Routing Validation (26 scenario tests), Wave 4 — Performance Baselines (9 tests), Wave 5 — Pipeline/Recovery (5 tests), Wave 6 — Release Readiness (11 tests)
+
+### Community 896 - "Community 896"
+Cohesion: 0.25
+Nodes (8): 2026-07-13 — Phase 5A: Auto Fix Infrastructure (complete), Errors prevented, Files changed/created (10 new, 5 edited), Implementation, Next, Quality contract, Verification, What
+
+### Community 897 - "Community 897"
+Cohesion: 0.25
+Nodes (7): Commit, Files Changed, Notes, Status: COMPLETE, Task 5 Report: usePublish Hook + WorkflowCard Integration, Test Results, What was done
+
+### Community 898 - "Community 898"
+Cohesion: 0.25
+Nodes (7): Commit, Concerns, Full editor test suite, Publish tests (3 files), Task 6 — Publish Pipeline Integration Tests, Test results, What was done
+
+### Community 899 - "Community 899"
+Cohesion: 0.25
+Nodes (7): Commits, Concerns, Constraints met, Files Created / Modified, Status: DONE_WITH_CONCERNS, Task 7 Report: Connect Explorer to SelectionManager, Verification
+
+### Community 900 - "Community 900"
+Cohesion: 0.25
+Nodes (7): M3.2 — CampusDocument as Source of Truth, Pitfalls, Reclassification Note, Scope, Success Criteria, Waves, What
+
+### Community 901 - "Community 901"
+Cohesion: 0.25
+Nodes (8): 2. Canvas Interaction, Drawing Workflow, Gesture Table, Hit-Test Priority (descending), Immediate vs Confirmed Editing, Ownership, Selection Highlighting, UX Invariants
+
+### Community 902 - "Community 902"
+Cohesion: 0.25
+Nodes (8): 4. Selection Model, Commands Default to Selection, Four Interaction States, Multi-Select, Persistence, Selection Origins, Single Source of Truth, ViewportManager Ownership
+
+### Community 903 - "Community 903"
+Cohesion: 0.25
+Nodes (8): 7. Keyboard Shortcuts, Cancel Priority, Context Priority, Discoverability, Modifier Keys, Principle, Reserved for Future Use, Reserved Shortcuts
+
+### Community 904 - "Community 904"
+Cohesion: 0.08
+Nodes (23): dependencies, maplibre-gl, @navi/compiler, @navi/core, @navi/editor, @navi/runtime, next, react (+15 more)
+
+### Community 905 - "Community 905"
+Cohesion: 0.33
+Nodes (5): Known gaps that block a naive deletion (must be resolved in Seam 2), P1.2 — Complete the Infrastructure Migration, Pitfalls (from errors/ERRORS.md), Success criteria, WHAT
+
+### Community 907 - "Community 907"
+Cohesion: 0.25
+Nodes (7): Base Skills, Step 1 — Load QA, Step 2 — Acceptance Criteria, Step 3 — Regression Check, Step 4 — Output, Verify, Workflow
+
+### Community 908 - "Community 908"
+Cohesion: 0.29
+Nodes (6): Context, Files to Create, Implementation, problems-panel.tsx, Steps, Task 6: Problems Panel
+
+### Community 909 - "Community 909"
+Cohesion: 0.29
+Nodes (6): Context, Files to Create, Implementation, Steps, Task 8: Integration Tests, validation-integration.test.ts
+
+### Community 910 - "Community 910"
+Cohesion: 0.29
+Nodes (6): Discover, Output, Step 1 — Understand the Request, Step 2 — Clarify (guided by guide), Step 3 — Determine Work Type, Workflow
+
+### Community 911 - "Community 911"
+Cohesion: 0.29
+Nodes (6): compilerOptions, jsx, outDir, rootDir, extends, include
+
+### Community 912 - "Community 912"
+Cohesion: 0.29
+Nodes (6): consoleErrors, mapNotFound, onLogin, pageErrors, seedCampus, seedGraph
+
+### Community 913 - "Community 913"
+Cohesion: 0.38
+Nodes (6): check(), DEMO, __dirname, failures, heading(), main()
+
+### Community 914 - "Community 914"
+Cohesion: 0.29
+Nodes (6): Commit, Files changed, Notes, Status: DONE, Task 4: Remove publish() from WorkflowService, Test results
+
+### Community 915 - "Community 915"
+Cohesion: 0.29
+Nodes (6): Pattern Map, Step 1 — Search for Similar Implementations, Step 2 — Identify Reusable Components, Step 3 — Map Conventions, Step 4 — Output, Workflow
+
+### Community 916 - "Community 916"
+Cohesion: 0.29
+Nodes (6): Global Constraints, Task 1: Project Scaffold + Transcriber Module, Task 2: Main App — Tray Icon + Hotkey + Wiring, Task 3: Manual Integration Verification, Task 4: Admin Rights Note + Documentation, Voice Transcriber for OpenCode — Implementation Plan
+
+### Community 917 - "Community 917"
+Cohesion: 0.29
+Nodes (7): 2026-07-10 — T10: StudioCanvas Final Cleanup (complete), Architecture, Verification, T10a — Extend useDrawingSession with setTracePoints/setDrawPoints, T10b — Move tooltip into InteractionController, T10c — Replace drawing bridge with real useDrawingSession + simplify ConfirmBar, T10d — Cleanup & dead code removal
+
+### Community 918 - "Community 918"
+Cohesion: 0.29
+Nodes (7): 2026-07-11 — M2.9 Remaining FloorEditor Review Findings (complete), Already fixed by graph.ts caching, Deferred (INFO/LOW), From M2.8, Next, Verification, What
+
+### Community 919 - "Community 919"
+Cohesion: 0.29
+Nodes (7): 2026-07-14 — P1.1 Gate 4A: Full Entity Lifecycle in Floor Editor (COMPLETE), Bugs fixed, Gate 4A e2e results, Files changed, Next, Verification, What
+
+### Community 920 - "Community 920"
+Cohesion: 0.29
+Nodes (6): Commit, Concerns, Deviations from Brief, Status: DONE, Task 5: ValidationService — Report, Test Results
+
+### Community 921 - "Community 921"
+Cohesion: 0.29
+Nodes (6): Concerns, Full validation + workflow suite, Target test file, Task 8 Report: Integration Tests, Test Results, What was created
+
+### Community 922 - "Community 922"
+Cohesion: 0.29
+Nodes (6): Commit, Files changed, Self-review findings, Task 2 Report: Fix `removeTrace` for Shared Junction Nodes, Test results, What was implemented
+
+### Community 923 - "Community 923"
+Cohesion: 0.29
+Nodes (6): Spec, Step 1 — Check for Existing Templates, Step 2 — Write SPEC.md, Step 3 — Self-Review, Step 4 — User Review, Workflow
+
+### Community 924 - "Community 924"
+Cohesion: 0.29
+Nodes (6): Flow, Gate 4B — Studio Publish Workflow, Success Criteria, WHAT, Non-goals, Pitfalls from ERRORS.md
+
+### Community 925 - "Community 925"
+Cohesion: 0.29
+Nodes (7): 3. Tool Philosophy, Mode-Based Tool Filtering, Persistent vs Momentary Tools, Principles, Standard Tool Lifecycle, Tool Categories, Tool vs Manipulator (Future)
+
+### Community 926 - "Community 926"
+Cohesion: 0.29
+Nodes (7): 5. Context Panel, Entity Editors, Multi Editor, Panel Contents by Context, Principle, Resolver Architecture, Validation Issue Banner
+
+### Community 928 - "Community 928"
+Cohesion: 0.29
+Nodes (7): Pipeline Stages, Stage 1: Parse, Stage 2: Build Nodes, Stage 3: Build Edges, Stage 4: Connect Campuses, Stage 5: Optimize, Stage 6: Validate
+
+### Community 929 - "Community 929"
+Cohesion: 0.33
+Nodes (4): consoleErrors, pageErrors, seedCampus, seedGraph
+
+### Community 930 - "Community 930"
+Cohesion: 0.33
+Nodes (5): consoleErrors, pageErrors, pngBuffer, seedCampus, seedGraph
+
+### Community 931 - "Community 931"
+Cohesion: 0.33
+Nodes (4): campusMaps, encoded, graphSnapshot, user
+
+### Community 932 - "Community 932"
+Cohesion: 0.33
+Nodes (4): campusMaps, encoded, graphSnapshot, user
+
+### Community 933 - "Community 933"
+Cohesion: 0.33
+Nodes (5): consoleErrors, pageErrors, seedCampus, seedGraph, toolResults
+
+### Community 934 - "Community 934"
+Cohesion: 0.09
+Nodes (22): artifacts, buildingIndex, navigationGraph, poiData, searchIndex, checksum, filename, size (+14 more)
+
+### Community 935 - "Community 935"
+Cohesion: 0.33
+Nodes (6): T3.26 — PlaceEntranceTool, T3.27 — PlaceStaircaseTool, T3.28 — PlaceElevatorTool, T3.29 — PlacePanoramaTool, T3.30 — PlaceQRCodeTool, Wave 8 — Placement Tools (T3.26–T3.30)
+
+### Community 936 - "Community 936"
+Cohesion: 0.33
+Nodes (4): Global Constraints, M3.3.1 — Document Lifecycle Implementation Plan, Task 2: Update WorkflowService.save() with state transitions + initial state, Task 3: Write lifecycle tests
+
+### Community 937 - "Community 937"
+Cohesion: 0.33
+Nodes (5): Global Constraints, M3.3.2 — Autosave Scheduler Implementation Plan, Task 1: Create AutosaveSchedulerService, Task 2: Register AutosaveSchedulerService in ServiceMap and createEditorContext, Task 3: Write autosave scheduler tests
+
+### Community 938 - "Community 938"
+Cohesion: 0.33
+Nodes (6): 2026-07-11 — M2.7 FloorEditor UI State Migration (complete), Commit, Files changed/created, Implementation (deviated from plan), Next, Verification
+
+### Community 939 - "Community 939"
+Cohesion: 0.33
+Nodes (6): 2026-07-11 — M2.8 FloorEditorCanvas Bugfixes (complete), Already fixed by graph.ts caching (June 3 bugfix), Commits, Tasks, Verification, What
+
+### Community 940 - "Community 940"
+Cohesion: 0.33
+Nodes (6): 2026-07-13 — Phase 8: System Verification (complete), Files created, M3.5 complete, Test coverage, Verification, What
+
+### Community 941 - "Community 941"
+Cohesion: 0.33
+Nodes (6): 2026-07-14 — P1.1 Gate 5: Final UAT — ALL 46 CHECKS PASS, Files changed (UAT e2e only), Key bugs fixed during UAT, What was done, Verification, What next
+
+### Community 942 - "Community 942"
+Cohesion: 0.33
+Nodes (5): Concerns, Deviation from Brief, Files Created/Modified, Task 4 Report: Create New Validators, Test Results
+
+### Community 943 - "Community 943"
+Cohesion: 0.33
+Nodes (5): Changes Made, Report Path, Task 7: Context Wiring + WorkflowService Deprecation — Report, Test Results, TypeScript Errors
+
+### Community 944 - "Community 944"
+Cohesion: 0.33
+Nodes (6): Current Flow, M3.1 — Tool → Command Pipeline, M3.2 — CampusDocument as Source of Truth, M3.3 — Event-Driven Renderer, Phase 3 — Interaction Pipeline, Target Flow
+
+### Community 945 - "Community 945"
+Cohesion: 0.33
+Nodes (5): Golden Campus Dataset, Implementation, Running Tests, Task 1: Golden Campus Factory, Test
+
+### Community 946 - "Community 946"
+Cohesion: 0.33
+Nodes (5): Admin Rights, Files, Model, Usage, VoiceCode — Voice Transcriber for OpenCode
+
+### Community 947 - "Community 947"
+Cohesion: 0.70
+Nodes (4): DELETE(), GET(), getClient(), POST()
+
+### Community 948 - "Community 948"
+Cohesion: 0.40
+Nodes (5): Augment Mode, Decision, Plugin Contract, Registration, Replace Mode
+
+### Community 949 - "Community 949"
+Cohesion: 0.14
+Nodes (13): 2026-07-14: EntityRenderer.init() never created sources (load-gating), 2026-07-14: EntityRenderer.syncAll dropped roads/rooms/hallways, 2026-07-14: Gate 4B e2e — Seed graph format mismatch, 2026-07-14: P1.2 Seam 1 — editor test "describe is not defined", 2026-07-15: Blank map — footprint shape mismatch across graph/document boundary, 2026-07-15: Client bundle pulled Node built-ins (`fs`, `crypto`) via `@navi/compiler` barrel (BUILD ERROR), 2026-07-15: `createDocument` missing required `version` field, 2026-07-15: Dead drag systems referenced removed helpers after tool-switch deletion (PREVENTED) (+5 more)
+
+### Community 950 - "Community 950"
+Cohesion: 0.40
+Nodes (4): consoleErrors, encoded, pageErrors, user
+
+### Community 951 - "Community 951"
+Cohesion: 0.50
+Nodes (4): DEMO, run(), seedGraph, stage()
+
+### Community 952 - "Community 952"
+Cohesion: 0.40
+Nodes (4): name, private, version, workspaces
+
+### Community 953 - "Community 953"
+Cohesion: 0.40
+Nodes (4): InteractionController(), mockGetGraphState, mockGetStudioState, mockSubscribe
+
+### Community 954 - "Community 954"
+Cohesion: 0.40
+Nodes (4): Post-Release, Pre-Release, Release, Release Checklist — v1.0.0
+
+### Community 955 - "Community 955"
+Cohesion: 0.40
+Nodes (4): Success Criteria, What, Known Pitfalls, M3.2.2 Wave B — FloorEditor reads from CampusDocument + writes via Commands
+
+### Community 956 - "Community 956"
+Cohesion: 0.40
+Nodes (5): T3.22 — DrawBuildingTool, T3.23 — DrawRoomTool, T3.24 — DrawHallwayTool, T3.25 — DrawRoadTool, Wave 7 — Geometry Drawing Tools (T3.22–T3.25)
+
+### Community 957 - "Community 957"
+Cohesion: 0.13
+Nodes (14): Command, CommandHandler, CommandPayload, EntityCreatePayload, EntityDeletePayload, EntityUpdatePayload, entityCreateHandler, entityDeleteHandler (+6 more)
+
+### Community 958 - "Community 958"
+Cohesion: 0.40
+Nodes (5): 2026-07-13 — Phase 6: Incremental Validation (complete), Commits, Implementation, Verification, What
+
+### Community 959 - "Community 959"
+Cohesion: 0.40
+Nodes (5): 2026-07-13 — Phase 7: Validation Profiles (complete), Implementation, Key design decisions, Verification, What
+
+### Community 960 - "Community 960"
+Cohesion: 0.09
+Nodes (21): 1. Repository Topology, 2. Monorepo Structure, 3. Package Dependency Graph, 4. Key Entry Points, 5. Strangler Fig Architecture, 6. Two Lifecycles: Editing vs Publishing, 7. Build System, 8. Data Flow Overview (+13 more)
+
+### Community 961 - "Community 961"
+Cohesion: 0.40
+Nodes (4): Concerns, Implementation, Report, Task 6 Report: Problems Panel
+
+### Community 962 - "Community 962"
+Cohesion: 0.60
+Nodes (4): main(), sha256(), validateDirectory(), Validation
+
+### Community 963 - "Community 963"
+Cohesion: 0.40
+Nodes (4): Concerns / deviations, Task 9 — Add context menu (Report), Test results, What was built
+
+### Community 964 - "Community 964"
+Cohesion: 0.40
+Nodes (4): Known Pitfalls, M2.1 — UI Integration Layer, Success Criteria, What
+
+### Community 965 - "Community 965"
+Cohesion: 0.40
+Nodes (5): 1. Workspace Layout, Editing Session Lifecycle, Layout, Principle, Three Orthogonal Contexts
+
+### Community 966 - "Community 966"
+Cohesion: 0.40
+Nodes (5): 6. Workflow Panel Behavior, Publish Progress, Status Bar Integration, Steps, Visual Elements
+
+### Community 967 - "Community 967"
+Cohesion: 0.40
+Nodes (5): 8. Context Menus, Canvas Right-Click, Explorer Right-Click, Implementation Rule, Principle
+
+### Community 968 - "Community 968"
+Cohesion: 0.40
+Nodes (5): 9. Status Bar, Layout, Persistent Elements (always visible), Principle, Transient Elements (shown only when relevant)
+
+### Community 969 - "Community 969"
+Cohesion: 0.40
+Nodes (5): 11. Workspace Context Validation, Context Change Flow, Default Tools Per Context, Implementation, Tool Validation Rules
+
+### Community 970 - "Community 970"
+Cohesion: 0.40
+Nodes (5): 12. Tool Inventory (Final), Building-Level Tools, Campus-Level Tools, Floor-Level Tools, Utility-Level Tools
+
+### Community 971 - "Community 971"
+Cohesion: 0.40
+Nodes (5): 3. Tool Architecture, Event Routing Contract, Exceptions, PreviewManager (New Service), Tool → PreviewManager Flow
+
+### Community 972 - "Community 972"
+Cohesion: 0.31
+Nodes (4): CampusCompiler, CompilerConfig, CompileResultV2, CompileStage
+
+### Community 973 - "Community 973"
+Cohesion: 0.40
+Nodes (5): Core Stages, Pipeline Architecture, Plugin Examples, Plugin Registration, Stage Plugin Interface
+
+### Community 974 - "Community 974"
 Cohesion: 0.67
-Nodes (3): vet, description, template
+Nodes (3): EditPage(), OsmWorkflowSandbox(), useCampusMapStore
+
+### Community 976 - "Community 976"
+Cohesion: 0.50
+Nodes (4): 2026-07-09: M3 Wave 2 — Compiler Invariants (3 new findings), B10 — compile() Checksum Includes createdAt Timestamp (Non-Determinism) ✅ FIXED, B8 — NavigationSpace.type Not Set by directExtract (TS Type Coverage Gap) ✅ FIXED, B9 — WalkableCorridor.type Casts road.type Without Mapping (Invalid Type Value) ✅ FIXED
+
+### Community 977 - "Community 977"
+Cohesion: 0.50
+Nodes (3): checks, encoded, user
+
+### Community 978 - "Community 978"
+Cohesion: 0.20
+Nodes (9): M3.2.2 Wave B — Document Migration, Prerequisites, T1 — Fix createDocument + register CoordinateTransformer service, T2 — Update selectors to read from CampusDocument, T3 — FloorEditorCanvas dispatches commands, T4 — useFloorDrawing dispatches commands, T5 — FloorOutliner dispatches commands, T6 — ComponentProperties dispatches commands (+1 more)
+
+### Community 980 - "Community 980"
+Cohesion: 0.50
+Nodes (3): Floor Editor Component Visibility Implementation Plan, Task 1: Fix the "Upload floor plan" overlay, Task 2: Add point-component rendering (stairs, elevator, entrance)
+
+### Community 982 - "Community 982"
+Cohesion: 0.50
+Nodes (4): 2026-07-04 — Track A: Hallway Intersections + Turn Instructions, A1 – `src/engine/geo-utils.ts` (NEW), A2 – `src/engine/graph.ts` + `src/store/graph-store.ts`, A3 – `src/engine/a-star.ts`
+
+### Community 983 - "Community 983"
+Cohesion: 0.50
+Nodes (4): 2026-07-05 — Route Intersection Auto-Connect, Vertex Recompile, Node Selection, T1 – Route intersection auto-connect (graph.ts), T2 – Vertex edit recompilation (graph.ts + graph-store.ts + StudioCanvas.tsx), T3 – Selected node highlight (StudioCanvas.tsx)
+
+### Community 984 - "Community 984"
+Cohesion: 0.10
+Nodes (27): ArtifactSet, buildGraph(), haversine(), makeNodeId(), DataAPI, BuildingSelector(), Props, BoundingBox (+19 more)
+
+### Community 985 - "Community 985"
+Cohesion: 0.22
+Nodes (7): InspectorController, EditableField, getFields(), Inspector(), InspectorProps, typeColor(), EntityRef
+
+### Community 987 - "Community 987"
+Cohesion: 0.15
+Nodes (9): EDGE_COLORS, edgeLinePaint(), graphToGeoJSON(), LAYER, NavigationGraphRenderer, NODE_COLORS, nodeCirclePaint(), nodeLabelPaint() (+1 more)
+
+### Community 988 - "Community 988"
+Cohesion: 0.67
+Nodes (3): DEMO_DIR, POST(), sha256()
+
+### Community 989 - "Community 989"
+Cohesion: 0.50
+Nodes (4): M1.1 — Scoped Validation, M1.2 — Formal EditorService Interface, M1.3 — Strongly Typed Services, Phase 1 — Complete the Foundation
+
+### Community 990 - "Community 990"
+Cohesion: 0.50
+Nodes (4): 10. Tool Activation Sources, The `tool.activate` Command, Tool Activation Sources — Summary, Toolbar Sync
+
+### Community 991 - "Community 991"
+Cohesion: 0.50
+Nodes (4): 4. Tool Interface (Revised), ToolContext Contract, ToolKind Semantics, What Changed from M3.4.1
+
+### Community 992 - "Community 992"
+Cohesion: 0.50
+Nodes (4): 5. ToolRegistry (Revised), Activation Flow, Activation Invariants, Override Flow
+
+### Community 993 - "Community 993"
+Cohesion: 0.50
+Nodes (4): 6. Preview / Confirm Cycle, Preview Event Types, What Triggers Preview Entry, What Triggers Preview Exit
+
+### Community 994 - "Community 994"
+Cohesion: 0.50
+Nodes (4): 7. SpatialQueryService, Hit-Test Priority, Integration with PointerManager, Ownership
+
+### Community 995 - "Community 995"
+Cohesion: 0.50
+Nodes (4): 8. Tool Authoring Contract, Tool Dependencies, Tool Registration, Tool State
+
+### Community 996 - "Community 996"
+Cohesion: 0.50
+Nodes (4): 9. InteractionController (Routed Architecture), After (Target), Before (Current), Migration
+
+### Community 1001 - "Community 1001"
+Cohesion: 0.40
+Nodes (5): playwright, command, description, enabled, type
+
+### Community 1002 - "Community 1002"
+Cohesion: 0.67
+Nodes (3): Current Bridge, Phase 4 — Navigation Compiler (formerly "Retire Legacy Graph"), Steps
+
+### Community 1003 - "Community 1003"
+Cohesion: 0.67
+Nodes (3): Cross-References, Related ADRs, Related Specifications
+
+### Community 1004 - "Community 1004"
+Cohesion: 0.67
+Nodes (3): 18. Cross-References, Related Code, Related Documents
+
+### Community 1040 - "Community 1040"
+Cohesion: 0.11
+Nodes (17): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+9 more)
+
+### Community 1041 - "Community 1041"
+Cohesion: 0.22
+Nodes (8): ADR 005 - Navigation Graph Provenance and Entity-Centric Selection, Alternatives Considered, Consequences, Context, Decision, Negative, Positive, Related
+
+### Community 1042 - "Community 1042"
+Cohesion: 0.50
+Nodes (4): 4. EditorBridge: The Critical Integration Point, Document lifetime invariant, File, What it does
+
+### Community 1043 - "Community 1043"
+Cohesion: 0.14
+Nodes (13): ADR 006 — CampusDocument as Persistent Source of Truth, Interaction Ownership Rule, Invariant S0, Legacy Reachability Rule, Persistent Data Rule, Rendering Single-Writer Gate, Rendering Single-Writer Rule, Road Authoring Rule (+5 more)
+
+### Community 1044 - "Community 1044"
+Cohesion: 0.21
+Nodes (8): deserializeDocument(), load(), makeBuilding(), makeDoc(), makeRoad(), save(), serializeDocument(), storage
+
+### Community 1045 - "Community 1045"
+Cohesion: 0.18
+Nodes (11): 10. Known Issues, 1. Overview, 2. Package Structure, 8. Legacy Compile Function, Checksum calculation, Config inconsistency, Demo output path, Dynamic import (+3 more)
+
+### Community 1046 - "Community 1046"
+Cohesion: 0.22
+Nodes (7): 1. Overview — Multi-Layer Persistence, 7. Known Issues, Critical, Minor, Moderate, NAVI Persistence Architecture, Table of Contents
+
+### Community 1047 - "Community 1047"
+Cohesion: 0.22
+Nodes (8): Allowed Dependencies, File Structure, Forbidden Dependencies, Gate Rule, Purpose, Strategy, studio-new Contract, Verification
+
+### Community 1049 - "Community 1049"
+Cohesion: 0.20
+Nodes (15): findBuilding(), findFloorById(), findFloorByLevel(), getBuildingFloorCount(), getBuildingFloors(), getActiveBuildingId(), useActiveBuilding(), useBuildingFloors() (+7 more)
+
+### Community 1050 - "Community 1050"
+Cohesion: 0.25
+Nodes (8): 2. Legacy Store: graph-store.ts, Component compilation, File, Initialization, Mutations mutate the Graph in-place and increment `renderVersion`, Save flow, State shape, Storage keys
+
+### Community 1051 - "Community 1051"
+Cohesion: 0.25
+Nodes (7): Dependencies, Exit Criteria, Goal, Notes, Phase P1: Complete NAVI Studio, Scope, Success Metrics
+
+### Community 1052 - "Community 1052"
+Cohesion: 0.25
+Nodes (7): Acceptance Criteria, Goals, Out of Scope, Problem Statement, Related Files, SPEC: Campus Authoring, Technical Considerations
+
+### Community 1054 - "Community 1054"
+Cohesion: 0.50
+Nodes (4): 2026-07-16: Gate 4B — Studio Publish Workflow COMPLETE, Phase 1 — Publish pipeline wired, Phase 2 — Validation bypass and dialogs integrated, Verification
+
+### Community 1055 - "Community 1055"
+Cohesion: 0.33
+Nodes (6): 4.1 NavigationGraph (`navigation.graph.json`), 4.2 Search Index (`search.index.json`), 4.3 POI Data (`poi.json`), 4.4 Building Index (`building-index.json`), 4.5 Manifest (`manifest.json`), 4. Artifacts Produced
+
+### Community 1056 - "Community 1056"
+Cohesion: 0.33
+Nodes (6): 5. API Route: /api/compile, Endpoint, File, Implementation details, Response (error), Response (success)
+
+### Community 1057 - "Community 1057"
+Cohesion: 0.33
+Nodes (5): Gaps (must each get a verified owner before any deletion), Highest-risk gaps for a delete step, Matrix, P1.2 Seam 2 — Stage A: Capability Ownership Matrix, Recommended closing order (per 2026-07-15 review)
+
+### Community 1058 - "Community 1058"
+Cohesion: 0.33
+Nodes (5): building, edgeAB, nodeA, nodeB, nodeC
+
+### Community 1059 - "Community 1059"
+Cohesion: 0.40
+Nodes (5): 3. CampusCompiler Pipeline, Context passing, Error handling, Execution model, Stage Order
+
+### Community 1060 - "Community 1060"
+Cohesion: 0.40
+Nodes (5): 6. API Route: /api/publish, Endpoint, File, Response, What it does
+
+### Community 1061 - "Community 1061"
+Cohesion: 0.40
+Nodes (5): 9. Plugin System, Built-in plugins, Execution chain, Plugin interface, Registration
+
+### Community 1062 - "Community 1062"
+Cohesion: 0.40
+Nodes (5): 3. New Persistence: @navi/editor Services, NavigationCompiler, PersistenceService, WorkflowService, WorkflowStore
+
+### Community 1063 - "Community 1063"
+Cohesion: 0.40
+Nodes (5): 6. Supabase Sync, fetchFromSupabase, Known error (Critical), Mechanism, The Save → Sync chain
+
+### Community 1064 - "Community 1064"
+Cohesion: 0.50
+Nodes (4): 7. Compiler Adapters (Client vs Server), Client adapter: `createCompilerAdapter()`, NavigationCompiler service, Server adapter: `CampusCompilerAdapter`
+
+### Community 1066 - "Community 1066"
+Cohesion: 0.50
+Nodes (4): 5. WorkflowService: Autosave Orchestrator, Dirty tracking, File, Save lifecycle (`WorkflowService.save()`)
+
+### Community 1071 - "Community 1071"
+Cohesion: 0.67
+Nodes (3): HIT_LAYERS, hitTest(), layerToType()
 
 ## Knowledge Gaps
-- **3386 isolated node(s):** `fs`, `path`, `{ execFileSync }`, `MANAGED_HOOKS`, `staleHooks` (+3381 more)
+- **5701 isolated node(s):** `fs`, `path`, `{ execFileSync }`, `MANAGED_HOOKS`, `staleHooks` (+5696 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **116 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **155 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Graph` connect `Community 13` to `Community 137`, `Community 227`?**
-  _High betweenness centrality (0.001) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `Community 14` to `Community 349`?**
-  _High betweenness centrality (0.000) - this node is a cross-community bridge._
-- **Why does `TracePath` connect `Community 137` to `Community 2`, `Community 227`, `Community 167`, `Community 329`, `Community 13`?**
-  _High betweenness centrality (0.000) - this node is a cross-community bridge._
+- **Why does `CampusDocument` connect `Community 736` to `Community 768`, `Community 771`, `Community 137`, `Community 780`, `Community 784`, `Community 787`, `Community 1044`, `Community 792`, `Community 1049`, `Community 538`, `Community 1048`, `Community 793`, `Community 813`, `Community 435`, `Community 441`, `Community 957`, `Community 833`, `Community 329`, `Community 972`, `Community 981`, `Community 727`, `Community 728`, `Community 984`, `Community 985`, `Community 221`, `Community 862`, `Community 735`, `Community 737`, `Community 738`, `Community 739`, `Community 486`, `Community 743`, `Community 752`, `Community 881`, `Community 763`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `LatLng` connect `Community 784` to `Community 737`, `Community 742`, `Community 727`, `Community 812`, `Community 780`, `Community 848`, `Community 881`, `Community 792`, `Community 787`, `Community 756`, `Community 789`, `Community 984`, `Community 760`, `Community 441`, `Community 538`, `Community 763`, `Community 862`?**
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
+- **Why does `TracePath` connect `Community 137` to `Community 768`, `Community 1058`, `Community 227`, `Community 167`, `Community 778`, `Community 13`, `Community 766`, `Community 881`, `Community 851`, `Community 852`, `Community 758`, `Community 30`?**
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
 - **What connects `fs`, `path`, `{ execFileSync }` to the rest of the system?**
-  _3386 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _5710 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.05098934550989345 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.034482758620689655 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.05030834144758196 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11428571428571428 - nodes in this community are weakly interconnected._

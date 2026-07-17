@@ -1,0 +1,24 @@
+- generic [active] [ref=f21e1]:
+  - generic [ref=f21e2]:
+    - banner [ref=f21e3]:
+      - generic [ref=f21e4]: NAVIADMIN
+      - textbox "Search..." [ref=f21e15]
+      - generic [ref=f21e16]:
+        - generic [ref=f21e17]: Online
+        - generic [ref=f21e20]: ASU Ibajay
+    - generic [ref=f21e21]:
+      - complementary [ref=f21e22]:
+        - button [ref=f21e24] [cursor=pointer]
+        - navigation [ref=f21e27]:
+          - button "Dashboard" [ref=f21e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f21e35] [cursor=pointer]:
+            - generic [ref=f21e39]: Panoramas
+            - generic [ref=f21e40]: "3"
+          - button "QR Checkpoints" [ref=f21e41] [cursor=pointer]
+          - button "Route Testing" [ref=f21e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f21e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f21e61] [cursor=pointer]
+        - button "Sign Out" [ref=f21e68] [cursor=pointer]
+      - main [ref=f21e73]
+  - button "Open Next.js Dev Tools" [ref=f21e80] [cursor=pointer]
+  - alert [ref=f21e84]

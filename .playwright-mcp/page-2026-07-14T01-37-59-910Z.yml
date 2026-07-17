@@ -1,0 +1,52 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - generic [ref=f1e4]: NAVIADMIN
+      - textbox "Search..." [ref=f1e15]
+      - generic [ref=f1e16]:
+        - generic [ref=f1e17]: Online
+        - generic [ref=f1e20]: ASU Ibajay
+    - generic [ref=f1e21]:
+      - complementary [ref=f1e22]:
+        - button [ref=f1e24] [cursor=pointer]
+        - navigation [ref=f1e27]:
+          - button "Dashboard" [ref=f1e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f1e35] [cursor=pointer]:
+            - generic [ref=f1e39]: Panoramas
+            - generic [ref=f1e40]: "3"
+          - button "QR Checkpoints" [ref=f1e41] [cursor=pointer]
+          - button "Route Testing" [ref=f1e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f1e55] [cursor=pointer]
+          - button "NAVI Studio" [active] [ref=f1e61] [cursor=pointer]
+        - button "Sign Out" [ref=f1e68] [cursor=pointer]
+      - main [ref=f1e73]:
+        - generic [ref=f1e472]:
+          - generic [ref=f1e474]:
+            - heading "NAVI Studio" [level=1] [ref=f1e475]
+            - paragraph [ref=f1e476]: 2 maps · 7 buildings
+          - generic [ref=f1e478]:
+            - generic [ref=f1e480] [cursor=pointer]:
+              - generic [ref=f1e483]: Create New Map
+              - generic [ref=f1e484]: Set up a new campus map with buildings and landmarks
+            - generic [ref=f1e485] [cursor=pointer]:
+              - generic [ref=f1e486]: A
+              - generic [ref=f1e487]:
+                - generic [ref=f1e488]: ASU-Ibajay
+                - generic [ref=f1e489]: Aklan State University · Ibajay Campus
+                - generic [ref=f1e490]:
+                  - generic [ref=f1e491]: "2"
+                  - generic [ref=f1e496]: "10"
+                  - generic [ref=f1e500]: "6"
+              - button [ref=f1e507]
+            - generic [ref=f1e512] [cursor=pointer]:
+              - generic [ref=f1e513]: E
+              - generic [ref=f1e514]:
+                - generic [ref=f1e515]: ertyed
+                - generic [ref=f1e516]: dghd · dydhf
+                - generic [ref=f1e517]:
+                  - generic [ref=f1e518]: "5"
+                  - generic [ref=f1e523]: "0"
+                  - generic [ref=f1e527]: "0"
+              - button [ref=f1e534]
+  - alert [ref=f1e469]
+  - generic [ref=f1e470]: "55"
