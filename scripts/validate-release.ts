@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs'
 import { join, resolve } from 'path'
 import { createHash } from 'crypto'
 
-const EXPECTED_SCHEMA = 1
+const EXPECTED_SCHEMA = '1.0'
 const EXPECTED_COMPILER = '0.1.0'
 
 interface Validation {
@@ -43,7 +43,7 @@ function validateDirectory(dir: string): Validation[] {
   }
 
   // Schema version
-  if (manifest.schemaVersion === EXPECTED_SCHEMA) {
+  if (String(manifest.schemaVersion) === EXPECTED_SCHEMA) {
     results.push({ check: `Schema version = ${EXPECTED_SCHEMA}`, status: 'PASS' })
   } else {
     results.push({ check: `Schema version = ${EXPECTED_SCHEMA}`, status: 'FAIL', detail: `Got ${manifest.schemaVersion}` })
@@ -57,7 +57,7 @@ function validateDirectory(dir: string): Validation[] {
   }
 
   // Required fields
-  const required = ['projectId', 'campusId', 'publishedAt']
+  const required = ['campusId', 'campusName', 'publishedAt', 'revision', 'compilerVersion']
   for (const field of required) {
     if (manifest[field]) {
       results.push({ check: `manifest.${field} present`, status: 'PASS' })
@@ -67,7 +67,7 @@ function validateDirectory(dir: string): Validation[] {
   }
 
   // Artifact files
-  const artifactKeys = ['navigationGraph', 'searchIndex', 'poiData', 'buildingIndex']
+  const artifactKeys = ['graph', 'search', 'buildings', 'poi']
   for (const key of artifactKeys) {
     const artifact = manifest.artifacts?.[key]
     if (!artifact) {
@@ -76,36 +76,36 @@ function validateDirectory(dir: string): Validation[] {
     }
     results.push({ check: `${key} in manifest`, status: 'PASS' })
 
-    const filePath = join(dir, artifact.filename)
+    const filePath = join(dir, artifact.path)
     if (!existsSync(filePath)) {
-      results.push({ check: `  ${artifact.filename} exists`, status: 'FAIL' })
+      results.push({ check: `  ${artifact.path} exists`, status: 'FAIL' })
       continue
     }
-    results.push({ check: `  ${artifact.filename} exists`, status: 'PASS' })
+    results.push({ check: `  ${artifact.path} exists`, status: 'PASS' })
 
     // Checksum
     const content = readFileSync(filePath, 'utf-8')
     const actualChecksum = sha256(content)
     if (actualChecksum === artifact.checksum) {
-      results.push({ check: `  ${artifact.filename} checksum`, status: 'PASS' })
+      results.push({ check: `  ${artifact.path} checksum`, status: 'PASS' })
     } else {
-      results.push({ check: `  ${artifact.filename} checksum`, status: 'FAIL', detail: `Expected ${artifact.checksum}, got ${actualChecksum}` })
+      results.push({ check: `  ${artifact.path} checksum`, status: 'FAIL', detail: `Expected ${artifact.checksum}, got ${actualChecksum}` })
     }
 
     // Size
     const actualSize = Buffer.byteLength(content, 'utf-8')
     if (actualSize === artifact.size) {
-      results.push({ check: `  ${artifact.filename} size`, status: 'PASS' })
+      results.push({ check: `  ${artifact.path} size`, status: 'PASS' })
     } else {
-      results.push({ check: `  ${artifact.filename} size`, status: 'WARN', detail: `Expected ${artifact.size}, got ${actualSize}` })
+      results.push({ check: `  ${artifact.path} size`, status: 'WARN', detail: `Expected ${artifact.size}, got ${actualSize}` })
     }
 
     // Validate file content is parseable JSON
     try {
       JSON.parse(content)
-      results.push({ check: `  ${artifact.filename} valid JSON`, status: 'PASS' })
+      results.push({ check: `  ${artifact.path} valid JSON`, status: 'PASS' })
     } catch {
-      results.push({ check: `  ${artifact.filename} valid JSON`, status: 'FAIL' })
+      results.push({ check: `  ${artifact.path} valid JSON`, status: 'FAIL' })
     }
   }
 

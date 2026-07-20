@@ -1,50 +1,39 @@
 import type { LatLng } from '@navi/core'
+import type {
+  BoundingBox,
+  NavNodeType,
+  NavNode,
+  NavEdgeType,
+  NavEdge,
+  NavigationGraph,
+  SearchEntry,
+  SearchIndex,
+  POI,
+  FloorEntry,
+  BuildingEntry,
+  BuildingIndex,
+  NavigationArtifacts,
+  POIIndex,
+  SpatialIndex,
+} from '@navi/core'
 
-export interface BoundingBox {
-  minLng: number
-  maxLng: number
-  minLat: number
-  maxLat: number
-}
-
-export type NavNodeType = 'space' | 'corridor' | 'transition' | 'intersection' | 'poi'
-
-export interface NavNode {
-  id: string
-  label: string
-  type: NavNodeType
-  position: LatLng
-  floor: number
-  buildingId: string
-  properties: Record<string, unknown>
-}
-
-export type NavEdgeType = 'walk' | 'stairs' | 'elevator' | 'transition'
-
-export interface NavEdge {
-  id: string
-  from: string
-  to: string
-  type: NavEdgeType
-  distance: number
-  weight: number
-}
-
-export interface NavigationGraph {
-  version: string
-  campusId: string
-  createdAt: string
-  checksum: string
-  nodes: NavNode[]
-  edges: NavEdge[]
-  metadata: {
-    nodeCount: number
-    edgeCount: number
-    buildings: number
-    floors: number
-    boundingBox: BoundingBox
-  }
-}
+export type {
+  BoundingBox,
+  NavNodeType,
+  NavNode,
+  NavEdgeType,
+  NavEdge,
+  NavigationGraph,
+  SearchEntry,
+  SearchIndex,
+  POI,
+  FloorEntry,
+  BuildingEntry,
+  BuildingIndex,
+  NavigationArtifacts,
+  POIIndex,
+  SpatialIndex,
+} from '@navi/core'
 
 export interface CompilerConfig {
   nodeInterval: number
@@ -89,10 +78,13 @@ export interface CompileResult {
 export interface CompileResultV2 {
   success: boolean
   graph: NavigationGraph | null
+  artifacts?: NavigationArtifacts
+  report?: CompilerReport
   stats: CompileStats
   warnings: CompileWarning[]
   errors: CompileError[]
   duration: number
+  validation?: import('../graph/validators/types').ValidationReport
 }
 
 export type NavigationSpaceType = 'room' | 'lobby' | 'hallway' | 'stairwell' | 'elevator_shaft' | 'outdoor'
@@ -173,59 +165,9 @@ export interface PublishedManifest {
   }
 }
 
-export interface SearchEntry {
-  id: string
-  label: string
-  type: 'building' | 'room' | 'entrance' | 'poi'
-  nodeId: string
-  position: LatLng
-  tags: string[]
-  buildingId?: string
-  floor?: number
-}
-
-export interface SearchIndex {
-  version: string
-  entries: SearchEntry[]
-}
-
-export interface POI {
-  id: string
-  label: string
-  category: string
-  position: LatLng
-  buildingId?: string
-  floor?: number
-  nodeId: string
-  properties: Record<string, unknown>
-}
-
 export interface POIData {
   version: string
   points: POI[]
-}
-
-export interface FloorEntry {
-  level: number
-  label: string
-  elevation: number
-  rooms: { id: string; name: string; number: string; nodeId: string }[]
-}
-
-export interface BuildingEntry {
-  id: string
-  name: string
-  code: string
-  category: string
-  position: LatLng
-  floors: FloorEntry[]
-  entrances: { id: string; label: string; position: LatLng }[]
-  nodeId: string
-}
-
-export interface BuildingIndex {
-  version: string
-  buildings: BuildingEntry[]
 }
 
 // ──────────────────────────────────────────────
@@ -405,4 +347,281 @@ export interface CompileError {
 export interface CompileStage {
   name: string     // "Building nodes", "Connecting edges", etc.
   progress: number  // 0–1
+}
+
+// ──────────────────────────────────────────────
+// M5 Primitive Graph Types
+// ──────────────────────────────────────────────
+
+export interface PrimitiveSource {
+  entityId: string
+  entityType: string
+  field?: string
+  generatorId: string
+}
+
+export type PrimitiveNodeKind = 'waypoint' | 'poi' | 'transition' | 'entrance_portal'
+
+export interface PrimitiveNodeBase {
+  id: string
+  position: LatLng
+  floor: number
+  buildingId: string
+  source: PrimitiveSource
+}
+
+export interface WaypointNode extends PrimitiveNodeBase {
+  kind: 'waypoint'
+}
+
+export interface POINode extends PrimitiveNodeBase {
+  kind: 'poi'
+  label: string
+  poiCategory: string
+}
+
+export interface TransitionNode extends PrimitiveNodeBase {
+  kind: 'transition'
+  connectorId: string
+  stopId: string
+  behavior: string
+  accessible: boolean
+  baseCost: number
+}
+
+export interface EntrancePortalNode extends PrimitiveNodeBase {
+  kind: 'entrance_portal'
+  outdoorPosition: LatLng
+  indoorPosition: LatLng
+  entranceId: string
+  accessible: boolean
+}
+
+export type PrimitiveNode = WaypointNode | POINode | TransitionNode | EntrancePortalNode
+
+export type PrimitiveEdgeKind = 'skeleton' | 'access' | 'transition' | 'portal'
+
+export interface PrimitiveEdgeBase {
+  id: string
+  from: string
+  to: string
+  distance: number
+  source: PrimitiveSource
+}
+
+export interface SkeletonEdge extends PrimitiveEdgeBase {
+  kind: 'skeleton'
+}
+
+export interface AccessEdge extends PrimitiveEdgeBase {
+  kind: 'access'
+  accessType: string
+  width?: number
+}
+
+export interface TransitionEdge extends PrimitiveEdgeBase {
+  kind: 'transition'
+  behavior: string
+  baseCost: number
+}
+
+/**
+ * PortalEdge represents the implicit connection between the two sides
+ * of an EntrancePortalNode. It does NOT have from/to because its
+ * single node (nodeId) carries both outdoor and indoor positions.
+ * The emitter splits this into two NavNodes + one NavEdge.
+ */
+export interface PortalEdge {
+  kind: 'portal'
+  id: string
+  nodeId: string
+  distance: number
+  source: PrimitiveSource
+}
+
+export type PrimitiveEdge = SkeletonEdge | AccessEdge | TransitionEdge | PortalEdge
+
+export interface PrimitiveGraph {
+  nodes: PrimitiveNode[]
+  edges: PrimitiveEdge[]
+  metadata: {
+    campusId: string
+    buildingCount: number
+    floorCount: number
+    generatedAt: number
+  }
+  diagnostics: CompilerDiagnostic[]
+}
+
+export interface ConnectivityGraph {
+  nodes: PrimitiveNode[]
+  edges: PrimitiveEdge[]
+  metadata: PrimitiveGraph['metadata']
+  diagnostics: CompilerDiagnostic[]
+}
+
+// ──────────────────────────────────────────────
+// Compiler Diagnostics & Report
+// ──────────────────────────────────────────────
+
+export type DiagnosticSeverity = 'info' | 'warning' | 'error'
+
+export interface CompilerDiagnostic {
+  severity: DiagnosticSeverity
+  sourceEntityId: string
+  phase: 'normalize' | 'primitives' | 'connectivity' | 'graph' | 'artifacts'
+  code: string
+  message: string
+  relatedNodeIds?: string[]
+}
+
+export interface CompilerStatistics {
+  rooms: number
+  hallways: number
+  roads: number
+  primitives: number
+  waypoints: number
+  edges: number
+  diagnostics: { error: number; warning: number; info: number }
+  compileTime: number
+}
+
+export interface CompilerReport {
+  diagnostics: CompilerDiagnostic[]
+  statistics: CompilerStatistics
+}
+
+// ──────────────────────────────────────────────
+// Skeleton Generator Abstraction
+// ──────────────────────────────────────────────
+
+export interface SkeletonGenerator {
+  readonly id: string
+  generate(document: NormalizedDocument, context: GenerationContext): PrimitiveContribution
+}
+
+export interface PrimitiveContribution {
+  nodes?: PrimitiveNode[]
+  edges?: PrimitiveEdge[]
+  diagnostics?: CompilerDiagnostic[]
+  doorSpecs?: DoorSpec[]
+}
+
+export interface DoorSpec {
+  roomId: string
+  doorId: string
+  position: LatLng
+  floor: number
+  buildingId: string
+  width?: number
+  properties?: Record<string, unknown>
+}
+
+export interface GenerationContext {
+  nodeInterval: number
+  mergeThreshold: number
+}
+
+// ──────────────────────────────────────────────
+// Normalized Document (Stage 1 output)
+// ──────────────────────────────────────────────
+
+export interface NormalizedDocument {
+  buildings: NormalizedBuilding[]
+  roads: NormalizedRoad[]
+}
+
+export interface NormalizedBuilding {
+  id: string
+  name: string
+  code: string
+  category: string
+  position: LatLng
+  baseElevation: number
+  height: number
+  floors: NormalizedFloor[]
+}
+
+export interface NormalizedFloor {
+  id: string
+  level: number
+  label: string
+  elevation: number
+  buildingId: string
+  rooms: NormalizedRoom[]
+  hallways: NormalizedHallway[]
+  connectorStops: NormalizedConnectorStop[]
+  entrances: NormalizedEntrance[]
+  anchors: NormalizedAnchor[]
+}
+
+export interface NormalizedRoom {
+  id: string
+  name: string
+  number: string
+  category: string
+  polygon: LatLng[]
+  centroid: LatLng
+  floorId: string
+  floorLevel: number
+  buildingId: string
+  doors: NormalizedRoomDoor[]
+}
+
+export interface NormalizedRoomDoor {
+  id: string
+  roomId: string
+  position: LatLng
+  width?: number
+  properties?: Record<string, unknown>
+}
+
+export interface NormalizedHallway {
+  id: string
+  name: string
+  polyline: LatLng[]
+  width: number
+  floorId: string
+  floorLevel: number
+  buildingId: string
+}
+
+export interface NormalizedConnectorStop {
+  id: string
+  connectorId: string
+  position: LatLng
+  floor: number
+  buildingId: string
+  behavior: string
+  accessible: boolean
+  baseCost: number
+}
+
+export interface NormalizedEntrance {
+  id: string
+  label: string
+  outdoorPosition: LatLng
+  indoorPosition: LatLng
+  level: number
+  buildingId: string
+  accessible: boolean
+}
+
+export interface NormalizedAnchor {
+  id: string
+  type: 'panorama' | 'qr_marker'
+  position: LatLng
+  floor: number
+  buildingId: string
+  label?: string
+  properties?: Record<string, unknown>
+}
+
+export interface NormalizedRoad {
+  id: string
+  name: string
+  polyline: LatLng[]
+  width: number
+  surface: string
+  type: string
 }

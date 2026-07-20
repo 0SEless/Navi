@@ -1,29 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { compile } from '@navi/compiler'
-import { ArtifactLoader, RuntimeEngine, AStar, SearchEngine } from '@navi/runtime'
+import { load, RuntimeEngine, AStar, SearchEngine } from '@navi/runtime'
 import type { CampusDocument } from '@navi/core'
-import type { CompilerConfig } from '@navi/compiler'
+import type { CompilerConfig, NavigationGraph } from '@navi/compiler'
 
-const FIXTURES = resolve('packages/runtime/test/fixtures')
-
-function fixtureFetch(_baseUrl: string) {
-  return async (url: string) => {
-    const filename = url.split('/').pop()!
-    const filePath = resolve(FIXTURES, filename)
-    try {
-      const body = readFileSync(filePath, 'utf-8')
-      return new Response(body, { status: 200 })
-    } catch (e: unknown) {
-      return new Response('Not found', { status: 404 })
-    }
-  }
-}
+const FIXTURES = resolve(__dirname, '../../packages/runtime/test/fixtures')
 
 function generateCampus(): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: {
       name: 'regression-test-campus',
       description: 'Campus for regression testing',
@@ -47,19 +34,22 @@ function generateCampus(): CampusDocument {
       },
       baseElevation: 10,
       height: 8,
+      verticalConnectors: [],
       floors: [{
         id: 'flr-reg-g',
         level: 0,
         label: 'Ground Floor',
         elevation: 0,
         rooms: [
-          { id: 'rm-reg-101', name: 'Room 101', number: '101', category: 'classroom', polygon: { points: [{ x: 2, y: 2 }, { x: 8, y: 2 }, { x: 8, y: 8 }, { x: 2, y: 8 }, { x: 2, y: 2 }] }, capacity: 30, metadata: {} },
-          { id: 'rm-reg-102', name: 'Room 102', number: '102', category: 'classroom', polygon: { points: [{ x: 10, y: 2 }, { x: 16, y: 2 }, { x: 16, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 2 }] }, capacity: 30, metadata: {} },
+          { id: 'rm-reg-101', name: 'Room 101', number: '101', category: 'classroom', polygon: { points: [{ x: 2, y: 2 }, { x: 8, y: 2 }, { x: 8, y: 8 }, { x: 2, y: 8 }, { x: 2, y: 2 }] }, capacity: 30, roomDoors: [], metadata: {} },
+          { id: 'rm-reg-102', name: 'Room 102', number: '102', category: 'classroom', polygon: { points: [{ x: 10, y: 2 }, { x: 16, y: 2 }, { x: 16, y: 8 }, { x: 10, y: 8 }, { x: 10, y: 2 }] }, capacity: 30, roomDoors: [], metadata: {} },
         ],
         hallways: [{ id: 'hlw-reg-g', name: 'Main Hallway', polyline: { points: [{ x: 9, y: 0 }, { x: 9, y: 10 }] }, width: 3 }],
         staircases: [],
         elevators: [],
         entrances: [{ id: 'ent-reg', label: 'Main Entrance', position: { lat: 14.0, lng: 121.0 }, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
+        connectorStops: [],
+        metadata: {},
       }],
       color: '#ff0000',
       aliases: [],
@@ -83,10 +73,10 @@ describe('Full Pipeline Regression', () => {
   })
 
   it('Stage 2: Runtime loads from published artifacts', async () => {
-    const baseUrl = 'file:///fixtures'
-    const fetch = fixtureFetch(baseUrl)
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(FIXTURES)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
 
     expect(engine).toBeDefined()
     expect(engine.data.getCampusId()).toBe('test-campus')
@@ -94,14 +84,14 @@ describe('Full Pipeline Regression', () => {
   })
 
   it('Stage 3: Search returns results from index', async () => {
-    const baseUrl = 'file:///fixtures'
-    const fetch = fixtureFetch(baseUrl)
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(FIXTURES)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
 
-    const results = engine.search.query('Room 101')
+    const results = engine.search.search('Room 101')
     expect(results.length).toBeGreaterThanOrEqual(1)
-    expect(results[0].entry.label).toContain('Room')
+    expect(results[0].title).toContain('Room')
   })
 
   it('Stage 4: AStar routes between arbitrary nodes', () => {
@@ -122,7 +112,7 @@ describe('Full Pipeline Regression', () => {
       metadata: { nodeCount: 3, edgeCount: 2, buildings: 1, floors: 1, boundingBox: { minLng: 121.0, maxLng: 121.002, minLat: 14.0, maxLat: 14.0 } },
     }
 
-    const astar = new AStar(graph)
+    const astar = new AStar(graph as unknown as NavigationGraph)
     const route = astar.findPath('a', 'c')
 
     expect(route).not.toBeNull()
@@ -131,12 +121,12 @@ describe('Full Pipeline Regression', () => {
   })
 
   it('Stage 5: Runtime routing produces turn-by-turn instructions', async () => {
-    const baseUrl = 'file:///fixtures'
-    const fetch = fixtureFetch(baseUrl)
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(FIXTURES)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
 
-    const route = engine.routing.findRoute('n1', 'n5')
+    const route = engine.navigation.findRoute('n1', 'n5')
 
     expect(route).not.toBeNull()
     expect(route!.instructions.length).toBeGreaterThanOrEqual(1)
@@ -146,17 +136,17 @@ describe('Full Pipeline Regression', () => {
   })
 
   it('Stage 6: Navigation flow — search → route → instructions', async () => {
-    const baseUrl = 'file:///fixtures'
-    const fetch = fixtureFetch(baseUrl)
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(FIXTURES)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
 
-    const results = engine.search.query('Room 101')
+    const results = engine.search.search('Room 101')
     expect(results.length).toBeGreaterThanOrEqual(1)
 
     const fromNode = 'n1'
     const toNode = 'n5'
-    const route = engine.routing.findRoute(fromNode, toNode)
+    const route = engine.navigation.findRoute(fromNode, toNode)
 
     expect(route).not.toBeNull()
     expect(route!.fromLabel).toBeDefined()

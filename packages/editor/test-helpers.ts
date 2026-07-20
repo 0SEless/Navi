@@ -40,6 +40,7 @@ export function createBuilding(overrides?: Partial<Building>): Building {
     baseElevation: 0,
     height: 20,
     floors: [],
+    verticalConnectors: [],
     color: '#cccccc',
     aliases: [],
     metadata: {},
@@ -58,6 +59,7 @@ export function createFloor(overrides?: Partial<Floor>): Floor {
     staircases: [],
     elevators: [],
     entrances: [],
+    connectorStops: [],
     metadata: {},
     ...overrides,
   }
@@ -79,6 +81,7 @@ export function createRoom(overrides?: Partial<Room>): Room {
       ],
     },
     capacity: 30,
+    roomDoors: [],
     metadata: {},
     ...overrides,
   }

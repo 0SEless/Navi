@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useEffect, useReducer, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useEditor, findBuilding } from '@navi/editor'
+import { useEditor, findBuilding, genId } from '@navi/editor'
 import type { LatLng, ComponentType } from '@/types/nav-types'
 import type { StudioTool } from '@/types/studio-types'
 import { drawReducer } from './draw-reducer'
@@ -23,9 +23,9 @@ function addDrawLayers(map: maplibregl.Map) {
   // placement vertices
   const zoomV = ['interpolate', ['linear'], ['zoom'], 15, 3, 20, 6]
   const zoomP = ['interpolate', ['linear'], ['zoom'], 15, 4, 20, 8]
-  map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': zoomV, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
+  map.addLayer({ id: 'floor-draw-vertices', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'vertex'], paint: { 'circle-radius': zoomV as unknown as maplibregl.ExpressionSpecification, 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
   // placed item icons (door, stairs, elevator, asset)
-  map.addLayer({ id: 'floor-draw-placed', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'], paint: { 'circle-radius': zoomP, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
+  map.addLayer({ id: 'floor-draw-placed', type: 'circle', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'], paint: { 'circle-radius': zoomP as unknown as maplibregl.ExpressionSpecification, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
   map.addLayer({
     id: 'floor-draw-placed-label', type: 'symbol', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'placed'],
     layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -1.5], 'text-anchor': 'bottom' },
@@ -138,9 +138,10 @@ interface UseFloorDrawingOptions {
   floor: number
   tool: StudioTool
   onSelect?: (id: string | null) => void
+  editEngine?: { begin: (op: any) => void; doCommit: () => { committed: boolean } }
 }
 
-export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSelect }: UseFloorDrawingOptions) {
+export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSelect, editEngine }: UseFloorDrawingOptions) {
   const editor = useEditor()
   const doc = editor.document
   const transformer = editor.transformer
@@ -187,7 +188,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     const minPoints = tool === 'hallway' ? 2 : 3
     if (drawState.pendingPolygon.length < minPoints || !map) return
 
-    const id = `${tool}-${Date.now()}`
+    const id = genId(tool)
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
@@ -205,6 +206,12 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     for (const p of drawState.pendingPolygon) {
       const local = transformer.worldToBuildingLocal(p, buildingId)
       if (local) localPoints.push(local)
+    }
+
+    if (editEngine) {
+      const entityType = tool === 'room' ? 'space' : tool === 'hallway' ? 'hallway' : 'elevator'
+      editEngine.begin({ kind: 'create', entityType, geometry: localPoints, properties: { name, buildingId, floorId } })
+      editEngine.doCommit()
     }
 
     if (tool === 'room') {
@@ -227,22 +234,30 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     dispatch({ type: 'RESET' })
     clearPreview(map)
     onSelect?.(id)
-  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, hallwayWidth])
+  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, hallwayWidth, editEngine])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
-    const id = `${type}-${Date.now()}`
+    const id = genId(type)
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
     if (!floorId || !transformer) return
 
     if (type === 'entrance') {
+      if (editEngine) {
+        editEngine.begin({ kind: 'create', entityType: 'entrance', geometry: position, properties: { name: 'Entrance', buildingId, floorId } })
+        editEngine.doCommit()
+      }
       dispatcher.execute({
         id: 'entrance.create', label: 'Create Entrance',
         payload: { buildingId, floorId, id, label: 'Entrance', position, level: floor, type: 'side' },
       })
     } else {
       const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }
+      if (editEngine) {
+        editEngine.begin({ kind: 'create', entityType: 'stair', geometry: localPos, properties: { name: 'Staircase', buildingId, floorId } })
+        editEngine.doCommit()
+      }
       dispatcher.execute({
         id: 'staircase.create', label: 'Create Staircase',
         payload: { buildingId, floorId, id, name: 'Staircase', position: localPos, fromLevel: floor, toLevel: floor + 1, type: 'enclosed' },
@@ -255,7 +270,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       updatePreview(map, [feedback])
       setTimeout(() => { if (map) clearPreview(map) }, 1500)
     }
-  }, [dispatcher, transformer, buildingId, floor, doc, map, onSelect])
+  }, [dispatcher, transformer, buildingId, floor, doc, map, onSelect, editEngine])
 
   // Map click handler
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {

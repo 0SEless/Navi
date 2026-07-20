@@ -1,10 +1,15 @@
 import type { CampusDocument } from '@navi/core'
+import type { DocumentEventBus } from '../eventbus'
 
 /**
  * DocumentStore is a plain data holder (editor-owned render-subscription
  * source). It carries a `dependencies` field so it can be safely registered
  * in the ServiceRegistry (registry.init reads `dependencies` for its
  * topological sort) without needing full EditorService lifecycle.
+ *
+ * Owns the monotonic version counter. Every commit() bumps the version,
+ * notifies React subscribers, and emits revision.committed on the eventBus
+ * so services (workflow, autosave) can react without coupling.
  */
 export class DocumentStore {
   readonly dependencies: readonly string[] = []
@@ -12,8 +17,11 @@ export class DocumentStore {
   revision = '' // reserved changeId/revisionId
 
   private listeners = new Set<() => void>()
+  private eventBus?: DocumentEventBus
 
-  constructor(public readonly document: CampusDocument) {}
+  constructor(public readonly document: CampusDocument, eventBus?: DocumentEventBus) {
+    this.eventBus = eventBus
+  }
 
   getVersion = (): number => this.version
 
@@ -28,5 +36,6 @@ export class DocumentStore {
   commit(): void {
     this.version++
     this.listeners.forEach((l) => l())
+    this.eventBus?.emit('revision.committed', { version: this.version })
   }
 }

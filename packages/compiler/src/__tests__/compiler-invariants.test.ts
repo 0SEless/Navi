@@ -26,6 +26,7 @@ import type { CampusDocument, Building, Floor, Room, Entrance, Road } from '@nav
 function makeEmptyDoc(): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'Empty', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [],
     roads: [],
@@ -46,6 +47,7 @@ function makeRoom(id: string, name: string, number: string, x: number, y: number
         { x, y },
       ],
     },
+    roomDoors: [],
     capacity: 30,
     metadata: {},
   }
@@ -69,6 +71,7 @@ function makeFloor(id: string, level: number, label: string, opts?: {
     staircases: [],
     elevators: [],
     entrances: opts?.entrances ?? [],
+    connectorStops: [],
     metadata: {},
   }
 }
@@ -87,6 +90,7 @@ function makeBuilding(id: string, name: string, code: string, baseLat: number, b
     },
     baseElevation: 0, height: 15,
     floors,
+    verticalConnectors: [],
     color: '#cccccc', aliases: [], metadata: {},
   }
 }
@@ -109,6 +113,7 @@ function simpleDoc(): CampusDocument {
   const building = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floor])
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'Simple', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
@@ -132,6 +137,7 @@ function multiBuildingDoc(): CampusDocument {
   const road = makeRoad('road-1', 'Campus Road', [{ lat: 0.005, lng: 0.005 }, { lat: 0.015, lng: 0.015 }])
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'Multi', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [bldA, bldB],
     roads: [road],
@@ -149,6 +155,7 @@ function distantRoomsDoc(): CampusDocument {
   const building = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floor])
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'Distant', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
@@ -165,6 +172,7 @@ function noEntranceDoc(): CampusDocument {
   const building = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floor])
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'NoEntrance', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
@@ -184,6 +192,7 @@ function multiFloorDoc(): CampusDocument {
   const building = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floor0, floor1])
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: 'MultiFloor', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],

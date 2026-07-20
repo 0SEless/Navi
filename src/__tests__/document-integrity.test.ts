@@ -28,8 +28,9 @@ import type {
 // ─── Helper: produce a rich, realistic campus document ───
 
 function makeRichDocument(): CampusDocument {
-  return {
+  const doc = {
     schemaVersion: 1,
+    version: 0,
     metadata: {
       name: 'ASU Ibajay — Document Integrity Test',
       description: 'A multi-building campus with full indoor/outdoor topology for integrity testing.',
@@ -494,6 +495,22 @@ function makeRichDocument(): CampusDocument {
       },
     ],
   }
+
+  const typedDoc = doc as unknown as CampusDocument
+  for (const bld of typedDoc.buildings) {
+    const bldRecord = bld as unknown as Record<string, unknown>
+    bldRecord.verticalConnectors = []
+    for (const flr of bld.floors) {
+      const flrRecord = flr as unknown as Record<string, unknown>
+      flrRecord.connectorStops = []
+      for (const rm of flr.rooms) {
+        const rmRecord = rm as unknown as Record<string, unknown>
+        rmRecord.roomDoors = []
+      }
+    }
+  }
+
+  return typedDoc
 }
 
 // ─── Deep structural equality helpers ───
@@ -629,6 +646,7 @@ describe('Wave 1A — Document Integrity', () => {
   it('empty document round-trips', () => {
     const doc: CampusDocument = {
       schemaVersion: 1,
+      version: 0,
       metadata: { name: 'Empty', description: '', lastModified: new Date().toISOString(), editorVersion: '0.1.0' },
       buildings: [],
       roads: [],
@@ -708,7 +726,7 @@ describe('Wave 1A — Document Integrity', () => {
   it('validates document structure on deserialize', () => {
     expect(() => deserializeDocument('null')).toThrow()
     expect(() => deserializeDocument('{}')).toThrow('schemaVersion')
-    expect(() => deserializeDocument('{"schemaVersion":1,"metadata":{},"buildings":null,"roads":[],"panoramas":[],"qrCheckpoints":[]}')).toThrow('buildings')
+    expect(() => deserializeDocument('{"schemaVersion":1,"version":0,"metadata":{},"buildings":null,"roads":[],"panoramas":[],"qrCheckpoints":[]}')).toThrow('buildings')
     expect(() => deserializeDocument('garbage')).toThrow()
   })
 
@@ -740,6 +758,7 @@ describe('Wave 1A — Document Integrity', () => {
       category: 'office',
       polygon: { points: [{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 6, y: 6 }, { x: 0, y: 6 }, { x: 0, y: 0 }] },
       capacity: 2,
+      roomDoors: [],
       metadata: {},
     }
     doc.buildings[0].floors[0].rooms.push(newRoom)
@@ -763,6 +782,7 @@ describe('Wave 1A — Document Integrity', () => {
       staircases: [],
       elevators: [],
       entrances: [],
+      connectorStops: [],
       metadata: {},
     }
     doc.buildings[0].floors.push(newFloor)
@@ -880,14 +900,14 @@ describe('Wave 1A — Document Integrity', () => {
   it('accepts any numeric schema version (no range check — documented gap)', () => {
     // schemaVersion: 2 passes — the validator only checks typeof === 'number'
     const doc = deserializeDocument(
-      '{"schemaVersion":2,"metadata":{"name":"x","description":"","lastModified":"","editorVersion":""},"buildings":[],"roads":[],"panoramas":[],"qrCheckpoints":[]}'
+      '{"schemaVersion":2,"version":0,"metadata":{"name":"x","description":"","lastModified":"","editorVersion":""},"buildings":[],"roads":[],"panoramas":[],"qrCheckpoints":[]}'
     )
     expect(doc.schemaVersion).toBe(2)
   })
 
   it('schema version -1 passes deserialization (validated as number only)', () => {
     const doc = deserializeDocument(
-      '{"schemaVersion":-1,"metadata":{"name":"x","description":"","lastModified":"","editorVersion":""},"buildings":[],"roads":[],"panoramas":[],"qrCheckpoints":[]}'
+      '{"schemaVersion":-1,"version":0,"metadata":{"name":"x","description":"","lastModified":"","editorVersion":""},"buildings":[],"roads":[],"panoramas":[],"qrCheckpoints":[]}'
     )
     expect(doc.schemaVersion).toBe(-1)
   })

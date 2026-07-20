@@ -22,6 +22,13 @@ export const serviceNames = {
 const EditorReactContext = createContext<EditorContext | null>(null)
 
 export function EditorProvider({ children, context }: { children: React.ReactNode; context: EditorContext }) {
+  if (typeof window !== 'undefined') {
+    (window as any).__naviContext = context
+    const history = context.services.get('history')
+    if (history) {
+      (window as any).__naviHistory = history
+    }
+  }
   return (
     <EditorReactContext.Provider value={context}>
       {children}

@@ -1,7 +1,7 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex, generateManifest } from '@navi/compiler'
-import { ArtifactLoader, RuntimeEngine } from '@navi/runtime'
+import { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } from '@navi/compiler'
+import { load, RuntimeEngine } from '@navi/runtime'
 import { createGoldenCampus } from '../packages/editor/src/demo/golden-campus'
 
 const DEMO_DIR = join(__dirname, '..', 'demo-output')
@@ -59,11 +59,32 @@ async function main() {
     writeFileSync(join(DEMO_DIR, filename), content)
   }
 
-  const manifest = generateManifest(campus.metadata.name, { navigationGraph: graph, searchIndex, poiData, buildingIndex })
+  const manifest = {
+    schemaVersion: '1.0',
+    campusId: campus.metadata.name,
+    campusName: campus.metadata.name,
+    publishedAt: new Date().toISOString(),
+    compilerVersion: '0.1.0',
+    revision: '1',
+    artifacts: {
+      graph: { path: 'navigation.graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
+      search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+      buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+      poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+    },
+    metadata: {
+      nodeCount: graph.nodes.length,
+      edgeCount: graph.edges.length,
+      buildingCount: campus.buildings.length,
+      floorCount: campus.buildings.reduce((s, b) => s + b.floors.length, 0),
+      boundingBox: graph.metadata.boundingBox,
+      routeable: graph.edges.length > 0,
+    },
+  }
   writeFileSync(join(DEMO_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2))
 
   stage('Artifacts written', true, `5 files to ${DEMO_DIR}`)
-  for (const f of Object.keys(files).concat('manifest.json')) {
+  for (const f of ['navigation.graph.json', 'search.index.json', 'poi.json', 'building-index.json', 'manifest.json']) {
     const fullPath = join(DEMO_DIR, f)
     const size = existsSync(fullPath) ? readFileSync(fullPath).length : 0
     stage(`  ${f}`, true, `${size} bytes`)
@@ -71,18 +92,9 @@ async function main() {
 
   // Stage 4: Load Runtime
   console.log('\n  \uD83C\uDFC3 Runtime')
-  const fileFetch = (_url: string) => {
-    const filename = _url.split('/').pop()!
-    const filePath = join(DEMO_DIR, filename)
-    try {
-      const body = readFileSync(filePath, 'utf-8')
-      return Promise.resolve(new Response(body, { status: 200 }))
-    } catch {
-      return Promise.resolve(new Response('Not found', { status: 404 }))
-    }
-  }
-  const loader = new ArtifactLoader({ baseUrl: 'file:///demo', fetch: fileFetch })
-  const engine = await RuntimeEngine.create(loader)
+  const loadResult = await load(DEMO_DIR)
+  if (!loadResult.success) { stage('Engine load', false, loadResult.message); process.exit(1) }
+  const engine = new RuntimeEngine(loadResult.package)
   const stats = engine.data.getGraph().metadata
   stage('Engine loaded', true, `${stats.nodeCount} nodes, ${stats.edgeCount} edges`)
 

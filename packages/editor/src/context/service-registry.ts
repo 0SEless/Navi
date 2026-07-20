@@ -6,7 +6,7 @@ import type { DocumentEventBus } from '../eventbus'
 import type { CommandDispatcher } from '../commands/dispatcher'
 import type { SelectionManager } from '../selection'
 import type { Viewport } from '../viewport'
-import type { ToolRegistry } from '../tools/registry'
+import type { CurrentToolStore } from '../tools/CurrentToolStore'
 import type { EditingContextService } from '../editing-context'
 import type { HistoryStack } from '../history'
 import type { DocumentStore } from './document-store'
@@ -81,7 +81,7 @@ export interface ServiceMap {
   selection: SelectionManager
   viewport: Viewport
   editingContext: EditingContextService
-  toolRegistry: ToolRegistry
+  toolRegistry: CurrentToolStore
   history: HistoryStack
   documentStore: DocumentStore
   navigationCompiler: NavigationCompiler

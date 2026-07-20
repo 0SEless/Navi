@@ -19,7 +19,13 @@ import { BuildNodesStage, buildNodes } from './stages/build-nodes-stage'
 import { BuildEdgesStage, buildEdges } from './stages/build-edges-stage'
 import { CampusConnectorStage, connectCampuses } from './stages/connect-campuses-stage'
 import { OptimizeStage, optimizeGraph } from './stages/optimize-stage'
-import { ValidateStage, validateGraph } from './stages/validate-stage'
+import { ValidateStage } from './stages/validate-stage'
+import { normalizeDocument } from '../normalize'
+import { generatePrimitives } from '../primitives/coordinator'
+import { normalizeConnectivity } from '../connectivity/normalizer'
+import { validateConnectivity } from '../connectivity/validator'
+import { emitGraph } from '../emitter'
+import { buildArtifacts } from '../emitter/artifacts'
 import { createHash } from 'crypto'
 
 const DEFAULT_STAGES: Record<CompileStageId, CompilerStagePlugin> = {
@@ -100,6 +106,157 @@ export class CampusCompiler {
     return this.compileWithProgress(document, () => {})
   }
 
+  /**
+   * V2 compilation — the new 4-stage pipeline.
+   *
+   *   Stage 1   Normalize        → NormalizedDocument (local→world once)
+   *   Stage 2   Generate Primitives → PrimitiveGraph
+   *   Stage 3.1 Connectivity Normalize → ConnectivityGraph (only mutation phase)
+   *   Stage 3.2 Connectivity Validate  → diagnostics (read-only)
+   *   Stage 3.3 Emit Graph        → NavigationGraph (mechanical, no spatial search)
+   *   Stage 4   Build Artifacts   → NavigationArtifacts
+   *
+   * Runs entirely independent of `compile()`. No shared stages, no shared
+   * mutable state. Diagnostics accumulate monotonically. Errors are collected,
+   * never thrown, except structural Stage 1 errors which halt the pipeline.
+   *
+   * TEMPORARY migration endpoint. In M6, `compile()` becomes this pipeline.
+   */
+  compileV2(document: CampusDocument): CompileResultV2 {
+    const startTime = performance.now()
+    const diagnostics: import('../types').CompilerDiagnostic[] = []
+    const warnings: CompileWarning[] = []
+    const errors: CompileError[] = []
+
+    const nodeInterval = this.config.nodeInterval ?? 10
+    const mergeThreshold = this.config.mergeThreshold ?? 0.5
+
+    try {
+      // ── Stage 1: Normalize ──
+      const normResult = normalizeDocument(document)
+      diagnostics.push(...normResult.diagnostics)
+
+      const structuralErrors = normResult.diagnostics.filter(d => d.severity === 'error')
+      if (structuralErrors.length > 0) {
+        for (const d of structuralErrors) {
+          errors.push({ code: d.code, message: d.message })
+        }
+        return this.failV2(startTime, diagnostics, warnings, errors, 0)
+      }
+
+      // ── Stage 2: Generate Primitives ──
+      const primitiveGraph = generatePrimitives(normResult.document, { nodeInterval, mergeThreshold })
+      diagnostics.push(...primitiveGraph.diagnostics.filter(d => !diagnostics.includes(d)))
+
+      // ── Stage 3.1: Connectivity Normalize ──
+      const connectivityGraph = normalizeConnectivity(primitiveGraph, mergeThreshold)
+      diagnostics.push(...connectivityGraph.diagnostics.filter(d => !diagnostics.includes(d)))
+
+      // ── Stage 3.2: Connectivity Validate (read-only) ──
+      const validation = validateConnectivity(connectivityGraph)
+      diagnostics.push(...validation.diagnostics)
+
+      // ── Stage 3.3: Emit Graph ──
+      connectivityGraph.metadata.campusId = document.metadata.name
+      const navGraph = emitGraph(connectivityGraph)
+      navGraph.createdAt = new Date().toISOString()
+
+      // ── Stage 4: Build Artifacts ──
+      const artifacts = buildArtifacts(connectivityGraph, navGraph, document)
+
+      // ── Assemble diagnostics into report ──
+      for (const d of diagnostics) {
+        if (d.severity === 'warning') warnings.push({ code: d.code, message: d.message, entityId: d.sourceEntityId })
+        else if (d.severity === 'error') errors.push({ code: d.code, message: d.message })
+      }
+
+      const report = this.buildReport(diagnostics, connectivityGraph, navGraph, performance.now() - startTime)
+
+      const stats: CompileStats = {
+        totalNodes: navGraph.nodes.length,
+        totalEdges: navGraph.edges.length,
+        buildingsProcessed: navGraph.metadata.buildings,
+        floorsProcessed: navGraph.metadata.floors,
+        roomsProcessed: navGraph.nodes.filter(n => n.type === 'poi').length,
+        hallwaysProcessed: navGraph.nodes.filter(n => n.type === 'waypoint').length,
+        totalRouteLength: Math.round(navGraph.edges.reduce((s, e) => s + e.distance, 0)),
+        connectivityScore: validation.metrics.disconnectedComponents === 0 ? 1 : 0.5,
+      }
+
+      return {
+        success: errors.length === 0,
+        graph: navGraph,
+        artifacts,
+        report,
+        stats,
+        warnings,
+        errors,
+        duration: performance.now() - startTime,
+      }
+    } catch (err) {
+      errors.push({ code: 'COMPILE_V2_ERROR', message: (err as Error).message })
+      return this.failV2(startTime, diagnostics, warnings, errors, 0)
+    }
+  }
+
+  private buildReport(
+    diagnostics: import('../types').CompilerDiagnostic[],
+    connectivityGraph: import('../types').ConnectivityGraph,
+    navGraph: import('../types').NavigationGraph,
+    compileTime: number,
+  ): import('../types').CompilerReport {
+    const diagCounts = { error: 0, warning: 0, info: 0 }
+    for (const d of diagnostics) diagCounts[d.severity]++
+
+    return {
+      diagnostics,
+      statistics: {
+        rooms: connectivityGraph.nodes.filter(n => n.kind === 'poi').length,
+        hallways: connectivityGraph.nodes.filter(n => n.kind === 'waypoint').length,
+        roads: 0,
+        primitives: connectivityGraph.nodes.length,
+        waypoints: connectivityGraph.nodes.filter(n => n.kind === 'waypoint').length,
+        edges: navGraph.edges.length,
+        diagnostics: diagCounts,
+        compileTime: Math.round(compileTime),
+      },
+    }
+  }
+
+  private failV2(
+    startTime: number,
+    diagnostics: import('../types').CompilerDiagnostic[],
+    warnings: CompileWarning[],
+    errors: CompileError[],
+    compileTime: number,
+  ): CompileResultV2 {
+    return {
+      success: false,
+      graph: null,
+      report: {
+        diagnostics,
+        statistics: {
+          rooms: 0, hallways: 0, roads: 0, primitives: 0, waypoints: 0, edges: 0,
+          diagnostics: {
+            error: diagnostics.filter(d => d.severity === 'error').length,
+            warning: diagnostics.filter(d => d.severity === 'warning').length,
+            info: diagnostics.filter(d => d.severity === 'info').length,
+          },
+          compileTime,
+        },
+      },
+      stats: {
+        totalNodes: 0, totalEdges: 0,
+        buildingsProcessed: 0, floorsProcessed: 0,
+        roomsProcessed: 0, hallwaysProcessed: 0,
+        totalRouteLength: 0, connectivityScore: 0,
+      },
+      warnings,
+      errors,
+      duration: performance.now() - startTime,
+    }
+  }
+
   compileWithProgress(
     document: CampusDocument,
     onProgress: (stage: CompileStage, progress: number) => void,
@@ -173,6 +330,7 @@ export class CampusCompiler {
         warnings: allWarnings,
         errors: allErrors,
         duration: performance.now() - startTime,
+        validation: ctx.validationReport as import('../graph/validators/types').ValidationReport | undefined,
       }
     } catch (err) {
       return {
@@ -238,7 +396,7 @@ export class CampusCompiler {
     const floorSet = new Set(nodes.map(n => `${n.buildingId}:${n.floor}`))
 
     // Compute checksum from content only (exclude timestamps)
-    const { createdAt: _, checksum: __, ...contentOnly } = {
+    const contentOnly = {
       nodes,
       edges,
       version: '1.0.0',

@@ -64,13 +64,13 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProp
             </div>
             <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 11, color: 'var(--navi-text-secondary)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Building2 size={11} /> {map.stats.buildings}
+                <Building2 size={11} /> {map.stats?.buildings ?? 0}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <MapPin size={11} /> {map.stats.nodes}
+                <MapPin size={11} /> {map.stats?.nodes ?? 0}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Route size={11} /> {map.stats.edges}
+                <Route size={11} /> {map.stats?.edges ?? 0}
               </span>
             </div>
           </div>

@@ -44,7 +44,7 @@ function extractFloorComponents(
       id: hw.id, type: 'hallway', name: hw.name,
       buildingId, campusId: '', floor: floor.level,
       position: worldPoints[0], polygon: worldPoints,
-      dimensions: { width: hw.width },
+      dimensions: { width: hw.width, height: 0 },
     })
   }
 
@@ -93,7 +93,7 @@ function findOneComponent(doc: CampusDocument, id: string, transformer: Coordina
         if (hw.id !== id) continue
         const pts = localPointsToWorld(hw.polyline.points, building.id, transformer)
         if (pts.length < 2) return null
-        return { id: hw.id, type: 'hallway', name: hw.name, buildingId: building.id, campusId: '', floor: floor.level, position: pts[0], polygon: pts, dimensions: { width: hw.width } }
+        return { id: hw.id, type: 'hallway', name: hw.name, buildingId: building.id, campusId: '', floor: floor.level, position: pts[0], polygon: pts, dimensions: { width: hw.width, height: 0 } }
       }
       for (const stair of floor.staircases) {
         if (stair.id !== id) continue

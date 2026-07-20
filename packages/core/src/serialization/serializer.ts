@@ -3,7 +3,8 @@ import type { CampusDocument } from '../types/document'
 // ── Serialize CampusDocument to JSON string ──
 
 export function serializeDocument(doc: CampusDocument): string {
-  return JSON.stringify(doc, null, 2)
+  const { _changeJournal, ...clean } = doc
+  return JSON.stringify(clean, null, 2)
 }
 
 // ── Deserialize JSON string back to CampusDocument ──
@@ -11,12 +12,13 @@ export function serializeDocument(doc: CampusDocument): string {
 export function deserializeDocument(json: string): CampusDocument {
   const parsed = JSON.parse(json)
   validateDocument(parsed)
-  return parsed as CampusDocument
+  migrateDocument(parsed)
+  return parsed as unknown as CampusDocument
 }
 
 // ── Basic validation on deserialization ──
 
-function validateDocument(doc: unknown): asserts doc is CampusDocument {
+function validateDocument(doc: unknown): asserts doc is Record<string, unknown> {
   if (!doc || typeof doc !== 'object') {
     throw new Error('Invalid document: not an object')
   }
@@ -42,6 +44,32 @@ function validateDocument(doc: unknown): asserts doc is CampusDocument {
   }
   if (!Array.isArray(d.qrCheckpoints)) {
     throw new Error('Invalid document: qrCheckpoints must be an array')
+  }
+}
+
+function migrateDocument(doc: Record<string, unknown>): void {
+  const buildings = doc.buildings as Record<string, unknown>[]
+  if (!Array.isArray(buildings)) return
+  for (const bld of buildings) {
+    if (!Array.isArray(bld.verticalConnectors)) {
+      bld.verticalConnectors = []
+    }
+    const floors = bld.floors as Record<string, unknown>[]
+    if (Array.isArray(floors)) {
+      for (const floor of floors) {
+        if (!Array.isArray(floor.connectorStops)) {
+          floor.connectorStops = []
+        }
+        const rooms = floor.rooms as Record<string, unknown>[]
+        if (Array.isArray(rooms)) {
+          for (const room of rooms) {
+            if (!Array.isArray(room.roomDoors)) {
+              room.roomDoors = []
+            }
+          }
+        }
+      }
+    }
   }
 }
 

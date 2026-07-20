@@ -1,5 +1,5 @@
 import type { LatLng } from '@navi/core'
-import type { NavNode } from '@navi/compiler'
+import type { NavNode } from '@navi/core'
 
 function haversineDist(a: LatLng, b: LatLng): number {
   const R = 6371000

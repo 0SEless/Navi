@@ -214,7 +214,7 @@ export class SpatialQuery {
     if (len2 === 0) return a
     let t = ((ap.x - aa.x) * dx + (ap.y - aa.y) * dy) / len2
     t = Math.max(0, Math.min(1, t))
-    return euclideanToLatLng({ x: aa.x + t * dx, y: aa.y + t * dy })
+    return euclideanToLatLng(aa.x + t * dx, aa.y + t * dy)
   }
 }
 

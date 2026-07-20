@@ -18,6 +18,12 @@ export interface Instruction {
   toNode: string
 }
 
+export interface TravelTime {
+  seconds: number
+  minutes: number
+  formatted: string
+}
+
 export interface Route {
   path: RouteStep[]
   instructions: Instruction[]
@@ -25,4 +31,5 @@ export interface Route {
   totalDuration: number
   fromLabel: string
   toLabel: string
+  travelTime: TravelTime
 }

@@ -34,6 +34,8 @@ export { useSelection } from './selection-store'
 export { SelectionBridge } from './selection-bridge'
 export type { LegacySyncState, BridgeSyncTarget } from './selection-bridge'
 export { useWorkspace } from './workspace-context'
+export { useEditingEngine } from './use-editing-engine'
+export type { EditingEngineValue } from './use-editing-engine'
 export { createEditorContext } from './create-editor-context'
 export type { WorkspaceMode, Workspace } from '../projections/workspace'
 

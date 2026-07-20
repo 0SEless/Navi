@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import {
   EditorProvider,
   SelectionBridge,
@@ -8,8 +8,9 @@ import {
   findEntityById,
   NavigationCompiler,
   createEditorContext,
+  GraphAdapter,
 } from '@navi/editor'
-import type { EntitySelector, PersistenceAdapter } from '@navi/editor'
+import type { EntitySelector, PersistenceAdapter, EditorContext } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
@@ -48,18 +49,54 @@ import { createCompilerAdapter } from '@/services/compiler-adapter'
  */
 
 export function EditorBridge({ children }: { children: ReactNode }) {
-  // Created ONCE from the initial graph — enforces the document lifetime invariant.
+  const contextRef = useRef<EditorContext | null>(null)
+
   const persistenceAdapter: PersistenceAdapter = {
-    save: () => useGraphStore.getState().save(),
+    save: async () => {
+      const ctx = contextRef.current
+      if (ctx) {
+        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+        ga.sync(ctx.document)
+      }
+      useGraphStore.getState().save()
+    },
     syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
-    publish: async () => ({ success: true, version: '1.0.0' }),
+    publish: async (artifacts) => {
+      const ctx = contextRef.current
+      const campusId = ctx?.document?.metadata?.name ?? 'campus'
+      const revision = ctx?.document?.version ?? 1
+      const response = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifacts, campusId, revision }),
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        return {
+          success: false,
+          message: err?.message ?? `Server error: ${response.status}`,
+        }
+      }
+      const data = await response.json()
+      return {
+        success: data.success,
+        version: data.manifest?.compilerVersion ?? '1.0.0',
+        message: data.message,
+      }
+    },
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
-  const [context] = useState(() => createEditorContext(
-    useGraphStore.getState().graph,
-    persistenceAdapter,
-    navCompiler,
-  ))
+  const [context] = useState(() => {
+    const ctx = createEditorContext(
+      useGraphStore.getState().graph,
+      persistenceAdapter,
+      navCompiler,
+    )
+    return ctx
+  })
+
+  // Ensure contextRef.current is always in sync with the active committed context
+  contextRef.current = context
 
   // Wire SelectionBridge once per mount: keep the legacy studio store and the
   // new SelectionManager in sync (selection only, loop-guarded).

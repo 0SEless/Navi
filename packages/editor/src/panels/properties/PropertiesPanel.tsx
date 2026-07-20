@@ -10,16 +10,14 @@ import { ElevatorProperties } from './elevator-props'
 import { PanoramaProperties } from './panorama-props'
 import { QRProperties } from './qr-props'
 import { findEntityById } from './property-utils'
-import { WorkflowCard } from '../workflow/workflow-card'
-
 export function PropertiesPanel() {
   const { document } = useEditor()
   const selection = useSelection()
-  const version = useDocumentVersion()
+  useDocumentVersion()
   const selectedId = selection.lastSelected?.id ?? null
 
   if (!selectedId) {
-    return <WorkflowCard />
+    return null
   }
 
   const found = findEntityById(document, selectedId)

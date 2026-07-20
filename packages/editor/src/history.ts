@@ -5,6 +5,7 @@ import { CommandRegistry } from './commands/registry'
 import type { PreHook, PostHook } from './commands/types'
 import { BaseEditorService } from './context'
 import type { EditorServiceContext } from './context/service-registry'
+import type { DocumentStore } from './context/document-store'
 
 export interface HistoryEntry {
   command: Command
@@ -44,11 +45,13 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   private dispatcher!: CommandDispatcher
   private document!: CampusDocument
   private registry: CommandRegistry
+  private documentStore?: DocumentStore
 
-  constructor(dispatcher?: CommandDispatcher, document?: CampusDocument, registry?: CommandRegistry, maxMemoryMB = 200) {
+  constructor(dispatcher?: CommandDispatcher, document?: CampusDocument, registry?: CommandRegistry, maxMemoryMB = 200, documentStore?: DocumentStore) {
     super()
     this.maxMemory = maxMemoryMB * 1024 * 1024
     this.registry = registry ?? new CommandRegistry()
+    this.documentStore = documentStore
     if (dispatcher) this.dispatcher = dispatcher
     if (document) this.document = document
   }
@@ -56,6 +59,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   async init(context: EditorServiceContext): Promise<void> {
     await super.init(context)
     this.dispatcher = context.get('dispatcher')
+    this.documentStore = context.get('documentStore')
     this.document = context.document
   }
 
@@ -118,6 +122,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
       this.dispatcher.execute(inverseCmd, { skipHooks: true })
     } else if (entry.snapshotBefore) {
       Object.assign(this.document, entry.snapshotBefore)
+      this.documentStore?.commit()
     } else {
       return false
     }
@@ -132,6 +137,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
 
     if (entry.snapshotAfter) {
       Object.assign(this.document, entry.snapshotAfter)
+      this.documentStore?.commit()
     } else {
       this.dispatcher.execute(entry.command, { skipHooks: true })
     }

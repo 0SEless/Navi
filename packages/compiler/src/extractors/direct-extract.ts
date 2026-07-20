@@ -43,7 +43,6 @@ export function directExtract(campus: CampusDocument): ExtractionResult {
             position,
             floor: floor.level,
             buildingId: building.id,
-            area: 0,
             properties: { number: room.number, category: room.category },
           })
         }

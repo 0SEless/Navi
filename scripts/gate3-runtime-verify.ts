@@ -1,6 +1,5 @@
-import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import { ArtifactLoader, RuntimeEngine } from '@navi/runtime'
+import { load, RuntimeEngine } from '@navi/runtime'
 import { createGoldenCampus } from '../packages/editor/src/demo/golden-campus'
 
 const DEMO_DIR = join(__dirname, '..', 'demo-output')
@@ -42,14 +41,9 @@ async function main() {
 
   // Stage: load published bundle into runtime
   console.log('\n  \uD83C\uDFC3 Runtime load')
-  const fileFetch = (_url: string) => {
-    const filename = _url.split('/').pop()!
-    const filePath = join(DEMO_DIR, filename)
-    const body = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : 'Not found'
-    return Promise.resolve(new Response(body, { status: existsSync(filePath) ? 200 : 404 }))
-  }
-  const loader = new ArtifactLoader({ baseUrl: 'file:///demo', fetch: fileFetch })
-  const engine = await RuntimeEngine.create(loader)
+  const loadResult = await load(DEMO_DIR)
+  if (!loadResult.success) { stage('Engine load', false, loadResult.message); process.exit(1) }
+  const engine = new RuntimeEngine(loadResult.package)
   const stats = engine.data.getGraph().metadata
   stage('Engine loaded', stats.nodeCount > 0, `${stats.nodeCount} nodes, ${stats.edgeCount} edges`)
 

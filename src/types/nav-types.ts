@@ -12,7 +12,7 @@ export interface NavNode {
   floor: number;
   buildingId: string;
   campusId: string;
-  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker' | 'corner' | 'staircase' | 'intersection' | 'building_entrance' | 'outdoor' | 'hallway';
+  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker' | 'corner' | 'staircase' | 'intersection' | 'building_entrance' | 'outdoor' | 'hallway' | 'connector_stop';
   componentId?: string;
   metadata?: Record<string, unknown>;
   svgOffset?: { x: number; y: number };
@@ -26,7 +26,7 @@ export interface NavEdge {
   to: string;
   distance: number;
   weight?: number;
-  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor' | 'corridor' | 'stairs' | 'transition' | 'walk' | 'wall';
+  type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor' | 'corridor' | 'stairs' | 'transition' | 'walk' | 'wall' | 'door';
   campusId?: string;
 }
 
@@ -56,6 +56,9 @@ export interface Building {
   entrances?: BuildingEntrance[];
   department?: string;
   category?: string;
+  aliases?: string[];
+  metadata?: Record<string, unknown>;
+  floorData?: Record<string, unknown>[];
 }
 
 export interface FloorInfo {

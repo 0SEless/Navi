@@ -1,17 +1,22 @@
 import { useCallback } from 'react'
 import type { Panorama } from '@navi/core'
-import { useEditor } from '../../context'
+import { useEditor, useEditingEngine } from '../../context'
 import { Field } from './field'
 
 interface Props { panorama: Panorama }
 
 export function PanoramaProperties({ panorama }: Props) {
   const { services } = useEditor()
+  const editEngine = useEditingEngine()
   const dispatcher = services.get<any>('dispatcher')
 
   const update = useCallback((changes: Record<string, unknown>) => {
+    for (const [property, value] of Object.entries(changes)) {
+      editEngine.begin({ kind: 'assign', entityId: panorama.id, property, value })
+      editEngine.doCommit()
+    }
     dispatcher.execute({ id: 'entity.update', label: 'Edit Panorama', payload: { entityId: panorama.id, changes } })
-  }, [dispatcher, panorama.id])
+  }, [editEngine, dispatcher, panorama.id])
 
   return (
     <div style={{ padding: 8, fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>

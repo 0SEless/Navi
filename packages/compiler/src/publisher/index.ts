@@ -1,8 +1,8 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs'
+import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { createHash } from 'crypto'
-import type { CampusDocument } from '@navi/core'
-import type { CompileResult, PublishedManifest } from '../types'
+import type { CampusDocument, NavigationPackageManifest } from '@navi/core'
+import type { CompileResult } from '../types'
 import { generateArtifacts } from '../artifacts'
 
 function sha256(data: string): string {
@@ -14,16 +14,14 @@ export interface PublisherOptions {
   compilerVersion?: string
 }
 
-export function publish(campus: CampusDocument, result: CompileResult, options: PublisherOptions): PublishedManifest {
+export function publish(campus: CampusDocument, result: CompileResult, options: PublisherOptions): NavigationPackageManifest {
   const { outDir, compilerVersion = '0.1.0' } = options
 
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true })
 
-  // Build complete artifact set from campus doc + extraction data
   const extraction = result.extraction ?? { spaces: [], transitions: [], corridors: [], duration: 0 }
   const artifacts = generateArtifacts(campus, extraction)
 
-  // Write files first, then compute checksums from actual content
   const files: Record<string, string> = {
     'navigation.graph.json': JSON.stringify(artifacts.navigationGraph, null, 2),
     'search.index.json': JSON.stringify(artifacts.searchIndex, null, 2),
@@ -35,17 +33,26 @@ export function publish(campus: CampusDocument, result: CompileResult, options: 
     writeFileSync(join(outDir, filename), content)
   }
 
-  const manifest: PublishedManifest = {
-    projectId: campus.metadata.name,
+  const manifest: NavigationPackageManifest = {
+    schemaVersion: '1.0',
     campusId: campus.metadata.name,
+    campusName: campus.metadata.name,
     publishedAt: new Date().toISOString(),
-    schemaVersion: 1,
     compilerVersion,
+    revision: '1',
     artifacts: {
-      navigationGraph: { filename: 'navigation.graph.json', checksum: sha256(files['navigation.graph.json']), size: Buffer.byteLength(files['navigation.graph.json'], 'utf-8') },
-      searchIndex: { filename: 'search.index.json', checksum: sha256(files['search.index.json']), size: Buffer.byteLength(files['search.index.json'], 'utf-8') },
-      poiData: { filename: 'poi.json', checksum: sha256(files['poi.json']), size: Buffer.byteLength(files['poi.json'], 'utf-8') },
-      buildingIndex: { filename: 'building-index.json', checksum: sha256(files['building-index.json']), size: Buffer.byteLength(files['building-index.json'], 'utf-8') },
+      graph: { path: 'navigation.graph.json', checksum: sha256(files['navigation.graph.json']), size: Buffer.byteLength(files['navigation.graph.json'], 'utf-8'), schemaVersion: '1.0' },
+      search: { path: 'search.index.json', checksum: sha256(files['search.index.json']), size: Buffer.byteLength(files['search.index.json'], 'utf-8'), schemaVersion: '1.0' },
+      buildings: { path: 'building-index.json', checksum: sha256(files['building-index.json']), size: Buffer.byteLength(files['building-index.json'], 'utf-8'), schemaVersion: '1.0' },
+      poi: { path: 'poi.json', checksum: sha256(files['poi.json']), size: Buffer.byteLength(files['poi.json'], 'utf-8'), schemaVersion: '1.0' },
+    },
+    metadata: {
+      nodeCount: result.graph.nodes.length,
+      edgeCount: result.graph.edges.length,
+      buildingCount: campus.buildings.length,
+      floorCount: campus.buildings.reduce((s, b) => s + b.floors.length, 0),
+      boundingBox: result.graph.metadata.boundingBox,
+      routeable: result.graph.edges.length > 0,
     },
   }
 

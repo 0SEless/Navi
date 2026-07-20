@@ -37,7 +37,7 @@ function buildEditorContext(graph: any) {
   registryCmd.register(entityUpdateHandler)
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
-  const history = new HistoryStack(dispatcher, document, registryCmd)
+  const history = new HistoryStack(dispatcher, document, registryCmd, 200, documentStore)
   dispatcher.addPreHook(history)
   dispatcher.addPostHook(history)
 
@@ -69,6 +69,7 @@ function buildEditorContext(graph: any) {
 function createDocument(graph: any): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: {
       name: graph.name ?? 'Campus',
       description: '',
@@ -274,8 +275,8 @@ describe('InspectorMigration (M2.3 T6)', () => {
       </EditorBridge>,
     )
 
-    // Empty state before any canvas selection — shows WorkflowCard
-    expect(screen.getByText('Workflow')).toBeDefined()
+    // Empty state before any canvas selection — nothing shown
+    expect(screen.queryByText('Workflow')).toBeNull()
 
     // Selection arrives from the legacy store (canvas click simulation).
     act(() => {

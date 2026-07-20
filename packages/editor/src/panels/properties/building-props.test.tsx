@@ -15,14 +15,38 @@ function createBuilding(overrides = {}) {
     color: '#4A90D9',
     baseElevation: 0,
     height: 20,
+    floors: [],
+    footprint: { points: [{ lat: 0, lng: 0 }] },
     ...overrides,
   }
 }
 
-function renderWithDispatcher(building: any, execute = vi.fn()) {
-  const services = {
-    get: (name: string) => (name === 'dispatcher' ? { execute } : undefined),
+const IDLE_SNAPSHOT = Object.freeze({
+  version: 0,
+  publishState: 'idle' as const,
+  publishResult: null,
+  publishError: null,
+  currentStageStartedAt: 0,
+  lastPublishedRevision: 0,
+  lastPublishedAt: 0,
+})
+
+function createMockServices(execute = vi.fn()) {
+  const publishStore = {
+    subscribe: () => () => {},
+    getSnapshot: () => IDLE_SNAPSHOT,
   }
+  return {
+    get: (name: string) => {
+      if (name === 'dispatcher') return { execute }
+      if (name === 'publishStore') return publishStore
+      return undefined
+    },
+  }
+}
+
+function renderWithServices(building: any, execute = vi.fn()) {
+  const services = createMockServices(execute)
   return { execute, ...render(
     <EditorProvider context={{ document: {} as any, services }}>
       <BuildingProperties building={building} />
@@ -31,23 +55,28 @@ function renderWithDispatcher(building: any, execute = vi.fn()) {
 }
 
 describe('BuildingProperties', () => {
-  it('renders Building header and form fields', () => {
-    renderWithDispatcher(createBuilding())
-    expect(screen.getByText('Building')).toBeDefined()
+  it('renders section headers and form fields', () => {
+    renderWithServices(createBuilding())
+    expect(screen.getByText('Information')).toBeDefined()
+    expect(screen.getByText('Physical')).toBeDefined()
+    expect(screen.getByText('Status')).toBeDefined()
+    expect(screen.getByText('Actions')).toBeDefined()
+    expect(screen.getByText('Assets')).toBeDefined()
+    expect(screen.getByText('Danger Zone')).toBeDefined()
     expect(screen.getByDisplayValue('Main Building')).toBeDefined()
     expect(screen.getByDisplayValue('MB')).toBeDefined()
     expect(screen.getByDisplayValue('The main campus building')).toBeDefined()
   })
 
   it('renders category select with academic selected', () => {
-    renderWithDispatcher(createBuilding({ category: 'residential' }))
+    renderWithServices(createBuilding({ category: 'residential' }))
     const select = screen.getByDisplayValue('residential') as HTMLSelectElement
     expect(select).toBeDefined()
     expect(select.tagName).toBe('SELECT')
   })
 
   it('dispatches entity.update when name changes', () => {
-    const { execute } = renderWithDispatcher(createBuilding())
+    const { execute } = renderWithServices(createBuilding())
     fireEvent.change(screen.getByDisplayValue('Main Building'), { target: { value: 'New Name' } })
     expect(execute).toHaveBeenCalledWith({
       id: 'entity.update',
@@ -57,12 +86,23 @@ describe('BuildingProperties', () => {
   })
 
   it('dispatches entity.update when category changes', () => {
-    const { execute } = renderWithDispatcher(createBuilding())
+    const { execute } = renderWithServices(createBuilding())
     fireEvent.change(screen.getByDisplayValue('academic'), { target: { value: 'library' } })
     expect(execute).toHaveBeenCalledWith({
       id: 'entity.update',
       label: 'Edit Building',
       payload: { entityId: 'bld-1', changes: { category: 'library' } },
     })
+  })
+
+  it('renders Edit Interior button', () => {
+    renderWithServices(createBuilding())
+    expect(screen.getByText('Edit Interior')).toBeDefined()
+  })
+
+  it('renders Build Status', () => {
+    renderWithServices(createBuilding())
+    expect(screen.getByText(/Build Status/)).toBeDefined()
+    expect(screen.getByText(/Last Published/)).toBeDefined()
   })
 })

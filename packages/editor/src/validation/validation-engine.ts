@@ -297,6 +297,14 @@ export class ValidationEngine extends BaseEditorService {
   }
 }
 
+// Cross-entity dependency map: when entity type X changes, rules with affinity
+// for dependent entity types Y are also re-run so they don't return stale issues.
+// Example: deleting a road affects entrance-connectivity (affinity:entity:entrance).
+const ENTITY_DEPENDENTS: Record<string, string[]> = {
+  floor: ['building'],
+  road: ['entrance'],
+}
+
 function isRuleAffected(ruleAffinity: ValidationAffinity, affectedAffinities: ReadonlySet<string>): boolean {
   if (ruleAffinity === 'global') return true
   const entityType = ruleAffinity.replace('entity:', '')
@@ -307,6 +315,12 @@ function collectAffectedAffinities(changes: readonly EntityChange[]): Set<string
   const affinities = new Set<string>()
   for (const c of changes) {
     affinities.add(c.entityType)
+    const dependents = ENTITY_DEPENDENTS[c.entityType]
+    if (dependents) {
+      for (const dep of dependents) {
+        affinities.add(dep)
+      }
+    }
   }
   return affinities
 }

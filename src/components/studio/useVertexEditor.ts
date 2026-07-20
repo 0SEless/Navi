@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 import { haversine } from '@/engine/geo-utils'
@@ -67,6 +67,7 @@ export function useVertexEditor(map: maplibregl.Map | null) {
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
 
   const { document, services } = useEditor()
+  const editEngine = useEditingEngine()
   const dispatcher = services.get('dispatcher')!
   const workflow = services.get('workflow')!
 
@@ -86,6 +87,8 @@ export function useVertexEditor(map: maplibregl.Map | null) {
 
   const handleSave = useCallback((points: LatLng[]) => {
     if (currentEditRoad) {
+      editEngine.begin({ kind: 'modifyGeometry', entityId: currentEditRoad.id, geometry: { polyline: { points } } })
+      editEngine.doCommit()
       dispatcher.execute({
         id: 'entity.update',
         label: 'Update Road Geometry',
@@ -93,7 +96,7 @@ export function useVertexEditor(map: maplibregl.Map | null) {
       })
       workflow.save('manual')
     }
-  }, [currentEditRoad, dispatcher, workflow])
+  }, [currentEditRoad, editEngine, dispatcher, workflow])
 
   const updateDisplay = useCallback((points: LatLng[], selectedIdx?: number) => {
     if (!map || !map.getSource(VERTEX_SOURCE)) return

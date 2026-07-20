@@ -27,7 +27,7 @@ export function StudioDashboard() {
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--navi-text)', margin: 0 }}>NAVI Studio</h1>
           <p style={{ color: 'var(--navi-text-secondary)', fontSize: 12, margin: '2px 0 0' }}>
-            {maps.length} map{maps.length !== 1 ? 's' : ''} · {maps.reduce((s, m) => s + m.stats.buildings, 0)} buildings
+            {maps.length} map{maps.length !== 1 ? 's' : ''} · {maps.reduce((s, m) => s + (m.stats?.buildings ?? 0), 0)} buildings
           </p>
         </div>
       </div>

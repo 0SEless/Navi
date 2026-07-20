@@ -1,11 +1,12 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LatLng, RoadSurface, RoadType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
+import { genId } from '../id'
 
 export const roadCreateHandler: CommandHandler = {
   id: 'road.create',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
-    const id = (payload.id as string) || `rd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const id = (payload.id as string) || genId('rd')
     const name = (payload.name as string) || ''
     const points = payload.points as LatLng[] | undefined
     const width = (payload.width as number) || 5

@@ -37,28 +37,16 @@ async function main() {
   const manifest = publish(campus, result, { outDir: DEMO_DIR })
   log('3/7', `Published to ${DEMO_DIR}/`)
   for (const [key, art] of Object.entries(manifest.artifacts)) {
-    log('3/7', `  ${art.filename} (${art.size} bytes)`)
+    log('3/7', `  ${art.path} (${art.size} bytes)`)
   }
 
   // ── Stage 4: Load Runtime ──
   log('4/7', 'Loading runtime engine...')
-  const { ArtifactLoader, RuntimeEngine } = await import('@navi/runtime')
-  const { readFileSync: fsRead } = await import('fs')
-  const { join: pJoin } = await import('path')
+  const { load, RuntimeEngine } = await import('@navi/runtime')
 
-  const fetch = (_url: string) => {
-    const filename = _url.split('/').pop()!
-    const filePath = pJoin(DEMO_DIR, filename)
-    try {
-      const body = fsRead(filePath, 'utf-8')
-      return Promise.resolve(new Response(body, { status: 200 }))
-    } catch {
-      return Promise.resolve(new Response('Not found', { status: 404 }))
-    }
-  }
-
-  const loader = new ArtifactLoader({ baseUrl: 'file:///demo', fetch })
-  const engine = await RuntimeEngine.create(loader)
+  const loadResult = await load(DEMO_DIR)
+  if (!loadResult.success) { log('4/7', `Load failed: ${loadResult.message}`); process.exit(1) }
+  const engine = new RuntimeEngine(loadResult.package)
 
   const campusId = engine.data.getCampusId()
   const buildings = engine.data.getBuildings().buildings

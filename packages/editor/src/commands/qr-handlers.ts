@@ -1,11 +1,12 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LatLng } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
+import { genId } from '../id'
 
 export const qrCreateHandler: CommandHandler = {
   id: 'qr.create',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
-    const id = (payload.id as string) || `qr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const id = (payload.id as string) || genId('qr')
     const label = (payload.label as string) || ''
     const position = payload.position as LatLng | undefined
     const floor = (payload.floor as number) ?? 0

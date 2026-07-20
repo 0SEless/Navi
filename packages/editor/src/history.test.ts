@@ -3,6 +3,7 @@ import { CommandRegistry } from './commands/registry'
 import { CommandDispatcher } from './commands/dispatcher'
 import { HistoryStack } from './history'
 import { DocumentEventBus } from './eventbus'
+import { DocumentStore } from './context/document-store'
 import type { CampusDocument } from '@navi/core'
 import { buildingCreateHandler, buildingRenameHandler, buildingDeleteHandler } from './commands/building-handlers'
 
@@ -20,6 +21,7 @@ function createDoc(): CampusDocument {
 describe('HistoryStack', () => {
   let registry: CommandRegistry
   let document: CampusDocument
+  let documentStore: DocumentStore
   let eventBus: DocumentEventBus
   let dispatcher: CommandDispatcher
   let history: HistoryStack
@@ -32,8 +34,9 @@ describe('HistoryStack', () => {
 
     document = createDoc()
     eventBus = new DocumentEventBus()
+    documentStore = new DocumentStore(document, eventBus)
     dispatcher = new CommandDispatcher(registry, document, eventBus)
-    history = new HistoryStack(dispatcher, document, registry)
+    history = new HistoryStack(dispatcher, document, registry, 200, documentStore)
 
     dispatcher.addPreHook(history)
     dispatcher.addPostHook(history)
@@ -116,6 +119,7 @@ describe('HistoryStack', () => {
   it('delete uses snapshot fallback (inverse returns null)', () => {
     dispatcher.execute({ id: 'building.create', label: 'Create', payload: { name: 'A', code: 'A' } })
     const bldId = document.buildings[0].id
+    const versionAfterCreate = documentStore.version
 
     dispatcher.execute({ id: 'building.delete', label: 'Delete', payload: { buildingId: bldId } })
     expect(document.buildings).toHaveLength(0)
@@ -123,5 +127,21 @@ describe('HistoryStack', () => {
     history.undo()
     expect(document.buildings).toHaveLength(1)
     expect(document.buildings[0].name).toBe('A')
+    expect(documentStore.version).toBeGreaterThan(versionAfterCreate)
+  })
+
+  it('redo after delete restores snapshot and bumps version', () => {
+    dispatcher.execute({ id: 'building.create', label: 'Create', payload: { name: 'A', code: 'A' } })
+    const bldId = document.buildings[0].id
+    dispatcher.execute({ id: 'building.delete', label: 'Delete', payload: { buildingId: bldId } })
+    expect(document.buildings).toHaveLength(0)
+
+    history.undo()
+    expect(document.buildings).toHaveLength(1)
+    const versionAfterUndo = documentStore.version
+
+    history.redo()
+    expect(document.buildings).toHaveLength(0)
+    expect(documentStore.version).toBeGreaterThan(versionAfterUndo)
   })
 })

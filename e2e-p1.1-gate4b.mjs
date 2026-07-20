@@ -45,12 +45,24 @@ function stage(label, ok, detail) {
 }
 
 async function run() {
-  const browser = await chromium.launch({ headless: false })
+  const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext()
   const page = await context.newPage()
 
   const pageErrors = []
   page.on('pageerror', (err) => pageErrors.push(err.message))
+
+  // Mock API routes to return our seeded data (essential to bypass DB fetch clobbering)
+  await page.route('**/api/graph', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(seedGraph) }))
+  await page.route('**/api/campus-maps', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ maps: [{
+      id: mapId, name: 'Test Campus', schoolName: 'Test University',
+      boundary: [{ lat: 11.000, lng: 125.000 }, { lat: 11.002, lng: 125.004 }],
+      center: { lat: 11.0008, lng: 125.0015 },
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      stats: { buildings: 1, nodes: 0, edges: 0 },
+    }] }) }))
 
   // Seed the graph + campus data (only if absent)
   await context.addInitScript((args) => {
@@ -78,6 +90,16 @@ async function run() {
   console.log('1. Loading studio editor...')
   await page.goto(STUDIO_URL, { waitUntil: 'networkidle', timeout: 20000 })
   await page.waitForTimeout(2000)
+
+  // If redirected to login page, use mock auth
+  if (page.url().includes('/login')) {
+    console.log('  Redirected to login. Performing mock login...')
+    await page.click('text=Dr. Admin')
+    await page.waitForTimeout(3000)
+    console.log('  Logged in, loading editor...')
+    await page.goto(STUDIO_URL, { waitUntil: 'networkidle', timeout: 20000 })
+    await page.waitForTimeout(2000)
+  }
 
   // Wait for the editor context to initialize (StoreInitializer loads from localStorage in useEffect)
   console.log('  Waiting for editor context...')
@@ -158,21 +180,10 @@ async function run() {
   let routeOk = false
 
   try {
-    const { RuntimeEngine, ArtifactLoader } = await import('@navi/runtime')
-    const graphPath = join(DEMO, 'navigation.graph.json')
-    if (existsSync(graphPath)) {
-      function fileFetch(url) {
-        const filename = url.split('/').pop()
-        const content = readFileSync(join(DEMO, filename), 'utf-8')
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(JSON.parse(content)),
-          text: () => Promise.resolve(content),
-        })
-      }
-      const loader = new ArtifactLoader({ baseUrl: 'http://localhost/', fetch: fileFetch })
-      const engine = await RuntimeEngine.create(loader)
+    const { load, RuntimeEngine } = await import('@navi/runtime')
+    const loadResult = await load(DEMO)
+    if (loadResult.success) {
+      const engine = new RuntimeEngine(loadResult.package)
       runtimeOk = true
       stage('RuntimeEngine loaded', true)
 
@@ -192,7 +203,7 @@ async function run() {
         stage('Route: insufficient nodes', false, `${nodes.length} nodes`)
       }
     } else {
-      stage('navigation.graph.json missing', false)
+      stage('RuntimeEngine load failed', false, loadResult.message)
     }
   } catch (err) {
     stage('Runtime verification error', false, err.message)

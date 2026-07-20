@@ -42,9 +42,10 @@ function createBaseDoc(): CampusDocument {
       id: 'bld-1', name: 'Main', code: 'M', category: 'academic', description: '',
       footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },
       baseElevation: 0, height: 20, color: '#4A90D9', aliases: [], metadata: {},
+      verticalConnectors: [],
       floors: [{
         id: 'flr-1', level: 0, label: 'Ground', elevation: 0,
-        rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {},
+        rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {},
       }],
     }],
     roads: [],
@@ -143,11 +144,13 @@ function addRoom(doc: CampusDocument, overrides?: { name?: string; points?: { x:
   const room = {
     id: `rm-${floor.rooms.length + 1}`,
     name: overrides?.name ?? '',
+    number: String(floor.rooms.length + 1),
     category: 'classroom' as const,
     capacity: 30,
     polygon: {
       points: overrides?.points ?? [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0 }],
     },
+    roomDoors: [],
     metadata: {},
   }
   floor.rooms.push(room)

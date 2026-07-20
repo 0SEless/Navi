@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Check, X } from 'lucide-react'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine, genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 
 export function ConfirmOverlay() {
   const { services } = useEditor()
+  const editEngine = useEditingEngine()
   const dispatcher = services.get('dispatcher')!
   const workflow = services.get('workflow')!
 
@@ -28,7 +29,9 @@ export function ConfirmOverlay() {
   const handleSave = async () => {
     if (pendingConfirm.type === 'building' && pendingConfirm.points.length >= 3) {
       const points = pendingConfirm.points
-      const id = `bldg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const id = genId('bldg')
+      editEngine.begin({ kind: 'create', entityType: 'building', geometry: points, properties: { name: `Building ${id.slice(-6).toUpperCase()}`, color: '#1C6BEB', height: 15 } })
+      editEngine.doCommit()
       dispatcher.execute({
         id: 'building.create',
         label: 'Create Building',
@@ -36,7 +39,7 @@ export function ConfirmOverlay() {
           id,
           name: `Building ${id.slice(-6).toUpperCase()}`,
           footprint: { points },
-          floors: [{ id: `flr-${id}-0`, level: 0, label: 'Ground Floor', elevation: 0, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} }],
+          floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} }],
           height: 15,
           color: '#1C6BEB',
         },
@@ -47,11 +50,13 @@ export function ConfirmOverlay() {
     }
 
     if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
+      editEngine.begin({ kind: 'create', entityType: 'road', geometry: pendingConfirm.points, properties: { name: traceName, type: traceType, width: routeWidth, color: traceColor } })
+      editEngine.doCommit()
       dispatcher.execute({
         id: 'road.create',
         label: 'Create Road',
         payload: {
-          id: `T${Date.now()}`,
+          id: genId('T'),
           name: traceName || '',
           points: pendingConfirm.points,
           type: traceType,

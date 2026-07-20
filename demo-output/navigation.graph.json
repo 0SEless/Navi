@@ -1,136 +1,20 @@
 {
   "version": "1.0.0",
-  "campusId": "Demo Campus",
-  "createdAt": "2026-07-14T00:04:01.426Z",
-  "checksum": "724a37fe3867858453445e6fa574e4100142db240ad9e900a900a652d5da6c15",
-  "nodes": [
-    {
-      "id": "node-0",
-      "label": "Room 101",
-      "type": "space",
-      "position": {
-        "lat": 12.344982033776501,
-        "lng": 121.23408276162336
-      },
-      "floor": 1,
-      "buildingId": "bldg-a",
-      "properties": {
-        "number": "101",
-        "category": "classroom",
-        "entityType": "room",
-        "entityId": "room-101"
-      }
-    },
-    {
-      "id": "node-1",
-      "label": "Room 102",
-      "type": "space",
-      "position": {
-        "lat": 12.344982033776501,
-        "lng": 121.2342850678138
-      },
-      "floor": 1,
-      "buildingId": "bldg-a",
-      "properties": {
-        "number": "102",
-        "category": "classroom",
-        "entityType": "room",
-        "entityId": "room-102"
-      }
-    },
-    {
-      "id": "node-2",
-      "label": "Main Hallway",
-      "type": "corridor",
-      "position": {
-        "lat": 12.345,
-        "lng": 121.23427587207786
-      },
-      "floor": 1,
-      "buildingId": "bldg-a",
-      "properties": {
-        "entityType": "hallway",
-        "entityId": "hallway-h1",
-        "width": 3
-      }
-    },
-    {
-      "id": "node-3",
-      "label": "Entrance",
-      "type": "transition",
-      "position": {
-        "lat": 12.34504491555875,
-        "lng": 121.23409195735928
-      },
-      "floor": 1,
-      "buildingId": "bldg-a",
-      "properties": {
-        "entityType": "entrance",
-        "entityId": "entrance-e1",
-        "isAccessible": true
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "edge-0",
-      "from": "node-0",
-      "to": "node-2",
-      "type": "walk",
-      "distance": 21.071322555910342,
-      "weight": 21.071322555910342
-    },
-    {
-      "id": "edge-1",
-      "from": "node-0",
-      "to": "node-3",
-      "type": "walk",
-      "distance": 7.063123120908352,
-      "weight": 7.063123120908352
-    },
-    {
-      "id": "edge-2",
-      "from": "node-1",
-      "to": "node-2",
-      "type": "walk",
-      "distance": 2.2335556638229077,
-      "weight": 2.2335556638229077
-    },
-    {
-      "id": "edge-3",
-      "from": "node-1",
-      "to": "node-3",
-      "type": "walk",
-      "distance": 22.111071803968077,
-      "weight": 22.111071803968077
-    },
-    {
-      "id": "edge-4",
-      "from": "node-1",
-      "to": "node-0",
-      "type": "walk",
-      "distance": 21.975283454199985,
-      "weight": 21.975283454199985
-    },
-    {
-      "id": "edge-5",
-      "from": "node-3",
-      "to": "node-2",
-      "type": "walk",
-      "distance": 20.592363930951706,
-      "weight": 20.592363930951706
-    }
-  ],
+  "campusId": "Campus",
+  "createdAt": "2026-07-16T06:30:56.970Z",
+  "checksum": "729b06b65867184c92005fff2877ba62eb1e7baa9d59208bdf542ae75d33f4b5",
+  "nodes": [],
+  "edges": [],
   "metadata": {
-    "nodeCount": 4,
-    "edgeCount": 6,
-    "buildings": 1,
-    "floors": 1,
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "buildings": 0,
+    "floors": 0,
     "boundingBox": {
-      "minLng": 121.23408276162336,
-      "maxLng": 121.2342850678138,
-      "minLat": 12.344982033776501,
-      "maxLat": 12.34504491555875
+      "minLng": 0,
+      "maxLng": 0,
+      "minLat": 0,
+      "maxLat": 0
     }
   }
 }

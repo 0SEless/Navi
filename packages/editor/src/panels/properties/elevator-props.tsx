@@ -1,17 +1,22 @@
 import { useCallback } from 'react'
 import type { Elevator } from '@navi/core'
-import { useEditor } from '../../context'
+import { useEditor, useEditingEngine } from '../../context'
 import { Field } from './field'
 
 interface Props { elevator: Elevator }
 
 export function ElevatorProperties({ elevator }: Props) {
   const { services } = useEditor()
+  const editEngine = useEditingEngine()
   const dispatcher = services.get<any>('dispatcher')
 
   const update = useCallback((changes: Record<string, unknown>) => {
+    for (const [property, value] of Object.entries(changes)) {
+      editEngine.begin({ kind: 'assign', entityId: elevator.id, property, value })
+      editEngine.doCommit()
+    }
     dispatcher.execute({ id: 'entity.update', label: 'Edit Elevator', payload: { entityId: elevator.id, changes } })
-  }, [dispatcher, elevator.id])
+  }, [editEngine, dispatcher, elevator.id])
 
   return (
     <div style={{ padding: 8, fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>

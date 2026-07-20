@@ -75,7 +75,6 @@ export function CalibrationPanel() {
 
   const handleStartCalibration = useCallback(() => {
     if (!floorId || !buildingId) return
-    toolRegistry?.register(calibrationTool)
     toolRegistry?.activate('calibrate')
   }, [floorId, buildingId, toolRegistry])
 

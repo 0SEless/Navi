@@ -1,0 +1,585 @@
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[browser] Uncaught Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={{...}} forbidden={undefined} unauthorized={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <ClientPageRoot Component={function WelcomePage} serverProvidedParams={{...}}>
+                    <WelcomePage params={Promise} searchParams={Promise}>
+                      <div className="min-h-scre...">
+                        <header>
+                        <main>
+                          <section>
+                          <section>
+                          <section className="mx-auto ma...">
+                            <div className="rounded-xl...">
+                              <h2>
+                              <p className="mt-2 text-slate-500 text-sm">
++                               Detecting your location...
+-                               Location unavailable — Geolocation is not supported by this browser
+                          ...
+                        ...
+                ...
+              ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at p (<anonymous>)
+    at WelcomePage (src/app/page.tsx:156:15)
+  154 |             <h2 className="text-lg font-semibold text-slate-900">Your Location</h2>
+  155 |             {geo.loading ? (
+> 156 |               <p className="mt-2 text-slate-500 text-sm">Detecting your location...</p>
+      |               ^
+  157 |             ) : geo.error ? (
+  158 |               <p className="mt-2 text-slate-500 text-sm">
+  159 |                 Location unavailable &mdash; {geo.error}
+[browser] Each child in a list should have a unique "key" prop.
+
+Check the render method of `WelcomePage`. See https://react.dev/link/warning-keys for more information. 
+[browser] Uncaught Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={{...}} forbidden={undefined} unauthorized={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <ClientPageRoot Component={function WelcomePage} serverProvidedParams={{...}}>
+                    <WelcomePage params={Promise} searchParams={Promise}>
+                      <div className="min-h-scre...">
+                        <header>
+                        <main>
+                          <section>
+                          <section>
+                          <section className="mx-auto ma...">
+                            <div className="rounded-xl...">
+                              <h2>
+                              <p className="mt-2 text-slate-500 text-sm">
++                               Detecting your location...
+-                               Location unavailable — Geolocation is not supported by this browser
+                          ...
+                        ...
+                ...
+              ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at p (<anonymous>)
+    at WelcomePage (src/app/page.tsx:156:15)
+  154 |             <h2 className="text-lg font-semibold text-slate-900">Your Location</h2>
+  155 |             {geo.loading ? (
+> 156 |               <p className="mt-2 text-slate-500 text-sm">Detecting your location...</p>
+      |               ^
+  157 |             ) : geo.error ? (
+  158 |               <p className="mt-2 text-slate-500 text-sm">
+  159 |                 Location unavailable &mdash; {geo.error}
+[browser] Each child in a list should have a unique "key" prop.
+
+Check the render method of `WelcomePage`. See https://react.dev/link/warning-keys for more information. 
+[browser] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489627.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880137/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880140/489627.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880141/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880144/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880138/489627.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880142/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880144/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880144/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880139/489628.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880134/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880135/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880136/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880144/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880145/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880145/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880143/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880132/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880133/489615.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489626.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489625.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489624.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" (src/store/graph-store.ts:257:17)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880125/489623.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880125/489622.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880130/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880131/489616.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489620.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880125/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880129/489617.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489621.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880127/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880128/489618.png
+    at Generator.throw (<anonymous>) (<anonymous>)
+[browser] Error: AJAXError: Failed to fetch (0): https://tile.openstreetmap.org/20/880126/489619.png
+    at Generator.throw (<anonymous>) (<anonymous>)

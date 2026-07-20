@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { RoutingEngine } from '../routing-engine'
-import type { NavigationGraph, NavNode, NavEdge } from '@navi/compiler'
+import type { NavigationGraph, NavNode, NavEdge } from '@navi/core'
 
 // ── Helpers ──
 

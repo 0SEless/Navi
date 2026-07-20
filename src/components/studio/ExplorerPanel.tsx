@@ -7,6 +7,7 @@ import {
   useSelection,
   useEditor,
   useDocumentVersion,
+  useEditingEngine,
 } from '@navi/editor'
 import type { EntityId, EntitySelector } from '@navi/editor'
 import { Explorer } from './Explorer'
@@ -26,6 +27,7 @@ export function ExplorerPanel() {
   const { document, services } = useEditor()
   const selection = useSelection()
   const version = useDocumentVersion()
+  const editEngine = useEditingEngine()
 
   const nodes = useMemo(() => ExplorerAdapter(document), [document, version])
 
@@ -34,16 +36,15 @@ export function ExplorerPanel() {
   const handleRename = useCallback(
     (id: EntityId, newName: string) => {
       const dispatcher = services.get('dispatcher')
-      // Dispatch as a typed Command object — not a magic string.
-      // The codebase's dispatcher.execute takes a structured Command;
-      // `entity.update` renames via the `changes.name` payload.
+      editEngine.begin({ kind: 'rename', entityId: id, name: newName })
+      editEngine.doCommit()
       dispatcher?.execute({
         id: 'entity.update',
         label: 'Rename',
         payload: { entityId: id, changes: { name: newName } },
       })
     },
-    [services],
+    [services, editEngine],
   )
 
   const handleDelete = useCallback(
@@ -52,6 +53,9 @@ export function ExplorerPanel() {
       const node = findNodeById(nodes, id)
       // No delete command exists for the campus root node.
       if (!node || node.type === 'campus') return
+      // Go through Editing Engine first.
+      editEngine.begin({ kind: 'delete', entityIds: [id] })
+      editEngine.doCommit()
       // Each entity type has its own delete command with a type-specific
       // payload key (`<type>Id`), e.g. building.delete → { buildingId }.
       dispatcher?.execute({
@@ -60,7 +64,7 @@ export function ExplorerPanel() {
         payload: { [`${node.type}Id`]: id },
       })
     },
-    [services, nodes],
+    [services, nodes, editEngine],
   )
 
   return (

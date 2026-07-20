@@ -1,5 +1,5 @@
 import type { LatLng } from '@navi/core'
-import type { NavNode } from '@navi/compiler'
+import type { NavNode } from '@navi/core'
 import { GpsResolver } from './gps-resolver'
 
 export interface CurrentPosition {

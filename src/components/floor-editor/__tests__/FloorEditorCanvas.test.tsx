@@ -6,6 +6,10 @@ import type { Building } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
 
 let mockDispatcherExecute = vi.fn()
+let mockGraphComponents: unknown[] = []
+let mockRemoveComponent = vi.fn()
+let mockUpdateComponent = vi.fn()
+let mockSaveGraph = vi.fn()
 
 vi.mock('maplibre-gl', () => {
   class MockLngLatBounds {
@@ -41,13 +45,13 @@ vi.mock('maplibre-gl', () => {
     }
 
     on(event: string, layer?: unknown, handler?: (...args: unknown[]) => void) {
-      const fn = typeof layer === 'function' ? layer : handler!
+      const fn = (typeof layer === 'function' ? layer : handler!) as (...args: unknown[]) => void
       if (!this._handlers[event]) this._handlers[event] = []
       this._handlers[event].push(fn)
     }
 
     off(event: string, layer?: unknown, handler?: (...args: unknown[]) => void) {
-      const fn = typeof layer === 'function' ? layer : handler!
+      const fn = (typeof layer === 'function' ? layer : handler!) as (...args: unknown[]) => void
       if (!this._handlers[event]) return
       this._handlers[event] = this._handlers[event].filter((h) => h !== fn)
     }
@@ -105,6 +109,19 @@ vi.mock('@/hooks/floor-graph-selectors', () => ({
 vi.mock('@navi/editor', () => ({
   useEditor: () => ({ document: {}, services: { get: () => mockDispatcherExecute ? { execute: mockDispatcherExecute } : null }, transformer: { buildingLocalToWorld: () => ({ lat: 0, lng: 0 }), worldToBuildingLocal: () => null } }),
   findBuilding: () => null,
+  useEditingEngine: () => ({
+    snapshot: { operation: null, preview: null, state: 'idle', isDirty: false, geometryDirty: false, metadataDirty: false, compilerDirty: false, assetDirty: false },
+    session: { subscribe: () => () => {}, get version() { return 0 } },
+    begin: vi.fn(),
+    doCommit: vi.fn().mockReturnValue({ committed: true, operation: { kind: 'delete', entityIds: ['test'] }, validationResult: { passed: true, issues: [] } }),
+    execute: vi.fn(),
+    cancel: vi.fn(),
+    clickEmptySpace: vi.fn(),
+    escape: vi.fn(),
+    reset: vi.fn(),
+    preview: vi.fn(),
+    validate: vi.fn().mockReturnValue({ passed: true, issues: [] }),
+  }),
 }))
 
 vi.mock('@/store/graph-store', () => ({
@@ -123,6 +140,8 @@ const building: Building = {
   campusId: 'asu-ibajay',
   floors: [0],
   footprint: [{ lat: 11.8195, lng: 122.0922 }],
+  baseElevation: 0,
+  height: 10,
 }
 
 const layers: LayerVisibility = {

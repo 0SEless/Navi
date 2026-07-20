@@ -21,12 +21,16 @@ export function createGoldenCampus(): CampusDocument {
     id: 'room-101', name: 'Room 101', number: '101', category: 'classroom',
     polygon: { points: [{ x: -5, y: -5 }, { x: 3, y: -5 }, { x: 3, y: 1 }, { x: -5, y: 1 }] },
     entrancePosition: { x: 3, y: -2 }, capacity: 30,
+    roomDoors: [],
+    metadata: {},
   }
 
   const room102: Room = {
     id: 'room-102', name: 'Room 102', number: '102', category: 'classroom',
     polygon: { points: [{ x: 17, y: -5 }, { x: 25, y: -5 }, { x: 25, y: 1 }, { x: 17, y: 1 }] },
     entrancePosition: { x: 17, y: -2 }, capacity: 30,
+    roomDoors: [],
+    metadata: {},
   }
 
   const hallway: Hallway = {
@@ -43,10 +47,13 @@ export function createGoldenCampus(): CampusDocument {
     id: floorId, level: floorLevel, label: 'Floor 1', elevation: 0,
     rooms: [room101, room102], hallways: [hallway],
     staircases: [], elevators: [], entrances: [entrance],
+    connectorStops: [],
+    metadata: {},
   }
 
   const building: Building = {
     id: buildingId, name: 'Building A', code: 'BLA', category: 'academic',
+    description: 'Demo Building A',
     footprint: {
       points: [
         toWorld({ x: -8, y: -8 }), toWorld({ x: 28, y: -8 }),
@@ -54,6 +61,9 @@ export function createGoldenCampus(): CampusDocument {
       ],
     },
     baseElevation: 0, height: 10, floors: [floor], aliases: ['Building Alpha'],
+    verticalConnectors: [],
+    color: '#3B82F6',
+    metadata: {},
   }
 
   return {

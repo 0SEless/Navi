@@ -1,20 +1,81 @@
 {
-  "version": "1.0.0",
+  "schemaVersion": "1.0",
   "campusId": "test-campus",
-  "createdAt": "2026-07-08T00:00:00Z",
   "checksum": "abc",
   "nodes": [
-    { "id": "n1", "label": "Main Entrance", "type": "transition", "position": { "lng": 121.0, "lat": 14.0 }, "floor": 1, "buildingId": "b1", "properties": {} },
-    { "id": "n2", "label": "Hallway A", "type": "corridor", "position": { "lng": 121.0005, "lat": 14.0 }, "floor": 1, "buildingId": "b1", "properties": {} },
-    { "id": "n3", "label": "Room 101", "type": "space", "position": { "lng": 121.001, "lat": 14.0 }, "floor": 1, "buildingId": "b1", "properties": {} },
-    { "id": "n4", "label": "Stairs", "type": "transition", "position": { "lng": 121.0005, "lat": 14.0005 }, "floor": 1, "buildingId": "b1", "properties": {} },
-    { "id": "n5", "label": "Room 201", "type": "space", "position": { "lng": 121.001, "lat": 14.0005 }, "floor": 2, "buildingId": "b1", "properties": {} }
+    {
+      "id": "n1",
+      "type": "transition",
+      "lat": 14,
+      "lng": 121,
+      "floor": 1,
+      "buildingId": "b1"
+    },
+    {
+      "id": "n2",
+      "type": "waypoint",
+      "lat": 14,
+      "lng": 121.0005,
+      "floor": 1,
+      "buildingId": "b1"
+    },
+    {
+      "id": "n3",
+      "type": "waypoint",
+      "lat": 14,
+      "lng": 121.001,
+      "floor": 1,
+      "buildingId": "b1"
+    },
+    {
+      "id": "n4",
+      "type": "transition",
+      "lat": 14.0005,
+      "lng": 121.0005,
+      "floor": 1,
+      "buildingId": "b1"
+    },
+    {
+      "id": "n5",
+      "type": "waypoint",
+      "lat": 14.0005,
+      "lng": 121.001,
+      "floor": 2,
+      "buildingId": "b1"
+    }
   ],
   "edges": [
-    { "id": "e1", "from": "n1", "to": "n2", "type": "walk", "distance": 50, "weight": 50 },
-    { "id": "e2", "from": "n2", "to": "n3", "type": "walk", "distance": 40, "weight": 40 },
-    { "id": "e3", "from": "n2", "to": "n4", "type": "walk", "distance": 40, "weight": 40 },
-    { "id": "e4", "from": "n4", "to": "n5", "type": "stairs", "distance": 10, "weight": 20 }
-  ],
-  "metadata": { "nodeCount": 5, "edgeCount": 4, "buildings": 1, "floors": 2, "boundingBox": { "minLng": 121.0, "maxLng": 121.001, "minLat": 14.0, "maxLat": 14.001 } }
+    {
+      "id": "e1",
+      "from": "n1",
+      "to": "n2",
+      "type": "walk",
+      "distance": 50,
+      "weight": 50
+    },
+    {
+      "id": "e2",
+      "from": "n2",
+      "to": "n3",
+      "type": "walk",
+      "distance": 40,
+      "weight": 40
+    },
+    {
+      "id": "e3",
+      "from": "n2",
+      "to": "n4",
+      "type": "walk",
+      "distance": 40,
+      "weight": 40
+    },
+    {
+      "id": "e4",
+      "from": "n4",
+      "to": "n5",
+      "type": "stairs",
+      "distance": 10,
+      "weight": 20
+    }
+  ]
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { GpsResolver } from '../gps-resolver'
 import { PositionEngine } from '../position-engine'
-import type { NavNode } from '@navi/compiler'
+import type { NavNode } from '@navi/core'
 
 const nodes: NavNode[] = [
   { id: 'n1', label: 'Entrance', type: 'transition', position: { lng: 121.0, lat: 14.0 }, floor: 1, buildingId: 'b1', properties: {} },

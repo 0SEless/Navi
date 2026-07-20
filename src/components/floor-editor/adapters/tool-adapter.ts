@@ -1,6 +1,6 @@
 'use client'
 
-import type { ToolRegistry } from '@navi/editor'
+import type { CurrentToolStore } from '@navi/editor'
 import type { StudioTool } from '@/types/studio-types'
 
 const FLOOR_TOOL_IDS = new Set<string>(['select', 'room', 'entrance', 'stairs', 'elevator', 'hallway'])
@@ -10,17 +10,13 @@ function toStudioTool(id: string | null): StudioTool {
   return 'select'
 }
 
-function toRegistryTool(tool: StudioTool): string {
-  return tool
-}
-
-export function useToolAdapter(toolRegistry: ToolRegistry) {
-  const activeTool = toStudioTool(toolRegistry.activeToolId)
+export function useToolAdapter(toolStore: CurrentToolStore) {
+  const activeTool = toStudioTool(toolStore.activeToolId)
 
   return {
     activeTool,
     activateTool: (tool: StudioTool) => {
-      toolRegistry.activate(toRegistryTool(tool))
+      toolStore.activate(tool)
     },
     isActive: (tool: StudioTool) => activeTool === tool,
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SearchEngine } from '../search-engine'
-import type { SearchIndex } from '@navi/compiler'
+import type { SearchIndex } from '@navi/core'
 
 function makeIndex(entries: SearchIndex['entries']): SearchIndex {
   return { version: '1.0.0', entries }
@@ -64,24 +64,14 @@ describe('SearchEngine', () => {
 
   it('search API works through engine', async () => {
     const { RuntimeEngine } = await import('../../engine/runtime-engine')
-    const { ArtifactLoader } = await import('../../loader/artifact-loader')
-    const { readFileSync } = await import('fs')
     const { resolve } = await import('path')
-
-    const baseUrl = 'file:///fixtures'
-    const fetch = (url: string) => {
-      const filename = url.replace(baseUrl + '/', '')
-      const filePath = resolve(__dirname, '../../../test/fixtures', filename)
-      try {
-        const body = readFileSync(filePath, 'utf-8')
-        return Promise.resolve(new Response(body, { status: 200 }))
-      } catch {
-        return Promise.resolve(new Response('Not found', { status: 404 }))
-      }
-    }
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
-    const results = engine.search.query('Room')
+    const fixturesDir = resolve(__dirname, '../../../test/fixtures')
+    const { load } = await import('../../loader')
+    const result = await load(fixturesDir)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
+    const results = engine.search.search('Room')
     expect(results.length).toBeGreaterThanOrEqual(0)
   })
 })

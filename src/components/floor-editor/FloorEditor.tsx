@@ -1,25 +1,20 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
-import { useEditor } from '@navi/editor'
+import { useEditor, Viewport, CurrentToolStore, ContextHeader, ToolDock, INTERIOR_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError } from '@/hooks/floor-graph-selectors'
 import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
 import { useFloorAdapter } from './adapters/floor-adapter'
 import { useToolAdapter } from './adapters/tool-adapter'
-import type { StudioTool, LayerVisibility } from '@/types/studio-types'
+import type { LayerVisibility } from '@/types/studio-types'
 
 const FloorEditorCanvas = dynamic(
   () => import('./FloorEditorCanvas').then((m) => m.FloorEditorCanvas),
   { ssr: false, loading: () => <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: 12 }}>Loading map…</div> }
 )
-import {
-  MousePointer2, Square, ArrowUpDown, Eye, EyeOff,
-  DoorOpen, CornerUpRight,
-} from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 
 interface FloorEditorProps {
   mapId: string
@@ -27,14 +22,15 @@ interface FloorEditorProps {
   floor: number
 }
 
-const FLOOR_TOOLS: { tool: StudioTool; icon: React.ElementType; label: string; color: string }[] = [
-  { tool: 'select', icon: MousePointer2, label: 'Select', color: '#1C6BEB' },
-  { tool: 'room', icon: Square, label: 'Room', color: '#10B981' },
-  { tool: 'entrance', icon: DoorOpen, label: 'Entrance', color: '#F59E0B' },
-  { tool: 'stairs', icon: ArrowUpDown, label: 'Stairs', color: '#10B981' },
-  { tool: 'elevator', icon: ArrowUpDown, label: 'Elevator', color: '#7C3AED' },
-  { tool: 'hallway', icon: CornerUpRight, label: 'Hallway', color: '#F59E0B' },
-]
+// Map spec tool IDs to current StudioTool IDs (until Phase 6 renames them)
+const TOOL_ID_MAP: Record<string, string> = {
+  select: 'select',
+  space: 'room',
+  hallway: 'hallway',
+  entrance: 'entrance',
+  stair: 'stairs',
+  elevator: 'elevator',
+}
 
 const LAYER_ITEMS: { key: keyof LayerVisibility; label: string }[] = [
   { key: 'floor_plan', label: 'Floor Plan' },
@@ -55,17 +51,60 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const syncStatus = useFloorSyncStatus()
   const syncError = useFloorSyncError()
 
-  const { activeTool, activateTool, isActive } = useToolAdapter(services.get('toolRegistry'))
-  const floorAdapter = useFloorAdapter(viewport, building ?? null, floor)
-  const selectedId = selectionManager?.selectedId ?? null
+  const { activeTool, activateTool } = useToolAdapter(services.get('toolRegistry') as CurrentToolStore)
+  const floorAdapter = useFloorAdapter(viewport as Viewport, building ?? null, floor)
+  const selectedId = selectionManager?.lastSelectedId ?? null
+  const selectedCount = selectionManager?.selectedIds?.size ?? (selectedId ? 1 : 0)
+
+  const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'error' ? 'error' : 'unsaved'
 
   const [layers, setLayers] = useState<LayerVisibility>({
     osm: false, satellite: false, floor_plan: true, buildings: false,
     rooms: true, hallways: true, assets: true, nodes: false, edges: false, labels: true,
   })
 
+  const [panMode, setPanMode] = useState(false)
+
   const toggleLayer = useCallback((key: keyof LayerVisibility) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+
+  const handleToolActivate = useCallback((toolId: string) => {
+    if (toolId === 'pan') {
+      setPanMode((p) => !p)
+      return
+    }
+    setPanMode(false)
+    const mappedId = TOOL_ID_MAP[toolId] || toolId
+    activateTool(mappedId)
+    selectionManager?.clear()
+  }, [activateTool, selectionManager])
+
+  // Find the active tool ID in the groups (reverse mapping)
+  const dockActiveTool = panMode ? 'pan' : Object.entries(TOOL_ID_MAP).find(([, v]) => v === activeTool)?.[0] || activeTool
+
+  useToolDockShortcuts(INTERIOR_TOOL_GROUPS, dockActiveTool, handleToolActivate)
+
+  // Spacebar for temporary pan
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        setPanMode(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setPanMode(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
   }, [])
 
   if (!building) {
@@ -77,43 +116,24 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }
 
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
+  const canvasTool = panMode ? 'select' : activeTool
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{
-        background: 'var(--navi-card)', borderBottom: '1px solid var(--navi-border)',
-        padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-      }}>
-        <Link href={`/studio/${mapId}/edit`} style={{
-          display: 'flex', alignItems: 'center', gap: 4, color: 'var(--navi-text-secondary)',
-          fontSize: 11, textDecoration: 'none', padding: '4px 8px', borderRadius: 4,
-        }}>
-          <ArrowLeft size={14} /> Back to Map
-        </Link>
-        <div style={{ width: 1, height: 22, background: 'var(--navi-border)', margin: '0 4px' }} />
-        <span style={{ color: 'var(--navi-primary)', fontSize: 12, fontWeight: 800, letterSpacing: '0.05em' }}>
-          FLOOR EDITOR
-        </span>
-        <span style={{ fontSize: 11, color: 'var(--navi-text-secondary)' }}>
-          — {building.name} — {floorLabel}
-        </span>
-        <div style={{ flex: 1 }} />
-        {syncStatus === 'syncing' && (
-          <span style={{ fontSize: 10, color: '#F59E0B' }}>Syncing…</span>
-        )}
-        {syncStatus === 'error' && (
-          <span style={{ fontSize: 10, color: '#EF4444' }} title={syncError ?? ''}>Sync failed (saved locally)</span>
-        )}
-        {syncStatus === 'synced' && (
-          <span style={{ fontSize: 10, color: '#10B981' }}>Saved</span>
-        )}
-      </div>
+      <ContextHeader
+        mapId={mapId}
+        buildingName={building?.name ?? ''}
+        floorLabel={floorLabel}
+        status={headerStatus}
+        statusMessage={syncError ?? undefined}
+        selectedCount={selectedCount}
+      />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => selectionManager?.select(id)} />
+        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? selectionManager?.select(id) : selectionManager?.clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={activeTool} layers={layers} selectedId={selectedId} onSelect={(id) => selectionManager?.select(id)} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? selectionManager?.select(id) : selectionManager?.clear()} />
           {!building.floorPlanUrls?.[floor] && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0,
@@ -125,36 +145,15 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
               No floor plan &mdash; components shown on dark background. Upload one in the Building panel.
             </div>
           )}
+          <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
+            <ToolDock groups={INTERIOR_TOOL_GROUPS} activeTool={dockActiveTool} onActivateTool={handleToolActivate} />
+          </div>
         </div>
 
         <div style={{
           width: 220, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0,
         }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Tools
-            </div>
-          </div>
-
-          <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: 2, borderBottom: '1px solid var(--navi-border)' }}>
-            {FLOOR_TOOLS.map(({ tool: t, icon: Icon, label, color }) => (
-              <button key={t} onClick={() => { activateTool(t); selectionManager?.select(null) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6,
-                  border: 'none', cursor: 'pointer',
-                  background: isActive(t) ? `${color}15` : 'transparent',
-                  color: isActive(t) ? color : 'var(--navi-text)', fontSize: 11, textAlign: 'left',
-                }}
-                onMouseEnter={(e) => { if (!isActive(t)) e.currentTarget.style.background = 'var(--navi-content)' }}
-                onMouseLeave={(e) => { if (!isActive(t)) e.currentTarget.style.background = 'transparent' }}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            ))}
-          </div>
-
           <div style={{ padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
               Layers
@@ -182,7 +181,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           </div>
 
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => selectionManager?.select(null)} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => selectionManager?.clear()} />
           )}
         </div>
       </div>

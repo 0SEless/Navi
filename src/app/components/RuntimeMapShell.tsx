@@ -3,8 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { RuntimeEngine, ArtifactLoader } from '@navi/runtime'
-import type { Route, CurrentPosition } from '@navi/runtime'
+import { RuntimeEngine } from '@navi/runtime'
+import type { LoadedPackage, Route, CurrentPosition } from '@navi/runtime'
 import { BlueDot } from './RuntimeMap/BlueDot'
 import { RouteOverlay } from './RuntimeMap/RouteOverlay'
 import { InstructionPanel } from './RuntimeMap/InstructionPanel'
@@ -12,6 +12,12 @@ import { BuildingSelector } from './RuntimeMap/BuildingSelector'
 
 interface Props {
   baseUrl: string
+}
+
+async function fetcher(base: string, file: string) {
+  const res = await fetch(`${base}${file}`)
+  if (!res.ok) throw new Error(`Failed to fetch ${file}: ${res.status}`)
+  return res.json()
 }
 
 export function RuntimeMapShell({ baseUrl }: Props) {
@@ -24,8 +30,25 @@ export function RuntimeMapShell({ baseUrl }: Props) {
   const mapContainer = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const loader = new ArtifactLoader({ baseUrl })
-    RuntimeEngine.create(loader).then(setEngine).catch((e: Error) => setError(e.message))
+    (async () => {
+      try {
+        const [graph, searchIndex, buildingIndex, poiIndex] = await Promise.all([
+          fetcher(baseUrl, 'navigation.graph.json'), fetcher(baseUrl, 'search.index.json'),
+          fetcher(baseUrl, 'building-index.json'), fetcher(baseUrl, 'poi.json'),
+        ])
+        const pkg: LoadedPackage = {
+          manifest: {
+            schemaVersion: '1.0', campusId: '', campusName: '',
+            publishedAt: '', compilerVersion: '', revision: '',
+            artifacts: {}, metadata: { nodeCount: 0, edgeCount: 0, buildingCount: 0, floorCount: 0, boundingBox: { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }, routeable: false },
+          },
+          graph, searchIndex, buildingIndex, poiIndex, reports: [],
+        }
+        setEngine(new RuntimeEngine(pkg))
+      } catch (e: unknown) {
+        setError((e as Error).message)
+      }
+    })()
   }, [baseUrl])
 
   useEffect(() => {

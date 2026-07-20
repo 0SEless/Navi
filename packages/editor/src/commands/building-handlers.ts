@@ -1,6 +1,7 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, BuildingCategory, Floor } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
+import { genId } from '../id'
 
 const defaultBuilding = (id: string, name: string, code: string) => ({
   id,
@@ -12,6 +13,7 @@ const defaultBuilding = (id: string, name: string, code: string) => ({
   baseElevation: 0,
   height: 20,
   floors: [] as Floor[],
+  verticalConnectors: [],
   color: '#4A90D9',
   aliases: [],
   metadata: {},
@@ -22,7 +24,7 @@ export const buildingCreateHandler: CommandHandler = {
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const name = (payload.name as string) || ''
     const code = (payload.code as string) || ''
-    const id = (payload.id as string) || `bld-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const id = (payload.id as string) || genId('bld')
 
     const building = defaultBuilding(id, name, code)
     const footprint = payload.footprint as { points: Array<{ lat: number; lng: number }> } | undefined
@@ -75,6 +77,10 @@ export const buildingDeleteHandler: CommandHandler = {
     if (index === -1) return { success: false, error: `Building not found: ${buildingId}` }
 
     const removed = document.buildings.splice(index, 1)[0]
+
+    // Cascade: remove panoramas and QR checkpoints referencing this building
+    document.panoramas = document.panoramas.filter(p => p.buildingId !== removed.id)
+    document.qrCheckpoints = document.qrCheckpoints.filter(q => q.buildingId !== removed.id)
 
     recordChange(document, { entityId: buildingId, entityType: 'building', operation: 'deleted' })
     return { success: true, entityId: buildingId, data: { removed } }

@@ -33,6 +33,7 @@ export interface Building {
 
   // Structure
   floors: Floor[]
+  verticalConnectors: VerticalConnector[]
 
   // Visual
   color: string  // hex color for map rendering
@@ -45,9 +46,14 @@ export interface Building {
 export interface Floor {
   id: string
   level: number           // 0 = ground, -1 = basement, 1 = second floor
-  label: string           // "Ground Floor", "Mezzanine"
+  label: string           // full display name ("Ground Floor")
+  shortLabel?: string     // compact label ("GF", "1F")
   elevation: number       // meters above building baseElevation
   planImageId?: string    // asset ID of floor plan image
+
+  // Visibility (defaults: visible=true, locked=false)
+  visible?: boolean
+  locked?: boolean
 
   // Spatial features (all in building-local coordinates)
   rooms: Room[]
@@ -55,12 +61,24 @@ export interface Floor {
   staircases: Staircase[]
   elevators: Elevator[]
   entrances: Entrance[]
+  connectorStops: ConnectorStop[]
 
   // Asset references
   textureId?: string
   svgOverlayId?: string
 
   // Metadata
+  metadata: Record<string, unknown>
+}
+
+export interface RoomDoor {
+  id: string
+  roomId: string              // owning room
+  connectedToId: string       // room or hallway ID on the other side
+  connectedToType: 'room' | 'hallway'
+  doorType: 'standard' | 'double' | 'sliding' | 'fire'
+  position: LocalCoord        // wall position of the door
+  width: number               // meters
   metadata: Record<string, unknown>
 }
 
@@ -73,6 +91,7 @@ export interface Room {
   // Geometry in building-local meters
   polygon: LocalPolygon
   entrancePosition?: LocalCoord  // door location on polygon boundary
+  roomDoors: RoomDoor[]
 
   capacity?: number
   metadata: Record<string, unknown>
@@ -101,6 +120,47 @@ export interface Elevator {
   position: LocalCoord     // building-local meters
   fromLevel: number
   toLevel: number
+}
+
+export interface PanoramaAnchor {
+  id: string
+  label: string
+  position: LocalCoord       // building-local meters
+  heading: number            // degrees, initial camera heading
+  imageAssetId: string
+  hotspots: PanoramaHotspot[]  // same structure as top-level Panorama hotspots
+}
+
+export interface QRCodeAnchor {
+  id: string
+  label: string
+  position: LocalCoord     // building-local meters
+  code: string
+  metadata: Record<string, unknown>
+}
+
+export type Anchor = PanoramaAnchor | QRCodeAnchor
+
+export interface ConnectorStop {
+  id: string
+  connectorId: string     // parent VerticalConnector
+  label?: string          // "Landing", "Elevator Lobby"
+  position: LocalCoord    // building-local meters
+  rotation?: number       // facing direction in degrees (instruction generation)
+  landingPolygon?: LocalPolygon
+  connectedHallwayId?: string
+  anchors: Anchor[]       // navigational points of interest; replaces inline panorama/qr
+  accessible: boolean
+  metadata: Record<string, unknown>
+}
+
+export interface VerticalConnector {
+  id: string
+  type: 'staircase' | 'elevator'
+  name: string               // "Stairwell A", "Main Elevator Bank"
+  stopIds: string[]           // ConnectorStop IDs that belong to this connector
+  accessible: boolean
+  metadata: Record<string, unknown>
 }
 
 export interface Entrance {

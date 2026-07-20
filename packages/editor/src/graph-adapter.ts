@@ -5,12 +5,6 @@ import { compileComponent } from '@/engine/component-compiler'
 import type { CompileContext } from '@/engine/component-compiler'
 import type { Component, ComponentType, TracePath, Building as LegacyBuilding, NavNode, NavEdge, LatLng as LegacyLatLng } from '@/types/nav-types'
 
-let _adapterId = 0
-function genId(prefix: string): string {
-  _adapterId++
-  return `${prefix}${String(_adapterId).padStart(4, '0')}`
-}
-
 function coreLatLngToLegacy(p: CoreLatLng): LegacyLatLng {
   return { lat: p.lat, lng: p.lng }
 }
@@ -73,6 +67,19 @@ export class GraphAdapter {
         code: docBuilding.code,
         description: docBuilding.description,
         color: docBuilding.color,
+        department: docBuilding.department,
+        aliases: docBuilding.aliases,
+        metadata: docBuilding.metadata,
+        floorData: docBuilding.floors.map(f => ({
+          id: f.id,
+          level: f.level,
+          label: f.label,
+          elevation: f.elevation,
+          planImageId: f.planImageId,
+          textureId: f.textureId,
+          svgOverlayId: f.svgOverlayId,
+          metadata: f.metadata,
+        })),
       }
       this.graph.addBuilding(legacyBuilding)
 
@@ -102,6 +109,7 @@ export class GraphAdapter {
             position: centerPos,
             polygon: worldPoints,
             dimensions: { width: Math.round(dims.width), height: Math.round(dims.height) },
+            metadata: { number: room.number, capacity: room.capacity, roomMetadata: room.metadata ?? {} },
           })
         }
 
@@ -125,6 +133,7 @@ export class GraphAdapter {
             floor: floor.level,
             position: centerPos,
             polygon: worldPoints,
+            metadata: { width: hw.width, color: hw.color },
           })
         }
 
@@ -142,6 +151,7 @@ export class GraphAdapter {
             floor: floor.level,
             position: coreLatLngToLegacy(world),
             range: { from: st.fromLevel, to: st.toLevel },
+            metadata: { type: st.type },
           })
         }
 
@@ -176,6 +186,69 @@ export class GraphAdapter {
           })
         }
 
+        // ConnectorStops → nodes
+        for (const stop of floor.connectorStops) {
+          if (!this.transformer) continue
+          const world = this.transformer.buildingLocalToWorld(stop.position, docBuilding.id)
+          if (!world) continue
+
+          const stopNode: NavNode = {
+            id: `N-cstop-${stop.id}`,
+            label: stop.label ?? `Connector Stop ${stop.id}`,
+            name: stop.label ?? `Connector Stop ${stop.id}`,
+            type: 'connector_stop',
+            buildingId: docBuilding.id,
+            campusId: this.graph.campusId,
+            floor: floor.level,
+            position: coreLatLngToLegacy(world),
+            metadata: {
+              connectorId: stop.connectorId,
+              rotation: stop.rotation,
+              connectedHallwayId: stop.connectedHallwayId,
+              accessible: stop.accessible,
+            },
+          }
+          this.graph.addNode(stopNode)
+          allCompiledNodes.push(stopNode)
+
+          // Anchors → sub-nodes
+          for (const anchor of stop.anchors) {
+            const anchorPos = this.transformer.buildingLocalToWorld(anchor.position, docBuilding.id)
+            if (!anchorPos) continue
+            if ('heading' in anchor) {
+              const panoNode: NavNode = {
+                id: `N-anchor-pano-${anchor.id}`,
+                label: `Panorama: ${anchor.label}`,
+                name: `Panorama: ${anchor.label}`,
+                type: 'intersection',
+                buildingId: docBuilding.id,
+                campusId: this.graph.campusId,
+                floor: floor.level,
+                position: coreLatLngToLegacy(anchorPos),
+                hasPanorama: true,
+                metadata: { panoramaId: anchor.id, parentStopId: stop.id },
+              }
+              this.graph.addNode(panoNode)
+              allCompiledNodes.push(panoNode)
+            } else {
+              const qrNode: NavNode = {
+                id: `N-anchor-qr-${anchor.id}`,
+                label: `QR: ${anchor.label}`,
+                name: `QR: ${anchor.label}`,
+                type: 'qr_marker',
+                buildingId: docBuilding.id,
+                campusId: this.graph.campusId,
+                floor: floor.level,
+                position: coreLatLngToLegacy(anchorPos),
+                hasQr: true,
+                metadata: { qrCode: anchor.code, qrId: anchor.id, parentStopId: stop.id },
+              }
+              this.graph.addNode(qrNode)
+              allCompiledNodes.push(qrNode)
+            }
+          }
+        }
+
         // Add all components to graph
         for (const comp of floorComponents) {
           this.graph.addComponent(comp)
@@ -206,6 +279,61 @@ export class GraphAdapter {
           }
         }
       }
+
+      // VerticalConnector edges: connect all stops belonging to the same connector
+      const stopNodesMap = new Map<string, NavNode[]>()
+      for (const n of allCompiledNodes) {
+        if (n.type === 'connector_stop') {
+          const cid = n.metadata?.connectorId as string | undefined
+          if (cid) {
+            if (!stopNodesMap.has(cid)) stopNodesMap.set(cid, [])
+            stopNodesMap.get(cid)!.push(n)
+          }
+        }
+      }
+      for (const conn of docBuilding.verticalConnectors) {
+        const stops = stopNodesMap.get(conn.id) ?? []
+        // Sort by floor level to create sequential edges
+        stops.sort((a, b) => a.floor - b.floor)
+        for (let i = 0; i < stops.length - 1; i++) {
+          const edge: NavEdge = {
+            id: `E-vconn-${conn.id}-${stops[i].floor}-${stops[i + 1].floor}`,
+            from: stops[i].id,
+            to: stops[i + 1].id,
+            distance: 0,
+            type: conn.type === 'elevator' ? 'elevator' : 'stair',
+            campusId: this.graph.campusId,
+          }
+          this.graph.addEdge(edge)
+          allCompiledEdges.push(edge)
+        }
+      }
+
+      // RoomDoor edges: connect room nodes to their neighbors
+      const roomNodesMap = new Map<string, NavNode>()
+      for (const n of allCompiledNodes) {
+        if (n.type === 'room') roomNodesMap.set(n.id, n)
+      }
+      for (const floor of docBuilding.floors) {
+        for (const room of floor.rooms) {
+          for (const door of room.roomDoors) {
+            const sourceNode = roomNodesMap.get(door.roomId)
+            const targetNode = roomNodesMap.get(door.connectedToId)
+            if (sourceNode && targetNode) {
+              const edge: NavEdge = {
+                id: `E-door-${door.id}`,
+                from: sourceNode.id,
+                to: targetNode.id,
+                distance: 0,
+                type: 'door',
+                campusId: this.graph.campusId,
+              }
+              this.graph.addEdge(edge)
+              allCompiledEdges.push(edge)
+            }
+          }
+        }
+      }
     }
 
     // 9. Roads → Traces
@@ -227,7 +355,7 @@ export class GraphAdapter {
     // 10. Panoramas → Nodes
     for (const pano of document.panoramas) {
       const node: NavNode = {
-        id: genId('N'),
+        id: `N-pano-${pano.id}`,
         label: `Panorama: ${pano.label}`,
         name: `Panorama: ${pano.label}`,
         type: 'intersection',
@@ -244,7 +372,7 @@ export class GraphAdapter {
     // 11. QR Checkpoints → Nodes
     for (const qr of document.qrCheckpoints) {
       const node: NavNode = {
-        id: genId('N'),
+        id: `N-qr-${qr.id}`,
         label: `QR: ${qr.label}`,
         name: `QR: ${qr.label}`,
         type: 'qr_marker',
@@ -253,7 +381,7 @@ export class GraphAdapter {
         floor: qr.floor,
         position: coreLatLngToLegacy(qr.position),
         hasQr: true,
-        metadata: { qrCode: qr.code },
+        metadata: { qrCode: qr.code, qrId: qr.id, qrMetadata: qr.metadata },
       }
       this.graph.addNode(node)
     }

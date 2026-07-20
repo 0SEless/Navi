@@ -1,128 +1,109 @@
-# M3.2.2 Wave B — Document Migration
+# M3.2.2 UX Architecture Alignment
 
-## Prerequisites
-- M3.2.2 Wave A complete (selectors exist, all components import from selectors)
-- `CoordinateTransformer` from `@navi/core` understands `buildingLocalToWorld` / `worldToBuildingLocal`
-- All 896 tests pass
+## Phase Order
 
----
+```
+✅ Phase 1   — Building Inspector Redesign (done)
+✅ Phase 2   — Floor Manager Dialog (done)
+✅ Phase 3   — Context Header (done)
+✅ Phase 4   — Tool Dock (done)
+⬜ Phase 4.5 — Editing Engine (current) — states, lifecycle, operations, selection, validation
+⬜ Phase 4.6 — Engine Integration Verification — prove every mutation flows through the engine
+⬜ Phase 5   — Bridge Validation
+⬜ Phase 5.5 — Compiler Integration — dirty flags, incremental triggers, build status, autosave→compiler flow
+⬜ Phase 6   — Terminology Migration
+```
 
-## T1 — Fix createDocument + register CoordinateTransformer service
+See spec/M3.2.2-P4.5-EDITING-ENGINE.md for the current phase.
 
-**Description:** The document currently stores rooms/hallways with empty geometry. Fix this by extracting entity data from `graph.components` during document creation, converting world→local coords via CoordinateTransformer. Also register the transformer as an editor service.
+## Guiding Principles
 
-**Files to touch:**
-- `packages/editor/src/context/create-editor-context.ts`
+1. **Design first, implementation second.** Every phase starts with a written spec.
+2. **Editing Engine before compiler integration.** Phase 4.5 defines the lifecycle and dirty flags that Phase 5.5 depends on.
+3. **Compiler integration after bridge validation.** Bridge Validation (Phase 5) is one tier of compiler validation — Phase 5.5 completes the pipeline.
+4. **Terminology migration last.** Room→Space, FloorEditor→InteriorEditor only after architecture is frozen.
 
-**Changes:**
-1. Create `CoordinateTransformer` at the start of `createEditorContext`
-2. Register building-local systems from graph building footprints (compute centroid + rotation)
-3. Pass transformer to `createDocument()` 
-4. In `createDocument(graph, transformer?)`: for each building floor, match `graph.components` by buildingId+floor+type, convert polygon/polyline/position world→local via `transformer.worldToBuildingLocal()`, populate the document entity
-5. Register transformer in service registry as `'transformer'`
+## Ownership Map
 
-**Acceptance:** `createEditorContext().document.buildings[].floors[].rooms[].polygon.points` has local-coord data (not empty).
+| Layer | Owned by | |
+|-------|----------|---|
+| Campus | Campus Workspace | Building placement, roads, outdoor graph |
+| Building Interior | Interior Editor | Rooms/spaces, hallways, indoor entities |
+| Navigation Compilation | Graph Compiler | Graph assembly, validation, artifact output |
 
----
+No layer edits compiled routing artifacts directly.
 
-## T2 — Update selectors to read from CampusDocument
+## Phase 4.5 Implementation Strategy
 
-**Description:** Replace `useGraphStore` reads in `floor-graph-selectors.ts` with `useEditor()` + `useDocumentSelector()`. Convert document entities (LocalCoord) back to Component[] shape (LatLng) via CoordinateTransformer for backward compat with canvas render code.
+Build from the inside out, not top-to-bottom.
 
-**Files to touch:**
-- `src/hooks/floor-graph-selectors.ts`
+### Stage A — Editing Engine Core (framework-agnostic library)
 
-**Changes:**
-1. Import `useEditor` from `@navi/editor`, `useDocumentSelector` from `@navi/editor`, `CoordinateTransformer` from `@navi/core`
-2. `useFloorComponents(buildingId, floor)`: use `useDocumentSelector` to get building floor's rooms + hallways, convert LocalPolygon→LatLng[] via `transformer.buildingLocalToWorld()`, return `Component[]`
-3. `useFloorComponent(id)`: use `findEntity(document, id)` + convert geometry
-4. `useFloorComponentsAll(buildingId)`: same as #2 but aggregate all floors
-5. `useFloorRenderVersion()` → `useDocumentVersion()`
-6. `useFloorCampusId()` → read from document
-7. `useFloorSyncStatus/Error`: Keep as-is (sync is unrelated to document)
-8. `useLegacyBuilding(buildingId)` → `useBuilding(buildingId)` from `@navi/editor`
-9. `useFloorPlanUrls()` → build from document floor planImageIds
-10. `countFloorComponents()`, `findGraphBuilding()`: one-shot reads from document via `useEditor().getState()` equivalent
-11. Remove `useGraphStore` import entirely
+Location: `packages/editing-engine/` — zero knowledge of React, Zustand, MapLibre, canvas, or panels.
 
-**Critical:** CoordinateTransformer must be accessed via `useEditor().services.get('transformer')`. The selector functions need to handle the case where transformer is null gracefully (return empty array).
+Build subsystems in dependency order:
 
-**Acceptance:** Same `Component[]` shape returned with correct world-coordinate polygons matching previous graph-store output.
+```
+1. EditingStateMachine   ← everything depends on it
+2. SelectionModel         ← independent, fully testable immediately
+3. DirtyTracker           ← independent, very small
+4. Editing Operations     ← describe intent, don't mutate directly
+   Create, Move, Resize, Rename, Delete...
+5. ValidationPipeline     ← consumes operations, returns results
+6. EditingSession         ← orchestrator: state → operation → validation → command → dirty tracker
+```
 
----
+### Stage B — Adapter Layer (React wiring)
 
-## T3 — FloorEditorCanvas dispatches commands
+```text
+useEditingEngine()
+        │
+EditingSession
+        │
+existing CommandBus
+        │
+CampusDocument
+```
 
-**Description:** Replace all graph-store write calls in FloorEditorCanvas with command dispatches.
+If Stage A is good, Stage B is mostly wiring. The React hook is a thin consumer, not the owner.
 
-**Files to touch:**
-- `src/components/floor-editor/FloorEditorCanvas.tsx`
+### Stage C — Tool Migration (one at a time)
 
-**Changes:**
-1. Remove `useGraphStore` import
-2. Import `useEditor` from `@navi/editor`
-3. Replace `removeComponent(componentId)` → `services.get('dispatcher').execute({ id: 'room.delete'|'hallway.delete'|..., label: ..., payload: { ... } })`
-4. Replace `updateComponent(componentId, partial)` → `services.get('dispatcher').execute({ id: 'entity.update', label: 'Update Entity', payload: { entityId, changes } })`
-5. Handle edge cases: determine command type based on component type field
+- Room Tool → `begin(Create)`
+- Hallway Tool → `begin(Create)`
+- Move → `begin(Move)`
+- Vertex drag → `begin(Resize)`
+- Delete → `begin(Delete)`
 
-**Acceptance:** No more useGraphStore calls in canvas file. All mutations go through dispatcher.
+### Stage D — Remove old interaction code
 
----
+Strangler Fig pattern — only remove after all tools migrated.
 
-## T4 — useFloorDrawing dispatches commands
+## Phase 4.6 — Engine Integration Verification (hard gate)
 
-**Description:** Replace graph-store write calls in useFloorDrawing.
+Do not start Phase 5 until every mutation flows through the engine.
 
-**Files to touch:**
-- `src/components/floor-editor/useFloorDrawing.ts`
+Checklist:
 
-**Changes:**
-1. Replace `addComponentWithPolygon({type:'room', polygon, ...})` → `dispatcher.execute({ id: 'room.create', label: 'Create Room', payload: { buildingId, floorId, name, points: localPolygon } })`
-2. Replace `updateBuilding(buildingId, patch)` → `dispatcher.execute({ id: 'building.update', ... })`
-3. Remove `save()` calls
-4. Use `useEditor()` to get dispatcher and document
+- [ ] Create Space
+- [ ] Delete Space
+- [ ] Move Space
+- [ ] Resize Space
+- [ ] Rename Space
+- [ ] Assign Properties
+- [ ] Create Hallway
+- [ ] Create Entrance
+- [ ] Undo
+- [ ] Redo
+- [ ] Autosave
+- [ ] Dirty flags set correctly
+- [ ] Validation runs at correct tier
+- [ ] Compiler dirty propagation
 
-**Acceptance:** Room creation dispatches `room.create` command.
+Every row must show PASS before Phase 5 begins.
 
----
+## Process Rule (Architecture Freeze)
 
-## T5 — FloorOutliner dispatches commands
+> No implementation may introduce a new architectural concept without first updating or adding an ADR.
 
-**Description:** Replace graph-store write calls in FloorOutliner.
-
-**Files to touch:**
-- `src/components/floor-editor/FloorOutliner.tsx`
-
-**Changes:**
-1. Replace `removeComponent(id)` → determine entity type from component and dispatch appropriate delete command
-2. Remove `save()` calls
-3. Use `useEditor()` for dispatcher
-
-**Acceptance:** Entity deletion dispatches delete commands.
-
----
-
-## T6 — ComponentProperties dispatches commands
-
-**Description:** Replace graph-store write calls in ComponentProperties.
-
-**Files to touch:**
-- `src/components/floor-editor/ComponentProperties.tsx`
-
-**Changes:**
-1. Replace `updateComponent(id, changes)` → `dispatcher.execute({ id: 'entity.update', ... })`
-2. Replace `removeComponent(id)` → delete command
-3. Replace `updateBuilding(id, changes)` → `dispatcher.execute({ id: 'building.update', ... })`
-4. Remove `save()` calls
-5. Use `useEditor()` for dispatcher
-
-**Acceptance:** Property updates and deletions dispatch commands.
-
----
-
-## Verification
-
-Each task must pass:
-1. `npx tsc --noEmit` — no new type errors in changed files
-2. `npx vitest run` — all 896+ tests pass
-3. No regressions in FloorEditor interaction
+This does not mean every feature needs an ADR. It means: if you are tempted to invent a new subsystem, bypass a boundary, or change ownership, stop and document the architectural decision first.

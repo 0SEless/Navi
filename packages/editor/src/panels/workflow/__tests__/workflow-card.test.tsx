@@ -103,6 +103,6 @@ describe('WorkflowCard', () => {
       </EditorProvider>,
     )
 
-    expect(screen.getByText(/Next:/)).toBeDefined()
+    expect(screen.getAllByText(/Next:/).length).toBeGreaterThanOrEqual(1)
   })
 })

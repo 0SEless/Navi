@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine } from '@navi/editor'
 import { useFloorComponent } from '@/hooks/floor-graph-selectors'
 
 const DEFAULT_ROOM_WIDTH = 4
@@ -16,6 +16,7 @@ interface ComponentPropertiesProps {
 export function ComponentProperties({ componentId, onClose }: ComponentPropertiesProps) {
   const component = useFloorComponent(componentId)
   const dispatcher = useEditor().services.get('dispatcher')!
+  const editEngine = useEditingEngine()
 
   const [name, setName] = useState(component?.name ?? '')
   const [width, setWidth] = useState(component?.dimensions?.width ?? DEFAULT_ROOM_WIDTH)
@@ -31,14 +32,20 @@ export function ComponentProperties({ componentId, onClose }: ComponentPropertie
 
   const handleSave = () => {
     const changes: Record<string, unknown> = { name }
+    if (isEntrance) {
+      changes.label = name
+    }
+    editEngine.begin({ kind: 'rename', entityId: component.id, name })
+    editEngine.doCommit()
     if (isRoom) {
       changes.dimensions = { width, height }
+      editEngine.begin({ kind: 'assign', entityId: component.id, property: 'dimensions', value: changes.dimensions })
+      editEngine.doCommit()
     }
     if (isStairOrElevator) {
       changes.range = { from: rangeFrom, to: rangeTo }
-    }
-    if (isEntrance) {
-      changes.label = name
+      editEngine.begin({ kind: 'assign', entityId: component.id, property: 'range', value: changes.range })
+      editEngine.doCommit()
     }
     dispatcher.execute({
       id: 'entity.update',
@@ -48,6 +55,8 @@ export function ComponentProperties({ componentId, onClose }: ComponentPropertie
   }
 
   const handleDelete = () => {
+    editEngine.begin({ kind: 'delete', entityIds: [component.id] })
+    editEngine.doCommit()
     const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[component.type]
     const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[component.type]
     if (cmdId && payloadKey) {

@@ -8,7 +8,7 @@ import type { Graph } from '@/engine/graph'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
 import { SRC, HIDDEN_NODE_TYPES, LYR } from './constants'
-import { addGraphSourcesAndLayers } from './layers'
+import { addSourcesAndLayers } from './layers'
 import { buildNodeGeo, buildConnectionNodeGeo, buildEdgeGeo } from './geojson'
 
 // ── Base map styles ───────────────────────────────────────────────
@@ -68,7 +68,7 @@ export function getInitialMapStyle() {
  * Floor-filtered. Owned by NavigationGraphRenderer (ADR 004).
  */
 function renderGraph(map: maplibregl.Map, graph: Graph, activeFloor: number) {
-  addGraphSourcesAndLayers(map)
+  addSourcesAndLayers(map)
 
   const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
   const filteredEdges = graph.edges.filter((e: NavEdge) => {

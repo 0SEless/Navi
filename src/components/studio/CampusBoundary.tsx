@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
+import { genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 
@@ -122,7 +123,7 @@ export function useCampusBoundary(
     const handleDblClick = () => {
       if (pointsRef.current.length < 3) return
       const result: BoundaryPolygon = {
-        id: `campus-boundary-${Date.now()}`,
+        id: genId('campus-boundary'),
         points: [...pointsRef.current],
       }
       onCompleteRef.current?.(result)

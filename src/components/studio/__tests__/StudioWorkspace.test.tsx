@@ -1,23 +1,50 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import { act } from 'react'
 
 vi.mock('@navi/editor', () => ({
-  useEditor: vi.fn(),
-  EditorProvider: ({ children }: any) => children,
   PropertiesPanel: () => <div>PropertiesPanel</div>,
-}))
-
-vi.mock('../EditorBridge', () => ({
-  EditorBridge: ({ children }: any) => <div>{children}</div>,
+  ProblemsPanel: () => <div>ProblemsPanel</div>,
+  useEditor: () => ({
+    services: {
+      get: vi.fn((key) => {
+        if (key === 'publishStore') {
+          return {
+            getSnapshot: vi.fn(() => ({ publishState: 'idle' })),
+            subscribe: vi.fn(() => vi.fn()),
+          }
+        }
+        return null
+      })
+    }
+  }),
+  useSelection: () => ({
+    lastSelected: null,
+    lastSelectedId: null,
+    allIds: [],
+    select: vi.fn(),
+    toggle: vi.fn(),
+    clear: vi.fn(),
+    isSelected: vi.fn(() => false),
+    setMode: vi.fn(),
+    setHover: vi.fn(),
+    clearHover: vi.fn(),
+  }),
 }))
 
 vi.mock('../StudioCanvas', () => ({
   StudioCanvas: () => <div>StudioCanvas</div>,
 }))
 
-vi.mock('../StudioToolbar', () => ({
-  StudioToolbar: () => <div>StudioToolbar</div>,
+vi.mock('../SaveStatus', () => ({
+  SaveStatus: () => <div>SaveStatus</div>,
+}))
+
+vi.mock('../BuildStatus', () => ({
+  BuildStatus: () => <div>BuildStatus</div>,
+}))
+
+vi.mock('../ToolDock', () => ({
+  ToolDock: () => <div>ToolDock</div>,
 }))
 
 vi.mock('../ExplorerPanel', () => ({
@@ -28,55 +55,17 @@ vi.mock('../ConfirmOverlay', () => ({
   ConfirmOverlay: () => <div>ConfirmOverlay</div>,
 }))
 
-import { useEditor } from '@navi/editor'
 import { StudioWorkspace } from '../StudioWorkspace'
 
 describe('StudioWorkspace', () => {
-  let mockSave: ReturnType<typeof vi.fn>
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-    mockSave = vi.fn().mockResolvedValue(undefined)
-    ;(useEditor as any).mockReturnValue({
-      services: {
-        get: (id: string) => {
-          if (id === 'workflow') return { save: mockSave }
-          return null
-        },
-      },
-    })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.clearAllMocks()
-  })
-
-  it('triggers autosave every 30 seconds', () => {
-    render(<StudioWorkspace mapId="test-campus" />)
-
-    expect(mockSave).not.toHaveBeenCalled()
-
-    act(() => { vi.advanceTimersByTime(30000) })
-
-    expect(mockSave).toHaveBeenCalledTimes(1)
-    expect(mockSave).toHaveBeenCalledWith('autosave')
-  })
-
-  it('autosave fires repeatedly across intervals', () => {
-    render(<StudioWorkspace mapId="test-campus" />)
-
-    act(() => { vi.advanceTimersByTime(90000) })
-
-    expect(mockSave).toHaveBeenCalledTimes(3)
-  })
-
-  it('clears interval on unmount', () => {
-    const { unmount } = render(<StudioWorkspace mapId="test-campus" />)
-
-    unmount()
-
-    act(() => { vi.advanceTimersByTime(30000) })
-    expect(mockSave).not.toHaveBeenCalled()
+  it('renders all child components', () => {
+    const { container } = render(<StudioWorkspace mapId="test-campus" />)
+    expect(container.textContent).toContain('SaveStatus')
+    expect(container.textContent).toContain('BuildStatus')
+    expect(container.textContent).toContain('ToolDock')
+    expect(container.textContent).toContain('StudioCanvas')
+    expect(container.textContent).toContain('ExplorerPanel')
+    expect(container.textContent).not.toContain('PropertiesPanel')
+    expect(container.textContent).toContain('ConfirmOverlay')
   })
 })

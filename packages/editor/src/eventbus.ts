@@ -13,6 +13,7 @@ export type EditorEventType =
   | 'document.loaded'
   | 'document.saved'
   | 'document.changed'
+  | 'revision.committed'
   | 'transaction.begin'
   | 'transaction.end'
   | 'transaction.flush'
@@ -60,6 +61,10 @@ export interface DocumentEventPayload {
   timestamp?: string
 }
 
+export interface RevisionCommittedPayload {
+  version: number
+}
+
 export interface TransactionFlushPayload {
   queuedEvents: number
 }
@@ -70,6 +75,7 @@ export type EditorEventPayload =
   | ToolEventPayload
   | ViewportEventPayload
   | DocumentEventPayload
+  | RevisionCommittedPayload
   | TransactionFlushPayload
 
 export type EditorEventHandler = (payload: any) => void

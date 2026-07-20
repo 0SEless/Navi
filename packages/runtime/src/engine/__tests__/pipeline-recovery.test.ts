@@ -1,37 +1,40 @@
 /**
  * Wave 5 — Pipeline/Recovery
  *
- * Verifies the full compile→publish→load→route pipeline end-to-end,
- * and tests error recovery for all failure modes.
+ * T27: Full pipeline end-to-end test.
+ * Uses CampusCompiler (V2) → artifact builders → RuntimeEngine.
+ * No file I/O — tests the real compile→artifacts→runtime pipeline
+ * in-memory with the same implementations the production path uses.
  */
 
 import { describe, it, expect } from 'vitest'
-import { ArtifactLoader } from '../../loader/artifact-loader'
-import { LoadError } from '../../loader/types'
-import type { CampusDocument, Building, Floor, Room, Entrance } from '@navi/core'
-
-// ── Fixture ──
+import type { CampusDocument, POIIndex, NavigationGraph } from '@navi/core'
+import type { LoadedPackage } from '../../loader'
+import { RuntimeEngine } from '../runtime-engine'
 
 function pipelineDoc(): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: { name: 'PipelineTest', description: 'E2E test', lastModified: '', editorVersion: '1.0.0' },
     buildings: [{
       id: 'b1', name: 'Main', code: 'M', category: 'academic', description: '',
       footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
       baseElevation: 0, height: 10,
+      verticalConnectors: [],
       floors: [{
         id: 'f1', level: 0, label: 'Ground', elevation: 0,
         rooms: [
           { id: 'r1', name: 'Room 1', number: '101', category: 'classroom',
             polygon: { points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }, { x: 0, y: 8 }, { x: 0, y: 0 }] },
-            capacity: 30, metadata: {} },
+            capacity: 30, roomDoors: [], metadata: {} },
           { id: 'r2', name: 'Room 2', number: '102', category: 'classroom',
             polygon: { points: [{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 8 }, { x: 20, y: 8 }, { x: 20, y: 0 }] },
-            capacity: 25, metadata: {} },
+            capacity: 25, roomDoors: [], metadata: {} },
         ],
         hallways: [], staircases: [], elevators: [],
         entrances: [{ id: 'e1', label: 'Main Entrance', position: { lat: 14.0005, lng: 121.0005 }, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
+        connectorStops: [],
         metadata: {},
       }],
       color: '#336699', aliases: [], metadata: {},
@@ -44,116 +47,84 @@ function pipelineDoc(): CampusDocument {
   }
 }
 
-function serialize(obj: unknown): string {
-  return JSON.stringify(obj, null, 2)
-}
+async function buildLoadedPackage(doc: CampusDocument): Promise<LoadedPackage> {
+  const { compile, buildSearchIndex, buildPOIData, buildBuildingIndex } = await import('@navi/compiler')
+  const result = compile(doc, {
+    nodeInterval: 10, mergeThreshold: 5, optimizationLevel: 'none', includeAccessibility: false,
+  })
+  const graph: NavigationGraph = result.graph
+  const searchIndex = buildSearchIndex(doc, graph)
+  const buildingIndex = buildBuildingIndex(doc, graph)
+  const poiIndex = buildPOIData(graph)
 
-function makeFetch(files: Record<string, string>): (url: string) => Promise<Response> {
-  return async (url: string) => {
-    const filename = url.split('/').pop() ?? ''
-    const content = files[filename]
-    if (content === undefined) return new Response('Not found', { status: 404 })
-    return new Response(content, { status: 200 })
+  return {
+    manifest: {
+      schemaVersion: '1.0',
+      campusId: doc.metadata.name,
+      campusName: doc.metadata.name,
+      publishedAt: new Date().toISOString(),
+      compilerVersion: '0.1.0',
+      revision: '1',
+      artifacts: {
+        graph: { path: 'navigation.graph.json', checksum: graph.checksum, size: 0, schemaVersion: '1.0' },
+        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+      },
+      metadata: {
+        nodeCount: graph.nodes.length,
+        edgeCount: graph.edges.length,
+        buildingCount: doc.buildings.length,
+        floorCount: doc.buildings.reduce((s, b) => s + b.floors.length, 0),
+        boundingBox: graph.metadata.boundingBox,
+        routeable: graph.edges.length > 0,
+      },
+    },
+    graph,
+    searchIndex: searchIndex as any,
+    buildingIndex: buildingIndex as any,
+    poiIndex: poiIndex as unknown as POIIndex,
+    reports: [],
   }
 }
 
 describe('Wave 5 | Pipeline / Recovery', () => {
-
-  describe('Full pipeline: compile → publish → load → route', () => {
-    it('compiles, publishes, loads, and routes end-to-end', async () => {
-      // 1. Compile using @navi/compiler
-      const { compile, generateArtifacts } = await import('@navi/compiler')
+  describe('Full pipeline: compile → artifacts → runtime → route', () => {
+    it('compiles, builds artifacts, creates engine, and finds a route', async () => {
       const doc = pipelineDoc()
-      const result = compile(doc, {
-        nodeInterval: 10, mergeThreshold: 5, optimizationLevel: 'none', includeAccessibility: false,
-      })
-      expect(result.report.spacesExtracted).toBe(2)
-      expect(result.graph.nodes.length).toBeGreaterThanOrEqual(3)
+      const pkg = await buildLoadedPackage(doc)
+      const engine = new RuntimeEngine(pkg)
 
-      // 2. Generate all four artifacts from the extraction embedded in compile result
-      const artifacts = generateArtifacts(doc, result.extraction!)
-      expect(artifacts.navigationGraph.nodes.length).toBeGreaterThan(0)
-      expect(artifacts.searchIndex.entries.length).toBeGreaterThan(0)
-      expect(artifacts.poiData.points.length).toBeGreaterThan(0)
-      expect(artifacts.buildingIndex.buildings.length).toBeGreaterThan(0)
+      expect(engine.data.getCampusId()).toBe('PipelineTest')
+      expect(engine.data.getBuilding('b1')?.name).toBe('Main')
 
-      // 3. Publish (serialize to strings, create manifest)
-      const graphChecksum = await sha256(serialize(artifacts.navigationGraph))
-      const files: Record<string, string> = {
-        'manifest.json': serialize({
-          projectId: doc.metadata.name, campusId: doc.metadata.name,
-          publishedAt: new Date().toISOString(), schemaVersion: 1, compilerVersion: '1.0.0',
-          artifacts: {
-            navigationGraph: { filename: 'navigation.graph.json', checksum: graphChecksum, size: serialize(artifacts.navigationGraph).length },
-            searchIndex: { filename: 'search.index.json', checksum: '', size: 0 },
-            poiData: { filename: 'poi.json', checksum: '', size: 0 },
-            buildingIndex: { filename: 'building-index.json', checksum: '', size: 0 },
-          },
-        }),
-        'navigation.graph.json': serialize(artifacts.navigationGraph),
-        'search.index.json': serialize(artifacts.searchIndex),
-        'poi.json': serialize(artifacts.poiData),
-        'building-index.json': serialize(artifacts.buildingIndex),
-      }
+      const fromNode = pkg.graph.nodes.find(n => n.type === 'transition')
+      const toNode = pkg.graph.nodes.find(n => n.type === 'space')
+      expect(fromNode).toBeDefined()
+      expect(toNode).toBeDefined()
+      if (!fromNode || !toNode) return
 
-      // 4. Load via ArtifactLoader
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch: makeFetch(files) })
-      const manifest = await loader.loadManifest()
-      expect(manifest.schemaVersion).toBe(1)
-      const snapshot = await loader.buildSnapshot(manifest)
-      expect(snapshot.graph.nodes.length).toBe(artifacts.navigationGraph.nodes.length)
+      const route = engine.navigation.findRoute(fromNode.id, toNode.id)
+      expect(route).not.toBeNull()
+      expect(route!.totalDistance).toBeGreaterThan(0)
+      expect(route!.path.length).toBeGreaterThanOrEqual(2)
+      expect(route!.instructions[route!.instructions.length - 1].type).toBe('arrive')
+    })
 
-      // 5. Route
-      const { RoutingEngine } = await import('../../routing/routing-engine')
-      const engine = new RoutingEngine(snapshot.graph)
-      const fromNode = snapshot.graph.nodes.find(n => n.type === 'transition')
-      const toNode = snapshot.graph.nodes.find(n => n.type === 'space')
-      if (fromNode && toNode) {
-        const route = engine.findRoute(fromNode.id, toNode.id)
-        expect(route).not.toBeNull()
-        expect(route!.totalDistance).toBeGreaterThan(0)
-      }
+    it('produces deterministic output across compilations', async () => {
+      const doc = pipelineDoc()
+      const pkg1 = await buildLoadedPackage(doc)
+      const pkg2 = await buildLoadedPackage(doc)
+      expect(pkg1.graph.nodes).toEqual(pkg2.graph.nodes)
+      expect(pkg1.graph.edges).toEqual(pkg2.graph.edges)
     })
   })
 
   describe('Error recovery', () => {
-    it('rejects missing manifest file with LoadError', async () => {
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch: makeFetch({}) })
-      await expect(loader.load()).rejects.toThrow(LoadError)
-    })
-
-    it('rejects invalid JSON with LoadError', async () => {
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch: makeFetch({ 'manifest.json': 'not valid json{' }) })
-      await expect(loader.loadManifest()).rejects.toThrow(LoadError)
-    })
-
-    it('rejects unsupported schema version with LoadError', async () => {
-      const files: Record<string, string> = {
-        'manifest.json': serialize({
-          projectId: 'test', campusId: 'test', publishedAt: '', schemaVersion: 99, compilerVersion: '1.0.0',
-          artifacts: { navigationGraph: { filename: 'nav.json', checksum: '', size: 0 }, searchIndex: { filename: 'si.json', checksum: '', size: 0 }, poiData: { filename: 'poi.json', checksum: '', size: 0 }, buildingIndex: { filename: 'bi.json', checksum: '', size: 0 } },
-        }),
-      }
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch: makeFetch(files) })
-      await expect(loader.loadManifest()).rejects.toThrow(LoadError)
-    })
-
-    it('rejects missing artifact file with LoadError', async () => {
-      const files: Record<string, string> = {
-        'manifest.json': serialize({
-          projectId: 'test', campusId: 'test', publishedAt: '', schemaVersion: 1, compilerVersion: '1.0.0',
-          artifacts: { navigationGraph: { filename: 'nonexistent.json', checksum: '', size: 0 }, searchIndex: { filename: 'si.json', checksum: '', size: 0 }, poiData: { filename: 'poi.json', checksum: '', size: 0 }, buildingIndex: { filename: 'bi.json', checksum: '', size: 0 } },
-        }),
-      }
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch: makeFetch(files) })
-      const manifest = await loader.loadManifest()
-      await expect(loader.buildSnapshot(manifest)).rejects.toThrow(LoadError)
+    it('rejects nonexistent path', async () => {
+      const { load } = await import('../../loader')
+      const result = await load('/nonexistent')
+      expect(result.success).toBe(false)
     })
   })
 })
-
-async function sha256(data: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(data))
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
-}

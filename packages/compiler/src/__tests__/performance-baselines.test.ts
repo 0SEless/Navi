@@ -24,6 +24,7 @@ function makeRoom(id: string, name: string, x: number, y: number): Room {
     id, name, number: id.replace(/\D/g, ''),
     category: 'classroom',
     polygon: { points: [{ x, y }, { x: x + 8, y }, { x: x + 8, y: y + 6 }, { x, y: y + 6 }, { x, y }] },
+    roomDoors: [],
     capacity: 30, metadata: {},
   }
 }
@@ -35,7 +36,7 @@ function makeEntrance(id: string, label: string, lat: number, lng: number): Entr
 function makeFloor(id: string, level: number, rooms: Room[], entrance: Entrance): Floor {
   return {
     id, level, label: `Floor ${level}`, elevation: level * 3,
-    rooms, hallways: [], staircases: [], elevators: [], entrances: [entrance], metadata: {},
+    rooms, hallways: [], staircases: [], elevators: [], entrances: [entrance], connectorStops: [], metadata: {},
   }
 }
 
@@ -43,7 +44,7 @@ function makeBuilding(id: string, name: string, baseLat: number, baseLng: number
   return {
     id, name, code: id.toUpperCase(), category: 'academic', description: '',
     footprint: { points: [{ lat: baseLat, lng: baseLng }, { lat: baseLat, lng: baseLng + 0.01 }, { lat: baseLat + 0.01, lng: baseLng + 0.01 }, { lat: baseLat + 0.01, lng: baseLng }, { lat: baseLat, lng: baseLng }] },
-    baseElevation: 0, height: 15, floors, color: '#ccc', aliases: [], metadata: {},
+    baseElevation: 0, height: 15, floors, verticalConnectors: [], color: '#ccc', aliases: [], metadata: {},
   }
 }
 
@@ -66,6 +67,7 @@ function makeDoc(numBuildings: number, floorsPerBuilding: number, roomsPerFloor:
   }
   return {
     schemaVersion: 1,
+    version: 1,
     metadata: { name: `Perf-${numBuildings}b-${floorsPerBuilding}f-${roomsPerFloor}r`, description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings, roads: [], panoramas: [], qrCheckpoints: [],
   }

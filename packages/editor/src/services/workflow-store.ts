@@ -4,7 +4,7 @@ import type { CompileResult } from './navigation-compiler'
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success'
 
-export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'dirty' | 'dirty-while-saving'
 
 export interface ValidationResult {
   passed: number
@@ -138,7 +138,11 @@ export class WorkflowStore {
 
   setLastSaveVersion(version: number): void {
     this._lastSaveVersion = version
-    // No commit needed — lastSaveVersion is read synchronously by isDirty()
+    // Invalidate the cached snapshot so the next getSnapshot() call (used by
+    // isDirty()) sees the updated lastSaveVersion. Without this, the snapshot
+    // would remain stale and the document would appear permanently dirty,
+    // causing autosave to re-fire immediately after every successful save.
+    this.cachedSnapshot = null
   }
 
   /**

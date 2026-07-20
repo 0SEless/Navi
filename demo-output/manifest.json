@@ -1,29 +1,29 @@
 {
-  "projectId": "Demo Campus",
-  "campusId": "Demo Campus",
-  "publishedAt": "2026-07-14T00:04:01.428Z",
+  "projectId": "Campus",
+  "campusId": "Campus",
+  "publishedAt": "2026-07-16T06:30:56.989Z",
   "schemaVersion": 1,
-  "compilerVersion": "0.1.0",
+  "compilerVersion": "1",
   "artifacts": {
     "navigationGraph": {
       "filename": "navigation.graph.json",
-      "checksum": "0a3b6f3738d07fa8de3a3b8a9540b6099f39e2434451626a184bd1aa6b6755a8",
-      "size": 2003
+      "checksum": "fa4c9363c178c5cc760762963875a6bbeca6acef833922869bbb1f5c5b594c5c",
+      "size": 403
     },
     "searchIndex": {
       "filename": "search.index.json",
-      "checksum": "16c13f1d7bf7154931d7a9cb04ba7bac67ca921756843a6976f775f9989f52a4",
-      "size": 636
+      "checksum": "b0fe7596b0d6be2a59fe549eb4a36283fc0ab23d0d72f2b74f4bca7b217414fa",
+      "size": 41
     },
     "poiData": {
       "filename": "poi.json",
-      "checksum": "098974a80df7c4985ac806b7c11cda64c8b1d19449bf9680ab4de8821fbde514",
-      "size": 1058
+      "checksum": "070dae4817368a8ab0336ae1d6f25409c81b5799bfe0f49f502f11578b578d10",
+      "size": 40
     },
     "buildingIndex": {
       "filename": "building-index.json",
-      "checksum": "c1f0d68cf1a046e5b9be359ebbbd89f75a31a761940bb7232df2ba30ca3749b5",
-      "size": 482
+      "checksum": "ed1d757257191587f0e6c348511345ef8799983ac4424b436cb3240cee09812f",
+      "size": 11663
     }
   }
 }

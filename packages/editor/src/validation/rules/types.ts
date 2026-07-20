@@ -33,6 +33,9 @@ export type ValidationAffinity =
   | 'entity:road'
   | 'entity:panorama'
   | 'entity:checkpoint'
+  | 'entity:connector_stop'
+  | 'entity:vertical_connector'
+  | 'entity:room_door'
 
 export interface ValidationContext {
   readonly document: CampusDocument

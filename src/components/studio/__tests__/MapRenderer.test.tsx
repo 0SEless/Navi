@@ -153,7 +153,7 @@ describe('MapRenderer', () => {
 
   it('handles map without sources gracefully (no crash)', () => {
     const map = createMockMap()
-    vi.mocked(map.getSource).mockReturnValue(null)
+    vi.mocked(map.getSource).mockReturnValue(undefined)
 
     expect(() => render(<MapRenderer map={map} />)).not.toThrow()
   })

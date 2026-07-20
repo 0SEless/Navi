@@ -44,24 +44,28 @@ export class PublishService extends BaseEditorService {
     return this.publishStore.getSnapshot()
   }
 
+  subscribe(listener: () => void): () => void {
+    return this.publishStore.subscribe(listener)
+  }
+
   isPublishing(): boolean {
     const state = this.publishStore.getSnapshot().publishState
     return state !== 'idle' && state !== 'success' && state !== 'error'
   }
 
-  publish(): Promise<void> {
+  publish(force = false): Promise<void> {
     if (this.currentPublishPromise) {
       return this.currentPublishPromise
     }
 
-    this.currentPublishPromise = this.runPublish().finally(() => {
+    this.currentPublishPromise = this.runPublish(force).finally(() => {
       this.currentPublishPromise = null
     })
     return this.currentPublishPromise
   }
 
-  private async runPublish(): Promise<void> {
-    this.assertCanPublish()
+  private async runPublish(force = false): Promise<void> {
+    this.assertCanPublish(force)
 
     const document = this.documentStore.document as any
     const revision = this.documentStore.version
@@ -72,10 +76,12 @@ export class PublishService extends BaseEditorService {
 
     this.transition('validating')
 
-    const snapshot = this.validationEngine.validate(this.documentStore.document as any, 'publish')
-    if (snapshot.statistics.errors > 0) {
-      this.fail('Validation failed')
-      return
+    if (!force) {
+      const snapshot = this.validationEngine.validate(this.documentStore.document as any, 'publish')
+      if (snapshot.statistics.errors > 0) {
+        this.fail('Validation failed')
+        return
+      }
     }
 
     this.transition('compiling')
@@ -117,10 +123,12 @@ export class PublishService extends BaseEditorService {
     this.eventBus.emit('publish.completed', { revision, finishedAt })
   }
 
-  private assertCanPublish(): void {
+  private assertCanPublish(force = false): void {
     if (this.isPublishing()) throw new Error('Already publishing')
-    const snap = this.validationEngine.getLastSnapshot()
-    if (snap && snap.statistics.errors > 0) throw new Error('Validation has errors')
+    if (!force) {
+      const snap = this.validationEngine.getLastSnapshot()
+      if (snap && snap.statistics.errors > 0) throw new Error('Validation has errors')
+    }
     if (this.workflowService.isSaving()) throw new Error('Save in progress')
     if (this.workflowService.hasUnsavedChanges()) throw new Error('Document has unsaved changes')
   }

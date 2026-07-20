@@ -75,7 +75,7 @@ export function ConfirmBar({ drawing }: ConfirmBarProps) {
       >
         <Trash2 size={12} />
       </button>
-      <button onClick={requestConfirm} disabled={!canConfirm}
+      <button onClick={() => requestConfirm()} disabled={!canConfirm}
         style={{
           display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
           border: 'none', background: !canConfirm ? '#374151' : '#10B981',

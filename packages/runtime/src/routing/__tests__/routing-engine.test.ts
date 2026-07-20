@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { RoutingEngine } from '../routing-engine'
-import type { NavigationGraph } from '@navi/compiler'
+import type { NavigationGraph } from '@navi/core'
 
 function makeGraph(overrides?: Partial<NavigationGraph>): NavigationGraph {
   return {
@@ -58,24 +58,15 @@ describe('RoutingEngine', () => {
 
   it('routing API works through engine', async () => {
     const { RuntimeEngine } = await import('../../engine/runtime-engine')
-    const { ArtifactLoader } = await import('../../loader/artifact-loader')
-    const { readFileSync } = await import('fs')
+    const { load } = await import('../../loader')
     const { resolve } = await import('path')
 
-    const baseUrl = 'file:///fixtures'
-    const fetch = (url: string) => {
-      const filename = url.replace(baseUrl + '/', '')
-      const filePath = resolve(__dirname, '../../../test/fixtures', filename)
-      try {
-        const body = readFileSync(filePath, 'utf-8')
-        return Promise.resolve(new Response(body, { status: 200 }))
-      } catch {
-        return Promise.resolve(new Response('Not found', { status: 404 }))
-      }
-    }
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
-    const route = engine.routing.findRoute('n1', 'n3')
+    const fixturesDir = resolve(__dirname, '../../../test/fixtures')
+    const result = await load(fixturesDir)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
+    const route = engine.navigation.findRoute('n1', 'n3')
     expect(route).not.toBeNull()
   })
 })

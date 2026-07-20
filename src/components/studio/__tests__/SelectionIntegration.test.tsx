@@ -17,6 +17,7 @@ afterEach(() => {
 function createDocument(): CampusDocument {
   return {
     schemaVersion: 1,
+    version: 0,
     metadata: { name: 'Test Campus', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1',
@@ -29,6 +30,7 @@ function createDocument(): CampusDocument {
       height: 10,
       color: '#3366ff',
       floors: [],
+      verticalConnectors: [],
       aliases: [],
       metadata: {},
     }],
@@ -204,7 +206,7 @@ describe('M2.4 Selection Integration', () => {
       expect(screen.getByDisplayValue('Main Building')).toBeDefined()
     })
 
-    it('no selection → PropertiesPanel shows WorkflowCard', () => {
+    it('no selection → PropertiesPanel renders nothing', () => {
       const { context } = buildEditorContext()
 
       render(
@@ -213,10 +215,10 @@ describe('M2.4 Selection Integration', () => {
         </EditorProvider>,
       )
 
-      expect(screen.getByText('Workflow')).toBeDefined()
+      expect(screen.queryByText('Workflow')).toBeNull()
     })
 
-    it('clear selection → PropertiesPanel reverts to WorkflowCard', () => {
+    it('clear selection → PropertiesPanel renders nothing', () => {
       const { context, selectionManager } = buildEditorContext()
 
       act(() => { selectionManager.select('bld-1', SelectionOrigin.Explorer) })
@@ -232,7 +234,8 @@ describe('M2.4 Selection Integration', () => {
 
       act(() => { selectionManager.clear(SelectionOrigin.Programmatic) })
 
-      expect(screen.getByText('Workflow')).toBeDefined()
+      expect(screen.queryByText('Workflow')).toBeNull()
+      expect(screen.queryByText('Building')).toBeNull()
     })
   })
 

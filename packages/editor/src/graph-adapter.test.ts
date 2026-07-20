@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CampusDocument, Building, Floor, Entrance, Road, Panorama, QRCheckpoint } from '@navi/core'
+import { CoordinateTransformer } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { GraphAdapter } from './graph-adapter'
 
@@ -43,10 +44,16 @@ function createTestDocument(extraBuilding?: Building): CampusDocument {
               hasPanorama: true,
             },
           ],
+          connectorStops: [
+            { id: 'cs-stairA', connectorId: 'conn-stairA', position: { x: 1, y: 1 }, anchors: [], accessible: true, metadata: {} },
+          ],
           metadata: {},
         },
       ],
       aliases: [],
+      verticalConnectors: [
+        { id: 'conn-stairA', type: 'staircase', name: 'Stair A', stopIds: ['cs-stairA'], accessible: true, metadata: {} },
+      ],
       color: '#ff0000',
       metadata: {},
     },
@@ -139,6 +146,43 @@ describe('GraphAdapter', () => {
     expect(qrNodes[0].label).toBe('QR: Building Entrance QR')
   })
 
+  it('sync() creates connector stop nodes and vertical connector edges with transformer', () => {
+    const tf = new CoordinateTransformer()
+    tf.registerBuilding({ buildingId: 'bld-1', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+
+    const graph = new Graph()
+    const adapter = new GraphAdapter(graph, tf)
+    const doc = createTestDocument()
+
+    // Add a second floor with matching connector stop
+    const building = doc.buildings[0]
+    building.floors.push({
+      id: 'flr-1',
+      level: 1,
+      label: 'Second Floor',
+      elevation: 4,
+      rooms: [],
+      hallways: [],
+      staircases: [],
+      elevators: [],
+      entrances: [],
+      connectorStops: [
+        { id: 'cs-stairA-f1', connectorId: 'conn-stairA', position: { x: 1, y: 1 }, anchors: [], accessible: true, metadata: {} },
+      ],
+      metadata: {},
+    })
+
+    adapter.sync(doc)
+
+    const stopNodes = graph.nodes.filter(n => n.type === 'connector_stop')
+    expect(stopNodes.length).toBe(2)
+
+    // Should have a vertical connector edge connecting the two stops
+    const connEdges = graph.edges.filter(e => e.id.startsWith('E-vconn-conn-stairA'))
+    expect(connEdges.length).toBe(1)
+    expect(connEdges[0].type).toBe('stair')
+  })
+
   it('sync() handles empty document gracefully', () => {
     const graph = new Graph()
     const adapter = new GraphAdapter(graph)
@@ -186,6 +230,7 @@ describe('GraphAdapter', () => {
       baseElevation: 0,
       height: 15,
       floors: [],
+      verticalConnectors: [],
       aliases: [],
       color: '#00ff00',
       metadata: {},

@@ -1,6 +1,7 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
+import { genId } from '../id'
 
 export const floorCreateHandler: CommandHandler = {
   id: 'floor.create',
@@ -9,11 +10,11 @@ export const floorCreateHandler: CommandHandler = {
     const building = document.buildings.find(b => b.id === buildingId)
     if (!building) return { success: false, error: `Building not found: ${buildingId}` }
 
-    const id = (payload.id as string) || `flr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const id = (payload.id as string) || genId('flr')
     const label = (payload.label as string) || `Floor ${building.floors.length + 1}`
     const level = (payload.level as number) ?? building.floors.length
 
-    building.floors.push({ id, level, label, elevation: level * 4, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} })
+    building.floors.push({ id, level, label, elevation: level * 4, visible: true, locked: false, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} })
 
     recordChange(document, { entityId: id, entityType: 'floor', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId } }
@@ -56,7 +57,15 @@ export const floorDeleteHandler: CommandHandler = {
     for (const bld of document.buildings) {
       const index = bld.floors.findIndex(f => f.id === floorId)
       if (index !== -1) {
+        const floor = bld.floors[index]
         bld.floors.splice(index, 1)
+        // Cascade: remove panoramas and QR checkpoints on this floor
+        document.panoramas = document.panoramas.filter(
+          p => !(p.buildingId === bld.id && p.floor === floor.level)
+        )
+        document.qrCheckpoints = document.qrCheckpoints.filter(
+          q => !(q.buildingId === bld.id && q.floor === floor.level)
+        )
         recordChange(document, { entityId: floorId, entityType: 'floor', operation: 'deleted' })
         return { success: true, entityId: floorId }
       }
@@ -75,18 +84,20 @@ export const floorDuplicateHandler: CommandHandler = {
     for (const bld of document.buildings) {
       const sourceFloor = bld.floors.find(f => f.id === floorId)
       if (sourceFloor) {
-        const newId = `flr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+        const newId = genId('flr')
         const newLevel = bld.floors.length
         bld.floors.push({
           id: newId,
           level: newLevel,
           label: `${sourceFloor.label} (copy)`,
           elevation: newLevel * 4,
-          rooms: JSON.parse(JSON.stringify(sourceFloor.rooms.map(r => ({ ...r, id: `rm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
-          hallways: JSON.parse(JSON.stringify(sourceFloor.hallways.map(h => ({ ...h, id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
-          staircases: JSON.parse(JSON.stringify(sourceFloor.staircases.map(s => ({ ...s, id: `st-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
-          elevators: JSON.parse(JSON.stringify(sourceFloor.elevators.map(e => ({ ...e, id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
-          entrances: JSON.parse(JSON.stringify(sourceFloor.entrances.map(e => ({ ...e, id: `ent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` })))),
+          visible: true, locked: false,
+          rooms: JSON.parse(JSON.stringify(sourceFloor.rooms.map(r => ({ ...r, id: genId('rm') })))),
+          hallways: JSON.parse(JSON.stringify(sourceFloor.hallways.map(h => ({ ...h, id: genId('hw') })))),
+          staircases: JSON.parse(JSON.stringify(sourceFloor.staircases.map(s => ({ ...s, id: genId('st') })))),
+          elevators: JSON.parse(JSON.stringify(sourceFloor.elevators.map(e => ({ ...e, id: genId('el') })))),
+          entrances: JSON.parse(JSON.stringify(sourceFloor.entrances.map(e => ({ ...e, id: genId('ent') })))),
+          connectorStops: JSON.parse(JSON.stringify((sourceFloor.connectorStops || []).map(cs => ({ ...cs, id: genId('cs') })))),
           metadata: {},
         })
         recordChange(document, { entityId: newId, entityType: 'floor', operation: 'created' })

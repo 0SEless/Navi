@@ -10,7 +10,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@navi/core": "*"
+    "@navi/core": "*",
+    "@navi/editing-engine": "*"
   },
   "peerDependencies": {
     "maplibre-gl": "^5",

@@ -5,13 +5,17 @@ This roadmap replaces the earlier architecture-phase milestones (M3.x). From her
 ## Current Phase
 
 ```
-✅ Walking Skeleton — Architecture proven end-to-end
-🟡 P1 — Complete NAVI Studio
-⬜ P2 — Complete NAVI Runtime
-⬜ P3 — Complete ASU Dataset
-⬜ P4 — Evaluation
-⬜ P5 — Release
+✅ M1 — Core Types
+✅ M2 — Compiler Pipeline
+✅ M3 — Package Format & Publisher
+✅ M4 — Plugin System
+✅ M5 — Runtime Pipeline
+🟡 M6 — Runtime Services
+⬜ M7 — User Application
+⬜ M8 — Studio UX
 ```
+
+> M5 (Runtime Pipeline) tagged `v0.13-runtime-pipeline-complete`. Pipeline APIs are frozen — see `docs/architecture/pipeline-overview.md`.
 
 ---
 

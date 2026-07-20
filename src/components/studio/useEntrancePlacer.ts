@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine, genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 
@@ -37,6 +37,7 @@ export function useEntrancePlacer() {
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
 
   const { document, services } = useEditor()
+  const editEngine = useEditingEngine()
   const dispatcher = services.get('dispatcher')!
   const workflow = services.get('workflow')!
 
@@ -62,7 +63,9 @@ export function useEntrancePlacer() {
     const floorId = findFloorId(targetBuilding, formState.floor)
     if (!floorId) return
 
-    const entranceId = `ent-${Date.now()}`
+    const entranceId = genId('ent')
+    editEngine.begin({ kind: 'create', entityType: 'entrance', geometry: formState.position!, properties: { label: formState.label || '', buildingId: targetBuilding.id, floorId } })
+    editEngine.doCommit()
     dispatcher.execute({
       id: 'entrance.create',
       label: 'Create Entrance',
@@ -81,7 +84,7 @@ export function useEntrancePlacer() {
     workflow.save('manual')
 
     setFormState(null)
-  }, [formState, document.buildings, activeBuildingId, dispatcher, workflow])
+  }, [formState, document.buildings, activeBuildingId, editEngine, dispatcher, workflow])
 
   const cancelPlacement = useCallback(() => {
     setFormState(null)

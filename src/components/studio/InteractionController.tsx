@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
+import { genId } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { SRC, LYR, CURSOR_CROSSHAIR } from './rendering/constants'
@@ -118,7 +119,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
         return
       }
       if (curTool === 'asset') {
-        useGraphStore.getState().addComponent({ id: `comp-${Date.now()}`, type: 'room', name: 'Asset', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: pos })
+        useGraphStore.getState().addComponent({ id: genId('comp'), type: 'room', name: 'Asset', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: pos })
         return
       }
       if (curTool === 'select') {
@@ -223,10 +224,10 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
               ? buildingDrag.originalFootprint.map(p => ({ lat: p.lat + dLat, lng: p.lng + dLng }))
               : bb.footprint
             return {
-              type: 'Feature',
+              type: 'Feature' as const,
               properties: { id: bb.id, name: bb.name, color: bb.color || '#1C6BEB', height: bb.height || 15 },
               geometry: {
-                type: 'Polygon',
+                type: 'Polygon' as const,
                 coordinates: [footprint.map(p => [p.lng, p.lat]).concat([[footprint[0].lng, footprint[0].lat]])],
               },
             }
@@ -259,7 +260,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
             lng: movedFootprint.reduce((s, p) => s + p.lng, 0) / movedFootprint.length,
           }
           useGraphStore.getState().updateBuilding(buildingDrag.buildingId, { footprint: movedFootprint, center: centroid })
-          useGraphStore.getState().save()
+          useGraphStore.getState().save() // ponytail: migrate to workflow.save() when InteractionController uses editor services
         }
         useStudioStore.getState().setAdjustBuilding(null)
         buildingDragRef.current = null
@@ -275,7 +276,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
           { lat: Math.max(start.lat, end.lat), lng: Math.min(start.lng, end.lng) },
         ]
         const center = { lat: (start.lat + end.lat) / 2, lng: (start.lng + end.lng) / 2 }
-        useGraphStore.getState().addComponentWithPolygon({ id: `comp-${Date.now()}`, type: 'room', name: 'Room', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: center, polygon })
+        useGraphStore.getState().addComponentWithPolygon({ id: genId('comp'), type: 'room', name: 'Room', buildingId: activeBuildingIdRef.current ?? '', floor: activeFloorRef.current, position: center, polygon })
         dragStart = null
         setRoomDragRef.current?.(null)
       }

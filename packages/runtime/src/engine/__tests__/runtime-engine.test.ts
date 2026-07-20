@@ -1,50 +1,40 @@
 import { describe, it, expect } from 'vitest'
 import { RuntimeEngine } from '../runtime-engine'
-import { ArtifactLoader } from '../../loader/artifact-loader'
-import { LoadError } from '../../loader/types'
-import { readFileSync } from 'fs'
+import { load } from '../../loader'
 import { resolve } from 'path'
 
-function fixtureFetch(base: string): (url: string) => Promise<Response> {
-  return async (url: string) => {
-    const filename = url.replace(base + '/', '')
-    const filePath = resolve(__dirname, '../../../test/fixtures', filename)
-    try {
-      const body = readFileSync(filePath, 'utf-8')
-      return new Response(body, { status: 200 })
-    } catch {
-      return new Response('Not found', { status: 404 })
-    }
-  }
-}
-
-const baseUrl = 'file:///fixtures'
-const fetch = fixtureFetch(baseUrl)
+const fixturesDir = resolve(__dirname, '../../../test/fixtures')
 
 describe('RuntimeEngine', () => {
   it('create returns a ready engine', async () => {
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(fixturesDir)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
     expect(engine).toBeDefined()
   })
 
   it('data API returns correct values', async () => {
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
+    const result = await load(fixturesDir)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
     expect(engine.data.getCampusId()).toBe('test-campus')
     expect(engine.data.getBuilding('b1')?.name).toBe('Building A')
     expect(engine.data.getBoundingBox().minLng).toBe(121.0)
   })
 
   it('future APIs are wired correctly', async () => {
-    const loader = new ArtifactLoader({ baseUrl, fetch })
-    const engine = await RuntimeEngine.create(loader)
-    expect(() => engine.position.getCurrentFloor()).not.toThrow()
+    const result = await load(fixturesDir)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    const engine = new RuntimeEngine(result.package)
+    expect(() => engine.location.resolve({ lat: 14.5, lng: 121.0 })).not.toThrow()
+    expect(engine.location.resolve({ lat: 14.5, lng: 121.0 }).isIndoor).toBeDefined()
   })
 
-  it('rejects on loader failure', async () => {
-    const badFetch = fixtureFetch(baseUrl)
-    const loader = new ArtifactLoader({ baseUrl: '/nonexistent', fetch: badFetch })
-    await expect(RuntimeEngine.create(loader)).rejects.toThrow()
+  it('rejects on nonexistent path', async () => {
+    const result = await load('/nonexistent/path')
+    expect(result.success).toBe(false)
   })
 })

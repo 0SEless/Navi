@@ -1,6 +1,13 @@
-import type { NavigationGraph, NavNode, NavEdge } from '@navi/compiler'
+import type { NavigationGraph, NavNode, NavEdge } from '@navi/core'
 import { AStar } from './astar'
 import { type Route, type RouteStep, type Instruction, type InstructionType } from './route'
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.round(seconds % 60)
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+}
 
 function haversineDist(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371000
@@ -90,7 +97,8 @@ export class RoutingEngine {
 
     const totalDistance = instructions.reduce((sum, i) => sum + i.distance, 0)
     const totalDuration = totalDistance / 1.4
+    const travelTime = { seconds: Math.round(totalDuration), minutes: Math.round(totalDuration / 60), formatted: formatDuration(totalDuration) }
 
-    return { path, instructions, totalDistance, totalDuration, fromLabel: fromNode.label, toLabel: toNode.label }
+    return { path, instructions, totalDistance, totalDuration, fromLabel: fromNode.label, toLabel: toNode.label, travelTime }
   }
 }

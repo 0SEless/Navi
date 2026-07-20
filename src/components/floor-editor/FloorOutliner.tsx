@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Building2, ChevronDown, ChevronRight, Route, ArrowUpDown, Layers, Trash2, Square, LogIn } from 'lucide-react'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine } from '@navi/editor'
 import { useFloorComponentsAll } from '@/hooks/floor-graph-selectors'
 import type { Building, Component, ComponentType } from '@/types/nav-types'
 
@@ -31,6 +31,7 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
   const [expandedFloors, setExpandedFloors] = useState<Set<number>>(new Set([activeFloor]))
   const components = useFloorComponentsAll(building.id)
   const dispatcher = useEditor().services.get('dispatcher')!
+  const editEngine = useEditingEngine()
 
   const toggleFloor = (f: number) => {
     setExpandedFloors((prev) => {
@@ -57,6 +58,8 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
     e.stopPropagation()
     const comp = components.find((c) => c.id === id)
     if (comp) {
+      editEngine.begin({ kind: 'delete', entityIds: [id] })
+      editEngine.doCommit()
       const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[comp.type]
       const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[comp.type]
       if (cmdId && payloadKey) {

@@ -14,13 +14,6 @@ export type { EntitySelector, SelectionMode, SelectionState } from './context/en
  */
 export type SelectionInput = string | EntitySelector
 
-/** @deprecated Use the new EntitySelector-based SelectionState. */
-export interface LegacySelectionState {
-  entityIds: string[]
-  hoveredEntityId: string | null
-  lastSelectedId: string | null
-}
-
 /** Resolve a SelectionInput to a plain string ID. */
 function resolveId(input: SelectionInput): string {
   return typeof input === 'string' ? input : input.id
@@ -116,6 +109,9 @@ export class SelectionManager extends BaseEditorService {
   select(input: SelectionInput, origin?: SelectionOrigin): void {
     this._origin = origin ?? ('canvas' as SelectionOrigin)
     const id = resolveId(input)
+    if (this.entityIds.size === 1 && this.entityIds.has(id) && this._lastSelectedId === id) {
+      return
+    }
     const sel = resolveSelector(input)
     this.clearInternal()
     this.entityIds.add(id)
@@ -216,15 +212,6 @@ export class SelectionManager extends BaseEditorService {
   }
 
   // ── state snapshots ─────────────────────────────────────────
-
-  /** @deprecated Use `selectionState` instead. */
-  get state(): LegacySelectionState {
-    return {
-      entityIds: this.selectedIds,
-      hoveredEntityId: this._hoveredEntityId,
-      lastSelectedId: this._lastSelectedId,
-    }
-  }
 
   get selectionState(): SelectionState {
     return {

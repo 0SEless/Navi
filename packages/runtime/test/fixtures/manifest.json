@@ -1,13 +1,22 @@
 {
-  "projectId": "test-project",
+  "schemaVersion": "1.0",
   "campusId": "test-campus",
+  "campusName": "Test Campus",
   "publishedAt": "2026-07-08T00:00:00Z",
-  "schemaVersion": 1,
   "compilerVersion": "0.1.0",
+  "revision": "test",
   "artifacts": {
-    "navigationGraph": { "filename": "navigation.graph.json", "checksum": "abc", "size": 100 },
-    "searchIndex": { "filename": "search.index.json", "checksum": "def", "size": 50 },
-    "poiData": { "filename": "poi.json", "checksum": "ghi", "size": 30 },
-    "buildingIndex": { "filename": "building-index.json", "checksum": "jkl", "size": 40 }
+    "graph": { "path": "navigation.graph.json", "checksum": "c3cba08096eef97fb9ffd157480efdfde07f57e4eb4f59b6f88df84c3e1362d8", "size": 100, "schemaVersion": "1.0" },
+    "search": { "path": "search.index.json", "checksum": "abbc07d38455b201111468b380d63a6c2688c2ad5b13cb2e401b0d8e4076702f", "size": 50, "schemaVersion": "1.0" },
+    "buildings": { "path": "building-index.json", "checksum": "819e8680cb1431f2469c3a93ba102e68e78280a254bdf26f8fb51f39757e3552", "size": 40, "schemaVersion": "1.0" },
+    "poi": { "path": "poi.json", "checksum": "7b2ca4c467923a4f8f1a278bcf771018c8a745de780929f99977242d41158fd5", "size": 30, "schemaVersion": "1.0" }
+  },
+  "metadata": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "buildingCount": 1,
+    "floorCount": 1,
+    "boundingBox": { "minLat": 14.0, "maxLat": 14.001, "minLng": 121.0, "maxLng": 121.001 },
+    "routeable": true
   }
 }

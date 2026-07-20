@@ -39,6 +39,4 @@ export function findEntityById(doc: CampusDocument, id: string): EntityLookupRes
   return null
 }
 
-export function updateEntityProperty(entity: Record<string, any>, key: string, value: any): void {
-  entity[key] = value
-}
+

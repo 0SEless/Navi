@@ -3,7 +3,6 @@
 import { useEffect, use, useState } from 'react'
 import { FloorEditor } from '@/components/floor-editor/FloorEditor'
 import { ErrorBoundary } from '@/components/floor-editor/ErrorBoundary'
-import { configureFloorEditorTools } from '@/components/floor-editor/configure-floor-editor-tools'
 import {
   EditorProvider,
   NavigationCompiler,
@@ -23,8 +22,12 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
   }, [mapId, loadMapData])
 
   const persistenceAdapter: PersistenceAdapter = {
-    save: () => useGraphStore.getState().save(),
-    syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
+    save: async () => {
+      await useGraphStore.getState().save()
+    },
+    syncToSupabase: async () => {
+      await useGraphStore.getState().syncToSupabase()
+    },
     publish: async () => ({ success: true, version: '1.0.0' }),
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
@@ -34,7 +37,6 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
       persistenceAdapter,
       navCompiler,
     )
-    configureFloorEditorTools(ctx.services.get('toolRegistry'))
     return ctx
   })
 

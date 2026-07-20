@@ -1,17 +1,18 @@
-import type { RuntimeSnapshot } from '../types'
-import type { NavigationGraph, SearchIndex, POIData, BuildingIndex, PublishedManifest, BuildingEntry, BoundingBox } from '@navi/compiler'
+import type { LoadedPackage } from '../loader'
+import type { NavigationGraph, SearchIndex, BuildingIndex, BuildingEntry, BoundingBox } from '@navi/core'
+import type { NavigationPackageManifest } from '@navi/core'
 
 export class DataAPI {
-  constructor(private snapshot: RuntimeSnapshot) {}
+  constructor(private pkg: LoadedPackage) {}
 
-  getGraph(): NavigationGraph { return this.snapshot.graph }
-  getSearchIndex(): SearchIndex { return this.snapshot.searchIndex }
-  getPOI(): POIData { return this.snapshot.poi }
-  getBuildings(): BuildingIndex { return this.snapshot.buildings }
-  getManifest(): PublishedManifest { return this.snapshot.manifest }
+  getGraph(): NavigationGraph { return this.pkg.graph }
+  getSearchIndex(): SearchIndex | undefined { return this.pkg.searchIndex }
+  getPOI(): unknown { return this.pkg.poiIndex }
+  getBuildings(): BuildingIndex | undefined { return this.pkg.buildingIndex }
+  getManifest(): NavigationPackageManifest { return this.pkg.manifest }
   getBuilding(id: string): BuildingEntry | undefined {
-    return this.snapshot.buildings.buildings.find(b => b.id === id)
+    return this.pkg.buildingIndex?.buildings.find(b => b.id === id)
   }
-  getCampusId(): string { return this.snapshot.manifest.campusId }
-  getBoundingBox(): BoundingBox { return this.snapshot.graph.metadata.boundingBox }
+  getCampusId(): string { return this.pkg.manifest.campusId }
+  getBoundingBox(): BoundingBox { return this.pkg.graph.metadata.boundingBox }
 }

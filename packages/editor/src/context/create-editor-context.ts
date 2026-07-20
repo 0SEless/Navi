@@ -12,14 +12,9 @@ import { elevatorCreateHandler, elevatorDeleteHandler } from '../commands/elevat
 import { entranceCreateHandler, entranceDeleteHandler } from '../commands/entrance-handlers'
 import { buildingCreateHandler, buildingDeleteHandler } from '../commands/building-handlers'
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
+import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPositionHandler, buildingOpenFloorEditorHandler, assetUploadHandler } from '../commands/ui-action-handlers'
 import { SelectionManager } from '../selection'
-import { ToolRegistry } from '../tools/registry'
-import {
-  selectTool, panTool, drawBuildingTool, drawRoomTool,
-  drawHallwayTool, drawRoadTool, placeEntranceTool,
-  placeStaircaseTool, placeElevatorTool, placePanoramaTool,
-  placeQrTool,
-} from '../tools'
+import { CurrentToolStore } from '../tools/CurrentToolStore'
 import { Viewport } from '../viewport'
 import { ValidationEngine } from '../validation/validation-engine'
 import { AutoFixRegistry, assignUntitledFix, assignFloorLevelFix, clearRoadReferenceFix, clearEntranceReferenceFix, closePolygonFix } from '../validation/fix'
@@ -31,6 +26,10 @@ import { entranceConnectivityRule } from '../validation/rules/modules/entrance-c
 import { floorMetadataRule } from '../validation/rules/modules/floor-metadata'
 import { roadConnectivityRule } from '../validation/rules/modules/road-connectivity'
 import { referenceRule } from '../validation/rules/modules/reference'
+import { missingFootprintRule } from '../validation/rules/modules/missing-footprint'
+import { orphanReferenceRule } from '../validation/rules/modules/orphan-reference'
+import { connectorConnectivityRule } from '../validation/rules/modules/connector-connectivity'
+import { roomDoorConnectivityRule } from '../validation/rules/modules/room-door-connectivity'
 import { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass } from '../validation/rules/analysis'
 import { NavigationCompiler } from '../services/navigation-compiler'
 import { PersistenceService } from '../services/persistence-service'
@@ -51,6 +50,22 @@ function computeCentroid(points: Array<{ lat: number; lng: number }>): { lat: nu
   return { lat: lat / points.length, lng: lng / points.length }
 }
 
+function computeFallbackBuildingOrigin(buildingId: string, graph: any): { lat: number; lng: number } {
+  const comps: any[] = graph.components ?? []
+  const allPoints: Array<{ lat: number; lng: number }> = []
+  for (const c of comps) {
+    if (c.buildingId !== buildingId) continue
+    if (c.type === 'room' || c.type === 'hallway') {
+      const poly = c.polygon ?? c.polyline
+      if (poly?.points?.length) {
+        allPoints.push(...poly.points)
+      }
+    }
+  }
+  if (allPoints.length > 0) return computeCentroid(allPoints)
+  return { lat: 0, lng: 0 }
+}
+
 function worldPointsToLocal(points: Array<{ lat: number; lng: number }>, buildingId: string, transformer?: CoordinateTransformer): LocalCoord[] {
   if (!transformer) return []
   const result: LocalCoord[] = []
@@ -63,6 +78,11 @@ function worldPointsToLocal(points: Array<{ lat: number; lng: number }>, buildin
 
 function getFloorLevel(f: any): number {
   return typeof f === 'number' ? f : (f.level ?? 0)
+}
+
+function nodePosition(n: any): { lat: number; lng: number } {
+  if (n.position) return n.position
+  return { lat: n.lat ?? 0, lng: n.lng ?? 0 }
 }
 
 export function createDocument(graph: any, transformer?: CoordinateTransformer): CampusDocument {
@@ -78,8 +98,8 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
     version: 1,
     metadata: {
       name: graph.name ?? 'Campus',
-      description: '',
-      lastModified: new Date().toISOString(),
+      description: graph.description ?? '',
+      lastModified: graph.updatedAt ?? new Date().toISOString(),
       editorVersion: '1.0.0',
     },
     buildings: (graph.buildings ?? []).map((b: any) => {
@@ -91,17 +111,26 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
       const rawFootprintPoints: Array<{ lat: number; lng: number }> = Array.isArray(rawFootprint)
         ? rawFootprint
         : (rawFootprint?.points ?? [])
-      const floors = rawFloors.map((f: any) => {
-        const level = getFloorLevel(f)
-        const key = `${b.id}:${level}`
-        const comps = compsByKey.get(key) ?? []
+    // Build a floor metadata lookup from floorData (stored by GraphAdapter)
+    const floorByLevel = new Map<number, any>()
+    if (Array.isArray(b.floorData)) {
+      for (const fd of b.floorData) {
+        floorByLevel.set(fd.level as number, fd)
+      }
+    }
 
-        // Start with metadata from legacy floor-level entities (if any)
-        const legacyRooms: Room[] = (f.rooms ?? []).map((r: any) => ({
-          id: r.id, name: r.name ?? r.id, number: r.number ?? '',
-          category: r.category ?? 'classroom', polygon: { points: [] },
-          capacity: r.capacity, metadata: r.metadata ?? {},
-        }))
+    const floors = rawFloors.map((f: any) => {
+      const level = getFloorLevel(f)
+      const key = `${b.id}:${level}`
+      const comps = compsByKey.get(key) ?? []
+      const fd = floorByLevel.get(level) ?? {}
+
+      // Start with metadata from legacy floor-level entities (if any)
+      const legacyRooms: Room[] = (f.rooms ?? []).map((r: any) => ({
+        id: r.id, name: r.name ?? r.id, number: r.number ?? '',
+        category: r.category ?? 'classroom', polygon: { points: [] },
+        capacity: r.capacity, roomDoors: [], metadata: r.metadata ?? {},
+      }))
         const legacyHallways: Hallway[] = (f.hallways ?? []).map((h: any) => ({
           id: h.id, name: h.name ?? h.id, polyline: { points: [] },
           width: h.width ?? 2, color: h.color,
@@ -130,11 +159,17 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
               const existing = legacyRooms.find(r => r.id === c.id)
               if (existing) {
                 if (points.length >= 3) existing.polygon = { points }
+                if (c.metadata?.number) existing.number = c.metadata.number as string
+                if (c.metadata?.capacity != null) existing.capacity = c.metadata.capacity as number
+                if (c.metadata?.roomMetadata) existing.metadata = { ...existing.metadata, ...c.metadata.roomMetadata as Record<string, unknown> }
               } else if (points.length >= 3) {
                 legacyRooms.push({
-                  id: c.id, name: c.name ?? c.id, number: c.number ?? '',
+                  id: c.id, name: c.name ?? c.id,
+                  number: (c.metadata?.number as string) ?? c.number ?? '',
                   category: 'classroom', polygon: { points },
-                  capacity: c.capacity, metadata: c.metadata ?? {},
+                  capacity: (c.metadata?.capacity as number) ?? c.capacity,
+                  roomDoors: [],
+                  metadata: (c.metadata?.roomMetadata as Record<string, unknown>) ?? c.metadata ?? {},
                 })
               }
               break
@@ -146,10 +181,13 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
               const existing = legacyHallways.find(h => h.id === c.id)
               if (existing) {
                 if (points.length >= 2) existing.polyline = { points }
+                if (c.metadata?.width != null) existing.width = c.metadata.width as number
+                if (c.metadata?.color) existing.color = c.metadata.color as string
               } else if (points.length >= 2) {
                 legacyHallways.push({
                   id: c.id, name: c.name ?? c.id, polyline: { points },
-                  width: c.width ?? 2, color: c.color,
+                  width: (c.metadata?.width as number) ?? c.width ?? 2,
+                  color: (c.metadata?.color as string) ?? c.color,
                 })
               }
               break
@@ -161,11 +199,12 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
               const existing = legacyStaircases.find(s => s.id === c.id)
               if (existing) {
                 existing.position = local
+                if (c.metadata?.type) existing.type = c.metadata.type as any
               } else {
                 legacyStaircases.push({
                   id: c.id, name: c.name ?? c.id, position: local,
                   fromLevel: c.range?.from ?? level, toLevel: c.range?.to ?? level + 1,
-                  type: 'open',
+                  type: (c.metadata?.type as any) ?? 'open',
                 })
               }
               break
@@ -201,18 +240,21 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
         }
 
         return {
-          id: f.id ?? `flr-${b.id}-${level}`,
+          id: (fd.id as string) ?? f.id ?? `flr-${b.id}-${level}`,
           level,
-          label: f.label
+          label: (fd.label as string) ?? f.label
             ?? (level === 0 ? 'Ground Floor' : level > 0 ? `Floor ${level}` : `Basement ${Math.abs(level)}`),
-          elevation: f.elevation ?? 0,
-          planImageId: f.planImageId,
+          elevation: (fd.elevation as number) ?? f.elevation ?? 0,
+          planImageId: (fd.planImageId as string) ?? f.planImageId,
+          textureId: (fd.textureId as string) ?? f.textureId,
+          svgOverlayId: (fd.svgOverlayId as string) ?? f.svgOverlayId,
           rooms: legacyRooms,
           hallways: legacyHallways,
           staircases: legacyStaircases,
           elevators: legacyElevators,
           entrances: legacyEntrances,
-          metadata: f.metadata ?? {},
+          connectorStops: [],
+          metadata: (fd.metadata as Record<string, unknown>) ?? f.metadata ?? {},
         }
       })
 
@@ -220,20 +262,56 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
         id: b.id,
         name: b.name ?? b.id,
         code: b.code ?? '',
-        category: 'academic',
-        description: '',
+        category: b.category ?? 'academic',
+        description: b.description ?? '',
+        department: b.department ?? '',
         floors,
         footprint: { points: rawFootprintPoints.map((p: any) => ({ lat: p.lat, lng: p.lng })) },
-        baseElevation: 0,
-        height: 10,
+        baseElevation: b.baseElevation ?? 0,
+        height: b.height ?? 10,
+        verticalConnectors: [],
         color: b.color ?? '#1C6BEB',
-        aliases: [],
-        metadata: {},
+        aliases: (b.aliases as string[]) ?? [],
+        metadata: (b.metadata as Record<string, unknown>) ?? {},
       }
     }),
-    roads: [],
-    panoramas: [],
-    qrCheckpoints: [],
+    // Reverse-map graph entities that live outside the building/floor hierarchy.
+    // GraphAdapter.sync() converts Road→Trace, Panorama→Node(hasPanorama),
+    // QRCheckpoint→Node(hasQr). We reconstruct the document entities here so the
+    // round-trip is lossless (best-effort: surface, heading, hotspots use defaults
+    // since the graph doesn't store them).
+    roads: (graph.traces ?? []).map((t: any) => ({
+      id: t.id,
+      name: t.name ?? '',
+      polyline: { points: t.points ?? [] },
+      width: t.width ?? 3,
+      surface: (t.metadata?.surface ?? 'paved') as any,
+      type: (t.type === 'connector' ? 'service' : 'arterial') as any,
+      metadata: t.metadata ?? {},
+    })),
+    panoramas: (graph.nodes ?? [])
+      .filter((n: any) => n.hasPanorama && n.metadata?.panoramaId)
+      .map((n: any) => ({
+        id: n.metadata.panoramaId as string,
+        label: (n.label ?? '').replace('Panorama: ', ''),
+        position: nodePosition(n),
+        heading: 0,
+        imageAssetId: '',
+        buildingId: n.buildingId || undefined,
+        floor: n.floor ?? undefined,
+        hotspots: [],
+      })),
+    qrCheckpoints: (graph.nodes ?? [])
+      .filter((n: any) => n.type === 'qr_marker' || (n.hasQr && n.metadata?.qrCode))
+      .map((n: any) => ({
+        id: (n.metadata?.qrId as string) ?? n.id,
+        label: (n.label ?? '').replace(/^QR:\s*/, ''),
+        position: nodePosition(n),
+        floor: n.floor,
+        buildingId: n.buildingId,
+        code: (n.metadata?.qrCode ?? n.metadata?.code ?? '') as string,
+        metadata: (n.metadata?.qrMetadata as Record<string, unknown>) ?? {},
+      })),
   }
 }
 
@@ -244,24 +322,30 @@ export function createEditorContext(
 ): EditorContext {
   const transformer = new CoordinateTransformer()
   for (const b of (graph.buildings ?? [])) {
-    const footprint = b.footprint?.points ?? []
-    if (footprint.length > 0) {
-      const center = computeCentroid(footprint)
-      transformer.registerBuilding({
-        buildingId: b.id,
-        origin: { lat: center.lat, lng: center.lng },
-        rotation: 0,
-      })
-    }
+    // Building.footprint may be either LatLng[] (post-sync format) or
+    // { points: LatLng[] } (legacy WorldPolygon format). Handle both.
+    const rawFootprint: any = b.footprint
+    const footprintPoints: Array<{ lat: number; lng: number }> = Array.isArray(rawFootprint)
+      ? rawFootprint
+      : (rawFootprint?.points ?? [])
+    const center = footprintPoints.length > 0
+      ? computeCentroid(footprintPoints)
+      : computeFallbackBuildingOrigin(b.id, graph)
+    transformer.registerBuilding({
+      buildingId: b.id,
+      origin: { lat: center.lat, lng: center.lng },
+      rotation: 0,
+    })
   }
 
   const document = createDocument(graph, transformer)
-  const documentStore = new DocumentStore(document)
 
   const registry = new ServiceRegistry()
 
   const eventBus = new DocumentEventBus()
   registry.register('eventBus', eventBus)
+
+  const documentStore = new DocumentStore(document, eventBus)
 
   const registryCmd = new CommandRegistry()
   registryCmd.register(entityUpdateHandler)
@@ -279,10 +363,15 @@ export function createEditorContext(
   registryCmd.register(buildingDeleteHandler)
   registryCmd.register(roadCreateHandler)
   registryCmd.register(roadDeleteHandler)
+  registryCmd.register(floorManageHandler)
+  registryCmd.register(buildingEditInteriorHandler)
+  registryCmd.register(buildingAdjustPositionHandler)
+  registryCmd.register(buildingOpenFloorEditorHandler)
+  registryCmd.register(assetUploadHandler)
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
 
-  const history = new HistoryStack(dispatcher, document, registryCmd)
+  const history = new HistoryStack(dispatcher, document, registryCmd, 200, documentStore)
   dispatcher.addPreHook(history)
   dispatcher.addPostHook(history)
 
@@ -293,24 +382,15 @@ export function createEditorContext(
   registry.register('history', history)
   registry.register('selection', selectionManager)
 
-  const toolRegistry = new ToolRegistry()
-  toolRegistry.register(selectTool)
-  toolRegistry.register(panTool)
-  toolRegistry.register(drawBuildingTool)
-  toolRegistry.register(drawRoomTool)
-  toolRegistry.register(drawHallwayTool)
-  toolRegistry.register(drawRoadTool)
-  toolRegistry.register(placeEntranceTool)
-  toolRegistry.register(placeStaircaseTool)
-  toolRegistry.register(placeElevatorTool)
-  toolRegistry.register(placePanoramaTool)
-  toolRegistry.register(placeQrTool)
+  const toolRegistry = new CurrentToolStore()
   const viewport = new Viewport(eventBus)
   registry.register('toolRegistry', toolRegistry)
   registry.register('viewport', viewport)
 
   const validationEngine = new ValidationEngine()
   validationEngine.registerRule(disconnectedGraphRule)
+  validationEngine.registerRule(missingFootprintRule)
+  validationEngine.registerRule(orphanReferenceRule)
   validationEngine.registerRule(missingNameRule)
   validationEngine.registerRule(zeroAreaPolygonRule)
   validationEngine.registerRule(polygonClosureRule)
@@ -320,6 +400,8 @@ export function createEditorContext(
   validationEngine.registerRule(floorMetadataRule)
   validationEngine.registerRule(roadConnectivityRule)
   validationEngine.registerRule(referenceRule)
+  validationEngine.registerRule(connectorConnectivityRule)
+  validationEngine.registerRule(roomDoorConnectivityRule)
   validationEngine.registerAnalysisPass(new GraphAnalysisPass())
   validationEngine.registerAnalysisPass(new GeometryAnalysisPass())
   validationEngine.registerAnalysisPass(new MetadataIndexPass())

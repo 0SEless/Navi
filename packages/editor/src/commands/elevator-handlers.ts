@@ -1,6 +1,7 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
+import { genId } from '../id'
 
 function findFloor(document: CampusDocument, buildingId: string, floorId: string) {
   const building = document.buildings.find(b => b.id === buildingId)
@@ -17,7 +18,7 @@ export const elevatorCreateHandler: CommandHandler = {
     const ctx = findFloor(document, buildingId, floorId)
     if (!ctx) return { success: false, error: `Building/floor not found: ${buildingId}/${floorId}` }
 
-    const id = (payload.id as string) || `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const id = (payload.id as string) || genId('el')
     const name = (payload.name as string) || ''
     const position = payload.position as LocalCoord | undefined
     const fromLevel = (payload.fromLevel as number) ?? ctx.floor.level

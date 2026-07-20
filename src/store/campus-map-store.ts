@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { CampusMap, LandmarkType, LandmarkInstance } from '../types/campus-map'
+import { genId } from '@navi/editor'
 
 const STORAGE_KEY = 'navi-campus-maps'
 
@@ -34,7 +35,7 @@ interface CampusMapState {
 }
 
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  return genId('map')
 }
 
 export const useCampusMapStore = create<CampusMapState>((set, get) => ({

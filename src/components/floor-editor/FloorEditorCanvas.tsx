@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useEditor } from '@navi/editor'
+import { useEditor, useEditingEngine } from '@navi/editor'
 import type { Command } from '@navi/editor'
 import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
@@ -156,12 +156,14 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   const dispatcher = editor.services.get('dispatcher')!
   const transformer = editor.transformer
 
+  const editEngine = useEditingEngine()
+
   // Ref for drag interaction closures
   const floorComponentsRef = useRef(floorComponents)
   useEffect(() => { floorComponentsRef.current = floorComponents }, [floorComponents])
 
   // Wire drawing interactions (state-driven so hook sees map after init)
-  const { drawMode, pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect })
+  const { drawMode, pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect, editEngine })
 
   useEffect(() => {
     if (mapRef.current) return
@@ -370,6 +372,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
   // Vertex handles + dragging for polygon components
   const dragRef = useRef<{ vertexIndex: number; componentId: string } | null>(null)
+  const moveDragRef = useRef<{ componentId: string; originalPolygon: LatLng[]; startLatLng: { lat: number; lng: number } } | null>(null)
   const workingPolygonRef = useRef<LatLng[] | null>(null)
 
   useEffect(() => {
@@ -412,16 +415,48 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       canvas.style.cursor = 'grabbing'
     }
 
+    const onBodyMouseDown = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+      if (tool !== 'select') return
+      if (!e.features || e.features.length === 0) return
+      const props = e.features[0].properties as Record<string, unknown>
+      const cId = props.id as string
+      if (!cId) return
+      const comp = floorComponentsRef.current.find((c) => c.id === cId)
+      if (!comp?.polygon) return
+      if (comp.type !== 'room' && comp.type !== 'hallway' && comp.type !== 'elevator') return
+      moveDragRef.current = {
+        componentId: cId,
+        originalPolygon: comp.polygon.map((p) => ({ ...p })),
+        startLatLng: { lat: e.lngLat.lat, lng: e.lngLat.lng },
+      }
+      workingPolygonRef.current = comp.polygon.map((p) => ({ ...p }))
+      canvas.style.cursor = 'grabbing'
+    }
+
     const onMouseMove = (e: maplibregl.MapMouseEvent) => {
-      const drag = dragRef.current
+      // Body drag translates entire polygon before vertex drag check
+      if (moveDragRef.current) {
+        const deltaLat = e.lngLat.lat - moveDragRef.current.startLatLng.lat
+        const deltaLng = e.lngLat.lng - moveDragRef.current.startLatLng.lng
+        const working = workingPolygonRef.current
+        if (working) {
+          for (let i = 0; i < moveDragRef.current.originalPolygon.length; i++) {
+            working[i] = { lat: moveDragRef.current.originalPolygon[i].lat + deltaLat, lng: moveDragRef.current.originalPolygon[i].lng + deltaLng }
+          }
+        }
+      }
+      const drag = dragRef.current ?? moveDragRef.current
       const working = workingPolygonRef.current
       if (!drag || !working) return
-      working[drag.vertexIndex] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+      // Vertex index only applies to vertex drags; for body drag all points are already set above
+      if (dragRef.current) {
+        working[dragRef.current.vertexIndex] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+      }
 
       if (pendingFrame != null) return
       pendingFrame = requestAnimationFrame(() => {
         pendingFrame = null
-        const drag = dragRef.current
+        const drag = dragRef.current ?? moveDragRef.current
         const working = workingPolygonRef.current
         if (!drag || !working) return
 
@@ -500,10 +535,13 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
     const onMouseUp = () => {
       if (pendingFrame != null) { cancelAnimationFrame(pendingFrame); pendingFrame = null }
-      const drag = dragRef.current
+      const vertexDrag = dragRef.current
+      const bodyDrag = moveDragRef.current
+      const drag = vertexDrag ?? bodyDrag
       const working = workingPolygonRef.current
       if (!drag || !working) return
       dragRef.current = null
+      moveDragRef.current = null
       workingPolygonRef.current = null
       canvas.style.cursor = CURSOR_MAP[tool] ?? 'default'
 
@@ -517,9 +555,22 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         const changes: Record<string, unknown> = comp.type === 'hallway'
           ? { polyline: { points: localPoints } }
           : { polygon: { points: localPoints } }
+
+        if (bodyDrag) {
+          const origLocal = transformer.worldToBuildingLocal(bodyDrag.originalPolygon[0], building.id)
+          const deltaX = origLocal ? (localPoints[0]?.x ?? 0) - origLocal.x : 0
+          const deltaY = origLocal ? (localPoints[0]?.y ?? 0) - origLocal.y : 0
+          editEngine.begin({ kind: 'move', entityId: drag.componentId, deltaX, deltaY })
+          editEngine.doCommit()
+        } else if (vertexDrag) {
+          const vIdx = vertexDrag.vertexIndex
+          editEngine.begin({ kind: 'resize', entityId: drag.componentId, vertexIndex: vIdx, newX: localPoints[vIdx]?.x ?? 0, newY: localPoints[vIdx]?.y ?? 0 })
+          editEngine.doCommit()
+        }
+
         dispatcher.execute({
           id: 'entity.update',
-          label: `Update ${comp.type}`,
+          label: bodyDrag ? `Move ${comp.type}` : vertexDrag ? `Resize ${comp.type}` : `Update ${comp.type}`,
           payload: { entityId: drag.componentId, changes },
         })
       }
@@ -530,18 +581,24 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
     map.on('mouseenter', 'floor-vertex-handles-layer', onVertexEnter)
     map.on('mouseleave', 'floor-vertex-handles-layer', onVertexLeave)
-    map.on('mousedown', 'floor-vertex-handles-layer', onMouseDown as maplibregl.EventHandler)
+    map.on('mousedown', 'floor-vertex-handles-layer', onMouseDown as (e: maplibregl.MapMouseEvent) => void)
+    map.on('mousedown', 'floor-rooms-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+    map.on('mousedown', 'floor-hallways-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+    map.on('mousedown', 'floor-elevator-areas-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
     map.on('mousemove', onMouseMove)
     map.on('mouseup', onMouseUp)
     return () => {
       if (pendingFrame != null) cancelAnimationFrame(pendingFrame)
       map.off('mouseenter', 'floor-vertex-handles-layer', onVertexEnter)
       map.off('mouseleave', 'floor-vertex-handles-layer', onVertexLeave)
-      map.off('mousedown', 'floor-vertex-handles-layer', onMouseDown as maplibregl.EventHandler)
+      map.off('mousedown', 'floor-vertex-handles-layer', onMouseDown as (e: maplibregl.MapMouseEvent) => void)
+      map.off('mousedown', 'floor-rooms-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+      map.off('mousedown', 'floor-hallways-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+      map.off('mousedown', 'floor-elevator-areas-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
       map.off('mousemove', onMouseMove)
       map.off('mouseup', onMouseUp)
     }
-  }, [selectedId, floorComponents, tool, dispatcher, transformer, renderVersion])
+  }, [selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id])
 
   // Keyboard shortcuts (window-level — no canvas focus needed)
   useEffect(() => {
@@ -557,6 +614,9 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
         if (selectedComponent) {
+          editEngine.begin({ kind: 'delete', entityIds: [selectedId] })
+          const commitResult = editEngine.doCommit()
+
           const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[selectedComponent.type]
           const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[selectedComponent.type]
           if (cmdId && payloadKey) {
@@ -626,6 +686,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         }}>
           <button onClick={() => {
             if (selectedComponent) {
+              editEngine.begin({ kind: 'delete', entityIds: [selectedId] })
+              editEngine.doCommit()
               const cmdId = ({ room: 'room.delete', hallway: 'hallway.delete', stair: 'staircase.delete', elevator: 'elevator.delete', entrance: 'entrance.delete', restroom: 'room.delete' })[selectedComponent.type]
               const payloadKey = ({ room: 'roomId', hallway: 'hallwayId', stair: 'staircaseId', elevator: 'elevatorId', entrance: 'entranceId', restroom: 'roomId' })[selectedComponent.type]
               if (cmdId && payloadKey) {

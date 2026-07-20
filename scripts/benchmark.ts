@@ -259,31 +259,20 @@ async function benchmarkRuntime(): Promise<BenchmarkResult[]> {
 // ─── Startup benchmark (from fixtures) ───────────────────────────────
 
 async function benchmarkStartup(): Promise<BenchmarkResult[]> {
-  const { readFileSync } = await import('fs')
   const { join } = await import('path')
   const FIXTURES = join(__dirname, '..', 'packages', 'runtime', 'test', 'fixtures')
 
-  const fetchFn = (url: string) => {
-    const filename = url.replace('file:///fixtures/', '')
-    const filePath = join(FIXTURES, filename)
-    try {
-      const body = readFileSync(filePath, 'utf-8')
-      return Promise.resolve(new Response(body, { status: 200 }))
-    } catch {
-      return Promise.resolve(new Response('Not found', { status: 404 }))
-    }
-  }
-
-  const { ArtifactLoader, RuntimeEngine } = await import('@navi/runtime')
+  const { load, RuntimeEngine } = await import('@navi/runtime')
 
   const runs = 5
   const times: number[] = []
 
   for (let i = 0; i < runs; i++) {
-    // Clear require cache to force re-evaluation
-    const loader = new ArtifactLoader({ baseUrl: 'file:///fixtures', fetch: fetchFn })
     const start = performance.now()
-    await RuntimeEngine.create(loader)
+    const result = await load(FIXTURES)
+    if (result.success) {
+      new RuntimeEngine(result.package)
+    }
     times.push(performance.now() - start)
   }
 

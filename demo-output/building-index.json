@@ -2,45 +2,584 @@
   "version": "1.0.0",
   "buildings": [
     {
-      "id": "bldg-a",
-      "name": "Building A",
-      "code": "BLA",
+      "id": "osm-bldg-801492090",
+      "name": "Bldg No. 1",
+      "code": "",
       "category": "academic",
       "position": {
-        "lat": 12.344928135106,
-        "lng": 121.23392643411256
+        "lat": 11.8186396,
+        "lng": 122.170264
       },
       "floors": [
         {
-          "level": 1,
-          "label": "Floor 1",
+          "level": 0,
+          "label": "Ground Floor",
           "elevation": 0,
-          "rooms": [
-            {
-              "id": "room-101",
-              "name": "Room 101",
-              "number": "101",
-              "nodeId": "node-0"
-            },
-            {
-              "id": "room-102",
-              "name": "Room 102",
-              "number": "102",
-              "nodeId": "node-1"
-            }
-          ]
+          "rooms": []
         }
       ],
-      "entrances": [
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-801492091",
+      "name": "Bldg No. 2",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8184457,
+        "lng": 122.1692786
+      },
+      "floors": [
         {
-          "id": "entrance-e1",
-          "position": {
-            "lat": 12.34504491555875,
-            "lng": 121.23409195735928
-          }
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
         }
       ],
-      "nodeId": "node-0"
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-801493490",
+      "name": "Bldg No. 3",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179903,
+        "lng": 122.1686297
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-801493491",
+      "name": "Bldg No. 4",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179074,
+        "lng": 122.1688039
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-801493493",
+      "name": "Bldg No. 5",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179242,
+        "lng": 122.1690244
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026360",
+      "name": "Bldg No. 6",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179306,
+        "lng": 122.1691921
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026361",
+      "name": "Bldg No. 7",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179343,
+        "lng": 122.1692882
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026362",
+      "name": "Bldg No. 8",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179821,
+        "lng": 122.1699036
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026363",
+      "name": "Bldg No. 9",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8183645,
+        "lng": 122.1699192
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026364",
+      "name": "Bldg No. 10",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8181592,
+        "lng": 122.1698963
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026365",
+      "name": "Bldg No. 11",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180048,
+        "lng": 122.1703729
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026366",
+      "name": "Bldg No. 12",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8184206,
+        "lng": 122.1705033
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026368",
+      "name": "Bldg No. 13",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180287,
+        "lng": 122.1716847
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026369",
+      "name": "Bldg No. 14",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8176632,
+        "lng": 122.1719881
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026370",
+      "name": "Bldg No. 15",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8182169,
+        "lng": 122.1722877
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026371",
+      "name": "Bldg No. 16",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180358,
+        "lng": 122.1724243
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026372",
+      "name": "Bldg No. 17",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180643,
+        "lng": 122.1723435
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026373",
+      "name": "Bldg No. 18",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8176326,
+        "lng": 122.1723872
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026374",
+      "name": "Bldg No. 19",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8176676,
+        "lng": 122.1724943
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026375",
+      "name": "Bldg No. 20",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8176467,
+        "lng": 122.172555
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026376",
+      "name": "Bldg No. 21",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8175185,
+        "lng": 122.1727526
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026377",
+      "name": "Bldg No. 22",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8174352,
+        "lng": 122.1726761
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026378",
+      "name": "Bldg No. 23",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8179144,
+        "lng": 122.1711339
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026379",
+      "name": "Bldg No. 24",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8177844,
+        "lng": 122.1709089
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026380",
+      "name": "Bldg No. 25",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8182341,
+        "lng": 122.1708904
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026381",
+      "name": "Bldg No. 26",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180279,
+        "lng": 122.1692606
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026382",
+      "name": "Bldg No. 27",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180702,
+        "lng": 122.1694555
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888026383",
+      "name": "Bldg No. 28",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8180366,
+        "lng": 122.1698811
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
+    },
+    {
+      "id": "osm-bldg-888209287",
+      "name": "Bldg No. 29",
+      "code": "",
+      "category": "academic",
+      "position": {
+        "lat": 11.8183056,
+        "lng": 122.1718287
+      },
+      "floors": [
+        {
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "rooms": []
+        }
+      ],
+      "entrances": [],
+      "nodeId": ""
     }
   ]
 }

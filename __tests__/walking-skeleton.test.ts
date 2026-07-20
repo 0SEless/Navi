@@ -1,12 +1,49 @@
 import { describe, it, expect } from 'vitest'
-import { CampusCompiler, type PublishedManifest } from '@navi/compiler'
-import { buildSearchIndex, buildPOIData, buildBuildingIndex } from '@navi/compiler'
+import { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } from '@navi/compiler'
 import { RuntimeEngine } from '@navi/runtime'
-import { ArtifactLoader } from '@navi/runtime'
+import type { LoadedPackage } from '@navi/runtime'
+import type { POIIndex } from '@navi/core'
 import { createGoldenCampus } from '../packages/editor/src/demo/golden-campus'
 
+function createRuntimeEngine(): RuntimeEngine {
+  const campus = createGoldenCampus()
+  const compiler = new CampusCompiler({ nodeInterval: 5, mergeThreshold: 3, optimizationLevel: 'moderate', includeAccessibility: false })
+  const result = compiler.compile(campus)
+  const graph = result.graph!
+
+  const pkg: LoadedPackage = {
+    manifest: {
+      schemaVersion: '1.0',
+      campusId: campus.metadata.name,
+      campusName: campus.metadata.name,
+      publishedAt: new Date().toISOString(),
+      compilerVersion: '0.1.0',
+      revision: '1',
+      artifacts: {
+        graph: { path: 'navigation.graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+      },
+      metadata: {
+        nodeCount: graph.nodes.length,
+        edgeCount: graph.edges.length,
+        buildingCount: campus.buildings.length,
+        floorCount: campus.buildings.reduce((s, b) => s + b.floors.length, 0),
+        boundingBox: graph.metadata.boundingBox,
+        routeable: graph.edges.length > 0,
+      },
+    },
+    graph,
+    searchIndex: buildSearchIndex(campus, graph),
+    buildingIndex: buildBuildingIndex(campus, graph),
+    poiIndex: buildPOIData(graph) as unknown as POIIndex,
+    reports: [],
+  }
+  return new RuntimeEngine(pkg)
+}
+
 describe('Walking Skeleton — End-to-End Pipeline', () => {
-  // ── Stage 1: CampusDocument ──
   describe('CampusDocument', () => {
     it('is valid', () => {
       const campus = createGoldenCampus()
@@ -19,7 +56,6 @@ describe('Walking Skeleton — End-to-End Pipeline', () => {
     })
   })
 
-  // ── Stage 2: Compiler ──
   describe('Compiler', () => {
     it('creates graph with >=4 nodes and >=3 edges', () => {
       const campus = createGoldenCampus()
@@ -58,7 +94,6 @@ describe('Walking Skeleton — End-to-End Pipeline', () => {
     })
   })
 
-  // ── Stage 3: Artifacts ──
   describe('Artifacts', () => {
     it('buildSearchIndex produces entries', () => {
       const campus = createGoldenCampus()
@@ -85,186 +120,82 @@ describe('Walking Skeleton — End-to-End Pipeline', () => {
     })
   })
 
-  // ── Stage 4: Runtime ──
   describe('Runtime', () => {
-    async function createTestRuntime() {
-      const campus = createGoldenCampus()
-      const compiler = new CampusCompiler({ nodeInterval: 5, mergeThreshold: 3, optimizationLevel: 'moderate', includeAccessibility: false })
-      const result = compiler.compile(campus)
-      const graph = result.graph!
-      const searchIndex = buildSearchIndex(campus, graph)
-      const poiData = buildPOIData(graph)
-      const buildingIndex = buildBuildingIndex(campus, graph)
-
-      const manifest: PublishedManifest = {
-        projectId: 'Demo Campus', campusId: 'Demo Campus',
-        publishedAt: new Date().toISOString(), schemaVersion: 1, compilerVersion: '0.1.0',
-        artifacts: {
-          navigationGraph: { filename: 'navigation.graph.json', checksum: '', size: 0 },
-          searchIndex: { filename: 'search.index.json', checksum: '', size: 0 },
-          poiData: { filename: 'poi.json', checksum: '', size: 0 },
-          buildingIndex: { filename: 'building-index.json', checksum: '', size: 0 },
-        },
-      }
-      const artifacts: Record<string, string> = {
-        'manifest.json': JSON.stringify(manifest),
-        'navigation.graph.json': JSON.stringify(graph),
-        'search.index.json': JSON.stringify(searchIndex),
-        'poi.json': JSON.stringify(poiData),
-        'building-index.json': JSON.stringify(buildingIndex),
-      }
-
-      const fetch = (url: string) => {
-        const file = url.split('/').pop() || 'manifest.json'
-        const body = artifacts[file]
-        return body
-          ? Promise.resolve(new Response(body, { status: 200 }))
-          : Promise.resolve(new Response('Not found', { status: 404 }))
-      }
-
-      const loader = new ArtifactLoader({ baseUrl: 'http://test', fetch })
-      return await RuntimeEngine.create(loader)
-    }
-
-    it('loads without error', async () => {
-      const engine = await createTestRuntime()
+    it('loads without error', () => {
+      const engine = createRuntimeEngine()
       expect(engine).toBeDefined()
     })
 
-    it('has correct node/edge count', async () => {
-      const engine = await createTestRuntime()
+    it('has correct node/edge count', () => {
+      const engine = createRuntimeEngine()
       const graph = engine.data.getGraph()
       expect(graph.metadata.nodeCount).toBeGreaterThanOrEqual(4)
       expect(graph.metadata.edgeCount).toBeGreaterThanOrEqual(3)
     })
   })
 
-  // ── Stage 5: Search ──
   describe('Search', () => {
-    async function createEngine() {
-      const campus = createGoldenCampus()
-      const compiler = new CampusCompiler({ nodeInterval: 5, mergeThreshold: 3, optimizationLevel: 'moderate', includeAccessibility: false })
-      const result = compiler.compile(campus)
-      const graph = result.graph!
-      const manifest: PublishedManifest = {
-        projectId: 'Demo Campus', campusId: 'Demo Campus',
-        publishedAt: new Date().toISOString(), schemaVersion: 1, compilerVersion: '0.1.0',
-        artifacts: {
-          navigationGraph: { filename: 'navigation.graph.json', checksum: '', size: 0 },
-          searchIndex: { filename: 'search.index.json', checksum: '', size: 0 },
-          poiData: { filename: 'poi.json', checksum: '', size: 0 },
-          buildingIndex: { filename: 'building-index.json', checksum: '', size: 0 },
-        },
-      }
-      const artifacts: Record<string, string> = {
-        'manifest.json': JSON.stringify(manifest),
-        'navigation.graph.json': JSON.stringify(graph),
-        'search.index.json': JSON.stringify(buildSearchIndex(campus, graph)),
-        'poi.json': JSON.stringify(buildPOIData(graph)),
-        'building-index.json': JSON.stringify(buildBuildingIndex(campus, graph)),
-      }
-      const fetch = (url: string) => {
-        const file = url.split('/').pop() || 'manifest.json'
-        return artifacts[file]
-          ? Promise.resolve(new Response(artifacts[file], { status: 200 }))
-          : Promise.resolve(new Response('Not found', { status: 404 }))
-      }
-      return await RuntimeEngine.create(new ArtifactLoader({ baseUrl: 'http://test', fetch }))
-    }
-
-    it('finds Room 101 by searching "101"', async () => {
-      const engine = await createEngine()
-      const results = engine.search.query('101', { maxResults: 5 })
+    it('finds Room 101 by searching "101"', () => {
+      const engine = createRuntimeEngine()
+      const results = engine.search.search('101')
       expect(results.length).toBeGreaterThan(0)
-      expect(results.some(r => r.entry.label === 'Room 101')).toBe(true)
+      expect(results.some(r => r.title === 'Room 101')).toBe(true)
     })
 
-    it('returns empty for nonexistent query', async () => {
-      const engine = await createEngine()
-      const results = engine.search.query('ZZZ_NONEXISTENT', { maxResults: 5 })
+    it('returns empty for nonexistent query', () => {
+      const engine = createRuntimeEngine()
+      const results = engine.search.search('ZZZ_NONEXISTENT')
       expect(results).toHaveLength(0)
     })
   })
 
-  // ── Stage 6: Route ──
   describe('Route', () => {
-    async function createEngine() {
-      const campus = createGoldenCampus()
-      const compiler = new CampusCompiler({ nodeInterval: 5, mergeThreshold: 3, optimizationLevel: 'moderate', includeAccessibility: false })
-      const result = compiler.compile(campus)
-      const graph = result.graph!
-      const manifest: PublishedManifest = {
-        projectId: 'Demo Campus', campusId: 'Demo Campus',
-        publishedAt: new Date().toISOString(), schemaVersion: 1, compilerVersion: '0.1.0',
-        artifacts: {
-          navigationGraph: { filename: 'navigation.graph.json', checksum: '', size: 0 },
-          searchIndex: { filename: 'search.index.json', checksum: '', size: 0 },
-          poiData: { filename: 'poi.json', checksum: '', size: 0 },
-          buildingIndex: { filename: 'building-index.json', checksum: '', size: 0 },
-        },
-      }
-      const artifacts: Record<string, string> = {
-        'manifest.json': JSON.stringify(manifest),
-        'navigation.graph.json': JSON.stringify(graph),
-        'search.index.json': JSON.stringify(buildSearchIndex(campus, graph)),
-        'poi.json': JSON.stringify(buildPOIData(graph)),
-        'building-index.json': JSON.stringify(buildBuildingIndex(campus, graph)),
-      }
-      const fetch = (url: string) => {
-        const file = url.split('/').pop() || 'manifest.json'
-        return artifacts[file]
-          ? Promise.resolve(new Response(artifacts[file], { status: 200 }))
-          : Promise.resolve(new Response('Not found', { status: 404 }))
-      }
-      return await RuntimeEngine.create(new ArtifactLoader({ baseUrl: 'http://test', fetch }))
-    }
-
-    it('finds a path from Room 101 to Room 102', async () => {
-      const engine = await createEngine()
+    it('finds a path from Room 101 to Room 102', () => {
+      const engine = createRuntimeEngine()
       const nodes = engine.data.getGraph().nodes
       const fromNode = nodes.find(n => n.label === 'Room 101')
       const toNode = nodes.find(n => n.label === 'Room 102')
       expect(fromNode).toBeDefined()
       expect(toNode).toBeDefined()
 
-      const route = engine.routing.findRoute(fromNode!.id, toNode!.id)
+      const route = engine.navigation.findRoute(fromNode!.id, toNode!.id)
       expect(route).not.toBeNull()
     })
 
-    it('path has >=3 steps', async () => {
-      const engine = await createEngine()
+    it('path has >=3 steps', () => {
+      const engine = createRuntimeEngine()
       const nodes = engine.data.getGraph().nodes
       const fromNode = nodes.find(n => n.label === 'Room 101')
       const toNode = nodes.find(n => n.label === 'Room 102')
-      const route = engine.routing.findRoute(fromNode!.id, toNode!.id)!
+      const route = engine.navigation.findRoute(fromNode!.id, toNode!.id)!
       expect(route.path.length).toBeGreaterThanOrEqual(2)
     })
 
-    it('instructions contain "walk" type', async () => {
-      const engine = await createEngine()
+    it('instructions contain "walk" type', () => {
+      const engine = createRuntimeEngine()
       const nodes = engine.data.getGraph().nodes
       const fromNode = nodes.find(n => n.label === 'Room 101')
       const toNode = nodes.find(n => n.label === 'Room 102')
-      const route = engine.routing.findRoute(fromNode!.id, toNode!.id)!
+      const route = engine.navigation.findRoute(fromNode!.id, toNode!.id)!
       const walkTypes = route.instructions.filter(i => i.type === 'walk')
       expect(walkTypes.length).toBeGreaterThan(0)
     })
 
-    it('totalDistance > 0', async () => {
-      const engine = await createEngine()
+    it('totalDistance > 0', () => {
+      const engine = createRuntimeEngine()
       const nodes = engine.data.getGraph().nodes
       const fromNode = nodes.find(n => n.label === 'Room 101')
       const toNode = nodes.find(n => n.label === 'Room 102')
-      const route = engine.routing.findRoute(fromNode!.id, toNode!.id)!
+      const route = engine.navigation.findRoute(fromNode!.id, toNode!.id)!
       expect(route.totalDistance).toBeGreaterThan(0)
     })
 
-    it('arrival instruction present', async () => {
-      const engine = await createEngine()
+    it('arrival instruction present', () => {
+      const engine = createRuntimeEngine()
       const nodes = engine.data.getGraph().nodes
       const fromNode = nodes.find(n => n.label === 'Room 101')
       const toNode = nodes.find(n => n.label === 'Room 102')
-      const route = engine.routing.findRoute(fromNode!.id, toNode!.id)!
+      const route = engine.navigation.findRoute(fromNode!.id, toNode!.id)!
       const arrive = route.instructions.find(i => i.type === 'arrive')
       expect(arrive).toBeDefined()
       expect(arrive!.text).toBeTruthy()

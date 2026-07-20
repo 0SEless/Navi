@@ -40,6 +40,8 @@ const mockBuilding: Building = {
   footprint: [{ lat: 11.8195, lng: 122.0922 }],
   campusId: 'asu-ibajay',
   color: '#1C6BEB',
+  baseElevation: 0,
+  height: 10,
 }
 
 let graphComponents: Component[] = []
@@ -71,8 +73,8 @@ vi.mock('@navi/editor', async () => {
       services: {
         get: (name: string) => {
           if (name === 'toolRegistry') {
-            const { ToolRegistry } = actual as { ToolRegistry: new () => { activeToolId: string | null; activate: () => void; get: () => undefined } }
-            return new ToolRegistry()
+            const { CurrentToolStore } = actual as { CurrentToolStore: new () => { activeToolId: string | null; activate: () => void } }
+            return new CurrentToolStore()
           }
           if (name === 'viewport') {
             return { activeFloorId: null, setActiveFloor: vi.fn() }

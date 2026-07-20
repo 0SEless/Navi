@@ -6,7 +6,7 @@ import type { CampusDocument } from '@navi/core'
 import { DocumentEventBus } from '../eventbus'
 import { CommandRegistry, CommandDispatcher } from '../commands'
 import { Viewport } from '../viewport'
-import { ToolRegistry } from '../tools'
+import { CurrentToolStore } from '../tools'
 import { CalibrationPanel } from './CalibrationPanel'
 
 afterEach(cleanup)
@@ -14,7 +14,7 @@ afterEach(cleanup)
 function createMockContext(buildingId?: string, floorId?: string): EditorContext {
   const eventBus = new DocumentEventBus()
   const registry = new CommandRegistry()
-  const toolRegistry = new ToolRegistry()
+  const toolRegistry = new CurrentToolStore()
   const document: CampusDocument = {
     schemaVersion: 1,
     metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },

@@ -1,4 +1,4 @@
-import type { SearchEntry, SearchIndex } from '@navi/compiler'
+import type { SearchEntry, SearchIndex } from '@navi/core'
 
 export interface SearchResult {
   entry: SearchEntry

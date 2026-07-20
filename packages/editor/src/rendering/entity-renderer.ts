@@ -25,14 +25,14 @@ export interface RendererOptions {
 }
 
 const ENTITY_SOURCE_MAP: Record<string, string> = {
-  building: SOURCE_IDS.BUILDINGS,
-  room: SOURCE_IDS.ROOMS,
-  hallway: SOURCE_IDS.HALLWAYS,
-  road: SOURCE_IDS.ROADS,
-  entrance: SOURCE_IDS.ENTRANCES,
-  staircase: SOURCE_IDS.STAIRCASES,
-  elevator: SOURCE_IDS.ELEVATORS,
-  panorama: SOURCE_IDS.PANORAMAS,
+  buildings: SOURCE_IDS.BUILDINGS,
+  rooms: SOURCE_IDS.ROOMS,
+  hallways: SOURCE_IDS.HALLWAYS,
+  roads: SOURCE_IDS.ROADS,
+  entrances: SOURCE_IDS.ENTRANCES,
+  staircases: SOURCE_IDS.STAIRCASES,
+  elevators: SOURCE_IDS.ELEVATORS,
+  panoramas: SOURCE_IDS.PANORAMAS,
   qr: SOURCE_IDS.QR,
 }
 

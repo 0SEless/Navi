@@ -1,31 +1,25 @@
-import type { ArtifactLoader } from '../loader'
-import type { RuntimeSnapshot } from '../types'
+import type { LoadedPackage } from '../loader'
 import { DataAPI } from './data-api'
-import { SearchAPI } from './search-api'
-import { RoutingAPI } from './routing-api'
-import { PositionAPI } from './position-api'
-import { SearchEngine } from '../search/search-engine'
-import { RoutingEngine } from '../routing/routing-engine'
-import { PositionEngine } from '../position/position-engine'
+import { NavigationService } from './navigation-service'
+import { SearchService } from './search-service'
+import { BuildingService } from './building-service'
+import { LocationService } from './location-service'
+import { PanoramaService } from './panorama-service'
 
 export class RuntimeEngine {
   readonly data: DataAPI
-  readonly search: SearchAPI
-  readonly routing: RoutingAPI
-  readonly position: PositionAPI
+  readonly search: SearchService
+  readonly navigation: NavigationService
+  readonly buildings: BuildingService
+  readonly location: LocationService
+  readonly panoramas: PanoramaService
 
-  private constructor(snapshot: RuntimeSnapshot) {
-    this.data = new DataAPI(snapshot)
-    this.search = new SearchAPI()
-    this.search.setEngine(new SearchEngine(snapshot.searchIndex))
-    this.routing = new RoutingAPI()
-    this.routing.setEngine(new RoutingEngine(snapshot.graph))
-    this.position = new PositionAPI()
-    this.position.setEngine(new PositionEngine(snapshot.graph.nodes))
-  }
-
-  static async create(loader: ArtifactLoader): Promise<RuntimeEngine> {
-    const snapshot = await loader.load()
-    return new RuntimeEngine(snapshot)
+  constructor(pkg: LoadedPackage) {
+    this.data = new DataAPI(pkg)
+    this.search = new SearchService(pkg)
+    this.navigation = new NavigationService(pkg)
+    this.buildings = new BuildingService(pkg)
+    this.location = new LocationService(pkg)
+    this.panoramas = new PanoramaService(pkg)
   }
 }

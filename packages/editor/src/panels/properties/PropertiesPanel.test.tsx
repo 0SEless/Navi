@@ -50,7 +50,7 @@ describe('PropertiesPanel', () => {
         <PropertiesPanel />
       </EditorProvider>,
     )
-    expect(screen.getByText('Workflow')).toBeDefined()
+    expect(screen.queryByText('Workflow')).toBeNull()
   })
 
   it('shows building properties when building selected', () => {
@@ -62,7 +62,12 @@ describe('PropertiesPanel', () => {
         <PropertiesPanel />
       </EditorProvider>,
     )
-    expect(screen.getByText('Building')).toBeDefined()
+    expect(screen.getByText('Information')).toBeDefined()
+    expect(screen.getByText('Physical')).toBeDefined()
+    expect(screen.getByText('Status')).toBeDefined()
+    expect(screen.getByText('Actions')).toBeDefined()
+    expect(screen.getByText('Assets')).toBeDefined()
+    expect(screen.getByText('Danger Zone')).toBeDefined()
     expect(screen.getByDisplayValue('Main')).toBeDefined()
   })
 })

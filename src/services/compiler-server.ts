@@ -20,9 +20,12 @@ export class CampusCompilerAdapter implements CompilerAdapter {
       const result = compiler.compile(document)
 
       if (!result.success || !result.graph) {
+        const prefix = result.errors?.some(e => e.code?.startsWith('GRAPH_'))
+          ? 'Graph validation failed'
+          : 'Compilation failed'
         return {
           status: 'error',
-          message: result.errors.map(e => e.message).join('; '),
+          message: `${prefix}: ${result.errors.map(e => e.code ? `[${e.code}] ${e.message}` : e.message).join('; ')}`,
           timestamp: Date.now(),
         }
       }

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>NAVI Studio UI Layout</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; }
+  body { background: #f5f5f5; padding: 24px; }
+  h1 { font-size: 18px; margin-bottom: 16px; color: #333; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 8px; }
+  .studio { display: flex; flex-direction: column; height: 100%; }
+  .topbar { background: #111; color: #fff; padding: 8px 16px; display: flex; align-items: center; gap: 16px; font-size: 13px; border-radius: 8px 8px 0 0; }
+  .topbar .brand { font-weight: 700; letter-spacing: 0.05em; }
+  .topbar .spacer { flex: 1; }
+  .topbar .current { color: #94a3b8; font-size: 12px; }
+  .topbar .status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .topbar .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; display: inline-block; }
+
+  .body { display: flex; flex: 1; min-height: 0; }
+  
+  .sidebar { width: 220px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+  .sidebar .nav-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 13px; color: #333; border-left: 3px solid transparent; cursor: pointer; }
+  .sidebar .nav-item.active { background: #eff6ff; border-left-color: #2563eb; color: #2563eb; font-weight: 600; }
+  .sidebar .nav-item .badge { margin-left: auto; background: #e5e7eb; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+  .sidebar .nav-item .badge.active { background: #2563eb; color: #fff; }
+  .sidebar .spacer { flex: 1; }
+  .sidebar .signout { border-top: 1px solid #e5e7eb; }
+
+  .main { flex: 1; display: flex; flex-direction: column; background: #fafafa; }
+
+  .toolbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar .label { font-size: 11px; font-weight: 700; color: #2563eb; letter-spacing: 0.05em; margin-right: 4px; }
+  .toolbar .group { display: flex; gap: 2px; }
+  .toolbar .group + .group { margin-left: 12px; padding-left: 12px; border-left: 1px solid #e5e7eb; }
+  .toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #e5e7eb; background: #fff; border-radius: 4px; cursor: pointer; }
+  .toolbar button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .toolbar button:disabled { opacity: 0.4; cursor: default; }
+  .toolbar .save { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 600; }
+  .toolbar .publish { background: #16a34a; color: #fff; border-color: #16a34a; font-weight: 600; }
+
+  .editor { display: flex; flex: 1; min-height: 0; }
+
+  .explorer { width: 260px; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+  .explorer-header { padding: 12px 16px; font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb; }
+  .explorer-search { padding: 8px 12px; }
+  .explorer-search input { width: 100%; padding: 6px 10px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 4px; }
+  .explorer-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .tree-item { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .tree-item:hover { background: #f5f5f5; }
+  .tree-item.selected { background: #eff6ff; color: #2563eb; font-weight: 600; }
+  .tree-item .expand { width: 16px; font-size: 10px; color: #999; }
+  .tree-item .icon { font-size: 14px; }
+  .tree-count { padding: 8px 12px; font-size: 11px; color: #999; border-top: 1px solid #e5e7eb; }
+
+  .canvas { flex: 1; position: relative; background: #e8e8e8; display: flex; align-items: center; justify-content: center; min-height: 400px; }
+  .canvas .map-placeholder { color: #999; font-size: 14px; }
+  .canvas .map-controls { position: absolute; bottom: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .canvas .map-controls button { width: 30px; height: 30px; background: #fff; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; cursor: pointer; }
+
+  .props { width: 280px; background: #fff; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+  .props-header { padding: 12px 16px; font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb; }
+  .props-body { padding: 12px 16px; overflow-y: auto; }
+  .props-field { margin-bottom: 12px; }
+  .props-field label { display: block; font-size: 11px; color: #666; margin-bottom: 3px; font-weight: 500; }
+  .props-field input, .props-field select { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid #e5e7eb; border-radius: 4px; }
+  .props-field select { background: #fff; }
+
+  .footer { height: 28px; background: #fff; border-top: 1px solid #e5e7eb; display: flex; align-items: center; padding: 0 12px; font-size: 11px; color: #999; gap: 16px; }
+  .footer .panel { display: flex; align-items: center; gap: 4px; }
+  .footer .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .footer .dot.green { background: #22c55e; }
+  .footer .dot.red { background: #ef4444; }
+</style>
+</head>
+<body>
+
+<h1>NAVI Studio — UI Layout</h1>
+
+<div class="studio">
+
+  <!-- Top Bar -->
+  <div class="topbar">
+    <span class="brand">NAVIADMIN</span>
+    <div class="spacer"></div>
+    <input type="text" placeholder="Search..." style="padding:4px 8px;font-size:12px;border:0;border-radius:4px;width:180px;">
+    <div class="spacer"></div>
+    <span class="current">ASU Ibajay</span>
+    <div class="status">Online</div>
+  </div>
+
+  <div class="body">
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+      <div class="nav-item">Dashboard</div>
+      <div class="nav-item">Panoramas <span class="badge active">3</span></div>
+      <div class="nav-item">QR Checkpoints</div>
+      <div class="nav-item">Route Testing</div>
+      <div class="nav-item">Dataset Mgmt</div>
+      <div class="nav-item active">NAVI Studio</div>
+      <div class="spacer"></div>
+      <div class="nav-item signout">Sign Out</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+
+      <!-- Studio Toolbar -->
+      <div class="toolbar">
+        <span class="label">NAVI STUDIO</span>
+        <div class="group">
+          <button class="active">Campus</button>
+          <button>Building</button>
+          <button>Floor</button>
+        </div>
+        <div class="group">
+          <button class="active">Select</button>
+          <button>Move</button>
+          <button>Route</button>
+        </div>
+        <div class="group">
+          <button>Building</button>
+        </div>
+        <div class="group">
+          <button disabled>Undo</button>
+          <button disabled>Redo</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:4px;">
+          <button class="save">Save</button>
+          <button class="publish">Publish</button>
+        </div>
+      </div>
+
+      <!-- Editor Panels -->
+      <div class="editor">
+
+        <!-- Explorer -->
+        <div class="explorer">
+          <div class="explorer-header">Explorer</div>
+          <div class="explorer-search">
+            <input placeholder="Search entities...">
+          </div>
+          <div class="explorer-tree">
+            <div class="tree-item selected">
+              <span class="expand">▶</span>
+              <span class="icon">🏛</span>
+              <span>Bldg No. 1</span>
+            </div>
+            <div class="tree-item">
+              <span class="expand">▶</span>
+              <span class="icon">🏛</span>
+              <span>Bldg No. 2</span>
+            </div>
+            <div class="tree-item" style="opacity:0.5">... Bldg No. 3–29</div>
+          </div>
+          <div class="tree-count">29 items</div>
+        </div>
+
+        <!-- Map Canvas -->
+        <div class="canvas">
+          <div class="map-placeholder">🗺 Map Area (MapLibre / OpenStreetMap)</div>
+          <div class="map-controls">
+            <button>＋</button>
+            <button>－</button>
+          </div>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="props">
+          <div class="props-header">Building</div>
+          <div class="props-body">
+            <div class="props-field">
+              <label>Name</label>
+              <input value="Bldg No. 1">
+            </div>
+            <div class="props-field">
+              <label>Code</label>
+              <input placeholder="">
+            </div>
+            <div class="props-field">
+              <label>Category</label>
+              <select>
+                <option selected>academic</option>
+                <option>residential</option>
+                <option>administrative</option>
+                <option>facility</option>
+                <option>library</option>
+                <option>dining</option>
+                <option>sports</option>
+                <option>parking</option>
+                <option>health</option>
+                <option>other</option>
+              </select>
+            </div>
+            <div class="props-field">
+              <label>Description</label>
+              <input placeholder="">
+            </div>
+            <div class="props-field">
+              <label>Color</label>
+              <input value="#1c6beb">
+            </div>
+            <div class="props-field">
+              <label>Base Elevation (m)</label>
+              <input type="number" value="0">
+            </div>
+            <div class="props-field">
+              <label>Height (m)</label>
+              <input type="number" value="5">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Status Footer -->
+      <div class="footer">
+        <span class="panel"><span class="dot green"></span> 17 errors</span>
+        <span class="panel">2 warnings</span>
+        <span style="margin-left:auto">55</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Annotation key -->
+<div style="margin-top:24px;padding:16px;background:#fff;border-radius:8px;font-size:13px;">
+  <h2>Layout Regions</h2>
+  <table style="border-collapse:collapse;width:100%;">
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>A</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Global Top Bar</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">NAVIADMIN brand, search, campus context (ASU Ibajay), Online status</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>B</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Sidebar Navigation</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">Dashboard, Panoramas, QR, Route Testing, Dataset Mgmt, NAVI Studio, Sign Out</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>C</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Studio Toolbar</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">Entity hierarchy (Campus/Building/Floor) · Tools (Select/Move/Route) · Draw (Building) · Undo/Redo · Save/Publish</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>D</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Explorer Panel</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">Tree of 29 buildings with search, expandable per building, count footer</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>E</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Map Canvas</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">MapLibre GL JS rendering OpenStreetMap tiles, zoom controls</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>F</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Properties Panel</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">Context-sensitive inspector showing selected entity fields (Name, Code, Category, Color, Elevation, Height)</td></tr>
+    <tr><td style="padding:4px 8px;border:1px solid #e5e7eb;"><b>G</b></td><td style="padding:4px 8px;border:1px solid #e5e7eb;">Status Bar</td><td style="padding:4px 8px;border:1px solid #e5e7eb;color:#666;">Console errors count, warnings, version indicator</td></tr>
+  </table>
+</div>
+
+<div style="margin-top:16px;padding:16px;background:#fff;border-radius:8px;font-size:13px;">
+  <h2>Current State Observations (SV1 Walkthrough)</h2>
+  <ul style="margin-top:8px;padding-left:20px;color:#555;line-height:1.7;">
+    <li><b>Campus created:</b> "ASU Ibajay" — 29 buildings imported (Bldg No. 1–29)</li>
+    <li><b>No floors, rooms, hallways, entrances yet</b> — buildings are empty shells</li>
+    <li><b>17 console errors</b> on editor page load — needs investigation</li>
+    <li><b>Explorer tree is flat</b> — building entries have expand arrows but show no children on click (no floors loaded)</li>
+    <li><b>Campus/Building/Floor toggle</b> at top of toolbar — not clear if it filters or creates</li>
+    <li><b>Properties panel</b> renders for selected building — metadata editable (name, code, category, color, elevation, height)</li>
+    <li><b>Map canvas area visible</b> — MapLibre with OSM tiles, should show building footprints</li>
+    <li><b>Save + Publish</b> buttons present in toolbar</li>
+  </ul>
+</div>
+
+</body>
+</html>

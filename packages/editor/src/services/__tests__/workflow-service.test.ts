@@ -72,15 +72,12 @@ describe('WorkflowService', () => {
   })
 
   describe('isDirty', () => {
-    it('returns false when version matches lastSaveVersion', () => {
-      documentStore.version = 5
-      workflowStore.setLastSaveVersion(5)
+    it('returns false when state is saved', () => {
       expect(service.isDirty()).toBe(false)
     })
 
-    it('returns true when version > lastSaveVersion', () => {
-      documentStore.version = 10
-      workflowStore.setLastSaveVersion(5)
+    it('returns true after mutate()', () => {
+      service.mutate()
       expect(service.isDirty()).toBe(true)
     })
   })
@@ -119,6 +116,7 @@ describe('WorkflowService', () => {
 
   describe('save', () => {
     it('manual save updates WorkflowStore', async () => {
+      service.mutate()
       documentStore.version = 3
       await service.save('manual')
       const snap = workflowStore.getSnapshot()
@@ -127,6 +125,7 @@ describe('WorkflowService', () => {
     })
 
     it('autosave updates WorkflowStore', async () => {
+      service.mutate()
       await service.save('autosave')
       expect(workflowStore.getSnapshot().lastSave?.reason).toBe('autosave')
     })
@@ -142,8 +141,7 @@ describe('WorkflowService', () => {
     it('transitions saveState during successful save', async () => {
       expect(workflowStore.getSnapshot().saveState).toBe('saved')
 
-      // Simulate a command by incrementing document version
-      documentStore.version++
+      service.mutate()
 
       const savePromise = service.save('manual')
       expect(workflowStore.getSnapshot().saveState).toBe('saving')
@@ -156,25 +154,24 @@ describe('WorkflowService', () => {
       expect(snapshot.lastSavedAt).toBeGreaterThan(0)
     })
 
-    it('transitions to error state on failed save', async () => {
+    it('returns to dirty state on failed save', async () => {
       // Spy on persistence to make save fail
       const persistence = context.get('persistence') as any
       vi.spyOn(persistence, 'save').mockRejectedValueOnce(new Error('Network error'))
 
+      service.mutate()
       const savePromise = service.save('manual')
       expect(workflowStore.getSnapshot().saveState).toBe('saving')
 
       await expect(savePromise).rejects.toThrow('Network error')
 
       const snapshot = workflowStore.getSnapshot()
-      expect(snapshot.saveState).toBe('error')
+      expect(snapshot.saveState).toBe('dirty')
       expect(snapshot.saveError).toBe('Network error')
-      // lastSavedAt should NOT be updated on failure
-      expect(snapshot.lastSavedAt).toBeGreaterThan(0)
     })
 
     it('sets lastSaveReason to autosave for autosave saves', async () => {
-      documentStore.version++
+      service.mutate()
       await service.save('autosave')
       const snapshot = workflowStore.getSnapshot()
       expect(snapshot.lastSaveReason).toBe('autosave')
@@ -186,7 +183,7 @@ describe('WorkflowService', () => {
       const emitSpy = vi.fn()
       eventBus.on('workflow.saved', emitSpy)
 
-      documentStore.version++
+      service.mutate()
       await service.save('manual')
 
       expect(emitSpy).toHaveBeenCalledTimes(1)

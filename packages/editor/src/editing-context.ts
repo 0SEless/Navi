@@ -10,7 +10,7 @@ export type EditorMode = 'campus' | 'building' | 'floor'
  * Campus / Building / Floor hierarchies the user is editing.
  *
  * It owns ONLY `mode`. Building and floor identity live in `Viewport`
- * (activeBuildingId / activeFloorId); tool selection lives in `ToolRegistry`.
+ * (activeBuildingId / activeFloorId); tool selection lives in `CurrentToolStore`.
  * This service deliberately does not duplicate that ownership.
  */
 export class EditingContextService extends BaseEditorService {

@@ -1,4 +1,4 @@
-import type { NavigationGraph, NavNode, NavEdge } from '@navi/compiler'
+import type { NavigationGraph, NavNode, NavEdge } from '@navi/core'
 import type { LatLng } from '@navi/core'
 
 function haversine(a: LatLng, b: LatLng): number {

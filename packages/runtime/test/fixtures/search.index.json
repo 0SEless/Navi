@@ -1,1 +1,16 @@
-{ "version": "1.0.0", "entries": [{ "id": "e1", "label": "Room 101", "type": "room", "nodeId": "n1", "position": { "lng": 121.0, "lat": 14.0 }, "tags": ["room"] }] }
+{
+  "schemaVersion": "1.0",
+  "entries": [
+    {
+      "id": "e1",
+      "label": "Room 101",
+      "type": "room",
+      "nodeId": "n1",
+      "lat": 14,
+      "lng": 121,
+      "tags": [
+        "room"
+      ]
+    }
+  ]
+}

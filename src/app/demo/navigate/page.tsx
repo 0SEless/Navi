@@ -1,8 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArtifactLoader, RuntimeEngine } from '@navi/runtime'
-import type { Route } from '@navi/runtime'
+import { RuntimeEngine } from '@navi/runtime'
+import type { LoadedPackage, Route } from '@navi/runtime'
+
+const BASE = '/api/demo/artifacts?file='
+
+async function fetcher(file: string) {
+  const res = await fetch(`${BASE}${file}`)
+  if (!res.ok) throw new Error(`Failed to fetch ${file}: ${res.status}`)
+  return res.json()
+}
 
 export default function NavigatePage() {
   const [engine, setEngine] = useState<RuntimeEngine | null>(null)
@@ -14,16 +22,25 @@ export default function NavigatePage() {
   const [route, setRoute] = useState<Route | null>(null)
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
-        const loader = new ArtifactLoader({ baseUrl: '/api/demo/artifacts?file=' })
-        const rt = await RuntimeEngine.create(loader)
-        setEngine(rt)
+        const [graph, searchIndex, buildingIndex, poiIndex] = await Promise.all([
+          fetcher('navigation.graph.json'), fetcher('search.index.json'),
+          fetcher('building-index.json'), fetcher('poi.json'),
+        ])
+        const pkg: LoadedPackage = {
+          manifest: {
+            schemaVersion: '1.0', campusId: '', campusName: '',
+            publishedAt: '', compilerVersion: '', revision: '',
+            artifacts: {}, metadata: { nodeCount: 0, edgeCount: 0, buildingCount: 0, floorCount: 0, boundingBox: { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }, routeable: false },
+          },
+          graph, searchIndex, buildingIndex, poiIndex, reports: [],
+        }
+        setEngine(new RuntimeEngine(pkg))
       } catch (err) {
         setError((err as Error).message)
       }
-    }
-    load()
+    })()
   }, [])
 
   const handleSearch = () => {

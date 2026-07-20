@@ -130,7 +130,7 @@ export default function OsmImportSandbox() {
               <strong>{result.count}</strong> buildings parsed
             </div>
             <div style={{ padding: '8px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6 }}>
-              BBox: {result.query.bbox}
+              BBox: {typeof result.query.bbox === 'string' ? result.query.bbox : JSON.stringify(result.query.bbox)}
             </div>
             <div style={{ padding: '8px 12px', background: '#F5F5F5', border: '1px solid #D4D4D4', borderRadius: 6 }}>
               Raw elements: {result.raw.elements}
@@ -220,7 +220,7 @@ export default function OsmImportSandbox() {
       </div>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
-        Boundary polygon (JSON array of {lat, lng})
+        Boundary polygon (JSON array of {"{lat, lng}"})
         <textarea value={boundaryText} onChange={(e) => setBoundaryText(e.target.value)} rows={4}
           style={{ padding: 6, border: '1px solid #ccc', borderRadius: 4, fontSize: 11, fontFamily: 'monospace' }} />
       </label>

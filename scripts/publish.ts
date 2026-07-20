@@ -47,10 +47,10 @@ function main() {
 
   const manifest = publish(campus, result, { outDir: profile.outDir })
   console.log(`  Published:  ${profile.outDir}/`)
-  console.log(`    - ${manifest.artifacts.navigationGraph.filename}`)
-  console.log(`    - ${manifest.artifacts.searchIndex.filename}`)
-  console.log(`    - ${manifest.artifacts.poiData.filename}`)
-  console.log(`    - ${manifest.artifacts.buildingIndex.filename}`)
+  console.log(`    - ${manifest.artifacts.graph.path}`)
+  console.log(`    - ${manifest.artifacts.search.path}`)
+  console.log(`    - ${manifest.artifacts.buildings.path}`)
+  console.log(`    - ${manifest.artifacts.poi.path}`)
   console.log(`    - manifest.json`)
   console.log(`  Done.`)
 }
