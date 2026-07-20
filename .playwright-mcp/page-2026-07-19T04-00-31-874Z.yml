@@ -1,0 +1,24 @@
+- generic [active] [ref=f25e1]:
+  - generic [ref=f25e2]:
+    - banner [ref=f25e3]:
+      - generic [ref=f25e4]: NAVIADMIN
+      - textbox "Search..." [ref=f25e15]
+      - generic [ref=f25e16]:
+        - generic [ref=f25e17]: Online
+        - generic [ref=f25e20]: ASU Ibajay
+    - generic [ref=f25e21]:
+      - complementary [ref=f25e22]:
+        - button [ref=f25e24] [cursor=pointer]
+        - navigation [ref=f25e27]:
+          - button "Dashboard" [ref=f25e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f25e35] [cursor=pointer]:
+            - generic [ref=f25e39]: Panoramas
+            - generic [ref=f25e40]: "3"
+          - button "QR Checkpoints" [ref=f25e41] [cursor=pointer]
+          - button "Route Testing" [ref=f25e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f25e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f25e61] [cursor=pointer]
+        - button "Sign Out" [ref=f25e68] [cursor=pointer]
+      - main [ref=f25e73]:
+        - generic [ref=f25e74]: Map not found
+  - button "Open Next.js Dev Tools" [ref=f25e81] [cursor=pointer]

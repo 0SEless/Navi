@@ -1,0 +1,44 @@
+- generic [active] [ref=f23e1]:
+  - generic [ref=f23e2]:
+    - banner [ref=f23e3]:
+      - generic [ref=f23e4]: NAVIADMIN
+      - textbox "Search..." [ref=f23e15]
+      - generic [ref=f23e16]:
+        - generic [ref=f23e17]: Online
+        - generic [ref=f23e20]: ASU Ibajay
+    - generic [ref=f23e21]:
+      - complementary [ref=f23e22]:
+        - button [ref=f23e24] [cursor=pointer]
+        - navigation [ref=f23e27]:
+          - button "Dashboard" [ref=f23e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f23e35] [cursor=pointer]:
+            - generic [ref=f23e39]: Panoramas
+            - generic [ref=f23e40]: "3"
+          - button "QR Checkpoints" [ref=f23e41] [cursor=pointer]
+          - button "Route Testing" [ref=f23e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f23e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f23e61] [cursor=pointer]
+        - button "Sign Out" [ref=f23e68] [cursor=pointer]
+      - main [ref=f23e73]:
+        - generic [ref=f23e179]:
+          - generic [ref=f23e197]:
+            - generic [ref=f23e198]:
+              - textbox "Search location..." [ref=f23e199]
+              - button [ref=f23e200] [cursor=pointer]
+            - button "Back" [ref=f23e204] [cursor=pointer]
+          - generic [ref=f23e207]:
+            - generic [ref=f23e208]: Click on the map to add boundary points
+            - generic [ref=f23e225]: 4 points placed — boundary ready
+          - generic [ref=f23e209]:
+            - button "Clear Points" [ref=f23e210] [cursor=pointer]
+            - button "Importing from OSM..." [disabled] [ref=f23e230]
+          - generic [ref=f23e219]:
+            - region "Map" [ref=f23e220]
+            - group [ref=f23e221]:
+              - generic "Toggle attribution" [ref=f23e222] [cursor=pointer]
+              - generic [ref=f23e223]:
+                - text: © OpenStreetMap contributors |
+                - link "MapLibre" [ref=f23e224] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=f23e173] [cursor=pointer]
+  - alert [ref=f23e177]

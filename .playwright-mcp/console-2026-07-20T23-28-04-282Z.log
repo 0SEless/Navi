@@ -1,0 +1,29 @@
+[   66820ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   66884ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   81326ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   81457ms] [LOG] [Fast Refresh] done in 234ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   83166ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   83188ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   84989ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   85112ms] [LOG] [Fast Refresh] done in 227ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   88806ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   90960ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   91025ms] [LOG] [Fast Refresh] done in 168ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   91102ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   91124ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   93039ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[   93071ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  101564ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  155494ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  158821ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  162159ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  165495ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  168853ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  176212ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=kHr7iCoC7RJH-PtG1TH7z' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  183873ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  185718ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  185752ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  185946ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  185993ms] [LOG] [Fast Refresh] done in 153ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  188615ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  188683ms] [LOG] [Fast Refresh] done in 168ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477

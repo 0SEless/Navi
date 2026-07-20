@@ -56,6 +56,8 @@ Main progress tracker for the NAVI second brain.
 - [x] Obsidian will act as the project memory for goals, plans, decisions, errors, and build logs.
 - [x] opencode multi-agent system deployed: 6 subagents (memory, research, architect, QA, documentation, mentor) + 3 skills (PostGIS, ADR, lint guard) + supervisor role.
 - [x] Rendering is decomposed: EntityRenderer owns authored CampusDocument geometry; NavigationGraphRenderer owns the compiled nav-graph (derived via GraphAdapter). Legacy MapRenderer deleted. See [[ADR 004 - Rendering Responsibilities]].
+- [x] Runtime is a Capability Façade: `RuntimeEngine` exposes domain-scoped services (Navigation, Search, Buildings, Location), each built from `LoadedPackage`, stateless, read-only, single-responsibility. See [[ADR 013 - Runtime Capability Architecture]].
+- [x] Runtime capabilities follow a formal `RuntimeCapability` lifecycle (`initialize` / `dispose`) owned by `RuntimeEngine`, enabling M7 composition services and future lazy loading / hot reload. See [[ADR 014 - Runtime Capability Lifecycle]].
 
 ## Key Links
 

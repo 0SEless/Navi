@@ -1,0 +1,121 @@
+[   58336ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58336ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489618.png:0
+[   58339ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58339ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489618.png:0
+[   58341ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58341ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489619.png:0
+[   58341ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58342ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489619.png:0
+[   58342ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58342ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489618.png:0
+[   58342ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489617.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58342ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489617.png:0
+[   58342ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58343ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489619.png:0
+[   58343ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489617.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   58343ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489617.png:0
+[   60330ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60330ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489618.png:0
+[   60333ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489620.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60333ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489620.png:0
+[   60333ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60333ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489619.png:0
+[   60333ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489620.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60333ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489620.png:0
+[   60333ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489617.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60333ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489617.png:0
+[   60334ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489620.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60334ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489620.png:0
+[   60334ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880131/489620.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60334ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880131/489620.png:0
+[   60334ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489617.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[   60334ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489617.png:0
+[  113571ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_RESET @ http://localhost:3002/api/osm-buildings:0
+[  113628ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=xjEWtGz0fb591oJyNsUQ2' failed:  @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  113629ms] [WARNING] [campus-map-store] syncToSupabase failed: TypeError: Failed to fetch
+    at Object.syncToSupabase (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18408:27)
+    at Object.save (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18496:19)
+    at createMap (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18308:19)
+    at handleConfirmAndImport (http://localhost:3002/_next/static/chunks/src_081t87r._.js:2875:20)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64) @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  113630ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2836
+[  116967ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=xjEWtGz0fb591oJyNsUQ2' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  120285ms] [ERROR] WebSocket connection to 'ws://localhost:3002/_next/webpack-hmr?id=xjEWtGz0fb591oJyNsUQ2' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_client_0r5nbpw._.js:13422
+[  121009ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/api/campus-maps:0
+[  121009ms] [WARNING] [campus-map-store] syncToSupabase failed: TypeError: Failed to fetch
+    at Object.syncToSupabase (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18408:27)
+    at Object.save (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18496:19)
+    at createMap (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18308:19)
+    at handleConfirmAndImport (http://localhost:3002/_next/static/chunks/src_081t87r._.js:2875:20)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64) @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  121010ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/api/osm-buildings:0
+[  121017ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2836
+[  121272ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3002/api/campus-maps:0
+[  121272ms] [WARNING] [campus-map-store] syncToSupabase failed: TypeError: Failed to fetch
+    at Object.syncToSupabase (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:18408:27) @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  121274ms] [ERROR] WebSocket is already in CLOSING or CLOSED state. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2836
+[  123823ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  125675ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  125699ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  277048ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  277078ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  277220ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  277333ms] [LOG] [Fast Refresh] done in 218ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  280300ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  348855ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  348856ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  387359ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  387359ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  402685ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  402685ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  414417ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  414441ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  476644ms] Error: Unknown command: building.editInterior
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:1567:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0lpclxf._.js:14139:49)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[  476760ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  476799ms] [LOG] [Fast Refresh] done in 140ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  488057ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  488058ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  719773ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  719960ms] [LOG] [Fast Refresh] done in 235ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  720079ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  720119ms] [LOG] [Fast Refresh] done in 143ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  732917ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  733096ms] [LOG] [Fast Refresh] done in 279ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  739304ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  739519ms] [LOG] [Fast Refresh] done in 308ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  739624ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  739637ms] [LOG] [Fast Refresh] done in 114ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  790043ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  790570ms] [LOG] [Fast Refresh] done in 632ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  790665ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  790705ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  814623ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  814623ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  881874ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  881875ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  896222ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  896222ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477

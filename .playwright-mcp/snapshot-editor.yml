@@ -1,0 +1,60 @@
+- generic [active] [ref=f22e1]:
+  - generic [ref=f22e2]:
+    - banner [ref=f22e3]:
+      - generic [ref=f22e4]: NAVIADMIN
+      - textbox "Search..." [ref=f22e15]
+      - generic [ref=f22e16]:
+        - generic [ref=f22e17]: Online
+        - generic [ref=f22e20]: ASU Ibajay
+    - generic [ref=f22e21]:
+      - complementary [ref=f22e22]:
+        - button [ref=f22e24] [cursor=pointer]
+        - navigation [ref=f22e27]:
+          - button "Dashboard" [ref=f22e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f22e35] [cursor=pointer]:
+            - generic [ref=f22e39]: Panoramas
+            - generic [ref=f22e40]: "3"
+          - button "QR Checkpoints" [ref=f22e41] [cursor=pointer]
+          - button "Route Testing" [ref=f22e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f22e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f22e61] [cursor=pointer]
+        - button "Sign Out" [ref=f22e68] [cursor=pointer]
+      - main [ref=f22e73]:
+        - generic [ref=f22e633]:
+          - generic [ref=f22e634]:
+            - generic [ref=f22e635]: NAVI STUDIO
+            - generic [ref=f22e636]:
+              - generic [ref=f22e637]: All changes saved
+              - generic [ref=f22e639]:
+                - generic [ref=f22e640]: Not Validated
+                - button "Validate" [ref=f22e642] [cursor=pointer]
+                - button "Publish" [disabled] [ref=f22e643] [cursor=pointer]
+          - generic [ref=f22e644]:
+            - generic [ref=f22e645]:
+              - generic [ref=f22e646]: Explorer
+              - generic [ref=f22e647]: No entities in document
+            - generic [ref=f22e650]:
+              - region "Map" [ref=f22e651] [cursor=pointer]
+              - group [ref=f22e652]:
+                - generic "Toggle attribution" [ref=f22e653] [cursor=pointer]
+                - generic [ref=f22e654]:
+                  - text: © OpenStreetMap contributors |
+                  - link "MapLibre" [ref=f22e715] [cursor=pointer]:
+                    - /url: https://maplibre.org/
+          - generic [ref=f22e656]:
+            - button "Select" [ref=f22e657] [cursor=pointer]
+            - button "Pan" [ref=f22e660] [cursor=pointer]
+            - button "Building" [ref=f22e666] [cursor=pointer]
+            - button "Road" [ref=f22e671] [cursor=pointer]
+            - button "Room" [ref=f22e676] [cursor=pointer]
+            - button "Hallway" [ref=f22e679] [cursor=pointer]
+            - button "Entrance" [ref=f22e683] [cursor=pointer]
+            - button "QR" [ref=f22e687] [cursor=pointer]
+            - button "Panorama" [ref=f22e694] [cursor=pointer]
+            - button "Stairs" [ref=f22e698] [cursor=pointer]
+            - button "Elevator" [ref=f22e702] [cursor=pointer]
+            - button "Undo" [disabled] [ref=f22e707]
+            - button "Redo" [disabled] [ref=f22e711]
+  - button "Open Next.js Dev Tools" [ref=f22e367] [cursor=pointer]
+  - alert [ref=f22e496]
+  - generic [ref=f22e497]: "55"

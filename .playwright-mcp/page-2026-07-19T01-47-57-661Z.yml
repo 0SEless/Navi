@@ -1,0 +1,43 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - banner [ref=f13e3]:
+      - generic [ref=f13e4]: NAVIADMIN
+      - textbox "Search..." [ref=f13e15]
+      - generic [ref=f13e16]:
+        - generic [ref=f13e17]: Online
+        - generic [ref=f13e20]: ASU Ibajay
+    - generic [ref=f13e21]:
+      - complementary [ref=f13e22]:
+        - button [ref=f13e24] [cursor=pointer]
+        - navigation [ref=f13e27]:
+          - button "Dashboard" [ref=f13e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f13e35] [cursor=pointer]:
+            - generic [ref=f13e39]: Panoramas
+            - generic [ref=f13e40]: "3"
+          - button "QR Checkpoints" [ref=f13e41] [cursor=pointer]
+          - button "Route Testing" [ref=f13e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f13e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f13e61] [cursor=pointer]
+        - button "Sign Out" [ref=f13e68] [cursor=pointer]
+      - main [ref=f13e73]:
+        - generic [ref=f13e544]:
+          - generic [ref=f13e562]:
+            - generic [ref=f13e563]:
+              - textbox "Search location..." [ref=f13e564]
+              - button [ref=f13e565] [cursor=pointer]
+            - button "Back" [ref=f13e569] [cursor=pointer]
+          - generic [ref=f13e572]: Click on the map to add boundary points
+          - generic [ref=f13e574]:
+            - button "Clear Points" [disabled] [ref=f13e575]
+            - button "Confirm & Import Buildings" [disabled] [ref=f13e579]
+          - generic [ref=f13e584]:
+            - region "Map" [ref=f13e585]
+            - group [ref=f13e586]:
+              - generic "Toggle attribution" [ref=f13e587] [cursor=pointer]
+              - generic [ref=f13e588]:
+                - text: © OpenStreetMap contributors |
+                - link "MapLibre" [ref=f13e589] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=f13e470] [cursor=pointer]
+  - alert [ref=f13e474]
+  - generic [ref=f13e475]: "55"

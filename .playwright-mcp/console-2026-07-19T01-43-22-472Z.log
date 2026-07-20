@@ -1,0 +1,273 @@
+[     134ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     153ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  168764ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  168865ms] [LOG] [Fast Refresh] done in 207ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  168938ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  168962ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  198649ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  198884ms] [LOG] [Fast Refresh] done in 372ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  355159ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  355248ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  355304ms] [LOG] [Fast Refresh] done in 175ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  419998ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  419998ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489619.png:0
+[  420001ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489618.png:0
+[  420001ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489619.png:0
+[  420001ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489619.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489619.png:0
+[  420001ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489617.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489617.png:0
+[  420001ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880128/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420002ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880128/489618.png:0
+[  420002ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880130/489618.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420002ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880130/489618.png:0
+[  420002ms] [ERROR] Access to fetch at 'https://tile.openstreetmap.org/20/880129/489620.png' from origin 'http://localhost:3002' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/studio/create:0
+[  420002ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tile.openstreetmap.org/20/880129/489620.png:0
+[  426545ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[  426546ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  433452ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  433495ms] [LOG] [Fast Refresh] done in 151ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 3231652ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 3231802ms] [LOG] [Fast Refresh] done in 256ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 3231913ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 3231967ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 5898729ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/api/graph:0
+[ 5898730ms] [WARNING] [graph-store] syncToSupabase failed: invalid input syntax for type integer: "[0]" @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 5899852ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 5899895ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6572009ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6572044ms] [LOG] [Fast Refresh] done in 136ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581151ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581317ms] [LOG] [Fast Refresh] done in 253ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581463ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581546ms] [LOG] [Fast Refresh] done in 184ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581662ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6581677ms] [LOG] [Fast Refresh] done in 116ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588280ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588635ms] [LOG] [Fast Refresh] done in 372ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588758ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588800ms] [LOG] [Fast Refresh] done in 158ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588929ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6588967ms] [LOG] [Fast Refresh] done in 146ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6594652ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6594738ms] [LOG] [Fast Refresh] done in 178ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6594862ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6594973ms] [LOG] [Fast Refresh] done in 218ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6595116ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6595116ms] [LOG] [Fast Refresh] done in 111ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6615909ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616143ms] [LOG] [Fast Refresh] done in 332ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616261ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616317ms] [LOG] [Fast Refresh] done in 156ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616445ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616517ms] [LOG] [Fast Refresh] done in 178ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6616655ms] ReferenceError: Save is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_0i2e80z._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fstudio%252FStudioToolbar.tsx+%255Bapp-client%255D+%2528ecmascript%2529:370:224)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:186)
+    at performSyncWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10263:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10179:316)
+    at processRootScheduleInMicrotask (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10200:106)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10274:158
+[ 6621894ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6621902ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6621915ms] [LOG] [Fast Refresh] done in 74ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6621948ms] ReferenceError: workflow is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_0i2e80z._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fstudio%252FStudioToolbar.tsx+%255Bapp-client%255D+%2528ecmascript%2529:362:33)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9098:47)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+[ 6622023ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622027ms] [LOG] [Fast Refresh] done in 105ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622138ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622427ms] [LOG] [Fast Refresh] done in 399ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622625ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622725ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6622822ms] ReferenceError: workflow is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_0i2e80z._.js:6964:33)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9098:47)
+    at performSyncWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10263:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10179:316)
+    at flushPassiveEffects (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10008:13)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9724:13
+    at MessagePort.performWorkUntilDeadline (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+[ 6628335ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628343ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628459ms] [LOG] [Fast Refresh] done in 91ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628572ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628797ms] [LOG] [Fast Refresh] done in 336ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628899ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6628922ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691485ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691519ms] [LOG] [Fast Refresh] done in 76ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691623ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691623ms] [LOG] [Fast Refresh] done in 100ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691729ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6691775ms] [LOG] [Fast Refresh] done in 152ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698059ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698254ms] [LOG] [Fast Refresh] done in 278ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698458ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698469ms] [LOG] [Fast Refresh] done in 120ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698586ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6698608ms] [LOG] [Fast Refresh] done in 127ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6704990ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6705249ms] [LOG] [Fast Refresh] done in 345ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6705443ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6705454ms] [LOG] [Fast Refresh] done in 116ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733266ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733427ms] [LOG] [Fast Refresh] done in 242ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733625ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733639ms] [LOG] [Fast Refresh] done in 123ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733760ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733791ms] [LOG] [Fast Refresh] done in 134ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6733992ms] ReferenceError: useState is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_1_ig_2f._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fstudio%252FStudioToolbar.tsx+%255Bapp-client%255D+%2528ecmascript%2529:119:45)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:186)
+    at performSyncWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10263:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10179:316)
+    at processRootScheduleInMicrotask (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10200:106)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10274:158
+[ 6740287ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740298ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740353ms] ReferenceError: publishState is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_1_ig_2f._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fstudio%252FStudioToolbar.tsx+%255Bapp-client%255D+%2528ecmascript%2529:335:27)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9098:47)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10255:9)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+[ 6740445ms] [LOG] [Fast Refresh] done in 74ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740554ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740651ms] [LOG] [Fast Refresh] done in 206ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740761ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6740864ms] [LOG] [Fast Refresh] done in 212ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6741100ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6741199ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6741298ms] ReferenceError: publishState is not defined
+    at StudioToolbar (http://localhost:3002/_next/static/chunks/src_1_ig_2f._.js:6937:27)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9098:47)
+    at performSyncWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10263:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10179:316)
+    at flushPassiveEffects (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10008:13)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9724:13
+    at MessagePort.performWorkUntilDeadline (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_1amofcm._.js:2647:64)
+[ 6747519ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6747526ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6747642ms] [LOG] [Fast Refresh] done in 71ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6747764ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6747962ms] [LOG] [Fast Refresh] done in 302ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6748103ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6748125ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6763954ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6763989ms] [LOG] [Fast Refresh] done in 72ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6764090ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6764096ms] [LOG] [Fast Refresh] done in 107ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6764197ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6764252ms] [LOG] [Fast Refresh] done in 155ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6770401ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6770456ms] [LOG] [Fast Refresh] done in 51ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6770662ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6770675ms] [LOG] [Fast Refresh] done in 121ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6807192ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6807512ms] [LOG] [Fast Refresh] done in 423ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6818540ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6818703ms] [LOG] [Fast Refresh] done in 263ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6818925ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6818943ms] [LOG] [Fast Refresh] done in 119ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6825251ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6825261ms] [LOG] [Fast Refresh] done in 87ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6825492ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6825538ms] [LOG] [Fast Refresh] done in 156ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6832973ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833241ms] [LOG] [Fast Refresh] done in 353ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833425ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833441ms] [LOG] [Fast Refresh] done in 117ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833555ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833568ms] [LOG] [Fast Refresh] done in 113ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833685ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6833699ms] [LOG] [Fast Refresh] done in 124ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6860767ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6861057ms] [LOG] [Fast Refresh] done in 227ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6861195ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6861284ms] [LOG] [Fast Refresh] done in 197ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6861325ms] ReferenceError: StudioToolbar is not defined
+    at StudioWorkspace (http://localhost:3002/_next/static/chunks/src_0bm63-2._.js?id=%255Bproject%255D%252Fsrc%252Fcomponents%252Fstudio%252FStudioWorkspace.tsx+%255Bapp-client%255D+%2528ecmascript%2529:158:216)
+    at Object.react_stack_bottom_frame (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:15037:24)
+    at renderWithHooks (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:4620:24)
+    at updateFunctionComponent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6081:21)
+    at beginWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:6691:24)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at performUnitOfWork (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9555:97)
+    at workLoopSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9449:40)
+    at renderRootSync (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9433:13)
+    at performWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:9061:186)
+    at performSyncWorkOnRoot (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10263:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10179:316)
+    at processRootScheduleInMicrotask (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10200:106)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10274:158
+[ 6866897ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6866901ms] [WARNING] [Fast Refresh] performing full reload because your application had an unrecoverable error @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6866921ms] [LOG] [Fast Refresh] done in 81ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867039ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867053ms] [LOG] [Fast Refresh] done in 122ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867251ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867493ms] [LOG] [Fast Refresh] done in 347ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867691ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6867791ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6964880ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6964954ms] [LOG] [Fast Refresh] done in 82ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6965131ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6965144ms] [LOG] [Fast Refresh] done in 118ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6965260ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6965270ms] [LOG] [Fast Refresh] done in 123ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6972675ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6972736ms] [LOG] [Fast Refresh] done in 155ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6972851ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6972960ms] [LOG] [Fast Refresh] done in 223ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477

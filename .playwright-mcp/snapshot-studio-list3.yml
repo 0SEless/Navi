@@ -1,0 +1,81 @@
+- generic [active] [ref=f38e1]:
+  - generic [ref=f38e2]:
+    - banner [ref=f38e3]:
+      - generic [ref=f38e4]: NAVIADMIN
+      - textbox "Search..." [ref=f38e15]
+      - generic [ref=f38e16]:
+        - generic [ref=f38e17]: Online
+        - generic [ref=f38e20]: ASU Ibajay
+    - generic [ref=f38e21]:
+      - complementary [ref=f38e22]:
+        - button [ref=f38e24] [cursor=pointer]
+        - navigation [ref=f38e27]:
+          - button "Dashboard" [ref=f38e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f38e35] [cursor=pointer]:
+            - generic [ref=f38e39]: Panoramas
+            - generic [ref=f38e40]: "3"
+          - button "QR Checkpoints" [ref=f38e41] [cursor=pointer]
+          - button "Route Testing" [ref=f38e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f38e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f38e61] [cursor=pointer]
+        - button "Sign Out" [ref=f38e68] [cursor=pointer]
+      - main [ref=f38e73]:
+        - generic [ref=f38e75]:
+          - generic [ref=f38e77]:
+            - heading "NAVI Studio" [level=1] [ref=f38e78]
+            - paragraph [ref=f38e79]: 5 maps · 87 buildings
+          - generic [ref=f38e81]:
+            - generic [ref=f38e95] [cursor=pointer]:
+              - generic [ref=f38e98]: Create New Map
+              - generic [ref=f38e99]: Set up a new campus map with buildings and landmarks
+            - generic [ref=f38e100] [cursor=pointer]:
+              - generic [ref=f38e101]: A
+              - generic [ref=f38e102]:
+                - generic [ref=f38e103]: abc
+                - generic [ref=f38e104]: abc · abc
+                - generic [ref=f38e105]:
+                  - generic [ref=f38e106]: "29"
+                  - generic [ref=f38e111]: "0"
+                  - generic [ref=f38e115]: "0"
+              - button [ref=f38e122]
+            - generic [ref=f38e127] [cursor=pointer]:
+              - generic [ref=f38e128]: Z
+              - generic [ref=f38e129]:
+                - generic [ref=f38e130]: zdg
+                - generic [ref=f38e131]: shfgg · fhd
+                - generic [ref=f38e132]:
+                  - generic [ref=f38e133]: "29"
+                  - generic [ref=f38e138]: "0"
+                  - generic [ref=f38e142]: "0"
+              - button [ref=f38e149]
+            - generic [ref=f38e154] [cursor=pointer]:
+              - generic [ref=f38e155]: T
+              - generic [ref=f38e156]:
+                - generic [ref=f38e157]: Test Campus
+                - generic [ref=f38e158]:
+                  - generic [ref=f38e159]: "0"
+                  - generic [ref=f38e164]: "0"
+                  - generic [ref=f38e168]: "0"
+              - button [ref=f38e175]
+            - generic [ref=f38e180] [cursor=pointer]:
+              - generic [ref=f38e181]: H
+              - generic [ref=f38e182]:
+                - generic [ref=f38e183]: hjghj
+                - generic [ref=f38e184]: gh · th
+                - generic [ref=f38e185]:
+                  - generic [ref=f38e186]: "29"
+                  - generic [ref=f38e191]: "0"
+                  - generic [ref=f38e195]: "0"
+              - button [ref=f38e202]
+            - generic [ref=f38e207] [cursor=pointer]:
+              - generic [ref=f38e208]: S
+              - generic [ref=f38e209]:
+                - generic [ref=f38e210]: SV1 Test Campus
+                - generic [ref=f38e211]: Test University
+                - generic [ref=f38e212]:
+                  - generic [ref=f38e213]: "0"
+                  - generic [ref=f38e218]: "0"
+                  - generic [ref=f38e222]: "0"
+              - button [ref=f38e229]
+  - button "Open Next.js Dev Tools" [ref=f38e90] [cursor=pointer]
+  - alert [ref=f38e234]

@@ -1,0 +1,88 @@
+[     136ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[     156ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[    6214ms] [WARNING] Unable to perform style diff: Style is not done loading..  Rebuilding the style from scratch. @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[    8919ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[    8964ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  585749ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  586064ms] [LOG] [Fast Refresh] done in 245ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  740302ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  740450ms] [LOG] [Fast Refresh] done in 255ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  740510ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  740537ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  757284ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  757312ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  771500ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  771522ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[  784184ms] Error: Unknown command: asset.upload
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:836:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:12662:45)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[  786442ms] Error: Unknown command: asset.upload
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:836:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:12685:45)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[  788861ms] Error: Unknown command: building.adjustPosition
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:836:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:12622:41)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[  790442ms] Error: Unknown command: building.openFloorEditor
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:836:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:12637:41)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[  795582ms] Error: Unknown command: floor.manage
+    at CommandDispatcher.execute (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:836:19)
+    at onClick (http://localhost:3002/_next/static/chunks/_0j6bjzp._.js:12557:53)
+    at executeDispatch (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10329:13)
+    at runWithFiberInDEV (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:965:74)
+    at processDispatchQueue (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10355:41)
+    at http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10633:13
+    at batchedUpdates$1 (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:2253:44)
+    at dispatchEventForPluginEventSystem (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:10431:9)
+    at dispatchEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:13002:37)
+    at dispatchDiscreteEvent (http://localhost:3002/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js:12984:64)
+[ 1606489ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1606704ms] [LOG] [Fast Refresh] done in 321ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1612922ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1614092ms] [LOG] [Fast Refresh] done in 1248ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1614215ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1614288ms] [LOG] [Fast Refresh] done in 180ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1614677ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1614700ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1633661ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1633830ms] [LOG] [Fast Refresh] done in 281ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1640209ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1640477ms] [LOG] [Fast Refresh] done in 354ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1640598ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1640656ms] [LOG] [Fast Refresh] done in 160ms @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1640961ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 1641008ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6302749ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477
+[ 6302772ms] [LOG] [HMR] connected @ http://localhost:3002/_next/static/chunks/node_modules_next_dist_1ybzpk2._.js:2477

@@ -1,0 +1,41 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - banner [ref=f13e3]:
+      - generic [ref=f13e4]: NAVIADMIN
+      - textbox "Search..." [ref=f13e15]
+      - generic [ref=f13e16]:
+        - generic [ref=f13e17]: Online
+        - generic [ref=f13e20]: ASU Ibajay
+    - generic [ref=f13e21]:
+      - complementary [ref=f13e22]:
+        - button [ref=f13e24] [cursor=pointer]
+        - navigation [ref=f13e27]:
+          - button "Dashboard" [ref=f13e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f13e35] [cursor=pointer]:
+            - generic [ref=f13e39]: Panoramas
+            - generic [ref=f13e40]: "3"
+          - button "QR Checkpoints" [ref=f13e41] [cursor=pointer]
+          - button "Route Testing" [ref=f13e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f13e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f13e61] [cursor=pointer]
+        - button "Sign Out" [ref=f13e68] [cursor=pointer]
+      - main [ref=f13e73]:
+        - generic [ref=f13e545]:
+          - generic [ref=f13e546]:
+            - heading "Create New Map" [level=2] [ref=f13e547]
+            - paragraph [ref=f13e548]: Enter the details of your campus map
+          - generic [ref=f13e549]:
+            - generic [ref=f13e550]: Map Name *
+            - textbox "e.g., Main Campus" [ref=f13e551]
+          - generic [ref=f13e552]:
+            - generic [ref=f13e553]: School Name *
+            - textbox "e.g., Aklan State University" [ref=f13e554]
+          - generic [ref=f13e555]:
+            - generic [ref=f13e556]: Campus (optional)
+            - textbox "e.g., Ibajay Campus" [ref=f13e557]
+          - generic [ref=f13e558]:
+            - button "Cancel" [ref=f13e559] [cursor=pointer]
+            - button "Next" [disabled] [ref=f13e560]
+  - button "Open Next.js Dev Tools" [ref=f13e470] [cursor=pointer]
+  - alert [ref=f13e474]
+  - generic [ref=f13e475]: "55"

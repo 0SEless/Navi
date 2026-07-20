@@ -1,0 +1,40 @@
+- generic [active] [ref=f37e1]:
+  - generic [ref=f37e2]:
+    - banner [ref=f37e3]:
+      - generic [ref=f37e4]: NAVIADMIN
+      - textbox "Search..." [ref=f37e15]
+      - generic [ref=f37e16]:
+        - generic [ref=f37e17]: Online
+        - generic [ref=f37e20]: ASU Ibajay
+    - generic [ref=f37e21]:
+      - complementary [ref=f37e22]:
+        - button [ref=f37e24] [cursor=pointer]
+        - navigation [ref=f37e27]:
+          - button "Dashboard" [ref=f37e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f37e35] [cursor=pointer]:
+            - generic [ref=f37e39]: Panoramas
+            - generic [ref=f37e40]: "3"
+          - button "QR Checkpoints" [ref=f37e41] [cursor=pointer]
+          - button "Route Testing" [ref=f37e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f37e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f37e61] [cursor=pointer]
+        - button "Sign Out" [ref=f37e68] [cursor=pointer]
+      - main [ref=f37e73]:
+        - generic [ref=f37e75]:
+          - button "Back" [ref=f37e77] [cursor=pointer]
+          - generic [ref=f37e80]:
+            - button "OSM" [ref=f37e81] [cursor=pointer]
+            - button "Edit Map" [ref=f37e84] [cursor=pointer]
+          - generic [ref=f37e89]:
+            - generic [ref=f37e90]: hjghj
+            - generic [ref=f37e91]: gh · th
+          - generic [ref=f37e92]:
+            - region "Map" [ref=f37e93]
+            - group [ref=f37e94]:
+              - generic "Toggle attribution" [ref=f37e95] [cursor=pointer]
+              - generic [ref=f37e96]:
+                - text: © OpenStreetMap contributors |
+                - link "MapLibre" [ref=f37e97] [cursor=pointer]:
+                  - /url: https://maplibre.org/
+  - button "Open Next.js Dev Tools" [ref=f37e103] [cursor=pointer]
+  - alert [ref=f37e107]

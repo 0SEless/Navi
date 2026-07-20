@@ -1,0 +1,201 @@
+- generic [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - banner [ref=f13e3]:
+      - generic [ref=f13e4]: NAVIADMIN
+      - textbox "Search..." [ref=f13e15]
+      - generic [ref=f13e16]:
+        - generic [ref=f13e17]: Online
+        - generic [ref=f13e20]: ASU Ibajay
+    - generic [ref=f13e21]:
+      - complementary [ref=f13e22]:
+        - button [ref=f13e24] [cursor=pointer]
+        - navigation [ref=f13e27]:
+          - button "Dashboard" [ref=f13e28] [cursor=pointer]
+          - button "Panoramas 3" [ref=f13e35] [cursor=pointer]:
+            - generic [ref=f13e39]: Panoramas
+            - generic [ref=f13e40]: "3"
+          - button "QR Checkpoints" [ref=f13e41] [cursor=pointer]
+          - button "Route Testing" [ref=f13e49] [cursor=pointer]
+          - button "Dataset Mgmt" [ref=f13e55] [cursor=pointer]
+          - button "NAVI Studio" [ref=f13e61] [cursor=pointer]
+        - button "Sign Out" [ref=f13e68] [cursor=pointer]
+      - main [ref=f13e73]:
+        - generic [ref=f13e717]:
+          - generic [ref=f13e718]:
+            - generic [ref=f13e719]: NAVI STUDIO
+            - generic [ref=f13e720]:
+              - button "Campus" [ref=f13e721] [cursor=pointer]
+              - button "Building" [ref=f13e722] [cursor=pointer]
+              - button "Floor" [active] [ref=f13e723] [cursor=pointer]
+            - button "Select" [ref=f13e725] [cursor=pointer]
+            - button "Move" [ref=f13e728] [cursor=pointer]
+            - button "Route" [ref=f13e734] [cursor=pointer]
+            - button "Building" [ref=f13e739] [cursor=pointer]
+            - button "Undo" [disabled] [ref=f13e745]
+            - button "Redo" [disabled] [ref=f13e749]
+            - button "Save" [ref=f13e753] [cursor=pointer]
+            - button "Publish" [ref=f13e758] [cursor=pointer]
+          - generic [ref=f13e764]:
+            - generic [ref=f13e765]:
+              - generic [ref=f13e766]: Explorer
+              - generic [ref=f13e767]:
+                - textbox "Search entities" [ref=f13e772]:
+                  - /placeholder: Search entities...
+                - tree [ref=f13e774]:
+                  - treeitem "Expand Bldg No. 1 🏛 Bldg No. 1" [selected] [ref=f13e776] [cursor=pointer]:
+                    - generic "Expand Bldg No. 1" [ref=f13e777]
+                    - generic [ref=f13e780]: 🏛
+                    - generic [ref=f13e781]: Bldg No. 1
+                  - treeitem "Expand Bldg No. 2 🏛 Bldg No. 2" [ref=f13e783] [cursor=pointer]:
+                    - generic "Expand Bldg No. 2" [ref=f13e784]
+                    - generic [ref=f13e787]: 🏛
+                    - generic [ref=f13e788]: Bldg No. 2
+                  - treeitem "Expand Bldg No. 3 🏛 Bldg No. 3" [ref=f13e790] [cursor=pointer]:
+                    - generic "Expand Bldg No. 3" [ref=f13e791]
+                    - generic [ref=f13e794]: 🏛
+                    - generic [ref=f13e795]: Bldg No. 3
+                  - treeitem "Expand Bldg No. 4 🏛 Bldg No. 4" [ref=f13e797] [cursor=pointer]:
+                    - generic "Expand Bldg No. 4" [ref=f13e798]
+                    - generic [ref=f13e801]: 🏛
+                    - generic [ref=f13e802]: Bldg No. 4
+                  - treeitem "Expand Bldg No. 5 🏛 Bldg No. 5" [ref=f13e804] [cursor=pointer]:
+                    - generic "Expand Bldg No. 5" [ref=f13e805]
+                    - generic [ref=f13e808]: 🏛
+                    - generic [ref=f13e809]: Bldg No. 5
+                  - treeitem "Expand Bldg No. 6 🏛 Bldg No. 6" [ref=f13e811] [cursor=pointer]:
+                    - generic "Expand Bldg No. 6" [ref=f13e812]
+                    - generic [ref=f13e815]: 🏛
+                    - generic [ref=f13e816]: Bldg No. 6
+                  - treeitem "Expand Bldg No. 7 🏛 Bldg No. 7" [ref=f13e818] [cursor=pointer]:
+                    - generic "Expand Bldg No. 7" [ref=f13e819]
+                    - generic [ref=f13e822]: 🏛
+                    - generic [ref=f13e823]: Bldg No. 7
+                  - treeitem "Expand Bldg No. 8 🏛 Bldg No. 8" [ref=f13e825] [cursor=pointer]:
+                    - generic "Expand Bldg No. 8" [ref=f13e826]
+                    - generic [ref=f13e829]: 🏛
+                    - generic [ref=f13e830]: Bldg No. 8
+                  - treeitem "Expand Bldg No. 9 🏛 Bldg No. 9" [ref=f13e832] [cursor=pointer]:
+                    - generic "Expand Bldg No. 9" [ref=f13e833]
+                    - generic [ref=f13e836]: 🏛
+                    - generic [ref=f13e837]: Bldg No. 9
+                  - treeitem "Expand Bldg No. 10 🏛 Bldg No. 10" [ref=f13e839] [cursor=pointer]:
+                    - generic "Expand Bldg No. 10" [ref=f13e840]
+                    - generic [ref=f13e843]: 🏛
+                    - generic [ref=f13e844]: Bldg No. 10
+                  - treeitem "Expand Bldg No. 11 🏛 Bldg No. 11" [ref=f13e846] [cursor=pointer]:
+                    - generic "Expand Bldg No. 11" [ref=f13e847]
+                    - generic [ref=f13e850]: 🏛
+                    - generic [ref=f13e851]: Bldg No. 11
+                  - treeitem "Expand Bldg No. 12 🏛 Bldg No. 12" [ref=f13e853] [cursor=pointer]:
+                    - generic "Expand Bldg No. 12" [ref=f13e854]
+                    - generic [ref=f13e857]: 🏛
+                    - generic [ref=f13e858]: Bldg No. 12
+                  - treeitem "Expand Bldg No. 13 🏛 Bldg No. 13" [ref=f13e860] [cursor=pointer]:
+                    - generic "Expand Bldg No. 13" [ref=f13e861]
+                    - generic [ref=f13e864]: 🏛
+                    - generic [ref=f13e865]: Bldg No. 13
+                  - treeitem "Expand Bldg No. 14 🏛 Bldg No. 14" [ref=f13e867] [cursor=pointer]:
+                    - generic "Expand Bldg No. 14" [ref=f13e868]
+                    - generic [ref=f13e871]: 🏛
+                    - generic [ref=f13e872]: Bldg No. 14
+                  - treeitem "Expand Bldg No. 15 🏛 Bldg No. 15" [ref=f13e874] [cursor=pointer]:
+                    - generic "Expand Bldg No. 15" [ref=f13e875]
+                    - generic [ref=f13e878]: 🏛
+                    - generic [ref=f13e879]: Bldg No. 15
+                  - treeitem "Expand Bldg No. 16 🏛 Bldg No. 16" [ref=f13e881] [cursor=pointer]:
+                    - generic "Expand Bldg No. 16" [ref=f13e882]
+                    - generic [ref=f13e885]: 🏛
+                    - generic [ref=f13e886]: Bldg No. 16
+                  - treeitem "Expand Bldg No. 17 🏛 Bldg No. 17" [ref=f13e888] [cursor=pointer]:
+                    - generic "Expand Bldg No. 17" [ref=f13e889]
+                    - generic [ref=f13e892]: 🏛
+                    - generic [ref=f13e893]: Bldg No. 17
+                  - treeitem "Expand Bldg No. 18 🏛 Bldg No. 18" [ref=f13e895] [cursor=pointer]:
+                    - generic "Expand Bldg No. 18" [ref=f13e896]
+                    - generic [ref=f13e899]: 🏛
+                    - generic [ref=f13e900]: Bldg No. 18
+                  - treeitem "Expand Bldg No. 19 🏛 Bldg No. 19" [ref=f13e902] [cursor=pointer]:
+                    - generic "Expand Bldg No. 19" [ref=f13e903]
+                    - generic [ref=f13e906]: 🏛
+                    - generic [ref=f13e907]: Bldg No. 19
+                  - treeitem "Expand Bldg No. 20 🏛 Bldg No. 20" [ref=f13e909] [cursor=pointer]:
+                    - generic "Expand Bldg No. 20" [ref=f13e910]
+                    - generic [ref=f13e913]: 🏛
+                    - generic [ref=f13e914]: Bldg No. 20
+                  - treeitem "Expand Bldg No. 21 🏛 Bldg No. 21" [ref=f13e916] [cursor=pointer]:
+                    - generic "Expand Bldg No. 21" [ref=f13e917]
+                    - generic [ref=f13e920]: 🏛
+                    - generic [ref=f13e921]: Bldg No. 21
+                  - treeitem "Expand Bldg No. 22 🏛 Bldg No. 22" [ref=f13e923] [cursor=pointer]:
+                    - generic "Expand Bldg No. 22" [ref=f13e924]
+                    - generic [ref=f13e927]: 🏛
+                    - generic [ref=f13e928]: Bldg No. 22
+                  - treeitem "Expand Bldg No. 23 🏛 Bldg No. 23" [ref=f13e930] [cursor=pointer]:
+                    - generic "Expand Bldg No. 23" [ref=f13e931]
+                    - generic [ref=f13e934]: 🏛
+                    - generic [ref=f13e935]: Bldg No. 23
+                  - treeitem "Expand Bldg No. 24 🏛 Bldg No. 24" [ref=f13e937] [cursor=pointer]:
+                    - generic "Expand Bldg No. 24" [ref=f13e938]
+                    - generic [ref=f13e941]: 🏛
+                    - generic [ref=f13e942]: Bldg No. 24
+                  - treeitem "Expand Bldg No. 25 🏛 Bldg No. 25" [ref=f13e944] [cursor=pointer]:
+                    - generic "Expand Bldg No. 25" [ref=f13e945]
+                    - generic [ref=f13e948]: 🏛
+                    - generic [ref=f13e949]: Bldg No. 25
+                  - treeitem "Expand Bldg No. 26 🏛 Bldg No. 26" [ref=f13e951] [cursor=pointer]:
+                    - generic "Expand Bldg No. 26" [ref=f13e952]
+                    - generic [ref=f13e955]: 🏛
+                    - generic [ref=f13e956]: Bldg No. 26
+                  - treeitem "Expand Bldg No. 27 🏛 Bldg No. 27" [ref=f13e958] [cursor=pointer]:
+                    - generic "Expand Bldg No. 27" [ref=f13e959]
+                    - generic [ref=f13e962]: 🏛
+                    - generic [ref=f13e963]: Bldg No. 27
+                  - treeitem "Expand Bldg No. 28 🏛 Bldg No. 28" [ref=f13e965] [cursor=pointer]:
+                    - generic "Expand Bldg No. 28" [ref=f13e966]
+                    - generic [ref=f13e969]: 🏛
+                    - generic [ref=f13e970]: Bldg No. 28
+                  - treeitem "Expand Bldg No. 29 🏛 Bldg No. 29" [ref=f13e972] [cursor=pointer]:
+                    - generic "Expand Bldg No. 29" [ref=f13e973]
+                    - generic [ref=f13e976]: 🏛
+                    - generic [ref=f13e977]: Bldg No. 29
+                - generic [ref=f13e978]: 29 items
+            - generic [ref=f13e982]:
+              - region "Map" [ref=f13e983] [cursor=pointer]
+              - group [ref=f13e984]:
+                - generic "Toggle attribution" [ref=f13e985] [cursor=pointer]
+            - generic [ref=f13e988]:
+              - generic [ref=f13e989]: Building
+              - generic [ref=f13e990]:
+                - generic [ref=f13e991]: Name
+                - textbox [ref=f13e992]: Bldg No. 1
+              - generic [ref=f13e993]:
+                - generic [ref=f13e994]: Code
+                - textbox [ref=f13e995]
+              - generic [ref=f13e996]:
+                - generic [ref=f13e997]: Category
+                - combobox [ref=f13e998] [cursor=pointer]:
+                  - option "academic" [selected]
+                  - option "residential"
+                  - option "administrative"
+                  - option "facility"
+                  - option "library"
+                  - option "dining"
+                  - option "sports"
+                  - option "parking"
+                  - option "health"
+                  - option "other"
+              - generic [ref=f13e999]:
+                - generic [ref=f13e1000]: Description
+                - textbox [ref=f13e1001]
+              - generic [ref=f13e1002]:
+                - generic [ref=f13e1003]: Color
+                - textbox [ref=f13e1004]: "#1c6beb"
+              - generic [ref=f13e1005]:
+                - generic [ref=f13e1006]: Base Elevation (m)
+                - spinbutton [ref=f13e1007]: "0"
+              - generic [ref=f13e1008]:
+                - generic [ref=f13e1009]: Height (m)
+                - spinbutton [ref=f13e1010]: "5"
+  - button "Open Next.js Dev Tools" [ref=f13e470] [cursor=pointer]
+  - alert [ref=f13e474]
+  - generic [ref=f13e475]: "55"
