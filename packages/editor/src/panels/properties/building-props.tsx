@@ -246,7 +246,7 @@ export function BuildingProperties({ building }: Props) {
       </button>
     </div>
 
-      <FloorManagerDialog open={showFloorManager} onClose={() => setShowFloorManager(false)} />
+      <FloorManagerDialog open={showFloorManager} onClose={() => setShowFloorManager(false)} buildingId={building.id} />
     </>
   )
 }

@@ -5,6 +5,7 @@ import { useEditor } from '../context'
 interface FloorManagerDialogProps {
   open: boolean
   onClose: () => void
+  buildingId?: string
 }
 
 function autoLabel(level: number): string {
@@ -13,12 +14,12 @@ function autoLabel(level: number): string {
   return `${level}F`
 }
 
-export function FloorManagerDialog({ open, onClose }: FloorManagerDialogProps) {
+export function FloorManagerDialog({ open, onClose, buildingId: propBuildingId }: FloorManagerDialogProps) {
   const { document, services } = useEditor()
   const dispatcher = services.get<any>('dispatcher')
   const publishStore = services.get<any>('publishStore')
   const viewport = services.get<any>('viewport')
-  const buildingId = viewport?.activeBuildingId as string | null
+  const buildingId = propBuildingId ?? (viewport?.activeBuildingId as string | null)
   const building = buildingId ? document.buildings.find(b => b.id === buildingId) : null
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})

@@ -47,8 +47,12 @@ function createMockServices(execute = vi.fn()) {
 
 function renderWithServices(building: any, execute = vi.fn()) {
   const services = createMockServices(execute)
+  const doc = {
+    buildings: [{ id: 'bld-1', floors: [] }],
+    roads: [], panoramas: [], qrCheckpoints: [],
+  } as any
   return { execute, ...render(
-    <EditorProvider context={{ document: {} as any, services }}>
+    <EditorProvider context={{ document: doc, services }}>
       <BuildingProperties building={building} />
     </EditorProvider>,
   ) }
