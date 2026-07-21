@@ -11,6 +11,6 @@ export { entranceCreateHandler, entranceDeleteHandler } from './entrance-handler
 export { roadCreateHandler, roadRenameHandler, roadDeleteHandler } from './road-handlers'
 export { panoramaCreateHandler, panoramaDeleteHandler } from './panorama-handlers'
 export { qrCreateHandler, qrDeleteHandler } from './qr-handlers'
-export { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler } from './floor-handlers'
+export { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler, floorReorderHandler } from './floor-handlers'
 export { entityUpdateHandler } from './entity-update-handler'
-export { floorManageHandler, buildingAdjustPositionHandler, buildingOpenFloorEditorHandler, assetUploadHandler } from './ui-action-handlers'
+export { floorManageHandler, buildingAdjustPositionHandler } from './ui-action-handlers'

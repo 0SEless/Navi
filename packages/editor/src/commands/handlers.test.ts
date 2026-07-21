@@ -9,7 +9,7 @@ import { entranceCreateHandler, entranceDeleteHandler } from './entrance-handler
 import { roadCreateHandler, roadRenameHandler, roadDeleteHandler } from './road-handlers'
 import { panoramaCreateHandler, panoramaDeleteHandler } from './panorama-handlers'
 import { qrCreateHandler, qrDeleteHandler } from './qr-handlers'
-import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler } from './floor-handlers'
+import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler, floorReorderHandler } from './floor-handlers'
 import { entityUpdateHandler } from './entity-update-handler'
 
 function createDoc(): CampusDocument {
@@ -297,6 +297,20 @@ describe('floor handlers', () => {
     const result = floorDeleteHandler.execute(doc, { floorId: 'flr-1' })
     expect(result.success).toBe(true)
     expect(doc.buildings[0].floors).toHaveLength(1)
+  })
+
+  it('reorders floors through a command and normalizes their levels', () => {
+    const doc = createDoc()
+    floorCreateHandler.execute(doc, { buildingId: 'bld-1', id: 'flr-2', label: 'Second Floor' })
+
+    const result = floorReorderHandler.execute(doc, {
+      buildingId: 'bld-1',
+      floorIds: ['flr-2', 'flr-1'],
+    })
+
+    expect(result.success).toBe(true)
+    expect(doc.buildings[0].floors.map(floor => floor.id)).toEqual(['flr-2', 'flr-1'])
+    expect(doc.buildings[0].floors.map(floor => floor.level)).toEqual([0, 1])
   })
 
   it('duplicates a floor with new entity IDs', () => {

@@ -85,7 +85,13 @@ evi-next. If a cd reports module-not-found or "0 tests", check the path spelling
    - **Fix**: Changed `'../engine'` → `'../../engine'`.
    - **Prevention**: Verify import depth when creating files in subdirectories. Pattern: `src/composition/*.ts` uses `'../engine'`, `src/composition/__tests__/*.ts` uses `'../../engine'`.
 
-7. **Regression: e2e tests used pre-M6 engine API (engine.search.query, engine.routing.findRoute)**
+7. **Production CommandRegistry CRUD floor handlers missing**
+   - **Error**: `create-editor-context.ts` only registered `floorManageHandler` (no-op, id: `floor.manage`). FloorManagerDialog dispatches `floor.create`, `floor.rename`, `floor.delete`, `floor.duplicate` — would throw "Unknown command" in production.
+   - **Cause**: Previous sessions added floor CRUD handlers to test registries but never registered them in the production context.
+   - **Fix**: Registered `floorCreateHandler`, `floorRenameHandler`, `floorDeleteHandler`, `floorDuplicateHandler`, and `floorReorderHandler` in `create-editor-context.ts`.
+   - **Prevention**: When adding new command handlers, register them in `create-editor-context.ts` alongside the test registries. Run `dispatcher.test.ts` integration test that exercises production registration path.
+
+8. **Regression: e2e tests used pre-M6 engine API (engine.search.query, engine.routing.findRoute)**
     - **Error**: walking-skeleton.test.ts and egression-pipeline.test.ts failed after M6.1/M6.2 replaced PositionAPI/SearchAPI/engine.routing with capability services.
     - **Cause**: Those tests predated the capability refactor and referenced removed methods.
     - **Fix**: Updated to engine.search.search(query) (returns SearchResult[] with .title, not .entry.label) and engine.navigation.findRoute(...).

@@ -16,10 +16,13 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
   const { id: mapId, buildingId, floor: floorStr } = use(params)
   const floor = parseInt(floorStr, 10)
   const loadMapData = useGraphStore((s) => s.loadMapData)
+  const currentMapId = useGraphStore((s) => s.currentMapId)
 
   useEffect(() => {
-    loadMapData(mapId)
-  }, [mapId, loadMapData])
+    if (currentMapId !== mapId) {
+      loadMapData(mapId)
+    }
+  }, [mapId, currentMapId, loadMapData])
 
   const persistenceAdapter: PersistenceAdapter = {
     save: async () => {
@@ -39,6 +42,14 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     )
     return ctx
   })
+
+  if (currentMapId !== mapId) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
+        Loading map…
+      </div>
+    )
+  }
 
   return (
     <ErrorBoundary>

@@ -115,6 +115,15 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     )
   }
 
+  const floorCount = building.floors?.length ?? 0
+  if (floor === undefined || floor < 0 || floor >= floorCount) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
+        Floor not found
+      </div>
+    )
+  }
+
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
   const canvasTool = panMode ? 'select' : activeTool
 

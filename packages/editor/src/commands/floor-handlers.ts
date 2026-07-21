@@ -77,6 +77,44 @@ export const floorDeleteHandler: CommandHandler = {
   },
 }
 
+export const floorReorderHandler: CommandHandler = {
+  id: 'floor.reorder',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    const buildingId = payload.buildingId as string
+    const floorIds = payload.floorIds as string[]
+    if (!buildingId || !Array.isArray(floorIds) || floorIds.length === 0) {
+      return { success: false, error: 'Invalid payload: buildingId and floorIds required' }
+    }
+    const building = document.buildings.find(b => b.id === buildingId)
+    if (!building) return { success: false, error: `Building not found: ${buildingId}` }
+    if (floorIds.length !== building.floors.length) {
+      return { success: false, error: 'floorIds must match existing floor count' }
+    }
+    const allExist = floorIds.every(fid => building.floors.some(f => f.id === fid))
+    if (!allExist) {
+      return { success: false, error: 'One or more floorIds not found in building' }
+    }
+    const originalFloorIds = building.floors.map(f => f.id)
+    const floorMap = new Map(building.floors.map(f => [f.id, f]))
+    building.floors = floorIds.map((fid, idx) => {
+      const floor = floorMap.get(fid)!
+      floor.level = idx
+      return floor
+    })
+    recordChange(document, { entityId: buildingId, entityType: 'floor', operation: 'updated' })
+    return { success: true, entityId: buildingId, data: { originalFloorIds } }
+  },
+  inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
+    const orig = result.data?.originalFloorIds as string[] | undefined
+    if (!orig) return null
+    return {
+      id: 'floor.reorder',
+      label: 'Undo Reorder Floors',
+      payload: { buildingId: payload.buildingId as string, floorIds: orig },
+    }
+  },
+}
+
 export const floorDuplicateHandler: CommandHandler = {
   id: 'floor.duplicate',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {

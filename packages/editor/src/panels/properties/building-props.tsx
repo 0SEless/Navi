@@ -65,12 +65,26 @@ function formatTimestamp(ts: number): string {
   })
 }
 
+function footprintCentroid(points: { lat: number; lng: number }[]): { lat: number; lng: number } | null {
+  if (points.length === 0) return null
+  const pts = points[0].lat === points[points.length - 1].lat && points[0].lng === points[points.length - 1].lng
+    ? points.slice(0, -1) : points
+  if (pts.length === 0) return null
+  return { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length }
+}
+
 export function BuildingProperties({ building }: Props) {
   const { services } = useEditor()
   const editEngine = useEditingEngine()
   const dispatcher = services.get<any>('dispatcher')
   const { snapshot } = usePublish()
   const [showFloorManager, setShowFloorManager] = useState(false)
+  const [showPositionEditor, setShowPositionEditor] = useState(false)
+  const [positionLat, setPositionLat] = useState('')
+  const [positionLng, setPositionLng] = useState('')
+  const [positionElevation, setPositionElevation] = useState('')
+
+  const centroid = useMemo(() => footprintCentroid(building.footprint.points), [building.footprint.points])
 
   const update = useCallback((changes: Record<string, unknown>) => {
     for (const [property, value] of Object.entries(changes)) {
@@ -79,6 +93,33 @@ export function BuildingProperties({ building }: Props) {
     }
     dispatcher.execute({ id: 'entity.update', label: 'Edit Building', payload: { entityId: building.id, changes } })
   }, [editEngine, dispatcher, building.id])
+
+  const openPositionEditor = useCallback(() => {
+    dispatcher.execute({ id: 'building.adjustPosition', label: 'Adjust Position', payload: { buildingId: building.id } })
+    if (centroid) {
+      setPositionLat(centroid.lat.toFixed(6))
+      setPositionLng(centroid.lng.toFixed(6))
+    }
+    setPositionElevation(building.baseElevation.toFixed(1))
+    setShowPositionEditor(prev => !prev)
+  }, [dispatcher, building.id, building.baseElevation, centroid])
+
+  const savePosition = useCallback(() => {
+    const lat = parseFloat(positionLat)
+    const lng = parseFloat(positionLng)
+    const elevation = parseFloat(positionElevation)
+    if (isNaN(lat) || isNaN(lng) || isNaN(elevation)) return
+    const center = centroid
+    if (!center) return
+    const newPoints = building.footprint.points.map(p => ({ lat: p.lat + (lat - center.lat), lng: p.lng + (lng - center.lng) }))
+    update({ footprint: { points: newPoints }, baseElevation: elevation })
+    setShowPositionEditor(false)
+  }, [positionLat, positionLng, positionElevation, building.footprint.points, centroid, update])
+
+  const openFloorManager = useCallback(() => {
+    dispatcher.execute({ id: 'floor.manage', label: 'Manage Floors', payload: { buildingId: building.id } })
+    setShowFloorManager(true)
+  }, [dispatcher, building.id])
 
   const plans = useMemo(() => floorPlanStatus(building.floors), [building.floors])
 
@@ -134,7 +175,7 @@ export function BuildingProperties({ building }: Props) {
       <Field label="Floors">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ color: '#ccc', fontSize: 13 }}>{building.floors.length} Floors</span>
-          <button style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }} onClick={() => setShowFloorManager(true)}>
+          <button style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }} onClick={openFloorManager}>
             Manage Floors
           </button>
         </div>
@@ -151,12 +192,30 @@ export function BuildingProperties({ building }: Props) {
 
       {/* ── 4. Actions ── */}
       <div style={sectionHeader}>Actions</div>
-      <button style={actionBtn} onClick={() => dispatcher.execute({ id: 'building.editInterior', label: 'Edit Interior', payload: { buildingId: building.id } })}>
+      <button style={{...actionBtn, opacity: building.floors.length === 0 ? 0.5 : 1}} disabled={building.floors.length === 0} onClick={() => dispatcher.execute({ id: 'building.editInterior', label: 'Edit Interior', payload: { buildingId: building.id } })}>
         Edit Interior
       </button>
-      <button style={actionBtn} onClick={() => dispatcher.execute({ id: 'building.adjustPosition', label: 'Adjust Position', payload: { buildingId: building.id } })}>
-        Adjust Position
+      <button style={{...actionBtn, background: showPositionEditor ? '#2a2a4a' : '#1e1e3a'}} onClick={openPositionEditor}>
+        {showPositionEditor ? '▼ Adjust Position' : 'Adjust Position'}
       </button>
+      {showPositionEditor && (
+        <div style={{ background: '#16162a', border: '1px solid #333', borderRadius: 6, padding: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Position Controls</div>
+          <Field label="Latitude">
+            <input type="number" step="0.000001" value={positionLat} onChange={e => setPositionLat(e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Longitude">
+            <input type="number" step="0.000001" value={positionLng} onChange={e => setPositionLng(e.target.value)} style={inputStyle} />
+          </Field>
+          <Field label="Elevation (m)">
+            <input type="number" step="0.1" value={positionElevation} onChange={e => setPositionElevation(e.target.value)} style={inputStyle} />
+          </Field>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button onClick={() => setShowPositionEditor(false)} style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: '#888', cursor: 'pointer', fontSize: 11 }}>Cancel</button>
+            <button onClick={savePosition} style={{ padding: '4px 12px', borderRadius: 4, border: 'none', background: '#1C6BEB', color: '#fff', cursor: 'pointer', fontSize: 11 }}>Apply</button>
+          </div>
+        </div>
+      )}
 
       {/* ── 5. Assets ── */}
       <div style={sectionHeader}>Assets</div>

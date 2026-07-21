@@ -57,16 +57,15 @@ export function FloorManagerDialog({ open, onClose }: FloorManagerDialogProps) {
 
   const handleMove = useCallback((floorId: string, direction: 'up' | 'down') => {
     if (!building) return
-    const floors = building.floors
-    const idx = floors.findIndex(f => f.id === floorId)
+    const idx = building.floors.findIndex(f => f.id === floorId)
     if (idx === -1) return
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= floors.length) return
-    const temp = floors[idx]
-    floors[idx] = floors[swapIdx]
-    floors[swapIdx] = temp
-    floors.forEach((f, i) => { f.level = i })
-  }, [building])
+    if (swapIdx < 0 || swapIdx >= building.floors.length) return
+    const floorIds = building.floors.map(f => f.id)
+    const reordered = [...floorIds]
+    ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+    dispatcher.execute({ id: 'floor.reorder', label: 'Reorder Floor', payload: { buildingId: building.id, floorIds: reordered } })
+  }, [building, dispatcher])
 
   if (!open || !building) return null
 

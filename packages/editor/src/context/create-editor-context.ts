@@ -12,7 +12,8 @@ import { elevatorCreateHandler, elevatorDeleteHandler } from '../commands/elevat
 import { entranceCreateHandler, entranceDeleteHandler } from '../commands/entrance-handlers'
 import { buildingCreateHandler, buildingDeleteHandler } from '../commands/building-handlers'
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
-import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPositionHandler, buildingOpenFloorEditorHandler, assetUploadHandler } from '../commands/ui-action-handlers'
+import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler, floorReorderHandler } from '../commands/floor-handlers'
+import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPositionHandler } from '../commands/ui-action-handlers'
 import { SelectionManager } from '../selection'
 import { CurrentToolStore } from '../tools/CurrentToolStore'
 import { Viewport } from '../viewport'
@@ -363,11 +364,14 @@ export function createEditorContext(
   registryCmd.register(buildingDeleteHandler)
   registryCmd.register(roadCreateHandler)
   registryCmd.register(roadDeleteHandler)
+  registryCmd.register(floorCreateHandler)
+  registryCmd.register(floorRenameHandler)
+  registryCmd.register(floorDeleteHandler)
+  registryCmd.register(floorDuplicateHandler)
+  registryCmd.register(floorReorderHandler)
   registryCmd.register(floorManageHandler)
   registryCmd.register(buildingEditInteriorHandler)
   registryCmd.register(buildingAdjustPositionHandler)
-  registryCmd.register(buildingOpenFloorEditorHandler)
-  registryCmd.register(assetUploadHandler)
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
 
