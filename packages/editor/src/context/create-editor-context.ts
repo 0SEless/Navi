@@ -240,11 +240,15 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
           }
         }
 
+        // Infer floor height from elevation delta (old docs) or default to 3.5
+        const floorHeight = (fd.height as number) ?? (f.height as number) ?? 3.5
+
         return {
           id: (fd.id as string) ?? f.id ?? `flr-${b.id}-${level}`,
           level,
           label: (fd.label as string) ?? f.label
             ?? (level === 0 ? 'Ground Floor' : level > 0 ? `Floor ${level}` : `Basement ${Math.abs(level)}`),
+          height: floorHeight,
           elevation: (fd.elevation as number) ?? f.elevation ?? 0,
           planImageId: (fd.planImageId as string) ?? f.planImageId,
           textureId: (fd.textureId as string) ?? f.textureId,

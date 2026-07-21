@@ -21,7 +21,7 @@ function createDoc(): CampusDocument {
       footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },
       baseElevation: 0, height: 20, color: '#4A90D9', aliases: [], metadata: {},
       floors: [{
-        id: 'flr-1', level: 0, label: 'Ground', elevation: 0,
+        id: 'flr-1', level: 0, label: 'Ground', elevation: 0, height: 3.5,
         rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {},
       }],
     }],

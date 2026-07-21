@@ -1,7 +1,18 @@
 import { recordChange } from '@navi/core'
-import type { CampusDocument } from '@navi/core'
+import type { CampusDocument, Building } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+
+const DEFAULT_FLOOR_HEIGHT = 3.5
+
+export function recalculateBuilding(building: Building): void {
+  const sorted = [...building.floors].sort((a, b) => a.level - b.level)
+  let accum = 0
+  for (const floor of sorted) {
+    floor.elevation = accum
+    accum += floor.height ?? DEFAULT_FLOOR_HEIGHT
+  }
+}
 
 export const floorCreateHandler: CommandHandler = {
   id: 'floor.create',
@@ -13,8 +24,10 @@ export const floorCreateHandler: CommandHandler = {
     const id = (payload.id as string) || genId('flr')
     const label = (payload.label as string) || `Floor ${building.floors.length + 1}`
     const level = (payload.level as number) ?? building.floors.length
+    const height = (payload.height as number) ?? DEFAULT_FLOOR_HEIGHT
 
-    building.floors.push({ id, level, label, elevation: level * 4, visible: true, locked: false, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} })
+    building.floors.push({ id, level, label, height, elevation: 0, visible: true, locked: false, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} })
+    recalculateBuilding(building)
 
     recordChange(document, { entityId: id, entityType: 'floor', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId } }
@@ -66,6 +79,7 @@ export const floorDeleteHandler: CommandHandler = {
         document.qrCheckpoints = document.qrCheckpoints.filter(
           q => !(q.buildingId === bld.id && q.floor === floor.level)
         )
+        recalculateBuilding(bld)
         recordChange(document, { entityId: floorId, entityType: 'floor', operation: 'deleted' })
         return { success: true, entityId: floorId }
       }
@@ -101,6 +115,7 @@ export const floorReorderHandler: CommandHandler = {
       floor.level = idx
       return floor
     })
+    recalculateBuilding(building)
     recordChange(document, { entityId: buildingId, entityType: 'floor', operation: 'updated' })
     return { success: true, entityId: buildingId, data: { originalFloorIds } }
   },
@@ -128,7 +143,8 @@ export const floorDuplicateHandler: CommandHandler = {
           id: newId,
           level: newLevel,
           label: `${sourceFloor.label} (copy)`,
-          elevation: newLevel * 4,
+          height: sourceFloor.height ?? DEFAULT_FLOOR_HEIGHT,
+          elevation: 0,
           visible: true, locked: false,
           rooms: JSON.parse(JSON.stringify(sourceFloor.rooms.map(r => ({ ...r, id: genId('rm') })))),
           hallways: JSON.parse(JSON.stringify(sourceFloor.hallways.map(h => ({ ...h, id: genId('hw') })))),
@@ -138,6 +154,7 @@ export const floorDuplicateHandler: CommandHandler = {
           connectorStops: JSON.parse(JSON.stringify((sourceFloor.connectorStops || []).map(cs => ({ ...cs, id: genId('cs') })))),
           metadata: {},
         })
+        recalculateBuilding(bld)
         recordChange(document, { entityId: newId, entityType: 'floor', operation: 'created' })
         return { success: true, entityId: newId, data: { id: newId } }
       }

@@ -54,6 +54,7 @@ export function createFloor(overrides?: Partial<Floor>): Floor {
     level: 0,
     label: 'Ground Floor',
     elevation: 0,
+    height: 3.5,
     rooms: [],
     hallways: [],
     staircases: [],

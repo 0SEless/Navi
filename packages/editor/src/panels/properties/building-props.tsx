@@ -163,6 +163,14 @@ export function BuildingProperties({ building }: Props) {
       <Field label="Height">
         <div style={{ color: '#ccc', fontSize: 13 }}>{building.height.toFixed(1)} m</div>
       </Field>
+      <Field label="Roof">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input type="number" step="0.1" value={building.roofHeight ?? 0}
+            onChange={e => dispatcher.execute({ id: 'entity.update', label: 'Edit Roof Height', payload: { entityId: building.id, changes: { roofHeight: parseFloat(e.target.value) || 0 } } })}
+            style={{ ...inputStyle, width: 80 }} />
+          <span style={{ color: '#64748B', fontSize: 11 }}>m</span>
+        </div>
+      </Field>
       <Field label="Elevation">
         <div style={{ color: '#ccc', fontSize: 13 }}>{building.baseElevation.toFixed(1)} m</div>
       </Field>

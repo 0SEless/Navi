@@ -34,6 +34,7 @@ export interface Building {
   // Structure
   floors: Floor[]
   verticalConnectors: VerticalConnector[]
+  roofHeight?: number  // meters, optional roof/structure above top floor (default 2.0)
 
   // Visual
   color: string  // hex color for map rendering
@@ -48,7 +49,8 @@ export interface Floor {
   level: number           // 0 = ground, -1 = basement, 1 = second floor
   label: string           // full display name ("Ground Floor")
   shortLabel?: string     // compact label ("GF", "1F")
-  elevation: number       // meters above building baseElevation
+  elevation: number       // meters above building baseElevation (computed from floor heights)
+  height: number          // meters, floor-to-ceiling height for this floor level (default 3.5)
   planImageId?: string    // asset ID of floor plan image
 
   // Visibility (defaults: visible=true, locked=false)

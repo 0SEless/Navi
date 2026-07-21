@@ -1,6 +1,7 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, MutationResult } from './types'
+import { recalculateBuilding } from './floor-handlers'
 
 export function detectEntityType(document: CampusDocument, id: string): string {
   for (const bld of document.buildings) {
@@ -55,7 +56,22 @@ export const entityUpdateHandler: CommandHandler = {
       entity[key] = value
     }
 
-    recordChange(document, { entityId, entityType: detectEntityType(document, entityId), operation: 'updated' })
+    const entityType = detectEntityType(document, entityId)
+    recordChange(document, { entityId, entityType, operation: 'updated' })
+
+    // Recalculate building when floor height or building roofHeight changes
+    if (entityType === 'floor' && ('height' in changes)) {
+      for (const bld of document.buildings) {
+        if (bld.floors.some(f => f.id === entityId)) {
+          recalculateBuilding(bld)
+          break
+        }
+      }
+    } else if (entityType === 'building' && ('roofHeight' in changes)) {
+      const bld = document.buildings.find(b => b.id === entityId)
+      if (bld) recalculateBuilding(bld)
+    }
+
     return { success: true, entityId, data: { oldValues } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): any {

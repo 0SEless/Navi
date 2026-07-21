@@ -235,10 +235,18 @@ function FloorRow({
 
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: '#64748B', marginBottom: 2 }}>HEIGHT</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="number" step="0.1" value={floor.height ?? 3.5} onChange={e => onUpdateMeta({ height: parseFloat(e.target.value) || 3.5 })}
+                  style={{ width: '100%', background: '#0F172A', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px 8px', fontSize: 12 }} />
+                <span style={{ color: '#64748B', fontSize: 11 }}>m</span>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: '#64748B', marginBottom: 2 }}>ELEVATION</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <input type="number" value={floor.elevation} onChange={e => onUpdateMeta({ elevation: parseFloat(e.target.value) || 0 })}
-                  style={{ width: '100%', background: '#0F172A', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px 8px', fontSize: 12 }} />
+                <input type="number" value={floor.elevation} readOnly
+                  style={{ width: '100%', background: '#0F172A', color: '#64748B', border: '1px solid #1E293B', borderRadius: 4, padding: '4px 8px', fontSize: 12 }} />
                 <span style={{ color: '#64748B', fontSize: 11 }}>m</span>
               </div>
             </div>
