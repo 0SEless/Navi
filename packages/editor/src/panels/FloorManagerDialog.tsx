@@ -70,7 +70,7 @@ export function FloorManagerDialog({ open, onClose, buildingId: propBuildingId }
 
   if (!open || !building) return null
 
-  const sortedFloors = [...building.floors].sort((a, b) => a.level - b.level)
+  const sortedFloors = [...building.floors].sort((a, b) => b.level - a.level)
 
   return (
     <div style={{
