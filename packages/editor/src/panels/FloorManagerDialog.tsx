@@ -197,42 +197,41 @@ function FloorRow({
       marginBottom: 6, borderRadius: 8, overflow: 'hidden',
       border: '1px solid #1E293B',
     }}>
-      <div style={{
+      <div onClick={onToggleExpand} style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 10px', background: '#1E293B',
+        padding: '8px 10px', background: '#1E293B', cursor: 'pointer',
       }}>
-        <button onClick={onToggleExpand} style={{
-          background: 'none', border: 'none', color: '#64748B', cursor: 'pointer',
-          fontSize: 10, padding: 0, width: 16,
-        }}>
+        <span style={{ color: '#64748B', fontSize: 10, width: 16, textAlign: 'center' }}>
           {expanded ? '▼' : '▶'}
-        </button>
+        </span>
 
         <div style={{ fontSize: 11, color: '#64748B', minWidth: 28 }}>{shortLabel}</div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {isEditing ? (
             <input value={renameValue} onChange={e => onRenameChange(e.target.value)}
-              onBlur={onRenameSave} onKeyDown={e => { if (e.key === 'Enter') onRenameSave(); if (e.key === 'Escape') onRenameCancel() }}
+              onBlur={onRenameSave}
+              onKeyDown={e => { if (e.key === 'Enter') onRenameSave(); if (e.key === 'Escape') onRenameCancel() }}
+              onClick={e => e.stopPropagation()}
               autoFocus
               style={{ width: '100%', background: '#0F172A', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '3px 6px', fontSize: 12 }}
             />
           ) : (
-            <span onDoubleClick={onStartRename}
+            <span onDoubleClick={e => { e.stopPropagation(); onStartRename() }}
               style={{ color: '#fff', fontSize: 13, cursor: 'pointer' }}>
               {floor.label}
             </span>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }} onClick={e => e.stopPropagation()}>
           <button onClick={onMoveUp} disabled={index === 0}
             style={{ background: 'none', border: 'none', color: index === 0 ? '#1E293B' : '#64748B', cursor: index === 0 ? 'default' : 'pointer', fontSize: 11, padding: '2px 4px' }}>▲</button>
           <button onClick={onMoveDown} disabled={index === total - 1}
             style={{ background: 'none', border: 'none', color: index === total - 1 ? '#1E293B' : '#64748B', cursor: index === total - 1 ? 'default' : 'pointer', fontSize: 11, padding: '2px 4px' }}>▼</button>
         </div>
 
-        <button onClick={onDelete}
+        <button onClick={e => { e.stopPropagation(); onDelete() }}
           style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 12, padding: '2px 4px' }}>✕</button>
       </div>
 
