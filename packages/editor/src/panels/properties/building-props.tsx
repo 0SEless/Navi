@@ -160,13 +160,10 @@ export function BuildingProperties({ building }: Props) {
 
       {/* ── 2. Physical ── */}
       <div style={sectionHeader}>Physical</div>
-      <Field label="Height">
-        <div style={{ color: '#ccc', fontSize: 13 }}>{building.height.toFixed(1)} m</div>
-      </Field>
-      <Field label="Roof">
+      <Field label="Building Height">
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <input type="number" step="0.1" value={building.roofHeight ?? 0}
-            onChange={e => dispatcher.execute({ id: 'entity.update', label: 'Edit Roof Height', payload: { entityId: building.id, changes: { roofHeight: parseFloat(e.target.value) || 0 } } })}
+          <input type="number" step="0.5" value={building.height}
+            onChange={e => update({ height: parseFloat(e.target.value) || 0 })}
             style={{ ...inputStyle, width: 80 }} />
           <span style={{ color: '#64748B', fontSize: 11 }}>m</span>
         </div>
