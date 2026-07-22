@@ -1,4 +1,6 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
+
+const INPUT_ID = 'fpu-input'
 
 interface FloorPlanUploadProps {
   /** Current floor plan image URL (from floor.metadata.floorPlanData or planImageId) */
@@ -14,6 +16,7 @@ interface FloorPlanUploadProps {
 }
 
 const btnStyle: React.CSSProperties = {
+  display: 'block',
   background: '#094771',
   border: 'none',
   color: '#fff',
@@ -22,6 +25,7 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 11,
   width: '100%',
+  textAlign: 'center',
 }
 
 const linkStyle: React.CSSProperties = {
@@ -59,8 +63,6 @@ const linkStyle: React.CSSProperties = {
  * ```
  */
 export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }: FloorPlanUploadProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -75,20 +77,15 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
       console.error('FloorPlanUpload: failed to read file', reader.error)
     }
     reader.readAsDataURL(file)
-    // Reset so re-selecting the same file triggers change
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    e.target.value = ''
   }, [onUpload])
-
-  const handleClick = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
 
   const stateLabel = state ?? 'none'
 
   return (
     <div>
       <div style={{ fontSize: 10, color: '#64748B', marginBottom: 4 }}>FLOOR PLAN</div>
-      <input ref={fileInputRef} type="file" accept="image/*"
+      <input id={INPUT_ID} type="file" accept="image/*"
         onChange={handleFileChange} style={{ display: 'none' }} />
 
       {stateLabel === 'active' && imageUrl ? (
@@ -97,9 +94,9 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
             style={{ width: 48, height: 36, borderRadius: 4, objectFit: 'cover', border: '1px solid #334155' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 10, color: '#4ADE80' }}>✓ Uploaded</span>
-            <button onClick={handleClick} style={{ ...linkStyle, color: '#94A3B8' }}>
+            <label htmlFor={INPUT_ID} style={{ ...linkStyle, color: '#94A3B8' }}>
               Replace
-            </button>
+            </label>
             {!locked && (
               <button onClick={onRemove} style={{ ...linkStyle, color: '#EF4444' }}>
                 Remove
@@ -114,9 +111,9 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 10, color: '#FACC15' }}>Calibrating</span>
-            <button onClick={handleClick} style={{ ...linkStyle, color: '#94A3B8' }}>
+            <label htmlFor={INPUT_ID} style={{ ...linkStyle, color: '#94A3B8' }}>
               Change Image
-            </button>
+            </label>
             <button onClick={onRemove} style={{ ...linkStyle, color: '#EF4444' }}>
               Cancel
             </button>
@@ -127,9 +124,9 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
           🔒 Locked (geometry depends on it)
         </div>
       ) : (
-        <button onClick={handleClick} style={btnStyle}>
+        <label htmlFor={INPUT_ID} style={btnStyle}>
           + Upload
-        </button>
+        </label>
       )}
     </div>
   )
