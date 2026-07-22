@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import type { Floor } from '@navi/core'
 import { useEditor } from '../context'
+import { FloorPlanUpload } from '../ui/FloorPlanUpload'
 
 interface FloorManagerDialogProps {
   open: boolean
@@ -169,28 +170,26 @@ function FloorRow({
   onToggleExpand, onStartRename, onRenameChange, onRenameSave, onRenameCancel,
   onDelete, onMoveUp, onMoveDown, onUpdateMeta,
 }: FloorRowProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const isVisible = floor.visible !== false
   const isLocked = !!floor.locked
   const shortLabel = floor.shortLabel || autoLabel(floor.level)
-  const hasPlan = !!floor.planImageId
+  const floorPlanData = floor.metadata?.floorPlanData as string | undefined
 
-  const handlePlanUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const url = ev.target?.result as string
-      onUpdateMeta({ planImageId: url })
-    }
-    reader.readAsDataURL(file)
-    // Reset so re-selecting the same file triggers change
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [onUpdateMeta])
+  const handleFloorPlanUpload = useCallback((dataUrl: string) => {
+    onUpdateMeta({
+      planImageId: 'uploaded',
+      floorPlanState: 'active',
+      metadata: { ...floor.metadata, floorPlanData: dataUrl },
+    })
+  }, [onUpdateMeta, floor.metadata])
 
-  const handleRemovePlan = useCallback(() => {
-    onUpdateMeta({ planImageId: null })
-  }, [onUpdateMeta])
+  const handleFloorPlanRemove = useCallback(() => {
+    onUpdateMeta({
+      planImageId: null,
+      floorPlanState: 'none',
+      metadata: { ...floor.metadata, floorPlanData: null },
+    })
+  }, [onUpdateMeta, floor.metadata])
 
   return (
     <div style={{
@@ -269,31 +268,13 @@ function FloorRow({
               </div>
             </div>
             <div style={{ width: 140 }}>
-              <div style={{ fontSize: 10, color: '#64748B', marginBottom: 2 }}>FLOOR PLAN</div>
-              {hasPlan ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <img src={floor.planImageId} alt="Floor plan"
-                    style={{ width: 48, height: 36, borderRadius: 4, objectFit: 'cover', border: '1px solid #334155' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: '#4ADE80' }}>✓ Uploaded</span>
-                    <button onClick={() => fileInputRef.current?.click()}
-                      style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: 10, cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline' }}>
-                      Replace
-                    </button>
-                    <button onClick={handleRemovePlan}
-                      style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: 10, cursor: 'pointer', padding: 0, textAlign: 'left', textDecoration: 'underline' }}>
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => fileInputRef.current?.click()}
-                  style={{ background: '#094771', border: 'none', color: '#fff', borderRadius: 4, padding: '6px 10px', cursor: 'pointer', fontSize: 11, width: '100%' }}>
-                  + Upload
-                </button>
-              )}
-              <input ref={fileInputRef} type="file" accept="image/*"
-                onChange={handlePlanUpload} style={{ display: 'none' }} />
+              <FloorPlanUpload
+                imageUrl={floorPlanData}
+                state={floor.floorPlanState}
+                onUpload={handleFloorPlanUpload}
+                onRemove={handleFloorPlanRemove}
+                locked={isLocked}
+              />
             </div>
           </div>
 

@@ -44,6 +44,7 @@ function floorPlanStatus(floors: Floor[]) {
     id: f.id,
     label: f.label,
     hasPlan: !!f.planImageId,
+    state: f.floorPlanState ?? (f.planImageId ? 'active' : 'none'),
   }))
 }
 
@@ -231,8 +232,8 @@ export function BuildingProperties({ building }: Props) {
           plans.map(p => (
             <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#ccc', marginBottom: 2 }}>
               <span>{p.label}</span>
-              <span style={{ color: p.hasPlan ? '#4ade80' : '#facc15', fontSize: 11 }}>
-                {p.hasPlan ? '✓' : '⚠ Missing'}
+              <span style={{ color: p.state === 'none' ? '#facc15' : p.state === 'calibrating' ? '#60A5FA' : p.state === 'locked' ? '#94A3B8' : '#4ade80', fontSize: 11 }}>
+                {p.state === 'none' ? '⚠ Missing' : p.state === 'calibrating' ? '⚙ Calibrating' : p.state === 'locked' ? '🔒 Locked' : '✓ Uploaded'}
               </span>
             </div>
           ))
