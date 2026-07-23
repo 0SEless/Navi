@@ -319,6 +319,25 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         graphRef.current.removeNode(selectedNodeRef.current)
         useStudioStore.getState().setSelectedNodeId(null)
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        const curTool = toolRef.current
+        if (curTool === 'route' && tracePointsRef.current.length > 0) {
+          tracePointsRef.current = tracePointsRef.current.slice(0, -1)
+          drawing.undoLastPoint()
+        } else if ((curTool === 'building' || curTool === 'boundary') && drawPointsRef.current.length > 0) {
+          drawPointsRef.current = drawPointsRef.current.slice(0, -1)
+          drawing.undoLastDrawPoint()
+        }
+        return
+      }
+      if (e.key === 'Enter') {
+        const curTool = toolRef.current
+        if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
+          drawing.requestConfirm()
+        }
+        return
+      }
     }
 
     const handleTooltipEnter = (e: maplibregl.MapMouseEvent) => {

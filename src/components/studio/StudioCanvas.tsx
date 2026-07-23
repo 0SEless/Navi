@@ -29,6 +29,7 @@
 import { useRef, useEffect, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { useEditor, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useCampusBoundary } from './CampusBoundary'
 import { useBuildingTracer } from './BuildingTracer'
 import { useVertexEditor } from './useVertexEditor'
@@ -81,11 +82,16 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const { services: studioServices } = useEditor()
+  const toolRegistry = studioServices.get('toolRegistry')!
+
   // Data sync + visibility + style switching are managed by <MapRenderer>
   // Selection highlight is managed by <SelectionOverlay />
   // Cursor + dragPan are managed by <InteractionController />
 
   useToolController()
+
+  useToolDockShortcuts(CAMPUS_TOOL_GROUPS, toolRegistry?.activeToolId ?? '', (id) => toolRegistry?.activate(id))
 
   useCampusBoundary(mapInstance, (result) => {
     drawing.setDrawPoints(result.points)
