@@ -1,4 +1,5 @@
 import type { CampusDocument, Building, Road } from '@navi/core'
+import { roadTypeColor } from '@navi/core'
 
 export function buildingsToGeoJSON(buildings: Building[]): GeoJSON.FeatureCollection {
   const features = buildings
@@ -27,7 +28,7 @@ export function roadsToTracesGeoJSON(roads: Road[]): GeoJSON.FeatureCollection {
         id: r.id,
         name: r.name,
         type: 'road',
-        color: '#FFFFFF',
+        color: (r.metadata?.color as string) || roadTypeColor(r.type),
         width: r.width ?? 8,
       },
       geometry: {

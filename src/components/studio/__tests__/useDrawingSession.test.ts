@@ -47,7 +47,7 @@ describe('useDrawingSession', () => {
     const { result } = renderHook(() => useDrawingSession('route'))
     act(() => result.current.addTracePoint({ lat: 1, lng: 2 }))
     act(() => result.current.addTracePoint({ lat: 3, lng: 4 }))
-    act(() => result.current.requestConfirm())
+    act(() => result.current.requestConfirm('route'))
     expect(result.current.pendingConfirm).not.toBeNull()
     expect(result.current.pendingConfirm!.type).toBe('route')
     expect(result.current.pendingConfirm!.points).toHaveLength(2)
@@ -57,7 +57,7 @@ describe('useDrawingSession', () => {
     const { result } = renderHook(() => useDrawingSession('route'))
     act(() => result.current.addTracePoint({ lat: 1, lng: 2 }))
     act(() => result.current.addTracePoint({ lat: 3, lng: 4 }))
-    act(() => result.current.requestConfirm())
+    act(() => result.current.requestConfirm('route'))
     act(() => result.current.cancel())
     expect(result.current.pendingConfirm).toBeNull()
     expect(result.current.tracePoints).toEqual([])
@@ -77,7 +77,7 @@ describe('useDrawingSession', () => {
     const { result } = renderHook(() => useDrawingSession('route'))
     act(() => result.current.addTracePoint({ lat: 1, lng: 2 }))
     act(() => result.current.addTracePoint({ lat: 3, lng: 4 }))
-    act(() => result.current.requestConfirm())
+    act(() => result.current.requestConfirm('route'))
     let points: LatLng[]
     act(() => {
       points = result.current.confirm()
@@ -128,7 +128,7 @@ describe('useDrawingSession', () => {
   it('requestConfirm does nothing when route has < 2 points', () => {
     const { result } = renderHook(() => useDrawingSession('route'))
     act(() => result.current.addTracePoint({ lat: 1, lng: 2 }))
-    act(() => result.current.requestConfirm())
+    act(() => result.current.requestConfirm('route'))
     expect(result.current.pendingConfirm).toBeNull()
   })
 
@@ -136,7 +136,7 @@ describe('useDrawingSession', () => {
     const { result } = renderHook(() => useDrawingSession('building'))
     act(() => result.current.addDrawPoint({ lat: 1, lng: 2 }))
     act(() => result.current.addDrawPoint({ lat: 3, lng: 4 }))
-    act(() => result.current.requestConfirm())
+    act(() => result.current.requestConfirm('building'))
     expect(result.current.pendingConfirm).toBeNull()
   })
 })

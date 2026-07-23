@@ -336,7 +336,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       if (e.key === 'Enter') {
         const curTool = toolRef.current
         if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
-          drawingRef.current.requestConfirm()
+          drawingRef.current.requestConfirm(curTool as 'route' | 'building' | 'boundary')
         }
         return
       }

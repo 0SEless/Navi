@@ -15,6 +15,7 @@ export const LYR = {
   NODES: 'l-nodes',
   NODES_CONNECTION: 'l-nodes-connection',
   TRACES_LINE: 'l-traces-line',
+  TRACES_OUTLINE: 'l-traces-outline',
   TRACES_INNER: 'l-traces-inner',
   DRAWING_LINE: 'l-drawing-line',
   DRAWING_POINTS: 'l-drawing-points',

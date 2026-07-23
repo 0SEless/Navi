@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl'
+import { roadTracePaint, roadTraceInnerPaint, roadOutlinePaint, roadFillPaint } from '@navi/core'
 import { SRC, LYR } from './constants'
 
 /**
@@ -125,32 +126,31 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     },
   })
 
-  // --- Traces ---
+  // --- Traces (roads) ---
   map.addSource(SRC.TRACES, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   })
   map.addLayer({
+    id: LYR.TRACES_OUTLINE,
+    type: 'line',
+    source: SRC.TRACES,
+    paint: roadOutlinePaint() as any,
+    filter: ['==', ['get', 'type'], 'road'],
+  })
+  map.addLayer({
     id: LYR.TRACES_LINE,
     type: 'line',
     source: SRC.TRACES,
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': ['get', 'width'],
-      'line-opacity': 0.8,
-    },
-    filter: ['==', ['get', 'type'], 'arterial'],
+    paint: roadTracePaint() as any,
+    filter: ['==', ['get', 'type'], 'road'],
   })
   map.addLayer({
     id: LYR.TRACES_INNER,
     type: 'line',
     source: SRC.TRACES,
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': ['get', 'width'],
-      'line-opacity': 0.5,
-    },
-    filter: ['!=', ['get', 'type'], 'arterial'],
+    paint: roadTraceInnerPaint() as any,
+    filter: ['!=', ['get', 'type'], 'road'],
   })
 
   // --- Drawing (ephemeral) ---

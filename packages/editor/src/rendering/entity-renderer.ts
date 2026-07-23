@@ -5,11 +5,12 @@ import type { DocumentEventBus } from '../eventbus'
 import type { SelectionManager } from '../selection'
 import type { Viewport } from '../viewport'
 import { documentToGeoJSON, toPreviewFeature } from './geojson'
+import { roadOutlinePaint, roadFillPaint } from '@navi/core'
 import {
   LAYER_IDS, SOURCE_IDS,
   buildingFillPaint, buildingOutlinePaint, buildingExtrusionPaint,
   roomFillPaint, roomOutlinePaint,
-  hallwayLinePaint, roadOutlinePaint, roadFillPaint,
+  hallwayLinePaint,
   entityCirclePaint, ENTITY_ICON_COLORS,
   selectionPaint, hoverPaint, previewPaint, validationPaint,
 } from './layers'
