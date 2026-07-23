@@ -11,6 +11,7 @@ import {
 } from '@navi/editor'
 import type { EntityId, EntitySelector } from '@navi/editor'
 import { Explorer } from './Explorer'
+import { useGraphStore } from '@/store/graph-store'
 
 /**
  * Thin container.
@@ -63,6 +64,11 @@ export function ExplorerPanel() {
         label: 'Delete',
         payload: { [`${node.type}Id`]: id },
       })
+      // Clean up graph nodes when deleting a road — road.delete only removes
+      // from document.roads but leaves trace-derived nodes in the graph.
+      if (node.type === 'road') {
+        useGraphStore.getState().removeTrace(id)
+      }
     },
     [services, nodes, editEngine],
   )
