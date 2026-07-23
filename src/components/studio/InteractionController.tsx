@@ -34,6 +34,8 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
 
   const tool = useCurrentTool()
 
+  const drawingRef = useRef(drawing)
+  drawingRef.current = drawing
   const setRoomDragRef = useRef(onSetRoomDrag)
   useEffect(() => { setRoomDragRef.current = onSetRoomDrag }, [onSetRoomDrag])
 
@@ -55,7 +57,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
   }, [tool, map])
 
   useEffect(() => {
-    const unsubDrawing = drawing.subscribe(() => {
+    const unsubDrawing = drawingRef.current.subscribe(() => {
       tracePointsRef.current = drawing.tracePoints
       drawPointsRef.current = drawing.drawPoints
     })
@@ -80,8 +82,8 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
 
   function setCurrentPoints(points: LatLng[]) {
     const curTool = toolRef.current
-    if (curTool === 'route') { drawing.setTracePoints(points) }
-    if (curTool === 'building' || curTool === 'boundary') { drawing.setDrawPoints(points) }
+    if (curTool === 'route') { drawingRef.current.setTracePoints(points) }
+    if (curTool === 'building' || curTool === 'boundary') { drawingRef.current.setDrawPoints(points) }
   }
 
   function findNearestVertex(mouseScreen: { x: number; y: number }, m: maplibregl.Map, points: LatLng[]): number {
@@ -118,7 +120,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
           return
         }
         tracePointsRef.current = [...points, pos]
-        drawing.addTracePoint(pos)
+        drawingRef.current.addTracePoint(pos)
         return
       }
       if (curTool === 'asset') {
@@ -155,7 +157,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     const handleDblClick = () => {
       const curTool = toolRef.current
       if (curTool === 'route' && tracePointsRef.current.length >= 2) {
-        drawing.requestConfirm('route')
+        drawingRef.current.requestConfirm('route')
       }
     }
 
@@ -303,8 +305,8 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         }
         tracePointsRef.current = []
         drawPointsRef.current = []
-        drawing.clearTracePoints()
-        drawing.clearDrawPoints()
+        drawingRef.current.clearTracePoints()
+        drawingRef.current.clearDrawPoints()
         setRoomDragRef.current?.(null)
         useStudioStore.getState().setVertexEditing(null, null)
       }
@@ -324,17 +326,17 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         const curTool = toolRef.current
         if (curTool === 'route' && tracePointsRef.current.length > 0) {
           tracePointsRef.current = tracePointsRef.current.slice(0, -1)
-          drawing.undoLastPoint()
+          drawingRef.current.undoLastPoint()
         } else if ((curTool === 'building' || curTool === 'boundary') && drawPointsRef.current.length > 0) {
           drawPointsRef.current = drawPointsRef.current.slice(0, -1)
-          drawing.undoLastDrawPoint()
+          drawingRef.current.undoLastDrawPoint()
         }
         return
       }
       if (e.key === 'Enter') {
         const curTool = toolRef.current
         if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
-          drawing.requestConfirm()
+          drawingRef.current.requestConfirm()
         }
         return
       }
