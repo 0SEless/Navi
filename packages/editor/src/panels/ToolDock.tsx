@@ -139,7 +139,7 @@ export const CAMPUS_TOOL_GROUPS: ToolGroup[] = [
     id: 'geometry',
     tools: [
       { id: 'building', label: 'Building', shortcut: 'B', icon: ICONS.building },
-      { id: 'road', label: 'Road', shortcut: 'O', icon: ICONS.road },
+      { id: 'route', label: 'Road', shortcut: 'O', icon: ICONS.road },
       { id: 'boundary', label: 'Boundary', shortcut: 'Y', icon: ICONS.boundary },
     ],
   },

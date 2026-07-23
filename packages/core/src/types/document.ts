@@ -24,6 +24,8 @@ export interface CampusDocument {
   roads: Road[]
   panoramas: Panorama[]
   qrCheckpoints: QRCheckpoint[]
+  /** Campus outer boundary polygon. Optional — set via boundary tool. */
+  boundary?: { points: Array<{ lat: number; lng: number }> }
   /** Runtime-only change journal. Not serialized. Populated during editing sessions. */
   _changeJournal?: EntityChange[]
 }

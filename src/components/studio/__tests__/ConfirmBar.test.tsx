@@ -3,14 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { ConfirmBar } from '../ConfirmBar'
 import type { DrawingSessionValue } from '../useDrawingSession'
 
-const mockState = { tool: 'route' }
+let currentTool: string | null = 'route'
 
-vi.mock('@/store/studio-store', () => {
-  const mockFn: any = (selector: any) => selector(mockState)
-  mockFn.getState = () => mockState
-  mockFn.subscribe = vi.fn()
-  return { useStudioStore: mockFn }
-})
+vi.mock('../useCurrentTool', () => ({
+  useCurrentTool: () => currentTool,
+}))
 
 function createMockDrawing(overrides?: Partial<DrawingSessionValue>): DrawingSessionValue {
   return {
@@ -36,13 +33,10 @@ function createMockDrawing(overrides?: Partial<DrawingSessionValue>): DrawingSes
   }
 }
 
-
-
-
 describe('ConfirmBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockState.tool = 'route'
+    currentTool = 'route'
   })
 
   it('renders tool label for route', () => {
@@ -51,7 +45,7 @@ describe('ConfirmBar', () => {
   })
 
   it('renders tool label for building', () => {
-    mockState.tool = 'building'
+    currentTool = 'building'
     render(<ConfirmBar drawing={createMockDrawing({ drawPoints: [{ lat: 1, lng: 2 }] })} />)
     expect(screen.getByText('Building footprint')).toBeDefined()
   })
@@ -108,7 +102,7 @@ describe('ConfirmBar', () => {
   })
 
   it('returns null when tool is not a drawing tool', () => {
-    mockState.tool = 'select'
+    currentTool = 'select'
     const { container } = render(<ConfirmBar drawing={createMockDrawing({ tracePoints: [{ lat: 1, lng: 2 }] })} />)
     expect(container.innerHTML).toBe('')
   })

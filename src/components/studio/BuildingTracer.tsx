@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
+import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 
 const TRACER_SOURCE = 'building-tracer-drawing'
@@ -86,7 +87,7 @@ export function useBuildingTracer(
   map: maplibregl.Map | null,
   onComplete?: (footprint: BuildingFootprint) => void,
 ) {
-  const tool = useStudioStore((s) => s.tool)
+  const tool = useCurrentTool()
   const drawPoints = useStudioStore((s) => s.drawPoints)
   const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)

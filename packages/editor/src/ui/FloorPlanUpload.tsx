@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 const INPUT_ID = 'fpu-input'
 
 interface FloorPlanUploadProps {
-  /** Current floor plan image URL (from floor.metadata.floorPlanData or planImageId) */
+  /** Current floor plan image URL (from floor.planImageId) */
   imageUrl?: string | null
   /** Current floor plan state */
   state?: 'none' | 'calibrating' | 'active' | 'locked' | null
@@ -47,17 +47,15 @@ const linkStyle: React.CSSProperties = {
  * Usage:
  * ```
  * <FloorPlanUpload
- *   imageUrl={floor.metadata?.floorPlanData as string}
+ *   imageUrl={floor.planImageId}
  *   state={floor.floorPlanState}
  *   onUpload={(dataUrl) => handleUpdateMeta(floor.id, {
- *     planImageId: 'uploaded',
+ *     planImageId: dataUrl,
  *     floorPlanState: 'active',
- *     metadata: { ...floor.metadata, floorPlanData: dataUrl }
  *   })}
  *   onRemove={() => handleUpdateMeta(floor.id, {
  *     planImageId: null,
  *     floorPlanState: 'none',
- *     metadata: { ...floor.metadata, floorPlanData: null }
  *   })}
  * />
  * ```

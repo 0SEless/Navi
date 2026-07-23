@@ -68,6 +68,16 @@ export function ConfirmOverlay() {
       await workflow.save('manual')
     }
 
+    if (pendingConfirm.type === 'boundary' && pendingConfirm.points.length >= 3) {
+      dispatcher.execute({
+        id: 'boundary.set',
+        label: 'Set Campus Boundary',
+        payload: { points: pendingConfirm.points },
+      })
+      clearDrawPoints()
+      await workflow.save('manual')
+    }
+
     clearPendingConfirm()
   }
 

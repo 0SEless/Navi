@@ -14,6 +14,7 @@ import { buildingCreateHandler, buildingDeleteHandler } from '../commands/buildi
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
 import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler, floorReorderHandler } from '../commands/floor-handlers'
 import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPositionHandler } from '../commands/ui-action-handlers'
+import { boundarySetHandler, boundaryClearHandler } from '../commands/boundary-handlers'
 import { SelectionManager } from '../selection'
 import { CurrentToolStore } from '../tools/CurrentToolStore'
 import { Viewport } from '../viewport'
@@ -376,6 +377,8 @@ export function createEditorContext(
   registryCmd.register(floorManageHandler)
   registryCmd.register(buildingEditInteriorHandler)
   registryCmd.register(buildingAdjustPositionHandler)
+  registryCmd.register(boundarySetHandler)
+  registryCmd.register(boundaryClearHandler)
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
 

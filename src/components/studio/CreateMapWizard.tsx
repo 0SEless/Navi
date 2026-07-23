@@ -380,7 +380,7 @@ export function CreateMapWizard() {
       })
       const added = bldgs.length
 
-      useGraphStore.setState({ currentMapId: id })
+      useGraphStore.getState().setCurrentMapId(id)
       save()
       updateMapStats(id, { buildings: added })
       setImportedCount(added)

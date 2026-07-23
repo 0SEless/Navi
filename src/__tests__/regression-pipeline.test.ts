@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { resolve } from 'path'
 import { compile } from '@navi/compiler'
-import { load, RuntimeEngine, AStar, SearchEngine } from '@navi/runtime'
+import { RuntimeEngine, AStar, SearchEngine } from '@navi/runtime'
+import { load } from '@navi/runtime/loader'
 import type { CampusDocument } from '@navi/core'
 import type { CompilerConfig, NavigationGraph } from '@navi/compiler'
 

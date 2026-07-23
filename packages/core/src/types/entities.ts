@@ -51,7 +51,12 @@ export interface Floor {
   shortLabel?: string     // compact label ("GF", "1F")
   elevation: number       // meters above building baseElevation (computed from floor heights)
   height: number          // meters, floor-to-ceiling height for this floor level (default 3.5)
-  planImageId?: string    // asset ID of floor plan image
+  // RC1: planImageId stores the floor plan image URL (data URL or asset ID).
+  //   It is the single canonical source — consumed by thumbnail, canvas,
+  //   status badge, save/load, and publish.
+  // RC2: Replace with a floorPlan object:
+  //   floorPlan: { imageUrl, calibration, opacity, visible, locked }
+  planImageId?: string
   floorPlanState?: 'none' | 'calibrating' | 'active' | 'locked'  // lifecycle state per spec
 
   // Visibility (defaults: visible=true, locked=false)

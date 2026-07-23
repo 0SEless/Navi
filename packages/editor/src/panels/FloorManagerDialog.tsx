@@ -173,23 +173,19 @@ function FloorRow({
   const isVisible = floor.visible !== false
   const isLocked = !!floor.locked
   const shortLabel = floor.shortLabel || autoLabel(floor.level)
-  const floorPlanData = floor.metadata?.floorPlanData as string | undefined
-
   const handleFloorPlanUpload = useCallback((dataUrl: string) => {
     onUpdateMeta({
-      planImageId: 'uploaded',
+      planImageId: dataUrl,
       floorPlanState: 'active',
-      metadata: { ...floor.metadata, floorPlanData: dataUrl },
     })
-  }, [onUpdateMeta, floor.metadata])
+  }, [onUpdateMeta])
 
   const handleFloorPlanRemove = useCallback(() => {
     onUpdateMeta({
       planImageId: null,
       floorPlanState: 'none',
-      metadata: { ...floor.metadata, floorPlanData: null },
     })
-  }, [onUpdateMeta, floor.metadata])
+  }, [onUpdateMeta])
 
   return (
     <div style={{
@@ -269,7 +265,7 @@ function FloorRow({
             </div>
             <div style={{ width: 140 }}>
               <FloorPlanUpload
-                imageUrl={floorPlanData}
+                imageUrl={floor.planImageId}
                 state={floor.floorPlanState}
                 onUpload={handleFloorPlanUpload}
                 onRemove={handleFloorPlanRemove}

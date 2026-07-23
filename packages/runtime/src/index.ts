@@ -1,7 +1,6 @@
 export { RuntimeEngine, DataAPI, SearchService, RoutingAPI, NotImplementedError, NavigationService, BuildingService, LocationService, PanoramaService } from './engine'
 export { ReferenceCompositionService, VisitorJourneyService, Journey } from './composition'
 export type { CompositionService, SuggestedJourney, JourneyRequest, JourneyContext, JourneyStep, JourneyStatus, LocateStep, SearchStep, NavigateStep, ArrivalStep, PanoramaStep, SelectDestinationStep, SelectEntranceStep, ConfirmStep, ConfirmOption } from './composition'
-export { load } from './loader'
 export { SearchEngine } from './search'
 export { RoutingEngine, AStar } from './routing'
 export { PositionEngine, GpsResolver } from './position'

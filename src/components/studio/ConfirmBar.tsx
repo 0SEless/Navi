@@ -2,6 +2,7 @@
 
 import { Trash2, Check, X } from 'lucide-react'
 import { useStudioStore } from '@/store/studio-store'
+import { useCurrentTool } from './useCurrentTool'
 import type { DrawingSessionValue } from './useDrawingSession'
 
 interface ConfirmBarProps {
@@ -9,7 +10,7 @@ interface ConfirmBarProps {
 }
 
 export function ConfirmBar({ drawing }: ConfirmBarProps) {
-  const tool = useStudioStore((s) => s.tool)
+  const tool = useCurrentTool()
 
   // Only shown for drawing tools with points placed
   if (tool !== 'route' && tool !== 'building' && tool !== 'boundary') return null

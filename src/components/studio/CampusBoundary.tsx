@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
+import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 
 const BOUNDARY_SOURCE = 'campus-boundary-drawing'
@@ -82,7 +83,7 @@ export function useCampusBoundary(
   map: maplibregl.Map | null,
   onComplete?: (polygon: BoundaryPolygon) => void,
 ) {
-  const tool = useStudioStore((s) => s.tool)
+  const tool = useCurrentTool()
   const drawPoints = useStudioStore((s) => s.drawPoints)
   const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)

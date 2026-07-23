@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import { genId } from '@navi/editor'
+import { genId, useEditor } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
-import { SRC, LYR, CURSOR_CROSSHAIR } from './rendering/constants'
+import { SRC, LYR, CURSOR_CROSSHAIR, CURSOR_HAND } from './rendering/constants'
+import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 
 interface InteractionControllerProps {
@@ -15,7 +16,9 @@ interface InteractionControllerProps {
 
 export function InteractionController({ map, onSetRoomDrag }: InteractionControllerProps) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
-  const toolRef = useRef(useStudioStore.getState().tool)
+  const { services } = useEditor()
+  const toolRegistry = services.get('toolRegistry')!
+  const toolRef = useRef(toolRegistry.activeToolId)
   const tracePointsRef = useRef(useStudioStore.getState().tracePoints)
   const drawPointsRef = useRef(useStudioStore.getState().drawPoints)
   const graphRef = useRef(useGraphStore.getState().graph)
@@ -27,7 +30,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
   const lastSelectedNodeRef = useRef<string | null>(null)
 
-  const tool = useStudioStore((s) => s.tool)
+  const tool = useCurrentTool()
 
   const setRoomDragRef = useRef(onSetRoomDrag)
   useEffect(() => { setRoomDragRef.current = onSetRoomDrag }, [onSetRoomDrag])
@@ -38,7 +41,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
     if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') {
       canvas.style.cursor = CURSOR_CROSSHAIR
     } else if (tool === 'select') {
-      canvas.style.cursor = 'pointer'
+      canvas.style.cursor = CURSOR_HAND
     } else {
       canvas.style.cursor = ''
     }
@@ -50,8 +53,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
   }, [tool, map])
 
   useEffect(() => {
-    const unsub = useStudioStore.subscribe((state) => {
-      toolRef.current = state.tool
+    const unsubStore = useStudioStore.subscribe((state) => {
       tracePointsRef.current = state.tracePoints
       drawPointsRef.current = state.drawPoints
       activeFloorRef.current = state.activeFloor
@@ -59,8 +61,11 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
       selectedNodeRef.current = state.selectedNodeId
       adjustBuildingIdRef.current = state.adjustBuildingId
     })
-    return () => unsub()
-  }, [])
+    const unsubTool = toolRegistry.subscribe(() => {
+      toolRef.current = toolRegistry.activeToolId
+    })
+    return () => { unsubStore(); unsubTool() }
+  }, [toolRegistry])
 
   useEffect(() => {
     const unsub = useGraphStore.subscribe((state) => {
@@ -318,14 +323,14 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
 
     const handleTooltipEnter = (e: maplibregl.MapMouseEvent) => {
       setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
-      map.getCanvas().style.cursor = 'pointer'
+      map.getCanvas().style.cursor = CURSOR_HAND
     }
 
     const handleTooltipLeave = () => {
       setTooltip(null)
       const ct = useStudioStore.getState().tool
       const canvas = map.getCanvas()
-      if (ct === 'select') canvas.style.cursor = 'pointer'
+      if (ct === 'select') canvas.style.cursor = CURSOR_HAND
       else canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
     }
 

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useEditor, useEditingEngine, genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
+import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 
 interface EntranceFormState {
@@ -32,7 +33,7 @@ function findFloorId(building: { id: string; floors: { id: string; level: number
 
 export function useEntrancePlacer() {
   const [formState, setFormState] = useState<EntranceFormState | null>(null)
-  const tool = useStudioStore((s) => s.tool)
+  const tool = useCurrentTool()
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const activeBuildingId = useStudioStore((s) => s.activeBuildingId)
 

@@ -2,6 +2,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import { InteractionController } from '../InteractionController'
 
+let currentTool: string | null = 'select'
+
+vi.mock('../useCurrentTool', () => ({
+  useCurrentTool: () => currentTool,
+}))
+
+vi.mock('@navi/editor', async (importOriginal) => {
+  const orig = await importOriginal() as Record<string, unknown>
+  const mockToolRegistry = {
+    activeToolId: 'select',
+    subscribe: vi.fn(() => vi.fn()),
+  }
+  return {
+    ...orig,
+    useEditor: () => ({
+      services: { get: () => mockToolRegistry },
+    }),
+    genId: (prefix: string) => `${prefix}_test_1`,
+  }
+})
+
 const mockSubscribe = vi.fn(() => vi.fn())
 const mockGetStudioState = vi.fn(() => ({
   tool: 'select',
@@ -57,6 +78,7 @@ describe('InteractionController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    currentTool = 'select'
     ;(useGraphStore as any).getState.mockReturnValue(mockGetGraphState())
     ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribe)
     ;(useStudioStore as any).getState.mockReturnValue(mockGetStudioState())

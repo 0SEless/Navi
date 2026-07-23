@@ -98,6 +98,36 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   // Ensure contextRef.current is always in sync with the active committed context
   contextRef.current = context
 
+  // Save on tab close / navigation away — fires even if autosave debounce hasn't
+  // elapsed. Uses synchronous localStorage write (via graphStore.save()) so data
+  // survives browser close. The async Supabase sync runs in the background.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        const ctx = contextRef.current
+        if (ctx) {
+          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+          ga.sync(ctx.document)
+        }
+        useGraphStore.getState().save()
+      }
+    }
+    const handleBeforeUnload = () => {
+      const ctx = contextRef.current
+      if (ctx) {
+        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+        ga.sync(ctx.document)
+      }
+      useGraphStore.getState().save()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
+
   // Wire SelectionBridge once per mount: keep the legacy studio store and the
   // new SelectionManager in sync (selection only, loop-guarded).
   useEffect(() => {
