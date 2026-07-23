@@ -90,12 +90,12 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   useCampusBoundary(mapInstance, (result) => {
     drawing.setDrawPoints(result.points)
     drawing.requestConfirm('boundary')
-  })
+  }, drawing)
 
   useBuildingTracer(mapInstance, (result) => {
     drawing.setDrawPoints(result.points)
     drawing.requestConfirm('building')
-  })
+  }, drawing)
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -109,7 +109,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
       {mapInstance && <SelectionOverlay map={mapInstance} />}
       {mapInstance && <MapRenderer map={mapInstance} />}
       {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
-      {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={drawing.setRoomDrag} />}
+      {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={drawing.setRoomDrag} drawing={drawing} />}
     </div>
   )
 }

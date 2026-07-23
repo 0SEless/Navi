@@ -8,19 +8,21 @@ import { useStudioStore } from '@/store/studio-store'
 import { SRC, LYR, CURSOR_CROSSHAIR, CURSOR_HAND } from './rendering/constants'
 import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
+import type { DrawingSessionValue } from './useDrawingSession'
 
 interface InteractionControllerProps {
   map: maplibregl.Map
   onSetRoomDrag?: (drag: { start: LatLng; current: LatLng } | null) => void
+  drawing: DrawingSessionValue
 }
 
-export function InteractionController({ map, onSetRoomDrag }: InteractionControllerProps) {
+export function InteractionController({ map, onSetRoomDrag, drawing }: InteractionControllerProps) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const { services } = useEditor()
   const toolRegistry = services.get('toolRegistry')!
   const toolRef = useRef(toolRegistry.activeToolId)
-  const tracePointsRef = useRef(useStudioStore.getState().tracePoints)
-  const drawPointsRef = useRef(useStudioStore.getState().drawPoints)
+  const tracePointsRef = useRef(drawing.tracePoints)
+  const drawPointsRef = useRef(drawing.drawPoints)
   const graphRef = useRef(useGraphStore.getState().graph)
   const activeFloorRef = useRef(useStudioStore.getState().activeFloor)
   const activeBuildingIdRef = useRef(useStudioStore.getState().activeBuildingId)
@@ -53,9 +55,11 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
   }, [tool, map])
 
   useEffect(() => {
+    const unsubDrawing = drawing.subscribe(() => {
+      tracePointsRef.current = drawing.tracePoints
+      drawPointsRef.current = drawing.drawPoints
+    })
     const unsubStore = useStudioStore.subscribe((state) => {
-      tracePointsRef.current = state.tracePoints
-      drawPointsRef.current = state.drawPoints
       activeFloorRef.current = state.activeFloor
       activeBuildingIdRef.current = state.activeBuildingId
       selectedNodeRef.current = state.selectedNodeId
@@ -64,8 +68,8 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
     const unsubTool = toolRegistry.subscribe(() => {
       toolRef.current = toolRegistry.activeToolId
     })
-    return () => { unsubStore(); unsubTool() }
-  }, [toolRegistry])
+    return () => { unsubDrawing(); unsubStore(); unsubTool() }
+  }, [toolRegistry, drawing])
 
   useEffect(() => {
     const unsub = useGraphStore.subscribe((state) => {
@@ -74,17 +78,10 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
     return () => unsub()
   }, [])
 
-  function getCurrentPoints() {
-    const curTool = toolRef.current
-    if (curTool === 'route') return tracePointsRef.current
-    if (curTool === 'building' || curTool === 'boundary') return drawPointsRef.current
-    return []
-  }
-
   function setCurrentPoints(points: LatLng[]) {
     const curTool = toolRef.current
-    if (curTool === 'route') { useStudioStore.getState().setTracePoints(points) }
-    if (curTool === 'building' || curTool === 'boundary') { useStudioStore.getState().setDrawPoints(points) }
+    if (curTool === 'route') { drawing.setTracePoints(points) }
+    if (curTool === 'building' || curTool === 'boundary') { drawing.setDrawPoints(points) }
   }
 
   function findNearestVertex(mouseScreen: { x: number; y: number }, m: maplibregl.Map, points: LatLng[]): number {
@@ -120,7 +117,8 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
           dragVertexRef.current = { index: nearIdx, points: [...points], source: 'trace' }
           return
         }
-        useStudioStore.getState().addTracePoint(pos)
+        tracePointsRef.current = [...points, pos]
+        drawing.addTracePoint(pos)
         return
       }
       if (curTool === 'asset') {
@@ -157,7 +155,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
     const handleDblClick = () => {
       const curTool = toolRef.current
       if (curTool === 'route' && tracePointsRef.current.length >= 2) {
-        useStudioStore.getState().setPendingConfirm('route', [...tracePointsRef.current])
+        drawing.requestConfirm('route')
       }
     }
 
@@ -191,7 +189,7 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
         return
       }
       if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
-        const points = getCurrentPoints()
+        const points = curTool === 'route' ? tracePointsRef.current : drawPointsRef.current
         const nearIdx = findNearestVertex(e.point, map, points)
         if (nearIdx >= 0) {
           dragVertexRef.current = { index: nearIdx, points: [...points], source: curTool === 'route' ? 'trace' : 'draw' }
@@ -303,8 +301,10 @@ export function InteractionController({ map, onSetRoomDrag }: InteractionControl
           } catch { /* ok */ }
           lastSelectedNodeRef.current = null
         }
-        useStudioStore.getState().clearTracePoints()
-        useStudioStore.getState().clearDrawPoints()
+        tracePointsRef.current = []
+        drawPointsRef.current = []
+        drawing.clearTracePoints()
+        drawing.clearDrawPoints()
         setRoomDragRef.current?.(null)
         useStudioStore.getState().setVertexEditing(null, null)
       }

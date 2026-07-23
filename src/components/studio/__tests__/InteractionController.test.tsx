@@ -23,7 +23,28 @@ vi.mock('@navi/editor', async (importOriginal) => {
   }
 })
 
-const mockSubscribe = vi.fn(() => vi.fn())
+const mockSubscribeFn = vi.fn(() => vi.fn())
+const mockDrawing = {
+  tracePoints: [],
+  drawPoints: [],
+  routeWidth: 8,
+  roomDrag: null,
+  pendingConfirm: null,
+  addTracePoint: vi.fn(),
+  setTracePoints: vi.fn(),
+  undoLastPoint: vi.fn(),
+  clearTracePoints: vi.fn(),
+  addDrawPoint: vi.fn(),
+  setDrawPoints: vi.fn(),
+  undoLastDrawPoint: vi.fn(),
+  clearDrawPoints: vi.fn(),
+  setRoomDrag: vi.fn(),
+  requestConfirm: vi.fn(),
+  confirm: vi.fn(() => []),
+  cancel: vi.fn(),
+  setRouteWidth: vi.fn(),
+  subscribe: vi.fn(() => vi.fn()),
+}
 const mockGetStudioState = vi.fn(() => ({
   tool: 'select',
   tracePoints: [],
@@ -80,13 +101,13 @@ describe('InteractionController', () => {
     vi.clearAllMocks()
     currentTool = 'select'
     ;(useGraphStore as any).getState.mockReturnValue(mockGetGraphState())
-    ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribe)
+    ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribeFn)
     ;(useStudioStore as any).getState.mockReturnValue(mockGetStudioState())
-    ;(useStudioStore as any).subscribe.mockImplementation(mockSubscribe)
+    ;(useStudioStore as any).subscribe.mockImplementation(mockSubscribeFn)
   })
 
   it('registers map event listeners on mount', () => {
-    render(<InteractionController map={mockMap} />)
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     expect(mockOn).toHaveBeenCalledWith('click', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('dblclick', expect.any(Function))
     expect(mockOn).toHaveBeenCalledWith('mousedown', expect.any(Function))
@@ -95,7 +116,7 @@ describe('InteractionController', () => {
   })
 
   it('unregisters event listeners on unmount', () => {
-    const { unmount } = render(<InteractionController map={mockMap} />)
+    const { unmount } = render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     unmount()
     expect(mockOff).toHaveBeenCalledWith('click', expect.any(Function))
     expect(mockOff).toHaveBeenCalledWith('dblclick', expect.any(Function))
@@ -104,18 +125,23 @@ describe('InteractionController', () => {
     expect(mockOff).toHaveBeenCalledWith('mouseup', expect.any(Function))
   })
 
+  it('subscribes to drawing context on mount', () => {
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+    expect(mockDrawing.subscribe).toHaveBeenCalled()
+  })
+
   it('subscribes to studio store on mount', () => {
-    render(<InteractionController map={mockMap} />)
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     expect(useStudioStore.subscribe).toHaveBeenCalled()
   })
 
   it('subscribes to graph store on mount', () => {
-    render(<InteractionController map={mockMap} />)
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     expect(useGraphStore.subscribe).toHaveBeenCalled()
   })
 
   it('renders nothing visible', () => {
-    const { container } = render(<InteractionController map={mockMap} />)
+    const { container } = render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     expect(container.firstChild).toBeNull()
   })
 })

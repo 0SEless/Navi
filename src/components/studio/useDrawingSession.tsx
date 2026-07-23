@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, createContext, useContext, type ReactNode } from 'react'
+import { useState, useCallback, createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
 import type { LatLng } from '@/types/nav-types'
 
 type PendingType = 'building' | 'boundary' | 'route'
@@ -15,6 +15,8 @@ interface DragState {
   start: LatLng
   current: LatLng
 }
+
+type Subscriber = () => void
 
 export interface DrawingSessionValue {
   tracePoints: LatLng[]
@@ -35,6 +37,7 @@ export interface DrawingSessionValue {
   confirm: () => LatLng[]
   cancel: () => void
   setRouteWidth: (width: number) => void
+  subscribe: (cb: Subscriber) => () => void
 }
 
 const DrawingSessionContext = createContext<DrawingSessionValue | null>(null)
@@ -45,6 +48,18 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
   const [routeWidth, setRouteWidthState] = useState(8)
   const [roomDrag, setRoomDrag] = useState<DragState | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null)
+  const subsRef = useRef(new Set<Subscriber>())
+
+  const subscribe = useCallback((cb: Subscriber) => {
+    subsRef.current.add(cb)
+    return () => { subsRef.current.delete(cb) }
+  }, [])
+
+  const notify = useCallback(() => {
+    subsRef.current.forEach(cb => cb())
+  }, [])
+
+  useEffect(() => { notify() }, [tracePoints, drawPoints, notify])
 
   const addTracePoint = useCallback((pt: LatLng) => {
     setTracePoints(prev => [...prev, pt])
@@ -131,6 +146,7 @@ export function useDrawingSession(initialTool: DrawingTool = 'route'): DrawingSe
     confirm,
     cancel,
     setRouteWidth,
+    subscribe,
   }
 }
 

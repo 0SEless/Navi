@@ -3,9 +3,9 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { genId } from '@navi/editor'
-import { useStudioStore } from '@/store/studio-store'
 import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
+import type { DrawingSessionValue } from './useDrawingSession'
 
 const BOUNDARY_SOURCE = 'campus-boundary-drawing'
 const BOUNDARY_FILL = 'campus-boundary-fill'
@@ -82,11 +82,9 @@ function clearBoundaryDrawing(map: maplibregl.Map) {
 export function useCampusBoundary(
   map: maplibregl.Map | null,
   onComplete?: (polygon: BoundaryPolygon) => void,
+  drawing?: DrawingSessionValue,
 ) {
   const tool = useCurrentTool()
-  const drawPoints = useStudioStore((s) => s.drawPoints)
-  const setDrawPoints = useStudioStore((s) => s.setDrawPoints)
-  const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
 
@@ -97,12 +95,12 @@ export function useCampusBoundary(
     addBoundarySourceAndLayers(map)
   }, [map])
 
-  // Sync visual from store when drawPoints changes externally (undo/cancel)
+  // Sync visual when drawPoints changes externally (undo/cancel)
   useEffect(() => {
-    if (!map || tool !== 'boundary') return
-    pointsRef.current = [...drawPoints]
+    if (!map || tool !== 'boundary' || !drawing) return
+    pointsRef.current = [...drawing.drawPoints]
     renderBoundaryDrawing(map, pointsRef.current)
-  }, [map, tool, drawPoints])
+  }, [map, tool, drawing?.drawPoints])
 
   useEffect(() => {
     if (!map) return
@@ -118,7 +116,7 @@ export function useCampusBoundary(
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       pointsRef.current = [...pointsRef.current, { lat: e.lngLat.lat, lng: e.lngLat.lng }]
       renderBoundaryDrawing(map, pointsRef.current)
-      setDrawPoints(pointsRef.current)
+      drawing?.setDrawPoints(pointsRef.current)
     }
 
     const handleDblClick = () => {
@@ -130,7 +128,7 @@ export function useCampusBoundary(
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearBoundaryDrawing(map)
-      clearDrawPoints()
+      drawing?.clearDrawPoints()
     }
 
     map.on('click', handleClick)
@@ -142,7 +140,7 @@ export function useCampusBoundary(
       map.doubleClickZoom?.enable()
       pointsRef.current = []
       clearBoundaryDrawing(map)
-      clearDrawPoints()
+      drawing?.clearDrawPoints()
     }
-  }, [map, tool])
+  }, [map, tool, drawing])
 }
