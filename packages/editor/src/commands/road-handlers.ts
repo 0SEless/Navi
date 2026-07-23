@@ -1,7 +1,19 @@
-import { recordChange } from '@navi/core'
+import { recordChange, RoadStyle } from '@navi/core'
 import type { CampusDocument, LatLng, RoadSurface, RoadType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+
+function defaultWidthForType(type: string): number {
+  switch (type) {
+    case 'connector': return 2.0
+    case 'service': return 1.5
+    default: return RoadStyle.defaultWidthMeters
+  }
+}
+
+function clampWidth(w: number): number {
+  return Math.max(RoadStyle.minWidthMeters, Math.min(RoadStyle.maxWidthMeters, w))
+}
 
 export const roadCreateHandler: CommandHandler = {
   id: 'road.create',
@@ -9,9 +21,9 @@ export const roadCreateHandler: CommandHandler = {
     const id = (payload.id as string) || genId('rd')
     const name = (payload.name as string) || ''
     const points = payload.points as LatLng[] | undefined
-    const width = (payload.width as number) || 5
+    const type = (payload.type as RoadType) || 'arterial'
+    const width = clampWidth((payload.width as number) || defaultWidthForType(type))
     const surface = (payload.surface as RoadSurface) || 'paved'
-    const type = (payload.type as RoadType) || 'service'
 
     if (!points || points.length < 2) {
       return { success: false, error: 'Road polyline must have at least 2 points' }

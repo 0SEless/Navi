@@ -9,7 +9,7 @@ import {
   LAYER_IDS, SOURCE_IDS,
   buildingFillPaint, buildingOutlinePaint, buildingExtrusionPaint,
   roomFillPaint, roomOutlinePaint,
-  hallwayLinePaint, roadLinePaint,
+  hallwayLinePaint, roadOutlinePaint, roadFillPaint,
   entityCirclePaint, ENTITY_ICON_COLORS,
   selectionPaint, hoverPaint, previewPaint, validationPaint,
 } from './layers'
@@ -164,7 +164,8 @@ export class EntityRenderer {
       { id: LAYER_IDS.ROOM_FILL, source: SOURCE_IDS.ROOMS, type: 'fill', paint: roomFillPaint() },
       { id: LAYER_IDS.ROOM_OUTLINE, source: SOURCE_IDS.ROOMS, type: 'line', paint: roomOutlinePaint() },
       { id: LAYER_IDS.HALLWAY_LINE, source: SOURCE_IDS.HALLWAYS, type: 'line', paint: hallwayLinePaint() },
-      { id: LAYER_IDS.ROAD_LINE, source: SOURCE_IDS.ROADS, type: 'line', paint: roadLinePaint() },
+      { id: LAYER_IDS.ROAD_OUTLINE, source: SOURCE_IDS.ROADS, type: 'line', paint: roadOutlinePaint() },
+      { id: LAYER_IDS.ROAD_FILL, source: SOURCE_IDS.ROADS, type: 'line', paint: roadFillPaint() },
       { id: LAYER_IDS.ENTRANCE_ICON, source: SOURCE_IDS.ENTRANCES, type: 'circle', paint: entityCirclePaint('entrance') },
       { id: LAYER_IDS.STAIRCASE_ICON, source: SOURCE_IDS.STAIRCASES, type: 'circle', paint: entityCirclePaint('staircase') },
       { id: LAYER_IDS.ELEVATOR_ICON, source: SOURCE_IDS.ELEVATORS, type: 'circle', paint: entityCirclePaint('elevator') },

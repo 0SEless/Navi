@@ -7,7 +7,8 @@ export const LAYER_IDS = {
   ROOM_FILL: 'navi-room-fill',
   ROOM_OUTLINE: 'navi-room-outline',
   HALLWAY_LINE: 'navi-hallway-line',
-  ROAD_LINE: 'navi-road-line',
+  ROAD_OUTLINE: 'navi-road-outline',
+  ROAD_FILL: 'navi-road-fill',
   ENTRANCE_ICON: 'navi-entrance-icon',
   STAIRCASE_ICON: 'navi-staircase-icon',
   ELEVATOR_ICON: 'navi-elevator-icon',
@@ -147,11 +148,19 @@ export function hallwayLinePaint(): maplibregl.LineLayerSpecification['paint'] {
   }
 }
 
-export function roadLinePaint(): maplibregl.LineLayerSpecification['paint'] {
+export function roadOutlinePaint(): maplibregl.LineLayerSpecification['paint'] {
   return {
-    'line-color': '#FFD700',
+    'line-color': '#000000',
+    'line-width': ['+', ['get', 'width'], 2],
+    'line-opacity': 0.5,
+  }
+}
+
+export function roadFillPaint(): maplibregl.LineLayerSpecification['paint'] {
+  return {
+    'line-color': '#FFFFFF',
     'line-width': ['get', 'width'],
-    'line-opacity': 0.6,
+    'line-opacity': 0.8,
   }
 }
 

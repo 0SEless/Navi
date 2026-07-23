@@ -43,6 +43,7 @@ export function ConfirmBar({ drawing }: ConfirmBarProps) {
       <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 4px' }}>
         {currentPoints.length} point{currentPoints.length !== 1 ? 's' : ''} (need {minPoints})
       </span>
+      <span style={{ fontSize: 10, color: '#94A3B8', padding: '0 2px' }}>Road Width</span>
       {isRoute && (
         <>
           <button onClick={() => setRouteWidth(routeWidth - 1)}

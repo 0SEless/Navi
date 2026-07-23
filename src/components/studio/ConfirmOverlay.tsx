@@ -167,7 +167,7 @@ export function ConfirmOverlay() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>WIDTH</div>
+            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>ROAD WIDTH</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setRouteWidth(routeWidth - 1)}
                 style={{

@@ -28,6 +28,11 @@ export function ConfirmOverlayAdapter({ drawing }: ConfirmOverlayAdapterProps) {
     }
   }, [drawing.pendingConfirm])
 
+  // Bridge routeWidth from drawing context → Zustand
+  useEffect(() => {
+    useStudioStore.getState().setRouteWidth(drawing.routeWidth)
+  }, [drawing.routeWidth])
+
   // Direction B: Zustand → drawing session (ConfirmOverlay cleared it)
   useEffect(() => {
     const unsub = useStudioStore.subscribe((state) => {
