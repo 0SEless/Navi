@@ -46,7 +46,7 @@ export function roadTraceInnerPaint(): Record<string, unknown> {
 /** Map a Road entity's type to a default color */
 export function roadTypeColor(type: Road['type']): string {
   switch (type) {
-    case 'arterial': return '#FFFFFF'
+    case 'arterial': return '#1C6BEB'
     case 'connector': return '#94A3B8'
     case 'service': return '#64748B'
     default: return RoadStyle.fillColor

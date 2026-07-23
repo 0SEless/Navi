@@ -19,7 +19,7 @@ export function ConfirmOverlay() {
 
   const [traceName, setTraceName] = useState('')
   const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
-  const [traceColor, setTraceColor] = useState('#FFFFFF')
+  const [traceColor, setTraceColor] = useState('#1C6BEB')
   const routeWidth = useStudioStore((s) => s.routeWidth)
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
@@ -101,9 +101,10 @@ export function ConfirmOverlay() {
   ]
 
   const COLOR_SWATCHES = [
-    '#FFFFFF', '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
+    '#1C6BEB', '#7C3AED', '#F59E0B', '#EF4444',
     '#06B6D4', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316',
     '#6366F1', '#84CC16', '#0EA5E9', '#D946EF', '#FB923C',
+    '#FFFFFF',
   ]
 
   return (
