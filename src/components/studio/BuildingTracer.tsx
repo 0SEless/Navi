@@ -7,6 +7,7 @@ import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 import type { DrawingSessionValue } from './useDrawingSession'
 
+const SNAP_THRESHOLD_PX = 12
 const TRACER_SOURCE = 'building-tracer-drawing'
 const TRACER_EXTRUSION = 'building-tracer-extrusion'
 const TRACER_LINE = 'building-tracer-line'
@@ -123,13 +124,7 @@ export function useBuildingTracer(
 
     map.doubleClickZoom?.disable()
 
-    const handleClick = (e: maplibregl.MapMouseEvent) => {
-      pointsRef.current = [...pointsRef.current, { lat: e.lngLat.lat, lng: e.lngLat.lng }]
-      renderTracerDrawing(map, pointsRef.current)
-      drawing?.setDrawPoints(pointsRef.current)
-    }
-
-    const handleDblClick = () => {
+    function completePolygon() {
       if (pointsRef.current.length < 3) return
       const result: BuildingFootprint = {
         id: genId('building-footprint'),
@@ -140,6 +135,27 @@ export function useBuildingTracer(
       clearTracerDrawing(map)
       drawing?.clearDrawPoints()
     }
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+
+      if (pointsRef.current.length >= 3) {
+        const first = pointsRef.current[0]
+        const firstScreen = map.project([first.lng, first.lat])
+        const dx = e.point.x - firstScreen.x
+        const dy = e.point.y - firstScreen.y
+        if (Math.sqrt(dx * dx + dy * dy) <= SNAP_THRESHOLD_PX) {
+          completePolygon()
+          return
+        }
+      }
+
+      pointsRef.current = [...pointsRef.current, pos]
+      renderTracerDrawing(map, pointsRef.current)
+      drawing?.setDrawPoints(pointsRef.current)
+    }
+
+    const handleDblClick = () => completePolygon()
 
     map.on('click', handleClick)
     map.on('dblclick', handleDblClick)
