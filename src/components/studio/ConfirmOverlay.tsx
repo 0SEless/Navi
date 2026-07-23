@@ -39,7 +39,7 @@ export function ConfirmOverlay() {
           id,
           name: `Building ${id.slice(-6).toUpperCase()}`,
           footprint: { points },
-          floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], metadata: {} }],
+          floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
           height: 15,
           color: '#1C6BEB',
         },
