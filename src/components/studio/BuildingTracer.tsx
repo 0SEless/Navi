@@ -92,6 +92,8 @@ export function useBuildingTracer(
   const tool = useCurrentTool()
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
+  const drawingRef = useRef(drawing)
+  drawingRef.current = drawing
 
   useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
@@ -108,12 +110,13 @@ export function useBuildingTracer(
 
   // Sync visual when drawPoints changes externally (undo/cancel)
   useEffect(() => {
-    if (!map || tool !== 'building' || !drawing) return
-    pointsRef.current = [...drawing.drawPoints]
+    if (!map || tool !== 'building' || !drawingRef.current) return
+    pointsRef.current = [...drawingRef.current.drawPoints]
     renderTracerDrawing(map, pointsRef.current)
-  }, [map, tool, drawing?.drawPoints])
+  }, [map, tool])
 
   useEffect(() => {
+    const d = drawingRef.current
     if (!map) return
     if (tool !== 'building') {
       pointsRef.current = []
@@ -133,7 +136,7 @@ export function useBuildingTracer(
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearTracerDrawing(map)
-      drawing?.clearDrawPoints()
+      d?.clearDrawPoints()
     }
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
@@ -152,7 +155,7 @@ export function useBuildingTracer(
 
       pointsRef.current = [...pointsRef.current, pos]
       renderTracerDrawing(map, pointsRef.current)
-      drawing?.setDrawPoints(pointsRef.current)
+      d?.setDrawPoints(pointsRef.current)
     }
 
     const handleDblClick = () => completePolygon()
@@ -166,7 +169,7 @@ export function useBuildingTracer(
       map.doubleClickZoom?.enable()
       pointsRef.current = []
       clearTracerDrawing(map)
-      drawing?.clearDrawPoints()
+      d?.clearDrawPoints()
     }
-  }, [map, tool, drawing])
+  }, [map, tool])
 }

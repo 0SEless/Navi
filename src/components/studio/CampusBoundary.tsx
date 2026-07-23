@@ -88,6 +88,8 @@ export function useCampusBoundary(
   const tool = useCurrentTool()
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
+  const drawingRef = useRef(drawing)
+  drawingRef.current = drawing
 
   useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
@@ -98,12 +100,13 @@ export function useCampusBoundary(
 
   // Sync visual when drawPoints changes externally (undo/cancel)
   useEffect(() => {
-    if (!map || tool !== 'boundary' || !drawing) return
-    pointsRef.current = [...drawing.drawPoints]
+    if (!map || tool !== 'boundary' || !drawingRef.current) return
+    pointsRef.current = [...drawingRef.current.drawPoints]
     renderBoundaryDrawing(map, pointsRef.current)
-  }, [map, tool, drawing?.drawPoints])
+  }, [map, tool])
 
   useEffect(() => {
+    const d = drawingRef.current
     if (!map) return
     if (tool !== 'boundary') {
       pointsRef.current = []
@@ -123,7 +126,7 @@ export function useCampusBoundary(
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearBoundaryDrawing(map)
-      drawing?.clearDrawPoints()
+      d?.clearDrawPoints()
     }
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
@@ -142,7 +145,7 @@ export function useCampusBoundary(
 
       pointsRef.current = [...pointsRef.current, pos]
       renderBoundaryDrawing(map, pointsRef.current)
-      drawing?.setDrawPoints(pointsRef.current)
+      d?.setDrawPoints(pointsRef.current)
     }
 
     const handleDblClick = () => completePolygon()
@@ -156,7 +159,7 @@ export function useCampusBoundary(
       map.doubleClickZoom?.enable()
       pointsRef.current = []
       clearBoundaryDrawing(map)
-      drawing?.clearDrawPoints()
+      d?.clearDrawPoints()
     }
-  }, [map, tool, drawing])
+  }, [map, tool])
 }
