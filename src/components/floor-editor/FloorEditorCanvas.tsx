@@ -746,7 +746,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
   }, [tool, alignMode])
 
-  const floorPlanCoords = alignMode && building.footprint.length >= 3
+  const hasFloorPlan = !!building.floorPlanUrls?.[floor]
+  const floorPlanCoords = alignMode && building.footprint.length >= 3 && hasFloorPlan
     ? computeFloorPlanCoords(building.footprint, planAlignment)
     : null
 

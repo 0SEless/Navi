@@ -79,6 +79,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
       return
     }
     if (toolId === 'align') {
+      if (!building.floorPlanUrls?.[floor]) return
       setAlignMode((a) => !a)
       setPanMode(false)
       clear()
@@ -104,7 +105,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         e.preventDefault()
         setPanMode(true)
       }
-      if (e.key === 'a' && !e.repeat && !e.ctrlKey && !e.metaKey) {
+      if (e.key === 'a' && !e.repeat && !e.ctrlKey && !e.metaKey && building.floorPlanUrls?.[floor]) {
         e.preventDefault()
         setPanMode(false)
         setAlignMode((a) => !a)
