@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useEditor, useEditingEngine } from '@navi/editor'
 import { useFloorComponent } from '@/hooks/floor-graph-selectors'
 
@@ -23,6 +23,14 @@ export function ComponentProperties({ componentId, onClose }: ComponentPropertie
   const [height, setHeight] = useState(component?.dimensions?.height ?? DEFAULT_ROOM_HEIGHT)
   const [rangeFrom, setRangeFrom] = useState(component?.range?.from ?? component?.floor ?? DEFAULT_FLOOR)
   const [rangeTo, setRangeTo] = useState(component?.range?.to ?? (component?.floor ?? DEFAULT_FLOOR) + 1)
+
+  useEffect(() => {
+    setName(component?.name ?? '')
+    setWidth(component?.dimensions?.width ?? DEFAULT_ROOM_WIDTH)
+    setHeight(component?.dimensions?.height ?? DEFAULT_ROOM_HEIGHT)
+    setRangeFrom(component?.range?.from ?? component?.floor ?? DEFAULT_FLOOR)
+    setRangeTo(component?.range?.to ?? (component?.floor ?? DEFAULT_FLOOR) + 1)
+  }, [component])
 
   if (!component) return null
 

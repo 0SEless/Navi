@@ -352,7 +352,10 @@ export class GraphAdapter {
       this.graph.addTraceWithCompile(trace, roomNodes)
     }
 
-    // 10. Panoramas → Nodes
+    // 10. Boundary
+    this.graph.boundary = document.boundary
+
+    // 11. Panoramas → Nodes
     for (const pano of document.panoramas) {
       const node: NavNode = {
         id: `N-pano-${pano.id}`,

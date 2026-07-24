@@ -1,5 +1,6 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import type { CurrentToolStore } from '@navi/editor'
 import type { StudioTool } from '@/types/studio-types'
 
@@ -11,7 +12,10 @@ function toStudioTool(id: string | null): StudioTool {
 }
 
 export function useToolAdapter(toolStore: CurrentToolStore) {
-  const activeTool = toStudioTool(toolStore.activeToolId)
+  const activeTool = useSyncExternalStore(
+    (cb) => toolStore.subscribe(cb),
+    () => toStudioTool(toolStore.activeToolId),
+  )
 
   return {
     activeTool,

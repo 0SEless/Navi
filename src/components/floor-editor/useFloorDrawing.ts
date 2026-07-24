@@ -277,7 +277,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     if ((e.originalEvent as MouseEvent).detail > 1) return
     const currentTool = toolRef.current
     if (currentTool === 'select') {
-      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-fill', 'floor-hallways-outline', 'floor-hallway-centerlines-layer', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-draw-placed']
+      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-fill', 'floor-hallways-outline', 'floor-hallway-centerlines-layer', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-items-stairs', 'floor-items-entrance', 'floor-point-items', 'floor-draw-placed']
       const features = map!.queryRenderedFeatures(e.point, { layers })
       if (features.length > 0) {
         onSelect?.(features[0].properties?.id as string ?? null)

@@ -17,6 +17,7 @@ export class Graph {
   private _buildings: Map<string, Building> = new Map()
   private _components: Map<string, Component> = new Map()
   private _traces: Map<string, TracePath> = new Map()
+  private _boundary?: { points: LatLng[] }
   private _cachedNodes: NavNode[] | null = null
   private _cachedEdges: NavEdge[] | null = null
   private _cachedBuildings: Building[] | null = null
@@ -48,6 +49,14 @@ export class Graph {
   get traces(): TracePath[] {
     if (!this._cachedTraces) this._cachedTraces = Array.from(this._traces.values())
     return this._cachedTraces
+  }
+
+  get boundary(): { points: LatLng[] } | undefined {
+    return this._boundary
+  }
+
+  set boundary(b: { points: LatLng[] } | undefined) {
+    this._boundary = b
   }
 
   get buildingCount(): number { return this._buildings.size }
@@ -795,6 +804,7 @@ export class Graph {
       edges: this.edges,
       components: this.components,
       traces: this.traces,
+      boundary: this._boundary,
     }
   }
 
@@ -806,6 +816,7 @@ export class Graph {
     graph.setEdges(snapshot.edges)
     graph.setComponents(snapshot.components ?? [])
     if (snapshot.traces) graph.setTraces(snapshot.traces)
+    if (snapshot.boundary) graph._boundary = snapshot.boundary
     return graph
   }
 

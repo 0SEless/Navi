@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, use, useState } from 'react'
+import { useEffect, use, useState, useRef } from 'react'
 import { FloorEditor } from '@/components/floor-editor/FloorEditor'
 import { ErrorBoundary } from '@/components/floor-editor/ErrorBoundary'
 import {
   EditorProvider,
   NavigationCompiler,
   createEditorContext,
+  GraphAdapter,
 } from '@navi/editor'
-import type { PersistenceAdapter } from '@navi/editor'
+import type { PersistenceAdapter, EditorContext } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 
@@ -24,11 +25,35 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     }
   }, [mapId, currentMapId, loadMapData])
 
+  if (currentMapId !== mapId) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
+        Loading map…
+      </div>
+    )
+  }
+
+  return <FloorEditorBridge mapId={mapId} buildingId={buildingId} floor={floor} />
+}
+
+function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildingId: string; floor: number }) {
+  const contextRef = useRef<EditorContext | null>(null)
+
   const persistenceAdapter: PersistenceAdapter = {
     save: async () => {
+      const ctx = contextRef.current
+      if (ctx) {
+        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+        ga.sync(ctx.document)
+      }
       await useGraphStore.getState().save()
     },
     syncToSupabase: async () => {
+      const ctx = contextRef.current
+      if (ctx) {
+        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+        ga.sync(ctx.document)
+      }
       await useGraphStore.getState().syncToSupabase()
     },
     publish: async () => ({ success: true, version: '1.0.0' }),
@@ -42,14 +67,7 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     )
     return ctx
   })
-
-  if (currentMapId !== mapId) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
-        Loading map…
-      </div>
-    )
-  }
+  contextRef.current = context
 
   return (
     <ErrorBoundary>

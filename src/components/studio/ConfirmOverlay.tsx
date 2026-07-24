@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, X, Loader2 } from 'lucide-react'
 import { useEditor, useEditingEngine, genId } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 
@@ -16,6 +16,7 @@ export function ConfirmOverlay() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const activeFloor = useStudioStore((s) => s.activeFloor)
+  const [importing, setImporting] = useState(false)
 
   const [traceName, setTraceName] = useState('')
   const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
@@ -69,6 +70,7 @@ export function ConfirmOverlay() {
     }
 
     if (pendingConfirm.type === 'boundary' && pendingConfirm.points.length >= 3) {
+      setImporting(true)
       dispatcher.execute({
         id: 'boundary.set',
         label: 'Set Campus Boundary',
@@ -76,6 +78,37 @@ export function ConfirmOverlay() {
       })
       clearDrawPoints()
       await workflow.save('manual')
+
+      try {
+        const res = await fetch('/api/osm-buildings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ boundary: pendingConfirm.points }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const bldgs: Array<{ id: string; footprint: Array<{ lat: number; lng: number }>; height: number; color: string }> = data.buildings ?? []
+          for (let i = 0; i < bldgs.length; i++) {
+            const b = bldgs[i]
+            dispatcher.execute({
+              id: 'building.create',
+              label: 'Import Building',
+              payload: {
+                id: b.id,
+                name: `Bldg No. ${i + 1}`,
+                footprint: { points: b.footprint },
+                floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
+                height: b.height,
+                color: b.color,
+              },
+            })
+          }
+          if (bldgs.length > 0) await workflow.save('manual')
+        }
+      } catch {
+      } finally {
+        setImporting(false)
+      }
     }
 
     clearPendingConfirm()
@@ -228,24 +261,27 @@ export function ConfirmOverlay() {
         </button>
         <button
           onClick={handleSave}
+          disabled={importing}
           style={{
             padding: '10px 24px',
             borderRadius: 8,
             border: 'none',
-            background: '#10B981',
-            color: '#fff',
-            cursor: 'pointer',
+            background: importing ? 'var(--navi-border)' : '#10B981',
+            color: importing ? 'var(--navi-text-secondary)' : '#fff',
+            cursor: importing ? 'default' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             fontSize: 13,
             fontWeight: 600,
-            boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+            boxShadow: importing ? 'none' : '0 2px 8px rgba(16,185,129,0.3)',
           }}
         >
-          <Check size={16} /> Save
+          {importing ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
+          {importing ? 'Importing buildings...' : 'Save'}
         </button>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

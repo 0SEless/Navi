@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { useEditor, Viewport, CurrentToolStore, ContextHeader, ToolDock, INTERIOR_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
+import { useEditor, useSelection, Viewport, CurrentToolStore, ContextHeader, ToolDock, INTERIOR_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError } from '@/hooks/floor-graph-selectors'
 import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
@@ -45,7 +45,6 @@ const LAYER_ITEMS: { key: keyof LayerVisibility; label: string }[] = [
 export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const { services } = useEditor()
   const viewport = services.get('viewport')
-  const selectionManager = services.get('selection')
 
   const building = useLegacyBuilding(buildingId)
   const syncStatus = useFloorSyncStatus()
@@ -53,8 +52,9 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   const { activeTool, activateTool } = useToolAdapter(services.get('toolRegistry') as CurrentToolStore)
   const floorAdapter = useFloorAdapter(viewport as Viewport, building ?? null, floor)
-  const selectedId = selectionManager?.lastSelectedId ?? null
-  const selectedCount = selectionManager?.selectedIds?.size ?? (selectedId ? 1 : 0)
+  const { lastSelected, select, clear } = useSelection()
+  const selectedId = lastSelected?.id ?? null
+  const selectedCount = lastSelected ? 1 : 0
 
   const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'error' ? 'error' : 'unsaved'
 
@@ -77,8 +77,8 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setPanMode(false)
     const mappedId = TOOL_ID_MAP[toolId] || toolId
     activateTool(mappedId)
-    selectionManager?.clear()
-  }, [activateTool, selectionManager])
+    clear()
+  }, [activateTool, clear])
 
   // Find the active tool ID in the groups (reverse mapping)
   const dockActiveTool = panMode ? 'pan' : Object.entries(TOOL_ID_MAP).find(([, v]) => v === activeTool)?.[0] || activeTool
@@ -139,10 +139,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? selectionManager?.select(id) : selectionManager?.clear()} />
+        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? selectionManager?.select(id) : selectionManager?.clear()} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
           {!building.floorPlanUrls?.[floor] && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0,
@@ -190,7 +190,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           </div>
 
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => selectionManager?.clear()} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} />
           )}
         </div>
       </div>

@@ -2,12 +2,13 @@
 
 import { Undo2, Redo2 } from 'lucide-react'
 import { useEditor, ToolDock as EditorToolDock, CAMPUS_TOOL_GROUPS } from '@navi/editor'
+import { useCurrentTool } from './useCurrentTool'
 
 export function ToolDock() {
   const { services } = useEditor()
   const toolRegistry = services.get('toolRegistry')
   const history = services.get('history')
-  const activeToolId = toolRegistry?.activeToolId ?? null
+  const activeToolId = useCurrentTool()
 
   return (
     <div style={{

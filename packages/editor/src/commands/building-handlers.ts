@@ -35,7 +35,12 @@ export const buildingCreateHandler: CommandHandler = {
     if (floors) building.floors = floors
     if (typeof payload.height === 'number') building.height = payload.height
     if (typeof payload.color === 'string') building.color = payload.color
-    document.buildings.push(building)
+    const existing = document.buildings.findIndex(b => b.id === id)
+    if (existing >= 0) {
+      document.buildings[existing] = building
+    } else {
+      document.buildings.push(building)
+    }
 
     recordChange(document, { entityId: id, entityType: 'building', operation: 'created' })
     return { success: true, entityId: id, data: { id } }

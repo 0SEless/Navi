@@ -96,6 +96,7 @@ export interface GraphSnapshot {
   nodes: NavNode[];
   edges: NavEdge[];
   traces?: TracePath[];
+  boundary?: { points: LatLng[] };
 }
 
 export interface PathResult {

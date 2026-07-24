@@ -318,6 +318,7 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
         code: (n.metadata?.qrCode ?? n.metadata?.code ?? '') as string,
         metadata: (n.metadata?.qrMetadata as Record<string, unknown>) ?? {},
       })),
+    boundary: graph.boundary ? { points: graph.boundary.points.map((p: any) => ({ lat: p.lat, lng: p.lng })) } : undefined,
   }
 }
 
