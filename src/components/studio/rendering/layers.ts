@@ -153,6 +153,32 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     filter: ['!=', ['get', 'type'], 'road'],
   })
 
+  // --- Boundary ---
+  map.addSource(SRC.BOUNDARY, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  })
+  map.addLayer({
+    id: LYR.BOUNDARY_FILL,
+    type: 'fill',
+    source: SRC.BOUNDARY,
+    paint: {
+      'fill-color': '#F59E0B',
+      'fill-opacity': 0.08,
+    },
+  })
+  map.addLayer({
+    id: LYR.BOUNDARY_OUTLINE,
+    type: 'line',
+    source: SRC.BOUNDARY,
+    paint: {
+      'line-color': '#F59E0B',
+      'line-width': 2,
+      'line-dasharray': [4, 4],
+      'line-opacity': 0.6,
+    },
+  })
+
   // --- Drawing (ephemeral) ---
   map.addSource(SRC.DRAWING, {
     type: 'geojson',

@@ -1,5 +1,6 @@
 export const SRC = {
   BUILDINGS: 's-buildings',
+  BOUNDARY: 's-boundary',
   EDGES: 's-edges',
   NODES: 's-nodes',
   NODES_CONNECTION: 's-nodes-connection',
@@ -11,6 +12,8 @@ export const LYR = {
   BUILDINGS_FILL: 'l-buildings-fill',
   BUILDINGS_EXTRUSION: 'l-buildings-extrusion',
   BUILDINGS_OUTLINE: 'l-buildings-outline',
+  BOUNDARY_FILL: 'l-boundary-fill',
+  BOUNDARY_OUTLINE: 'l-boundary-outline',
   EDGES: 'l-edges',
   NODES: 'l-nodes',
   NODES_CONNECTION: 'l-nodes-connection',

@@ -17,6 +17,22 @@ import {
   buildEdgeGeo,
 } from './geojson'
 
+function buildBoundaryGeo(boundary: CampusDocument['boundary']): GeoJSON.FeatureCollection {
+  if (!boundary || boundary.points.length < 3) {
+    return { type: 'FeatureCollection', features: [] }
+  }
+  const coords = boundary.points.map(p => [p.lng, p.lat] as [number, number])
+  coords.push(coords[0])
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Polygon', coordinates: [coords] },
+    }],
+  }
+}
+
 // ── Base map styles ───────────────────────────────────────────────
 
 const EMPTY_STYLE = {
@@ -105,6 +121,9 @@ function renderAll(map: maplibregl.Map, graph: Graph, document: CampusDocument, 
     edgeSrc?.setData(edgeGeo)
     const tracesSrc = map.getSource(SRC.TRACES) as maplibregl.GeoJSONSource | undefined
     tracesSrc?.setData(tracesGeo)
+    const boundaryGeo = buildBoundaryGeo(document.boundary)
+    const boundarySrc = map.getSource(SRC.BOUNDARY) as maplibregl.GeoJSONSource | undefined
+    boundarySrc?.setData(boundaryGeo)
   } catch {
     // Gracefully handle cases where map has been removed or sources aren't ready
   }
