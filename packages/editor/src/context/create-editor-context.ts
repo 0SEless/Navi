@@ -252,6 +252,7 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
           height: floorHeight,
           elevation: (fd.elevation as number) ?? f.elevation ?? 0,
           planImageId: (fd.planImageId as string) ?? f.planImageId,
+          planAlignment: (fd.planAlignment as { offset: { x: number; y: number }; scale: number; rotation: number; opacity: number } | undefined) ?? f.planAlignment,
           textureId: (fd.textureId as string) ?? f.textureId,
           svgOverlayId: (fd.svgOverlayId as string) ?? f.svgOverlayId,
           rooms: legacyRooms,

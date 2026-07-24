@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useEditor, useSelection, Viewport, CurrentToolStore, ContextHeader, ToolDock, INTERIOR_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError } from '@/hooks/floor-graph-selectors'
@@ -64,6 +64,9 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   })
 
   const [panMode, setPanMode] = useState(false)
+  const [alignMode, setAlignMode] = useState(false)
+  // Floor plan opacity (separate from alignment to allow preview without persistence)
+  const [alignOpacity, setAlignOpacity] = useState(0.7)
 
   const toggleLayer = useCallback((key: keyof LayerVisibility) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -72,26 +75,39 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const handleToolActivate = useCallback((toolId: string) => {
     if (toolId === 'pan') {
       setPanMode((p) => !p)
+      setAlignMode(false)
+      return
+    }
+    if (toolId === 'align') {
+      setAlignMode((a) => !a)
+      setPanMode(false)
+      clear()
       return
     }
     setPanMode(false)
+    setAlignMode(false)
     const mappedId = TOOL_ID_MAP[toolId] || toolId
     activateTool(mappedId)
     clear()
   }, [activateTool, clear])
 
   // Find the active tool ID in the groups (reverse mapping)
-  const dockActiveTool = panMode ? 'pan' : Object.entries(TOOL_ID_MAP).find(([, v]) => v === activeTool)?.[0] || activeTool
+  const dockActiveTool = panMode ? 'pan' : alignMode ? 'align' : Object.entries(TOOL_ID_MAP).find(([, v]) => v === activeTool)?.[0] || activeTool
 
   useToolDockShortcuts(INTERIOR_TOOL_GROUPS, dockActiveTool, handleToolActivate)
 
-  // Spacebar for temporary pan
+  // Spacebar for temporary pan, A toggles align mode
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault()
         setPanMode(true)
+      }
+      if (e.key === 'a' && !e.repeat && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        setPanMode(false)
+        setAlignMode((a) => !a)
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -125,7 +141,27 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }
 
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
-  const canvasTool = panMode ? 'select' : activeTool
+  const canvasTool = alignMode ? 'align' : panMode ? 'select' : activeTool
+
+  // Find planAlignment for current floor from floorData
+  const currentLevel = building.floors?.[floorAdapter.activeFloorIndex] ?? floor
+  const currentFloorData = building.floorData?.find((fd: any) => fd.level === currentLevel)
+  const planAlignment = (currentFloorData as any)?.planAlignment as { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number } | undefined
+
+  const [editorAlignment, setEditorAlignment] = useState(planAlignment)
+  useEffect(() => setEditorAlignment(planAlignment), [planAlignment])
+
+  // Persist alignment when align mode toggles off (or floor changes)
+  const prevAlignRef = useRef(alignMode)
+  const currentFloorId = (currentFloorData as any)?.id as string | undefined
+  useEffect(() => {
+    if (prevAlignRef.current && !alignMode && currentFloorId && editorAlignment) {
+      // Exiting align mode — save alignment to document
+      const dispatcher = services.get('dispatcher') as any
+      dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { planAlignment: editorAlignment } } })
+    }
+    prevAlignRef.current = alignMode
+  }, [alignMode, currentFloorId, editorAlignment, services])
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -142,7 +178,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} alignMode={alignMode} onAlignmentChange={(a) => setEditorAlignment(a)} />
           {!building.floorPlanUrls?.[floor] && (
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0,
@@ -189,6 +225,44 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             </div>
           </div>
 
+          {alignMode && (
+            <div style={{ padding: '10px 12px', borderTop: '1px solid var(--navi-border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                Floor Plan Alignment
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
+                  Opacity
+                  <input type="range" min="0" max="1" step="0.05"
+                    value={editorAlignment?.opacity ?? alignOpacity}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setAlignOpacity(v)
+                      setEditorAlignment((prev) => ({ ...prev, opacity: v }))
+                    }}
+                    style={{ width: '100%', marginTop: 4 }} />
+                </label>
+                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
+                  Rotation (°)
+                  <input type="number" min="-180" max="180" step="0.5"
+                    value={editorAlignment?.rotation ?? 0}
+                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, rotation: parseFloat(e.target.value) || 0 }))}
+                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
+                </label>
+                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
+                  Scale
+                  <input type="number" min="0.1" max="5" step="0.05"
+                    value={editorAlignment?.scale ?? 1}
+                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, scale: parseFloat(e.target.value) || 1 }))}
+                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
+                </label>
+                <button onClick={() => setEditorAlignment({})}
+                  style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: '#EF4444', fontSize: 10, cursor: 'pointer' }}>
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
           {selectedId && (
             <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} />
           )}

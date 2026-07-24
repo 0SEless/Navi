@@ -100,6 +100,7 @@ const ICONS: Record<string, React.ReactNode> = {
   building: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/></svg>,
   road: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><line x1="5" y1="3" x2="5" y2="21"/><line x1="19" y1="3" x2="19" y2="21"/></svg>,
   boundary: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>,
+  align: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2"/></svg>,
 }
 
 export const INTERIOR_TOOL_GROUPS: ToolGroup[] = [
@@ -123,6 +124,12 @@ export const INTERIOR_TOOL_GROUPS: ToolGroup[] = [
       { id: 'entrance', label: 'Entrance', shortcut: 'E', icon: ICONS.entrance },
       { id: 'stair', label: 'Stair', shortcut: 'S', icon: ICONS.stair },
       { id: 'elevator', label: 'Elevator', shortcut: 'I', icon: ICONS.elevator },
+    ],
+  },
+  {
+    id: 'calibration',
+    tools: [
+      { id: 'align', label: 'Align Floor Plan', shortcut: 'A', icon: ICONS.align },
     ],
   },
 ]

@@ -57,6 +57,7 @@ vi.mock('@/hooks/floor-graph-selectors', () => ({
   useLegacyBuilding: (id: string) => ({
     id, name: 'Test Building', campusId: 'asu-ibajay', floors: [0, 1],
     footprint: [{ lat: 11.8195, lng: 122.0922 }], color: '#1C6BEB',
+    floorData: [{ id: 'flr-0', level: 0 }],
   }),
   useGraphBuilding: () => null,
   useFloorPlanUrls: () => undefined,
@@ -82,6 +83,9 @@ vi.mock('@navi/editor', async () => {
           }
           if (name === 'selection') {
             return { selectedId: null, select: vi.fn() }
+          }
+          if (name === 'dispatcher') {
+            return { execute: vi.fn() }
           }
           return null
         },

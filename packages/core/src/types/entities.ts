@@ -57,7 +57,16 @@ export interface Floor {
   // RC2: Replace with a floorPlan object:
   //   floorPlan: { imageUrl, calibration, opacity, visible, locked }
   planImageId?: string
-  floorPlanState?: 'none' | 'calibrating' | 'active' | 'locked'  // lifecycle state per spec
+  floorPlanState?: 'none' | 'calibrating' | 'active' | 'locked'
+
+  // Floor plan image alignment relative to building footprint
+  // All values in building-local coordinate space
+  planAlignment?: {
+    offset: LocalCoord        // meters from footprint center (default 0,0)
+    scale: number             // 1.0 = fit footprint exactly
+    rotation: number          // degrees clockwise
+    opacity: number           // 0-1, raster opacity (default 0.7)
+  }
 
   // Visibility (defaults: visible=true, locked=false)
   visible?: boolean

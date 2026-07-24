@@ -9,6 +9,7 @@ import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorC
 import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { useFloorDrawing, computeWidthBuffer } from './useFloorDrawing'
+import { FloorPlanAlignment } from './FloorPlanAlignment'
 
 const BLANK_STYLE = {
   version: 8 as const,
@@ -23,6 +24,67 @@ const CURSOR_MAP: Record<string, string> = {
   stairs: 'crosshair',
   elevator: 'crosshair',
   hallway: 'crosshair',
+  align: 'move',
+}
+
+function computeFloorPlanCoords(
+  footprint: LatLng[],
+  alignment?: { offset?: { x: number; y: number }; scale?: number; rotation?: number },
+): [[number, number], [number, number], [number, number], [number, number]] {
+  if (!alignment || footprint.length < 3) {
+    // Default: stretch to footprint bounding box
+    const bounds = new maplibregl.LngLatBounds()
+    footprint.forEach((p) => bounds.extend([p.lng, p.lat]))
+    const ne = bounds.getNorthEast()
+    const sw = bounds.getSouthWest()
+    return [[sw.lng, ne.lat], [ne.lng, ne.lat], [ne.lng, sw.lat], [sw.lng, sw.lat]]
+  }
+
+  // Convert lat/lng footprint to local meters around centroid
+  const centroid = footprint.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 })
+  centroid.lat /= footprint.length
+  centroid.lng /= footprint.length
+
+  const R = 6371000
+  const rad = (alignment.rotation ?? 0) * Math.PI / 180
+  const scale = alignment.scale ?? 1
+  const ox = alignment.offset?.x ?? 0
+  const oy = alignment.offset?.y ?? 0
+
+  // Project 4 corners from lat/lng to local meters, apply transform, project back
+  const cornersLatLng: LatLng[] = []
+  const bounds = new maplibregl.LngLatBounds()
+  footprint.forEach((p) => bounds.extend([p.lng, p.lat]))
+  const ne = bounds.getNorthEast()
+  const sw = bounds.getSouthWest()
+
+  for (const ll of [
+    { lat: ne.lat, lng: sw.lng },  // top-left
+    { lat: ne.lat, lng: ne.lng },  // top-right
+    { lat: sw.lat, lng: ne.lng },  // bottom-right
+    { lat: sw.lat, lng: sw.lng },  // bottom-left
+  ]) {
+    // To local meters
+    const dxRaw = (ll.lng - centroid.lng) * Math.cos(centroid.lat * Math.PI / 180) * R
+    const dyRaw = (ll.lat - centroid.lat) * R
+    // Apply transform
+    const tx = dxRaw * Math.cos(rad) - dyRaw * Math.sin(rad)
+    const ty = dxRaw * Math.sin(rad) + dyRaw * Math.cos(rad)
+    const dx = tx * scale + ox
+    const dy = ty * scale + oy
+    // Back to lat/lng
+    cornersLatLng.push({
+      lat: centroid.lat + dy / R,
+      lng: centroid.lng + dx / (Math.cos(centroid.lat * Math.PI / 180) * R),
+    })
+  }
+
+  return [
+    [cornersLatLng[0].lng, cornersLatLng[0].lat],
+    [cornersLatLng[1].lng, cornersLatLng[1].lat],
+    [cornersLatLng[2].lng, cornersLatLng[2].lat],
+    [cornersLatLng[3].lng, cornersLatLng[3].lat],
+  ]
 }
 
 function buildBuildingGeo(building: Building): GeoJSON.FeatureCollection {
@@ -113,6 +175,9 @@ interface FloorEditorCanvasProps {
   layers: LayerVisibility
   selectedId?: string | null
   onSelect?: (id: string | null) => void
+  planAlignment?: { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number }
+  alignMode?: boolean
+  onAlignmentChange?: (align: { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number }) => void
 }
 
 function componentToFeature(c: Component, overridePolygon?: LatLng[]): GeoJSON.Feature | null {
@@ -141,7 +206,7 @@ function componentCenterlineToFeature(c: Component, overridePolygon?: LatLng[]):
   }
 }
 
-export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, alignMode, onAlignmentChange }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
@@ -197,7 +262,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-    const imgUrl = building.floorPlanUrls?.[floor]
+    const level = building.floors?.[floor]
+    const imgUrl = building.floorPlanUrls?.[level ?? floor]
     const src = map.getSource('floor-floorplan') as maplibregl.ImageSource | undefined
     if (!src) return
     if (imgUrl && building.footprint.length >= 3) {
@@ -207,15 +273,13 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const sw = bounds.getSouthWest()
       src.updateImage({
         url: imgUrl,
-        coordinates: [
-          [sw.lng, ne.lat],
-          [ne.lng, ne.lat],
-          [ne.lng, sw.lat],
-          [sw.lng, sw.lat],
-        ],
+        coordinates: computeFloorPlanCoords(building.footprint, planAlignment),
       })
+      if (planAlignment?.opacity != null) {
+        map.setPaintProperty('floor-floorplan-layer', 'raster-opacity', planAlignment.opacity)
+      }
     }
-  }, [building.floorPlanUrls, floor, building.footprint, mapInstance])
+  }, [building.floorPlanUrls, floor, building.footprint, mapInstance, planAlignment])
 
   // Sync rooms + hallways for this floor
   useEffect(() => {
@@ -630,16 +694,73 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     return () => window.removeEventListener('keydown', handleKey)
   }, [selectedId, onSelect, selectedComponent, dispatcher, drawMode, cancelDrawing])
 
-  // Cursor based on tool
+  // Body drag for floor plan translation in align mode
+  const bodyDragRef = useRef<{ startX: number; startY: number; startOffset: { x: number; y: number } } | null>(null)
+  const alignStateRef = useRef({ planAlignment, onAlignmentChange, footprint: building.footprint })
+  alignStateRef.current = { planAlignment, onAlignmentChange, footprint: building.footprint }
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
     map.getCanvas().style.cursor = CURSOR_MAP[tool] ?? 'default'
-  }, [tool])
+    const canvas = map.getCanvas()
+    if (!alignMode) {
+      bodyDragRef.current = null
+      return
+    }
+    const onBDMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('.align-handle')) return
+      e.preventDefault()
+      const state = alignStateRef.current
+      bodyDragRef.current = {
+        startX: e.clientX, startY: e.clientY,
+        startOffset: { x: state.planAlignment?.offset?.x ?? 0, y: state.planAlignment?.offset?.y ?? 0 },
+      }
+    }
+    const onBDMouseMove = (e: MouseEvent) => {
+      const drag = bodyDragRef.current
+      if (!drag) return
+      const fp = alignStateRef.current.footprint
+      if (!fp.length) return
+      const bounds = new maplibregl.LngLatBounds()
+      fp.forEach((p: LatLng) => bounds.extend([p.lng, p.lat]))
+      const ne = bounds.getNorthEast()
+      const sw = bounds.getSouthWest()
+      const lngSpan = ne.lng - sw.lng
+      const latSpan = ne.lat - sw.lat
+      const dx = (e.clientX - drag.startX) / 200 * lngSpan
+      const dy = (e.clientY - drag.startY) / 200 * latSpan
+      const state = alignStateRef.current
+      state.onAlignmentChange?.({
+        ...state.planAlignment,
+        offset: { x: drag.startOffset.x + dx * 111320, y: drag.startOffset.y + dy * 111320 },
+      })
+    }
+    const onBDMouseUp = () => { bodyDragRef.current = null }
+    canvas.addEventListener('mousedown', onBDMouseDown)
+    window.addEventListener('mousemove', onBDMouseMove)
+    window.addEventListener('mouseup', onBDMouseUp)
+    return () => {
+      canvas.removeEventListener('mousedown', onBDMouseDown)
+      window.removeEventListener('mousemove', onBDMouseMove)
+      window.removeEventListener('mouseup', onBDMouseUp)
+    }
+  }, [tool, alignMode])
+
+  const floorPlanCoords = alignMode && building.footprint.length >= 3
+    ? computeFloorPlanCoords(building.footprint, planAlignment)
+    : null
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {alignMode && mapInstance && floorPlanCoords && (
+        <FloorPlanAlignment
+          map={mapInstance}
+          floorPlanCoords={floorPlanCoords}
+          alignment={planAlignment ?? {}}
+          onChange={(a) => onAlignmentChange?.({ ...planAlignment, ...a })}
+        />
+      )}
       {drawMode !== 'idle' && (
         <div style={{
           position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',

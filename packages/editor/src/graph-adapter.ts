@@ -76,6 +76,7 @@ export class GraphAdapter {
           label: f.label,
           elevation: f.elevation,
           planImageId: f.planImageId,
+          planAlignment: f.planAlignment,
           textureId: f.textureId,
           svgOverlayId: f.svgOverlayId,
           metadata: f.metadata,
