@@ -2,7 +2,6 @@
 
 import { useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
-import type { LatLng } from '@/types/nav-types'
 
 interface FloorPlanAlignmentProps {
   map: maplibregl.Map
@@ -37,9 +36,9 @@ export function FloorPlanAlignment({ map, floorPlanCoords, alignment, onChange }
   const markersRef = useRef<maplibregl.Marker[]>([])
   const draggingRef = useRef<{ type: 'corner' | 'rotation'; index: number; startMouse: { x: number; y: number }; startAlignment: typeof alignment } | null>(null)
 
-  // Create markers once
+  // Create markers with valid initial position, add to map
   useEffect(() => {
-    if (markersRef.current.length > 0) return
+    if (markersRef.current.length > 0 || !floorPlanCoords) return
 
     const markers: maplibregl.Marker[] = []
 
@@ -47,37 +46,37 @@ export function FloorPlanAlignment({ map, floorPlanCoords, alignment, onChange }
       const el = document.createElement('div')
       Object.assign(el.style, HANDLE_STYLE)
       el.dataset.handleIndex = String(i)
-      markers.push(new maplibregl.Marker({ element: el }).addTo(map))
+      const m = new maplibregl.Marker({ element: el })
+      m.setLngLat(floorPlanCoords[i])
+      m.addTo(map)
+      markers.push(m)
     }
 
-    // Rotation handle (index 4)
     const rotEl = document.createElement('div')
     Object.assign(rotEl.style, ROTATION_HANDLE_STYLE)
     rotEl.dataset.handleIndex = '4'
-    markers.push(new maplibregl.Marker({ element: rotEl }).addTo(map))
+    const rotM = new maplibregl.Marker({ element: rotEl })
+    const topCenter: [number, number] = [
+      (floorPlanCoords[0][0] + floorPlanCoords[1][0]) / 2,
+      (floorPlanCoords[0][1] + floorPlanCoords[1][1]) / 2,
+    ]
+    rotM.setLngLat(topCenter)
+    rotM.addTo(map)
+    markers.push(rotM)
 
     markersRef.current = markers
 
     return () => {
-      markers.forEach(m => m.remove())
+      markers.forEach(m => { try { m.remove() } catch {} })
       markersRef.current = []
     }
-  }, [map])
+  }, [map, floorPlanCoords])
 
-  // Update marker positions
+  // Update marker positions when coordinates change
   useEffect(() => {
     const markers = markersRef.current
-    if (!markers.length || !floorPlanCoords) {
-      markers.forEach(m => m.remove())
-      markersRef.current = []
-      return
-    }
-
-    for (let i = 0; i < 4; i++) {
-      markers[i].setLngLat(floorPlanCoords[i])
-    }
-
-    // Top-center for rotation handle
+    if (!markers.length || !floorPlanCoords) return
+    for (let i = 0; i < 4; i++) markers[i].setLngLat(floorPlanCoords[i])
     const topCenter: [number, number] = [
       (floorPlanCoords[0][0] + floorPlanCoords[1][0]) / 2,
       (floorPlanCoords[0][1] + floorPlanCoords[1][1]) / 2,
