@@ -10,11 +10,19 @@
 
 ```ts
 interface Vertex {
+  id: string
   x: number
   y: number
 }
 
+interface PolygonEdge {
+  id: string
+  startVertexId: string
+  endVertexId: string
+}
+
 interface PolygonRing {
+  id: string
   vertices: Vertex[]
   closed: boolean
 }
@@ -30,6 +38,8 @@ Invariant: `rings.length >= 1`. `rings[0]` is always the outer ring. Holes (`rin
 
 The data model never changes later — exactly the same philosophy as `ArcSegment` in LGE.
 
+Ring IDs and vertex IDs survive insertions and deletions — operations reference IDs, not array indices. Edges are computed on demand as first-class interaction targets, mirroring the `Segment` type in EditablePath.
+
 ---
 
 ## Engine Responsibilities
@@ -38,32 +48,42 @@ The data model never changes later — exactly the same philosophy as `ArcSegmen
 
 | Operation | Description |
 |-----------|-------------|
-| `moveVertex(polygon, vertexIndex, position)` | Move a single vertex |
-| `insertVertex(polygon, edgeIndex, position)` | Insert a vertex on an edge |
-| `deleteVertex(polygon, vertexIndex)` | Remove a vertex (min 3 remain) |
-| `splitEdge(polygon, edgeIndex, t)` | Split edge at parameter t |
+| `moveVertex(polygon, vertexId, position)` | Move a single vertex by ID |
+| `insertVertex(polygon, edgeId, position)` | Insert a vertex on an edge by ID |
+| `deleteVertex(polygon, vertexId)` | Remove a vertex (min 3 remain) |
+| `splitEdge(polygon, edgeId, t)` | Split edge at parameter t |
 | `closePolygon(polygon)` | Close the ring (connect last→first) |
-| `setVertex(polygon, vertexIndex, position)` | Absolute position set |
+| `setVertex(polygon, vertexId, position)` | Absolute position set by ID |
 
-### Analysis
+### Analysis (all pure, deterministic, never mutate)
 
 | Operation | Description |
 |-----------|-------------|
-| `area(polygon)` | Signed area (positive = CCW) |
-| `perimeter(polygon)` | Sum of edge lengths |
-| `winding(polygon)` | `'cw'` or `'ccw'` |
-| `boundingBox(polygon)` | `{ minX, minY, maxX, maxY }` |
-| `selfIntersects(polygon)` | True if any edges cross |
-| `convexity(polygon)` | `'convex'` or `'concave'` (future) |
+| `area(polygon)` | Signed area (positive = CCW). Pure. |
+| `perimeter(polygon)` | Sum of edge lengths. Pure. |
+| `winding(polygon)` | `'cw'` or `'ccw'`. Pure. |
+| `boundingBox(polygon)` | `{ minX, minY, maxX, maxY }`. Pure. |
+| `selfIntersects(polygon)` | True if any edges cross. Pure. |
+| `convexity(polygon)` | `'convex'` or `'concave'` (future). Pure. |
 
 ### Constraints
 
+Hard constraints (cannot happen — prevent the operation):
+
 | Constraint | Description |
 |------------|-------------|
-| `snap(polygon, vertexIndex, snapTargets)` | Snap to nearby vertices, edges, grid |
-| `minEdgeLength(polygon, threshold)` | Prevent sub-threshold edges |
-| `minArea(polygon, threshold)` | Prevent zero-area polygons |
+| `minVertices(polygon)` | Fewer than 3 vertices after deletion |
+| `validCoordinates(polygon)` | NaN or infinite coordinates |
+
+Soft constraints (allowed but emit a diagnostic):
+
+| Constraint | Description |
+|------------|-------------|
+| `snap(polygon, vertexId, snapTargets)` | Snap to nearby vertices, edges, grid |
+| `minEdgeLength(polygon, threshold)` | Warn on sub-threshold edges |
+| `minArea(polygon, threshold)` | Warn on zero-area polygons |
 | `deduplicateVertices(polygon)` | Remove duplicate adjacent vertices |
+| `windingCheck(polygon)` | CW outer ring permitted but warned |
 
 ---
 
@@ -88,9 +108,10 @@ useEditablePolygonEditor()
 ```ts
 interface EditablePolygonSession {
   polygon: EditablePolygon
-  hoveredVertex: number | null
-  hoveredEdge: number | null
-  draggedVertex: number | null
+  selectedRing: string | null          // ring ID; RC-5 uses this for hole selection
+  hoveredVertex: string | null         // vertex ID
+  hoveredEdge: string | null           // edge ID
+  draggedVertex: string | null         // vertex ID
   mode: 'idle' | 'dragging' | 'inserting' | 'drawing'
   history: HistoryStack<EditablePolygon>
 }
@@ -202,17 +223,50 @@ RC-1 is the implementation milestone. RC-2 through RC-5 are planned but not sche
 ## Acceptance Criteria
 
 1. Create a polygon with 3+ vertices via the editor
-2. Move a vertex by dragging
-3. Insert a vertex by clicking on an edge midpoint
-4. Delete a vertex (min 3 remain)
+2. Move a vertex by dragging (referenced by ID, not index)
+3. Insert a vertex by clicking on an edge midpoint (referenced by edge ID)
+4. Delete a vertex (min 3 remain; undo restores it)
 5. Close the polygon (last vertex snaps to first)
 6. Area and perimeter are reported for a given polygon
 7. Self-intersecting polygon is detected
 8. Polygon renders with configurable fill/stroke style
 9. Multiple renderers (Room, Building, Boundary) consume PolygonRenderer
-10. All existing tests still pass
+10. Undo/Redo preserves polygon state through all operations
+11. All existing tests still pass
 
 ---
+
+## Compatibility
+
+The Polygon Engine does not require an immediate document migration. Existing room polygons and building footprints in `CampusDocument` are adapted to `EditablePolygon` via a stateless adapter, exactly like the Parametric Engine's Compatibility Adapter (RC-2.5):
+
+```text
+Current room polygon (Room.polygon)
+              ↓
+         Adapter
+              ↓
+      EditablePolygon
+```
+
+The adapter is read-only, disposable, and deleted when native storage arrives.
+
+## Future Integration
+
+```
+EditablePolygon
+       ↓
+ PolygonEngine
+       ↓
+ PolygonRenderer
+       ↓
+RoomRenderer (or BuildingRenderer, BoundaryRenderer)
+       ↓
+  Room Compiler (or Building Compiler)
+       ↓
+ Navigation Package
+```
+
+The engine edits. The renderer draws. The compiler processes. The publisher packages. Each layer consumes the previous layer's output — none of them import from the layer below.
 
 ## Related
 
