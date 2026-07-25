@@ -10,6 +10,7 @@ Decision records for NAVI. Each ADR is a hard constraint, not guidance, once Acc
 | [013](ADR%20013%20-%20Runtime%20Capability%20Architecture.md) | Runtime Capability Architecture | 2026-07-17 | Runtime public surface, capability pattern, application façade |
 | [014](ADR%20014%20-%20Runtime%20Capability%20Lifecycle.md) | Runtime Capability Lifecycle | 2026-07-17 | Capability construction, sole ownership, disposal, replaceable implementations |
 | [015](ADR%20015%20-%20M6%20Compatibility%20Baseline%20%26%20M7%20Composition%20Boundary.md) | M6 Compatibility Baseline & M7 Composition Boundary | 2026-07-17 | Freeze of M6 capability contracts; M7 classified as composition, not expansion |
+| [016](ADR%20016%20-%20Geometry%20Engine%20Principles.md) | Geometry Engine Principles | 2026-07-25 | Canonical models, responsibilities, shared contract, interaction philosophy, engine independence |
 
 ## Reading Order
 
