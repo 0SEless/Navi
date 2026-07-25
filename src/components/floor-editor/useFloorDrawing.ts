@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl'
 import { useEditor, findBuilding, genId } from '@navi/editor'
 import type { LatLng, ComponentType } from '@/types/nav-types'
 import type { StudioTool } from '@/types/studio-types'
+import { computeHallwayPolygon } from '@/types/hallway-types'
 import { drawReducer } from './draw-reducer'
 
 const DRAW_SRC = 'floor-draw-preview'
@@ -67,57 +68,11 @@ function pointsToVertices(points: LatLng[]): GeoJSON.Feature[] {
 }
 
 export function computeWidthBuffer(centerline: LatLng[], totalWidth: number): LatLng[] {
-  if (centerline.length < 2) return centerline
-  const hw = totalWidth / 2
-  const avgLat = centerline.reduce((s, p) => s + p.lat, 0) / centerline.length
-  const mpd = 111320 * Math.cos(avgLat * Math.PI / 180)
-  const mLat = 111320
-
-  const offsets: { lat: number; lng: number }[] = []
-
-  for (let i = 0; i < centerline.length; i++) {
-    const p = centerline[i]
-    let angle: number
-
-    if (i === 0) {
-      angle = Math.atan2(
-        (centerline[1].lat - p.lat) * mLat,
-        (centerline[1].lng - p.lng) * mpd
-      )
-    } else if (i === centerline.length - 1) {
-      angle = Math.atan2(
-        (p.lat - centerline[i - 1].lat) * mLat,
-        (p.lng - centerline[i - 1].lng) * mpd
-      )
-    } else {
-      const aIn = Math.atan2(
-        (p.lat - centerline[i - 1].lat) * mLat,
-        (p.lng - centerline[i - 1].lng) * mpd
-      )
-      const aOut = Math.atan2(
-        (centerline[i + 1].lat - p.lat) * mLat,
-        (centerline[i + 1].lng - p.lng) * mpd
-      )
-      const x = Math.cos(aIn) + Math.cos(aOut)
-      const y = Math.sin(aIn) + Math.sin(aOut)
-      angle = Math.atan2(y, x)
-    }
-
-    const perp = angle + Math.PI / 2
-    offsets.push({
-      lat: (hw / mLat) * Math.sin(perp),
-      lng: (hw / mpd) * Math.cos(perp),
-    })
-  }
-
-  const left = centerline.map((p, i) => ({ lat: p.lat + offsets[i].lat, lng: p.lng + offsets[i].lng }))
-  const right = centerline.map((p, i) => ({ lat: p.lat - offsets[i].lat, lng: p.lng - offsets[i].lng }))
-
-  return [...left, ...right.reverse()]
+  return computeHallwayPolygon(centerline, totalWidth)
 }
 
 function pointsToBuffer(points: LatLng[], width: number): GeoJSON.Feature {
-  const buffer = computeWidthBuffer(points, width)
+  const buffer = computeHallwayPolygon(points, width)
   return {
     type: 'Feature', properties: { type: 'buffer' },
     geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
@@ -277,7 +232,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     if ((e.originalEvent as MouseEvent).detail > 1) return
     const currentTool = toolRef.current
     if (currentTool === 'select') {
-      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-hallways-fill', 'floor-hallways-outline', 'floor-hallway-centerlines-layer', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-items-stairs', 'floor-items-entrance', 'floor-point-items', 'floor-draw-placed']
+      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-items-stairs', 'floor-items-entrance', 'floor-point-items', 'floor-draw-placed']
       const features = map!.queryRenderedFeatures(e.point, { layers })
       if (features.length > 0) {
         onSelect?.(features[0].properties?.id as string ?? null)
