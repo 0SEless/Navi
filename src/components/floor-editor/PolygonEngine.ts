@@ -132,4 +132,24 @@ export const PolygonEngine = {
     if (verts.length < 3) return 'CCW'
     return computeSignedArea(verts) < 0 ? 'CW' : 'CCW'
   },
+
+  normalize(polygon: EditablePolygon): EditablePolygon {
+    return {
+      ...polygon,
+      rings: polygon.rings.map(ring => {
+        const deduped = ring.vertices.filter((v, i, arr) => {
+          if (i === 0) return true
+          const prev = arr[i - 1]
+          return v.x !== prev.x || v.y !== prev.y
+        })
+        if (ring.closed && deduped.length < 3) {
+          return { ...ring, closed: false, vertices: deduped }
+        }
+        if (!ring.closed || this.winding({ ...polygon, rings: [{ ...ring, vertices: deduped }] }) === 'CCW') {
+          return { ...ring, vertices: deduped }
+        }
+        return { ...ring, vertices: [...deduped].reverse() }
+      }),
+    }
+  },
 }

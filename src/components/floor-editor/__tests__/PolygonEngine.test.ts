@@ -237,4 +237,64 @@ describe('PolygonEngine', () => {
       expect(PolygonEngine.area(a)).toBe(PolygonEngine.area(b))
     })
   })
+
+  describe('normalize', () => {
+    it('removes duplicate adjacent vertices', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 },
+      ])
+      const norm = PolygonEngine.normalize(poly)
+      expect(norm.rings[0].vertices).toHaveLength(3)
+    })
+
+    it('does not remove non-adjacent duplicates', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+      ])
+      const norm = PolygonEngine.normalize(poly)
+      expect(norm.rings[0].vertices).toHaveLength(4)
+    })
+
+    it('does not mutate original polygon', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 },
+      ])
+      PolygonEngine.normalize(poly)
+      expect(poly.rings[0].vertices).toHaveLength(4)
+    })
+
+    it('normalizes CW polygon to CCW', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 0, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 0 },
+      ], { closed: true })
+      expect(PolygonEngine.winding(poly)).toBe('CW')
+      const norm = PolygonEngine.normalize(poly)
+      expect(PolygonEngine.winding(norm)).toBe('CCW')
+    })
+
+    it('preserves CCW winding', () => {
+      const poly = makeSquare(0, 0, 10, { closed: true })
+      expect(PolygonEngine.winding(poly)).toBe('CCW')
+      const norm = PolygonEngine.normalize(poly)
+      expect(PolygonEngine.winding(norm)).toBe('CCW')
+    })
+
+    it('opens a closed ring when dedup reduces below 3 vertices', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 },
+      ], { closed: true })
+      const norm = PolygonEngine.normalize(poly)
+      expect(norm.rings[0].closed).toBe(false)
+      expect(norm.rings[0].vertices).toHaveLength(2)
+    })
+
+    it('preserves open rings through normalization', () => {
+      const poly = PolygonEngine.create([
+        { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 },
+      ])
+      const norm = PolygonEngine.normalize(poly)
+      expect(norm.rings[0].closed).toBe(false)
+      expect(norm.rings[0].vertices).toHaveLength(3)
+    })
+  })
 })
