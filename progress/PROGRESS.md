@@ -34,3 +34,49 @@
      - **Bug 3** ✅ Keyboard shortcuts: B activates Building, O activates Road (verified via earlier snapshot showing "Boundary (Y)" label), Enter confirms (verified by overlay appearing), Esc dismissed (via Cancel button)
 - **Next**: User manual verification, T4 (dead code cleanup), full authoring workflow test
 - **Verification**: All 122 studio tests pass, live site confirms all 3 bug fixes
+
+## 2026-07-25: Parametric Engine RC-1 + RC-2 (types, engine, handlers, canvas wiring)
+
+- **Previous state**: LGE complete, Parametric Engine planned, no code written
+- **What was done**:
+  1. Created `spec/RC-PARAMETRIC-ENGINE.md` — frozen spec with pure geometry, lean engine, single renderer with themes
+  2. Created `plan/RC-PARAMETRIC-ENGINE.md` — 8 RC execution plan with RC-3.5 geometry verification milestone
+  3. RC-1: Created `src/types/parametric-types.ts` — `ParametricDefinition`, `ParametricComponent`, `PrimitiveGeometry`, `StairDefinition`, `ElevatorDefinition`, `DEFINITIONS`, `ParamSpec`, `Constraint`, `Diagnostic` — all with frozen JSDoc
+  4. RC-1: Created `src/components/floor-editor/ParametricEngine.ts` — lean engine with register, create, add, remove, get, getAll, getDefinition, getGeometry, updateProperty, validate
+  5. RC-1: Created `src/components/floor-editor/transform-helpers.ts` — pure `applyTranslation()`, `applyRotation()`, `setPosition()` for future TransformEngine
+  6. RC-1: Added `ParametricComponentEntity` to `@navi/core` entities, `parametricComponents` field on `Floor`
+  7. RC-1: Created `packages/editor/src/commands/parametric-handlers.ts` — `parametric.create/delete/update` with undo/redo
+  8. RC-1: Registered all three handlers in `create-editor-context.ts`
+  9. RC-1: 33 new tests (14 types + 13 engine + 6 transform helpers), zero regressions
+  10. RC-2: Wired stair creation in `placeComponent` → `parametric.create`
+  11. RC-2: Wired elevator creation in `confirmPolygon` → `parametric.create`
+  12. RC-2: Added `parametricComponents: []` default in document migration
+  13. RC-2: Added 7 handler tests (create/delete/update with validation)
+  14. RC-2.5: Added compatibility adapter in `extractFloorComponents()` — reads `parametricComponents[]`, converts to legacy `Component[]` for existing MapLibre layers
+  15. RC-2.5: Added parametric component lookup in `findOneComponent()` — enables selection/highlighting
+  16. RC-2.5: Fixed `useFloorDrawing` — uses `StairDefinition.create()`/`ElevatorDefinition.create()` with proper default properties, correct `onSelect` ID
+  17. RC-2.5: Added `parametric-adapter-pipeline.test.ts` — 4 integration tests for handler→document→adapter→GeoJSON pipeline
+- **Verification**: 132 test files, 1157 tests pass (4 new pipeline tests), zero regressions, browser dev server starts at localhost:3000 (auth-gated studio prevents full live test)
+
+## 2026-07-25: RC-3 Diagnostic Engine — types, providers, topology rules, engine, UI
+
+- **Previous state**: Parametric Engine RC-1/RC-2 complete, no feedback on invalid/disconnected components
+- **What was done**:
+   1. Created `src/diagnostics/diagnostic-types.ts` — `Diagnostic`, `DiagnosticCode`, `DiagnosticCategory`, `DiagnosticSeverity`, `DiagnosticTarget`, `EntityType`, `DiagnosticProvider`, `TopologyRule`, `EngineOptions`, `EngineResult`
+   2. Created `src/diagnostics/__tests__/diagnostic-types.test.ts` — 4 structural type tests
+   3. Created `src/diagnostics/thresholds.ts` — `TOPOLOGY_THRESHOLDS` constants (`stairHallwayMaxDistance: 8`, `elevatorHallwayMaxDistance: 5`, `entranceHallwayMaxDistance: 3`)
+   4. Created `src/diagnostics/parameter/evaluate-constraints.ts` — pure constraint evaluator extracted from `ParametricEngine.validate()`
+   5. Created `src/diagnostics/__tests__/evaluate-constraints.test.ts` — 5 tests (valid, out-of-range, required, multiple violations, unknown definition)
+   6. Refactored `ParametricEngine.validate()` to delegate to `evaluateConstraints()` — zero code duplication
+   7. Created `src/diagnostics/parameter/index.ts` — `parameterDiagnostics()` provider + `ParameterDiagnostics` (iterates all floors/components)
+   8. Created `src/diagnostics/__tests__/parameter-diagnostics.test.ts` — 4 integration tests
+   9. Created `src/diagnostics/topology/stair-connection.ts` — `StairConnectionRule` (>8m from hallway → warning)
+   10. Created `src/diagnostics/topology/elevator-connection.ts` — `ElevatorConnectionRule` (>5m from path → warning)
+   11. Created `src/diagnostics/topology/entrance-rule.ts` — `EntranceRule` (>3m from hallway → info)
+   12. Created `src/diagnostics/topology/index.ts` — `topologyDiagnostics()` with per-rule try/catch isolation
+   13. Created `src/diagnostics/__tests__/topology-rules.test.ts` — 5 tests (empty, stair warn, elevator warn, entrance warn, connected OK)
+   14. Created `src/diagnostics/engine.ts` — `DiagnosticEngine.run(document, options?)` with provider orchestration, skip, and error isolation
+   15. Created `src/diagnostics/__tests__/diagnostic-engine.test.ts` — 4 tests (all providers, filtered, deterministic, no skip)
+   16. Created `src/diagnostics/use-diagnostics.ts` — `useDiagnostics(document, options?)` React hook (memoized)
+   17. Created `src/components/diagnostics/DiagnosticsPanel.tsx` — grouped by severity with Tailwind styling
+- **Verification**: 137 test files, 1179 tests pass (22 new diagnostic tests), zero regressions
