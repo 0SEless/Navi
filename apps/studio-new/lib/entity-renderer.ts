@@ -9,7 +9,7 @@
  */
 
 import type maplibregl from 'maplibre-gl'
-import type { CampusDocument, Building, Road, Room, Hallway, LatLng } from '@navi/core'
+import type { CampusDocument, Building, Road, Room, Hallway, Staircase, Elevator, Entrance, Panorama, QRCheckpoint, LatLng } from '@navi/core'
 
 // ── Layer IDs (navi-* convention) ──────────────────────────────
 
@@ -21,6 +21,11 @@ const LAYER = {
   ROOM_OUTLINE: 'navi-room-outline',
   HALLWAY_LINE: 'navi-hallway-line',
   ROAD_LINE: 'navi-road-line',
+  ENTRANCE_ICON: 'navi-entrance-icon',
+  STAIRCASE_ICON: 'navi-staircase-icon',
+  ELEVATOR_ICON: 'navi-elevator-icon',
+  PANORAMA_ICON: 'navi-panorama-icon',
+  QR_ICON: 'navi-qr-icon',
 } as const
 
 const SOURCE = {
@@ -28,7 +33,20 @@ const SOURCE = {
   ROOMS: 'navi-rooms',
   HALLWAYS: 'navi-hallways',
   ROADS: 'navi-roads',
+  ENTRANCES: 'navi-entrances',
+  STAIRCASES: 'navi-staircases',
+  ELEVATORS: 'navi-elevators',
+  PANORAMAS: 'navi-panoramas',
+  QR: 'navi-qr',
 } as const
+
+const ENTITY_ICON_COLORS: Record<string, string> = {
+  entrance: '#FF8C00',
+  staircase: '#20B2AA',
+  elevator: '#9370DB',
+  panorama: '#FF69B4',
+  qr: '#32CD32',
+}
 
 // ── GeoJSON conversion (pure functions) ─────────────────────────
 
@@ -97,9 +115,12 @@ function computeCentroid(points: LatLng[]): { lat: number; lng: number } {
 function floorFeatures(
   building: Building,
   origin: { lat: number; lng: number },
-): { rooms: GeoJSON.Feature[]; hallways: GeoJSON.Feature[] } {
+): { rooms: GeoJSON.Feature[]; hallways: GeoJSON.Feature[]; staircases: GeoJSON.Feature[]; elevators: GeoJSON.Feature[]; entrances: GeoJSON.Feature[] } {
   const rooms: GeoJSON.Feature[] = []
   const hallways: GeoJSON.Feature[] = []
+  const staircases: GeoJSON.Feature[] = []
+  const elevators: GeoJSON.Feature[] = []
+  const entrances: GeoJSON.Feature[] = []
 
   for (const floor of building.floors) {
     for (const room of floor.rooms) {
@@ -131,9 +152,35 @@ function floorFeatures(
         })
       }
     }
+    for (const st of floor.staircases) {
+      const coord = localToWorldCoord(st.position, origin)
+      staircases.push({
+        type: 'Feature',
+        id: st.id,
+        properties: { id: st.id, name: st.name, fromLevel: st.fromLevel, toLevel: st.toLevel, buildingId: building.id, floorId: floor.id, floor: floor.level, entityType: 'staircase' },
+        geometry: { type: 'Point', coordinates: coord },
+      })
+    }
+    for (const el of floor.elevators) {
+      const coord = localToWorldCoord(el.position, origin)
+      elevators.push({
+        type: 'Feature',
+        id: el.id,
+        properties: { id: el.id, name: el.name, fromLevel: el.fromLevel, toLevel: el.toLevel, buildingId: building.id, floorId: floor.id, floor: floor.level, entityType: 'elevator' },
+        geometry: { type: 'Point', coordinates: coord },
+      })
+    }
+    for (const ent of floor.entrances) {
+      entrances.push({
+        type: 'Feature',
+        id: ent.id,
+        properties: { id: ent.id, label: ent.label, level: ent.level, type: ent.type, buildingId: building.id, floorId: floor.id, floor: floor.level, entityType: 'entrance' },
+        geometry: { type: 'Point', coordinates: latLngToCoord(ent.position) },
+      })
+    }
   }
 
-  return { rooms, hallways }
+  return { rooms, hallways, staircases, elevators, entrances }
 }
 
 export interface GeoJSONSources {
@@ -141,6 +188,29 @@ export interface GeoJSONSources {
   rooms: GeoJSON.FeatureCollection
   hallways: GeoJSON.FeatureCollection
   roads: GeoJSON.FeatureCollection
+  staircases: GeoJSON.FeatureCollection
+  elevators: GeoJSON.FeatureCollection
+  entrances: GeoJSON.FeatureCollection
+  panoramas: GeoJSON.FeatureCollection
+  qr: GeoJSON.FeatureCollection
+}
+
+function panoramaToFeature(p: Panorama): GeoJSON.Feature {
+  return {
+    type: 'Feature',
+    id: p.id,
+    properties: { id: p.id, label: p.label, heading: p.heading, imageAssetId: p.imageAssetId, entityType: 'panorama' },
+    geometry: { type: 'Point', coordinates: latLngToCoord(p.position) },
+  }
+}
+
+function qrToFeature(q: QRCheckpoint): GeoJSON.Feature {
+  return {
+    type: 'Feature',
+    id: q.id,
+    properties: { id: q.id, label: q.label, code: q.code, entityType: 'qr' },
+    geometry: { type: 'Point', coordinates: latLngToCoord(q.position) },
+  }
 }
 
 export function documentToSources(doc: CampusDocument): GeoJSONSources {
@@ -150,15 +220,25 @@ export function documentToSources(doc: CampusDocument): GeoJSONSources {
   // Roads (polylines in world coords)
   const roadFeatures = doc.roads.map(roadToFeature)
 
+  // World-coord point entities
+  const panoramaFeatures = doc.panoramas.map(panoramaToFeature)
+  const qrFeatures = doc.qrCheckpoints.map(qrToFeature)
+
   // Floors — local coords → world via building origin
   const allRooms: GeoJSON.Feature[] = []
   const allHallways: GeoJSON.Feature[] = []
+  const allStaircases: GeoJSON.Feature[] = []
+  const allElevators: GeoJSON.Feature[] = []
+  const allEntrances: GeoJSON.Feature[] = []
   for (const b of doc.buildings) {
     if (b.footprint.points.length < 2) continue
     const origin = computeCentroid(b.footprint.points)
-    const { rooms, hallways } = floorFeatures(b, origin)
-    allRooms.push(...rooms)
-    allHallways.push(...hallways)
+    const features = floorFeatures(b, origin)
+    allRooms.push(...features.rooms)
+    allHallways.push(...features.hallways)
+    allStaircases.push(...features.staircases)
+    allElevators.push(...features.elevators)
+    allEntrances.push(...features.entrances)
   }
 
   return {
@@ -166,6 +246,11 @@ export function documentToSources(doc: CampusDocument): GeoJSONSources {
     rooms: { type: 'FeatureCollection', features: allRooms },
     hallways: { type: 'FeatureCollection', features: allHallways },
     roads: { type: 'FeatureCollection', features: roadFeatures },
+    staircases: { type: 'FeatureCollection', features: allStaircases },
+    elevators: { type: 'FeatureCollection', features: allElevators },
+    entrances: { type: 'FeatureCollection', features: allEntrances },
+    panoramas: { type: 'FeatureCollection', features: panoramaFeatures },
+    qr: { type: 'FeatureCollection', features: qrFeatures },
   }
 }
 
@@ -237,6 +322,15 @@ function roadLinePaint(): maplibregl.LineLayerSpecification['paint'] {
   }
 }
 
+function entityCirclePaint(entityType: string): maplibregl.CircleLayerSpecification['paint'] {
+  return {
+    'circle-radius': 6,
+    'circle-color': ENTITY_ICON_COLORS[entityType] || '#888',
+    'circle-stroke-width': 2,
+    'circle-stroke-color': '#fff',
+  }
+}
+
 // ── EntityRenderer class ───────────────────────────────────────
 
 export class EntityRenderer {
@@ -271,6 +365,11 @@ export class EntityRenderer {
     this.setSourceData(SOURCE.ROOMS, sources.rooms)
     this.setSourceData(SOURCE.HALLWAYS, sources.hallways)
     this.setSourceData(SOURCE.ROADS, sources.roads)
+    this.setSourceData(SOURCE.STAIRCASES, sources.staircases)
+    this.setSourceData(SOURCE.ELEVATORS, sources.elevators)
+    this.setSourceData(SOURCE.ENTRANCES, sources.entrances)
+    this.setSourceData(SOURCE.PANORAMAS, sources.panoramas)
+    this.setSourceData(SOURCE.QR, sources.qr)
   }
 
   /** Remove all navi-* layers and sources. */
@@ -316,6 +415,12 @@ export class EntityRenderer {
       { id: LAYER.HALLWAY_LINE, source: SOURCE.HALLWAYS, type: 'line', paint: hallwayLinePaint() },
       // Roads
       { id: LAYER.ROAD_LINE, source: SOURCE.ROADS, type: 'line', paint: roadLinePaint() },
+      // Point entities
+      { id: LAYER.ENTRANCE_ICON, source: SOURCE.ENTRANCES, type: 'circle', paint: entityCirclePaint('entrance') },
+      { id: LAYER.STAIRCASE_ICON, source: SOURCE.STAIRCASES, type: 'circle', paint: entityCirclePaint('staircase') },
+      { id: LAYER.ELEVATOR_ICON, source: SOURCE.ELEVATORS, type: 'circle', paint: entityCirclePaint('elevator') },
+      { id: LAYER.PANORAMA_ICON, source: SOURCE.PANORAMAS, type: 'circle', paint: entityCirclePaint('panorama') },
+      { id: LAYER.QR_ICON, source: SOURCE.QR, type: 'circle', paint: entityCirclePaint('qr') },
     ]
 
     for (const def of layerDefs) {

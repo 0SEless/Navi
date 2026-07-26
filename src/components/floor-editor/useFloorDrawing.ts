@@ -6,6 +6,7 @@ import { useEditor, findBuilding, genId } from '@navi/editor'
 import type { LatLng, ComponentType } from '@/types/nav-types'
 import type { StudioTool } from '@/types/studio-types'
 import { computeHallwayPolygon } from '@/types/hallway-types'
+import { StairDefinition, ElevatorDefinition } from '@/types/parametric-types'
 import { drawReducer } from './draw-reducer'
 
 const DRAW_SRC = 'floor-draw-preview'
@@ -163,36 +164,43 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       if (local) localPoints.push(local)
     }
 
-    if (editEngine) {
-      const entityType = tool === 'room' ? 'space' : tool === 'hallway' ? 'hallway' : 'elevator'
-      editEngine.begin({ kind: 'create', entityType, geometry: localPoints, properties: { name, buildingId, floorId } })
-      editEngine.doCommit()
-    }
+    const selectedId = tool === 'elevator' ? genId('pc') : id
 
     if (tool === 'room') {
+      if (editEngine) {
+        editEngine.begin({ kind: 'create', entityType: 'space', geometry: localPoints, properties: { name, buildingId, floorId } })
+        editEngine.doCommit()
+      }
       dispatcher.execute({
         id: 'room.create', label: 'Create Room',
         payload: { buildingId, floorId, id, name, points: localPoints, category: 'other' },
       })
     } else if (tool === 'hallway') {
+      if (editEngine) {
+        editEngine.begin({ kind: 'create', entityType: 'hallway', geometry: localPoints, properties: { name, buildingId, floorId } })
+        editEngine.doCommit()
+      }
       dispatcher.execute({
         id: 'hallway.create', label: 'Create Hallway',
         payload: { buildingId, floorId, id, name, points: localPoints, width: hallwayWidth },
       })
     } else {
+      const local = localPoints[0] ?? { x: 0, y: 0 }
+      const pc = ElevatorDefinition.create({ position: local })
       dispatcher.execute({
-        id: 'elevator.create', label: 'Create Elevator',
-        payload: { buildingId, floorId, id, name, position: localPoints[0] ?? { x: 0, y: 0 }, fromLevel: 0, toLevel: 2 },
+        id: 'parametric.create', label: 'Create Elevator',
+        payload: { buildingId, floorId, id: pc.id, definitionId: 'elevator', position: pc.position, rotation: pc.rotation, properties: pc.properties },
       })
     }
 
     dispatch({ type: 'RESET' })
     clearPreview(map)
-    onSelect?.(id)
+    onSelect?.(selectedId)
   }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, hallwayWidth, editEngine])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = genId(type)
+    let selectedComponentId = id
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
@@ -209,17 +217,15 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       })
     } else {
       const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }
-      if (editEngine) {
-        editEngine.begin({ kind: 'create', entityType: 'stair', geometry: localPos, properties: { name: 'Staircase', buildingId, floorId } })
-        editEngine.doCommit()
-      }
+      const pc = StairDefinition.create({ position: localPos })
       dispatcher.execute({
-        id: 'staircase.create', label: 'Create Staircase',
-        payload: { buildingId, floorId, id, name: 'Staircase', position: localPos, fromLevel: floor, toLevel: floor + 1, type: 'enclosed' },
+        id: 'parametric.create', label: 'Create Staircase',
+        payload: { buildingId, floorId, id: pc.id, definitionId: 'stair', position: pc.position, rotation: pc.rotation, properties: { ...pc.properties, fromLevel: floor, toLevel: floor + 1 } },
       })
+      selectedComponentId = pc.id
     }
 
-    onSelect?.(id)
+    onSelect?.(selectedComponentId)
     if (map) {
       const feedback = placedItem(position, type.charAt(0).toUpperCase() + type.slice(1))
       updatePreview(map, [feedback])

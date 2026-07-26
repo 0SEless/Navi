@@ -12,13 +12,14 @@
  */
 
 import type maplibregl from 'maplibre-gl'
-import type { CampusDocument, Building, Road, Room, Hallway, LatLng } from '@navi/core'
+import type { CampusDocument, Building, Road, Room, Hallway, Staircase, Elevator, Entrance, Panorama, QRCheckpoint, LatLng } from '@navi/core'
 import { SelectionManager } from './selection-manager'
 import type { EntityRef } from './selection-manager'
 
 const HIGHLIGHT_SOURCE = 'navi-highlight'
 const HIGHLIGHT_LAYER_FILL = 'navi-highlight-fill'
 const HIGHLIGHT_LAYER_OUTLINE = 'navi-highlight-outline'
+const HIGHLIGHT_LAYER_CIRCLE = 'navi-highlight-circle'
 
 function latLngToCoord(p: LatLng): [number, number] {
   return [p.lng, p.lat]
@@ -127,6 +128,90 @@ function entityToGeoJSON(
       return null
     }
 
+    case 'staircase': {
+      for (const b of doc.buildings) {
+        if (b.footprint.points.length < 2) continue
+        const origin = computeCentroid(b.footprint.points)
+        for (const f of b.floors) {
+          const s = f.staircases.find(x => x.id === entity.id)
+          if (!s) continue
+          return {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature', id: s.id,
+              properties: { id: s.id, type: 'staircase', buildingId: b.id, floorId: f.id },
+              geometry: { type: 'Point', coordinates: localToWorldCoord(s.position, origin) },
+            }],
+          }
+        }
+      }
+      return null
+    }
+
+    case 'elevator': {
+      for (const b of doc.buildings) {
+        if (b.footprint.points.length < 2) continue
+        const origin = computeCentroid(b.footprint.points)
+        for (const f of b.floors) {
+          const e = f.elevators.find(x => x.id === entity.id)
+          if (!e) continue
+          return {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature', id: e.id,
+              properties: { id: e.id, type: 'elevator', buildingId: b.id, floorId: f.id },
+              geometry: { type: 'Point', coordinates: localToWorldCoord(e.position, origin) },
+            }],
+          }
+        }
+      }
+      return null
+    }
+
+    case 'entrance': {
+      for (const b of doc.buildings) {
+        for (const f of b.floors) {
+          const e = f.entrances.find(x => x.id === entity.id)
+          if (!e) continue
+          return {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature', id: e.id,
+              properties: { id: e.id, type: 'entrance', buildingId: b.id, floorId: f.id },
+              geometry: { type: 'Point', coordinates: latLngToCoord(e.position) },
+            }],
+          }
+        }
+      }
+      return null
+    }
+
+    case 'panorama': {
+      const p = doc.panoramas.find(x => x.id === entity.id)
+      if (!p) return null
+      return {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature', id: p.id,
+          properties: { id: p.id, type: 'panorama' },
+          geometry: { type: 'Point', coordinates: latLngToCoord(p.position) },
+        }],
+      }
+    }
+
+    case 'qr': {
+      const q = doc.qrCheckpoints.find(x => x.id === entity.id)
+      if (!q) return null
+      return {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature', id: q.id,
+          properties: { id: q.id, type: 'qr' },
+          geometry: { type: 'Point', coordinates: latLngToCoord(q.position) },
+        }],
+      }
+    }
+
     default:
       return null
   }
@@ -156,11 +241,11 @@ export class HighlightOverlay {
     const setup = () => {
       this.addSource()
       this.addLayers()
-      this.unsub = this.selectionManager.onChange((entity) => {
-        this.updateHighlight(entity)
+      this.unsub = this.selectionManager.onChange(() => {
+        this.syncHighlight()
       })
       // Initial sync
-      this.updateHighlight(this.selectionManager.selected)
+      this.syncHighlight()
     }
 
     if (this.map.loaded()) {
@@ -173,13 +258,14 @@ export class HighlightOverlay {
   /** Update the document reference (called when document changes). */
   setDocument(doc: CampusDocument): void {
     this.document = doc
-    this.updateHighlight(this.selectionManager.selected)
+    this.syncHighlight()
   }
 
   destroy(): void {
     this.unsub?.()
     try { this.map.removeLayer(HIGHLIGHT_LAYER_FILL) } catch { /* ok */ }
     try { this.map.removeLayer(HIGHLIGHT_LAYER_OUTLINE) } catch { /* ok */ }
+    try { this.map.removeLayer(HIGHLIGHT_LAYER_CIRCLE) } catch { /* ok */ }
     try { this.map.removeSource(HIGHLIGHT_SOURCE) } catch { /* ok */ }
     this.initialized = false
   }
@@ -214,6 +300,19 @@ export class HighlightOverlay {
           'line-opacity': 0.9,
         },
       },
+      {
+        id: HIGHLIGHT_LAYER_CIRCLE,
+        source: HIGHLIGHT_SOURCE,
+        type: 'circle',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#3B82F6',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+          'circle-opacity': 0.9,
+        },
+        filter: ['==', ['geometry-type'], 'Point'],
+      },
     ] as any[]
 
     for (const def of layerDefs) {
@@ -222,16 +321,22 @@ export class HighlightOverlay {
     }
   }
 
-  private updateHighlight(entity: EntityRef | null): void {
+  private syncHighlight(): void {
     if (!this.initialized) return
 
-    const data = entity
-      ? entityToGeoJSON(this.document, entity)
-      : { type: 'FeatureCollection', features: [] }
+    const entities = this.selectionManager.allSelected
+    const features: GeoJSON.Feature[] = []
+
+    for (const entity of entities) {
+      const fc = entityToGeoJSON(this.document, entity)
+      if (fc) features.push(...fc.features)
+    }
+
+    const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
 
     try {
       const source = this.map.getSource(HIGHLIGHT_SOURCE) as any
-      if (source?.setData) source.setData(data || { type: 'FeatureCollection', features: [] })
+      if (source?.setData) source.setData(data)
     } catch { /* source may not be ready */ }
   }
 }

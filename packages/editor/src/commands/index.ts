@@ -15,3 +15,4 @@ export { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplic
 export { entityUpdateHandler } from './entity-update-handler'
 export { floorManageHandler, buildingAdjustPositionHandler } from './ui-action-handlers'
 export { boundarySetHandler, boundaryClearHandler } from './boundary-handlers'
+export { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from './parametric-handlers'

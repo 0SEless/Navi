@@ -22,6 +22,11 @@ const HIT_LAYERS = [
   'navi-room-outline',
   'navi-hallway-line',
   'navi-road-line',
+  'navi-entrance-icon',
+  'navi-staircase-icon',
+  'navi-elevator-icon',
+  'navi-panorama-icon',
+  'navi-qr-icon',
 ]
 
 /** Map navi-* layer IDs to entity types. */
@@ -30,6 +35,11 @@ function layerToType(layerId: string): EntityRef['type'] | null {
   if (layerId.includes('room')) return 'room'
   if (layerId.includes('hallway')) return 'hallway'
   if (layerId.includes('road')) return 'road'
+  if (layerId.includes('entrance')) return 'entrance'
+  if (layerId.includes('staircase')) return 'staircase'
+  if (layerId.includes('elevator')) return 'elevator'
+  if (layerId.includes('panorama')) return 'panorama'
+  if (layerId.includes('qr')) return 'qr'
   return null
 }
 

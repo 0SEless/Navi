@@ -34,8 +34,10 @@ import type { CampusDocument } from '@navi/core'
 import { SelectionManager } from '../lib/selection/selection-manager'
 import { hitTest } from '../lib/selection/hit-test'
 import { HighlightOverlay } from '../lib/selection/highlight-overlay'
+import { SnapOverlay } from '../lib/selection/snap-overlay'
 import { Inspector } from '../components/Inspector'
 import { CommandBus } from '../lib/commands/command-bus'
+import { CommandHistory } from '../lib/commands/command-history'
 import {
   entityUpdateHandler,
   entityCreateHandler,
@@ -57,12 +59,14 @@ export default function StudioPage() {
   const entityRendererRef = useRef<EntityRenderer | null>(null)
   const graphRendererRef = useRef<NavigationGraphRenderer | null>(null)
   const highlightRef = useRef<HighlightOverlay | null>(null)
+  const snapOverlayRef = useRef<SnapOverlay | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [showGraph, setShowGraph] = useState(true)
 
   // ─- Services (created once, live for page lifetime) ──
   const [selectionManager] = useState(() => new SelectionManager())
   const [commandBus] = useState(() => new CommandBus(null as unknown as CampusDocument))
+  const [commandHistory] = useState(() => new CommandHistory())
   const [inspectorController] = useState(() => new InspectorController(commandBus))
 
   // Register command handlers once
@@ -89,6 +93,15 @@ export default function StudioPage() {
     }
   }, [commandBus])
 
+  // ── Wire undo/redo history: snapshot before each command ──
+  useEffect(() => {
+    const unsub = commandBus.onBeforeExecute(() => {
+      const d = docRef.current
+      if (d) commandHistory.push(d)
+    })
+    return unsub
+  }, [commandBus, commandHistory])
+
   // ── Subscribe to command execution: re-sync renderers ──
   useEffect(() => {
     const unsub = commandBus.onDidExecute(() => {
@@ -100,6 +113,9 @@ export default function StudioPage() {
 
       // Re-sync HighlightOverlay
       highlightRef.current?.setDocument(d)
+
+      // Re-sync SnapOverlay
+      snapOverlayRef.current?.sync(d)
 
       // Re-compile graph
       const result = compileDocument(d)
@@ -149,10 +165,27 @@ export default function StudioPage() {
     highlight.init()
     highlightRef.current = highlight
 
+    // Snap overlay — visual snap indicator
+    const snapOverlay = new SnapOverlay(map)
+    snapOverlay.init()
+    snapOverlay.sync(d)
+    snapOverlayRef.current = snapOverlay
+
+    // Canvas mousemove → snap indicator
+    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
+      snapOverlay.updateSnap({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+    })
+
     // Canvas click → hit-test → SelectionManager
-    const handleClick = (e: maplibregl.MapMouseEvent) => {
+    const handleClick = (e: maplibregl.MapMouseEvent & { originalEvent?: MouseEvent }) => {
       const hit = hitTest(map, e.point)
-      selectionManager.select(hit)
+      if (!hit) {
+        selectionManager.clear()
+      } else if (e.originalEvent?.shiftKey) {
+        selectionManager.toggle(hit)
+      } else {
+        selectionManager.select(hit)
+      }
     }
     map.on('click', handleClick)
 
@@ -170,10 +203,57 @@ export default function StudioPage() {
     })
   }, [])
 
-  // ── Clear selection ──
+  // ── Clear selection (used by button + keyboard) ──
   const handleClearSelection = useCallback(() => {
     selectionManager.clear()
   }, [selectionManager])
+
+  // ── Global keyboard shortcuts ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      const selected = selectionManager.selected
+
+      switch (e.key) {
+        case 'Delete':
+        case 'Backspace': {
+          if (selected) {
+            e.preventDefault()
+            inspectorController.deleteEntity(selected)
+            selectionManager.clear()
+          }
+          break
+        }
+        case 'Escape': {
+          selectionManager.clear()
+          break
+        }
+        case 'z':
+        case 'Z': {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            const doc = docRef.current
+            const changed = e.shiftKey ? commandHistory.redo(doc) : commandHistory.undo(doc)
+            if (changed && doc) {
+              entityRendererRef.current?.sync(doc)
+              highlightRef.current?.setDocument(doc)
+              snapOverlayRef.current?.sync(doc)
+              const result = compileDocument(doc)
+              graphRendererRef.current?.sync(result.graph)
+              setGraphInfo(`${result.nodeCount} node(s), ${result.edgeCount} edge(s) — ${result.duration.toFixed(0)}ms`)
+              setVersion(v => v + 1)
+            }
+          }
+          break
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectionManager, inspectorController, commandHistory])
 
   const docForRender = docRef.current
 
@@ -260,6 +340,9 @@ function createSampleDocument(): CampusDocument {
             level: 0,
             label: 'Ground Floor',
             elevation: 0,
+            height: 4,
+            connectorStops: [],
+            parametricComponents: [],
             rooms: [
               {
                 id: 'room-101',
@@ -268,6 +351,7 @@ function createSampleDocument(): CampusDocument {
                 category: 'classroom',
                 polygon: { points: [{ x: 5, y: 5 }, { x: 25, y: 5 }, { x: 25, y: 20 }, { x: 5, y: 20 }] },
                 capacity: 40,
+                roomDoors: [],
                 metadata: {},
               },
               {
@@ -277,6 +361,7 @@ function createSampleDocument(): CampusDocument {
                 category: 'lab',
                 polygon: { points: [{ x: 30, y: 5 }, { x: 50, y: 5 }, { x: 50, y: 20 }, { x: 30, y: 20 }] },
                 capacity: 30,
+                roomDoors: [],
                 metadata: {},
               },
             ],
@@ -300,6 +385,9 @@ function createSampleDocument(): CampusDocument {
             level: 1,
             label: 'Second Floor',
             elevation: 4,
+            height: 4,
+            connectorStops: [],
+            parametricComponents: [],
             rooms: [
               {
                 id: 'room-201',
@@ -308,6 +396,7 @@ function createSampleDocument(): CampusDocument {
                 category: 'classroom',
                 polygon: { points: [{ x: 5, y: 5 }, { x: 25, y: 5 }, { x: 25, y: 20 }, { x: 5, y: 20 }] },
                 capacity: 40,
+                roomDoors: [],
                 metadata: {},
               },
             ],
@@ -323,6 +412,7 @@ function createSampleDocument(): CampusDocument {
         height: 8,
         color: '#4A90D9',
         aliases: [],
+        verticalConnectors: [],
         metadata: {},
       },
       {
@@ -337,6 +427,9 @@ function createSampleDocument(): CampusDocument {
             level: 0,
             label: 'Ground Floor',
             elevation: 0,
+            height: 4,
+            connectorStops: [],
+            parametricComponents: [],
             rooms: [],
             hallways: [],
             staircases: [],
@@ -350,6 +443,7 @@ function createSampleDocument(): CampusDocument {
         height: 12,
         color: '#8B4513',
         aliases: [],
+        verticalConnectors: [],
         metadata: {},
       },
     ],
@@ -360,7 +454,7 @@ function createSampleDocument(): CampusDocument {
         polyline: { points: [{ lat: 11.8190, lng: 122.0915 }, { lat: 11.8193, lng: 122.0920 }, { lat: 11.8198, lng: 122.0925 }, { lat: 11.8202, lng: 122.0930 }] },
         width: 4,
         surface: 'paved',
-        type: 'walkway',
+        type: 'connector',
         metadata: {},
       },
       {
@@ -369,7 +463,7 @@ function createSampleDocument(): CampusDocument {
         polyline: { points: [{ lat: 11.8190, lng: 122.0910 }, { lat: 11.8195, lng: 122.0920 }] },
         width: 2,
         surface: 'gravel',
-        type: 'path',
+        type: 'service',
         metadata: {},
       },
     ],

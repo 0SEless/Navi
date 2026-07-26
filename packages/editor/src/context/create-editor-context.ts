@@ -15,6 +15,7 @@ import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
 import { floorCreateHandler, floorRenameHandler, floorDeleteHandler, floorDuplicateHandler, floorReorderHandler } from '../commands/floor-handlers'
 import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPositionHandler } from '../commands/ui-action-handlers'
 import { boundarySetHandler, boundaryClearHandler } from '../commands/boundary-handlers'
+import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { SelectionManager } from '../selection'
 import { CurrentToolStore } from '../tools/CurrentToolStore'
 import { Viewport } from '../viewport'
@@ -261,6 +262,7 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
           elevators: legacyElevators,
           entrances: legacyEntrances,
           connectorStops: [],
+          parametricComponents: [],
           metadata: (fd.metadata as Record<string, unknown>) ?? f.metadata ?? {},
         }
       })
@@ -381,6 +383,9 @@ export function createEditorContext(
   registryCmd.register(buildingAdjustPositionHandler)
   registryCmd.register(boundarySetHandler)
   registryCmd.register(boundaryClearHandler)
+  registryCmd.register(parametricCreateHandler)
+  registryCmd.register(parametricDeleteHandler)
+  registryCmd.register(parametricUpdateHandler)
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
 

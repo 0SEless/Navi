@@ -88,6 +88,72 @@ function getFields(doc: CampusDocument, entity: EntityRef): EditableField[] | nu
       return null
     }
 
+    case 'staircase': {
+      for (const b of doc.buildings) {
+        for (const f of b.floors) {
+          const s = f.staircases.find(x => x.id === entity.id)
+          if (!s) continue
+          return [
+            { key: 'name', label: 'Name', value: s.name, kind: 'text' },
+            { key: 'fromLevel', label: 'From Level', value: String(s.fromLevel), kind: 'number' },
+            { key: 'toLevel', label: 'To Level', value: String(s.toLevel), kind: 'number' },
+            { key: 'type', label: 'Type', value: s.type, kind: 'text' },
+          ]
+        }
+      }
+      return null
+    }
+
+    case 'elevator': {
+      for (const b of doc.buildings) {
+        for (const f of b.floors) {
+          const e = f.elevators.find(x => x.id === entity.id)
+          if (!e) continue
+          return [
+            { key: 'name', label: 'Name', value: e.name, kind: 'text' },
+            { key: 'fromLevel', label: 'From Level', value: String(e.fromLevel), kind: 'number' },
+            { key: 'toLevel', label: 'To Level', value: String(e.toLevel), kind: 'number' },
+          ]
+        }
+      }
+      return null
+    }
+
+    case 'entrance': {
+      for (const b of doc.buildings) {
+        for (const f of b.floors) {
+          const e = f.entrances.find(x => x.id === entity.id)
+          if (!e) continue
+          return [
+            { key: 'label', label: 'Label', value: e.label, kind: 'text' },
+            { key: 'level', label: 'Level', value: String(e.level), kind: 'number' },
+            { key: 'type', label: 'Type', value: e.type, kind: 'text' },
+          ]
+        }
+      }
+      return null
+    }
+
+    case 'panorama': {
+      const p = doc.panoramas.find(x => x.id === entity.id)
+      if (!p) return null
+      return [
+        { key: 'label', label: 'Label', value: p.label, kind: 'text' },
+        { key: 'heading', label: 'Heading', value: String(p.heading), kind: 'number' },
+        { key: 'imageAssetId', label: 'Image Asset', value: p.imageAssetId, kind: 'text' },
+      ]
+    }
+
+    case 'qr': {
+      const q = doc.qrCheckpoints.find(x => x.id === entity.id)
+      if (!q) return null
+      return [
+        { key: 'label', label: 'Label', value: q.label, kind: 'text' },
+        { key: 'code', label: 'Code', value: q.code, kind: 'text' },
+        { key: 'floor', label: 'Floor', value: String(q.floor), kind: 'number' },
+      ]
+    }
+
     default:
       return null
   }
@@ -121,6 +187,8 @@ export function Inspector({ selectionManager, document, controller, docVersion }
   }, [entity, controller, selectionManager])
 
   if (!entity || !fields) {
+    const multiCount = selectionManager.count
+
     return (
       <div style={{
         width: 280, borderLeft: '1px solid #334155', background: '#0F172A',
@@ -128,7 +196,10 @@ export function Inspector({ selectionManager, document, controller, docVersion }
       }}>
         <Header />
         <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: '#475569' }}>
-          Click an entity on the map to inspect it
+          {multiCount > 1
+            ? `${multiCount} entities selected`
+            : 'Click an entity on the map to inspect it'
+          }
         </div>
       </div>
     )
@@ -268,6 +339,11 @@ function typeColor(type: string): string {
     case 'room': return '#87CEEB'
     case 'hallway': return '#B0C4DE'
     case 'road': return '#FFD700'
+    case 'entrance': return '#FF8C00'
+    case 'staircase': return '#20B2AA'
+    case 'elevator': return '#9370DB'
+    case 'panorama': return '#FF69B4'
+    case 'qr': return '#32CD32'
     default: return '#64748B'
   }
 }

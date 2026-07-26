@@ -22,7 +22,7 @@ function localPointsToWorld(points: LocalCoord[], buildingId: string, transforme
 function extractFloorComponents(
   doc: CampusDocument,
   buildingId: string,
-  floor: { level: number; rooms: any[]; hallways: any[]; staircases: any[]; elevators: any[]; entrances: any[] },
+  floor: { level: number; rooms: any[]; hallways: any[]; staircases: any[]; elevators: any[]; entrances: any[]; parametricComponents?: any[] },
   transformer: CoordinateTransformer,
 ): Component[] {
   const result: Component[] = []
@@ -107,6 +107,29 @@ function findOneComponent(doc: CampusDocument, id: string, transformer: Coordina
         if (!wp) return null
         return { id: elev.id, type: 'elevator', name: elev.name, buildingId: building.id, campusId: '', floor: floor.level, position: wp, range: { from: elev.fromLevel, to: elev.toLevel } }
       }
+  // RC-2.5 compatibility adapter: parametric components → legacy Component[]
+  for (const pc of floor.parametricComponents ?? []) {
+    const wp = transformer.buildingLocalToWorld(pc.position, buildingId)
+    if (!wp) continue
+    const type = pc.definitionId === 'stair' ? 'stair' : pc.definitionId === 'elevator' ? 'elevator' : null
+    if (!type) continue
+    result.push({
+      id: pc.id, type, name: type === 'stair' ? 'Staircase' : 'Elevator',
+      buildingId, campusId: '', floor: floor.level,
+      position: wp,
+      range: { from: (pc.properties.fromLevel as number) ?? 0, to: (pc.properties.toLevel as number) ?? (type === 'stair' ? floor.level + 1 : 2) },
+    })
+  }
+
+      for (const pc of floor.parametricComponents ?? []) {
+        if (pc.id !== id) continue
+        const wp = transformer.buildingLocalToWorld(pc.position, building.id)
+        if (!wp) return null
+        const type = pc.definitionId === 'stair' ? 'stair' : pc.definitionId === 'elevator' ? 'elevator' : null
+        if (!type) return null
+        return { id: pc.id, type, name: type === 'stair' ? 'Staircase' : 'Elevator', buildingId: building.id, campusId: '', floor: floor.level, position: wp, range: { from: (pc.properties.fromLevel as number) ?? 0, to: (pc.properties.toLevel as number) ?? (type === 'stair' ? floor.level + 1 : 2) } }
+      }
+
       for (const ent of floor.entrances) {
         if (ent.id !== id) continue
         return { id: ent.id, type: 'entrance', name: ent.label, buildingId: building.id, campusId: '', floor: ent.level, position: ent.position }
@@ -189,18 +212,19 @@ function toLegacyBuilding(b: import('@navi/core').Building): Building {
   for (const f of b.floors) {
     if (f.planImageId) floorPlanUrls[f.level] = f.planImageId
   }
+  const fpPoints: LatLng[] = Array.isArray(b.footprint) ? b.footprint : (b.footprint?.points ?? [])
   return {
     id: b.id,
     name: b.name,
     campusId: '',
     floors: b.floors.map((f) => f.level),
-    footprint: b.footprint.points,
+    footprint: fpPoints,
     baseElevation: b.baseElevation,
     height: b.height,
     color: b.color,
     code: b.code,
     description: b.description,
-    center: b.footprint.points[0],
+    center: fpPoints[0],
     department: b.department,
     category: b.category,
     entrances,

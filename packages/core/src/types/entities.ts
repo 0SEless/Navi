@@ -79,6 +79,7 @@ export interface Floor {
   elevators: Elevator[]
   entrances: Entrance[]
   connectorStops: ConnectorStop[]
+  parametricComponents: ParametricComponent[]
 
   // Asset references
   textureId?: string
@@ -137,6 +138,19 @@ export interface Elevator {
   position: LocalCoord     // building-local meters
   fromLevel: number
   toLevel: number
+}
+
+export interface LocalCoord2D {
+  x: number
+  y: number
+}
+
+export interface ParametricComponentEntity {
+  id: string
+  definitionId: string
+  position: LocalCoord2D
+  rotation: number
+  properties: Record<string, unknown>
 }
 
 export interface PanoramaAnchor {

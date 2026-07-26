@@ -63,7 +63,8 @@ export interface CommandHandler {
 
 export class CommandBus {
   private handlers = new Map<string, CommandHandler>()
-  private listeners = new Set<() => void>()
+  private afterListeners = new Set<() => void>()
+  private beforeListeners = new Set<() => void>()
   private _document: CampusDocument
 
   constructor(document: CampusDocument) {
@@ -82,8 +83,9 @@ export class CommandBus {
       console.warn(`[CommandBus] No handler for "${command.type}"`)
       return false
     }
+    this.notifyBefore()
     handler.execute({ document: this._document }, command)
-    this.notify()
+    this.notifyAfter()
     return true
   }
 
@@ -97,14 +99,26 @@ export class CommandBus {
     this._document = doc
   }
 
-  /** Subscribe to post-execution notifications. Returns unsubscribe. */
-  onDidExecute(listener: () => void): () => void {
-    this.listeners.add(listener)
-    return () => { this.listeners.delete(listener) }
+  /** Subscribe to pre-execution notifications. Returns unsubscribe. */
+  onBeforeExecute(listener: () => void): () => void {
+    this.beforeListeners.add(listener)
+    return () => { this.beforeListeners.delete(listener) }
   }
 
-  private notify(): void {
-    for (const listener of this.listeners) {
+  /** Subscribe to post-execution notifications. Returns unsubscribe. */
+  onDidExecute(listener: () => void): () => void {
+    this.afterListeners.add(listener)
+    return () => { this.afterListeners.delete(listener) }
+  }
+
+  private notifyBefore(): void {
+    for (const listener of this.beforeListeners) {
+      listener()
+    }
+  }
+
+  private notifyAfter(): void {
+    for (const listener of this.afterListeners) {
       listener()
     }
   }
