@@ -133,6 +133,66 @@ export const PolygonEngine = {
     return computeSignedArea(verts) < 0 ? 'CW' : 'CCW'
   },
 
+  setVertex(polygon: EditablePolygon, ringIndex: number, vertexIndex: number, position: { x: number; y: number }): EditablePolygon {
+    return {
+      ...polygon,
+      rings: polygon.rings.map((ring, ri) =>
+        ri !== ringIndex ? ring : {
+          ...ring,
+          vertices: ring.vertices.map((v, vi) =>
+            vi !== vertexIndex ? v : { ...v, ...position }
+          ),
+        }
+      ),
+    }
+  },
+
+  moveVertex(polygon: EditablePolygon, vertexId: string, position: { x: number; y: number }): EditablePolygon {
+    for (let ri = 0; ri < polygon.rings.length; ri++) {
+      for (let vi = 0; vi < polygon.rings[ri].vertices.length; vi++) {
+        if (polygon.rings[ri].vertices[vi].id === vertexId) {
+          return this.setVertex(polygon, ri, vi, position)
+        }
+      }
+    }
+    return polygon
+  },
+
+  insertVertex(polygon: EditablePolygon, startVertexId: string, endVertexId: string, position: { x: number; y: number }): EditablePolygon {
+    const newVertex: Vertex = { id: pointId(), ...position }
+    return {
+      ...polygon,
+      rings: polygon.rings.map(ring => {
+        const startIdx = ring.vertices.findIndex(v => v.id === startVertexId)
+        if (startIdx === -1) return ring
+        const endIdx = ring.vertices.findIndex(v => v.id === endVertexId)
+        if (endIdx === -1) return ring
+        if (Math.abs(startIdx - endIdx) !== 1 && !(ring.closed && ((startIdx === 0 && endIdx === ring.vertices.length - 1) || (startIdx === ring.vertices.length - 1 && endIdx === 0)))) {
+          return ring
+        }
+        const insertAfter = Math.min(startIdx, endIdx)
+        const verts = [...ring.vertices]
+        verts.splice(insertAfter + 1, 0, newVertex)
+        return { ...ring, vertices: verts }
+      }),
+    }
+  },
+
+  deleteVertex(polygon: EditablePolygon, vertexId: string): EditablePolygon {
+    const newRings = polygon.rings.map(ring => {
+      if (ring.vertices.length <= 3) throw new Error('Polygon must have at least 3 vertices')
+      return { ...ring, vertices: ring.vertices.filter(v => v.id !== vertexId) }
+    })
+    return { ...polygon, rings: newRings }
+  },
+
+  closePolygon(polygon: EditablePolygon): EditablePolygon {
+    return {
+      ...polygon,
+      rings: polygon.rings.map(ring => ({ ...ring, closed: true })),
+    }
+  },
+
   normalize(polygon: EditablePolygon): EditablePolygon {
     return {
       ...polygon,

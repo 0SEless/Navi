@@ -297,4 +297,143 @@ describe('PolygonEngine', () => {
       expect(norm.rings[0].vertices).toHaveLength(3)
     })
   })
+
+  describe('setVertex (index-based)', () => {
+    it('sets vertex position by ring and vertex index', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const updated = PolygonEngine.setVertex(poly, 0, 0, { x: 5, y: 5 })
+      expect(updated.rings[0].vertices[0].x).toBe(5)
+      expect(updated.rings[0].vertices[0].y).toBe(5)
+    })
+
+    it('returns new polygon without mutating original', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      PolygonEngine.setVertex(poly, 0, 1, { x: 99, y: 99 })
+      expect(poly.rings[0].vertices[1].x).toBe(10)
+    })
+
+    it('preserves other vertices', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }])
+      const updated = PolygonEngine.setVertex(poly, 0, 0, { x: 5, y: 5 })
+      expect(updated.rings[0].vertices[1].x).toBe(10)
+      expect(updated.rings[0].vertices[2].x).toBe(10)
+      expect(updated.rings[0].vertices[3].x).toBe(0)
+    })
+
+    it('preserves vertex IDs', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      const updated = PolygonEngine.setVertex(poly, 0, 0, { x: 5, y: 5 })
+      expect(updated.rings[0].vertices[0].id).toBe(vid)
+    })
+  })
+
+  describe('moveVertex (ID-based)', () => {
+    it('moves a vertex by ID', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      const updated = PolygonEngine.moveVertex(poly, vid, { x: 5, y: 5 })
+      const moved = updated.rings[0].vertices.find(v => v.id === vid)
+      expect(moved).toBeDefined()
+      expect(moved!.x).toBe(5)
+      expect(moved!.y).toBe(5)
+    })
+
+    it('returns new polygon without mutating original', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      PolygonEngine.moveVertex(poly, vid, { x: 5, y: 5 })
+      expect(poly.rings[0].vertices[0].x).toBe(0)
+    })
+
+    it('does nothing for non-existent vertex ID', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const updated = PolygonEngine.moveVertex(poly, 'nonexistent', { x: 5, y: 5 })
+      expect(updated.rings[0].vertices).toHaveLength(3)
+      expect(updated.rings[0].vertices[0].x).toBe(0)
+    })
+  })
+
+  describe('insertVertex', () => {
+    it('inserts a vertex between two adjacent vertices', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const sv = poly.rings[0].vertices[0]
+      const ev = poly.rings[0].vertices[1]
+      const updated = PolygonEngine.insertVertex(poly, sv.id, ev.id, { x: 5, y: 0 })
+      expect(updated.rings[0].vertices).toHaveLength(4)
+    })
+
+    it('inserted vertex is placed between the two specified vertices', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const sv = poly.rings[0].vertices[0]
+      const ev = poly.rings[0].vertices[1]
+      const updated = PolygonEngine.insertVertex(poly, sv.id, ev.id, { x: 5, y: 0 })
+      const startIdx = updated.rings[0].vertices.findIndex(v => v.id === sv.id)
+      expect(updated.rings[0].vertices[startIdx + 1].x).toBe(5)
+    })
+
+    it('does nothing for non-adjacent vertex pair', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const sv = poly.rings[0].vertices[0]
+      const ev = poly.rings[0].vertices[2]
+      const updated = PolygonEngine.insertVertex(poly, sv.id, ev.id, { x: 5, y: 0 })
+      expect(updated.rings[0].vertices).toHaveLength(3)
+    })
+
+    it('returns new polygon without mutating original', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const sv = poly.rings[0].vertices[0]
+      const ev = poly.rings[0].vertices[1]
+      PolygonEngine.insertVertex(poly, sv.id, ev.id, { x: 5, y: 0 })
+      expect(poly.rings[0].vertices).toHaveLength(3)
+    })
+  })
+
+  describe('deleteVertex', () => {
+    it('deletes a vertex by ID (min 3 remain)', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      const updated = PolygonEngine.deleteVertex(poly, vid)
+      expect(updated.rings[0].vertices).toHaveLength(3)
+    })
+
+    it('refuses to delete vertex when only 3 remain', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      expect(() => PolygonEngine.deleteVertex(poly, vid)).toThrow('at least 3 vertices')
+    })
+
+    it('returns new polygon without mutating original', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }])
+      const vid = poly.rings[0].vertices[0].id
+      PolygonEngine.deleteVertex(poly, vid)
+      expect(poly.rings[0].vertices).toHaveLength(4)
+    })
+
+    it('does nothing for non-existent vertex ID', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }])
+      const updated = PolygonEngine.deleteVertex(poly, 'nonexistent')
+      expect(updated.rings[0].vertices).toHaveLength(4)
+    })
+  })
+
+  describe('closePolygon', () => {
+    it('closes an open polygon', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      const closed = PolygonEngine.closePolygon(poly)
+      expect(closed.rings[0].closed).toBe(true)
+    })
+
+    it('is idempotent on already closed polygon', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], { closed: true })
+      const closed = PolygonEngine.closePolygon(poly)
+      expect(closed.rings[0].closed).toBe(true)
+    })
+
+    it('returns new polygon without mutating original', () => {
+      const poly = PolygonEngine.create([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])
+      PolygonEngine.closePolygon(poly)
+      expect(poly.rings[0].closed).toBe(false)
+    })
+  })
 })
