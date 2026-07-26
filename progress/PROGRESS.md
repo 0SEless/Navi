@@ -80,3 +80,19 @@
    16. Created `src/diagnostics/use-diagnostics.ts` — `useDiagnostics(document, options?)` React hook (memoized)
    17. Created `src/components/diagnostics/DiagnosticsPanel.tsx` — grouped by severity with Tailwind styling
 - **Verification**: 137 test files, 1179 tests pass (22 new diagnostic tests), zero regressions
+
+## 2026-07-25: RC-POLYGON-ENGINE — types, engine, renderer, hook, overlay, constraints, API freeze
+
+- **Previous state**: LGE + Parametric Engine complete, no polygon shape editing
+- **What was done**:
+  1. ADR-016: Geometry Engine Principles — constitution for all geometry engines
+  2. Created `spec/RC-POLYGON-ENGINE.md` — approved 10/10 with canonical model, editing/analysis tables, pipeline
+  3. Created `plan/RC-POLYGON-ENGINE.md` — 8 tasks (types + analysis merged), TDD approach, refined APIs
+  4. Created `src/types/polygon-types.ts` — `Vertex`, `PolygonEdge`, `PolygonRing`, `EditablePolygon` (frozen JSDoc)
+  5. Created `src/components/floor-editor/PolygonEngine.ts` — 14 methods: create, clone, edges, area, perimeter, boundingBox, centroid, winding, normalize, setVertex, moveVertex, insertVertex, deleteVertex, closePolygon
+  6. Created `src/components/floor-editor/PolygonRenderer.tsx` — configurable SVG renderer with PolygonRendererStyle
+  7. Created `src/components/floor-editor/useEditablePolygonEditor.ts` — EditablePolygonSession with undo/redo history, operations, handlers
+  8. Created `src/components/floor-editor/PolygonOverlay.tsx` — MapLibre GL overlay with vertex handles, edge midpoints, hover/drag state
+  9. Created `src/components/floor-editor/polygon-constraints.ts` — validateVertices, minEdgeLength, minArea, deduplicateVertices
+  10. 70 new tests (53 PolygonEngine + 10 hook + 2 renderer + 5 constraints), zero regressions across 5 commits
+- **Verification**: 141 test files, 1249 tests pass (70 new polygon tests), zero regressions
