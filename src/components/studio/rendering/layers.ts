@@ -13,21 +13,45 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
   map.addSource(SRC.BUILDINGS, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
+    promoteId: 'id',
   })
   map.addLayer({
     id: LYR.BUILDINGS_FILL,
     type: 'fill',
     source: SRC.BUILDINGS,
-    paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.08 },
+    paint: {
+      'fill-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#FFFFFF',
+        '#1C6BEB',
+      ],
+      'fill-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        0.25,
+        0.08,
+      ],
+    },
   })
   map.addLayer({
     id: LYR.BUILDINGS_EXTRUSION,
     type: 'fill-extrusion',
     source: SRC.BUILDINGS,
     paint: {
-      'fill-extrusion-color': ['get', 'color'],
+      'fill-extrusion-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#FFFFFF',
+        ['get', 'color'],
+      ],
       'fill-extrusion-height': ['get', 'height'],
-      'fill-extrusion-opacity': 0.65,
+      'fill-extrusion-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        0.85,
+        0.65,
+      ],
       'fill-extrusion-base': 0,
     },
   })
@@ -35,7 +59,20 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     id: LYR.BUILDINGS_OUTLINE,
     type: 'line',
     source: SRC.BUILDINGS,
-    paint: { 'line-color': ['get', 'color'], 'line-width': 2 },
+    paint: {
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        '#FFFFFF',
+        ['get', 'color'],
+      ],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        3,
+        2,
+      ],
+    },
   })
 
   // Building hover highlight (on mousemove)
