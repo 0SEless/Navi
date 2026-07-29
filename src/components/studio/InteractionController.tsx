@@ -19,6 +19,8 @@ interface InteractionControllerProps {
 export function InteractionController({ map, onSetRoomDrag, drawing }: InteractionControllerProps) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const { services } = useEditor()
+  const dispatcherRef = useRef(services.get('dispatcher'))
+  dispatcherRef.current = services.get('dispatcher')
   const toolRegistry = services.get('toolRegistry')!
   const toolRef = useRef(toolRegistry.activeToolId)
   const tracePointsRef = useRef(drawing.tracePoints)
@@ -27,7 +29,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
   const activeFloorRef = useRef(useStudioStore.getState().activeFloor)
   const activeBuildingIdRef = useRef(useStudioStore.getState().activeBuildingId)
   const selectedNodeRef = useRef(useStudioStore.getState().selectedNodeId)
-  const adjustBuildingIdRef = useRef(useStudioStore.getState().adjustBuildingId)
+  const positionEditTargetRef = useRef(useStudioStore.getState().positionEditTarget)
   const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
   const lastSelectedNodeRef = useRef<string | null>(null)
@@ -65,7 +67,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       activeFloorRef.current = state.activeFloor
       activeBuildingIdRef.current = state.activeBuildingId
       selectedNodeRef.current = state.selectedNodeId
-      adjustBuildingIdRef.current = state.adjustBuildingId
+      positionEditTargetRef.current = state.positionEditTarget
     })
     const unsubTool = toolRegistry.subscribe(() => {
       toolRef.current = toolRegistry.activeToolId
@@ -79,6 +81,33 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     })
     return () => unsub()
   }, [])
+
+  // Building selection highlight
+  useEffect(() => {
+    if (!map) return
+    const unsub = useStudioStore.subscribe((state) => {
+      const src = map.getSource('s-building-selection') as maplibregl.GeoJSONSource
+      if (!src) return
+      const bid = state.activeBuildingId
+      if (!bid) { src.setData({ type: 'FeatureCollection', features: [] }); return }
+      const building = graphRef.current.buildings.find(b => b.id === bid)
+      if (!building) return
+      const fp = building.footprint
+      if (fp.length < 3) return
+      src.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [fp.map(p => [p.lng, p.lat]).concat([[fp[0].lng, fp[0].lat]])],
+          },
+        }],
+      })
+    })
+    return () => unsub()
+  }, [map])
 
   function setCurrentPoints(points: LatLng[]) {
     const curTool = toolRef.current
@@ -105,6 +134,27 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
 
   useEffect(() => {
     if (!map) return
+
+    function updateBuildingSelection(id: string | null) {
+      const src = map.getSource('s-building-selection') as maplibregl.GeoJSONSource
+      if (!src) return
+      if (!id) { src.setData({ type: 'FeatureCollection', features: [] }); return }
+      const building = graphRef.current.buildings.find(b => b.id === id)
+      if (!building) return
+      const fp = building.footprint
+      if (fp.length < 3) return
+      src.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [fp.map(p => [p.lng, p.lat]).concat([[fp[0].lng, fp[0].lat]])],
+          },
+        }],
+      })
+    }
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       if (dragVertexRef.current) { dragVertexRef.current = null; return }
@@ -139,7 +189,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         const hitBuilding = features.find((f) => f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL)
         if (hitBuilding) {
           const bid = hitBuilding.properties?.id
-          if (bid) useStudioStore.getState().setActiveBuilding(bid)
+          if (bid) { useStudioStore.getState().setActiveBuilding(bid); updateBuildingSelection(bid) }
           return
         }
         const hitTrace = features.find((f) => f.layer.id === LYR.TRACES_LINE || f.layer.id === LYR.TRACES_INNER)
@@ -166,17 +216,18 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (e.originalEvent.button !== 0) return
       const curTool = toolRef.current
-      if (curTool === 'select' && adjustBuildingIdRef.current) {
+      if (curTool === 'select' && positionEditTargetRef.current?.type === 'building') {
+        const targetId = positionEditTargetRef.current.id
         const features = map.queryRenderedFeatures(e.point)
         const hitBuilding = features.find((f) =>
           (f.layer.id === LYR.BUILDINGS_EXTRUSION || f.layer.id === LYR.BUILDINGS_FILL) &&
-          f.properties?.id === adjustBuildingIdRef.current
+          f.properties?.id === targetId
         )
         if (hitBuilding) {
-          const building = graphRef.current.buildings.find(b => b.id === adjustBuildingIdRef.current)
+          const building = graphRef.current.buildings.find(b => b.id === targetId)
           if (building) {
             buildingDragRef.current = {
-              buildingId: adjustBuildingIdRef.current,
+              buildingId: targetId,
               originalFootprint: building.footprint.map(p => ({ ...p })),
               startPoint: { lat: e.lngLat.lat, lng: e.lngLat.lng },
             }
@@ -241,6 +292,19 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         }
         return
       }
+      // Building hover highlight
+      if (toolRef.current === 'select') {
+        const bldgFeatures = map.queryRenderedFeatures(e.point, { layers: [LYR.BUILDINGS_FILL, LYR.BUILDINGS_EXTRUSION] })
+        const hoverSrc = map.getSource('s-building-hover') as maplibregl.GeoJSONSource
+        if (bldgFeatures.length > 0 && hoverSrc) {
+          hoverSrc.setData({ type: 'FeatureCollection', features: [bldgFeatures[0]] })
+        } else if (hoverSrc) {
+          hoverSrc.setData({ type: 'FeatureCollection', features: [] })
+        }
+      } else {
+        const hoverSrc = map.getSource('s-building-hover') as maplibregl.GeoJSONSource
+        if (hoverSrc) hoverSrc.setData({ type: 'FeatureCollection', features: [] })
+      }
     }
 
     const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
@@ -265,9 +329,10 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
             lng: movedFootprint.reduce((s, p) => s + p.lng, 0) / movedFootprint.length,
           }
           useGraphStore.getState().updateBuilding(buildingDrag.buildingId, { footprint: movedFootprint, center: centroid })
-          useGraphStore.getState().save() // ponytail: migrate to workflow.save() when InteractionController uses editor services
+          useGraphStore.getState().save()
+          dispatcherRef.current?.execute({ id: 'entity.update', payload: { entityId: buildingDrag.buildingId, changes: { footprint: { points: movedFootprint } } } })
         }
-        useStudioStore.getState().setAdjustBuilding(null)
+        useStudioStore.getState().setPositionEditTarget(null)
         buildingDragRef.current = null
         return
       }
@@ -292,10 +357,10 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         if (buildingDragRef.current) {
           buildingDragRef.current = null
           map.dragPan.enable()
-          // Bump renderVersion so MapRenderer restores building source after cancelled drag
           useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
           return
         }
+        useStudioStore.getState().setPositionEditTarget(null)
         if (lastSelectedNodeRef.current) {
           try {
             map.setFeatureState({ source: SRC.NODES, id: lastSelectedNodeRef.current }, { selected: false })

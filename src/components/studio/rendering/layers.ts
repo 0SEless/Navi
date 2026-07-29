@@ -38,6 +38,42 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     paint: { 'line-color': ['get', 'color'], 'line-width': 2 },
   })
 
+  // Building hover highlight (on mousemove)
+  map.addSource('s-building-hover', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  })
+  map.addLayer({
+    id: 'l-building-hover-fill',
+    type: 'fill',
+    source: 's-building-hover',
+    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.12 },
+  })
+  map.addLayer({
+    id: 'l-building-hover-outline',
+    type: 'line',
+    source: 's-building-hover',
+    paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.6 },
+  })
+
+  // Building selection highlight
+  map.addSource('s-building-selection', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  })
+  map.addLayer({
+    id: 'l-building-selection-fill',
+    type: 'fill',
+    source: 's-building-selection',
+    paint: { 'fill-color': '#22D3EE', 'fill-opacity': 0.15 },
+  })
+  map.addLayer({
+    id: 'l-building-selection-outline',
+    type: 'line',
+    source: 's-building-selection',
+    paint: { 'line-color': '#22D3EE', 'line-width': 3, 'line-opacity': 0.9 },
+  })
+
   // --- Edges ---
   map.addSource(SRC.EDGES, {
     type: 'geojson',
