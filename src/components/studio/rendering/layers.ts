@@ -46,12 +46,7 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
         ['get', 'color'],
       ],
       'fill-extrusion-height': ['get', 'height'],
-      'fill-extrusion-opacity': [
-        'case',
-        ['boolean', ['feature-state', 'hover'], false],
-        0.85,
-        0.65,
-      ],
+      'fill-extrusion-opacity': 0.65,
       'fill-extrusion-base': 0,
     },
   })
