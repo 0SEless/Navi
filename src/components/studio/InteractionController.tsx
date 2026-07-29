@@ -48,7 +48,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') {
       canvas.style.cursor = CURSOR_CROSSHAIR
     } else if (tool === 'select') {
-      canvas.style.cursor = CURSOR_HAND
+      canvas.style.cursor = ''
     } else {
       canvas.style.cursor = ''
     }
@@ -400,54 +400,51 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       }
     }
 
-    const handleBldgEnter = (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+    const ENTITY_LAYERS = [LYR.BUILDINGS_FILL, LYR.BUILDINGS_EXTRUSION, LYR.NODES, LYR.NODES_CONNECTION, LYR.TRACES_LINE, LYR.TRACES_INNER]
+
+    const handleEntityEnter = (e: maplibregl.MapMouseEvent) => {
       const curTool = toolRef.current
       if (curTool !== 'select') return
-      const bid = e.features?.[0]?.properties?.id as string | undefined
-      if (bid) {
-        hoveredBldgRef.current = bid
-        map.setFeatureState({ source: SRC.BUILDINGS, id: bid }, { hover: true })
-      }
-    }
-
-    const handleBldgLeave = () => {
-      const prev = hoveredBldgRef.current
-      if (prev) {
-        hoveredBldgRef.current = null
-        map.setFeatureState({ source: SRC.BUILDINGS, id: prev }, { hover: false })
-      }
-    }
-
-    const handleTooltipEnter = (e: maplibregl.MapMouseEvent) => {
-      setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
-      map.getCanvas().style.cursor = CURSOR_HAND
-    }
-
-    const handleTooltipLeave = () => {
-      setTooltip(null)
-      const ct = useStudioStore.getState().tool
       const canvas = map.getCanvas()
-      if (ct === 'select') canvas.style.cursor = CURSOR_HAND
-      else canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+      canvas.style.cursor = CURSOR_HAND
+      const layerId = e.features?.[0]?.layer?.id
+      if (!layerId) return
+      if (layerId === LYR.BUILDINGS_FILL || layerId === LYR.BUILDINGS_EXTRUSION) {
+        const bid = e.features[0].properties?.id as string | undefined
+        if (bid) {
+          hoveredBldgRef.current = bid
+          map.setFeatureState({ source: SRC.BUILDINGS, id: bid }, { hover: true })
+        }
+        return
+      }
+      if (layerId === LYR.NODES_CONNECTION) {
+        setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
+      }
     }
 
-    const bldgLayers = [LYR.BUILDINGS_FILL, LYR.BUILDINGS_EXTRUSION]
+    const handleEntityLeave = () => {
+      const canvas = map.getCanvas()
+      const ct = toolRef.current
+      canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+      if (hoveredBldgRef.current) {
+        map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
+        hoveredBldgRef.current = null
+      }
+      setTooltip(null)
+    }
 
     map.on('click', handleClick)
     map.on('dblclick', handleDblClick)
     map.on('mousedown', handleMouseDown)
     map.on('mousemove', handleMouseMove)
     map.on('mouseup', handleMouseUp)
-    for (const l of bldgLayers) {
-      map.on('mouseenter', l, handleBldgEnter)
-      map.on('mouseleave', l, handleBldgLeave)
+    for (const l of ENTITY_LAYERS) {
+      map.on('mouseenter', l, handleEntityEnter)
+      map.on('mouseleave', l, handleEntityLeave)
     }
-    map.on('mouseenter', LYR.NODES_CONNECTION, handleTooltipEnter)
-    map.on('mouseleave', LYR.NODES_CONNECTION, handleTooltipLeave)
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      // Clear any hover state
       if (hoveredBldgRef.current) map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
       hoveredBldgRef.current = null
       map.off('click', handleClick)
@@ -455,12 +452,10 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       map.off('mousedown', handleMouseDown)
       map.off('mousemove', handleMouseMove)
       map.off('mouseup', handleMouseUp)
-      for (const l of bldgLayers) {
-        map.off('mouseenter', l, handleBldgEnter)
-        map.off('mouseleave', l, handleBldgLeave)
+      for (const l of ENTITY_LAYERS) {
+        map.off('mouseenter', l, handleEntityEnter)
+        map.off('mouseleave', l, handleEntityLeave)
       }
-      map.off('mouseenter', LYR.NODES_CONNECTION, handleTooltipEnter)
-      map.off('mouseleave', LYR.NODES_CONNECTION, handleTooltipLeave)
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [map])
