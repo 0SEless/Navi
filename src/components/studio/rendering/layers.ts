@@ -75,24 +75,6 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     },
   })
 
-  // Building hover highlight (on mousemove)
-  map.addSource('s-building-hover', {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
-  map.addLayer({
-    id: 'l-building-hover-fill',
-    type: 'fill',
-    source: 's-building-hover',
-    paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.12 },
-  })
-  map.addLayer({
-    id: 'l-building-hover-outline',
-    type: 'line',
-    source: 's-building-hover',
-    paint: { 'line-color': '#FFFFFF', 'line-width': 2.5, 'line-opacity': 0.6 },
-  })
-
   // Building selection highlight
   map.addSource('s-building-selection', {
     type: 'geojson',
