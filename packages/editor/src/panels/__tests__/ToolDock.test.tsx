@@ -24,8 +24,7 @@ function renderDock(props?: { activeTool?: string; onActivate?: () => void }) {
 describe('ToolDock', () => {
   it('renders all interior tool groups', () => {
     renderDock()
-    expect(screen.getByTitle(/Select/)).toBeDefined()
-    expect(screen.getByTitle(/Pan/)).toBeDefined()
+    expect(screen.getByTitle(/Navigate/)).toBeDefined()
     expect(screen.getByTitle(/Space/)).toBeDefined()
     expect(screen.getByTitle(/Hallway/)).toBeDefined()
     expect(screen.getByTitle(/Entrance/)).toBeDefined()
@@ -37,7 +36,7 @@ describe('ToolDock', () => {
     render(
       <ToolDock groups={CAMPUS_TOOL_GROUPS} activeTool="select" onActivateTool={vi.fn()} />,
     )
-    expect(screen.getByTitle(/Select/)).toBeDefined()
+    expect(screen.getByTitle(/Navigate/)).toBeDefined()
     expect(screen.getByTitle(/Building/)).toBeDefined()
     expect(screen.getByTitle(/Road/)).toBeDefined()
     expect(screen.getByTitle(/Boundary/)).toBeDefined()
@@ -76,24 +75,27 @@ describe('ToolDock', () => {
 })
 
 describe('INTERIOR_TOOL_GROUPS', () => {
-  it('has navigation, geometry, and connections groups', () => {
+  it('has geometry, connections, and calibration groups', () => {
     const ids = INTERIOR_TOOL_GROUPS.map((g) => g.id)
-    expect(ids).toContain('navigation')
     expect(ids).toContain('geometry')
     expect(ids).toContain('connections')
+    expect(ids).toContain('calibration')
   })
 
-  it('navigation group has select and pan', () => {
-    const nav = INTERIOR_TOOL_GROUPS.find((g) => g.id === 'navigation')
-    expect(nav?.tools.map((t) => t.id)).toEqual(['select', 'pan'])
+  it('geometry group has select, space, and hallway', () => {
+    const geom = INTERIOR_TOOL_GROUPS.find((g) => g.id === 'geometry')
+    expect(geom?.tools.map((t) => t.id)).toEqual(['select', 'space', 'hallway'])
   })
 })
 
 describe('CAMPUS_TOOL_GROUPS', () => {
-  it('has navigation and geometry groups', () => {
+  it('has geometry group only', () => {
     const ids = CAMPUS_TOOL_GROUPS.map((g) => g.id)
-    expect(ids).toContain('navigation')
-    expect(ids).toContain('geometry')
-    expect(ids).not.toContain('connections')
+    expect(ids).toEqual(['geometry'])
+  })
+
+  it('geometry group has select, building, route, and boundary', () => {
+    const geom = CAMPUS_TOOL_GROUPS.find((g) => g.id === 'geometry')
+    expect(geom?.tools.map((t) => t.id)).toEqual(['select', 'building', 'route', 'boundary'])
   })
 })
