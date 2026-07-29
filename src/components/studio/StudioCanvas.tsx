@@ -33,6 +33,7 @@ import { useEditor, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '@navi/edito
 import { useCampusBoundary } from './CampusBoundary'
 import { useBuildingTracer } from './BuildingTracer'
 import { useVertexEditor } from './useVertexEditor'
+import { useMarkerDrag } from './useMarkerDrag'
 import { ConfirmBar } from './ConfirmBar'
 import { ConfirmOverlayAdapter } from './ConfirmOverlayAdapter'
 import { SelectionOverlay } from './SelectionOverlay'
@@ -44,6 +45,8 @@ import { ViewportController } from './ViewportController'
 import { useToolController } from './useToolController'
 import { InteractionController } from './InteractionController'
 import { MapRenderer, getInitialMapStyle } from './rendering/MapRenderer'
+import { StyleSelector } from './StyleSelector'
+import { PositionEditHint } from './PositionEditHint'
 
 interface StudioCanvasProps {
   center?: { lat: number; lng: number }
@@ -57,6 +60,7 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   const drawing = useDrawingSession()
 
   useVertexEditor(mapInstance)
+  useMarkerDrag(mapInstance)
 
   useEffect(() => {
     if (mapRef.current) return
@@ -91,6 +95,12 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 
   useToolController()
 
+  // Default to select tool on mount
+  useEffect(() => {
+    if (!toolRegistry) return
+    if (!toolRegistry.activeToolId) toolRegistry.activate('select')
+  }, [toolRegistry])
+
   useToolDockShortcuts(CAMPUS_TOOL_GROUPS, toolRegistry?.activeToolId ?? '', (id) => toolRegistry?.activate(id))
 
   useCampusBoundary(mapInstance, (result) => {
@@ -116,6 +126,10 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
       {mapInstance && <MapRenderer map={mapInstance} />}
       {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
       {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={drawing.setRoomDrag} drawing={drawing} />}
+      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+        <StyleSelector />
+      </div>
+      <PositionEditHint />
     </div>
   )
 }
