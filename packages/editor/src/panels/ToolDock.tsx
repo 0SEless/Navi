@@ -90,8 +90,7 @@ export function ToolDock({ groups, activeTool, onActivateTool }: ToolDockProps) 
 }
 
 const ICONS: Record<string, React.ReactNode> = {
-  select: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>,
-  pan: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>,
+  select: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></svg>,
   space: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>,
   hallway: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="20" x2="20" y2="4"/><line x1="8" y1="22" x2="22" y2="8"/><line x1="2" y1="16" x2="16" y2="2"/></svg>,
   entrance: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>,
@@ -105,15 +104,9 @@ const ICONS: Record<string, React.ReactNode> = {
 
 export const INTERIOR_TOOL_GROUPS: ToolGroup[] = [
   {
-    id: 'navigation',
-    tools: [
-      { id: 'select', label: 'Select', shortcut: 'V', icon: ICONS.select },
-      { id: 'pan', label: 'Pan', shortcut: 'H', icon: ICONS.pan },
-    ],
-  },
-  {
     id: 'geometry',
     tools: [
+      { id: 'select', label: 'Navigate', shortcut: 'V', icon: ICONS.select },
       { id: 'space', label: 'Space', shortcut: 'R', icon: ICONS.space },
       { id: 'hallway', label: 'Hallway', shortcut: 'T', icon: ICONS.hallway },
     ],
@@ -136,15 +129,9 @@ export const INTERIOR_TOOL_GROUPS: ToolGroup[] = [
 
 export const CAMPUS_TOOL_GROUPS: ToolGroup[] = [
   {
-    id: 'navigation',
-    tools: [
-      { id: 'select', label: 'Select', shortcut: 'V', icon: ICONS.select },
-      { id: 'pan', label: 'Pan', shortcut: 'H', icon: ICONS.pan },
-    ],
-  },
-  {
     id: 'geometry',
     tools: [
+      { id: 'select', label: 'Navigate', shortcut: 'V', icon: ICONS.select },
       { id: 'building', label: 'Building', shortcut: 'B', icon: ICONS.building },
       { id: 'route', label: 'Road', shortcut: 'O', icon: ICONS.road },
       { id: 'boundary', label: 'Boundary', shortcut: 'Y', icon: ICONS.boundary },
