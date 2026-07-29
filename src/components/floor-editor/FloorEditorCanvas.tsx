@@ -175,6 +175,10 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'floor-selection-outline', type: 'line', source: 'floor-selection', filter: ['==', ['get', 'type'], 'line'], paint: { 'line-color': '#FFFFFF', 'line-width': 3, 'line-opacity': 0.9 } })
   // Hallway selection visuals are managed by LinearGeometryOverlay
 
+  map.addSource('floor-hover', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-hover-fill', type: 'fill', source: 'floor-hover', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.1 } })
+  map.addLayer({ id: 'floor-hover-outline', type: 'line', source: 'floor-hover', paint: { 'line-color': '#FFFFFF', 'line-width': 2, 'line-opacity': 0.5 } })
+
   map.addSource('floor-vertex-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-vertex-handles-layer', type: 'circle', source: 'floor-vertex-handles', filter: ['!=', ['get', 'type'], 'midpoint'], paint: { 'circle-radius': 8, 'circle-color': '#FFFFFF', 'circle-stroke-width': 3, 'circle-stroke-color': '#1C6BEB' } })
   map.addLayer({ id: 'floor-midpoint-handles-layer', type: 'circle', source: 'floor-vertex-handles', filter: ['==', ['get', 'type'], 'midpoint'], paint: { 'circle-radius': 5, 'circle-color': '#1C6BEB', 'circle-opacity': 0.6, 'circle-stroke-width': 0 } })
@@ -250,6 +254,8 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   useEffect(() => { selectedComponentRef.current = selectedComponent }, [selectedComponent])
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
+  const onSelectRef = useRef(onSelect)
+  useEffect(() => { onSelectRef.current = onSelect }, [onSelect])
 
   const snapEngineRef = useRef<SnapEngine | null>(null)
 
@@ -840,6 +846,48 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       }
     }
 
+    const SELECTABLE_FILL_LAYERS = ['floor-rooms-fill', 'floor-elevator-areas-fill']
+    const SELECTABLE_POINT_LAYERS = ['floor-items-stairs', 'floor-items-entrance', 'floor-nodes-layer']
+
+    const onHoverMove = (e: maplibregl.MapMouseEvent) => {
+      const curTool = toolRef.current
+      if (curTool !== 'select') {
+        if (canvas.style.cursor !== CURSOR_MAP[curTool]) canvas.style.cursor = CURSOR_MAP[curTool] ?? 'default'
+        const hoverSrc = map.getSource('floor-hover') as maplibregl.GeoJSONSource
+        if (hoverSrc) hoverSrc.setData({ type: 'FeatureCollection', features: [] })
+        return
+      }
+      const allLayers = [...SELECTABLE_FILL_LAYERS, ...SELECTABLE_POINT_LAYERS]
+      const features = map.queryRenderedFeatures(e.point, { layers: allLayers })
+      const hoverSrc = map.getSource('floor-hover') as maplibregl.GeoJSONSource
+      if (features.length > 0) {
+        canvas.style.cursor = 'pointer'
+        if (hoverSrc) {
+          const feat = features[0]
+          const geom = feat.geometry
+          if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+            hoverSrc.setData({ type: 'FeatureCollection', features: [feat] })
+          } else {
+            hoverSrc.setData({ type: 'FeatureCollection', features: [] })
+          }
+        }
+      } else {
+        canvas.style.cursor = CURSOR_MAP[curTool] ?? 'default'
+        if (hoverSrc) hoverSrc.setData({ type: 'FeatureCollection', features: [] })
+      }
+    }
+
+    const onClickSelect = (e: maplibregl.MapMouseEvent) => {
+      if (toolRef.current !== 'select') return
+      const allLayers = [...SELECTABLE_FILL_LAYERS, ...SELECTABLE_POINT_LAYERS]
+      const features = map.queryRenderedFeatures(e.point, { layers: allLayers })
+      if (features.length > 0) {
+        const props = features[0].properties as Record<string, unknown>
+        const cId = props.id as string
+        if (cId) onSelectRef.current?.(cId)
+      }
+    }
+
     const onVertexEnter = () => { canvas.style.cursor = 'grab' }
     const onVertexLeave = () => { if (!dragRef.current) canvas.style.cursor = CURSOR_MAP[tool] ?? 'default' }
     const onMidpointEnter = () => { canvas.style.cursor = 'copy' }
@@ -853,7 +901,9 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     map.on('mousedown', 'floor-midpoint-handles-layer', onMouseDown as (e: maplibregl.MapMouseEvent) => void)
     map.on('mousedown', 'floor-rooms-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
     map.on('mousedown', 'floor-elevator-areas-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+    map.on('click', onClickSelect)
     map.on('mousemove', onMouseMove)
+    map.on('mousemove', onHoverMove)
     map.on('mouseup', onMouseUp)
     return () => {
       if (pendingFrame != null) cancelAnimationFrame(pendingFrame)
@@ -865,10 +915,12 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       map.off('mousedown', 'floor-midpoint-handles-layer', onMouseDown as (e: maplibregl.MapMouseEvent) => void)
       map.off('mousedown', 'floor-rooms-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
       map.off('mousedown', 'floor-elevator-areas-fill', onBodyMouseDown as (e: maplibregl.MapMouseEvent) => void)
+      map.off('click', onClickSelect)
       map.off('mousemove', onMouseMove)
+      map.off('mousemove', onHoverMove)
       map.off('mouseup', onMouseUp)
     }
-  }, [selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id, readOnly])
+  }, [selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id, readOnly, onSelect])
 
   // Keyboard shortcuts (window-level — no canvas focus needed)
   useEffect(() => {
