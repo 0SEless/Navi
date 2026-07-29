@@ -7,6 +7,7 @@ import { useEditor, useEditingEngine } from '@navi/editor'
 import type { Command } from '@navi/editor'
 import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
+import { SnapEngine, DEFAULT_SNAP_CONFIG } from '@navi/core'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { useFloorDrawing } from './useFloorDrawing'
 import { extractHallwayData } from '@/types/hallway-types'
@@ -25,7 +26,7 @@ const BLANK_STYLE = {
 }
 
 const CURSOR_MAP: Record<string, string> = {
-  select: 'default',
+  select: 'grab',
   room: 'crosshair',
   entrance: 'crosshair',
   stairs: 'crosshair',
@@ -138,8 +139,8 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addLayer({ id: 'floor-buildings-fill', type: 'fill', source: 'floor-buildings', paint: { 'fill-color': '#1C6BEB', 'fill-opacity': 0.06 } })
   map.addLayer({ id: 'floor-buildings-outline', type: 'line', source: 'floor-buildings', paint: { 'line-color': '#475569', 'line-width': 2, 'line-dasharray': [3, 3] } })
 
-  map.addSource('floor-floorplan', { type: 'image', url: '', coordinates: [[0, 0], [0, 0], [0, 0], [0, 0]] })
-  map.addLayer({ id: 'floor-floorplan-layer', type: 'raster', source: 'floor-floorplan', paint: { 'raster-opacity': 0.7 } })
+  // floor-plan image source is added dynamically in the updateImage useEffect
+  // floor-floorplan layer added dynamically with the image source
 
   map.addSource('floor-rooms', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-rooms-fill', type: 'fill', source: 'floor-rooms', paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
@@ -177,6 +178,12 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   map.addSource('floor-vertex-handles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: 'floor-vertex-handles-layer', type: 'circle', source: 'floor-vertex-handles', filter: ['!=', ['get', 'type'], 'midpoint'], paint: { 'circle-radius': 8, 'circle-color': '#FFFFFF', 'circle-stroke-width': 3, 'circle-stroke-color': '#1C6BEB' } })
   map.addLayer({ id: 'floor-midpoint-handles-layer', type: 'circle', source: 'floor-vertex-handles', filter: ['==', ['get', 'type'], 'midpoint'], paint: { 'circle-radius': 5, 'circle-color': '#1C6BEB', 'circle-opacity': 0.6, 'circle-stroke-width': 0 } })
+
+  map.addSource('floor-snap', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-snap-indicator', type: 'circle', source: 'floor-snap', paint: { 'circle-radius': 7, 'circle-color': '#3B82F6', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-opacity': 0.9 } } as any)
+
+  map.addSource('floor-point-preview', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({ id: 'floor-point-preview-layer', type: 'circle', source: 'floor-point-preview', paint: { 'circle-radius': 8, 'circle-color': '#3B82F6', 'circle-opacity': 0.4, 'circle-stroke-width': 2, 'circle-stroke-color': '#3B82F6' } } as any)
 }
 
 interface FloorEditorCanvasProps {
@@ -189,6 +196,7 @@ interface FloorEditorCanvasProps {
   planAlignment?: { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number }
   alignMode?: boolean
   readOnly?: boolean
+  locked?: boolean
   onAlignmentChange?: (align: { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number }) => void
 }
 
@@ -217,7 +225,7 @@ function componentToEditablePath(c: Component): EditablePath | null {
   }
 }
 
-export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, alignMode, readOnly, onAlignmentChange }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, alignMode, readOnly, locked, onAlignmentChange }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
@@ -240,6 +248,10 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   useEffect(() => { floorComponentsRef.current = floorComponents }, [floorComponents])
   const selectedComponentRef = useRef(selectedComponent)
   useEffect(() => { selectedComponentRef.current = selectedComponent }, [selectedComponent])
+  const toolRef = useRef(tool)
+  useEffect(() => { toolRef.current = tool }, [tool])
+
+  const snapEngineRef = useRef<SnapEngine | null>(null)
 
   // Wire drawing interactions (state-driven so hook sees map after init)
   const { drawMode, pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapInstance, buildingId: building.id, campusId, floor, tool, onSelect, editEngine })
@@ -375,26 +387,22 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     return () => { mounted = false; map.remove(); mapRef.current = null; setMapInstance(null); readyRef.current = false }
   }, [building])
 
-  // Floor plan image overlay via ImageSource.updateImage()
+  // Floor plan image overlay — add source + layer dynamically when URL available
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
     const level = building.floors?.[floor]
     const imgUrl = building.floorPlanUrls?.[level ?? floor]
-    const src = map.getSource('floor-floorplan') as maplibregl.ImageSource | undefined
-    if (!src) return
-    if (imgUrl && buildingFp.length >= 3) {
-      const bounds = new maplibregl.LngLatBounds()
-      buildingFp.forEach((p) => bounds.extend([p.lng, p.lat]))
-      const ne = bounds.getNorthEast()
-      const sw = bounds.getSouthWest()
-      src.updateImage({
-        url: imgUrl,
-        coordinates: computeFloorPlanCoords(buildingFp, planAlignment),
-      })
-      if (planAlignment?.opacity != null) {
-        map.setPaintProperty('floor-floorplan-layer', 'raster-opacity', planAlignment.opacity)
-      }
+    if (!imgUrl || buildingFp.length < 3) return
+    let src = map.getSource('floor-floorplan') as maplibregl.ImageSource | undefined
+    if (!src) {
+      map.addSource('floor-floorplan', { type: 'image', url: imgUrl, coordinates: computeFloorPlanCoords(buildingFp, planAlignment) })
+      map.addLayer({ id: 'floor-floorplan-layer', type: 'raster', source: 'floor-floorplan', paint: { 'raster-opacity': 0.7 } })
+    } else {
+      src.updateImage({ url: imgUrl, coordinates: computeFloorPlanCoords(buildingFp, planAlignment) })
+    }
+    if (planAlignment?.opacity != null) {
+      map.setPaintProperty('floor-floorplan-layer', 'raster-opacity', planAlignment.opacity)
     }
   }, [building.floorPlanUrls, floor, buildingFp, mapInstance, planAlignment])
 
@@ -568,6 +576,104 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }))
     src.setData({ type: 'FeatureCollection', features: vertices })
   }, [selectedId, selectedComponent, renderVersion, readOnly])
+
+  // Snap overlay + point placement preview
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+
+    // Init SnapEngine and populate from current components
+    const engine = new SnapEngine()
+    snapEngineRef.current = engine
+
+    const populateEngine = () => {
+      engine.clear()
+      const comps = floorComponentsRef.current
+      for (const c of comps) {
+        if (c.polygon && c.polygon.length >= 2) {
+          for (let i = 0; i < c.polygon.length; i++) {
+            engine.addVertex(c.polygon[i], c.id, 'vertex')
+            engine.addEdge(c.polygon[i], c.polygon[(i + 1) % c.polygon.length], c.id)
+          }
+        }
+        if (c.type === 'hallway' && c.polygon && c.polygon.length >= 2) {
+          for (let i = 0; i < c.polygon.length - 1; i++) {
+            engine.addVertex(c.polygon[i], c.id, 'vertex')
+            engine.addEdge(c.polygon[i], c.polygon[i + 1], c.id)
+          }
+        }
+        if (c.position) {
+          engine.addVertex(c.position, c.id, 'vertex')
+        }
+        if (c.type === 'entrance' && c.position) {
+          engine.addEntrance(c.position, c.id)
+        }
+      }
+    }
+    populateEngine()
+
+    const onMove = (e: maplibregl.MapMouseEvent) => {
+      const curTool = toolRef.current
+      const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+
+      // Snap indicator
+      const target = engine.findSnap(pos, DEFAULT_SNAP_CONFIG)
+      const snapSrc = map.getSource('floor-snap') as maplibregl.GeoJSONSource
+      if (snapSrc) {
+        snapSrc.setData(target
+          ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [target.position.lng, target.position.lat] }, properties: { type: target.type, distance: target.distance } }] }
+          : { type: 'FeatureCollection', features: [] })
+      }
+
+      // Point placement preview
+      const previewSrc = map.getSource('floor-point-preview') as maplibregl.GeoJSONSource
+      if (previewSrc) {
+        if (curTool === 'entrance' || curTool === 'stairs' || curTool === 'elevator') {
+          previewSrc.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] }, properties: {} }] })
+        } else {
+          previewSrc.setData({ type: 'FeatureCollection', features: [] })
+        }
+      }
+    }
+
+    map.on('mousemove', onMove)
+
+    // Re-populate when floor components change
+    const unsub = () => { populateEngine() }
+
+    return () => {
+      map.off('mousemove', onMove)
+      snapEngineRef.current = null
+    }
+  }, [mapInstance, readyRef.current])
+
+  // Re-populate snap engine when components change
+  useEffect(() => {
+    if (!snapEngineRef.current || !mapRef.current?.loaded()) return
+    const engine = snapEngineRef.current
+    engine.clear()
+    const comps = floorComponentsRef.current
+    for (const c of comps) {
+      if (c.polygon && c.polygon.length >= 2) {
+        for (let i = 0; i < c.polygon.length; i++) {
+          engine.addVertex(c.polygon[i], c.id, 'vertex')
+          engine.addEdge(c.polygon[i], c.polygon[(i + 1) % c.polygon.length], c.id)
+        }
+      }
+      if (c.type === 'hallway' && c.polygon && c.polygon.length >= 2) {
+        for (let i = 0; i < c.polygon.length - 1; i++) {
+          engine.addVertex(c.polygon[i], c.id, 'vertex')
+          engine.addEdge(c.polygon[i], c.polygon[i + 1], c.id)
+        }
+      }
+      if (c.position) {
+        engine.addVertex(c.position, c.id, 'vertex')
+      }
+      if (c.type === 'entrance' && c.position) {
+        engine.addEntrance(c.position, c.id)
+      }
+    }
+  }, [floorComponents, renderVersion])
 
   // Drag vertex interaction
   useEffect(() => {
@@ -816,6 +922,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           floorPlanCoords={floorPlanCoords}
           buildingFp={buildingFp}
           alignment={planAlignment ?? {}}
+          locked={locked}
           onChange={(a) => onAlignmentChange?.({ ...planAlignment, ...a })}
         />
       )}
