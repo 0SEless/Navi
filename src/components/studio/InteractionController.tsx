@@ -48,7 +48,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') {
       canvas.style.cursor = CURSOR_CROSSHAIR
     } else if (tool === 'select') {
-      canvas.style.cursor = ''
+      canvas.style.cursor = 'default'
     } else {
       canvas.style.cursor = ''
     }
@@ -425,7 +425,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     const handleEntityLeave = () => {
       const canvas = map.getCanvas()
       const ct = toolRef.current
-      canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+      canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : 'default'
       if (hoveredBldgRef.current) {
         map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
         hoveredBldgRef.current = null
