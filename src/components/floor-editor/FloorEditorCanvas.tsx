@@ -846,7 +846,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       }
     }
 
-    const SELECTABLE_FILL_LAYERS = ['floor-rooms-fill', 'floor-elevator-areas-fill']
+    const SELECTABLE_FILL_LAYERS = ['floor-buildings-fill', 'floor-rooms-fill', 'floor-elevator-areas-fill']
     const SELECTABLE_POINT_LAYERS = ['floor-items-stairs', 'floor-items-entrance', 'floor-nodes-layer']
 
     const onHoverMove = (e: maplibregl.MapMouseEvent) => {
