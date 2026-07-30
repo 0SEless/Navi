@@ -27,6 +27,7 @@ export type EditorEventType =
   // Workflow events
   | 'workflow.saved'
   | 'publish.completed'
+  | 'road.edit'
 
 export interface EntityEventPayload {
   entityId: string

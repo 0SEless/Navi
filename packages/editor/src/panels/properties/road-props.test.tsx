@@ -30,7 +30,7 @@ function renderWithDispatcher(road: any, execute = vi.fn()) {
 describe('RoadProperties', () => {
   it('renders Road header and fields', () => {
     renderWithDispatcher(createRoad())
-    expect(screen.getByText('Road')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Main Road')).toBeDefined()
     expect(screen.getByText('6m')).toBeDefined()
   })

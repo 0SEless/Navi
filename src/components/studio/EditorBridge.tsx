@@ -179,6 +179,16 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     }
   }, [context])
 
+  // ── Vertex editing bridge: listen for road.edit events from editor package ──
+  useEffect(() => {
+    const eventBus = context.services.get('eventBus') as any
+    if (!eventBus?.on) return
+    const unsub = eventBus.on('road.edit', (payload: { roadId: string }) => {
+      useStudioStore.getState().setVertexEditing('trace', payload.roadId)
+    })
+    return () => { unsub?.() }
+  }, [context])
+
   return (
     <EditorProvider context={context}>
       {children}
