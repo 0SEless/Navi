@@ -1,3 +1,5 @@
+import { roadWidthExpression } from '@navi/core'
+
 // ── Layer IDs ──
 
 export const LAYER_IDS = {
@@ -147,8 +149,6 @@ export function hallwayLinePaint(): maplibregl.LineLayerSpecification['paint'] {
     'line-opacity': 0.7,
   }
 }
-
-import { roadWidthExpression } from '@navi/core'
 
 export function roadOutlinePaint(): maplibregl.LineLayerSpecification['paint'] {
   return {

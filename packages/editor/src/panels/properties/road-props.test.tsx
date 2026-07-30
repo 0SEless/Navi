@@ -16,11 +16,15 @@ function createRoad(overrides = {}) {
   }
 }
 
-function renderWithDispatcher(road: any, execute = vi.fn()) {
+function renderWithDispatcher(road: any, execute = vi.fn(), emit = vi.fn()) {
   const services = {
-    get: (name: string) => (name === 'dispatcher' ? { execute } : undefined),
+    get: (name: string) => {
+      if (name === 'dispatcher') return { execute }
+      if (name === 'eventBus') return { emit }
+      return undefined
+    },
   }
-  return { execute, ...render(
+  return { execute, emit, ...render(
     <EditorProvider context={{ document: {} as any, services }}>
       <RoadProperties road={road} />
     </EditorProvider>,
@@ -42,6 +46,36 @@ describe('RoadProperties', () => {
       id: 'entity.update',
       label: 'Edit Road',
       payload: { entityId: 'rd-1', changes: { name: 'Side Road' } },
+    })
+  })
+
+  it('calls update with correct color on swatch click', () => {
+    const { execute } = renderWithDispatcher(createRoad({ metadata: { color: '#1C6BEB' } }))
+    const swatches = screen.getAllByRole('button')
+    const greenSwatch = swatches.find(b => b.getAttribute('title') === '#22C55E')
+    expect(greenSwatch).toBeDefined()
+    fireEvent.click(greenSwatch!)
+    expect(execute).toHaveBeenCalledWith({
+      id: 'entity.update',
+      label: 'Edit Road',
+      payload: { entityId: 'rd-1', changes: { metadata: { color: '#22C55E' } } },
+    })
+  })
+
+  it('emits road.edit event when Edit Road button is clicked', () => {
+    const { emit } = renderWithDispatcher(createRoad())
+    fireEvent.click(screen.getByText('Edit Road'))
+    expect(emit).toHaveBeenCalledWith('road.edit', { roadId: 'rd-1' })
+  })
+
+  it('dispatches entity.update when width slider changes', () => {
+    const { execute } = renderWithDispatcher(createRoad())
+    const slider = screen.getByRole('slider')
+    fireEvent.change(slider, { target: { value: '12' } })
+    expect(execute).toHaveBeenCalledWith({
+      id: 'entity.update',
+      label: 'Edit Road',
+      payload: { entityId: 'rd-1', changes: { width: 12 } },
     })
   })
 })
