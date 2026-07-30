@@ -29,11 +29,13 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
   const activeFloorRef = useRef(useStudioStore.getState().activeFloor)
   const activeBuildingIdRef = useRef(useStudioStore.getState().activeBuildingId)
   const selectedNodeRef = useRef(useStudioStore.getState().selectedNodeId)
+  const selectedTraceRef = useRef<string | null>(null)
   const positionEditTargetRef = useRef(useStudioStore.getState().positionEditTarget)
   const dragVertexRef = useRef<{ index: number; points: LatLng[]; source: 'trace' | 'draw' } | null>(null)
   const buildingDragRef = useRef<{ buildingId: string; originalFootprint: LatLng[]; startPoint: LatLng } | null>(null)
   const lastSelectedNodeRef = useRef<string | null>(null)
   const hoveredBldgRef = useRef<string | null>(null)
+  const hoveredAreaRef = useRef<string | null>(null)
 
   const tool = useCurrentTool()
 
@@ -45,7 +47,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
   // ── Cursor + dragPan management ──
   useEffect(() => {
     const canvas = map.getCanvas()
-    if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building') {
+    if (tool === 'route' || tool === 'room' || tool === 'asset' || tool === 'boundary' || tool === 'building' || tool === 'area') {
       canvas.style.cursor = CURSOR_CROSSHAIR
     } else if (tool === 'select') {
       canvas.style.cursor = ''
@@ -57,7 +59,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
       hoveredBldgRef.current = null
     }
-    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'vertex') {
+    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'area' || tool === 'vertex') {
       map.dragPan.disable()
     } else {
       map.dragPan.enable()
@@ -73,6 +75,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       activeFloorRef.current = state.activeFloor
       activeBuildingIdRef.current = state.activeBuildingId
       selectedNodeRef.current = state.selectedNodeId
+      selectedTraceRef.current = state.selectedTraceId
       positionEditTargetRef.current = state.positionEditTarget
     })
     const unsubTool = toolRegistry.subscribe(() => {
@@ -118,7 +121,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
   function setCurrentPoints(points: LatLng[]) {
     const curTool = toolRef.current
     if (curTool === 'route') { drawingRef.current.setTracePoints(points) }
-    if (curTool === 'building' || curTool === 'boundary') { drawingRef.current.setDrawPoints(points) }
+    if (curTool === 'building' || curTool === 'boundary' || curTool === 'area') { drawingRef.current.setDrawPoints(points) }
   }
 
   function findNearestVertex(mouseScreen: { x: number; y: number }, m: maplibregl.Map, points: LatLng[]): number {
@@ -201,11 +204,15 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         const hitTrace = features.find((f) => f.layer.id === LYR.TRACES_LINE || f.layer.id === LYR.TRACES_INNER)
         if (hitTrace) {
           const tid = hitTrace.properties?.id
-          if (tid) { useStudioStore.getState().setSelectedTraceId(tid); return }
+          if (tid) {
+            useStudioStore.getState().setSelectedTraceId(tid)
+            return
+          }
         }
         lastSelectedNodeRef.current = null
         useStudioStore.getState().setSelectedNodeId(null)
         useStudioStore.getState().setSelectedTraceId(null)
+        useStudioStore.getState().setActiveBuilding(null)
         return
       }
     }
@@ -214,6 +221,9 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       const curTool = toolRef.current
       if (curTool === 'route' && tracePointsRef.current.length >= 2) {
         drawingRef.current.requestConfirm('route')
+      }
+      if (curTool === 'select' && selectedTraceRef.current) {
+        useStudioStore.getState().setVertexEditing('trace', selectedTraceRef.current)
       }
     }
 
@@ -247,7 +257,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         setRoomDragRef.current?.({ start: dragStart, current: dragStart })
         return
       }
-      if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
+      if (curTool === 'route' || curTool === 'building' || curTool === 'boundary' || curTool === 'area') {
         const points = curTool === 'route' ? tracePointsRef.current : drawPointsRef.current
         const nearIdx = findNearestVertex(e.point, map, points)
         if (nearIdx >= 0) {
@@ -385,7 +395,7 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         if (curTool === 'route' && tracePointsRef.current.length > 0) {
           tracePointsRef.current = tracePointsRef.current.slice(0, -1)
           drawingRef.current.undoLastPoint()
-        } else if ((curTool === 'building' || curTool === 'boundary') && drawPointsRef.current.length > 0) {
+        } else if ((curTool === 'building' || curTool === 'boundary' || curTool === 'area') && drawPointsRef.current.length > 0) {
           drawPointsRef.current = drawPointsRef.current.slice(0, -1)
           drawingRef.current.undoLastDrawPoint()
         }
@@ -393,14 +403,14 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
       }
       if (e.key === 'Enter') {
         const curTool = toolRef.current
-        if (curTool === 'route' || curTool === 'building' || curTool === 'boundary') {
-          drawingRef.current.requestConfirm(curTool as 'route' | 'building' | 'boundary')
+        if (curTool === 'route' || curTool === 'building' || curTool === 'boundary' || curTool === 'area') {
+          drawingRef.current.requestConfirm(curTool as 'route' | 'building' | 'boundary' | 'area')
         }
         return
       }
     }
 
-    const ENTITY_LAYERS = [LYR.BUILDINGS_FILL, LYR.BUILDINGS_EXTRUSION, LYR.NODES, LYR.NODES_CONNECTION, LYR.TRACES_LINE, LYR.TRACES_INNER]
+    const ENTITY_LAYERS = [LYR.BUILDINGS_FILL, LYR.BUILDINGS_EXTRUSION, LYR.NODES, LYR.NODES_CONNECTION, LYR.TRACES_LINE, LYR.TRACES_INNER, LYR.AREAS_FILL]
 
     const handleEntityEnter = (e: maplibregl.MapMouseEvent) => {
       const curTool = toolRef.current
@@ -417,6 +427,16 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
         }
         return
       }
+      if (layerId === LYR.AREAS_FILL) {
+        const aid = e.features[0].properties?.id as string | undefined
+        const name = e.features[0].properties?.name as string | undefined
+        if (aid) {
+          hoveredAreaRef.current = aid
+          map.setFeatureState({ source: SRC.AREAS, id: aid }, { hover: true })
+          if (name) setTooltip({ x: e.point.x, y: e.point.y, text: name })
+        }
+        return
+      }
       if (layerId === LYR.NODES_CONNECTION) {
         setTooltip({ x: e.point.x, y: e.point.y, text: 'Connection point' })
       }
@@ -425,10 +445,14 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     const handleEntityLeave = () => {
       const canvas = map.getCanvas()
       const ct = toolRef.current
-      canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' ? CURSOR_CROSSHAIR : ''
+      canvas.style.cursor = ct === 'route' || ct === 'room' || ct === 'asset' || ct === 'boundary' || ct === 'building' || ct === 'area' ? CURSOR_CROSSHAIR : ''
       if (hoveredBldgRef.current) {
         map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
         hoveredBldgRef.current = null
+      }
+      if (hoveredAreaRef.current) {
+        map.setFeatureState({ source: SRC.AREAS, id: hoveredAreaRef.current }, { hover: false })
+        hoveredAreaRef.current = null
       }
       setTooltip(null)
     }
@@ -447,6 +471,8 @@ export function InteractionController({ map, onSetRoomDrag, drawing }: Interacti
     return () => {
       if (hoveredBldgRef.current) map.setFeatureState({ source: SRC.BUILDINGS, id: hoveredBldgRef.current }, { hover: false })
       hoveredBldgRef.current = null
+      if (hoveredAreaRef.current) map.setFeatureState({ source: SRC.AREAS, id: hoveredAreaRef.current }, { hover: false })
+      hoveredAreaRef.current = null
       map.off('click', handleClick)
       map.off('dblclick', handleDblClick)
       map.off('mousedown', handleMouseDown)
