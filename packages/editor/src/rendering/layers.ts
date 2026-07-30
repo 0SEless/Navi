@@ -148,10 +148,12 @@ export function hallwayLinePaint(): maplibregl.LineLayerSpecification['paint'] {
   }
 }
 
+import { roadWidthExpression } from '@navi/core'
+
 export function roadOutlinePaint(): maplibregl.LineLayerSpecification['paint'] {
   return {
     'line-color': '#000000',
-    'line-width': ['+', ['get', 'width'], 2],
+    'line-width': ['+', roadWidthExpression(), 2],
     'line-opacity': 0.5,
   }
 }
@@ -159,7 +161,7 @@ export function roadOutlinePaint(): maplibregl.LineLayerSpecification['paint'] {
 export function roadFillPaint(): maplibregl.LineLayerSpecification['paint'] {
   return {
     'line-color': '#FFFFFF',
-    'line-width': ['get', 'width'],
+    'line-width': roadWidthExpression(),
     'line-opacity': 0.8,
   }
 }
