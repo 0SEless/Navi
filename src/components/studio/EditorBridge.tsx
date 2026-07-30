@@ -158,7 +158,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     // Direction B — legacy store → SelectionManager (loop-guarded).
     const unsubLegacy = useStudioStore.subscribe(() => {
       const s = useStudioStore.getState()
-      const legacyId = s.selectedNodeId ?? s.activeBuildingId
+      const legacyId = s.selectedTraceId ?? s.selectedNodeId ?? s.activeBuildingId
       if (!legacyId) {
         bridge.pushExternal(null, SelectionOrigin.Canvas)
         return
