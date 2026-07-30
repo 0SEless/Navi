@@ -29,7 +29,7 @@ export const roadCreateHandler: CommandHandler = {
       return { success: false, error: 'Road polyline must have at least 2 points' }
     }
 
-    document.roads.push({ id, name, polyline: { points }, width, surface, type, metadata: {} })
+    document.roads.push({ id, name, polyline: { points }, width, surface, type, metadata: (payload.metadata as Record<string, unknown>) ?? {} })
 
     recordChange(document, { entityId: id, entityType: 'road', operation: 'created' })
     return { success: true, entityId: id, data: { id } }
