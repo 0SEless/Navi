@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { genId, useEditor } from '@navi/editor'
 import { useCurrentTool } from './useCurrentTool'
@@ -146,11 +146,12 @@ export function useOsmImportTool(
         }> = data.buildings ?? []
 
         // Dispatch building.create for each OSM building
+        let created = 0
         const disp = dispatcherRef.current
         if (disp) {
           for (const b of bldgs) {
             const id = genId('bldg')
-            disp.execute({
+            const result = disp.execute({
               id: 'building.create',
               label: 'Import from OSM',
               payload: {
@@ -168,10 +169,15 @@ export function useOsmImportTool(
                 color: b.color || '#1C6BEB',
               },
             })
+            if (!result || result.success !== false) created++
           }
         }
 
-        onCompleteRef.current?.({ count: bldgs.length, success: true })
+        if (created > 0 || bldgs.length === 0) {
+          onCompleteRef.current?.({ count: created, success: true })
+        } else {
+          onCompleteRef.current?.({ count: 0, success: false, error: 'Failed to create buildings' })
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error'
         onCompleteRef.current?.({ count: 0, success: false, error: msg })
