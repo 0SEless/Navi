@@ -127,6 +127,7 @@ export function useCampusBoundary(
     }
 
     map.doubleClickZoom?.disable()
+    const m = map
 
     function completePolygon() {
       if (pointsRef.current.length < 3) return
@@ -138,14 +139,14 @@ export function useCampusBoundary(
       if (options?.autoConfirm && options?.onAutoConfirm) {
         options.onAutoConfirm(result)
         pointsRef.current = []
-        clearBoundaryDrawing(map)
+        clearBoundaryDrawing(m)
         d?.clearDrawPoints()
         return
       }
 
       onCompleteRef.current?.(result)
       pointsRef.current = []
-      clearBoundaryDrawing(map)
+      clearBoundaryDrawing(m)
       d?.clearDrawPoints()
     }
 
