@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 export interface ToolDockItem {
   id: string
   label: string
-  shortcut: string
+  shortcut?: string
   icon: React.ReactNode
 }
 
@@ -56,7 +56,7 @@ function ToolButton({ item, isActive, onActivate }: { item: ToolDockItem; isActi
       onClick={onActivate}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={hovered ? `${item.label} (${item.shortcut})` : item.label}
+      title={hovered ? (item.shortcut ? `${item.label} (${item.shortcut})` : item.label) : item.label}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -237,7 +237,7 @@ export const CAMPUS_TOOL_GROUPS: ToolGroup[] = [
       { id: 'select', label: 'Navigate', shortcut: 'V', icon: ICONS.select },
       { id: 'area', label: 'Area', shortcut: 'A', icon: ICONS.area },
       {
-        id: 'import', label: 'Import', shortcut: 'I', icon: ICONS.importIcon,
+        id: 'import', label: 'Import', icon: ICONS.importIcon,
         subItems: [
           { id: 'import-osm', label: 'Import from OSM', icon: ICONS.osmImport },
           { id: 'set-boundary', label: 'Set Campus Boundary', icon: ICONS.boundary },
@@ -256,7 +256,7 @@ export function useToolDockShortcuts(groups: ToolGroup[], activeTool: string, on
     const m = new Map<string, string>()
     for (const group of groups) {
       for (const tool of group.tools) {
-        m.set(tool.shortcut.toUpperCase(), tool.id)
+        if (tool.shortcut) m.set(tool.shortcut.toUpperCase(), tool.id)
       }
     }
     map.current = m
