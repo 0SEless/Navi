@@ -100,7 +100,9 @@ export function useCampusBoundary(
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
   const drawingRef = useRef(drawing)
+  const optionsRef = useRef(options)
   drawingRef.current = drawing
+  optionsRef.current = options
 
   useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
@@ -118,6 +120,7 @@ export function useCampusBoundary(
 
   useEffect(() => {
     const d = drawingRef.current
+    const opts = optionsRef.current
     if (!map) return
     if (tool !== toolId) {
       pointsRef.current = []
@@ -136,8 +139,8 @@ export function useCampusBoundary(
         points: [...pointsRef.current],
       }
 
-      if (options?.autoConfirm && options?.onAutoConfirm) {
-        options.onAutoConfirm(result)
+      if (opts?.autoConfirm && opts?.onAutoConfirm) {
+        opts.onAutoConfirm(result)
         pointsRef.current = []
         clearBoundaryDrawing(m)
         d?.clearDrawPoints()
@@ -182,5 +185,5 @@ export function useCampusBoundary(
       clearBoundaryDrawing(map)
       d?.clearDrawPoints()
     }
-  }, [map, tool])
+  }, [map, tool, toolId])
 }
