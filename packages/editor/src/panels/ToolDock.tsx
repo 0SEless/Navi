@@ -9,9 +9,19 @@ export interface ToolDockItem {
   icon: React.ReactNode
 }
 
+export interface ToolGroupSubItem {
+  id: string
+  label: string
+  icon: React.ReactNode
+}
+
+export interface ToolGroupItem extends ToolDockItem {
+  subItems?: ToolGroupSubItem[]
+}
+
 export interface ToolGroup {
   id: string
-  tools: ToolDockItem[]
+  tools: ToolGroupItem[]
 }
 
 export interface ToolDockProps {
@@ -69,20 +79,110 @@ function ToolButton({ item, isActive, onActivate }: { item: ToolDockItem; isActi
   )
 }
 
+function GroupedToolButton({ item, isActive, onActivate }: {
+  item: ToolGroupItem
+  isActive: boolean
+  onActivate: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleClick = () => {
+    if (!open && item.subItems) {
+      if (item.subItems.length === 1) {
+        onActivate(item.subItems[0].id)
+        return
+      }
+    }
+    setOpen(!open)
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <ToolButton
+        item={item as ToolDockItem}
+        isActive={isActive}
+        onActivate={handleClick}
+      />
+      {open && item.subItems && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: 4,
+          background: 'var(--navi-card)',
+          border: '1px solid var(--navi-border)',
+          borderRadius: 8,
+          boxShadow: '0 -4px 16px rgba(0,0,0,0.15)',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          zIndex: 100,
+        }}>
+          {item.subItems.map((sub) => (
+            <button
+              key={sub.id}
+              onClick={() => { onActivate(sub.id); setOpen(false) }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                width: '100%',
+                padding: '6px 12px',
+                border: 'none',
+                background: 'none',
+                color: 'var(--navi-text)',
+                fontSize: 11,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--navi-content)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
+            >
+              {sub.icon}
+              {sub.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ToolDock({ groups, activeTool, onActivateTool }: ToolDockProps) {
   return (
     <div style={DOCK_STYLE}>
       {groups.map((group, gi) => (
         <React.Fragment key={group.id}>
           {gi > 0 && <div style={SEPARATOR_STYLE} />}
-          {group.tools.map((item) => (
-            <ToolButton
-              key={item.id}
-              item={item}
-              isActive={activeTool === item.id}
-              onActivate={() => onActivateTool(item.id)}
-            />
-          ))}
+          {group.tools.map((item) => {
+            if (item.subItems) {
+              return (
+                <GroupedToolButton
+                  key={item.id}
+                  item={item}
+                  isActive={item.subItems.some(s => s.id === activeTool)}
+                  onActivate={(id) => onActivateTool(id)}
+                />
+              )
+            }
+            return (
+              <ToolButton
+                key={item.id}
+                item={item}
+                isActive={activeTool === item.id}
+                onActivate={() => onActivateTool(item.id)}
+              />
+            )
+          })}
         </React.Fragment>
       ))}
     </div>
@@ -100,6 +200,9 @@ const ICONS: Record<string, React.ReactNode> = {
   road: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><line x1="5" y1="3" x2="5" y2="21"/><line x1="19" y1="3" x2="19" y2="21"/></svg>,
   boundary: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>,
   align: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="2"/></svg>,
+  area: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3"/><path d="M7 21v-3"/><path d="M17 21v-3"/><polygon points="13 2 22 7 22 13 13 18 4 13 4 7"/></svg>,
+  importIcon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  osmImport: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>,
 }
 
 export const INTERIOR_TOOL_GROUPS: ToolGroup[] = [
@@ -132,9 +235,16 @@ export const CAMPUS_TOOL_GROUPS: ToolGroup[] = [
     id: 'geometry',
     tools: [
       { id: 'select', label: 'Navigate', shortcut: 'V', icon: ICONS.select },
+      { id: 'area', label: 'Area', shortcut: 'A', icon: ICONS.area },
+      {
+        id: 'import', label: 'Import', shortcut: 'I', icon: ICONS.importIcon,
+        subItems: [
+          { id: 'import-osm', label: 'Import from OSM', icon: ICONS.osmImport },
+          { id: 'set-boundary', label: 'Set Campus Boundary', icon: ICONS.boundary },
+        ],
+      },
       { id: 'building', label: 'Building', shortcut: 'B', icon: ICONS.building },
       { id: 'route', label: 'Road', shortcut: 'O', icon: ICONS.road },
-      { id: 'boundary', label: 'Boundary', shortcut: 'Y', icon: ICONS.boundary },
     ],
   },
 ]

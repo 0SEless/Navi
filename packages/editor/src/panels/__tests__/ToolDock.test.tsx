@@ -37,9 +37,10 @@ describe('ToolDock', () => {
       <ToolDock groups={CAMPUS_TOOL_GROUPS} activeTool="select" onActivateTool={vi.fn()} />,
     )
     expect(screen.getByTitle(/Navigate/)).toBeDefined()
+    expect(screen.getByTitle(/Area/)).toBeDefined()
+    expect(screen.getByTitle(/Import/)).toBeDefined()
     expect(screen.getByTitle(/Building/)).toBeDefined()
     expect(screen.getByTitle(/Road/)).toBeDefined()
-    expect(screen.getByTitle(/Boundary/)).toBeDefined()
   })
 
   it('shows keyboard shortcut on hover', () => {
@@ -94,8 +95,18 @@ describe('CAMPUS_TOOL_GROUPS', () => {
     expect(ids).toEqual(['geometry'])
   })
 
-  it('geometry group has select, building, route, and boundary', () => {
+  it('geometry group has select, area, import, building, and route', () => {
     const geom = CAMPUS_TOOL_GROUPS.find((g) => g.id === 'geometry')
-    expect(geom?.tools.map((t) => t.id)).toEqual(['select', 'building', 'route', 'boundary'])
+    expect(geom?.tools.map((t) => t.id)).toEqual(['select', 'area', 'import', 'building', 'route'])
+  })
+
+  it('has import parent tool with subItems', () => {
+    const geom = CAMPUS_TOOL_GROUPS.find((g) => g.id === 'geometry')
+    const importTool = geom?.tools.find((t) => t.id === 'import')
+    expect(importTool).toBeDefined()
+    expect((importTool as any)?.subItems).toHaveLength(2)
+    const subIds = (importTool as any)?.subItems.map((s: any) => s.id)
+    expect(subIds).toContain('import-osm')
+    expect(subIds).toContain('set-boundary')
   })
 })
