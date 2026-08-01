@@ -20,6 +20,15 @@ export interface BoundaryPolygon {
   points: LatLng[]
 }
 
+export interface CampusBoundaryOptions {
+  /** Tool ID that triggers this hook (default: 'boundary') */
+  toolId?: string
+  /** Skip the confirm bar and auto-complete (default: false) */
+  autoConfirm?: boolean
+  /** Called when polygon is completed in autoConfirm mode */
+  onAutoConfirm?: (polygon: BoundaryPolygon) => void
+}
+
 function addBoundarySourceAndLayers(map: maplibregl.Map) {
   if (map.getSource(BOUNDARY_SOURCE)) return
   map.addSource(BOUNDARY_SOURCE, { type: 'geojson', data: EMPTY_FC })
@@ -84,8 +93,10 @@ export function useCampusBoundary(
   map: maplibregl.Map | null,
   onComplete?: (polygon: BoundaryPolygon) => void,
   drawing?: DrawingSessionValue,
+  options?: CampusBoundaryOptions,
 ) {
   const tool = useCurrentTool()
+  const toolId = options?.toolId ?? 'boundary'
   const pointsRef = useRef<LatLng[]>([])
   const onCompleteRef = useRef(onComplete)
   const drawingRef = useRef(drawing)
@@ -100,15 +111,15 @@ export function useCampusBoundary(
 
   // Sync visual when drawPoints changes externally (undo/cancel)
   useEffect(() => {
-    if (!map || tool !== 'boundary' || !drawingRef.current) return
+    if (!map || tool !== toolId || !drawingRef.current) return
     pointsRef.current = [...drawingRef.current.drawPoints]
     renderBoundaryDrawing(map, pointsRef.current)
-  }, [map, tool])
+  }, [map, tool, toolId])
 
   useEffect(() => {
     const d = drawingRef.current
     if (!map) return
-    if (tool !== 'boundary') {
+    if (tool !== toolId) {
       pointsRef.current = []
       clearBoundaryDrawing(map)
       map.doubleClickZoom?.enable()
@@ -123,6 +134,15 @@ export function useCampusBoundary(
         id: genId('campus-boundary'),
         points: [...pointsRef.current],
       }
+
+      if (options?.autoConfirm && options?.onAutoConfirm) {
+        options.onAutoConfirm(result)
+        pointsRef.current = []
+        clearBoundaryDrawing(map)
+        d?.clearDrawPoints()
+        return
+      }
+
       onCompleteRef.current?.(result)
       pointsRef.current = []
       clearBoundaryDrawing(map)
