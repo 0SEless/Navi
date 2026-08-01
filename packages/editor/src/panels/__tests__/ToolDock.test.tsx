@@ -104,8 +104,8 @@ describe('CAMPUS_TOOL_GROUPS', () => {
     const geom = CAMPUS_TOOL_GROUPS.find((g) => g.id === 'geometry')
     const importTool = geom?.tools.find((t) => t.id === 'import')
     expect(importTool).toBeDefined()
-    expect((importTool as any)?.subItems).toHaveLength(2)
-    const subIds = (importTool as any)?.subItems.map((s: any) => s.id)
+    expect(importTool?.subItems).toHaveLength(2)
+    const subIds = importTool?.subItems?.map((s) => s.id) ?? []
     expect(subIds).toContain('import-osm')
     expect(subIds).toContain('set-boundary')
   })
