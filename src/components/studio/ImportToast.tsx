@@ -9,19 +9,27 @@ export interface ImportToastData {
 }
 
 let _globalSetToast: ((data: ImportToastData | null) => void) | null = null
+let _globalTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Call from anywhere to show a brief toast notification. */
 export function showImportToast(data: ImportToastData): void {
+  if (_globalTimer) clearTimeout(_globalTimer)
   _globalSetToast?.(data)
-  setTimeout(() => _globalSetToast?.(null), 3000)
+  _globalTimer = setTimeout(() => {
+    _globalSetToast?.(null)
+    _globalTimer = null
+  }, 3000)
 }
 
 export function ImportToast() {
   const [toast, setToast] = useState<ImportToastData | null>(null)
-  _globalSetToast = setToast as any
 
   useEffect(() => {
-    return () => { _globalSetToast = null }
+    _globalSetToast = setToast
+    return () => {
+      _globalSetToast = null
+      if (_globalTimer) clearTimeout(_globalTimer)
+    }
   }, [])
 
   if (!toast) return null
