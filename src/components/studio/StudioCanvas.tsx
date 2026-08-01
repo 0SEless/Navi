@@ -31,7 +31,10 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEditor, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useCampusBoundary } from './CampusBoundary'
+import { useOsmImportTool } from './OsmImportTool'
+import { ImportToast, showImportToast } from './ImportToast'
 import { useBuildingTracer } from './BuildingTracer'
+import { useAreaTracer } from './AreaTracer'
 import { useVertexEditor } from './useVertexEditor'
 import { useMarkerDrag } from './useMarkerDrag'
 import { ConfirmBar } from './ConfirmBar'
@@ -103,9 +106,26 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
 
   useToolDockShortcuts(CAMPUS_TOOL_GROUPS, toolRegistry?.activeToolId ?? '', (id) => toolRegistry?.activate(id))
 
-  useCampusBoundary(mapInstance, (result) => {
-    drawing.setDrawPoints(result.points)
-    drawing.requestConfirm('boundary')
+  useCampusBoundary(mapInstance, undefined, drawing, {
+    toolId: 'set-boundary',
+    autoConfirm: true,
+    onAutoConfirm: (result) => {
+      const dispatcher = studioServices.get('dispatcher')!
+      dispatcher.execute({
+        id: 'boundary.set',
+        label: 'Set Campus Boundary',
+        payload: { points: result.points },
+      })
+      showImportToast({ message: 'Campus boundary updated', type: 'success' })
+    },
+  })
+
+  useOsmImportTool(mapInstance, (result) => {
+    if (result.success) {
+      showImportToast({ message: `Imported ${result.count} buildings from OSM`, type: 'success' })
+    } else {
+      showImportToast({ message: result.error || 'Import failed', type: 'error' })
+    }
   }, drawing)
 
   useBuildingTracer(mapInstance, (result) => {
@@ -113,11 +133,17 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
     drawing.requestConfirm('building')
   }, drawing)
 
+  useAreaTracer(mapInstance, (result) => {
+    drawing.setDrawPoints(result.points)
+    drawing.requestConfirm('area')
+  }, drawing)
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
       <ConfirmBar drawing={drawing} />
       <ConfirmOverlayAdapter drawing={drawing} />
+      <ImportToast />
       <DrawingSessionProvider value={drawing}>
         {mapInstance && <DrawingOverlay map={mapInstance} />}
         {mapInstance && <PreviewOverlay map={mapInstance} />}
