@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isSafeArtifactName } from '../route'
+import { isSafeArtifactName, GET } from '../route'
 
 describe('isSafeArtifactName', () => {
   it('accepts valid artifact file names', () => {
@@ -15,10 +15,21 @@ describe('isSafeArtifactName', () => {
     expect(isSafeArtifactName('..%2Fetc')).toBe(false)
     expect(isSafeArtifactName('/etc/passwd')).toBe(false)
     expect(isSafeArtifactName('a/b')).toBe(false)
+    expect(isSafeArtifactName('a\\b')).toBe(false)
+    expect(isSafeArtifactName(' x')).toBe(false)
     expect(isSafeArtifactName('.hidden')).toBe(false)
     expect(isSafeArtifactName('')).toBe(false)
     expect(isSafeArtifactName('..')).toBe(false)
+    expect(isSafeArtifactName('x..')).toBe(false)
     expect(isSafeArtifactName('manifest.json/../secret')).toBe(false)
     expect(isSafeArtifactName('a..b')).toBe(false)
+  })
+})
+
+describe('GET /api/demo/artifacts', () => {
+  it('rejects path traversal with 400 before touching the filesystem', async () => {
+    const res = await GET(new Request('http://localhost/api/demo/artifacts?file=../secret'))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Invalid file name' })
   })
 })

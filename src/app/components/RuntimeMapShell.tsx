@@ -105,7 +105,7 @@ export function RuntimeMapShell({ baseUrl }: Props) {
         {position && (
           <button
             onClick={() => {
-              const dest = engine.navigation.nearestEntrance(position.latlng)
+              const dest = engine.navigation.nearestEntrance(position.latlng) ?? engine.navigation.nearestNode(position.latlng)
               findRoute(position.nodeId, dest?.nodeId ?? '')
             }}
             style={{
