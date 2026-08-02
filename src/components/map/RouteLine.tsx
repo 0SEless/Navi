@@ -12,7 +12,8 @@ interface RouteLineProps {
 const LAYER_IDS = ['route-glow', 'route-core', 'route-flow'] as const
 const SOURCE_ID = 'route'
 
-function removeRouteLayers(map: maplibregl.Map) {
+function removeRouteLayers(map: maplibregl.Map | null | undefined) {
+  if (!map) return
   for (const id of LAYER_IDS) {
     if (map.getLayer(id)) map.removeLayer(id)
   }
