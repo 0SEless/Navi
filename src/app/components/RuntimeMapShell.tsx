@@ -64,14 +64,22 @@ export function RuntimeMapShell({ baseUrl }: Props) {
     m.addControl(new maplibregl.NavigationControl())
     m.fitBounds([[bb.minLng, bb.minLat], [bb.maxLng, bb.maxLat]], { padding: 50 })
     setMap(m)
-    engine.position.updateGps({ lng: (bb.minLng + bb.maxLng) / 2, lat: (bb.minLat + bb.maxLat) / 2 })
-    setPosition(engine.position.getCurrentPosition())
+    const centerLatLng = { lng: (bb.minLng + bb.maxLng) / 2, lat: (bb.minLat + bb.maxLat) / 2 }
+    const snap = engine.location.snapToNode(centerLatLng)
+    setPosition({
+      latlng: centerLatLng,
+      nodeId: snap?.node.id ?? '',
+      floor: snap?.node.floor ?? 0,
+      buildingId: snap?.node.buildingId ?? '',
+      heading: 0,
+      accuracy: 10,
+    })
     return () => { m.remove() }
   }, [engine])
 
   const findRoute = useCallback((from: string, to: string) => {
     if (!engine) return
-    setRoute(engine.routing.findRoute(from, to))
+    setRoute(engine.navigation.findRoute(from, to))
   }, [engine])
 
   const clearRoute = useCallback(() => setRoute(null), [])
@@ -84,7 +92,7 @@ export function RuntimeMapShell({ baseUrl }: Props) {
     return <div style={{ padding: 24 }}>Loading campus...</div>
   }
 
-  const buildings = engine.data.getBuildings().buildings
+  const buildings = engine.data.getBuildings()?.buildings ?? []
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
@@ -96,7 +104,10 @@ export function RuntimeMapShell({ baseUrl }: Props) {
         />
         {position && (
           <button
-            onClick={() => findRoute(position.nodeId, '')}
+            onClick={() => {
+              const dest = engine.navigation.nearestEntrance(position.latlng)
+              findRoute(position.nodeId, dest?.nodeId ?? '')
+            }}
             style={{
               padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db',
               fontSize: 14, background: 'white', cursor: 'pointer',

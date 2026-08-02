@@ -4,9 +4,20 @@ import { join } from 'path'
 
 const ARTIFACTS_DIR = join(process.cwd(), 'demo-output')
 
+export function isSafeArtifactName(file: string): boolean {
+  if (!/^[\w.-]+$/.test(file)) return false
+  if (file.includes('..')) return false
+  if (file.startsWith('.')) return false
+  return true
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const file = searchParams.get('file') || 'manifest.json'
+
+  if (!isSafeArtifactName(file)) {
+    return NextResponse.json({ error: 'Invalid file name' }, { status: 400 })
+  }
 
   const filePath = join(ARTIFACTS_DIR, file)
   if (!existsSync(filePath)) {
