@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Building2, Clock, DoorOpen, Navigation, RotateCcw, Search, X } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
 import { floorLabel, groupResults } from '@/lib/search-format'
+import { useHydrated } from '@/hooks/useHydrated'
 
 const DEBOUNCE_MS = 200
 
 export default function SearchPage() {
   const router = useRouter()
+  const hydrated = useHydrated()
   const campus = usePublicStore((s) => s.campus)
   const campusLoading = usePublicStore((s) => s.campusLoading)
   const campusError = usePublicStore((s) => s.campusError)
@@ -116,7 +118,7 @@ export default function SearchPage() {
         <div className="flex-1 overflow-y-auto">
           {debounced === '' ? (
             <div className="p-4">
-              {recentSearches.length > 0 && (
+              {hydrated && recentSearches.length > 0 && (
                 <section>
                   <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">
                     Recent searches
@@ -138,7 +140,7 @@ export default function SearchPage() {
                   </div>
                 </section>
               )}
-              {recentSearches.length === 0 && (
+              {(!hydrated || recentSearches.length === 0) && (
                 <p className="py-10 text-center text-sm text-[var(--navi-text-secondary)]">
                   Search for a room, building, or office to find your way around campus.
                 </p>

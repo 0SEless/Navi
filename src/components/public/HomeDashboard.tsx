@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Search, MapPin, Compass, Camera, ShieldAlert, Clock, ChevronRight } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
 import { useAuth } from '@/hooks/useAuth'
+import { useHydrated } from '@/hooks/useHydrated'
 import { EmergencyOverlay } from './EmergencyOverlay'
 
 interface Announcement {
@@ -50,6 +51,7 @@ interface QuickAction {
 
 export function HomeDashboard() {
   const router = useRouter()
+  const hydrated = useHydrated()
   const { user } = useAuth()
   const recentDestinations = usePublicStore((s) => s.recentDestinations)
   const setTab = usePublicStore((s) => s.setTab)
@@ -146,7 +148,7 @@ export function HomeDashboard() {
           <h2 className="text-sm font-semibold text-[var(--navi-text)]">Recent Destinations</h2>
           <Clock className="h-3.5 w-3.5 text-[var(--navi-text-secondary)]" />
         </div>
-        {recentDestinations.length > 0 ? (
+        {hydrated && recentDestinations.length > 0 ? (
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
             {recentDestinations.map((nodeId) => (
               <button
