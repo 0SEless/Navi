@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { AdaptiveNav } from './AdaptiveNav'
 import { SplashOnboarding } from './SplashOnboarding'
 import { usePublicStore, type TabId } from '@/store/public-store'
@@ -31,6 +31,7 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
   const router = useRouter()
   const activeTab = usePublicStore((s) => s.activeTab)
   const setTab = usePublicStore((s) => s.setTab)
+  const lastTabRef = useRef<TabId | null>(null)
 
   useEffect(() => {
     const matchedTab = Object.entries(pathToTab).find(([path]) =>
@@ -41,9 +42,15 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
     }
   }, [pathname, setTab])
 
+  // Redirect on nav clicks (tab changes), but never bounce nested pages
+  // like /map/search which intentionally have no tab entry.
   useEffect(() => {
     const expectedPath = tabToPath[activeTab]
-    if (expectedPath && pathname !== expectedPath && !pathname.startsWith(expectedPath)) {
+    if (!expectedPath) return
+    const tabChanged = lastTabRef.current !== null && lastTabRef.current !== activeTab
+    lastTabRef.current = activeTab
+    if (!tabChanged) return
+    if (pathname !== expectedPath && !pathname.startsWith(expectedPath)) {
       router.push(expectedPath)
     }
   }, [activeTab, pathname, router])
@@ -51,8 +58,8 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
   return (
     <>
       <SplashOnboarding />
-      <div className="min-h-screen bg-[var(--navi-content)] lg:pl-56 pb-16 lg:pb-0">
-        <main className="h-full">
+      <div className="flex h-dvh flex-col bg-[var(--navi-content)] lg:pl-56 pb-16 lg:pb-0">
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {children}
         </main>
       </div>

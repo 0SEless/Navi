@@ -70,7 +70,9 @@ const FALLBACK_CAMPUSES: Campus[] = [
 export default function WelcomePage() {
   const [campuses, setCampuses] = useState<Campus[]>(FALLBACK_CAMPUSES)
   const [campusesLoading, setCampusesLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
   const geo = useGeolocation()
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -145,14 +147,16 @@ export default function WelcomePage() {
 
         <section className="mx-auto max-w-4xl px-4 pb-16">
           <div className="rounded-xl overflow-hidden shadow-lg border border-slate-200 h-72 sm:h-96">
-            <MapErrorBoundary><CampusMapPreview interactive={false} zoom={15} /></MapErrorBoundary>
+            <MapErrorBoundary><CampusMapPreview zoom={15} /></MapErrorBoundary>
           </div>
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16">
           <div className="rounded-xl bg-white border border-slate-200 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Your Location</h2>
-            {geo.loading ? (
+            {!mounted ? (
+              <p className="mt-2 text-slate-500 text-sm">Checking location...</p>
+            ) : geo.loading ? (
               <p className="mt-2 text-slate-500 text-sm">Detecting your location...</p>
             ) : geo.error ? (
               <p className="mt-2 text-slate-500 text-sm">
@@ -178,9 +182,9 @@ export default function WelcomePage() {
             {campusesLoading ? 'Loading campuses...' : 'Explore Campuses'}
           </h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {campuses.map((campus) => (
+            {campuses.map((campus, idx) => (
               <Link
-                key={campus.id}
+                key={campus.id ?? `campus-${idx}`}
                 href={`/map?campus=${campus.slug}`}
                 className="group rounded-xl bg-white border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
               >
