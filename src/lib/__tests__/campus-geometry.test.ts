@@ -72,17 +72,17 @@ function inside(p: LatLng, ring: LatLng[]): boolean {
 }
 
 describe('deriveBuildingFootprint', () => {
-  it('passes a footprint through unchanged when present (ignores nodes)', () => {
+  it('passes a footprint through when present (ignores nodes), closed at the first point', () => {
     const fp = [latlng(1, 1), latlng(1, 2), latlng(2, 2), latlng(2, 1)]
     const b = building({ footprint: fp })
     const nodes = [node('n-other', 'bld-b', latlng(50, 50))]
-    expect(deriveBuildingFootprint(b, nodes)).toEqual(fp)
+    expect(deriveBuildingFootprint(b, nodes)).toEqual([...fp, fp[0]])
   })
 
-  it('normalizes [lat, lng] pair footprints to {lat, lng} objects', () => {
+  it('normalizes [lat, lng] pair footprints to {lat, lng} objects, closed', () => {
     const b = building({ footprint: [[1, 1], [1, 2], [2, 2], [2, 1]] as unknown as LatLng[] })
     expect(deriveBuildingFootprint(b, [])).toEqual([
-      latlng(1, 1), latlng(1, 2), latlng(2, 2), latlng(2, 1),
+      latlng(1, 1), latlng(1, 2), latlng(2, 2), latlng(2, 1), latlng(1, 1),
     ])
   })
 
@@ -95,7 +95,7 @@ describe('deriveBuildingFootprint', () => {
       node('d', 'bld-a', latlng(10, 0)),
     ]
     const result = deriveBuildingFootprint(b, nodes)
-    expect(result).toHaveLength(4)
+    expect(result).toHaveLength(5)
   })
 
   it('derives the exact convex hull corners for a square with an interior point', () => {
@@ -107,7 +107,7 @@ describe('deriveBuildingFootprint', () => {
       node('e', 'bld-a', latlng(5, 5)),
     ]
     expect(deriveBuildingFootprint(building(), nodes)).toEqual([
-      latlng(0, 0), latlng(0, 10), latlng(10, 10), latlng(10, 0),
+      latlng(0, 0), latlng(0, 10), latlng(10, 10), latlng(10, 0), latlng(0, 0),
     ])
   })
 
@@ -130,7 +130,7 @@ describe('deriveBuildingFootprint', () => {
       node('b', 'bld-a', latlng(5, 7)),
     ]
     const ring = deriveBuildingFootprint(building(), nodes)!
-    expect(ring).toHaveLength(4)
+    expect(ring).toHaveLength(5)
     expect(inside(nodes[0].position, ring)).toBe(true)
     expect(inside(nodes[1].position, ring)).toBe(true)
   })
@@ -138,12 +138,40 @@ describe('deriveBuildingFootprint', () => {
   it('uses a small padded square for a single node', () => {
     const nodes = [node('a', 'bld-a', latlng(4, 4))]
     const ring = deriveBuildingFootprint(building(), nodes)!
-    expect(ring).toHaveLength(4)
+    expect(ring).toHaveLength(5)
     expect(inside(nodes[0].position, ring)).toBe(true)
   })
 
   it('returns null when the building has no nodes', () => {
     expect(deriveBuildingFootprint(building({ id: 'bld-empty' }), [])).toBeNull()
+  })
+
+  describe('every returned ring is closed (first point repeated at the end)', () => {
+    const closed = (ring: LatLng[] | null) => {
+      if (ring === null) return
+      expect(ring[0].lat).toBe(ring[ring.length - 1].lat)
+      expect(ring[0].lng).toBe(ring[ring.length - 1].lng)
+    }
+
+    it('closes the footprint pass-through path', () => {
+      const fp = [latlng(1, 1), latlng(1, 2), latlng(2, 2), latlng(2, 1)]
+      closed(deriveBuildingFootprint(building({ footprint: fp }), []))
+    })
+
+    it('closes the convex hull path', () => {
+      const nodes = [
+        node('a', 'bld-a', latlng(0, 0)),
+        node('b', 'bld-a', latlng(0, 10)),
+        node('c', 'bld-a', latlng(10, 10)),
+        node('d', 'bld-a', latlng(10, 0)),
+      ]
+      closed(deriveBuildingFootprint(building(), nodes))
+    })
+
+    it('closes the padded bounding box path', () => {
+      const nodes = [node('a', 'bld-a', latlng(2, 3)), node('b', 'bld-a', latlng(5, 7))]
+      closed(deriveBuildingFootprint(building(), nodes))
+    })
   })
 })
 

@@ -78,6 +78,19 @@ function convexHull(points: LatLng[]): LatLng[] {
   return [...lower, ...upper]
 }
 
+/**
+ * Close a ring by appending the first point (if not already closed). MapLibre's
+ * line/outline layer draws only explicit segments, so an unclosed ring would
+ * leave the final edge missing; fills close implicitly.
+ */
+function closeRing(ring: LatLng[]): LatLng[] {
+  if (ring.length === 0) return ring
+  const first = ring[0]
+  const last = ring[ring.length - 1]
+  if (first.lat === last.lat && first.lng === last.lng) return ring
+  return [...ring, first]
+}
+
 /** 4-corner padded bounding box ring around the given points. */
 function paddedBoundingBox(points: LatLng[]): LatLng[] {
   let minLat = Infinity
@@ -112,17 +125,21 @@ function paddedBoundingBox(points: LatLng[]): LatLng[] {
  */
 export function deriveBuildingFootprint(building: Building, nodes: NavNode[]): LatLng[] | null {
   const footprint = normalizeFootprint(building.footprint)
-  if (footprint.length >= 3) return footprint
-
-  const ownNodes = nodes.filter((n) => n.buildingId === building.id)
-  if (ownNodes.length === 0) return null
-
-  const positions = ownNodes.map((n) => n.position)
-  if (positions.length >= 3) {
-    const hull = convexHull(positions)
-    if (hull.length >= 3) return hull
+  let ring: LatLng[] | null = null
+  if (footprint.length >= 3) {
+    ring = footprint
+  } else {
+    const ownNodes = nodes.filter((n) => n.buildingId === building.id)
+    if (ownNodes.length === 0) return null
+    const positions = ownNodes.map((n) => n.position)
+    if (positions.length >= 3) {
+      const hull = convexHull(positions)
+      ring = hull.length >= 3 ? hull : paddedBoundingBox(positions)
+    } else {
+      ring = paddedBoundingBox(positions)
+    }
   }
-  return paddedBoundingBox(positions)
+  return closeRing(ring)
 }
 
 export interface BuildingStats {
