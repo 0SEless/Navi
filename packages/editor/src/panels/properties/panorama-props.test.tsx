@@ -30,7 +30,7 @@ function renderWithDispatcher(panorama: any, execute = vi.fn()) {
 describe('PanoramaProperties', () => {
   it('renders Panorama header and fields', () => {
     renderWithDispatcher(createPanorama())
-    expect(screen.getByText('Panorama')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Entrance View')).toBeDefined()
     expect(screen.getByDisplayValue('img-abc')).toBeDefined()
   })

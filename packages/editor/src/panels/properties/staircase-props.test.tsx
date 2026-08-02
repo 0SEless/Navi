@@ -30,7 +30,7 @@ function renderWithDispatcher(staircase: any, execute = vi.fn()) {
 describe('StaircaseProperties', () => {
   it('renders Staircase header and fields', () => {
     renderWithDispatcher(createStaircase())
-    expect(screen.getByText('Staircase')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Stair A')).toBeDefined()
     expect(screen.getByDisplayValue('open')).toBeDefined()
   })

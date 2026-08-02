@@ -28,7 +28,7 @@ function renderWithDispatcher(qr: any, execute = vi.fn()) {
 describe('QRProperties', () => {
   it('renders QR Checkpoint header and fields', () => {
     renderWithDispatcher(createQR())
-    expect(screen.getByText('QR Checkpoint')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('QR-001')).toBeDefined()
     expect(screen.getByDisplayValue('navi://floor/0/room/101')).toBeDefined()
   })

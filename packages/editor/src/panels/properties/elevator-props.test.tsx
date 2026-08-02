@@ -29,7 +29,7 @@ function renderWithDispatcher(elevator: any, execute = vi.fn()) {
 describe('ElevatorProperties', () => {
   it('renders Elevator header and fields', () => {
     renderWithDispatcher(createElevator())
-    expect(screen.getByText('Elevator')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Elevator 1')).toBeDefined()
   })
 

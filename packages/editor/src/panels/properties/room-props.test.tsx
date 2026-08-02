@@ -31,7 +31,7 @@ function renderWithDispatcher(room: any, execute = vi.fn()) {
 describe('RoomProperties', () => {
   it('renders Room header and form fields', () => {
     renderWithDispatcher(createRoom())
-    expect(screen.getByText('Room')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Lecture Hall')).toBeDefined()
     expect(screen.getByDisplayValue('101')).toBeDefined()
   })

@@ -30,7 +30,7 @@ function renderWithDispatcher(entrance: any, execute = vi.fn()) {
 describe('EntranceProperties', () => {
   it('renders Entrance header and fields', () => {
     renderWithDispatcher(createEntrance())
-    expect(screen.getByText('Entrance')).toBeDefined()
+    expect(screen.getByText('Details')).toBeDefined()
     expect(screen.getByDisplayValue('Main Entrance')).toBeDefined()
     expect(screen.getByDisplayValue('main')).toBeDefined()
   })

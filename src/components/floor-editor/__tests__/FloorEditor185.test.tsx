@@ -31,6 +31,7 @@ vi.mock('lucide-react', () => ({
   Layers: () => null,
   Trash2: () => null,
   LogIn: () => null,
+  Upload: () => null,
 }))
 
 const mockBuilding: Building = {
