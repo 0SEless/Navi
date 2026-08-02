@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   encodeQrPayload,
+  isForeignCampus,
   parseQrPayload,
   resolveQrPayload,
 } from '../qr-payload'
@@ -97,5 +98,43 @@ describe('resolveQrPayload', () => {
 
   it('returns null for unparsable input', () => {
     expect(resolveQrPayload(null, nodes)).toBeNull()
+  })
+})
+
+describe('isForeignCampus', () => {
+  it('flags canonical codes for another campus', () => {
+    expect(
+      isForeignCampus(
+        parseQrPayload('navi://other-campus/navigate?node=node-1'),
+        'asu-ibajay',
+      ),
+    ).toBe(true)
+  })
+
+  it('accepts canonical codes for the loaded campus', () => {
+    expect(
+      isForeignCampus(
+        parseQrPayload('navi://asu-ibajay/navigate?node=node-1'),
+        'asu-ibajay',
+      ),
+    ).toBe(false)
+  })
+
+  it('accepts legacy ?node= URLs (no campus context)', () => {
+    expect(
+      isForeignCampus(parseQrPayload('https://navi.app/?node=node-1'), 'asu-ibajay'),
+    ).toBe(false)
+  })
+
+  it('accepts bare node ids (no campus context)', () => {
+    expect(isForeignCampus(parseQrPayload('node-1'), 'asu-ibajay')).toBe(false)
+  })
+
+  it('accepts no-context codes even when a non-default campus is loaded', () => {
+    expect(isForeignCampus(parseQrPayload('node-1'), 'other-campus')).toBe(false)
+  })
+
+  it('returns false for null payloads', () => {
+    expect(isForeignCampus(null, 'asu-ibajay')).toBe(false)
   })
 })

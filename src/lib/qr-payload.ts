@@ -52,9 +52,25 @@ export function parseQrPayload(text: string): QrPayload | null {
 }
 
 /**
+ * True when a payload explicitly belongs to a different campus than the
+ * one currently loaded. Payload forms that carry no campus context
+ * (bare ids, legacy `?node=` URLs) default to QR_DEFAULT_CAMPUS and are
+ * never foreign — they resolve against whatever campus is loaded.
+ */
+export function isForeignCampus(
+  payload: QrPayload | null,
+  currentCampusId: string,
+): boolean {
+  if (!payload || !payload.campusId) return false
+  if (payload.campusId === QR_DEFAULT_CAMPUS) return false
+  return payload.campusId !== currentCampusId
+}
+
+/**
  * Resolve a scanned payload against the loaded campus graph.
  * Returns the matching node, or null when the node doesn't exist in the
- * loaded campus (covers cross-campus codes: we still resolve by id).
+ * loaded campus. Cross-campus rejection must be decided by
+ * isForeignCampus BEFORE calling this.
  */
 export function resolveQrPayload(
   payload: QrPayload | null,

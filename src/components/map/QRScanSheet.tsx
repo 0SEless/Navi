@@ -1,9 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { QrCode, ScanLine, X } from 'lucide-react'
 import { QRScanner } from '@/components/map/QRScanner'
-import { parseQrPayload, resolveQrPayload } from '@/lib/qr-payload'
+import {
+  isForeignCampus,
+  parseQrPayload,
+  QR_DEFAULT_CAMPUS,
+  resolveQrPayload,
+} from '@/lib/qr-payload'
 import { usePublicStore } from '@/store/public-store'
 import type { NavNode } from '@/types/nav-types'
 
@@ -26,24 +31,44 @@ export function QRScanSheet({ open, onClose, onResolved }: QRScanSheetProps) {
   // is null and trips zustand's "getSnapshot should be cached" loop.
   const campus = usePublicStore((s) => s.campus)
   const nodes = campus?.nodes ?? []
+  // Campus id the store loaded (falls back to the protocol default while
+  // the campus is still loading). Primitive selector — never a new
+  // reference, so it cannot trip zustand's snapshot-caching loop.
+  const currentCampusId =
+    usePublicStore((s) => s.campusData?.campusId) ?? QR_DEFAULT_CAMPUS
   const [mode, setMode] = useState<ScanMode>('start')
   const [manual, setManual] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const handlePayload = useCallback(
-    (payload: string) => {
-      const parsed = parseQrPayload(payload)
-      const node = resolveQrPayload(parsed, nodes)
-      if (!node) {
-        setError(`Unknown code${parsed ? ` (node "${parsed.nodeId}" not in this campus)` : ''}`)
-        return
-      }
-      setError(null)
-      onResolved(node, mode)
-      onClose()
-    },
-    [nodes, mode, onResolved, onClose],
-  )
+  // Ref-sync (ERRORS.md 2026-07-23): QRScanner re-initializes the camera
+  // whenever its onScan/onError handlers change identity, so handlePayload
+  // must stay referentially stable (deps []) and read live values via refs.
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const campusIdRef = useRef(currentCampusId)
+  campusIdRef.current = currentCampusId
+  const onResolvedRef = useRef(onResolved)
+  onResolvedRef.current = onResolved
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  const handlePayload = useCallback((payload: string) => {
+    const parsed = parseQrPayload(payload)
+    if (isForeignCampus(parsed, campusIdRef.current)) {
+      setError('This NAVI code belongs to another campus')
+      return
+    }
+    const node = resolveQrPayload(parsed, nodesRef.current)
+    if (!node) {
+      setError(`Unknown code${parsed ? ` (node "${parsed.nodeId}" not in this campus)` : ''}`)
+      return
+    }
+    setError(null)
+    onResolvedRef.current(node, modeRef.current)
+    onCloseRef.current()
+  }, [])
 
   const cameraError = useCallback((msg: string) => {
     setError(`Camera unavailable — paste the code below instead. (${msg})`)
