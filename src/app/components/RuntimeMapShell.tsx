@@ -95,8 +95,8 @@ export function RuntimeMapShell({ baseUrl }: Props) {
   const buildings = engine.data.getBuildings()?.buildings ?? []
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', gap: 8 }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <BuildingSelector
           buildings={buildings}
           selected={selectedBuilding}
@@ -118,7 +118,7 @@ export function RuntimeMapShell({ baseUrl }: Props) {
         )}
       </div>
       <InstructionPanel route={route} onClose={clearRoute} />
-      <div ref={mapContainer} style={{ width: '100%', height: '100vh' }} />
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
       {map && <BlueDot map={map} position={position} />}
       {map && <RouteOverlay map={map} route={route} />}
     </div>

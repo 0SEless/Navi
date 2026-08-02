@@ -129,7 +129,7 @@ export default function SearchPage() {
                           setQuery(q)
                           setDebounced(q)
                         }}
-                        className="flex items-center gap-1.5 rounded-full border border-[var(--navi-border)] bg-white px-3 py-1.5 text-xs text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
+                        className="flex items-center gap-1.5 rounded-full border border-[var(--navi-border)] bg-white px-3 py-2.5 text-xs text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
                       >
                         <Clock className="h-3 w-3 text-[var(--navi-text-secondary)]" />
                         {q}

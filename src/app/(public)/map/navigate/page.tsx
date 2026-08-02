@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { ArrowLeftRight, Crosshair, Locate, MapPin, Navigation, QrCode, X } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, Crosshair, Locate, MapPin, Navigation, QrCode, X } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
 import { searchCampus, type SearchResult } from '@/lib/campus-search'
 import { aStar } from '@/engine/a-star'
@@ -42,6 +42,7 @@ export default function NavigatePage() {
   const [toast, setToast] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
   const [activeStepIdx, setActiveStepIdx] = useState(0)
+  const [stepsCollapsed, setStepsCollapsed] = useState(false)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showToast = useCallback((msg: string) => {
@@ -101,6 +102,11 @@ export default function NavigatePage() {
   useEffect(() => {
     setActiveStepIdx(0)
   }, [fromNode, toNode])
+
+  // A fresh route re-expands the steps sheet (user can collapse it again).
+  useEffect(() => {
+    setStepsCollapsed(false)
+  }, [route])
 
   const searchResults = useMemo(() => {
     if (!picker || !campus) return []
@@ -198,10 +204,10 @@ export default function NavigatePage() {
             </span>
           </button>
         </div>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => { const f = fromNode; setFrom(toNode); setTo(f) }}
-            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2.5 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
+            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
             aria-label="Swap start and destination"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -209,7 +215,7 @@ export default function NavigatePage() {
           </button>
           <button
             onClick={() => { setFrom(null); setTo(null) }}
-            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2.5 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
+            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
             aria-label="Clear route"
           >
             <X className="h-3.5 w-3.5" />
@@ -218,16 +224,16 @@ export default function NavigatePage() {
           <button
             onClick={handleLocate}
             disabled={locating}
-            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2.5 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)] disabled:opacity-50"
+            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)] disabled:opacity-50"
             aria-label="Use my current location"
             title="Use my current location"
           >
             <Crosshair className={`h-3.5 w-3.5 ${locating ? 'animate-spin' : ''}`} />
-            {locating ? 'Locating…' : 'Locate me'}
+            {locating ? 'Locating…' : 'Locate'}
           </button>
           <button
             onClick={() => setScanOpen(true)}
-            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2.5 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
+            className="flex items-center gap-1 rounded-lg border border-[var(--navi-border)] px-2 py-1.5 text-xs text-[var(--navi-text-secondary)] hover:text-[var(--navi-text)]"
             aria-label="Scan a NAVI code"
             title="Scan a NAVI code"
           >
@@ -312,42 +318,70 @@ export default function NavigatePage() {
         </div>
       )}
 
-      {/* Route steps — tap a step to follow it (switches the map floor) */}
+      {/* Route steps — tap a step to follow it (switches the map floor); the
+          header collapses the sheet on mobile so the map stays usable. */}
       {route && route.steps.length > 0 && (
-        <div className="absolute inset-x-0 bottom-0 z-20 max-h-[45%] overflow-y-auto rounded-t-2xl border-t border-[var(--navi-border)] bg-white p-3 pb-4 shadow-[0_-8px_24px_rgba(0,0,0,0.12)]">
-          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">
-            <Navigation className="h-3.5 w-3.5" />
-            Route steps
+        <div
+          className={`absolute inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-[var(--navi-border)] bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.12)] ${
+            stepsCollapsed ? '' : 'max-h-[45%] overflow-y-auto'
+          }`}
+        >
+          <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-[var(--navi-border)]" />
+          <div className="flex items-center gap-1.5 px-3 pb-1 pt-2">
+            <button
+              onClick={() => setStepsCollapsed((c) => !c)}
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              aria-expanded={!stepsCollapsed}
+              aria-label={stepsCollapsed ? 'Expand route steps' : 'Collapse route steps'}
+            >
+              <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--navi-text-secondary)]" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">
+                Route steps
+              </span>
+              <span className="shrink-0 text-[10px] font-medium text-[var(--navi-text-secondary)]">
+                {route.steps.length} steps
+              </span>
+            </button>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-[var(--navi-text-secondary)] transition-transform duration-200 ${
+                stepsCollapsed ? '' : 'rotate-180'
+              }`}
+              aria-hidden="true"
+            />
           </div>
-          {route.steps.map((step, i) => {
-            const inBuilding = nodeById.get(step.nodeId)
-            const active = i === Math.min(activeStepIdx, route.steps.length - 1)
-            return (
-              <button
-                key={i}
-                onClick={() => setActiveStepIdx(i)}
-                className={`flex w-full items-start gap-2 rounded-lg px-2 py-2.5 text-left text-sm text-[var(--navi-text)] transition-colors ${
-                  active ? 'bg-[var(--navi-primary)]/10' : 'hover:bg-[var(--navi-content)]'
-                }`}
-                aria-label={`Step ${i + 1}: ${step.instruction}`}
-              >
-                <span
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                    active
-                      ? 'bg-[var(--navi-primary)] text-white'
-                      : 'bg-[var(--navi-primary)]/10 text-[var(--navi-primary)]'
-                  }`}
-                >
-                  {i + 1}
-                </span>
-                <span className="flex-1">{step.instruction}</span>
-                <span className="shrink-0 text-xs text-[var(--navi-text-secondary)]">
-                  {step.distance > 0 ? `${Math.round(step.distance)} m` : ''}
-                  {inBuilding?.floor !== undefined ? ` · F${inBuilding.floor}` : ''}
-                </span>
-              </button>
-            )
-          })}
+          {!stepsCollapsed && (
+            <div className="px-3 pb-4">
+              {route.steps.map((step, i) => {
+                const inBuilding = nodeById.get(step.nodeId)
+                const active = i === Math.min(activeStepIdx, route.steps.length - 1)
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setActiveStepIdx(i)}
+                    className={`flex w-full items-start gap-2 rounded-lg px-2 py-2.5 text-left text-sm text-[var(--navi-text)] transition-colors ${
+                      active ? 'bg-[var(--navi-primary)]/10' : 'hover:bg-[var(--navi-content)]'
+                    }`}
+                    aria-label={`Step ${i + 1}: ${step.instruction}`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                        active
+                          ? 'bg-[var(--navi-primary)] text-white'
+                          : 'bg-[var(--navi-primary)]/10 text-[var(--navi-primary)]'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="flex-1">{step.instruction}</span>
+                    <span className="shrink-0 text-xs text-[var(--navi-text-secondary)]">
+                      {step.distance > 0 ? `${Math.round(step.distance)} m` : ''}
+                      {inBuilding?.floor !== undefined ? ` · F${inBuilding.floor}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
