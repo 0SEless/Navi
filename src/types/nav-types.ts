@@ -105,6 +105,31 @@ export interface PathResult {
   steps: PathStep[];
 }
 
+export interface SearchEntry {
+  id: string;
+  label: string;
+  type: 'building' | 'room' | 'entrance' | 'facility';
+  nodeId: string;
+  position?: LatLng;
+  tags?: string[];
+  buildingId?: string;
+  floor?: number;
+}
+
+export interface CampusBundle {
+  nodes: NavNode[];
+  edges: NavEdge[];
+  searchEntries: SearchEntry[];
+  buildings: Building[];
+  poi: unknown[];
+  boundingBox: {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+  } | null;
+}
+
 export interface PathStep {
   nodeId: string;
   instruction: string;
