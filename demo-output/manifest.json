@@ -1,29 +1,47 @@
 {
-  "projectId": "Campus",
-  "campusId": "Campus",
-  "publishedAt": "2026-07-16T06:30:56.989Z",
-  "schemaVersion": 1,
-  "compilerVersion": "1",
+  "schemaVersion": "1.0",
+  "campusId": "ASU-Ibajay Campus",
+  "campusName": "ASU-Ibajay Campus",
+  "publishedAt": "2026-08-02T02:58:53.798Z",
+  "compilerVersion": "0.1.0",
+  "revision": "1",
   "artifacts": {
-    "navigationGraph": {
-      "filename": "navigation.graph.json",
-      "checksum": "fa4c9363c178c5cc760762963875a6bbeca6acef833922869bbb1f5c5b594c5c",
-      "size": 403
+    "graph": {
+      "path": "navigation.graph.json",
+      "checksum": "63c75cf5fdb20b23f9a666a8aa1121305790d6ff7bad663b3cf1e0380c9e1d89",
+      "size": 23326,
+      "schemaVersion": "1.0"
     },
-    "searchIndex": {
-      "filename": "search.index.json",
-      "checksum": "b0fe7596b0d6be2a59fe549eb4a36283fc0ab23d0d72f2b74f4bca7b217414fa",
-      "size": 41
+    "search": {
+      "path": "search.index.json",
+      "checksum": "04327ac7cdb2c772ba7f5b869e46563820ff5ec4431f7e7a64fdbebeb62bc646",
+      "size": 8829,
+      "schemaVersion": "1.0"
     },
-    "poiData": {
-      "filename": "poi.json",
-      "checksum": "070dae4817368a8ab0336ae1d6f25409c81b5799bfe0f49f502f11578b578d10",
-      "size": 40
+    "buildings": {
+      "path": "building-index.json",
+      "checksum": "dedb22438c384943a9610c7d83f91f4fa88ec3dc134574fa5e404ab63e0d53d0",
+      "size": 6354,
+      "schemaVersion": "1.0"
     },
-    "buildingIndex": {
-      "filename": "building-index.json",
-      "checksum": "ed1d757257191587f0e6c348511345ef8799983ac4424b436cb3240cee09812f",
-      "size": 11663
+    "poi": {
+      "path": "poi.json",
+      "checksum": "eb1a6f4b2d7de3f673471ee0146ce50fc50a1dc547b3f82de9f101ea9b3fa69d",
+      "size": 11950,
+      "schemaVersion": "1.0"
     }
+  },
+  "metadata": {
+    "nodeCount": 36,
+    "edgeCount": 69,
+    "buildingCount": 3,
+    "floorCount": 5,
+    "boundingBox": {
+      "minLng": 122.165,
+      "maxLng": 122.1725,
+      "minLat": 11.815,
+      "maxLat": 11.823051527128998
+    },
+    "routeable": true
   }
 }
