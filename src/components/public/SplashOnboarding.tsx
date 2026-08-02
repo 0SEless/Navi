@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { usePublicStore } from '@/store/public-store'
+import { useHydrated } from '@/hooks/useHydrated'
 import { ChevronRight, SkipForward } from 'lucide-react'
 
 interface OnboardingSlide {
@@ -33,6 +34,7 @@ export function SplashOnboarding() {
   const completeOnboarding = usePublicStore((s) => s.completeOnboarding)
   const onboardingComplete = usePublicStore((s) => s.onboardingComplete)
   const [animatingOut, setAnimatingOut] = useState(false)
+  const hydrated = useHydrated()
 
   const handleNext = useCallback(() => {
     if (currentSlide < slides.length - 1) {
@@ -53,6 +55,7 @@ export function SplashOnboarding() {
     handleComplete()
   }, [handleComplete])
 
+  if (!hydrated) return null
   if (onboardingComplete) return null
 
   const slide = slides[currentSlide]
