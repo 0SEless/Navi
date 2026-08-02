@@ -8,6 +8,7 @@ import { searchCampus, type SearchResult } from '@/lib/campus-search'
 import { aStar } from '@/engine/a-star'
 import { resolveNearestNode } from '@/lib/location-resolver'
 import { QRScanSheet } from '@/components/map/QRScanSheet'
+import { FloorSelector } from '@/components/map/FloorSelector'
 import type { PathResult } from '@/types/nav-types'
 
 const CampusMap = dynamic(() => import('@/components/map/CampusMap'), {
@@ -31,6 +32,8 @@ export default function NavigatePage() {
   const setFrom = usePublicStore((s) => s.setFrom)
   const setTo = usePublicStore((s) => s.setTo)
   const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
+  const activeFloor = usePublicStore((s) => s.activeFloor)
+  const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
 
   const [picker, setPicker] = useState<PickerRole | null>(null)
@@ -155,6 +158,17 @@ export default function NavigatePage() {
     )
   }
 
+  // Floors crossed by the route — drives the floor-switcher chip bar
+  const routeFloors = useMemo(() => {
+    if (!route || route.path.length === 0) return []
+    const floors = new Set<number>()
+    for (const nodeId of route.path) {
+      const floor = nodeById.get(nodeId)?.floor
+      if (floor !== undefined) floors.add(floor)
+    }
+    return [...floors].sort((a, b) => b - a)
+  }, [route, nodeById])
+
   const fromLabel = fromNode ? nodeById.get(fromNode)?.label ?? fromNode : null
   const toLabel = toNode ? nodeById.get(toNode)?.label ?? toNode : null
 
@@ -227,6 +241,11 @@ export default function NavigatePage() {
       </div>
 
       <CampusMap route={route ? { path: route.path, cost: route.cost } : null} />
+
+      {/* Floor switcher for multi-floor routes — building selector lives in CampusMap */}
+      {!selectedBuilding && routeFloors.length > 1 && (
+        <FloorSelector floors={routeFloors} activeFloor={activeFloor} onChange={setActiveFloor} />
+      )}
 
       {/* Toast */}
       {toast && (

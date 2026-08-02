@@ -45,6 +45,20 @@ describe('parseQrPayload', () => {
     })
   })
 
+  it('URL-decodes node ids with spaces and slashes (?node=room%20a%2Fb)', () => {
+    expect(parseQrPayload('https://navi.app/?node=room%20a%2Fb')).toEqual({
+      campusId: 'asu-ibajay',
+      nodeId: 'room a/b',
+    })
+  })
+
+  it('URL-decodes percent-encoded dashes (?node=node%2D1)', () => {
+    expect(parseQrPayload('navi://asu-ibajay/navigate?node=node%2D1')).toEqual({
+      campusId: 'asu-ibajay',
+      nodeId: 'node-1',
+    })
+  })
+
   it('parses bare node ids', () => {
     expect(parseQrPayload('node-7')).toEqual({
       campusId: 'asu-ibajay',

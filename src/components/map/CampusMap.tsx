@@ -212,8 +212,6 @@ export default function CampusMap({
       onMapReady?.(map)
     })
     mapRef.current = map
-    // DEBUG: expose for e2e verification (removed before ship)
-    ;(window as unknown as Record<string, unknown>).__naviMap = map
 
     // Keep canvas in sync with container size (container height may resolve
     // after first paint inside flex layouts)
@@ -279,13 +277,24 @@ export default function CampusMap({
     return node ? node.position : undefined
   }, [campus])
 
+  const getNodeFloor = useCallback(
+    (nodeId: string) => campus?.nodes.find((n) => n.id === nodeId)?.floor,
+    [campus],
+  )
+
   const floors = selectedBuilding?.floors ?? []
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
       <FloorSelector floors={floors} activeFloor={activeFloor} onChange={setActiveFloor} />
-      <RouteLine map={mapInstance} route={route} getNodePosition={getNodePosition} />
+      <RouteLine
+        map={mapInstance}
+        route={route}
+        getNodePosition={getNodePosition}
+        getNodeFloor={getNodeFloor}
+        activeFloor={activeFloor}
+      />
     </div>
   )
 }
