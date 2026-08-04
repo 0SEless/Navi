@@ -8,6 +8,7 @@ const SRC_ROUTE = 'route-overlay'
 const SRC_ROUTE_NODES = 'route-overlay-nodes'
 const SRC_GRAPH_EDGES = 'graph-edges'
 const SRC_GRAPH_NODES = 'graph-nodes'
+const SRC_SNAP = 'snap-lines'
 const LYR_ROUTE_LINE = 'route-line'
 const LYR_ROUTE_DASHED = 'route-dashed'
 const LYR_ROUTE_GLOW = 'route-glow'
@@ -17,6 +18,7 @@ const LYR_NODE_END = 'route-end'
 const LYR_GRAPH_EDGES = 'graph-edge-lines'
 const LYR_GRAPH_NODES = 'graph-nodes-layer'
 const LYR_GRAPH_NODE_IDS = 'graph-node-ids'
+const LYR_SNAP = 'snap-line-layer'
 
 export interface RouteOverlayProps {
   map: maplibregl.Map
@@ -27,6 +29,7 @@ export interface RouteOverlayProps {
   showGraph?: boolean
   showLabels?: boolean
   showNodeIds?: boolean
+  snapLines?: Array<{ from: [number, number]; to: [number, number]; color: string }>
 }
 
 function addSourceIfMissing(map: maplibregl.Map, id: string, data: GeoJSON.FeatureCollection) {
@@ -55,7 +58,7 @@ function removeSourceIfExists(map: maplibregl.Map, sourceId: string) {
  * RouteOverlay — draws the A* route, all graph nodes, and start/end markers
  * on a MapLibre map. Used by RouteTesting to visualize routes on the real map.
  */
-export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, showLabels, showNodeIds }: RouteOverlayProps) {
+export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, showLabels, showNodeIds, snapLines }: RouteOverlayProps) {
   const initializedRef = useRef(false)
 
   // ── Initialize sources and layers once ──
@@ -71,6 +74,9 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
       // Graph sources
       addSourceIfMissing(map, SRC_GRAPH_EDGES, { type: 'FeatureCollection', features: [] })
       addSourceIfMissing(map, SRC_GRAPH_NODES, { type: 'FeatureCollection', features: [] })
+
+      // Snap lines source
+      addSourceIfMissing(map, SRC_SNAP, { type: 'FeatureCollection', features: [] })
 
       // Route glow (wide, faint)
       addLayerIfMissing(map, {
@@ -168,6 +174,13 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
         },
         paint: { 'text-color': '#64748B', 'text-halo-color': '#fff', 'text-halo-width': 1 },
       })
+
+      // Snap lines (dashed, colored)
+      addLayerIfMissing(map, {
+        id: LYR_SNAP, type: 'line', source: SRC_SNAP,
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 2, 'line-dasharray': [3, 2], 'line-opacity': 0.7 },
+      })
     }
 
     if (map.loaded()) bootstrap()
@@ -175,8 +188,8 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
 
     return () => {
       // Clean up layers and sources on unmount
-      ;[LYR_ROUTE_LINE, LYR_ROUTE_DASHED, LYR_ROUTE_GLOW, LYR_NODE_ALL, LYR_NODE_START, LYR_NODE_END, LYR_GRAPH_EDGES, LYR_GRAPH_NODES, LYR_GRAPH_NODE_IDS].forEach(l => removeIfExists(map, l))
-      ;[SRC_ROUTE, SRC_ROUTE_NODES, SRC_GRAPH_EDGES, SRC_GRAPH_NODES].forEach(s => removeSourceIfExists(map, s))
+      ;[LYR_ROUTE_LINE, LYR_ROUTE_DASHED, LYR_ROUTE_GLOW, LYR_NODE_ALL, LYR_NODE_START, LYR_NODE_END, LYR_GRAPH_EDGES, LYR_GRAPH_NODES, LYR_GRAPH_NODE_IDS, LYR_SNAP].forEach(l => removeIfExists(map, l))
+      ;[SRC_ROUTE, SRC_ROUTE_NODES, SRC_GRAPH_EDGES, SRC_GRAPH_NODES, SRC_SNAP].forEach(s => removeSourceIfExists(map, s))
       initializedRef.current = false
     }
   }, [map])
@@ -339,6 +352,23 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
       if (dashedLayer) map.setLayoutProperty(LYR_ROUTE_DASHED, 'visibility', showDashed ? 'visible' : 'none')
     } catch {}
   }, [map, nodes, path, animStep])
+
+  // ── Update snap lines ──
+  useEffect(() => {
+    if (!map || !initializedRef.current) return
+    const src = map.getSource(SRC_SNAP) as maplibregl.GeoJSONSource
+    if (!src) return
+    if (!snapLines || snapLines.length === 0) {
+      try { src.setData({ type: 'FeatureCollection', features: [] }) } catch {}
+      return
+    }
+    const features = snapLines.map(sl => ({
+      type: 'Feature' as const,
+      properties: { color: sl.color },
+      geometry: { type: 'LineString' as const, coordinates: [sl.from, sl.to] },
+    }))
+    try { src.setData({ type: 'FeatureCollection', features }) } catch {}
+  }, [map, snapLines])
 
   return null
 }

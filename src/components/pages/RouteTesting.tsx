@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
@@ -97,6 +97,26 @@ function calcDistance(a: { lat: number; lng: number }, b: { lat: number; lng: nu
   return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
 }
 
+export function findNearestNode(
+  pos: { lat: number; lng: number },
+  nodes: NavNode[],
+  maxSnapMeters?: number,
+): NavNode | null {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const R = 6371000
+  let best: NavNode | null = null
+  let bestDist = Infinity
+  for (const n of nodes) {
+    const dLat = toRad(n.position.lat - pos.lat)
+    const dLng = toRad(n.position.lng - pos.lng)
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(pos.lat)) * Math.cos(toRad(n.position.lat)) * Math.sin(dLng / 2) ** 2
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    if (dist < bestDist) { bestDist = dist; best = n }
+  }
+  if (!best || (maxSnapMeters !== undefined && bestDist > maxSnapMeters)) return null
+  return best
+}
+
 const MOCK_EDGES: NavEdge[] = [
   { id: 'E001', from: 'N001', to: 'N010', type: 'walkway', distance: calcDistance(MOCK_NODES[0].position, MOCK_NODES[9].position) },
   { id: 'E002', from: 'N002', to: 'N009', type: 'walkway', distance: calcDistance(MOCK_NODES[1].position, MOCK_NODES[8].position) },
@@ -172,8 +192,8 @@ export function NavigationInspector() {
   const graphHealth = activeNodes.length > 0 ? computeGraphHealth(activeNodes, activeEdges) : null
   const isHealthy = graphHealth && graphHealth.disconnected === 0 && graphHealth.isolated === 0
 
-  const [startNode, setStartNode] = useState<string>('N014')
-  const [endNode, setEndNode] = useState<string>('N001')
+  const [startId, setStartId] = useState<string>('N014')
+  const [endId, setEndId] = useState<string>('N001')
   const [routeResult, setRouteResult] = useState<{ path: string[]; cost: number } | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [animStep, setAnimStep] = useState(-1)
@@ -185,6 +205,37 @@ export function NavigationInspector() {
   const [showSnapIndicators, setShowSnapIndicators] = useState(true)
   const [showLabels, setShowLabels] = useState(false)
   const [showNodeIds, setShowNodeIds] = useState(false)
+
+  // ── Pin state (drag-and-drop pin placement) ──
+  const [startPin, setStartPin] = useState<{ lat: number; lng: number } | null>(null)
+  const [endPin, setEndPin] = useState<{ lat: number; lng: number } | null>(null)
+  const [dragging, setDragging] = useState<'start' | 'end' | null>(null)
+  const SNAP_THRESHOLD_METERS = 50
+
+  const nearestStart = useMemo(() => startPin ? findNearestNode(startPin, activeNodes, SNAP_THRESHOLD_METERS) : null, [startPin, activeNodes])
+  const nearestEnd = useMemo(() => endPin ? findNearestNode(endPin, activeNodes, SNAP_THRESHOLD_METERS) : null, [endPin, activeNodes])
+
+  const startNode = nearestStart ?? activeNodes.find(n => n.id === startId) ?? null
+  const endNode = nearestEnd ?? activeNodes.find(n => n.id === endId) ?? null
+
+  const snapLines = useMemo(() => {
+    const lines: Array<{ from: [number, number]; to: [number, number]; color: string }> = []
+    if (startPin && nearestStart) {
+      lines.push({
+        from: [startPin.lng, startPin.lat],
+        to: [nearestStart.position.lng, nearestStart.position.lat],
+        color: '#22C55E',
+      })
+    }
+    if (endPin && nearestEnd) {
+      lines.push({
+        from: [endPin.lng, endPin.lat],
+        to: [nearestEnd.position.lng, nearestEnd.position.lat],
+        color: '#3B82F6',
+      })
+    }
+    return lines
+  }, [startPin, nearestStart, endPin, nearestEnd])
 
   // ── Initialize MapLibre map ──
   useEffect(() => {
@@ -223,12 +274,91 @@ export function NavigationInspector() {
     map.fitBounds(bounds, { padding: 60, maxZoom: 17, duration: 0 })
   }, [activeNodes])
 
+  // ── Map click handler for pin placement ──
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const handler = (e: maplibregl.MapMouseEvent) => {
+      if (dragging) return
+      const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+      // Place start pin if not set, then end pin
+      if (!startPin) {
+        setStartPin(pos)
+        return
+      }
+      if (!endPin) {
+        setEndPin(pos)
+      }
+    }
+    map.on('click', handler)
+    return () => { map.off('click', handler) }
+  }, [mapRef.current, startPin, endPin, dragging])
+
+  // ── Draggable pin markers ──
+  const startMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const endMarkerRef = useRef<maplibregl.Marker | null>(null)
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    // Start marker
+    if (startMarkerRef.current) { startMarkerRef.current.remove(); startMarkerRef.current = null }
+    if (startNode) {
+      const el = document.createElement('div')
+      el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#059669;border:3px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);cursor:grab;display:flex;align-items:center;justify-content:center;'
+      const inner = document.createElement('div')
+      inner.style.cssText = 'width:6px;height:6px;border-radius:50%;background:white;'
+      el.appendChild(inner)
+      const marker = new maplibregl.Marker({ element: el, draggable: true })
+        .setLngLat([startPin?.lng ?? startNode.position.lng, startPin?.lat ?? startNode.position.lat])
+        .addTo(map)
+      marker.on('dragstart', () => { setDragging('start'); map.dragPan.disable() })
+      marker.on('drag', (e) => { /* position updates handled by setDragging */ })
+      marker.on('dragend', (e) => {
+        map.dragPan.enable()
+        setDragging(null)
+        const lngLat = marker.getLngLat()
+        setStartPin({ lat: lngLat.lat, lng: lngLat.lng })
+      })
+      startMarkerRef.current = marker
+    }
+
+    // End marker
+    if (endMarkerRef.current) { endMarkerRef.current.remove(); endMarkerRef.current = null }
+    if (endNode) {
+      const el = document.createElement('div')
+      el.style.cssText = 'width:20px;height:20px;border-radius:50%;background:#3B82F6;border:3px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);cursor:grab;display:flex;align-items:center;justify-content:center;'
+      const inner = document.createElement('div')
+      inner.style.cssText = 'width:6px;height:6px;border-radius:50%;background:white;'
+      el.appendChild(inner)
+      const marker = new maplibregl.Marker({ element: el, draggable: true })
+        .setLngLat([endPin?.lng ?? endNode.position.lng, endPin?.lat ?? endNode.position.lat])
+        .addTo(map)
+      marker.on('dragstart', () => { setDragging('end'); map.dragPan.disable() })
+      marker.on('drag', (e) => { /* position updates handled by setDragging */ })
+      marker.on('dragend', (e) => {
+        map.dragPan.enable()
+        setDragging(null)
+        const lngLat = marker.getLngLat()
+        setEndPin({ lat: lngLat.lat, lng: lngLat.lng })
+      })
+      endMarkerRef.current = marker
+    }
+
+    return () => {
+      if (startMarkerRef.current) { startMarkerRef.current.remove(); startMarkerRef.current = null }
+      if (endMarkerRef.current) { endMarkerRef.current.remove(); endMarkerRef.current = null }
+    }
+  }, [mapRef.current, startNode, endNode, startPin, endPin])
+
   const computeRoute = useCallback(() => {
+    if (!startNode || !endNode || startNode.id === endNode.id) return
     setIsRunning(true)
     setAnimStep(-1)
     setRouteResult(null)
     setTimeout(() => {
-      const result = engineAStar(activeNodes, activeEdges, startNode, endNode)
+      const result = engineAStar(activeNodes, activeEdges, startNode.id, endNode.id)
       setRouteResult(result)
       setIsRunning(false)
       if (result) {
@@ -320,13 +450,14 @@ export function NavigationInspector() {
               showGraph={showGraph}
               showLabels={showLabels}
               showNodeIds={showNodeIds}
+              snapLines={showSnapIndicators ? snapLines : []}
             />
           )}
           {isRunning && (
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--navi-sidebar)', borderRadius: 10, padding: '20px 32px', textAlign: 'center', opacity: 0.95, zIndex: 10 }}>
               <div style={{ width: 32, height: 32, border: '2px solid var(--navi-sidebar-border)', borderTopColor: 'var(--navi-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 10px' }} />
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navi-text-sidebar-active)' }}>Running A* Pathfinding...</div>
-              <div style={{ fontSize: 10, color: 'var(--navi-text-sidebar)', marginTop: 3 }}>{startNode} → {endNode}</div>
+              <div style={{ fontSize: 10, color: 'var(--navi-text-sidebar)', marginTop: 3 }}>{startNode?.id} → {endNode?.id}</div>
             </div>
           )}
           <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '4px 8px', fontSize: 9, display: 'flex', gap: 6, opacity: 0.9, zIndex: 10 }}>
@@ -361,20 +492,47 @@ export function NavigationInspector() {
 
           {activeTab === 'route' && (
             <>
+              <div style={{ padding: '0 14px 10px' }}>
+                <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 6 }}>PIN PLACEMENT</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setStartId(''); setStartPin(null) }}
+                      style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!startNode ? '#22C55E' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !startNode ? '#ECFDF5' : 'var(--navi-content)', color: !startNode ? '#059669' : 'var(--navi-text)' }}
+                    >
+                      {startNode ? `📍 ${startNode.name || startNode.id}` : '① Click to set Start'}
+                    </button>
+                    <button
+                      onClick={() => { setEndId(''); setEndPin(null) }}
+                      style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!endNode ? '#3B82F6' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !endNode ? '#EFF6FF' : 'var(--navi-content)', color: !endNode ? '#3B82F6' : 'var(--navi-text)' }}
+                    >
+                      {endNode ? `📍 ${endNode.name || endNode.id}` : '② Click to set End'}
+                    </button>
+                  </div>
+                  {(nearestStart || nearestEnd) && (
+                    <div style={{ marginTop: 6, fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                      {nearestStart && <div>🟢 Snapped to: <b>{nearestStart.name || nearestStart.id}</b></div>}
+                      {nearestEnd && <div>🔵 Snapped to: <b>{nearestEnd.name || nearestEnd.id}</b></div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{ padding: '14px', borderBottom: '1px solid var(--navi-content)' }}>
                 <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 8 }}>ROUTE CONFIGURATION</div>
                 {[
-                  { label: 'START NODE', value: startNode, set: setStartNode, color: '#059669' },
-                  { label: 'END NODE', value: endNode, set: setEndNode, color: '#3B82F6' },
+                  { label: 'START NODE', value: startId, set: setStartId, color: '#059669' },
+                  { label: 'END NODE', value: endId, set: setEndId, color: '#3B82F6' },
                 ].map(({ label, value, set, color }) => (
                   <div key={label} style={{ marginBottom: 6 }}>
                     <label style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, display: 'block', marginBottom: 2 }}>{label}</label>
                     <select value={value} onChange={(e) => set(e.target.value)} style={{ width: '100%', background: 'var(--navi-content)', border: `1px solid ${color}30`, borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11, outline: 'none', cursor: 'pointer' }}>
+                      <option value="">— Select node —</option>
                       {activeNodes.map((n) => <option key={n.id} value={n.id}>{n.id} — {n.name}</option>)}
                     </select>
                   </div>
                 ))}
-                <button onClick={computeRoute} disabled={isRunning || startNode === endNode} style={{ width: '100%', padding: '7px', background: isRunning ? 'var(--navi-content)' : 'var(--navi-primary)', border: 'none', borderRadius: 5, color: isRunning ? 'var(--navi-text-secondary)' : 'white', fontSize: 12, fontWeight: 600, cursor: isRunning || startNode === endNode ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+                <button onClick={computeRoute} disabled={isRunning || !startNode || !endNode || startNode.id === endNode.id} style={{ width: '100%', padding: '7px', background: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'var(--navi-content)' : 'var(--navi-primary)', border: 'none', borderRadius: 5, color: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'var(--navi-text-secondary)' : 'white', fontSize: 12, fontWeight: 600, cursor: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 8 }}>
                   <Zap size={12} /> {isRunning ? 'Computing...' : 'Run A* Algorithm'}
                 </button>
               </div>

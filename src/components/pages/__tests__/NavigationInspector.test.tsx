@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { NavigationInspector, computeGraphHealth, computeRouteSteps } from '../RouteTesting'
+import { NavigationInspector, computeGraphHealth, computeRouteSteps, findNearestNode } from '../RouteTesting'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 
 vi.mock('maplibre-gl', () => ({
@@ -8,8 +8,26 @@ vi.mock('maplibre-gl', () => ({
     Map: class {
       addControl = vi.fn()
       on = vi.fn()
+      off = vi.fn()
       fitBounds = vi.fn()
       remove = vi.fn()
+      getSource = vi.fn()
+      getLayer = vi.fn()
+      addSource = vi.fn()
+      addLayer = vi.fn()
+      removeLayer = vi.fn()
+      removeSource = vi.fn()
+      setLayoutProperty = vi.fn()
+      loaded = vi.fn(() => true)
+      once = vi.fn()
+    },
+    Marker: class {
+      _lngLat = { lat: 0, lng: 0 }
+      setLngLat(ll: any) { this._lngLat = ll; return this }
+      addTo() { return this }
+      on() { return this }
+      getLngLat() { return this._lngLat }
+      remove() {}
     },
     NavigationControl: vi.fn(),
     LngLatBounds: class {
@@ -167,5 +185,39 @@ describe('computeRouteSteps', () => {
     const steps = computeRouteSteps(['A', 'B'], nodes, edges)
     expect(steps[1].edge).not.toBeNull()
     expect(steps[1].distance).toBe(55)
+  })
+})
+
+describe('findNearestNode', () => {
+  const baseNode = (id: string, lat: number, lng: number): NavNode => ({
+    id, label: id, name: id, type: 'room', buildingId: 'b1', campusId: 'c1', floor: 1,
+    position: { lat, lng }, hasQr: false, hasPanorama: false,
+  })
+
+  it('finds nearest node to pin position', () => {
+    const nodes = [
+      baseNode('A', 0, 0),
+      baseNode('B', 0.001, 0.001),
+    ]
+    const nearest = findNearestNode({ lat: 0.0001, lng: 0.0001 }, nodes)
+    expect(nearest?.id).toBe('A')
+  })
+
+  it('returns null when beyond maxSnapMeters', () => {
+    const nodes = [baseNode('A', 0, 0)]
+    const nearest = findNearestNode({ lat: 10, lng: 10 }, nodes, 100)
+    expect(nearest).toBeNull()
+  })
+
+  it('returns nearest node when within maxSnapMeters', () => {
+    const nodes = [baseNode('A', 0, 0)]
+    // ~111m at equator
+    const nearest = findNearestNode({ lat: 0.001, lng: 0 }, nodes, 200)
+    expect(nearest?.id).toBe('A')
+  })
+
+  it('returns null for empty node list', () => {
+    const nearest = findNearestNode({ lat: 0, lng: 0 }, [])
+    expect(nearest).toBeNull()
   })
 })
