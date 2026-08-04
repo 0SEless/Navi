@@ -19,6 +19,7 @@ const LYR_GRAPH_EDGES = 'graph-edge-lines'
 const LYR_GRAPH_NODES = 'graph-nodes-layer'
 const LYR_GRAPH_NODE_IDS = 'graph-node-ids'
 const LYR_SNAP = 'snap-line-layer'
+const LYR_EDGE_LABELS = 'graph-edge-labels'
 
 export interface RouteOverlayProps {
   map: maplibregl.Map
@@ -139,6 +140,17 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
         paint: { 'line-color': '#CBD5E1', 'line-width': 1, 'line-opacity': 0.5 },
       })
 
+      // Edge distance labels
+      addLayerIfMissing(map, {
+        id: LYR_EDGE_LABELS, type: 'symbol', source: SRC_GRAPH_EDGES,
+        layout: {
+          'symbol-placement': 'line-center',
+          'text-field': ['get', 'distance'],
+          'text-size': 8,
+        },
+        paint: { 'text-color': '#94A3B8', 'text-halo-color': '#fff', 'text-halo-width': 1 },
+      })
+
       // Graph nodes with degree-based sizing
       addLayerIfMissing(map, {
         id: LYR_GRAPH_NODES, type: 'circle', source: SRC_GRAPH_NODES,
@@ -206,7 +218,7 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
 
     return () => {
       // Clean up layers and sources on unmount
-      ;[LYR_ROUTE_LINE, LYR_ROUTE_DASHED, LYR_ROUTE_GLOW, LYR_NODE_ALL, LYR_NODE_START, LYR_NODE_END, LYR_GRAPH_EDGES, LYR_GRAPH_NODES, LYR_GRAPH_NODE_IDS, LYR_SNAP].forEach(l => removeIfExists(map, l))
+      ;[LYR_ROUTE_LINE, LYR_ROUTE_DASHED, LYR_ROUTE_GLOW, LYR_NODE_ALL, LYR_NODE_START, LYR_NODE_END, LYR_GRAPH_EDGES, LYR_GRAPH_NODES, LYR_GRAPH_NODE_IDS, LYR_EDGE_LABELS, LYR_SNAP].forEach(l => removeIfExists(map, l))
       ;[SRC_ROUTE, SRC_ROUTE_NODES, SRC_GRAPH_EDGES, SRC_GRAPH_NODES, SRC_SNAP].forEach(s => removeSourceIfExists(map, s))
       initializedRef.current = false
     }
@@ -245,7 +257,7 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
       if (!fromNode || !toNode) return null
       return {
         type: 'Feature',
-        properties: { type: e.type },
+        properties: { type: e.type, distance: `${Math.round(e.distance)}m` },
         geometry: { type: 'LineString', coordinates: [[fromNode.position.lng, fromNode.position.lat], [toNode.position.lng, toNode.position.lat]] },
       }
     }).filter(Boolean) as GeoJSON.Feature[]
@@ -272,8 +284,9 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
       map.setLayoutProperty(LYR_GRAPH_EDGES, 'visibility', vis)
       map.setLayoutProperty(LYR_GRAPH_NODES, 'visibility', vis)
       map.setLayoutProperty(LYR_GRAPH_NODE_IDS, 'visibility', showGraph && showNodeIds ? 'visible' : 'none')
+      map.setLayoutProperty(LYR_EDGE_LABELS, 'visibility', showGraph && showLabels ? 'visible' : 'none')
     } catch {}
-  }, [map, showGraph, showNodeIds])
+  }, [map, showGraph, showNodeIds, showLabels])
 
   // ── Graph node interactivity (hover/click) ──
   useEffect(() => {

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
-  Activity, XCircle, X,
+  Activity, XCircle, X, MapPin,
 } from 'lucide-react'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
@@ -255,6 +255,18 @@ export function NavigationInspector() {
     }
   }, [startNode, endNode, activeNodes, activeEdges, mapRef.current])
 
+  // ── Keyboard shortcuts ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedNodeId(null)
+        setHoveredNodeId(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const snapLines = useMemo(() => {
     const lines: Array<{ from: [number, number]; to: [number, number]; color: string }> = []
     if (startPin && nearestStart) {
@@ -483,8 +495,10 @@ export function NavigationInspector() {
         <div style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, background: isHealthy ? '#ECFDF5' : '#FFFBEB', borderBottom: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}` }}>
           <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
           <span style={{ fontWeight: 600, color: isHealthy ? '#059669' : '#D97706' }}>{isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable`}</span>
-          <span style={{ color: 'var(--navi-text-secondary)' }}>—</span>
+          <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
           <span style={{ color: 'var(--navi-text-secondary)' }}>{graphHealth.total} nodes, {activeEdges.length} edges, {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}</span>
+          <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
+          <span style={{ color: hasRealData ? '#059669' : '#D97706', fontWeight: 600 }}>{hasRealData ? 'Live' : 'Mock'}</span>
         </div>
       )}
 
@@ -552,7 +566,7 @@ export function NavigationInspector() {
         {/* Right panel */}
         <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tab bar */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--navi-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
             {([
               { key: 'route', label: 'Route' },
               { key: 'diagnostics', label: 'Diagnostics' },
@@ -568,6 +582,19 @@ export function NavigationInspector() {
                 {tab.label}
               </button>
             ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
+              {hasRealData ? (
+                <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
+                  Live
+                </span>
+              ) : (
+                <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
+                  Mock
+                </span>
+              )}
+            </div>
           </div>
 
           {activeTab === 'route' && (
@@ -768,9 +795,24 @@ export function NavigationInspector() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', gap: 8 }}>
-                    <Route size={22} color='var(--navi-primary)' style={{ opacity: 0.4 }} />
-                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 11, lineHeight: 1.5 }}>Select start and end nodes to find the optimal route on the campus map.</div>
+                  <div style={{ padding: '14px' }}>
+                    <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
+                      <MapPin size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--navi-text)' }}>Set Start & End Points</div>
+                      <div style={{ fontSize: 10, lineHeight: 1.5, maxWidth: 220, margin: '0 auto' }}>
+                        Click the map to place pins, or use the dropdowns above. Route calculates automatically.
+                      </div>
+                      <div style={{ marginTop: 10, display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#059669', border: '2px solid white' }} />
+                          Start
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6', border: '2px solid white' }} />
+                          End
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
