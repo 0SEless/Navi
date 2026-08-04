@@ -153,6 +153,11 @@ export function NavigationInspector() {
   const [disconnectedNodes, setDisconnectedNodes] = useState<string[]>([])
   const animRef = useRef<number | null>(null)
   const [activeTab, setActiveTab] = useState<'route' | 'diagnostics'>('route')
+  const [showGraph, setShowGraph] = useState(true)
+  const [showRoute, setShowRoute] = useState(true)
+  const [showSnapIndicators, setShowSnapIndicators] = useState(true)
+  const [showLabels, setShowLabels] = useState(false)
+  const [showNodeIds, setShowNodeIds] = useState(false)
 
   // ── Initialize MapLibre map ──
   useEffect(() => {
@@ -268,13 +273,32 @@ export function NavigationInspector() {
         {/* Map canvas */}
         <div style={{ flex: 1, position: 'relative' }}>
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+          {/* Visualization toggles */}
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '8px 10px', fontSize: 10, display: 'flex', flexDirection: 'column', gap: 4, opacity: 0.95 }}>
+            <div style={{ color: 'var(--navi-text-sidebar)', fontWeight: 600, marginBottom: 2, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visualization</div>
+            {[
+              { label: 'Navigation Graph', checked: showGraph, set: setShowGraph },
+              { label: 'Show Route', checked: showRoute, set: setShowRoute },
+              { label: 'Snap Indicators', checked: showSnapIndicators, set: setShowSnapIndicators },
+              { label: 'Labels', checked: showLabels, set: setShowLabels },
+              { label: 'Node IDs', checked: showNodeIds, set: setShowNodeIds },
+            ].map(({ label, checked, set }) => (
+              <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: 'var(--navi-text-sidebar)' }}>
+                <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} style={{ width: 12, height: 12 }} />
+                {label}
+              </label>
+            ))}
+          </div>
           {mapRef.current && (
             <RouteOverlay
               map={mapRef.current}
               nodes={activeNodes}
               edges={activeEdges}
-              path={routeResult?.path ?? null}
+              path={showRoute ? (routeResult?.path ?? null) : null}
               animStep={animStep}
+              showGraph={showGraph}
+              showLabels={showLabels}
+              showNodeIds={showNodeIds}
             />
           )}
           {isRunning && (
