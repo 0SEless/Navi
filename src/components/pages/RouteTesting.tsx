@@ -3,12 +3,17 @@ import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
   Activity, XCircle, X, MapPin,
+  Search, Navigation as NavigationIcon, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { RouteOverlay } from './RouteOverlay'
 import { BASE_STYLES, DEFAULT_BASE_STYLE } from '@/components/studio/rendering/styles'
+import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
+import { BoundaryLayer } from '@/components/map/layers/BoundaryLayer'
+import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
+import { buildFromNavigationGraph, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 
 export interface GraphHealth {
   total: number
@@ -159,7 +164,8 @@ export function computeRouteSteps(
   edges: NavEdge[],
 ): RouteStepInfo[] {
   return path.map((nodeId, i) => {
-    const node = nodes.find(n => n.id === nodeId)!
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return null
     const prevId = i > 0 ? path[i - 1] : null
     const edge = prevId ? edges.find(e =>
       (e.from === prevId && e.to === nodeId) || (e.from === nodeId && e.to === prevId)
@@ -175,7 +181,7 @@ export function computeRouteSteps(
     else instruction = `Walk ${distance}m`
 
     return { nodeId, nodeLabel: node.name || node.label || node.id, nodeType: node.type, edge, distance, instruction }
-  })
+  }).filter(Boolean) as RouteStepInfo[]
 }
 
 export function NavigationInspector() {
@@ -205,6 +211,16 @@ export function NavigationInspector() {
   const [showNodeIds, setShowNodeIds] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+
+  // ── Mode state ──
+  const [mode, setMode] = useState<'preview' | 'debug'>('preview')
+
+  // ── Preview search state ──
+  const [previewQuery, setPreviewQuery] = useState('')
+  const [previewPicker, setPreviewPicker] = useState<'from' | 'to' | null>(null)
+  const [previewFrom, setPreviewFrom] = useState<string | null>(null)
+  const [previewTo, setPreviewTo] = useState<string | null>(null)
+  const [directionsCollapsed, setDirectionsCollapsed] = useState(false)
 
   // ── Pin state (drag-and-drop pin placement) ──
   const [startPin, setStartPin] = useState<{ lat: number; lng: number } | null>(null)
@@ -285,6 +301,30 @@ export function NavigationInspector() {
     }
     return lines
   }, [startPin, nearestStart, endPin, nearestEnd])
+
+  // ── Render model for building layers ──
+  const renderModel = useMemo<NavigationRenderModel | null>(() => {
+    if (!result) return null
+    return buildFromNavigationGraph(result as any)
+  }, [result])
+
+  // ── Preview search results ──
+  const previewSearchResults = useMemo(() => {
+    if (!previewPicker || !renderModel) return []
+    const query = previewQuery.toLowerCase()
+    return renderModel.nodes
+      .filter(n => {
+        const label = (n.name || n.label || n.id).toLowerCase()
+        return label.includes(query)
+      })
+      .slice(0, 10)
+  }, [previewPicker, previewQuery, renderModel])
+
+  // ── Preview route ──
+  const previewRoute = useMemo(() => {
+    if (!previewFrom || !previewTo || !renderModel) return null
+    return engineAStar(renderModel.nodes, renderModel.edges, previewFrom, previewTo)
+  }, [previewFrom, previewTo, renderModel])
 
   const flashNode = useCallback((nodeId: string) => {
     const node = activeNodes.find(n => n.id === nodeId)
@@ -469,101 +509,260 @@ export function NavigationInspector() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--navi-border)' }}>
-        <div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navi-text)', margin: 0 }}>Route Testing</h1>
-          <p style={{ color: 'var(--navi-text-secondary)', fontSize: 11, margin: '2px 0 0' }}>A* pathfinding on the campus map</p>
+      {/* Mode Toggle Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid var(--navi-content)' }}>
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', background: 'var(--navi-content)', borderRadius: 5, padding: 2 }}>
+          {[
+            { key: 'preview' as const, label: 'Navigation Preview', icon: <Route size={12} /> },
+            { key: 'debug' as const, label: 'Graph Debug', icon: <Activity size={12} /> },
+          ].map(({ key, label, icon }) => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                fontSize: 10, fontWeight: 600, border: 'none', borderRadius: 4,
+                cursor: 'pointer', transition: 'all 0.15s',
+                background: mode === key ? 'var(--navi-primary)' : 'transparent',
+                color: mode === key ? 'white' : 'var(--navi-text-secondary)',
+              }}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
         </div>
-        {usingMock && (
-          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '4px 8px', fontSize: 10, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <AlertTriangle size={11} />
-            Demo data — publish a campus to test real routes
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={detectDisconnected} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, color: '#D97706', fontSize: 11, cursor: 'pointer' }}>
-            <Activity size={11} /> Detect Disconnected
-          </button>
-          <button onClick={clearAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-            <RotateCcw size={11} /> Reset
-          </button>
+        
+        {/* Sync status */}
+        <div style={{ marginLeft: 'auto' }}>
+          {hasRealData ? (
+            <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
+              Live
+            </span>
+          ) : (
+            <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
+              Mock
+            </span>
+          )}
         </div>
       </div>
 
-      {graphHealth && (
-        <div style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, background: isHealthy ? '#ECFDF5' : '#FFFBEB', borderBottom: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}` }}>
-          <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
-          <span style={{ fontWeight: 600, color: isHealthy ? '#059669' : '#D97706' }}>{isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable`}</span>
-          <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
-          <span style={{ color: 'var(--navi-text-secondary)' }}>{graphHealth.total} nodes, {activeEdges.length} edges, {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}</span>
-          <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
-          <span style={{ color: hasRealData ? '#059669' : '#D97706', fontWeight: 600 }}>{hasRealData ? 'Live' : 'Mock'}</span>
-        </div>
+      {/* Debug Mode Header (when in debug mode) */}
+      {mode === 'debug' && (
+        <>
+          <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--navi-border)' }}>
+            <div>
+              <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navi-text)', margin: 0 }}>Route Testing</h1>
+              <p style={{ color: 'var(--navi-text-secondary)', fontSize: 11, margin: '2px 0 0' }}>A* pathfinding on the campus map</p>
+            </div>
+            {usingMock && (
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '4px 8px', fontSize: 10, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <AlertTriangle size={11} />
+                Demo data — publish a campus to test real routes
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={detectDisconnected} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, color: '#D97706', fontSize: 11, cursor: 'pointer' }}>
+                <Activity size={11} /> Detect Disconnected
+              </button>
+              <button onClick={clearAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                <RotateCcw size={11} /> Reset
+              </button>
+            </div>
+          </div>
+
+          {graphHealth && (
+            <div style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, background: isHealthy ? '#ECFDF5' : '#FFFBEB', borderBottom: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}` }}>
+              <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
+              <span style={{ fontWeight: 600, color: isHealthy ? '#059669' : '#D97706' }}>{isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable`}</span>
+              <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
+              <span style={{ color: 'var(--navi-text-secondary)' }}>{graphHealth.total} nodes, {activeEdges.length} edges, {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}</span>
+              <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
+              <span style={{ color: hasRealData ? '#059669' : '#D97706', fontWeight: 600 }}>{hasRealData ? 'Live' : 'Mock'}</span>
+            </div>
+          )}
+        </>
       )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Map canvas */}
         <div style={{ flex: 1, position: 'relative' }}>
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
-          {/* Visualization toggles */}
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '8px 10px', fontSize: 10, display: 'flex', flexDirection: 'column', gap: 4, opacity: 0.95 }}>
-            <div style={{ color: 'var(--navi-text-sidebar)', fontWeight: 600, marginBottom: 2, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visualization</div>
-            {[
-              { label: 'Navigation Graph', checked: showGraph, set: setShowGraph },
-              { label: 'Show Route', checked: showRoute, set: setShowRoute },
-              { label: 'Snap Indicators', checked: showSnapIndicators, set: setShowSnapIndicators },
-              { label: 'Labels', checked: showLabels, set: setShowLabels },
-              { label: 'Node IDs', checked: showNodeIds, set: setShowNodeIds },
-            ].map(({ label, checked, set }) => (
-              <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: 'var(--navi-text-sidebar)' }}>
-                <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} style={{ width: 12, height: 12 }} />
-                {label}
-              </label>
-            ))}
-          </div>
-          {mapRef.current && (
-            <RouteOverlay
-              map={mapRef.current}
-              nodes={activeNodes}
-              edges={activeEdges}
-              path={showRoute ? (routeResult?.path ?? null) : null}
-              animStep={animStep}
-              showGraph={showGraph}
-              showLabels={showLabels}
-              showNodeIds={showNodeIds}
-              snapLines={showSnapIndicators ? snapLines : []}
-              selectedNodeId={selectedNodeId}
-              onNodeHover={setHoveredNodeId}
-              onNodeClick={(nodeId) => {
-                setSelectedNodeId(nodeId)
-                flashNode(nodeId)
-              }}
-            />
+
+          {/* ═══════════════════════════════════════════════════════════
+              DEBUG MODE: Existing graph debug view
+              ═══════════════════════════════════════════════════════════ */}
+          {mode === 'debug' && (
+            <>
+              {/* Visualization toggles */}
+              <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '8px 10px', fontSize: 10, display: 'flex', flexDirection: 'column', gap: 4, opacity: 0.95 }}>
+                <div style={{ color: 'var(--navi-text-sidebar)', fontWeight: 600, marginBottom: 2, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visualization</div>
+                {[
+                  { label: 'Navigation Graph', checked: showGraph, set: setShowGraph },
+                  { label: 'Show Route', checked: showRoute, set: setShowRoute },
+                  { label: 'Snap Indicators', checked: showSnapIndicators, set: setShowSnapIndicators },
+                  { label: 'Labels', checked: showLabels, set: setShowLabels },
+                  { label: 'Node IDs', checked: showNodeIds, set: setShowNodeIds },
+                ].map(({ label, checked, set }) => (
+                  <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: 'var(--navi-text-sidebar)' }}>
+                    <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} style={{ width: 12, height: 12 }} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {mapRef.current && (
+                <RouteOverlay
+                  map={mapRef.current}
+                  nodes={activeNodes}
+                  edges={activeEdges}
+                  path={showRoute ? (routeResult?.path ?? null) : null}
+                  animStep={animStep}
+                  showGraph={showGraph}
+                  showLabels={showLabels}
+                  showNodeIds={showNodeIds}
+                  snapLines={showSnapIndicators ? snapLines : []}
+                  selectedNodeId={selectedNodeId}
+                  onNodeHover={setHoveredNodeId}
+                  onNodeClick={(nodeId) => {
+                    setSelectedNodeId(nodeId)
+                    flashNode(nodeId)
+                  }}
+                />
+              )}
+              {hoveredNode && (
+                <div style={{
+                  position: 'absolute', bottom: 50, left: '50%', transform: 'translateX(-50%)',
+                  background: 'var(--navi-sidebar)', border: '1px solid var(--navi-content)',
+                  borderRadius: 6, padding: '5px 10px', fontSize: 10, color: 'var(--navi-text-sidebar)',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)', zIndex: 10, pointerEvents: 'none',
+                  whiteSpace: 'nowrap',
+                }}>
+                  <b>{hoveredNode.name || hoveredNode.label || hoveredNode.id}</b>
+                  <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>{hoveredNode.type}</span>
+                  <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>Floor {hoveredNode.floor}</span>
+                </div>
+              )}
+              <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '4px 8px', fontSize: 9, display: 'flex', gap: 6, opacity: 0.9, zIndex: 10 }}>
+                <span style={{ color: '#059669' }}>● Start</span>
+                <span style={{ color: '#3B82F6' }}>● End</span>
+                <span style={{ color: '#3B82F6' }}>— Route</span>
+                <span style={{ color: '#94A3B8' }}>● Nodes</span>
+                {disconnectedNodes.length > 0 && <span style={{ color: 'var(--navi-error)' }}>● Disconnected</span>}
+              </div>
+            </>
           )}
-          {hoveredNode && (
-            <div style={{
-              position: 'absolute', bottom: 50, left: '50%', transform: 'translateX(-50%)',
-              background: 'var(--navi-sidebar)', border: '1px solid var(--navi-content)',
-              borderRadius: 6, padding: '5px 10px', fontSize: 10, color: 'var(--navi-text-sidebar)',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.15)', zIndex: 10, pointerEvents: 'none',
-              whiteSpace: 'nowrap',
-            }}>
-              <b>{hoveredNode.name || hoveredNode.label || hoveredNode.id}</b>
-              <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>{hoveredNode.type}</span>
-              <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>Floor {hoveredNode.floor}</span>
-            </div>
+
+          {/* ═══════════════════════════════════════════════════════════
+              PREVIEW MODE: Student-facing navigation view
+              ═══════════════════════════════════════════════════════════ */}
+          {mode === 'preview' && (
+            <>
+              {/* Search Panel */}
+              <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 20, background: 'var(--navi-sidebar)', borderRadius: 8, padding: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* From */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+                    <input
+                      type="text"
+                      placeholder="Where are you?"
+                      value={previewPicker === 'from' ? previewQuery : (previewFrom ? renderModel?.nodes.find(n => n.id === previewFrom)?.name || previewFrom : '')}
+                      onFocus={() => { setPreviewPicker('from'); setPreviewQuery('') }}
+                      onChange={(e) => setPreviewQuery(e.target.value)}
+                      style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
+                    />
+                  </div>
+                  
+                  {/* To */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
+                    <input
+                      type="text"
+                      placeholder="Where do you want to go?"
+                      value={previewPicker === 'to' ? previewQuery : (previewTo ? renderModel?.nodes.find(n => n.id === previewTo)?.name || previewTo : '')}
+                      onFocus={() => { setPreviewPicker('to'); setPreviewQuery('') }}
+                      onChange={(e) => setPreviewQuery(e.target.value)}
+                      style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
+                    />
+                  </div>
+                  
+                  {/* Search results */}
+                  {previewPicker && previewSearchResults.length > 0 && (
+                    <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
+                      {previewSearchResults.map(node => (
+                        <button
+                          key={node.id}
+                          onClick={() => {
+                            if (previewPicker === 'from') setPreviewFrom(node.id)
+                            else setPreviewTo(node.id)
+                            setPreviewPicker(null)
+                            setPreviewQuery('')
+                          }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 10, border: 'none', borderBottom: '1px solid var(--navi-border)', background: 'transparent', cursor: 'pointer', color: 'var(--navi-text)' }}
+                        >
+                          <div style={{ fontWeight: 600 }}>{node.name || node.label || node.id}</div>
+                          <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>{node.type} · Floor {node.floor}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Directions Panel */}
+              {previewRoute && (
+                <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, zIndex: 20, background: 'var(--navi-sidebar)', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                  <button
+                    onClick={() => setDirectionsCollapsed(!directionsCollapsed)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <NavigationIcon size={14} color='#3B82F6' />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text)' }}>
+                        {Math.round(previewRoute.cost)}m · ~{Math.ceil(previewRoute.cost / 80)}min
+                      </span>
+                    </div>
+                    {directionsCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  
+                  {!directionsCollapsed && (
+                    <div style={{ padding: '0 12px 10px', maxHeight: 200, overflowY: 'auto' }}>
+                      {previewRoute.steps.map((step, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                          <div style={{ width: 16, height: 16, borderRadius: '50%', background: i === 0 ? '#059669' : i === previewRoute.steps.length - 1 ? '#EF4444' : 'var(--navi-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: i === 0 || i === previewRoute.steps.length - 1 ? 'white' : 'var(--navi-text-secondary)', flexShrink: 0 }}>
+                            {i + 1}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{step.instruction}</div>
+                            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                              {renderModel?.nodes.find(n => n.id === step.nodeId)?.name || step.nodeId}
+                              {step.distance > 0 && ` · ${step.distance}m`}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
-          <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '4px 8px', fontSize: 9, display: 'flex', gap: 6, opacity: 0.9, zIndex: 10 }}>
-            <span style={{ color: '#059669' }}>● Start</span>
-            <span style={{ color: '#3B82F6' }}>● End</span>
-            <span style={{ color: '#3B82F6' }}>— Route</span>
-            <span style={{ color: '#94A3B8' }}>● Nodes</span>
-            {disconnectedNodes.length > 0 && <span style={{ color: 'var(--navi-error)' }}>● Disconnected</span>}
-          </div>
+
+          {/* Building layers (always visible) */}
+          {mapRef.current && renderModel && (
+            <>
+              <BuildingLayer map={mapRef.current} buildings={renderModel.buildings} />
+              <BoundaryLayer map={mapRef.current} boundary={renderModel.boundary} />
+              <EntranceLayer map={mapRef.current} entrances={renderModel.entrances} />
+            </>
+          )}
         </div>
 
-        {/* Right panel */}
+        {/* Right panel - only in debug mode */}
+        {mode === 'debug' && (
         <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tab bar */}
           <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
@@ -920,6 +1119,7 @@ export function NavigationInspector() {
             </div>
           )}
         </div>
+        )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

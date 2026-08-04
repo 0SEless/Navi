@@ -55,8 +55,15 @@ describe('NavigationInspector', () => {
     vi.clearAllMocks()
   })
 
-  it('renders with Route tab active by default', () => {
+  it('renders with preview mode active by default', () => {
     render(<NavigationInspector />)
+    expect(screen.getByText('Navigation Preview')).toBeInTheDocument()
+    expect(screen.getByText('Graph Debug')).toBeInTheDocument()
+  })
+
+  it('switches to debug mode and shows Route tab', () => {
+    render(<NavigationInspector />)
+    fireEvent.click(screen.getByText('Graph Debug'))
     expect(screen.getByText('Route')).toBeInTheDocument()
     expect(screen.getByText('Diagnostics')).toBeInTheDocument()
     expect(screen.getByText('ROUTE CONFIGURATION')).toBeInTheDocument()
@@ -64,6 +71,7 @@ describe('NavigationInspector', () => {
 
   it('switches to Diagnostics tab on click', () => {
     render(<NavigationInspector />)
+    fireEvent.click(screen.getByText('Graph Debug'))
     fireEvent.click(screen.getByText('Diagnostics'))
     expect(screen.getByText('PUBLISHED SNAPSHOT')).toBeInTheDocument()
   })
