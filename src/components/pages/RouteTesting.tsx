@@ -10,6 +10,64 @@ import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { RouteOverlay } from './RouteOverlay'
 import { BASE_STYLES, DEFAULT_BASE_STYLE } from '@/components/studio/rendering/styles'
 
+export interface GraphHealth {
+  total: number
+  connected: number
+  disconnected: number
+  isolated: number
+  components: number
+  deadEnds: number
+  avgDegree: number
+  maxDegree: number
+  nodeTypes: Record<string, number>
+  warnings: Array<{ nodeIds: string[]; message: string }>
+}
+
+export function computeGraphHealth(nodes: NavNode[], edges: NavEdge[]): GraphHealth {
+  const adj: Record<string, string[]> = {}
+  for (const n of nodes) adj[n.id] = []
+  for (const e of edges) {
+    adj[e.from]?.push(e.to)
+    adj[e.to]?.push(e.from)
+  }
+
+  const degree = new Map<string, number>()
+  const nodeTypes: Record<string, number> = {}
+  for (const n of nodes) {
+    degree.set(n.id, adj[n.id]?.length ?? 0)
+    nodeTypes[n.type] = (nodeTypes[n.type] ?? 0) + 1
+  }
+
+  const visited = new Set<string>()
+  let components = 0
+  function bfs(startId: string) {
+    const queue = [startId]
+    visited.add(startId)
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      for (const neighbor of (adj[cur] ?? [])) {
+        if (!visited.has(neighbor)) { visited.add(neighbor); queue.push(neighbor) }
+      }
+    }
+  }
+  for (const n of nodes) {
+    if (!visited.has(n.id)) { components++; bfs(n.id) }
+  }
+
+  const isolated = nodes.filter(n => (degree.get(n.id) ?? 0) === 0).length
+  const disconnected = nodes.filter(n => !visited.has(n.id)).length
+  const deadEnds = nodes.filter(n => (degree.get(n.id) ?? 0) === 1).length
+  const degrees = nodes.map(n => degree.get(n.id) ?? 0)
+  const avgDegree = degrees.length > 0 ? degrees.reduce((a, b) => a + b, 0) / degrees.length : 0
+  const maxDegree = degrees.length > 0 ? Math.max(...degrees) : 0
+
+  const warnings: Array<{ nodeIds: string[]; message: string }> = []
+  if (deadEnds > 0) warnings.push({ nodeIds: nodes.filter(n => (degree.get(n.id) ?? 0) === 1).map(n => n.id), message: `${deadEnds} dead-end node${deadEnds > 1 ? 's' : ''} (degree 1)` })
+  if (isolated > 0) warnings.push({ nodeIds: nodes.filter(n => (degree.get(n.id) ?? 0) === 0).map(n => n.id), message: `${isolated} isolated node${isolated > 1 ? 's' : ''} (no edges)` })
+
+  return { total: nodes.length, connected: nodes.length - disconnected, disconnected, isolated, components, deadEnds, avgDegree, maxDegree, nodeTypes, warnings }
+}
+
 const MOCK_NODES: NavNode[] = [
   { id: 'N001', label: 'Admin Entrance', name: 'Admin Entrance', type: 'building_entrance', buildingId: 'admin', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81835, lng: 122.1705 }, hasQr: true, hasPanorama: true },
   { id: 'N002', label: 'Library Entrance', name: 'Library Entrance', type: 'building_entrance', buildingId: 'lib', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81845, lng: 122.17105 }, hasQr: true, hasPanorama: true },
@@ -74,7 +132,7 @@ interface RouteStep {
 }
 
 export function NavigationInspector() {
-  const { nodes: compiledNodes, edges: compiledEdges, hasRealData, loadFromStorage } = useCompiledGraphStore()
+  const { nodes: compiledNodes, edges: compiledEdges, hasRealData, loadFromStorage, result } = useCompiledGraphStore()
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
 
@@ -83,6 +141,9 @@ export function NavigationInspector() {
   const activeNodes = hasRealData && compiledNodes.length > 0 ? compiledNodes : MOCK_NODES
   const activeEdges = hasRealData && compiledEdges.length > 0 ? compiledEdges : MOCK_EDGES
   const usingMock = !hasRealData || compiledNodes.length === 0
+
+  const graphHealth = activeNodes.length > 0 ? computeGraphHealth(activeNodes, activeEdges) : null
+  const isHealthy = graphHealth && graphHealth.disconnected === 0 && graphHealth.isolated === 0
 
   const [startNode, setStartNode] = useState<string>('N014')
   const [endNode, setEndNode] = useState<string>('N001')
@@ -193,6 +254,15 @@ export function NavigationInspector() {
           </button>
         </div>
       </div>
+
+      {graphHealth && (
+        <div style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, background: isHealthy ? '#ECFDF5' : '#FFFBEB', borderBottom: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}` }}>
+          <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
+          <span style={{ fontWeight: 600, color: isHealthy ? '#059669' : '#D97706' }}>{isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable`}</span>
+          <span style={{ color: 'var(--navi-text-secondary)' }}>—</span>
+          <span style={{ color: 'var(--navi-text-secondary)' }}>{graphHealth.total} nodes, {activeEdges.length} edges, {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}</span>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Map canvas */}
@@ -324,8 +394,103 @@ export function NavigationInspector() {
           )}
 
           {activeTab === 'diagnostics' && (
-            <div style={{ padding: 14 }}>
-              <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600 }}>PUBLISHED SNAPSHOT</div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
+              {/* PUBLISHED SNAPSHOT */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>PUBLISHED SNAPSHOT</div>
+                <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
+                  {[
+                    { label: 'Version', value: (result as any)?.metadata?.version ?? (result as any)?.version ?? '—' },
+                    { label: 'Timestamp', value: (result as any)?.createdAt ?? '—' },
+                    { label: 'Campus', value: (result as any)?.campusId ?? '—' },
+                    { label: 'Nodes', value: activeNodes.length },
+                    { label: 'Edges', value: activeEdges.length },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>
+                      <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* GRAPH HEALTH */}
+              {graphHealth && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>GRAPH HEALTH</div>
+                  <div style={{ background: isHealthy ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}`, borderRadius: 6, padding: '8px 10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isHealthy ? '#059669' : '#D97706' }}>
+                        {isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable node${graphHealth.disconnected !== 1 ? 's' : ''}`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
+                      {graphHealth.connected}/{graphHealth.total} connected · {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STATISTICS */}
+              {graphHealth && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>STATISTICS</div>
+                  <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
+                    {[
+                      { label: 'Components', value: graphHealth.components },
+                      { label: 'Dead Ends', value: graphHealth.deadEnds },
+                      { label: 'Isolated Nodes', value: graphHealth.isolated },
+                      { label: 'Avg Degree', value: graphHealth.avgDegree.toFixed(1) },
+                      { label: 'Max Degree', value: graphHealth.maxDegree },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                        <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>
+                        <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* NODE TYPES */}
+              {graphHealth && Object.keys(graphHealth.nodeTypes).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>NODE TYPES</div>
+                  <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
+                    {Object.entries(graphHealth.nodeTypes).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                      <div key={type} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                        <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{type}</span>
+                        <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* WARNINGS */}
+              {graphHealth && graphHealth.warnings.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>WARNINGS</div>
+                  {graphHealth.warnings.map((warning, i) => (
+                    <div key={i} style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                        <AlertTriangle size={11} color='#D97706' />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706' }}>{warning.message}</span>
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', lineHeight: 1.5 }}>
+                        {warning.nodeIds.join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!result && (
+                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, textAlign: 'center', padding: 20 }}>
+                  No published graph data. Publish a campus from the Studio to see diagnostics.
+                </div>
+              )}
             </div>
           )}
         </div>
