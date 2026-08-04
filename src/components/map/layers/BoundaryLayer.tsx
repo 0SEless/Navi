@@ -25,23 +25,38 @@ export function BoundaryLayer({ map, boundary }: BoundaryLayerProps) {
       return
     }
 
-    map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-    map.addLayer({
-      id: LYR.FILL,
-      type: 'fill',
-      source: SRC,
-      paint: { 'fill-color': '#94A3B8', 'fill-opacity': 0.15 },
-    })
-    map.addLayer({
-      id: LYR.OUTLINE,
-      type: 'line',
-      source: SRC,
-      paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 2], 'line-opacity': 0.5 },
-    })
+    const init = () => {
+      if (initializedRef.current) return
+      if (map.getSource(SRC)) {
+        initializedRef.current = true
+        return
+      }
 
-    initializedRef.current = true
+      map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: LYR.FILL,
+        type: 'fill',
+        source: SRC,
+        paint: { 'fill-color': '#94A3B8', 'fill-opacity': 0.15 },
+      })
+      map.addLayer({
+        id: LYR.OUTLINE,
+        type: 'line',
+        source: SRC,
+        paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 2], 'line-opacity': 0.5 },
+      })
+
+      initializedRef.current = true
+    }
+
+    if (map.isStyleLoaded()) {
+      init()
+    } else {
+      map.on('load', init)
+    }
 
     return () => {
+      map.off('load', init)
       ;[LYR.OUTLINE, LYR.FILL].forEach(l => { if (map.getLayer(l)) map.removeLayer(l) })
       if (map.getSource(SRC)) map.removeSource(SRC)
       initializedRef.current = false

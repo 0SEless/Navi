@@ -45,77 +45,93 @@ export function BuildingLayer({
       return
     }
 
-    map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    const init = () => {
+      if (initializedRef.current) return
+      if (map.getSource(SRC)) {
+        initializedRef.current = true
+        return
+      }
 
-    // Fill layer
-    map.addLayer({
-      id: LYR.FILL,
-      type: 'fill',
-      source: SRC,
-      paint: {
-        'fill-color': ['get', 'color'],
-        'fill-opacity': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false], 0.45,
-          0.25,
-        ],
-      },
-    })
+      map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
 
-    // Outline layer
-    map.addLayer({
-      id: LYR.OUTLINE,
-      type: 'line',
-      source: SRC,
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false], 3,
-          2,
-        ],
-        'line-opacity': 0.9,
-      },
-    })
-
-    // Extrusion layer (3D buildings)
-    if (showExtrusion) {
+      // Fill layer
       map.addLayer({
-        id: LYR.EXTRUSION,
-        type: 'fill-extrusion',
+        id: LYR.FILL,
+        type: 'fill',
         source: SRC,
         paint: {
-          'fill-extrusion-color': ['get', 'color'],
-          'fill-extrusion-height': ['get', 'height'],
-          'fill-extrusion-base': ['get', 'base_elevation'],
-          'fill-extrusion-opacity': 0.55,
+          'fill-color': ['get', 'color'],
+          'fill-opacity': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false], 0.45,
+            0.25,
+          ],
         },
       })
-    }
 
-    // Labels layer
-    if (showLabels) {
+      // Outline layer
       map.addLayer({
-        id: LYR.LABELS,
-        type: 'symbol',
+        id: LYR.OUTLINE,
+        type: 'line',
         source: SRC,
-        layout: {
-          'text-field': ['get', 'name'],
-          'text-size': 12,
-          'text-offset': [0, 1.2],
-          'text-anchor': 'top',
-        },
         paint: {
-          'text-color': '#0F172A',
-          'text-halo-color': '#FFFFFF',
-          'text-halo-width': 2,
+          'line-color': ['get', 'color'],
+          'line-width': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false], 3,
+            2,
+          ],
+          'line-opacity': 0.9,
         },
       })
+
+      // Extrusion layer (3D buildings)
+      if (showExtrusion) {
+        map.addLayer({
+          id: LYR.EXTRUSION,
+          type: 'fill-extrusion',
+          source: SRC,
+          paint: {
+            'fill-extrusion-color': ['get', 'color'],
+            'fill-extrusion-height': ['get', 'height'],
+            'fill-extrusion-base': ['get', 'base_elevation'],
+            'fill-extrusion-opacity': 0.55,
+          },
+        })
+      }
+
+      // Labels layer
+      if (showLabels) {
+        map.addLayer({
+          id: LYR.LABELS,
+          type: 'symbol',
+          source: SRC,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-size': 12,
+            'text-offset': [0, 1.2],
+            'text-anchor': 'top',
+          },
+          paint: {
+            'text-color': '#0F172A',
+            'text-halo-color': '#FFFFFF',
+            'text-halo-width': 2,
+          },
+        })
+      }
+
+      initializedRef.current = true
     }
 
-    initializedRef.current = true
+    // If style is already loaded, init immediately; otherwise wait
+    if (map.isStyleLoaded()) {
+      init()
+    } else {
+      map.on('load', init)
+    }
 
     return () => {
+      map.off('load', init)
       // Cleanup layers and source
       ;[LYR.LABELS, LYR.EXTRUSION, LYR.OUTLINE, LYR.FILL].forEach(l => {
         if (map.getLayer(l)) map.removeLayer(l)

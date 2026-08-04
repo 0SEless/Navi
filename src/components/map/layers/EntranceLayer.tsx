@@ -22,22 +22,37 @@ export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
       return
     }
 
-    map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-    map.addLayer({
-      id: LYR,
-      type: 'circle',
-      source: SRC,
-      paint: {
-        'circle-radius': 5,
-        'circle-color': '#8B5CF6',
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#FFFFFF',
-      },
-    })
+    const init = () => {
+      if (initializedRef.current) return
+      if (map.getSource(SRC)) {
+        initializedRef.current = true
+        return
+      }
 
-    initializedRef.current = true
+      map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: LYR,
+        type: 'circle',
+        source: SRC,
+        paint: {
+          'circle-radius': 5,
+          'circle-color': '#8B5CF6',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#FFFFFF',
+        },
+      })
+
+      initializedRef.current = true
+    }
+
+    if (map.isStyleLoaded()) {
+      init()
+    } else {
+      map.on('load', init)
+    }
 
     return () => {
+      map.off('load', init)
       if (map.getLayer(LYR)) map.removeLayer(LYR)
       if (map.getSource(SRC)) map.removeSource(SRC)
       initializedRef.current = false
