@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
-  Zap, Activity, XCircle,
+  Activity, XCircle,
 } from 'lucide-react'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
@@ -195,10 +195,8 @@ export function NavigationInspector() {
   const [startId, setStartId] = useState<string>('N014')
   const [endId, setEndId] = useState<string>('N001')
   const [routeResult, setRouteResult] = useState<{ path: string[]; cost: number } | null>(null)
-  const [isRunning, setIsRunning] = useState(false)
   const [animStep, setAnimStep] = useState(-1)
   const [disconnectedNodes, setDisconnectedNodes] = useState<string[]>([])
-  const animRef = useRef<number | null>(null)
   const [activeTab, setActiveTab] = useState<'route' | 'diagnostics'>('route')
   const [showGraph, setShowGraph] = useState(true)
   const [showRoute, setShowRoute] = useState(true)
@@ -217,6 +215,40 @@ export function NavigationInspector() {
 
   const startNode = nearestStart ?? activeNodes.find(n => n.id === startId) ?? null
   const endNode = nearestEnd ?? activeNodes.find(n => n.id === endId) ?? null
+
+  // Auto-route: run A* whenever start/end change
+  useEffect(() => {
+    if (!startNode || !endNode) {
+      setRouteResult(null)
+      setAnimStep(-1)
+      return
+    }
+    if (activeNodes.length === 0 || activeEdges.length === 0) return
+
+    const result = engineAStar(activeNodes, activeEdges, startNode.id, endNode.id)
+    setRouteResult(result)
+    setAnimStep(-1)
+
+    if (result) {
+      const pathNodes = result.path.map(id => activeNodes.find(n => n.id === id)).filter(Boolean) as NavNode[]
+      if (pathNodes.length > 0 && mapRef.current) {
+        const bounds = new maplibregl.LngLatBounds()
+        pathNodes.forEach(n => bounds.extend([n.position.lng, n.position.lat]))
+        mapRef.current.fitBounds(bounds, { padding: 80, duration: 1200, maxZoom: 19 })
+      }
+
+      if (result.path.length > 1) {
+        setAnimStep(0)
+        let step = 0
+        const interval = setInterval(() => {
+          step++
+          setAnimStep(step)
+          if (step >= result.path.length - 1) clearInterval(interval)
+        }, 200)
+        return () => clearInterval(interval)
+      }
+    }
+  }, [startNode, endNode, activeNodes, activeEdges, mapRef.current])
 
   const snapLines = useMemo(() => {
     const lines: Array<{ from: [number, number]; to: [number, number]; color: string }> = []
@@ -352,25 +384,7 @@ export function NavigationInspector() {
     }
   }, [mapRef.current, startNode, endNode, startPin, endPin])
 
-  const computeRoute = useCallback(() => {
-    if (!startNode || !endNode || startNode.id === endNode.id) return
-    setIsRunning(true)
-    setAnimStep(-1)
-    setRouteResult(null)
-    setTimeout(() => {
-      const result = engineAStar(activeNodes, activeEdges, startNode.id, endNode.id)
-      setRouteResult(result)
-      setIsRunning(false)
-      if (result) {
-        let step = 0
-        const animate = () => {
-          setAnimStep(step++)
-          if (step <= result.path.length) animRef.current = window.setTimeout(animate, 300)
-        }
-        animate()
-      }
-    }, 400)
-  }, [activeNodes, activeEdges, startNode, endNode])
+  // computeRoute removed — auto-routing useEffect handles this now
 
   const detectDisconnected = useCallback(() => {
     const adj = getAdjacencyList(activeEdges)
@@ -382,8 +396,21 @@ export function NavigationInspector() {
     setRouteResult(null)
     setAnimStep(-1)
     setDisconnectedNodes([])
-    if (animRef.current) clearTimeout(animRef.current)
   }, [])
+
+  const clearAll = useCallback(() => {
+    setStartId('')
+    setEndId('')
+    setStartPin(null)
+    setEndPin(null)
+    setRouteResult(null)
+    setAnimStep(-1)
+    if (mapRef.current && activeNodes.length > 0) {
+      const bounds = new maplibregl.LngLatBounds()
+      activeNodes.forEach(n => bounds.extend([n.position.lng, n.position.lat]))
+      mapRef.current.fitBounds(bounds, { padding: 40 })
+    }
+  }, [activeNodes])
 
 
 
@@ -405,7 +432,7 @@ export function NavigationInspector() {
           <button onClick={detectDisconnected} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, color: '#D97706', fontSize: 11, cursor: 'pointer' }}>
             <Activity size={11} /> Detect Disconnected
           </button>
-          <button onClick={reset} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+          <button onClick={clearAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
             <RotateCcw size={11} /> Reset
           </button>
         </div>
@@ -452,13 +479,6 @@ export function NavigationInspector() {
               showNodeIds={showNodeIds}
               snapLines={showSnapIndicators ? snapLines : []}
             />
-          )}
-          {isRunning && (
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--navi-sidebar)', borderRadius: 10, padding: '20px 32px', textAlign: 'center', opacity: 0.95, zIndex: 10 }}>
-              <div style={{ width: 32, height: 32, border: '2px solid var(--navi-sidebar-border)', borderTopColor: 'var(--navi-primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 10px' }} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navi-text-sidebar-active)' }}>Running A* Pathfinding...</div>
-              <div style={{ fontSize: 10, color: 'var(--navi-text-sidebar)', marginTop: 3 }}>{startNode?.id} → {endNode?.id}</div>
-            </div>
           )}
           <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '4px 8px', fontSize: 9, display: 'flex', gap: 6, opacity: 0.9, zIndex: 10 }}>
             <span style={{ color: '#059669' }}>● Start</span>
@@ -532,9 +552,6 @@ export function NavigationInspector() {
                     </select>
                   </div>
                 ))}
-                <button onClick={computeRoute} disabled={isRunning || !startNode || !endNode || startNode.id === endNode.id} style={{ width: '100%', padding: '7px', background: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'var(--navi-content)' : 'var(--navi-primary)', border: 'none', borderRadius: 5, color: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'var(--navi-text-secondary)' : 'white', fontSize: 12, fontWeight: 600, cursor: isRunning || !startNode || !endNode || startNode.id === endNode.id ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 8 }}>
-                  <Zap size={12} /> {isRunning ? 'Computing...' : 'Run A* Algorithm'}
-                </button>
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -618,7 +635,7 @@ export function NavigationInspector() {
                 ) : (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', gap: 8 }}>
                     <Route size={22} color='var(--navi-primary)' style={{ opacity: 0.4 }} />
-                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 11, lineHeight: 1.5 }}>Select start and end nodes, then run A* to find the optimal route on the campus map.</div>
+                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 11, lineHeight: 1.5 }}>Select start and end nodes to find the optimal route on the campus map.</div>
                   </div>
                 )}
               </div>
