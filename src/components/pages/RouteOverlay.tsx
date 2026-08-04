@@ -30,6 +30,9 @@ export interface RouteOverlayProps {
   showLabels?: boolean
   showNodeIds?: boolean
   snapLines?: Array<{ from: [number, number]; to: [number, number]; color: string }>
+  selectedNodeId?: string | null
+  onNodeHover?: (nodeId: string | null) => void
+  onNodeClick?: (nodeId: string) => void
 }
 
 function addSourceIfMissing(map: maplibregl.Map, id: string, data: GeoJSON.FeatureCollection) {
@@ -58,7 +61,7 @@ function removeSourceIfExists(map: maplibregl.Map, sourceId: string) {
  * RouteOverlay — draws the A* route, all graph nodes, and start/end markers
  * on a MapLibre map. Used by RouteTesting to visualize routes on the real map.
  */
-export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, showLabels, showNodeIds, snapLines }: RouteOverlayProps) {
+export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, showLabels, showNodeIds, snapLines, selectedNodeId, onNodeHover, onNodeClick }: RouteOverlayProps) {
   const initializedRef = useRef(false)
 
   // ── Initialize sources and layers once ──
@@ -157,9 +160,24 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
             'elevator', '#8B5CF6',
             '#94A3B8',
           ],
-          'circle-stroke-color': '#fff',
-          'circle-stroke-width': 1,
-          'circle-opacity': 0.7,
+          'circle-stroke-color': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false], '#EAB308',
+            ['boolean', ['feature-state', 'hovered'], false], '#F59E0B',
+            '#fff',
+          ],
+          'circle-stroke-width': [
+            'case',
+            ['boolean', ['feature-state', 'selected'], false], 3,
+            ['boolean', ['feature-state', 'hovered'], false], 2.5,
+            1,
+          ],
+          'circle-opacity': [
+            'case',
+            ['boolean', ['feature-state', 'hovered'], false], 1,
+            ['boolean', ['feature-state', 'selected'], false], 1,
+            0.7,
+          ],
         },
       })
 
@@ -235,6 +253,7 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
     // Graph nodes
     const nodeFeatures: GeoJSON.Feature[] = nodes.map(n => ({
       type: 'Feature',
+      id: n.id,
       properties: { nodeId: n.id, nodeType: n.type, degree: degreeMap.get(n.id) ?? 0, name: n.name || n.label },
       geometry: { type: 'Point', coordinates: [n.position.lng, n.position.lat] },
     }))
@@ -255,6 +274,72 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
       map.setLayoutProperty(LYR_GRAPH_NODE_IDS, 'visibility', showGraph && showNodeIds ? 'visible' : 'none')
     } catch {}
   }, [map, showGraph, showNodeIds])
+
+  // ── Graph node interactivity (hover/click) ──
+  useEffect(() => {
+    if (!map || !initializedRef.current) return
+
+    let hoveredId: string | null = null
+
+    const onMouseMove = (e: maplibregl.MapMouseEvent & { features?: any[] }) => {
+      if (e.features && e.features.length > 0) {
+        const id = String(e.features[0].properties?.nodeId)
+        if (hoveredId && hoveredId !== id) {
+          map.setFeatureState({ source: SRC_GRAPH_NODES, id: hoveredId }, { hovered: false })
+        }
+        hoveredId = id
+        map.setFeatureState({ source: SRC_GRAPH_NODES, id }, { hovered: true })
+        map.getCanvas().style.cursor = 'pointer'
+        onNodeHover?.(id)
+      } else {
+        if (hoveredId) {
+          map.setFeatureState({ source: SRC_GRAPH_NODES, id: hoveredId }, { hovered: false })
+          hoveredId = null
+        }
+        map.getCanvas().style.cursor = ''
+        onNodeHover?.(null)
+      }
+    }
+
+    const onClick = (e: maplibregl.MapMouseEvent & { features?: any[] }) => {
+      if (e.features && e.features.length > 0) {
+        const id = String(e.features[0].properties?.nodeId)
+        onNodeClick?.(id)
+      }
+    }
+
+    const onMouseLeave = () => {
+      if (hoveredId) {
+        map.setFeatureState({ source: SRC_GRAPH_NODES, id: hoveredId }, { hovered: false })
+        hoveredId = null
+      }
+      map.getCanvas().style.cursor = ''
+      onNodeHover?.(null)
+    }
+
+    map.on('mousemove', LYR_GRAPH_NODES, onMouseMove)
+    map.on('mouseleave', LYR_GRAPH_NODES, onMouseLeave)
+    map.on('click', LYR_GRAPH_NODES, onClick)
+
+    return () => {
+      map.off('mousemove', LYR_GRAPH_NODES, onMouseMove)
+      map.off('mouseleave', LYR_GRAPH_NODES, onMouseLeave)
+      map.off('click', LYR_GRAPH_NODES, onClick)
+    }
+  }, [map, onNodeHover, onNodeClick])
+
+  // ── Update selected node state ──
+  useEffect(() => {
+    if (!map || !initializedRef.current || !selectedNodeId) return
+    try {
+      map.setFeatureState({ source: SRC_GRAPH_NODES, id: selectedNodeId }, { selected: true })
+    } catch {}
+    return () => {
+      try {
+        map.setFeatureState({ source: SRC_GRAPH_NODES, id: selectedNodeId }, { selected: false })
+      } catch {}
+    }
+  }, [map, selectedNodeId])
 
   // ── Update route line and markers whenever path or animStep changes ──
   useEffect(() => {

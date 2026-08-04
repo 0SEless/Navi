@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
-  Activity, XCircle,
+  Activity, XCircle, X,
 } from 'lucide-react'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
@@ -203,6 +203,8 @@ export function NavigationInspector() {
   const [showSnapIndicators, setShowSnapIndicators] = useState(true)
   const [showLabels, setShowLabels] = useState(false)
   const [showNodeIds, setShowNodeIds] = useState(false)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
 
   // ── Pin state (drag-and-drop pin placement) ──
   const [startPin, setStartPin] = useState<{ lat: number; lng: number } | null>(null)
@@ -215,6 +217,9 @@ export function NavigationInspector() {
 
   const startNode = nearestStart ?? activeNodes.find(n => n.id === startId) ?? null
   const endNode = nearestEnd ?? activeNodes.find(n => n.id === endId) ?? null
+
+  const selectedNode = selectedNodeId ? activeNodes.find(n => n.id === selectedNodeId) ?? null : null
+  const hoveredNode = hoveredNodeId ? activeNodes.find(n => n.id === hoveredNodeId) ?? null : null
 
   // Auto-route: run A* whenever start/end change
   useEffect(() => {
@@ -268,6 +273,42 @@ export function NavigationInspector() {
     }
     return lines
   }, [startPin, nearestStart, endPin, nearestEnd])
+
+  const flashNode = useCallback((nodeId: string) => {
+    const node = activeNodes.find(n => n.id === nodeId)
+    if (!node || !mapRef.current) return
+    const map = mapRef.current
+
+    map.flyTo({
+      center: [node.position.lng, node.position.lat],
+      zoom: 18,
+      duration: 600,
+    })
+
+    const flashId = `flash-${nodeId}`
+    if (map.getLayer(flashId)) map.removeLayer(flashId)
+    if (map.getSource(flashId)) map.removeSource(flashId)
+
+    map.addSource(flashId, {
+      type: 'geojson',
+      data: { type: 'Feature', geometry: { type: 'Point', coordinates: [node.position.lng, node.position.lat] }, properties: {} },
+    })
+    map.addLayer({
+      id: flashId, type: 'circle', source: flashId,
+      paint: { 'circle-radius': 20, 'circle-color': '#EAB308', 'circle-opacity': 0.8 },
+    })
+
+    let opacity = 0.8
+    const fade = setInterval(() => {
+      opacity -= 0.05
+      if (opacity <= 0) {
+        clearInterval(fade)
+        try { map.removeLayer(flashId); map.removeSource(flashId) } catch {}
+      } else {
+        map.setPaintProperty(flashId, 'circle-opacity', opacity)
+      }
+    }, 50)
+  }, [activeNodes])
 
   // ── Initialize MapLibre map ──
   useEffect(() => {
@@ -478,7 +519,26 @@ export function NavigationInspector() {
               showLabels={showLabels}
               showNodeIds={showNodeIds}
               snapLines={showSnapIndicators ? snapLines : []}
+              selectedNodeId={selectedNodeId}
+              onNodeHover={setHoveredNodeId}
+              onNodeClick={(nodeId) => {
+                setSelectedNodeId(nodeId)
+                flashNode(nodeId)
+              }}
             />
+          )}
+          {hoveredNode && (
+            <div style={{
+              position: 'absolute', bottom: 50, left: '50%', transform: 'translateX(-50%)',
+              background: 'var(--navi-sidebar)', border: '1px solid var(--navi-content)',
+              borderRadius: 6, padding: '5px 10px', fontSize: 10, color: 'var(--navi-text-sidebar)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)', zIndex: 10, pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}>
+              <b>{hoveredNode.name || hoveredNode.label || hoveredNode.id}</b>
+              <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>{hoveredNode.type}</span>
+              <span style={{ color: 'var(--navi-text-secondary)', marginLeft: 6 }}>Floor {hoveredNode.floor}</span>
+            </div>
           )}
           <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '4px 8px', fontSize: 9, display: 'flex', gap: 6, opacity: 0.9, zIndex: 10 }}>
             <span style={{ color: '#059669' }}>● Start</span>
@@ -615,6 +675,81 @@ export function NavigationInspector() {
                         </div>
                       )
                     })}
+
+                    {selectedNode && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600 }}>NODE INSPECTOR</div>
+                            <button
+                              onClick={() => setSelectedNodeId(null)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--navi-text-secondary)' }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>ID</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace', wordBreak: 'break-all' }}>{selectedNode.id}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Name</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.name || selectedNode.label || '—'}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Type</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.type}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Floor</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.floor}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Building</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.buildingId || '—'}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Position</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace' }}>
+                                {selectedNode.position.lat.toFixed(6)}, {selectedNode.position.lng.toFixed(6)}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Edges</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
+                                {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Degree</div>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
+                                {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 2 }}>Compiler Source</div>
+                            <div style={{ fontSize: 10, fontFamily: 'monospace', background: 'var(--navi-content)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-content)', color: 'var(--navi-text)' }}>
+                              {(selectedNode as any).compilerSource || `node:${selectedNode.id}`}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setStartId(selectedNode.id)
+                              setStartPin(null)
+                            }}
+                            style={{
+                              marginTop: 8, width: '100%', padding: '6px 0', fontSize: 10, fontWeight: 600,
+                              border: '1px solid #22C55E', borderRadius: 5, cursor: 'pointer',
+                              background: '#ECFDF5', color: '#059669',
+                            }}
+                          >
+                            Set as Start
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : disconnectedNodes.length > 0 ? (
                   <div style={{ padding: '14px' }}>
