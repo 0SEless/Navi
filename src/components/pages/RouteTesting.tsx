@@ -124,11 +124,38 @@ const MOCK_EDGES: NavEdge[] = [
   { id: 'E024', from: 'N016', to: 'N002', type: 'walkway', distance: calcDistance(MOCK_NODES[15].position, MOCK_NODES[1].position) },
 ]
 
-interface RouteStep {
+export interface RouteStepInfo {
   nodeId: string
-  nodeName: string
-  instruction: string
+  nodeLabel: string
+  nodeType: string
+  edge: NavEdge | null
   distance: number
+  instruction: string
+}
+
+export function computeRouteSteps(
+  path: string[],
+  nodes: NavNode[],
+  edges: NavEdge[],
+): RouteStepInfo[] {
+  return path.map((nodeId, i) => {
+    const node = nodes.find(n => n.id === nodeId)!
+    const prevId = i > 0 ? path[i - 1] : null
+    const edge = prevId ? edges.find(e =>
+      (e.from === prevId && e.to === nodeId) || (e.from === nodeId && e.to === prevId)
+    ) ?? null : null
+    const distance = edge?.distance ?? 0
+
+    let instruction = ''
+    if (i === 0) instruction = 'Start'
+    else if (i === path.length - 1) instruction = 'Destination'
+    else if (node.type === 'entrance' || node.type === 'building_entrance') instruction = 'Enter building'
+    else if (node.type === 'staircase' || node.type === 'stair') instruction = 'Use stairs'
+    else if (node.type === 'elevator') instruction = 'Use elevator'
+    else instruction = `Walk ${distance}m`
+
+    return { nodeId, nodeLabel: node.name || node.label || node.id, nodeType: node.type, edge, distance, instruction }
+  })
 }
 
 export function NavigationInspector() {
@@ -228,13 +255,7 @@ export function NavigationInspector() {
     if (animRef.current) clearTimeout(animRef.current)
   }, [])
 
-  const routeSteps: RouteStep[] = (routeResult?.path ?? []).map((nodeId, i) => {
-    const node = activeNodes.find(n => n.id === nodeId)!
-    const prev = i > 0 ? activeNodes.find(n => n.id === routeResult!.path[i - 1]) : null
-    const dist = prev ? Math.round(calcDistance(prev.position, node.position)) : 0
-    const instruction = i === 0 ? 'Start here' : i === (routeResult?.path.length ?? 1) - 1 ? 'Destination reached' : `Continue to ${node.label}`
-    return { nodeId, nodeName: node.label, instruction, distance: dist }
-  })
+
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -360,8 +381,8 @@ export function NavigationInspector() {
 
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 {routeResult ? (
-                  <div style={{ padding: '14px' }}>
-                    <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: '10px', marginBottom: 10 }}>
+                  <div style={{ padding: '0 14px 14px' }}>
+                    <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
                         <CheckCircle size={12} color='#059669' />
                         <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>Route Found</span>
@@ -371,22 +392,51 @@ export function NavigationInspector() {
                           { label: 'Nodes', value: routeResult.path.length },
                           { label: 'Distance', value: `${Math.round(routeResult.cost)}m` },
                           { label: 'Est. Time', value: `~${Math.ceil(routeResult.cost / 80)}min` },
-                          { label: 'Algorithm', value: 'A* (GPS)' },
                         ].map(({ label, value }) => (
-                          <div key={label} style={{ fontSize: 10 }}><span style={{ color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span> <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span></div>
+                          <div key={label} style={{ fontSize: 10 }}>
+                            <span style={{ color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label} </span>
+                            <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                          </div>
                         ))}
                       </div>
                     </div>
-                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>ROUTE STEPS</div>
-                    {routeSteps.map((step, i) => {
-                      const isAnim = i <= animStep
+
+                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>COMPUTED PATH</div>
+                    {computeRouteSteps(routeResult.path, activeNodes, activeEdges).map((step, i, steps) => {
+                      const isStart = i === 0
+                      const isEnd = i === steps.length - 1
+                      const isAnimated = i <= animStep
                       return (
-                        <div key={step.nodeId} style={{ display: 'flex', gap: 5, padding: '5px 7px', background: isAnim ? 'var(--navi-primary-light)' : 'transparent', border: `1px solid ${isAnim ? 'rgba(37,99,235,0.2)' : 'var(--navi-content)'}`, borderRadius: 5, marginBottom: 2 }}>
-                          <div style={{ width: 16, height: 16, background: i === 0 ? '#059669' : i === routeSteps.length - 1 ? 'var(--navi-primary)' : isAnim ? 'rgba(37,99,235,0.3)' : 'var(--navi-content)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 7, color: isAnim ? 'white' : 'var(--navi-text-secondary)', fontWeight: 700 }}>{i + 1}</div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: isAnim ? 'var(--navi-text)' : 'var(--navi-text-secondary)' }}>{step.nodeName}</div>
-                            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>{step.nodeId} {step.distance > 0 && `· +${step.distance}m`}</div>
+                        <div key={step.nodeId}>
+                          <div style={{
+                            display: 'flex', gap: 5, padding: '5px 7px',
+                            background: isAnimated ? 'var(--navi-primary-light)' : 'transparent',
+                            border: `1px solid ${isAnimated ? 'rgba(37,99,235,0.2)' : 'var(--navi-content)'}`,
+                            borderRadius: 5, marginBottom: 0,
+                          }}>
+                            <div style={{
+                              width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0, fontSize: 7, fontWeight: 700,
+                              background: isStart ? '#059669' : isEnd ? '#EF4444' : isAnimated ? 'rgba(37,99,235,0.3)' : 'var(--navi-content)',
+                              color: isAnimated ? 'white' : 'var(--navi-text-secondary)',
+                            }}>
+                              {i + 1}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: isAnimated ? 'var(--navi-text)' : 'var(--navi-text-secondary)' }}>
+                                {step.nodeLabel}
+                              </div>
+                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                                {step.nodeId} · {step.nodeType}
+                                {step.distance > 0 && ` · ${step.distance}m`}
+                              </div>
+                            </div>
                           </div>
+                          {i < steps.length - 1 && (
+                            <div style={{ paddingLeft: 20, fontSize: 9, color: 'var(--navi-text-secondary)', padding: '2px 0 2px 20px', lineHeight: 1.4 }}>
+                              │<br/>├── {step.instruction}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
