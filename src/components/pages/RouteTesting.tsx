@@ -202,7 +202,7 @@ export function NavigationInspector() {
   const [routeResult, setRouteResult] = useState<{ path: string[]; cost: number } | null>(null)
   const [animStep, setAnimStep] = useState(-1)
   const [disconnectedNodes, setDisconnectedNodes] = useState<string[]>([])
-  const [activeTab, setActiveTab] = useState<'navigate' | 'routing' | 'diagnostics'>('navigate')
+  const [activeTab, setActiveTab] = useState<'routing' | 'diagnostics'>('routing')
   const [showGraph, setShowGraph] = useState(true)
   const [showRoute, setShowRoute] = useState(true)
   const [showSnapIndicators, setShowSnapIndicators] = useState(true)
@@ -588,11 +588,10 @@ export function NavigationInspector() {
         <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Tab bar */}
           <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
-            {([
-              { key: 'navigate' as const, label: 'Navigate', icon: <NavigationIcon size={12} /> },
-              { key: 'routing' as const, label: 'Routing', icon: <Route size={12} /> },
-              { key: 'diagnostics' as const, label: 'Diagnostics', icon: <Activity size={12} /> },
-            ]).map(tab => (
+              {([
+                { key: 'routing' as const, label: 'Routing', icon: <Route size={12} /> },
+                { key: 'diagnostics' as const, label: 'Diagnostics', icon: <Activity size={12} /> },
+              ]).map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -620,49 +619,6 @@ export function NavigationInspector() {
               )}
             </div>
           </div>
-
-          {/* ═══════ NAVIGATE TAB ═══════ */}
-          {activeTab === 'navigate' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Route results / directions (when route exists) */}
-              {previewRoute ? (
-                <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                      <NavigationIcon size={12} color='#3B82F6' />
-                      <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>
-                        {Math.round(previewRoute.cost)}m · ~{Math.ceil(previewRoute.cost / 80)}min
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>DIRECTIONS</div>
-                  {previewRoute.steps.map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--navi-border)' }}>
-                      <div style={{ width: 16, height: 16, borderRadius: '50%', background: i === 0 ? '#059669' : i === previewRoute.steps.length - 1 ? '#EF4444' : 'var(--navi-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: i === 0 || i === previewRoute.steps.length - 1 ? 'white' : 'var(--navi-text-secondary)', flexShrink: 0 }}>
-                        {i + 1}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{step.instruction}</div>
-                        <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
-                          {renderModel?.nodes.find(n => n.id === step.nodeId)?.name || step.nodeId}
-                          {step.distance > 0 && ` · ${step.distance}m`}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* Empty state when no route */
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                  <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
-                    <NavigationIcon size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
-                    <div style={{ fontSize: 11 }}>Set a route in the Routing tab to see directions here.</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ═══════ ROUTING TAB ═══════ */}
           {activeTab === 'routing' && (

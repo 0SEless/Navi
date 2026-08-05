@@ -63,9 +63,8 @@ describe('NavigationInspector', () => {
     } as any)
   })
 
-  it('renders with navigate tab active by default', () => {
+  it('renders with routing tab active by default', () => {
     render(<NavigationInspector />)
-    expect(screen.getByText('Navigate')).toBeInTheDocument()
     expect(screen.getByText('Routing')).toBeInTheDocument()
     expect(screen.getByText('Diagnostics')).toBeInTheDocument()
   })
