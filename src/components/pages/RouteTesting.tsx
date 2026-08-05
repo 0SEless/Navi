@@ -624,74 +624,9 @@ export function NavigationInspector() {
           {/* ═══════ NAVIGATE TAB ═══════ */}
           {activeTab === 'navigate' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Search fields */}
-              <div style={{ padding: 14 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* From input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
-                    <input
-                      type="text"
-                      placeholder="Where are you?"
-                      value={previewPicker === 'from' ? previewQuery : (previewFrom ? renderModel?.nodes.find(n => n.id === previewFrom)?.name || previewFrom : '')}
-                      onFocus={() => { setPreviewPicker('from'); setPreviewQuery('') }}
-                      onChange={(e) => setPreviewQuery(e.target.value)}
-                      style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
-                    />
-                  </div>
-
-                  {/* Swap button */}
-                  <button
-                    onClick={() => {
-                      const tmpFrom = previewFrom
-                      const tmpTo = previewTo
-                      setPreviewFrom(tmpTo)
-                      setPreviewTo(tmpFrom)
-                    }}
-                    style={{ alignSelf: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', padding: 2 }}
-                  >
-                    <RotateCcw size={12} />
-                  </button>
-
-                  {/* To input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
-                    <input
-                      type="text"
-                      placeholder="Where do you want to go?"
-                      value={previewPicker === 'to' ? previewQuery : (previewTo ? renderModel?.nodes.find(n => n.id === previewTo)?.name || previewTo : '')}
-                      onFocus={() => { setPreviewPicker('to'); setPreviewQuery('') }}
-                      onChange={(e) => setPreviewQuery(e.target.value)}
-                      style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
-                    />
-                  </div>
-
-                  {/* Search results dropdown */}
-                  {previewPicker && previewSearchResults.length > 0 && (
-                    <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
-                      {previewSearchResults.map(node => (
-                        <button
-                          key={node.id}
-                          onClick={() => {
-                            if (previewPicker === 'from') setPreviewFrom(node.id)
-                            else setPreviewTo(node.id)
-                            setPreviewPicker(null)
-                            setPreviewQuery('')
-                          }}
-                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 10, border: 'none', borderBottom: '1px solid var(--navi-border)', background: 'transparent', cursor: 'pointer', color: 'var(--navi-text)' }}
-                        >
-                          <div style={{ fontWeight: 600 }}>{node.name || node.label || node.id}</div>
-                          <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>{node.type} · Floor {node.floor}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Route results / directions (when route exists) */}
-              {previewRoute && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 14px' }}>
+              {previewRoute ? (
+                <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
                   <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
                       <NavigationIcon size={12} color='#3B82F6' />
@@ -717,14 +652,12 @@ export function NavigationInspector() {
                     </div>
                   ))}
                 </div>
-              )}
-
-              {/* Empty state when no route */}
-              {!previewRoute && (
+              ) : (
+                /* Empty state when no route */
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                   <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
-                    <Search size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
-                    <div style={{ fontSize: 11 }}>Search for a starting point and destination to plan a route.</div>
+                    <NavigationIcon size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+                    <div style={{ fontSize: 11 }}>Set a route in the Routing tab to see directions here.</div>
                   </div>
                 </div>
               )}
@@ -744,6 +677,74 @@ export function NavigationInspector() {
                 </div>
               ) : (
                 <>
+                  {/* Search by name */}
+                  <div style={{ padding: '14px 14px 10px' }}>
+                    <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 6 }}>SEARCH BY NAME</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* From input */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            placeholder="Where are you?"
+                            value={previewPicker === 'from' ? previewQuery : (previewFrom ? renderModel?.nodes.find(n => n.id === previewFrom)?.name || previewFrom : '')}
+                            onFocus={() => { setPreviewPicker('from'); setPreviewQuery('') }}
+                            onChange={(e) => setPreviewQuery(e.target.value)}
+                            style={{ flex: 1, background: 'var(--navi-sidebar)', border: '1px solid var(--navi-sidebar)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
+                          />
+                        </div>
+
+                        {/* Swap button */}
+                        <button
+                          onClick={() => {
+                            const tmpFrom = previewFrom
+                            const tmpTo = previewTo
+                            setPreviewFrom(tmpTo)
+                            setPreviewTo(tmpFrom)
+                          }}
+                          style={{ alignSelf: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', padding: 2 }}
+                        >
+                          <RotateCcw size={12} />
+                        </button>
+
+                        {/* To input */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            placeholder="Where do you want to go?"
+                            value={previewPicker === 'to' ? previewQuery : (previewTo ? renderModel?.nodes.find(n => n.id === previewTo)?.name || previewTo : '')}
+                            onFocus={() => { setPreviewPicker('to'); setPreviewQuery('') }}
+                            onChange={(e) => setPreviewQuery(e.target.value)}
+                            style={{ flex: 1, background: 'var(--navi-sidebar)', border: '1px solid var(--navi-sidebar)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
+                          />
+                        </div>
+
+                        {/* Search results dropdown */}
+                        {previewPicker && previewSearchResults.length > 0 && (
+                          <div style={{ background: 'var(--navi-sidebar)', border: '1px solid var(--navi-border)', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
+                            {previewSearchResults.map(node => (
+                              <button
+                                key={node.id}
+                                onClick={() => {
+                                  if (previewPicker === 'from') setPreviewFrom(node.id)
+                                  else setPreviewTo(node.id)
+                                  setPreviewPicker(null)
+                                  setPreviewQuery('')
+                                }}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 10, border: 'none', borderBottom: '1px solid var(--navi-border)', background: 'transparent', cursor: 'pointer', color: 'var(--navi-text)' }}
+                              >
+                                <div style={{ fontWeight: 600 }}>{node.name || node.label || node.id}</div>
+                                <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>{node.type} · Floor {node.floor}</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div style={{ padding: '0 14px 10px' }}>
                     <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
                       <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 6 }}>PIN PLACEMENT</div>
