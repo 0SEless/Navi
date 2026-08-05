@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import {
   Route, RotateCcw, AlertTriangle, CheckCircle,
   Activity, XCircle, X, MapPin,
-  Search, Navigation as NavigationIcon, ChevronDown, ChevronUp,
+  Search, Navigation as NavigationIcon,
 } from 'lucide-react'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
@@ -193,7 +193,6 @@ export function NavigationInspector() {
 
   const activeNodes = hasRealData && compiledNodes.length > 0 ? compiledNodes : MOCK_NODES
   const activeEdges = hasRealData && compiledEdges.length > 0 ? compiledEdges : MOCK_EDGES
-  const usingMock = !hasRealData || compiledNodes.length === 0
 
   const graphHealth = activeNodes.length > 0 ? computeGraphHealth(activeNodes, activeEdges) : null
   const isHealthy = graphHealth && graphHealth.disconnected === 0 && graphHealth.isolated === 0
@@ -203,7 +202,7 @@ export function NavigationInspector() {
   const [routeResult, setRouteResult] = useState<{ path: string[]; cost: number } | null>(null)
   const [animStep, setAnimStep] = useState(-1)
   const [disconnectedNodes, setDisconnectedNodes] = useState<string[]>([])
-  const [activeTab, setActiveTab] = useState<'route' | 'diagnostics'>('route')
+  const [activeTab, setActiveTab] = useState<'navigate' | 'routing' | 'diagnostics'>('navigate')
   const [showGraph, setShowGraph] = useState(true)
   const [showRoute, setShowRoute] = useState(true)
   const [showSnapIndicators, setShowSnapIndicators] = useState(true)
@@ -211,9 +210,6 @@ export function NavigationInspector() {
   const [showNodeIds, setShowNodeIds] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
-
-  // ── Mode state ──
-  const [mode, setMode] = useState<'preview' | 'debug'>('preview')
 
   // ── Preview search state ──
   const [previewQuery, setPreviewQuery] = useState('')
@@ -477,7 +473,6 @@ export function NavigationInspector() {
     }
   }, [mapRef.current, startNode, endNode, startPin, endPin])
 
-  // computeRoute removed — auto-routing useEffect handles this now
 
   const detectDisconnected = useCallback(() => {
     const adj = getAdjacencyList(activeEdges)
@@ -509,83 +504,7 @@ export function NavigationInspector() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Mode Toggle Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid var(--navi-content)' }}>
-        {/* Mode toggle */}
-        <div style={{ display: 'flex', background: 'var(--navi-content)', borderRadius: 5, padding: 2 }}>
-          {[
-            { key: 'preview' as const, label: 'Navigation Preview', icon: <Route size={12} /> },
-            { key: 'debug' as const, label: 'Graph Debug', icon: <Activity size={12} /> },
-          ].map(({ key, label, icon }) => (
-            <button
-              key={key}
-              onClick={() => setMode(key)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                fontSize: 10, fontWeight: 600, border: 'none', borderRadius: 4,
-                cursor: 'pointer', transition: 'all 0.15s',
-                background: mode === key ? 'var(--navi-primary)' : 'transparent',
-                color: mode === key ? 'white' : 'var(--navi-text-secondary)',
-              }}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
-        </div>
-        
-        {/* Sync status */}
-        <div style={{ marginLeft: 'auto' }}>
-          {hasRealData ? (
-            <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
-              Live
-            </span>
-          ) : (
-            <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
-              Mock
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* Debug Mode Header (when in debug mode) */}
-      {mode === 'debug' && (
-        <>
-          <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, borderBottom: '1px solid var(--navi-border)' }}>
-            <div>
-              <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--navi-text)', margin: 0 }}>Route Testing</h1>
-              <p style={{ color: 'var(--navi-text-secondary)', fontSize: 11, margin: '2px 0 0' }}>A* pathfinding on the campus map</p>
-            </div>
-            {usingMock && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '4px 8px', fontSize: 10, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <AlertTriangle size={11} />
-                Demo data — publish a campus to test real routes
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={detectDisconnected} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, color: '#D97706', fontSize: 11, cursor: 'pointer' }}>
-                <Activity size={11} /> Detect Disconnected
-              </button>
-              <button onClick={clearAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, color: 'var(--navi-text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-                <RotateCcw size={11} /> Reset
-              </button>
-            </div>
-          </div>
-
-          {graphHealth && (
-            <div style={{ padding: '6px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, background: isHealthy ? '#ECFDF5' : '#FFFBEB', borderBottom: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}` }}>
-              <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
-              <span style={{ fontWeight: 600, color: isHealthy ? '#059669' : '#D97706' }}>{isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable`}</span>
-              <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
-              <span style={{ color: 'var(--navi-text-secondary)' }}>{graphHealth.total} nodes, {activeEdges.length} edges, {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}</span>
-              <span style={{ color: 'var(--navi-text-secondary)' }}>·</span>
-              <span style={{ color: hasRealData ? '#059669' : '#D97706', fontWeight: 600 }}>{hasRealData ? 'Live' : 'Mock'}</span>
-            </div>
-          )}
-        </>
-      )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Map canvas */}
@@ -593,9 +512,9 @@ export function NavigationInspector() {
           <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
           {/* ═══════════════════════════════════════════════════════════
-              DEBUG MODE: Existing graph debug view
+              ROUTING TAB: Graph debug overlay
               ═══════════════════════════════════════════════════════════ */}
-          {mode === 'debug' && (
+          {activeTab === 'routing' && (
             <>
               {/* Visualization toggles */}
               <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'var(--navi-sidebar)', borderRadius: 6, padding: '8px 10px', fontSize: 10, display: 'flex', flexDirection: 'column', gap: 4, opacity: 0.95 }}>
@@ -655,15 +574,60 @@ export function NavigationInspector() {
             </>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════
-              PREVIEW MODE: Student-facing navigation view
-              ═══════════════════════════════════════════════════════════ */}
-          {mode === 'preview' && (
+          {/* Building layers (always visible) */}
+          {mapRef.current && renderModel && (
             <>
-              {/* Search Panel */}
-              <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 20, background: 'var(--navi-sidebar)', borderRadius: 8, padding: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+              <BuildingLayer map={mapRef.current} buildings={renderModel.buildings} />
+              <BoundaryLayer map={mapRef.current} boundary={renderModel.boundary} />
+              <EntranceLayer map={mapRef.current} entrances={renderModel.entrances} />
+            </>
+          )}
+        </div>
+
+        {/* Right panel */}
+        <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Tab bar */}
+          <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
+            {([
+              { key: 'navigate' as const, label: 'Navigate', icon: <NavigationIcon size={12} /> },
+              { key: 'routing' as const, label: 'Routing', icon: <Route size={12} /> },
+              { key: 'diagnostics' as const, label: 'Diagnostics', icon: <Activity size={12} /> },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  flex: 1, padding: '8px 0', background: 'transparent', border: 'none', borderBottom: activeTab === tab.key ? '2px solid var(--navi-primary)' : '2px solid transparent',
+                  color: activeTab === tab.key ? 'var(--navi-primary)' : 'var(--navi-text-secondary)', fontSize: 11, fontWeight: activeTab === tab.key ? 700 : 500, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                }}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
+              {hasRealData ? (
+                <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
+                  Live
+                </span>
+              ) : (
+                <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
+                  Mock
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* ═══════ NAVIGATE TAB ═══════ */}
+          {activeTab === 'navigate' && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Search fields */}
+              <div style={{ padding: 14 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {/* From */}
+                  {/* From input */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
                     <input
@@ -675,8 +639,21 @@ export function NavigationInspector() {
                       style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
                     />
                   </div>
-                  
-                  {/* To */}
+
+                  {/* Swap button */}
+                  <button
+                    onClick={() => {
+                      const tmpFrom = previewFrom
+                      const tmpTo = previewTo
+                      setPreviewFrom(tmpTo)
+                      setPreviewTo(tmpFrom)
+                    }}
+                    style={{ alignSelf: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--navi-text-secondary)', padding: 2 }}
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+
+                  {/* To input */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
                     <input
@@ -688,8 +665,8 @@ export function NavigationInspector() {
                       style={{ flex: 1, background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--navi-text)', outline: 'none' }}
                     />
                   </div>
-                  
-                  {/* Search results */}
+
+                  {/* Search results dropdown */}
                   {previewPicker && previewSearchResults.length > 0 && (
                     <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, maxHeight: 150, overflowY: 'auto' }}>
                       {previewSearchResults.map(node => (
@@ -712,362 +689,305 @@ export function NavigationInspector() {
                 </div>
               </div>
 
-              {/* Directions Panel */}
+              {/* Route results / directions (when route exists) */}
               {previewRoute && (
-                <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, zIndex: 20, background: 'var(--navi-sidebar)', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-                  <button
-                    onClick={() => setDirectionsCollapsed(!directionsCollapsed)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <NavigationIcon size={14} color='#3B82F6' />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text)' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 14px' }}>
+                  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                      <NavigationIcon size={12} color='#3B82F6' />
+                      <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>
                         {Math.round(previewRoute.cost)}m · ~{Math.ceil(previewRoute.cost / 80)}min
                       </span>
                     </div>
-                    {directionsCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  
-                  {!directionsCollapsed && (
-                    <div style={{ padding: '0 12px 10px', maxHeight: 200, overflowY: 'auto' }}>
-                      {previewRoute.steps.map((step, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--navi-border)' }}>
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', background: i === 0 ? '#059669' : i === previewRoute.steps.length - 1 ? '#EF4444' : 'var(--navi-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: i === 0 || i === previewRoute.steps.length - 1 ? 'white' : 'var(--navi-text-secondary)', flexShrink: 0 }}>
-                            {i + 1}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{step.instruction}</div>
-                            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
-                              {renderModel?.nodes.find(n => n.id === step.nodeId)?.name || step.nodeId}
-                              {step.distance > 0 && ` · ${step.distance}m`}
-                            </div>
-                          </div>
+                  </div>
+
+                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>DIRECTIONS</div>
+                  {previewRoute.steps.map((step, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', background: i === 0 ? '#059669' : i === previewRoute.steps.length - 1 ? '#EF4444' : 'var(--navi-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: i === 0 || i === previewRoute.steps.length - 1 ? 'white' : 'var(--navi-text-secondary)', flexShrink: 0 }}>
+                        {i + 1}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{step.instruction}</div>
+                        <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                          {renderModel?.nodes.find(n => n.id === step.nodeId)?.name || step.nodeId}
+                          {step.distance > 0 && ` · ${step.distance}m`}
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
-            </>
-          )}
 
-          {/* Building layers (always visible) */}
-          {mapRef.current && renderModel && (
-            <>
-              <BuildingLayer map={mapRef.current} buildings={renderModel.buildings} />
-              <BoundaryLayer map={mapRef.current} boundary={renderModel.boundary} />
-              <EntranceLayer map={mapRef.current} entrances={renderModel.entrances} />
-            </>
-          )}
-        </div>
-
-        {/* Right panel - only in debug mode */}
-        {mode === 'debug' && (
-        <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Tab bar */}
-          <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
-            {([
-              { key: 'route', label: 'Route' },
-              { key: 'diagnostics', label: 'Diagnostics' },
-            ] as const).map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                style={{
-                  flex: 1, padding: '8px 0', background: 'transparent', border: 'none', borderBottom: activeTab === tab.key ? '2px solid var(--navi-primary)' : '2px solid transparent',
-                  color: activeTab === tab.key ? 'var(--navi-primary)' : 'var(--navi-text-secondary)', fontSize: 11, fontWeight: activeTab === tab.key ? 700 : 500, cursor: 'pointer',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
-              {hasRealData ? (
-                <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
-                  Live
-                </span>
-              ) : (
-                <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
-                  Mock
-                </span>
+              {/* Empty state when no route */}
+              {!previewRoute && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                  <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
+                    <Search size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+                    <div style={{ fontSize: 11 }}>Search for a starting point and destination to plan a route.</div>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {activeTab === 'route' && (
+          {/* ═══════ ROUTING TAB ═══════ */}
+          {activeTab === 'routing' && (
             <>
-              <div style={{ padding: '0 14px 10px' }}>
-                <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 6 }}>PIN PLACEMENT</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => { setStartId(''); setStartPin(null) }}
-                      style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!startNode ? '#22C55E' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !startNode ? '#ECFDF5' : 'var(--navi-content)', color: !startNode ? '#059669' : 'var(--navi-text)' }}
-                    >
-                      {startNode ? `📍 ${startNode.name || startNode.id}` : '① Click to set Start'}
-                    </button>
-                    <button
-                      onClick={() => { setEndId(''); setEndPin(null) }}
-                      style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!endNode ? '#3B82F6' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !endNode ? '#EFF6FF' : 'var(--navi-content)', color: !endNode ? '#3B82F6' : 'var(--navi-text)' }}
-                    >
-                      {endNode ? `📍 ${endNode.name || endNode.id}` : '② Click to set End'}
-                    </button>
+              {!hasRealData ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                  <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
+                    <Route size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+                    <div style={{ fontSize: 11 }}>No published graph available.</div>
+                    <div style={{ fontSize: 10, marginTop: 4 }}>Publish the campus from the Studio to inspect routing.</div>
                   </div>
-                  {(nearestStart || nearestEnd) && (
-                    <div style={{ marginTop: 6, fontSize: 9, color: 'var(--navi-text-secondary)' }}>
-                      {nearestStart && <div>🟢 Snapped to: <b>{nearestStart.name || nearestStart.id}</b></div>}
-                      {nearestEnd && <div>🔵 Snapped to: <b>{nearestEnd.name || nearestEnd.id}</b></div>}
-                    </div>
-                  )}
                 </div>
-              </div>
-
-              <div style={{ padding: '14px', borderBottom: '1px solid var(--navi-content)' }}>
-                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 8 }}>ROUTE CONFIGURATION</div>
-                {[
-                  { label: 'START NODE', value: startId, set: setStartId, color: '#059669' },
-                  { label: 'END NODE', value: endId, set: setEndId, color: '#3B82F6' },
-                ].map(({ label, value, set, color }) => (
-                  <div key={label} style={{ marginBottom: 6 }}>
-                    <label style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, display: 'block', marginBottom: 2 }}>{label}</label>
-                    <select value={value} onChange={(e) => set(e.target.value)} style={{ width: '100%', background: 'var(--navi-content)', border: `1px solid ${color}30`, borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11, outline: 'none', cursor: 'pointer' }}>
-                      <option value="">— Select node —</option>
-                      {activeNodes.map((n) => <option key={n.id} value={n.id}>{n.id} — {n.name}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {routeResult ? (
-                  <div style={{ padding: '0 14px 14px' }}>
-                    <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                        <CheckCircle size={12} color='#059669' />
-                        <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>Route Found</span>
+              ) : (
+                <>
+                  <div style={{ padding: '0 14px 10px' }}>
+                    <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 6 }}>PIN PLACEMENT</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => { setStartId(''); setStartPin(null) }}
+                          style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!startNode ? '#22C55E' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !startNode ? '#ECFDF5' : 'var(--navi-content)', color: !startNode ? '#059669' : 'var(--navi-text)' }}
+                        >
+                          {startNode ? `📍 ${startNode.name || startNode.id}` : '① Click to set Start'}
+                        </button>
+                        <button
+                          onClick={() => { setEndId(''); setEndPin(null) }}
+                          style={{ flex: 1, padding: '6px 8px', fontSize: 10, fontWeight: 600, border: `1px solid ${!endNode ? '#3B82F6' : 'var(--navi-content)'}`, borderRadius: 5, cursor: 'pointer', background: !endNode ? '#EFF6FF' : 'var(--navi-content)', color: !endNode ? '#3B82F6' : 'var(--navi-text)' }}
+                        >
+                          {endNode ? `📍 ${endNode.name || endNode.id}` : '② Click to set End'}
+                        </button>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                        {[
-                          { label: 'Nodes', value: routeResult.path.length },
-                          { label: 'Distance', value: `${Math.round(routeResult.cost)}m` },
-                          { label: 'Est. Time', value: `~${Math.ceil(routeResult.cost / 80)}min` },
-                        ].map(({ label, value }) => (
-                          <div key={label} style={{ fontSize: 10 }}>
-                            <span style={{ color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label} </span>
-                            <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                      {(nearestStart || nearestEnd) && (
+                        <div style={{ marginTop: 6, fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                          {nearestStart && <div>🟢 Snapped to: <b>{nearestStart.name || nearestStart.id}</b></div>}
+                          {nearestEnd && <div>🔵 Snapped to: <b>{nearestEnd.name || nearestEnd.id}</b></div>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '14px', borderBottom: '1px solid var(--navi-content)' }}>
+                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 8 }}>ROUTE CONFIGURATION</div>
+                    {[
+                      { label: 'START NODE', value: startId, set: setStartId, color: '#059669' },
+                      { label: 'END NODE', value: endId, set: setEndId, color: '#3B82F6' },
+                    ].map(({ label, value, set, color }) => (
+                      <div key={label} style={{ marginBottom: 6 }}>
+                        <label style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, display: 'block', marginBottom: 2 }}>{label}</label>
+                        <select value={value} onChange={(e) => set(e.target.value)} style={{ width: '100%', background: 'var(--navi-content)', border: `1px solid ${color}30`, borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11, outline: 'none', cursor: 'pointer' }}>
+                          <option value="">— Select node —</option>
+                          {activeNodes.map((n) => <option key={n.id} value={n.id}>{n.id} — {n.name}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {routeResult ? (
+                      <div style={{ padding: '0 14px 14px' }}>
+                        <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 7, padding: 10, marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                            <CheckCircle size={12} color='#059669' />
+                            <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>Route Found</span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                            {[
+                              { label: 'Nodes', value: routeResult.path.length },
+                              { label: 'Distance', value: `${Math.round(routeResult.cost)}m` },
+                              { label: 'Est. Time', value: `~${Math.ceil(routeResult.cost / 80)}min` },
+                            ].map(({ label, value }) => (
+                              <div key={label} style={{ fontSize: 10 }}>
+                                <span style={{ color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label} </span>
+                                <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>COMPUTED PATH</div>
+                        {computeRouteSteps(routeResult.path, activeNodes, activeEdges).map((step, i, steps) => {
+                          const isStart = i === 0
+                          const isEnd = i === steps.length - 1
+                          const isAnimated = i <= animStep
+                          return (
+                            <div key={step.nodeId}>
+                              <div style={{
+                                display: 'flex', gap: 5, padding: '5px 7px',
+                                background: isAnimated ? 'var(--navi-primary-light)' : 'transparent',
+                                border: `1px solid ${isAnimated ? 'rgba(37,99,235,0.2)' : 'var(--navi-content)'}`,
+                                borderRadius: 5, marginBottom: 0,
+                              }}>
+                                <div style={{
+                                  width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  flexShrink: 0, fontSize: 7, fontWeight: 700,
+                                  background: isStart ? '#059669' : isEnd ? '#EF4444' : isAnimated ? 'rgba(37,99,235,0.3)' : 'var(--navi-content)',
+                                  color: isAnimated ? 'white' : 'var(--navi-text-secondary)',
+                                }}>
+                                  {i + 1}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: isAnimated ? 'var(--navi-text)' : 'var(--navi-text-secondary)' }}>
+                                    {step.nodeLabel}
+                                  </div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
+                                    {step.nodeId} · {step.nodeType}
+                                    {step.distance > 0 && ` · ${step.distance}m`}
+                                  </div>
+                                </div>
+                              </div>
+                              {i < steps.length - 1 && (
+                                <div style={{ paddingLeft: 20, fontSize: 9, color: 'var(--navi-text-secondary)', padding: '2px 0 2px 20px', lineHeight: 1.4 }}>
+                                  │<br/>├── {step.instruction}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {selectedNode && (
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600 }}>NODE INSPECTOR</div>
+                                <button
+                                  onClick={() => setSelectedNodeId(null)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--navi-text-secondary)' }}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>ID</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace', wordBreak: 'break-all' }}>{selectedNode.id}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Name</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.name || selectedNode.label || '—'}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Type</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.type}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Floor</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.floor}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Building</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.buildingId || '—'}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Position</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace' }}>
+                                    {selectedNode.position.lat.toFixed(6)}, {selectedNode.position.lng.toFixed(6)}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Edges</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
+                                    {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Degree</div>
+                                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
+                                    {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 2 }}>Compiler Source</div>
+                                <div style={{ fontSize: 10, fontFamily: 'monospace', background: 'var(--navi-content)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-content)', color: 'var(--navi-text)' }}>
+                                  {(selectedNode as any).compilerSource || `node:${selectedNode.id}`}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setStartId(selectedNode.id)
+                                  setStartPin(null)
+                                }}
+                                style={{
+                                  marginTop: 8, width: '100%', padding: '6px 0', fontSize: 10, fontWeight: 600,
+                                  border: '1px solid #22C55E', borderRadius: 5, cursor: 'pointer',
+                                  background: '#ECFDF5', color: '#059669',
+                                }}
+                              >
+                                Set as Start
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : disconnectedNodes.length > 0 ? (
+                      <div style={{ padding: '14px' }}>
+                        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, padding: '10px', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                            <AlertTriangle size={12} color='var(--navi-error)' />
+                            <span style={{ color: 'var(--navi-error)', fontSize: 11, fontWeight: 700 }}>{disconnectedNodes.length} Disconnected</span>
+                          </div>
+                          <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10 }}>These nodes have no valid path connections.</div>
+                        </div>
+                        {disconnectedNodes.map((nodeId) => (
+                          <div key={nodeId} style={{ display: 'flex', gap: 5, padding: '6px 8px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 5, marginBottom: 3 }}>
+                            <XCircle size={11} color='var(--navi-error)' style={{ flexShrink: 0, marginTop: 1 }} />
+                            <div><div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text)' }}>{nodeId}</div><div style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>{activeNodes.find((n) => n.id === nodeId)?.name ?? ''}</div></div>
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>COMPUTED PATH</div>
-                    {computeRouteSteps(routeResult.path, activeNodes, activeEdges).map((step, i, steps) => {
-                      const isStart = i === 0
-                      const isEnd = i === steps.length - 1
-                      const isAnimated = i <= animStep
-                      return (
-                        <div key={step.nodeId}>
-                          <div style={{
-                            display: 'flex', gap: 5, padding: '5px 7px',
-                            background: isAnimated ? 'var(--navi-primary-light)' : 'transparent',
-                            border: `1px solid ${isAnimated ? 'rgba(37,99,235,0.2)' : 'var(--navi-content)'}`,
-                            borderRadius: 5, marginBottom: 0,
-                          }}>
-                            <div style={{
-                              width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              flexShrink: 0, fontSize: 7, fontWeight: 700,
-                              background: isStart ? '#059669' : isEnd ? '#EF4444' : isAnimated ? 'rgba(37,99,235,0.3)' : 'var(--navi-content)',
-                              color: isAnimated ? 'white' : 'var(--navi-text-secondary)',
-                            }}>
-                              {i + 1}
+                    ) : (
+                      <div style={{ padding: '14px' }}>
+                        <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
+                          <MapPin size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
+                          <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--navi-text)' }}>Set Start & End Points</div>
+                          <div style={{ fontSize: 10, lineHeight: 1.5, maxWidth: 220, margin: '0 auto' }}>
+                            Click the map to place pins, or use the dropdowns above. Route calculates automatically.
+                          </div>
+                          <div style={{ marginTop: 10, display: 'flex', gap: 6, justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#059669', border: '2px solid white' }} />
+                              Start
                             </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: isAnimated ? 'var(--navi-text)' : 'var(--navi-text-secondary)' }}>
-                                {step.nodeLabel}
-                              </div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
-                                {step.nodeId} · {step.nodeType}
-                                {step.distance > 0 && ` · ${step.distance}m`}
-                              </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6', border: '2px solid white' }} />
+                              End
                             </div>
                           </div>
-                          {i < steps.length - 1 && (
-                            <div style={{ paddingLeft: 20, fontSize: 9, color: 'var(--navi-text-secondary)', padding: '2px 0 2px 20px', lineHeight: 1.4 }}>
-                              │<br/>├── {step.instruction}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {selectedNode && (
-                      <div style={{ marginTop: 10 }}>
-                        <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-content)', borderRadius: 7, padding: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600 }}>NODE INSPECTOR</div>
-                            <button
-                              onClick={() => setSelectedNodeId(null)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--navi-text-secondary)' }}
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>ID</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace', wordBreak: 'break-all' }}>{selectedNode.id}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Name</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.name || selectedNode.label || '—'}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Type</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.type}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Floor</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.floor}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Building</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>{selectedNode.buildingId || '—'}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Position</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)', fontFamily: 'monospace' }}>
-                                {selectedNode.position.lat.toFixed(6)}, {selectedNode.position.lng.toFixed(6)}
-                              </div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Edges</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
-                                {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
-                              </div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>Degree</div>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text)' }}>
-                                {activeEdges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ marginTop: 8 }}>
-                            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 2 }}>Compiler Source</div>
-                            <div style={{ fontSize: 10, fontFamily: 'monospace', background: 'var(--navi-content)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-content)', color: 'var(--navi-text)' }}>
-                              {(selectedNode as any).compilerSource || `node:${selectedNode.id}`}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setStartId(selectedNode.id)
-                              setStartPin(null)
-                            }}
-                            style={{
-                              marginTop: 8, width: '100%', padding: '6px 0', fontSize: 10, fontWeight: 600,
-                              border: '1px solid #22C55E', borderRadius: 5, cursor: 'pointer',
-                              background: '#ECFDF5', color: '#059669',
-                            }}
-                          >
-                            Set as Start
-                          </button>
                         </div>
                       </div>
                     )}
                   </div>
-                ) : disconnectedNodes.length > 0 ? (
-                  <div style={{ padding: '14px' }}>
-                    <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 7, padding: '10px', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                        <AlertTriangle size={12} color='var(--navi-error)' />
-                        <span style={{ color: 'var(--navi-error)', fontSize: 11, fontWeight: 700 }}>{disconnectedNodes.length} Disconnected</span>
-                      </div>
-                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10 }}>These nodes have no valid path connections.</div>
-                    </div>
-                    {disconnectedNodes.map((nodeId) => (
-                      <div key={nodeId} style={{ display: 'flex', gap: 5, padding: '6px 8px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 5, marginBottom: 3 }}>
-                        <XCircle size={11} color='var(--navi-error)' style={{ flexShrink: 0, marginTop: 1 }} />
-                        <div><div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text)' }}>{nodeId}</div><div style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>{activeNodes.find((n) => n.id === nodeId)?.name ?? ''}</div></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ padding: '14px' }}>
-                    <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
-                      <MapPin size={32} style={{ marginBottom: 8, opacity: 0.4 }} />
-                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--navi-text)' }}>Set Start & End Points</div>
-                      <div style={{ fontSize: 10, lineHeight: 1.5, maxWidth: 220, margin: '0 auto' }}>
-                        Click the map to place pins, or use the dropdowns above. Route calculates automatically.
-                      </div>
-                      <div style={{ marginTop: 10, display: 'flex', gap: 6, justifyContent: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#059669', border: '2px solid white' }} />
-                          Start
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6', border: '2px solid white' }} />
-                          End
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </>
           )}
 
+          {/* ═══════ DIAGNOSTICS TAB ═══════ */}
           {activeTab === 'diagnostics' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-              {/* PUBLISHED SNAPSHOT */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>PUBLISHED SNAPSHOT</div>
-                <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
-                  {[
-                    { label: 'Version', value: (result as any)?.metadata?.version ?? (result as any)?.version ?? '—' },
-                    { label: 'Timestamp', value: (result as any)?.createdAt ?? '—' },
-                    { label: 'Campus', value: (result as any)?.campusId ?? '—' },
-                    { label: 'Nodes', value: activeNodes.length },
-                    { label: 'Edges', value: activeEdges.length },
-                  ].map(({ label, value }) => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
-                      <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>
-                      <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* GRAPH HEALTH */}
-              {graphHealth && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>GRAPH HEALTH</div>
-                  <div style={{ background: isHealthy ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}`, borderRadius: 6, padding: '8px 10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isHealthy ? '#059669' : '#D97706' }}>
-                        {isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable node${graphHealth.disconnected !== 1 ? 's' : ''}`}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
-                      {graphHealth.connected}/{graphHealth.total} connected · {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}
-                    </div>
+              {!hasRealData ? (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                  <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
+                    <Activity size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+                    <div style={{ fontSize: 11 }}>Waiting for published snapshot...</div>
+                    <div style={{ fontSize: 10, marginTop: 4 }}>Diagnostics will appear once a campus is published.</div>
                   </div>
                 </div>
-              )}
-
-              {/* STATISTICS */}
-              {graphHealth && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>STATISTICS</div>
-                  <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
+              ) : (
+                <>
+                  {/* SNAPSHOT */}
+                  <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                    <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>SNAPSHOT</div>
                     {[
-                      { label: 'Components', value: graphHealth.components },
-                      { label: 'Dead Ends', value: graphHealth.deadEnds },
-                      { label: 'Isolated Nodes', value: graphHealth.isolated },
-                      { label: 'Avg Degree', value: graphHealth.avgDegree.toFixed(1) },
-                      { label: 'Max Degree', value: graphHealth.maxDegree },
+                      { label: 'Version', value: (result as any)?.metadata?.version ?? (result as any)?.version ?? '—' },
+                      { label: 'Timestamp', value: (result as any)?.createdAt ?? '—' },
+                      { label: 'Campus', value: (result as any)?.campusId ?? '—' },
+                      { label: 'Nodes', value: activeNodes.length },
+                      { label: 'Edges', value: activeEdges.length },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
                         <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>
@@ -1075,51 +995,79 @@ export function NavigationInspector() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
 
-              {/* NODE TYPES */}
-              {graphHealth && Object.keys(graphHealth.nodeTypes).length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>NODE TYPES</div>
-                  <div style={{ background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 6, padding: '8px 10px' }}>
-                    {Object.entries(graphHealth.nodeTypes).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-                      <div key={type} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
-                        <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{type}</span>
-                        <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* WARNINGS */}
-              {graphHealth && graphHealth.warnings.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, marginBottom: 6 }}>WARNINGS</div>
-                  {graphHealth.warnings.map((warning, i) => (
-                    <div key={i} style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', marginBottom: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                        <AlertTriangle size={11} color='#D97706' />
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706' }}>{warning.message}</span>
-                      </div>
-                      <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', lineHeight: 1.5 }}>
-                        {warning.nodeIds.join(', ')}
+                  {/* HEALTH */}
+                  {graphHealth && (
+                    <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>HEALTH</div>
+                      <div style={{ background: isHealthy ? '#ECFDF5' : '#FFFBEB', border: `1px solid ${isHealthy ? '#A7F3D0' : '#FDE68A'}`, borderRadius: 6, padding: '8px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 14 }}>{isHealthy ? '🟢' : '⚠'}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: isHealthy ? '#059669' : '#D97706' }}>
+                            {isHealthy ? 'Healthy' : `${graphHealth.disconnected} unreachable node${graphHealth.disconnected !== 1 ? 's' : ''}`}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
+                          {graphHealth.connected}/{graphHealth.total} connected · {graphHealth.components} component{graphHealth.components !== 1 ? 's' : ''}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )}
 
-              {!result && (
-                <div style={{ color: 'var(--navi-text-secondary)', fontSize: 10, textAlign: 'center', padding: 20 }}>
-                  No published graph data. Publish a campus from the Studio to see diagnostics.
-                </div>
+                  {/* STATISTICS */}
+                  {graphHealth && (
+                    <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>STATISTICS</div>
+                      {[
+                        { label: 'Components', value: graphHealth.components },
+                        { label: 'Dead Ends', value: graphHealth.deadEnds },
+                        { label: 'Isolated Nodes', value: graphHealth.isolated },
+                        { label: 'Avg Degree', value: graphHealth.avgDegree.toFixed(1) },
+                        { label: 'Max Degree', value: graphHealth.maxDegree },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                          <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>
+                          <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* NODE TYPES */}
+                  {graphHealth && Object.keys(graphHealth.nodeTypes).length > 0 && (
+                    <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>NODE TYPES</div>
+                      {Object.entries(graphHealth.nodeTypes).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                        <div key={type} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
+                          <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{type}</span>
+                          <span style={{ fontSize: 10, color: 'var(--navi-text)', fontWeight: 700 }}>{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* WARNINGS */}
+                  {graphHealth && graphHealth.warnings.length > 0 && (
+                    <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                      <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>WARNINGS</div>
+                      {graphHealth.warnings.map((warning, i) => (
+                        <div key={i} style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', marginBottom: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                            <AlertTriangle size={11} color='#D97706' />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706' }}>{warning.message}</span>
+                          </div>
+                          <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', lineHeight: 1.5 }}>
+                            {warning.nodeIds.join(', ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
         </div>
-        )}
       </div>
     </div>
   )

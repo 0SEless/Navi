@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NavigationInspector, computeGraphHealth, computeRouteSteps, findNearestNode } from '../RouteTesting'
 import type { NavNode, NavEdge } from '@/types/nav-types'
+import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 
 vi.mock('maplibre-gl', () => ({
   default: {
@@ -53,27 +54,45 @@ vi.mock('../RouteOverlay', () => ({
 describe('NavigationInspector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(useCompiledGraphStore).mockReturnValue({
+      nodes: [],
+      edges: [],
+      hasRealData: false,
+      loadFromStorage: vi.fn(),
+      result: null,
+    } as any)
   })
 
-  it('renders with preview mode active by default', () => {
+  it('renders with navigate tab active by default', () => {
     render(<NavigationInspector />)
-    expect(screen.getByText('Navigation Preview')).toBeInTheDocument()
-    expect(screen.getByText('Graph Debug')).toBeInTheDocument()
-  })
-
-  it('switches to debug mode and shows Route tab', () => {
-    render(<NavigationInspector />)
-    fireEvent.click(screen.getByText('Graph Debug'))
-    expect(screen.getByText('Route')).toBeInTheDocument()
+    expect(screen.getByText('Navigate')).toBeInTheDocument()
+    expect(screen.getByText('Routing')).toBeInTheDocument()
     expect(screen.getByText('Diagnostics')).toBeInTheDocument()
+  })
+
+  it('switches to Routing tab and shows route controls when hasRealData is true', () => {
+    vi.mocked(useCompiledGraphStore).mockReturnValue({
+      nodes: [],
+      edges: [],
+      hasRealData: true,
+      loadFromStorage: vi.fn(),
+      result: null,
+    } as any)
+    render(<NavigationInspector />)
+    fireEvent.click(screen.getByText('Routing'))
     expect(screen.getByText('ROUTE CONFIGURATION')).toBeInTheDocument()
+  })
+
+  it('shows no-data state on Routing tab when no real data', () => {
+    render(<NavigationInspector />)
+    fireEvent.click(screen.getByText('Routing'))
+    expect(screen.getByText('No published graph available.')).toBeInTheDocument()
   })
 
   it('switches to Diagnostics tab on click', () => {
     render(<NavigationInspector />)
-    fireEvent.click(screen.getByText('Graph Debug'))
     fireEvent.click(screen.getByText('Diagnostics'))
-    expect(screen.getByText('PUBLISHED SNAPSHOT')).toBeInTheDocument()
+    expect(screen.getByText('Waiting for published snapshot...')).toBeInTheDocument()
   })
 })
 
