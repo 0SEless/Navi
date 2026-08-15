@@ -193,6 +193,7 @@ export interface Component {
   connections?: string[];
   range?: { from: number; to: number };
   metadata?: Record<string, unknown>;
+  featureId?: string; // stable physical-feature identity (stair/elevator); additive, runtime shape checks stay lenient
 }
 
 export interface TracePath {

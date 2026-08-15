@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
-import type { Staircase } from '@navi/core'
+import type { LegacyStaircase } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
 import { Field, selectStyle } from './field'
 
-interface Props { staircase: Staircase }
+interface Props { staircase: LegacyStaircase }
 
 export function StaircaseProperties({ staircase }: Props) {
   const { services } = useEditor()

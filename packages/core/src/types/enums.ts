@@ -31,6 +31,8 @@ export type EntranceType = 'main' | 'side' | 'service' | 'emergency'
 
 export type StaircaseType = 'open' | 'enclosed' | 'emergency'
 
+export type ElevatorType = 'passenger' | 'freight' | 'service'
+
 export type RoadSurface =
   | 'paved'
   | 'concrete'

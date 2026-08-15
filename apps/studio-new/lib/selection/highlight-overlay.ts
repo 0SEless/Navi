@@ -12,7 +12,7 @@
  */
 
 import type maplibregl from 'maplibre-gl'
-import type { CampusDocument, Building, Road, Room, Hallway, Staircase, Elevator, Entrance, Panorama, QRCheckpoint, LatLng } from '@navi/core'
+import type { CampusDocument, Building, Road, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, Panorama, QRCheckpoint, LatLng } from '@navi/core'
 import { SelectionManager } from './selection-manager'
 import type { EntityRef } from './selection-manager'
 

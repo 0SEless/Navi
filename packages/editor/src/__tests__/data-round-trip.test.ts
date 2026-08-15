@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CoordinateTransformer, serializeDocument, deserializeDocument, roundTrip } from '@navi/core'
-import type { CampusDocument, Building, Floor, Room, Hallway, Staircase, Elevator, Entrance, Road, Panorama, QRCheckpoint } from '@navi/core'
+import type { CampusDocument, Building, Floor, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, Road, Panorama, QRCheckpoint } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { GraphAdapter } from '../graph-adapter'
 import { createDocument } from '../context/create-editor-context'

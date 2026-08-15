@@ -10,7 +10,7 @@
  *   - Validation is minimal — trust the caller (InspectorController).
  */
 
-import type { CampusDocument, Building, Road, Floor, Staircase, Elevator, Entrance, Panorama, QRCheckpoint } from '@navi/core'
+import type { CampusDocument, Building, Road, Floor, LegacyStaircase, LegacyElevator, Entrance, Panorama, QRCheckpoint } from '@navi/core'
 import type { CommandHandler, Command } from './command-bus'
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -117,14 +117,14 @@ export const entityCreateHandler: CommandHandler = {
       case 'staircase': {
         const building = ctx.document.buildings.find(b => b.id === data.buildingId)
         const floor = building?.floors.find(f => f.id === data.floorId)
-        if (floor) floor.staircases.push(data as Staircase)
+        if (floor) floor.staircases.push(data as LegacyStaircase)
         else console.warn(`[entity.create] Floor ${data.floorId} not found for staircase`)
         break
       }
       case 'elevator': {
         const building = ctx.document.buildings.find(b => b.id === data.buildingId)
         const floor = building?.floors.find(f => f.id === data.floorId)
-        if (floor) floor.elevators.push(data as Elevator)
+        if (floor) floor.elevators.push(data as LegacyElevator)
         else console.warn(`[entity.create] Floor ${data.floorId} not found for elevator`)
         break
       }

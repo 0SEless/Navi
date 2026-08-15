@@ -11,6 +11,7 @@ import type {
   RoomCategory,
   EntranceType,
   StaircaseType,
+  ElevatorType,
   RoadSurface,
   RoadType,
 } from './enums'
@@ -35,6 +36,12 @@ export interface Building {
   floors: Floor[]
   verticalConnectors: VerticalConnector[]
   roofHeight?: number  // meters, optional roof/structure above top floor (default 2.0)
+
+  // Feature entities (P0): one stable entity per physical staircase/elevator,
+  // with per-level resolved geometry in `levels`. Empty until T0.3 migration
+  // mints features from legacy per-floor arrays; nothing reads them yet.
+  staircases?: Staircase[]
+  elevators?: Elevator[]
 
   // Visual
   color: string  // hex color for map rendering
@@ -75,8 +82,8 @@ export interface Floor {
   // Spatial features (all in building-local coordinates)
   rooms: Room[]
   hallways: Hallway[]
-  staircases: Staircase[]
-  elevators: Elevator[]
+  staircases: LegacyStaircase[]
+  elevators: LegacyElevator[]
   entrances: Entrance[]
   connectorStops: ConnectorStop[]
   parametricComponents: ParametricComponent[]
@@ -123,7 +130,10 @@ export interface Hallway {
   color?: string
 }
 
-export interface Staircase {
+/**
+ * @deprecated legacy per-floor record — read-only for migration; see Staircase feature entity
+ */
+export interface LegacyStaircase {
   id: string
   name: string
   position: LocalCoord     // building-local meters
@@ -132,12 +142,81 @@ export interface Staircase {
   type: StaircaseType
 }
 
-export interface Elevator {
+/**
+ * @deprecated legacy per-floor record — read-only for migration; see Elevator feature entity
+ */
+export interface LegacyElevator {
   id: string
   name: string
   position: LocalCoord     // building-local meters
   fromLevel: number
   toLevel: number
+}
+
+/**
+ * A physical staircase: one stable entity per stairwell, with resolved
+ * per-floor geometry in `levels`.
+ *
+ * Invariant: `fromLevel <= toLevel` (physical extent).
+ * Invariant: `levels` keys ⊆ [fromLevel..toLevel] (access floors only).
+ */
+export interface Staircase {
+  id: string
+  buildingId: string
+  name: string
+  type: StaircaseType
+  accessible: boolean
+  fromLevel: number
+  toLevel: number          // PHYSICAL EXTENT (authored). Invariant: fromLevel <= toLevel
+  levels: Record<number, StairLevelGeometry>  // ACCESS FLOORS only. Invariant: keys ⊆ [fromLevel..toLevel]
+}
+
+export interface StairLevelGeometry {
+  position: LocalCoord          // per-level position (editable)
+  rotation: number              // per-level orientation (editable)
+  polygon?: LocalPolygon        // RESOLVED physical geometry (never "authoritative")
+  landing?: {
+    position: LocalCoord
+    rotation?: number
+    polygon?: LocalPolygon
+  }
+  drawing?: {                   // parametric mode; absent = freeform
+    definitionId: 'stair'
+    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string }
+  }
+}
+
+/**
+ * A physical elevator: one stable entity per elevator car/bank, with resolved
+ * per-floor geometry in `levels`.
+ *
+ * Invariant: `fromLevel <= toLevel` (physical extent).
+ * Invariant: `levels` keys ⊆ [fromLevel..toLevel] (access floors only).
+ */
+export interface Elevator {
+  id: string
+  buildingId: string
+  name: string
+  type: ElevatorType
+  accessible: boolean
+  fromLevel: number
+  toLevel: number          // PHYSICAL EXTENT (authored). Invariant: fromLevel <= toLevel
+  levels: Record<number, ElevatorLevelGeometry>  // ACCESS FLOORS only. Invariant: keys ⊆ [fromLevel..toLevel]
+}
+
+export interface ElevatorLevelGeometry {
+  position: LocalCoord          // per-level position (editable)
+  rotation: number              // per-level orientation (editable)
+  polygon?: LocalPolygon        // RESOLVED physical geometry (never "authoritative")
+  landing?: {
+    position: LocalCoord
+    rotation?: number
+    polygon?: LocalPolygon
+  }
+  drawing?: {                   // parametric mode; absent = freeform
+    definitionId: 'elevator'
+    properties: { width: number; depth: number; doorSide: string }
+  }
 }
 
 export interface LocalCoord2D {

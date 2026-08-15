@@ -1,4 +1,4 @@
-import type { CampusDocument, Building, Road, Panorama, QRCheckpoint, Room, Hallway, Staircase, Elevator, Entrance, LatLng } from '@navi/core'
+import type { CampusDocument, Building, Road, Panorama, QRCheckpoint, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LatLng } from '@navi/core'
 import { CoordinateTransformer } from '@navi/core'
 
 function latLngToCoords(p: LatLng): [number, number] {

@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
-import type { Elevator } from '@navi/core'
+import type { LegacyElevator } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
 import { Field } from './field'
 
-interface Props { elevator: Elevator }
+interface Props { elevator: LegacyElevator }
 
 export function ElevatorProperties({ elevator }: Props) {
   const { services } = useEditor()

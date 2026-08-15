@@ -44,7 +44,7 @@ import { PublishStore } from '../services/publish-store'
 import { PublishService } from '../services/publish-service'
 import { EditingContextService } from '../editing-context'
 import { CoordinateTransformer } from '@navi/core'
-import type { CampusDocument, Room, Hallway, Staircase, Elevator, Entrance, LocalCoord } from '@navi/core'
+import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LocalCoord } from '@navi/core'
 import type { EditorContext } from './editor-context'
 
 function computeCentroid(points: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
@@ -138,11 +138,11 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
           id: h.id, name: h.name ?? h.id, polyline: { points: [] },
           width: h.width ?? 2, color: h.color,
         }))
-        const legacyStaircases: Staircase[] = (f.staircases ?? []).map((s: any) => ({
+        const legacyStaircases: LegacyStaircase[] = (f.staircases ?? []).map((s: any) => ({
           id: s.id, name: s.name ?? s.id, position: { x: 0, y: 0 },
           fromLevel: s.fromLevel ?? level, toLevel: s.toLevel ?? level + 1, type: s.type ?? 'open',
         }))
-        const legacyElevators: Elevator[] = (f.elevators ?? []).map((e: any) => ({
+        const legacyElevators: LegacyElevator[] = (f.elevators ?? []).map((e: any) => ({
           id: e.id, name: e.name ?? e.id, position: { x: 0, y: 0 },
           fromLevel: e.fromLevel ?? level, toLevel: e.toLevel ?? level + 1,
         }))

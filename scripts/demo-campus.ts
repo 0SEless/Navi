@@ -36,8 +36,8 @@ interface Building {
 interface Floor {
   id: string; level: number; label: string; elevation: number
   planImageId?: string
-  rooms: Room[]; hallways: Hallway[]; staircases: Staircase[]
-  elevators: Elevator[]; entrances: Entrance[]
+  rooms: Room[]; hallways: Hallway[]; staircases: LegacyStaircase[]
+  elevators: LegacyElevator[]; entrances: Entrance[]
   textureId?: string; svgOverlayId?: string
 }
 
@@ -51,11 +51,11 @@ interface Hallway {
   id: string; name: string; polyline: LocalPolyline; width: number; color?: string
 }
 
-interface Staircase {
+interface LegacyStaircase {
   id: string; name: string; position: LocalCoord; fromLevel: number; toLevel: number; type: StaircaseType
 }
 
-interface Elevator {
+interface LegacyElevator {
   id: string; name: string; position: LocalCoord; fromLevel: number; toLevel: number
 }
 

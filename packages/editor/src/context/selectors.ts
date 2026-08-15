@@ -26,8 +26,8 @@ export function getBuildingFloorCount(document: CampusDocument, buildingId: stri
 export interface FloorEntities {
   rooms: Room[]
   hallways: Hallway[]
-  staircases: import('@navi/core').Staircase[]
-  elevators: import('@navi/core').Elevator[]
+  staircases: import('@navi/core').LegacyStaircase[]
+  elevators: import('@navi/core').LegacyElevator[]
   entrances: import('@navi/core').Entrance[]
 }
 
@@ -110,7 +110,7 @@ export function findEntity(document: CampusDocument, entityId: string): EntityRe
   return undefined
 }
 
-export function findComponent(document: CampusDocument, componentId: string): { type: string; data: Room | Hallway | import('@navi/core').Staircase | import('@navi/core').Elevator } | undefined {
+export function findComponent(document: CampusDocument, componentId: string): { type: string; data: Room | Hallway | import('@navi/core').LegacyStaircase | import('@navi/core').LegacyElevator } | undefined {
   for (const building of document.buildings) {
     for (const floor of building.floors) {
       for (const room of floor.rooms) {
