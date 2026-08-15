@@ -573,20 +573,57 @@ describe('Wave 1A — Document Integrity', () => {
 
   it('rich document survives serialize → deserialize with structural equality', () => {
     const doc = makeRichDocument()
-    const json = serializeDocument(doc)
-    const restored = deserializeDocument(json)
 
-    const err = deepEqual(doc, restored)
-    expect(err).toBeNull()
+    // Pass 1: legacy floor records are minted into building-level feature
+    // entities (T0.2). Pass 2: dual-write regenerates the floor arrays from
+    // features. Pass 3: the document is stable (structural fixed point).
+    const first = deserializeDocument(serializeDocument(doc))
+    const second = deserializeDocument(serializeDocument(first))
+    const third = deserializeDocument(serializeDocument(second))
+
+    expect(deepEqual(second, third)).toBeNull()
+
+    // Minted feature entities: Admin has 3 staircases + 2 elevators across
+    // its two stair floors; Library has 1 staircase; Canteen (empty arrays)
+    // gets none.
+    const admin = first.buildings[0]
+    expect(admin.staircases).toHaveLength(3)
+    expect(admin.elevators).toHaveLength(2)
+    expect(first.buildings[1].staircases).toHaveLength(1)
+    expect(first.buildings[2].staircases).toBeUndefined()
+
+    // Legacy ids preserved; fromLevel === toLevel === owning floor level
+    const minted = admin.staircases!.find((s) => s.id === 'stc-adm-g-main')!
+    expect(minted).toBeDefined()
+    expect(minted.fromLevel).toBe(0)
+    expect(minted.toLevel).toBe(0)
+    expect(minted.levels['0'].position).toEqual({ x: 10, y: 4 })
+    const elevator = admin.elevators!.find((e) => e.id === 'elv-adm-1')!
+    expect(elevator.fromLevel).toBe(1)
+    expect(elevator.toLevel).toBe(1)
+    expect(elevator.type).toBe('passenger')
+
+    // Dual-write: floor arrays are regenerated with derived <featureId>-<level>
+    // ids and the feature's (single-level) range; serialization emits v2.
+    const floorStairs = second.buildings[0].floors[0].staircases
+    expect(floorStairs.map((s) => s.id)).toEqual(['stc-adm-g-main-0', 'stc-adm-g-fire-0'])
+    expect(floorStairs[0].fromLevel).toBe(0)
+    expect(floorStairs[0].toLevel).toBe(0)
+    expect(second.schemaVersion).toBe(2)
   })
 
-  it('produces identical JSON on second round-trip', () => {
+  it('produces identical JSON after the canonicalization pass', () => {
     const doc = makeRichDocument()
     const first = serializeDocument(doc)
     const restored = deserializeDocument(first)
     const second = serializeDocument(restored)
 
-    expect(second).toBe(first)
+    // First pass canonicalizes the legacy doc (mint + v2 + derived floor
+    // arrays); the second pass must be byte-identical (fixed point).
+    const again = deserializeDocument(second)
+    const third = serializeDocument(again)
+
+    expect(second).toBe(third)
   })
 
   it('counts all entities through round-trip', () => {
@@ -647,7 +684,7 @@ describe('Wave 1A — Document Integrity', () => {
     const doc: CampusDocument = {
       schemaVersion: 1,
       version: 0,
-      metadata: { name: 'Empty', description: '', lastModified: new Date().toISOString(), editorVersion: '0.1.0' },
+      metadata: { campusId: 'Empty', name: 'Empty', description: '', lastModified: new Date().toISOString(), editorVersion: '0.1.0' },
       buildings: [],
       roads: [],
       panoramas: [],
@@ -725,9 +762,16 @@ describe('Wave 1A — Document Integrity', () => {
 
   it('validates document structure on deserialize', () => {
     expect(() => deserializeDocument('null')).toThrow()
-    expect(() => deserializeDocument('{}')).toThrow('schemaVersion')
+    expect(() => deserializeDocument('{}')).toThrow('version')
     expect(() => deserializeDocument('{"schemaVersion":1,"version":0,"metadata":{},"buildings":null,"roads":[],"panoramas":[],"qrCheckpoints":[]}')).toThrow('buildings')
     expect(() => deserializeDocument('garbage')).toThrow()
+  })
+
+  it('treats unversioned legacy documents as schemaVersion 1 (T0.2)', () => {
+    const unversioned =
+      '{"version":0,"metadata":{"name":"x","description":"","lastModified":"","editorVersion":""},"buildings":[],"roads":[],"panoramas":[],"qrCheckpoints":[]}'
+    const doc = deserializeDocument(unversioned)
+    expect(doc.schemaVersion).toBe(1)
   })
 
   // ── 3. Mutation tests ──
