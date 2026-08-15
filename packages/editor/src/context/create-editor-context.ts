@@ -44,7 +44,8 @@ import { PublishStore } from '../services/publish-store'
 import { PublishService } from '../services/publish-service'
 import { EditingContextService } from '../editing-context'
 import { CoordinateTransformer } from '@navi/core'
-import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LocalCoord } from '@navi/core'
+import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LocalCoord, Floor, Staircase, Elevator } from '@navi/core'
+import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
 import type { EditorContext } from './editor-context'
 
 function computeCentroid(points: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
@@ -86,6 +87,111 @@ function getFloorLevel(f: any): number {
 function nodePosition(n: any): { lat: number; lng: number } {
   if (n.position) return n.position
   return { lat: n.lat ?? 0, lng: n.lng ?? 0 }
+}
+
+// ── P0 T0.3: legacy per-floor records → feature entities ──
+// One feature per legacy record (single-level `levels = { level }`), id
+// PRESERVED from the legacy record (component id → feature id), so features
+// are stable across reloads. No automatic cross-floor grouping — the legacy
+// shape carries no reliable grouping key; a future "merge into stairwell"
+// command is out of scope (plan Part I).
+
+function mintStaircaseFeatures(buildingId: string, floors: Floor[]): Staircase[] {
+  const features: Staircase[] = []
+  for (const floor of floors) {
+    for (const s of floor.staircases) {
+      features.push({
+        id: s.id,
+        buildingId,
+        name: s.name,
+        type: s.type,
+        accessible: false,
+        fromLevel: s.fromLevel,
+        toLevel: s.toLevel,
+        levels: { [floor.level]: { position: s.position, rotation: 0 } },
+      })
+    }
+  }
+  return features
+}
+
+function mintElevatorFeatures(buildingId: string, floors: Floor[]): Elevator[] {
+  const features: Elevator[] = []
+  for (const floor of floors) {
+    for (const e of floor.elevators) {
+      features.push({
+        id: e.id,
+        buildingId,
+        name: e.name,
+        // Legacy elevator records carry no type — default to passenger.
+        type: 'passenger',
+        accessible: false,
+        fromLevel: e.fromLevel ?? floor.level,
+        toLevel: e.toLevel ?? floor.level,
+        levels: { [floor.level]: { position: e.position, rotation: 0 } },
+      })
+    }
+  }
+  return features
+}
+
+// Parametric records (in-memory `floor.parametricComponents`, shape
+// `{ id, definitionId: 'stair'|'elevator', position, rotation, properties }`)
+// mint into features carrying the drawing AND the resolved polygon computed
+// via the T0.4 bridge (definition geometry() → rect → polygonizeRect) — the
+// R1 contract that `polygon` is always the resolved geometry. Nothing new
+// writes parametricComponents after this migration.
+function mintParametricFeatures(
+  buildingId: string,
+  floors: Floor[],
+  rawFloors: any[],
+): { stairs: Staircase[]; elevators: Elevator[] } {
+  const stairs: Staircase[] = []
+  const elevators: Elevator[] = []
+  for (let i = 0; i < rawFloors.length; i++) {
+    const raw = rawFloors[i]
+    if (!raw || typeof raw !== 'object') continue
+    const level = getFloorLevel(raw)
+    const floor = floors[i]
+    const records: any[] = (raw as any).parametricComponents ?? []
+    for (let j = 0; j < records.length; j++) {
+      const rec = records[j]
+      const definitionId = rec?.definitionId
+      if (definitionId !== 'stair' && definitionId !== 'elevator') continue
+      // Deterministic id: preserved from the record; if the record carries no
+      // id, derive one from the (stable) record position — never a counter.
+      const id = typeof rec.id === 'string' && rec.id.length > 0
+        ? rec.id
+        : `pc-${buildingId}-${level}-${j}`
+      const position = rec.position ?? { x: 0, y: 0 }
+      const rotation = rec.rotation ?? 0
+      const name = typeof rec.name === 'string' && rec.name.length > 0 ? rec.name : id
+      const levels: Record<number, any> = {
+        [level]: {
+          position,
+          rotation,
+          drawing: { definitionId, properties: rec.properties ?? {} },
+        },
+      }
+      const feature = {
+        id,
+        buildingId,
+        name,
+        type: definitionId === 'stair' ? 'open' : 'passenger',
+        accessible: false,
+        fromLevel: level,
+        toLevel: level,
+        levels,
+      } as Staircase | Elevator
+      // Resolve the physical geometry exactly like every other consumer does
+      // (single geometry-resolution path; deterministic).
+      const resolved = resolveLevelGeometry(feature, level)
+      if (resolved.polygon) levels[level].polygon = resolved.polygon
+      if (definitionId === 'stair') stairs.push(feature as Staircase)
+      else elevators.push(feature as Elevator)
+    }
+  }
+  return { stairs, elevators }
 }
 
 export function createDocument(graph: any, transformer?: CoordinateTransformer): CampusDocument {
@@ -139,12 +245,20 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
           width: h.width ?? 2, color: h.color,
         }))
         const legacyStaircases: LegacyStaircase[] = (f.staircases ?? []).map((s: any) => ({
-          id: s.id, name: s.name ?? s.id, position: { x: 0, y: 0 },
+          id: s.id, name: s.name ?? s.id,
+          // T0.3: carry the record's building-local position (never drop it —
+          // zeroing would lose the only geometric anchor for the minted
+          // feature). Graph components override it with a fresh world→local
+          // conversion below.
+          position: s.position ?? { x: 0, y: 0 },
           fromLevel: s.fromLevel ?? level, toLevel: s.toLevel ?? level + 1, type: s.type ?? 'open',
         }))
         const legacyElevators: LegacyElevator[] = (f.elevators ?? []).map((e: any) => ({
-          id: e.id, name: e.name ?? e.id, position: { x: 0, y: 0 },
-          fromLevel: e.fromLevel ?? level, toLevel: e.toLevel ?? level + 1,
+          id: e.id, name: e.name ?? e.id, position: e.position ?? { x: 0, y: 0 },
+          // T0.3: legacy elevator records may lack from/to — fall back to the
+          // owning floor's level for BOTH ends (single-level extent), so the
+          // minted feature and the legacy view agree.
+          fromLevel: e.fromLevel ?? level, toLevel: e.toLevel ?? level,
         }))
         const legacyEntrances: Entrance[] = (f.entrances ?? []).map((e: any) => ({
           id: e.id, label: e.name ?? e.id,
@@ -222,7 +336,9 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
               } else {
                 legacyElevators.push({
                   id: c.id, name: c.name ?? c.id, position: local,
-                  fromLevel: c.range?.from ?? level, toLevel: c.range?.to ?? level + 1,
+                  // T0.3: no range metadata on the component → single-level
+                  // extent at the owning floor (both ends).
+                  fromLevel: c.range?.from ?? level, toLevel: c.range?.to ?? level,
                 })
               }
               break
@@ -267,6 +383,18 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
         }
       })
 
+      // ── P0 T0.3: mint feature entities from legacy per-floor records ──
+      // New-shape input wins (serializer T0.2 path): if the graph building
+      // already carries feature arrays, use them verbatim and do NOT mint
+      // from the legacy arrays.
+      const parametric = mintParametricFeatures(b.id, floors, rawFloors)
+      const staircases = Array.isArray(b.staircases)
+        ? (b.staircases as Staircase[])
+        : [...mintStaircaseFeatures(b.id, floors), ...parametric.stairs]
+      const elevators = Array.isArray(b.elevators)
+        ? (b.elevators as Elevator[])
+        : [...mintElevatorFeatures(b.id, floors), ...parametric.elevators]
+
       return {
         id: b.id,
         name: b.name ?? b.id,
@@ -275,6 +403,8 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer):
         description: b.description ?? '',
         department: b.department ?? '',
         floors,
+        ...(staircases.length > 0 ? { staircases } : {}),
+        ...(elevators.length > 0 ? { elevators } : {}),
         footprint: { points: rawFootprintPoints.map((p: any) => ({ lat: p.lat, lng: p.lng })) },
         baseElevation: b.baseElevation ?? 0,
         height: b.height ?? 10,
