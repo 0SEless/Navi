@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { deriveLanding, polygonCentroid } from '../level-geometry'
+import { deriveLanding, vertexCentroid } from '../level-geometry'
 import type { LocalPolygon } from '../../types/coordinates'
 
-describe('polygonCentroid (mean of vertices)', () => {
+describe('vertexCentroid (mean of vertices)', () => {
   it('returns the mean of vertices for an open ring', () => {
     const poly: LocalPolygon = {
       points: [
@@ -12,7 +12,7 @@ describe('polygonCentroid (mean of vertices)', () => {
         { x: 0, y: 4 },
       ],
     }
-    expect(polygonCentroid(poly)).toEqual({ x: 2, y: 2 })
+    expect(vertexCentroid(poly)).toEqual({ x: 2, y: 2 })
   })
 
   it('excludes the duplicated closing point of a closed ring', () => {
@@ -26,7 +26,7 @@ describe('polygonCentroid (mean of vertices)', () => {
       ],
     }
     // If the closing duplicate were included, the mean would be skewed to (1.6, 1.6).
-    expect(polygonCentroid(closed)).toEqual({ x: 2, y: 2 })
+    expect(vertexCentroid(closed)).toEqual({ x: 2, y: 2 })
   })
 
   it('centers a symmetric rect polygon at its center', () => {
@@ -39,11 +39,11 @@ describe('polygonCentroid (mean of vertices)', () => {
         { x: -1, y: -1 },
       ],
     }
-    expect(polygonCentroid(rect)).toEqual({ x: 0, y: 0 })
+    expect(vertexCentroid(rect)).toEqual({ x: 0, y: 0 })
   })
 
   it('returns (0,0) for an empty polygon instead of NaN', () => {
-    const c = polygonCentroid({ points: [] })
+    const c = vertexCentroid({ points: [] })
     expect(Number.isFinite(c.x)).toBe(true)
     expect(Number.isFinite(c.y)).toBe(true)
     expect(c).toEqual({ x: 0, y: 0 })

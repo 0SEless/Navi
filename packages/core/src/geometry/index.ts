@@ -1,5 +1,6 @@
 export * from './polygon'
 export * from './polyline'
+export * from './level-geometry'
 export * from './spatial-index'
 export { SpatialQuery, type EntityRef, type EntityGeometryType } from './spatial-query'
 export * from './project'

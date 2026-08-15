@@ -25,7 +25,9 @@ function coordVal(p: LatLng | LocalCoord, axis: 'x' | 'y'): number {
   return axis === 'x' ? c.x : c.y
 }
 
-// ── Polygon centroid ──
+// ── Polygon centroid (area-weighted) ──
+// Note: level-geometry.ts exports `vertexCentroid` (mean-of-vertices) — see
+// its JSDoc for when to use which.
 
 export function polygonCentroid(polygon: WorldPolygon | LocalPolygon): LatLng | LocalCoord {
   const pts = polygon.points

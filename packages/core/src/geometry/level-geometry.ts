@@ -29,18 +29,20 @@ export function deriveLanding(
 ): LandingGeometry {
   if (authoredLanding) return authoredLanding
   if (level.polygon) {
-    return { position: polygonCentroid(level.polygon), rotation: level.rotation }
+    return { position: vertexCentroid(level.polygon), rotation: level.rotation }
   }
   return { position: level.position, rotation: level.rotation }
 }
 
 /**
- * Mean of vertices. For a closed ring (first === last, the LocalPolygon
- * convention) the duplicated closing point is excluded so the first vertex is
- * not double-weighted. Deterministic — no randomness, no iteration-order
+ * Mean-of-vertices centroid; do not confuse with polygon.ts `polygonCentroid`
+ * (area-weighted shoelace) — they return different points for non-uniform
+ * polygons. For a closed ring (first === last, the LocalPolygon convention)
+ * the duplicated closing point is excluded so the first vertex is not
+ * double-weighted. Deterministic — no randomness, no iteration-order
  * dependence.
  */
-export function polygonCentroid(polygon: LocalPolygon): LocalCoord {
+export function vertexCentroid(polygon: LocalPolygon): LocalCoord {
   const pts = polygon.points
   if (pts.length === 0) return { x: 0, y: 0 }
   const first = pts[0]
