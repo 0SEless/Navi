@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
-import { Compass, LocateFixed } from 'lucide-react'
+import { useMemo, useCallback, useState } from 'react'
+import { Compass, LocateFixed, Navigation } from 'lucide-react'
 import NavigationMap, { useNavigationMap } from '@/components/map/NavigationMap'
 import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
 import { RoomLayer } from '@/components/map/layers/RoomLayer'
@@ -205,6 +205,20 @@ function ExploreMapControls({
   bounds: CampusBundle['boundingBox']
 }) {
   const { map } = useNavigationMap()
+  const [viewIdx, setViewIdx] = useState(0)
+
+  const cycleView = () => {
+    if (!map || !map.isStyleLoaded()) return
+    const next = (viewIdx + 1) % 2
+    setViewIdx(next)
+    if (next === 0) {
+      // TOP
+      map.easeTo({ pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 17), duration: 300 })
+    } else {
+      // FOLLOW
+      map.easeTo({ pitch: 60, duration: 300 })
+    }
+  }
 
   const recenter = () => {
     if (!map || !bounds || !map.isStyleLoaded()) return
@@ -216,15 +230,30 @@ function ExploreMapControls({
 
   const resetView = () => {
     if (!map || !map.isStyleLoaded()) return
+    setViewIdx(0)
     map.easeTo({ bearing: 0, pitch: 0, duration: 0 })
   }
 
+  const viewIcons = [
+    <span key="top" className="text-[10px] font-bold leading-none">TOP</span>,
+    <Navigation key="follow" className="h-4 w-4" aria-hidden="true" />,
+  ]
+
   return (
-    <div className="absolute right-4 top-20 z-20 flex flex-col gap-2">
+    <div className="absolute right-4 top-20 z-20 flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={cycleView}
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        aria-label="Cycle camera view"
+        title="Cycle view"
+      >
+        {viewIcons[viewIdx]}
+      </button>
       <button
         type="button"
         onClick={recenter}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
         aria-label="Recenter map"
         title="Recenter map"
       >
@@ -233,7 +262,7 @@ function ExploreMapControls({
       <button
         type="button"
         onClick={resetView}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
         aria-label="Reset map view"
         title="Reset map view"
       >
@@ -333,7 +362,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     />
   )
 
-  const initialPitch = camera?.mode === 'POV' ? 85 : camera?.mode === 'FOLLOW' ? 60 : 0
+  const initialPitch = camera?.mode === 'POV' ? 85 : camera?.mode === 'FOLLOW' ? 55 : 0
 
   return (
     <NavigationMap
@@ -352,7 +381,6 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
       )}
       {cameraWithContext ? (
         <NavigationCamera
-          key={`${cameraWithContext.surface}:${cameraWithContext.mode}`}
           {...cameraWithContext}
         />
       ) : <ExploreMapControls bounds={bundle.boundingBox} />}
