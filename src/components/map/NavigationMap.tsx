@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, createContext, useContext } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { LatLng } from '@/types/nav-types'
 
 // ── Map Context ────────────────────────────────────────────────
 
@@ -26,9 +25,12 @@ export function useNavigationMap() {
 export interface NavigationMapProps {
   center?: [number, number]
   zoom?: number
+  pitch?: number
   maxZoom?: number
   minZoom?: number
+  showZoomControls?: boolean
   bounds?: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null
+  fitBoundsOnChange?: boolean
   style?: React.CSSProperties
   className?: string
   onMapReady?: (map: maplibregl.Map) => void
@@ -55,9 +57,12 @@ const OSM_STYLE = {
 export default function NavigationMap({
   center = [122.1677, 11.8197],
   zoom = 16,
+  pitch = 0,
   maxZoom = 22,
   minZoom = 12,
+  showZoomControls = true,
   bounds,
+  fitBoundsOnChange = true,
   style,
   className,
   onMapReady,
@@ -77,13 +82,23 @@ export default function NavigationMap({
       style: OSM_STYLE,
       center,
       zoom,
+      pitch,
       maxZoom,
       minZoom,
       attributionControl: false,
     })
 
-    mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+    mapInstance.addControl(new maplibregl.NavigationControl({
+      showCompass: false,
+      showZoom: showZoomControls,
+    }), 'bottom-right')
     mapInstance.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
+
+    // Suppress tile fetch errors (e.g., zoom beyond OSM tile coverage)
+    mapInstance.on('error', (e) => {
+      if (e.error?.status === 0 || `${e.error}`.includes('Failed to fetch') || `${e.error}`.includes('CORS')) return
+      console.error(e.error)
+    })
 
     mapInstance.on('load', () => {
       mapRef.current = mapInstance
@@ -93,7 +108,7 @@ export default function NavigationMap({
     })
 
     return () => {
-      mapInstance.remove()
+      try { mapInstance.remove() } catch {}
       mapRef.current = null
       setMap(null)
       setIsReady(false)
@@ -102,13 +117,13 @@ export default function NavigationMap({
 
   // Fit bounds when data arrives
   useEffect(() => {
-    if (!map || !bounds) return
+    if (!map || !bounds || !fitBoundsOnChange) return
     const bb = bounds
     map.fitBounds(
       [[bb.minLng, bb.minLat], [bb.maxLng, bb.maxLat]],
       { padding: 60, duration: 800, maxZoom: 18 }
     )
-  }, [map, bounds])
+  }, [bounds, fitBoundsOnChange, map])
 
   return (
     <NavigationMapContext.Provider value={{ map, isReady }}>
