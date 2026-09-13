@@ -85,6 +85,24 @@ const routeNode = (): Component => ({
   },
 })
 
+const routeEdge = (): Component => ({
+  id: 'route-edge-1',
+  type: 'route-edge',
+  name: 'Route segment 1',
+  buildingId: 'building-1',
+  campusId: 'campus-1',
+  floor: 0,
+  position: { lat: 1.34, lng: 1.68 },
+  metadata: {
+    routeEntity: 'edge',
+    edgeId: 'route-edge-1',
+    from: 'route-node-1',
+    to: 'route-node-2',
+    floor: 0,
+    floorId: 'floor-1',
+  },
+})
+
 const building: Building = {
   id: 'building-1',
   name: 'Test Building',
@@ -306,27 +324,74 @@ describe('route graph projected properties', () => {
     expect(mocks.begin).not.toHaveBeenCalled()
   })
 
-  it('lists route nodes in the Outliner navigation groups', () => {
+  it('lists route nodes inside a collapsed Navigation parent', () => {
     mocks.component = routeNode()
     render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
 
-    expect(screen.getByText(/Route Nodes \(1\)/)).toBeInTheDocument()
+    expect(screen.queryByText('Route Nodes (1)')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Navigation' }))
+    expect(screen.getByText('Route Nodes (1)')).toBeInTheDocument()
     expect(screen.queryByText('Route Node route-node-1')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Expand Route Nodes' }))
     expect(screen.getByText('Route Node route-node-1')).toBeInTheDocument()
   })
 
-  it('nests assigned Doors beneath their Room and keeps unassigned Doors top-level', () => {
+  it('keeps Route Nodes and Route Edges under the collapsible Navigation parent', () => {
+    mocks.components = [routeNode(), routeEdge()]
+    render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
+
+    expect(screen.queryByText('Route Nodes (1)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Route Edges (1)')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Navigation' }))
+    expect(screen.getByText('Route Nodes (1)')).toBeInTheDocument()
+    expect(screen.getByText('Route Edges (1)')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Navigation' }))
+    expect(screen.queryByText('Route Nodes (1)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Route Edges (1)')).not.toBeInTheDocument()
+  })
+
+  it('nests assigned Doors beneath their Room inside a Doors subfolder and keeps unassigned Doors top-level', () => {
     const assignedDoor: Component = { id: 'door-assigned', type: 'door', name: 'Assigned Door', buildingId: 'building-1', floor: 0, position: { lat: 1, lng: 1 }, metadata: { roomId: 'room-semantic-1', ownershipStatus: 'assigned' } }
     const unassignedDoor: Component = { id: 'door-unassigned', type: 'door', name: 'Unassigned Door', buildingId: 'building-1', floor: 0, position: { lat: 2, lng: 2 }, metadata: { ownershipStatus: 'unassigned' } }
     mocks.components = [semanticRoom(), assignedDoor, unassignedDoor]
     render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
 
-    expect(screen.getByText('Assigned Door')).toBeInTheDocument()
-    expect(screen.getByText(/Doors \(1\)/)).toBeInTheDocument()
-    expect(screen.getByText('Unassigned Door')).toBeInTheDocument()
+    const roomDoorsGroup = screen.getByText('Doors (1)').closest('div') as HTMLElement
+    expect(within(roomDoorsGroup).getByText('Assigned Door')).toBeInTheDocument()
+    const unassignedDoorsGroup = screen.getByText('Unassigned Doors (1)').closest('div') as HTMLElement
+    expect(within(unassignedDoorsGroup).getByText('Unassigned Door')).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'Collapse Room Room' }))
     expect(screen.queryByText('Assigned Door')).not.toBeInTheDocument()
+    expect(screen.getByText('Unassigned Door')).toBeInTheDocument()
+  })
+
+  it('collapses and expands a Room child subfolder without losing selection', () => {
+    const assignedDoor: Component = { id: 'door-assigned', type: 'door', name: 'Assigned Door', buildingId: 'building-1', floor: 0, position: { lat: 1, lng: 1 }, metadata: { roomId: 'room-semantic-1', ownershipStatus: 'assigned' } }
+    mocks.components = [semanticRoom(), assignedDoor]
+    render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId="room-semantic-1" onSelect={vi.fn()} />)
+
+    expect(screen.getByText('Assigned Door')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Doors' }))
+    expect(screen.queryByText('Assigned Door')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Doors' }))
+    expect(screen.getByText('Assigned Door')).toBeInTheDocument()
+  })
+
+  it('auto-expands the nested Rooms → Room → Doors path for a selected assigned Door', () => {
+    const assignedDoor: Component = { id: 'door-assigned', type: 'door', name: 'Assigned Door', buildingId: 'building-1', floor: 0, position: { lat: 1, lng: 1 }, metadata: { roomId: 'room-semantic-1', ownershipStatus: 'assigned' } }
+    mocks.components = [semanticRoom(), assignedDoor]
+    const { rerender } = render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Doors' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Room Room' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Rooms' }))
+    expect(screen.queryByText('Assigned Door')).not.toBeInTheDocument()
+
+    rerender(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId="door-assigned" onSelect={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Collapse Rooms' })).toBeInTheDocument()
+    expect(screen.getByText('Assigned Door')).toBeInTheDocument()
   })
 })
 
