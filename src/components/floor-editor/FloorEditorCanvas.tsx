@@ -631,7 +631,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   }, [])
 
   // Wire drawing interactions (state-driven so hook sees map after init)
-  const { drawMode, pendingPolygon, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned })
+  const { drawMode, pendingPolygon, rectangleMessage, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned })
 
   // ---- New Architecture: Linear Geometry Editing for Hallways ----
 
@@ -2514,6 +2514,43 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
             ✗ Cancel
           </button>
+        </div>
+      )}
+      {routeConnectionPrompt && (
+        <div
+          role="dialog"
+          aria-label="Connect to this route network?"
+          data-testid="route-connection-prompt"
+          style={{
+            position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 8, background: '#1E293B',
+            borderRadius: 8, padding: '8px 10px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', zIndex: 13,
+          }}
+        >
+          <span style={{ fontSize: 12, color: '#F8FAFC' }}>Connect to this route network?</span>
+          <button type="button" onClick={acceptRouteConnection}
+            style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            Yes
+          </button>
+          <button type="button" onClick={declineRouteConnection}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #475569', background: '#334155', color: '#E2E8F0', fontSize: 11, cursor: 'pointer' }}>
+            No
+          </button>
+        </div>
+      )}
+      {rectangleMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="floor-rectangle-authoring-status"
+          style={{
+            position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+            maxWidth: 'min(460px, calc(100% - 32px))', background: '#1E293B', color: '#F8FAFC',
+            borderRadius: 8, padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 12, pointerEvents: 'none', fontSize: 12, textAlign: 'center',
+          }}
+        >
+          {rectangleMessage}
         </div>
       )}
       {selectedWallId && (

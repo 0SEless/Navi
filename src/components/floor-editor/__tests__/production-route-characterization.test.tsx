@@ -1767,3 +1767,107 @@ describe('Production Route Characterization — Phase 2A.1 Compatibility', () =>
     })
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROUTE SEGMENT FINISH: confirmation prompt before connecting to a segment
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('Route segment finish', () => {
+  beforeEach(() => {
+    resetMockMap()
+    mockGraphComponents = []
+  })
+
+  afterEach(cleanup)
+
+  it('prompts before connecting and splits the segment only on Yes', async () => {
+    mockRenderedFeaturesByLayer = {}
+    const { ctx } = renderCanvasWithRealContext({ tool: 'hallway' }, {
+      routeNetwork: {
+        nodes: [
+          { id: 'rn-a', type: 'waypoint', position: { x: -5, y: 0 }, floor: 0 },
+          { id: 'rn-b', type: 'waypoint', position: { x: 5, y: 0 }, floor: 0 },
+        ],
+        edges: [{ id: 're-ab', from: 'rn-a', to: 'rn-b', type: 'walk', distance: 10 }],
+      },
+    })
+
+    // Wait for the mocked map load so the canvas registers its click handler
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    await act(async () => { simulateMapClick(11.8197, 122.09225) }) // free first point, off the segment
+    await act(async () => { await Promise.resolve() })
+
+    mockRenderedFeaturesByLayer = {
+      'floor-route-edges-line': [{
+        type: 'Feature',
+        // Real MapLibre features carry their layer; the click resolver keys off it.
+        layer: { id: 'floor-route-edges-line' },
+        properties: { id: 're-ab', type: 'walk', distance: 10 },
+        geometry: { type: 'LineString', coordinates: [[122.0922, 11.8195], [122.0923, 11.8195]] },
+      }],
+    }
+    await act(async () => { simulateMapClick(11.8195, 122.09225) }) // on the segment
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByText('Connect to this route network?')).toBeTruthy()
+    const floorBefore = ctx.document.buildings[0].floors[0]
+    expect(floorBefore.routeNetwork!.edges.find(e => e.id === 're-ab')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+    await act(async () => { await Promise.resolve() })
+
+    const network = ctx.document.buildings[0].floors[0].routeNetwork!
+    expect(network.edges.find(e => e.id === 're-ab')).toBeUndefined()
+    const junction = network.nodes.find((node) => {
+      if (node.id === 'rn-a' || node.id === 'rn-b') return false
+      return network.edges.filter(e => e.from === node.id || e.to === node.id).length === 3
+    })
+    expect(junction).toBeTruthy()
+    expect(network.nodes).toHaveLength(4) // rn-a, rn-b, junction, authored waypoint
+    expect(network.edges).toHaveLength(3) // two halves + the new path edge
+  })
+
+  it('No commits the path without touching the existing segment', async () => {
+    mockRenderedFeaturesByLayer = {}
+    const { ctx } = renderCanvasWithRealContext({ tool: 'hallway' }, {
+      routeNetwork: {
+        nodes: [
+          { id: 'rn-a', type: 'waypoint', position: { x: -5, y: 0 }, floor: 0 },
+          { id: 'rn-b', type: 'waypoint', position: { x: 5, y: 0 }, floor: 0 },
+        ],
+        edges: [{ id: 're-ab', from: 'rn-a', to: 'rn-b', type: 'walk', distance: 10 }],
+      },
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    await act(async () => { simulateMapClick(11.8197, 122.09225) })
+    await act(async () => { await Promise.resolve() })
+
+    mockRenderedFeaturesByLayer = {
+      'floor-route-edges-line': [{
+        type: 'Feature',
+        layer: { id: 'floor-route-edges-line' },
+        properties: { id: 're-ab', type: 'walk', distance: 10 },
+        geometry: { type: 'LineString', coordinates: [[122.0922, 11.8195], [122.0923, 11.8195]] },
+      }],
+    }
+    await act(async () => { simulateMapClick(11.8195, 122.09225) })
+    await act(async () => { await Promise.resolve() })
+
+    fireEvent.click(screen.getByRole('button', { name: 'No' }))
+    await act(async () => { await Promise.resolve() })
+
+    const network = ctx.document.buildings[0].floors[0].routeNetwork!
+    expect(network.edges.find(e => e.id === 're-ab')).toBeDefined()
+    // The path is the free first click plus the clicked point (two authored
+    // waypoints) — the segment endpoint nodes are untouched.
+    expect(network.nodes).toHaveLength(4) // rn-a, rn-b, two authored waypoints
+    expect(network.edges).toHaveLength(2) // original segment + new path edge
+  })
+})
