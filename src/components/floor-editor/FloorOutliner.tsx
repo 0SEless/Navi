@@ -26,6 +26,7 @@ const ROOM_CHILD_GROUPS: Array<{ type: ComponentType; label: string; icon: React
 ]
 
 const FLOOR_GROUPS: Array<{ type: ComponentType; label: string; icon: React.ElementType }> = [
+  { type: 'hallway', label: 'Hallways', icon: Route },
   { type: 'room', label: 'Rooms', icon: Square },
   { type: 'entrance', label: 'Entrances', icon: LogIn },
   { type: 'stair', label: 'Stairs', icon: ArrowUpDown },

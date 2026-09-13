@@ -103,6 +103,16 @@ const routeEdge = (): Component => ({
   },
 })
 
+const hallway = (): Component => ({
+  id: 'hallway-1',
+  type: 'hallway',
+  name: 'Main Hallway',
+  buildingId: 'building-1',
+  campusId: 'campus-1',
+  floor: 0,
+  position: { lat: 1.3, lng: 1.6 },
+})
+
 const building: Building = {
   id: 'building-1',
   name: 'Test Building',
@@ -303,6 +313,21 @@ describe('semantic Room projected outliner item', () => {
     render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'Reconcile room ownership' })).toBeNull()
+  })
+})
+
+describe('legacy hallway outliner item', () => {
+  it('lists a legacy hallway as a row under the Hallways floor group', () => {
+    mocks.components = [semanticRoom(), hallway()]
+    render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
+
+    expect(screen.getByText('Hallways (1)')).toBeInTheDocument()
+    expect(screen.getByText('Main Hallway')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Hallways' }))
+    expect(screen.queryByText('Main Hallway')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Hallways' }))
+    expect(screen.getByText('Main Hallway')).toBeInTheDocument()
   })
 })
 
