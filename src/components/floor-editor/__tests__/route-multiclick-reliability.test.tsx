@@ -101,4 +101,24 @@ describe('Route multi-click reliability', () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(probe.previewFeatures()).toHaveLength(3)
   })
+
+  it('disables map drag-pan while the Route tool is active and restores it on tool change', async () => {
+    const probe = createMapProbe()
+    const { rerender } = renderHook(
+      ({ tool }: { tool: string }) => useFloorDrawing({
+        map: probe.map,
+        buildingId: 'BLD01',
+        campusId: 'C1',
+        floor: 0,
+        tool,
+        mapReady: true,
+      }),
+      { initialProps: { tool: 'hallway' } },
+    )
+
+    await waitFor(() => expect(probe.dragPan.disable).toHaveBeenCalled())
+
+    rerender({ tool: 'select' })
+    await waitFor(() => expect(probe.dragPan.enable).toHaveBeenCalled())
+  })
 })

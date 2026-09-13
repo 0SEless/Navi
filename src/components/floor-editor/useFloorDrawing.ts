@@ -429,6 +429,18 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     if (map && mapReady) clearPreview(map)
   }, [tool, map, mapReady, updateRectangleDraw])
 
+  // Route authoring parity with the Road tool: every press must stay a click.
+  // MapLibre converts presses that move past clickTolerance into pans and drops
+  // the click event, which reads as "my corner click did nothing".
+  useEffect(() => {
+    if (!map || !mapReady) return
+    if (tool !== 'hallway') return
+    map.dragPan?.disable()
+    return () => {
+      map.dragPan?.enable()
+    }
+  }, [map, mapReady, tool])
+
   // A confirmed outdoor target fixes the first indoor Route vertex to the
   // exact Entrance position. The author only needs to click the next point;
   // this avoids a fragile pixel-perfect hit on the Entrance marker while
