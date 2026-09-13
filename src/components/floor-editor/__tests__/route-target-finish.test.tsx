@@ -153,4 +153,37 @@ describe('Route target finish', () => {
     const payload = mockExecute.mock.calls.at(-1)![0].payload as { points: Array<Record<string, unknown>> }
     expect(payload.points.at(-1)).toMatchObject({ existingNodeId: 'n2' })
   })
+
+  it('finishing the route clears an open segment prompt instead of leaving it stale', async () => {
+    const probe = createProbe()
+    const view = renderRouteTool(probe)
+
+    act(() => { probe.click(11.8190, 122.0915) }) // free first point
+    await waitFor(() => expect(view.result.current.pendingPolygon).toHaveLength(1))
+
+    act(() => { probe.click(11.8189, 122.0914) }) // free second point, distinct position
+    await waitFor(() => expect(view.result.current.pendingPolygon).toHaveLength(2))
+
+    probe.setHits([{ layer: { id: 'floor-route-edges-line' }, properties: { id: 'e1' } }])
+    act(() => { probe.click(11.8195, 122.0922) }) // on the segment
+
+    await waitFor(() => expect(view.result.current.routeConnectionPrompt?.edgeId).toBe('e1'))
+
+    // Finish Route with the two pending points — the open prompt must be consumed.
+    act(() => { view.result.current.confirm() })
+
+    await waitFor(() => expect(mockExecute).toHaveBeenCalledWith(expect.objectContaining({ id: 'route.path.create' })))
+    expect(view.result.current.routeConnectionPrompt).toBeNull()
+
+    const routeCreatesAfterCommit = mockExecute.mock.calls
+      .filter(([command]) => (command as { id?: string } | undefined)?.id === 'route.path.create')
+      .length
+
+    act(() => { view.result.current.acceptRouteConnection() })
+
+    const routeCreatesAfterAccept = mockExecute.mock.calls
+      .filter(([command]) => (command as { id?: string } | undefined)?.id === 'route.path.create')
+      .length
+    expect(routeCreatesAfterAccept).toBe(routeCreatesAfterCommit)
+  })
 })

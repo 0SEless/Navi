@@ -581,6 +581,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
       const selectedId = pendingRouteAnchor?.entranceId ?? (typeof result.entityId === 'string' ? result.entityId : null)
       routeStartedRef.current = false
+      setRouteConnectionPrompt(null)
       dispatch({ type: 'RESET' })
       clearPreview(map)
       onSelect?.(selectedId)
