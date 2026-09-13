@@ -237,7 +237,7 @@ describe('spatial Door commands', () => {
     const floor = document.buildings[0].floors[0]
     floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
     floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
-    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, rotation: 0, geometry: rectangle(1, 3), metadata: {} } })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
     doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 4, y: 2 } } })
     const journalLength = document._changeJournal?.length ?? 0
 
@@ -251,5 +251,88 @@ describe('spatial Door commands', () => {
       .filter(entry => entry.entityType === 'route-edge' && entry.operation === 'created')
     expect(createdEdges).toHaveLength(1)
     expect(createdEdges[0].entityId).toBe(mergedEdge?.id)
+  })
+
+  // ── Final review: door connectors are not junction targets; anchors are removed wholesale ──
+
+  it('rejects a segment junction targeting a door connector edge without mutating the floor', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd1', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd1', routeNodeId: 'route-1' })
+    const connectorEdgeId = floor.doors?.[0].routeConnection?.connectorEdgeId as string
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd2', doorType: 'standard', position: { x: 6, y: 2 }, width: 2, depth: 1, geometry: rectangle(5, 7), metadata: {} } })
+    const before = JSON.parse(JSON.stringify(floor))
+
+    const result = doorRouteConnectHandler.execute(document, { doorId: 'd2', segment: { edgeId: connectorEdgeId, position: { x: 2, y: 2 } } })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/door connector and cannot be a junction target/i)
+    expect(JSON.parse(JSON.stringify(floor))).toEqual(before)
+  })
+
+  it('reconnect removes every edge incident to a stale anchor, not only the recorded connector id', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 0, y: 0 }, floor: 0 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', routeNodeId: 'route-1' })
+    const door = floor.doors?.[0]
+    const staleAnchorNodeId = door?.routeConnection?.anchorNodeId as string
+    door!.routeConnection!.connectorEdgeId = 'route-edge-stale'
+
+    const result = doorRouteConnectHandler.execute(document, { doorId: 'd', routeNodeId: 'route-2' })
+
+    expect(result.success).toBe(true)
+    const nodeIds = new Set(floor.routeNetwork!.nodes.map(node => node.id))
+    expect(nodeIds.has(staleAnchorNodeId)).toBe(false)
+    expect(floor.routeNetwork!.edges.some(edge => edge.from === staleAnchorNodeId || edge.to === staleAnchorNodeId)).toBe(false)
+    expect(floor.routeNetwork!.edges.every(edge => nodeIds.has(edge.from) && nodeIds.has(edge.to))).toBe(true)
+  })
+
+  it('disconnect removes the real connector even when the recorded connector id is stale', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', routeNodeId: 'route-1' })
+    const door = floor.doors?.[0]
+    const staleAnchorNodeId = door?.routeConnection?.anchorNodeId as string
+    door!.routeConnection!.connectorEdgeId = 'route-edge-stale'
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    const nodeIds = new Set(floor.routeNetwork!.nodes.map(node => node.id))
+    expect(nodeIds.has(staleAnchorNodeId)).toBe(false)
+    expect(floor.routeNetwork!.edges.some(edge => edge.from === staleAnchorNodeId || edge.to === staleAnchorNodeId)).toBe(false)
+    expect(floor.routeNetwork!.edges.every(edge => nodeIds.has(edge.from) && nodeIds.has(edge.to))).toBe(true)
+  })
+
+  it('keeps a collinear split junction referenced by a vertical transition connection', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 5, y: 2 } } })
+    const junctionId = floor.doors?.[0].routeConnection?.targetRouteNodeId
+    const connectorEdgeId = floor.doors?.[0].routeConnection?.connectorEdgeId
+    const splitEdgeIds = floor.routeNetwork!.edges
+      .filter(edge => (edge.from === junctionId || edge.to === junctionId) && edge.id !== connectorEdgeId)
+      .map(edge => edge.id)
+    document.buildings[0].verticalTransitions = [{
+      id: 'vt-1',
+      featureId: 'stair-1',
+      type: 'staircase',
+      connections: [{ floorId: 'f', routeNodeId: junctionId! }],
+    }]
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    expect(floor.doors?.[0].routeConnection).toBeUndefined()
+    expect(floor.routeNetwork?.nodes.find(node => node.id === junctionId)).toBeDefined()
+    expect(floor.routeNetwork?.edges.map(edge => edge.id).sort()).toEqual([...splitEdgeIds].sort())
+    expect(document.buildings[0].verticalTransitions).toHaveLength(1)
   })
 })

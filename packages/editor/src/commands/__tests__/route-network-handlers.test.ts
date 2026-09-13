@@ -868,3 +868,61 @@ describe('V1: route.path.create', () => {
     expect(network.edges).toHaveLength(1)
   })
 })
+
+// ── Final review: door connector edges are not junction targets ──
+// Door connector stubs are Door-owned; splitting one would orphan the Door's
+// connectorEdgeId and leave a half-edge with a removed endpoint (INVALID).
+describe('V1: route.path.create door connector guard', () => {
+  function docWithDoorConnector() {
+    const doc = createTestDoc()
+    const floor = doc.buildings[0].floors[0]
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'n-a', position: { x: 0, y: 0 } } })
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'n-b', position: { x: 10, y: 0 } } })
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'door-anchor', type: 'portal', position: { x: 5, y: 1 } } })
+    routeEdgeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', edge: { id: 'e-ab', from: 'n-a', to: 'n-b' } })
+    routeEdgeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', edge: { id: 'e-connector', from: 'door-anchor', to: 'n-b' } })
+    ;(floor as unknown as { doors: unknown[] }).doors = [{
+      id: 'door-1',
+      doorType: 'standard',
+      position: { x: 5, y: 1 },
+      width: 1,
+      metadata: {},
+      routeConnection: { anchorNodeId: 'door-anchor', targetRouteNodeId: 'n-b', connectorEdgeId: 'e-connector' },
+    }]
+    return doc
+  }
+
+  it('rejects a junction targeting a door connector and leaves the document byte-unchanged', () => {
+    const doc = docWithDoorConnector()
+    const before = JSON.parse(JSON.stringify(doc))
+
+    const result = routePathCreateHandler.execute(doc, {
+      buildingId: 'bld-1',
+      floorId: 'flr-0',
+      points: [
+        { x: 4, y: 8 },
+        { x: 5, y: 1, junction: { edgeId: 'e-connector', position: { x: 5, y: 1 } } },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/e-connector is a door connector and cannot be a junction target/i)
+    expect(doc).toEqual(before)
+  })
+
+  it('journals the split removed original edge as deleted', () => {
+    const doc = createTestDoc()
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'a', position: { x: 0, y: 0 } } })
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'b', position: { x: 10, y: 0 } } })
+    routeEdgeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', edge: { id: 'e-ab', from: 'a', to: 'b' } })
+
+    const result = routePathCreateHandler.execute(doc, {
+      buildingId: 'bld-1',
+      floorId: 'flr-0',
+      points: [{ x: 4, y: 8 }, { x: 4, y: 0, junction: { edgeId: 'e-ab', position: { x: 4, y: 0 } } }],
+    })
+
+    expect(result.success).toBe(true)
+    expect(doc._changeJournal).toContainEqual({ entityId: 'e-ab', entityType: 'route-edge', operation: 'deleted' })
+  })
+})

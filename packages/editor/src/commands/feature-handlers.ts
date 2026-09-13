@@ -4,7 +4,7 @@ import { isPOICategory, isDoorType, resolvePointOfInterestGeometry, validatePoin
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
-import { cleanupFeatureRoutingReferences } from './routing-relationship-cleanup'
+import { cleanupFeatureRoutingReferences, collectDoorConnectorEdgeIds, isRouteNodeReferencedByAccessRelationships } from './routing-relationship-cleanup'
 import { applyRouteJunctionSplit } from './route-junctions'
 import { collectFloorRoomOwnershipPolygons, resolveUniqueRoomOwner } from '../geometry/room-ownership'
 
@@ -659,6 +659,9 @@ export const doorRouteConnectHandler: CommandHandler = {
       }
       const edge = ctx.floor.routeNetwork?.edges.find(candidate => candidate.id === segment.edgeId)
       if (!edge) return { success: false, error: `Route edge not found: ${segment.edgeId}` }
+      if (collectDoorConnectorEdgeIds(document).has(segment.edgeId)) {
+        return { success: false, error: `Route edge ${segment.edgeId} is a door connector and cannot be a junction target` }
+      }
     }
     if (requestedNodeId && !ctx.floor.routeNetwork?.nodes.some(node => node.id === requestedNodeId)) {
       return { success: false, error: `Route node not found: ${requestedNodeId}` }
@@ -667,8 +670,12 @@ export const doorRouteConnectHandler: CommandHandler = {
     const oldRouteConnection = ctx.door.routeConnection ? structuredClone(ctx.door.routeConnection) : undefined
     const network = ctx.floor.routeNetwork!
     if (ctx.door.routeConnection) {
-      network.nodes = network.nodes.filter(node => node.id !== ctx.door.routeConnection!.anchorNodeId)
-      network.edges = network.edges.filter(edge => edge.id !== ctx.door.routeConnection!.connectorEdgeId)
+      // Remove EVERY edge incident to the anchor, not just the recorded
+      // connector id. A stale record must never leave a half-edge referencing
+      // a removed node (that would make the network INVALID).
+      const staleAnchorNodeId = ctx.door.routeConnection.anchorNodeId
+      network.nodes = network.nodes.filter(node => node.id !== staleAnchorNodeId)
+      network.edges = network.edges.filter(edge => edge.from !== staleAnchorNodeId && edge.to !== staleAnchorNodeId)
     }
 
     let resolvedTargetId = requestedNodeId ?? ''
@@ -686,6 +693,7 @@ export const doorRouteConnectHandler: CommandHandler = {
       }
       resolvedTargetId = split.junctionId
       if (!split.reusedEndpoint) {
+        recordChange(document, { entityId: split.removedEdgeId, entityType: 'route-edge', operation: 'deleted' })
         recordChange(document, { entityId: split.junctionId, entityType: 'route-node', operation: 'created' })
         for (const createdEdgeId of split.createdEdgeIds) {
           recordChange(document, { entityId: createdEdgeId, entityType: 'route-edge', operation: 'created' })
@@ -723,16 +731,6 @@ export const doorRouteConnectHandler: CommandHandler = {
 }
 
 const REJOIN_COLLINEAR_EPSILON_METERS = 1e-6
-
-/** True when the junction is still pinned by access relationships outside the route-network edges. */
-function isJunctionReferencedByAccessRelationships(
-  floor: CampusDocument['buildings'][number]['floors'][number],
-  junctionId: string,
-): boolean {
-  if (floor.entranceAccess?.some(access => access.indoorRouteNodeId === junctionId)) return true
-  return floor.roomAttributes?.some(attributes =>
-    attributes.accessPoints?.some(point => point.routeNodeId === junctionId)) ?? false
-}
 
 /** Rejoin the two halves of a split edge when the junction is orphaned and geometrically redundant. */
 function rejoinOrphanedJunction(network: RouteNetwork, junctionId: string): string | null {
@@ -789,9 +787,12 @@ export const doorRouteDisconnectHandler: CommandHandler = {
     const oldNetwork = structuredClone(network)
     const oldRouteConnection = structuredClone(connection)
 
+    // Remove EVERY edge incident to the anchor, not just the recorded
+    // connector id: a stale connectorEdgeId must never leave a half-edge
+    // referencing the removed anchor node.
     network.nodes = network.nodes.filter(node => node.id !== connection.anchorNodeId)
-    network.edges = network.edges.filter(edge => edge.id !== connection.connectorEdgeId)
-    if (!isJunctionReferencedByAccessRelationships(ctx.floor, connection.targetRouteNodeId)) {
+    network.edges = network.edges.filter(edge => edge.from !== connection.anchorNodeId && edge.to !== connection.anchorNodeId)
+    if (!isRouteNodeReferencedByAccessRelationships(document, ctx.building.id, ctx.floor.id, connection.targetRouteNodeId)) {
       const mergedEdgeId = rejoinOrphanedJunction(network, connection.targetRouteNodeId)
       if (mergedEdgeId) {
         recordChange(document, { entityId: mergedEdgeId, entityType: 'route-edge', operation: 'created' })

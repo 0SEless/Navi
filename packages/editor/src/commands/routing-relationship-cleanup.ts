@@ -96,6 +96,47 @@ export function cleanupRouteNodeRoutingReferences(
   return snapshot
 }
 
+/**
+ * Read-only enumeration of every Door-owned connector edge id (anchor → target
+ * stub) across the whole document. Connector edges are Door-owned and must
+ * never be treated as ordinary route edges by junction authoring commands.
+ */
+export function collectDoorConnectorEdgeIds(document: CampusDocument): Set<string> {
+  const connectorEdgeIds = new Set<string>()
+  for (const building of document.buildings) {
+    for (const floor of building.floors) {
+      for (const door of floor.doors ?? []) {
+        const connectorEdgeId = door.routeConnection?.connectorEdgeId
+        if (connectorEdgeId) connectorEdgeIds.add(connectorEdgeId)
+      }
+    }
+  }
+  return connectorEdgeIds
+}
+
+/**
+ * Read-only mirror of cleanupRouteNodeRoutingReferences' reference kinds: a
+ * route node is referenced while any access relationship still names it.
+ * Keep this next to the cleanup so new reference kinds are extended in one
+ * place instead of being forgotten by callers.
+ */
+export function isRouteNodeReferencedByAccessRelationships(
+  document: CampusDocument,
+  buildingId: string,
+  floorId: string,
+  routeNodeId: string,
+): boolean {
+  const building = document.buildings.find(candidate => candidate.id === buildingId)
+  const floor = building?.floors.find(candidate => candidate.id === floorId)
+  if (!building || !floor) return false
+  if (floor.entranceAccess?.some(access => access.indoorRouteNodeId === routeNodeId)) return true
+  if (floor.roomAttributes?.some(attributes =>
+    attributes.accessPoints?.some(point => point.routeNodeId === routeNodeId)) ?? false) return true
+  return building.verticalTransitions?.some(transition =>
+    transition.connections.some(connection =>
+      connection.floorId === floorId && connection.routeNodeId === routeNodeId)) ?? false
+}
+
 export function restoreRouteNodeRoutingReferences(
   document: CampusDocument,
   buildingId: string,

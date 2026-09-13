@@ -5,6 +5,7 @@ import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import {
   cleanupRouteNodeRoutingReferences,
+  collectDoorConnectorEdgeIds,
   restoreRouteNodeRoutingReferences,
   type RouteNodeRelationshipSnapshot,
 } from './routing-relationship-cleanup'
@@ -123,6 +124,11 @@ export const routePathCreateHandler: CommandHandler = {
       return { success: false, error: `Invalid route edge type: ${String(edgeType)}. Must be one of the RouteEdgeType enum values.` }
     }
 
+    // Door connector edges are Door-owned stubs. Splitting one would leave the
+    // Door's connectorEdgeId pointing at a removed edge, so they are rejected
+    // as junction targets before any mutation.
+    const doorConnectorEdgeIds = collectDoorConnectorEdgeIds(document)
+
     // Snapshot before ensureNetwork so an absent network can be restored as
     // absent rather than leaving an empty routeNetwork after undo.
     const hadNetwork = floor.routeNetwork !== undefined
@@ -156,10 +162,14 @@ export const routePathCreateHandler: CommandHandler = {
         resolvedNodeIds.push(point.existingNodeId)
       } else if (point.junction != null) {
         const junctionInput = point.junction as { edgeId: string; position: LocalCoord }
+        if (doorConnectorEdgeIds.has(junctionInput.edgeId)) {
+          return failWithRestore(`Route edge ${junctionInput.edgeId} is a door connector and cannot be a junction target`)
+        }
         const split = applyRouteJunctionSplit(network, junctionInput.edgeId, junctionInput.position, floor.level)
         if (!split.ok) return failWithRestore(split.error)
         resolvedNodeIds.push(split.junctionId)
         if (!split.reusedEndpoint) {
+          pendingJunctionChanges.push({ entityId: split.removedEdgeId, entityType: 'route-edge', operation: 'deleted' })
           pendingJunctionChanges.push({ entityId: split.junctionId, entityType: 'route-node', operation: 'created' })
           for (const createdEdgeId of split.createdEdgeIds) {
             pendingJunctionChanges.push({ entityId: createdEdgeId, entityType: 'route-edge', operation: 'created' })
