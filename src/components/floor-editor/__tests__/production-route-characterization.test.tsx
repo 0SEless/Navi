@@ -29,6 +29,7 @@ import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FloorEditorCanvas } from '../FloorEditorCanvas'
 import type { EntranceRouteAnchor } from '../entrance-route-authoring'
+import type { DoorRouteConnectTarget } from '../route-target-authoring'
 import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
 
@@ -304,6 +305,9 @@ function renderCanvasWithRealContext(
     pendingRouteAnchor?: EntranceRouteAnchor
     onRouteStartRejected?: (reason: string) => void
     onRouteAccessAssigned?: (access: { entranceId: string; outdoorNodeId: string; indoorRouteNodeId: string }) => void
+    routeConnectPick?: { doorId: string } | null
+    onRouteConnectResolved?: (target: DoorRouteConnectTarget) => void
+    onRouteConnectCancel?: () => void
   },
   floorOverrides: Record<string, unknown> = {},
 ) {
@@ -331,6 +335,9 @@ function renderCanvasWithRealContext(
           pendingRouteAnchor={overrides?.pendingRouteAnchor}
           onRouteStartRejected={overrides?.onRouteStartRejected}
           onRouteAccessAssigned={overrides?.onRouteAccessAssigned}
+          routeConnectPick={overrides?.routeConnectPick}
+          onRouteConnectResolved={overrides?.onRouteConnectResolved}
+          onRouteConnectCancel={overrides?.onRouteConnectCancel}
         />
       </InteractionProvider>
     </EditorProvider>
@@ -1869,5 +1876,99 @@ describe('Route segment finish', () => {
     // waypoints) — the segment endpoint nodes are untouched.
     expect(network.nodes).toHaveLength(4) // rn-a, rn-b, two authored waypoints
     expect(network.edges).toHaveLength(2) // original segment + new path edge
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DOOR ROUTE PICK MODE: pick a route node or segment for a Door connection
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('Door route pick mode', () => {
+  beforeEach(() => {
+    resetMockMap()
+    mockGraphComponents = []
+  })
+
+  afterEach(cleanup)
+
+  it('resolves a node click to a direct node connection', async () => {
+    // Real MapLibre features carry their layer; the pick resolver keys off it.
+    mockRenderedFeaturesByLayer = {
+      'floor-route-nodes-circle': [{
+        type: 'Feature',
+        layer: { id: 'floor-route-nodes-circle' },
+        properties: { id: 'rn-a', type: 'waypoint', floor: 0 },
+        geometry: { type: 'Point', coordinates: [122.0922, 11.8195] },
+      }],
+    }
+    const onRouteConnectResolved = vi.fn()
+    renderCanvasWithRealContext({ tool: 'select', routeConnectPick: { doorId: 'door-1' }, onRouteConnectResolved })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    act(() => { simulateMapClick(11.8195, 122.0922) })
+    await act(async () => { await Promise.resolve() })
+
+    expect(onRouteConnectResolved).toHaveBeenCalledWith({ doorId: 'door-1', routeNodeId: 'rn-a' })
+  })
+
+  it('prompts on a segment click and resolves only on Yes', async () => {
+    mockRenderedFeaturesByLayer = {
+      'floor-route-edges-line': [{
+        type: 'Feature',
+        layer: { id: 'floor-route-edges-line' },
+        properties: { id: 're-ab', type: 'walk', distance: 10 },
+        geometry: { type: 'LineString', coordinates: [[122.0922, 11.8195], [122.0923, 11.8195]] },
+      }],
+    }
+    const onRouteConnectResolved = vi.fn()
+    renderCanvasWithRealContext({ tool: 'select', routeConnectPick: { doorId: 'door-1' }, onRouteConnectResolved })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    act(() => { simulateMapClick(11.8195, 122.09225) })
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByText('Create junction and connect door?')).toBeTruthy()
+    expect(onRouteConnectResolved).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+    expect(onRouteConnectResolved).toHaveBeenCalledWith({
+      doorId: 'door-1',
+      segment: { edgeId: 're-ab', position: { lat: 11.8195, lng: 122.09225 } },
+    })
+    expect(screen.queryByText('Create junction and connect door?')).toBeNull()
+  })
+
+  it('cancels a segment pick without resolving', async () => {
+    mockRenderedFeaturesByLayer = {
+      'floor-route-edges-line': [{
+        type: 'Feature',
+        layer: { id: 'floor-route-edges-line' },
+        properties: { id: 're-ab', type: 'walk', distance: 10 },
+        geometry: { type: 'LineString', coordinates: [[122.0922, 11.8195], [122.0923, 11.8195]] },
+      }],
+    }
+    const onRouteConnectResolved = vi.fn()
+    const onRouteConnectCancel = vi.fn()
+    renderCanvasWithRealContext({
+      tool: 'select',
+      routeConnectPick: { doorId: 'door-1' },
+      onRouteConnectResolved,
+      onRouteConnectCancel,
+    })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    act(() => { simulateMapClick(11.8195, 122.09225) })
+    await act(async () => { await Promise.resolve() })
+
+    fireEvent.click(screen.getByRole('button', { name: 'No' }))
+    expect(onRouteConnectResolved).not.toHaveBeenCalled()
+    expect(onRouteConnectCancel).toHaveBeenCalled()
+    expect(screen.queryByText('Create junction and connect door?')).toBeNull()
   })
 })

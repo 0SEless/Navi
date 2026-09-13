@@ -10,6 +10,7 @@ import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
 import { OutdoorRoutePicker } from './OutdoorRoutePicker'
 import type { OutdoorRouteCandidate } from './outdoor-route-picker-model'
+import type { DoorRouteConnectTarget } from './route-target-authoring'
 import { InteractionProvider, useInteraction } from './InteractionContext'
 import { StatusBar } from './StatusBar'
 import { useFloorAdapter } from './adapters/floor-adapter'
@@ -144,6 +145,17 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     candidate: OutdoorRouteCandidate
   } | null>(null)
   const [routeAuthoringMessage, setRouteAuthoringMessage] = useState<string | null>(null)
+  const [doorRoutePick, setDoorRoutePick] = useState<{ doorId: string } | null>(null)
+  const handleStartRouteConnect = useCallback((doorId: string) => {
+    setDoorRoutePick({ doorId })
+    setRouteAuthoringMessage('Click a route node to reuse it, or a route line to create a junction for this door.')
+  }, [])
+  const handleRouteConnectResolved = useCallback((target: DoorRouteConnectTarget) => {
+    services.get('dispatcher')?.execute({ id: 'door.route.connect', label: 'Connect Door to Route', payload: target })
+    setDoorRoutePick(null)
+    setRouteAuthoringMessage(null)
+  }, [services])
+  const handleRouteConnectCancel = useCallback(() => { setDoorRoutePick(null); setRouteAuthoringMessage(null) }, [])
   const pendingRouteAnchor = useMemo(() => pendingEntranceRoute ? {
     entranceId: pendingEntranceRoute.entranceId,
     outdoorNodeId: pendingEntranceRoute.candidate.id,
@@ -479,7 +491,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
           {selectedEntranceForPicker && (
             <OutdoorRoutePicker
               open
@@ -813,7 +825,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             </div>
           )}
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} onStartRouteConnect={handleStartRouteConnect} />
           )}
         </div>
       </div>

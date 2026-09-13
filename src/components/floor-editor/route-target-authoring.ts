@@ -11,6 +11,10 @@ export interface RouteTargetHit {
   position: LatLng
 }
 
+export type DoorRouteConnectTarget =
+  | { doorId: string; routeNodeId: string }
+  | { doorId: string; segment: { edgeId: string; position: LatLng } }
+
 interface FeatureLike {
   layer?: { id?: string }
   properties?: Record<string, unknown>

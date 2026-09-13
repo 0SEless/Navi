@@ -183,9 +183,10 @@ interface ComponentPropertiesProps {
   onClose: () => void
   validationChecks?: ValidationCheck[]
   onOpenOutdoorRoutePicker?: (entranceId: string) => void
+  onStartRouteConnect?: (doorId: string) => void
 }
 
-export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker }: ComponentPropertiesProps) {
+export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker, onStartRouteConnect }: ComponentPropertiesProps) {
   const component = useFloorComponent(componentId)
   const { services, document } = useEditor()
   const documentVersion = useDocumentVersion()
@@ -200,7 +201,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
   const [doorRotationDegrees, setDoorRotationDegrees] = useState(((component?.metadata?.rotation as number | undefined) ?? 0) * 180 / Math.PI)
   const [doorType, setDoorType] = useState(metadataString(component?.metadata, 'doorType') || 'standard')
   const [doorRoomId, setDoorRoomId] = useState(metadataString(component?.metadata, 'roomId'))
-  const [doorRouteNodeId, setDoorRouteNodeId] = useState('')
   const [roomType, setRoomType] = useState(metadataString(component?.metadata, 'type', 'category'))
   const [roomCode, setRoomCode] = useState(metadataString(component?.metadata, 'code', 'number'))
   const [roomDescription, setRoomDescription] = useState(metadataString(component?.metadata, 'description'))
@@ -221,7 +221,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     setDoorRotationDegrees(((component?.metadata?.rotation as number | undefined) ?? 0) * 180 / Math.PI)
     setDoorType(metadataString(component?.metadata, 'doorType') || 'standard')
     setDoorRoomId(metadataString(component?.metadata, 'roomId'))
-    setDoorRouteNodeId('')
     setRoomType(metadataString(component?.metadata, 'type', 'category'))
     setRoomCode(metadataString(component?.metadata, 'code', 'number'))
     setRoomDescription(metadataString(component?.metadata, 'description'))
@@ -296,8 +295,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     }
     return [...options.entries()].map(([id, label]) => ({ id, label }))
   }, [componentFloor])
-
-  const doorRouteNodes = useMemo(() => routeNodesForAccess.filter((node) => node.id !== doorEntity?.routeConnection?.anchorNodeId), [doorEntity, routeNodesForAccess])
 
   const verticalLevelGeometry = useMemo(() => {
     if (!component || (component.type !== 'stair' && component.type !== 'elevator')) return null
@@ -553,11 +550,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     onClose()
   }
 
-  const handleConnectDoorRoute = () => {
-    if (!isDoor || !doorRouteNodeId) return
-    dispatcher.execute({ id: 'door.route.connect', label: 'Connect Door to Route', payload: { doorId: component.id, routeNodeId: doorRouteNodeId } })
-  }
-
 
   return (
     <div style={{ borderTop: '1px solid var(--navi-border)' }}>
@@ -771,22 +763,21 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
               </div>
               <div>
                 <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>ROUTE CONNECTION</label>
-                {doorEntity?.routeConnection && <div style={{ marginBottom: 4, fontSize: 10, color: '#4ADE80' }}>Connected to {doorEntity.routeConnection.targetRouteNodeId}</div>}
-                <button
-                  type="button"
-                  onClick={() => dispatcher.execute({ id: 'door.route.disconnect', label: 'Disconnect Door from Route', payload: { doorId: component.id } })}
-                  style={{ marginBottom: 4, padding: '3px 6px', borderRadius: 4, border: '1px solid #7F1D1D', background: '#7F1D1D', color: '#FCA5A5', fontSize: 10, cursor: 'pointer' }}
-                >
-                  Disconnect
-                </button>
-                <select aria-label="Door route node" value={doorRouteNodeId} onChange={(event) => setDoorRouteNodeId(event.target.value)}
-                  style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }}>
-                  <option value="">Choose a route node…</option>
-                  {doorRouteNodes.map((node) => <option key={node.id} value={node.id}>{node.id} · {node.type}</option>)}
-                </select>
-                <button type="button" onClick={handleConnectDoorRoute} disabled={!doorRouteNodeId}
-                  style={{ width: '100%', marginTop: 4, padding: '5px 0', borderRadius: 4, border: '1px solid #1E40AF', background: doorRouteNodeId ? '#1E40AF' : 'var(--navi-content)', color: doorRouteNodeId ? '#BFDBFE' : 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, cursor: doorRouteNodeId ? 'pointer' : 'not-allowed' }}>
-                  Connect Door to Route
+                {doorEntity?.routeConnection && (
+                  <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#4ADE80' }}>Connected to {doorEntity.routeConnection.targetRouteNodeId}</span>
+                    <button
+                      type="button"
+                      onClick={() => dispatcher.execute({ id: 'door.route.disconnect', label: 'Disconnect Door from Route', payload: { doorId: component.id } })}
+                      style={{ marginBottom: 4, padding: '3px 6px', borderRadius: 4, border: '1px solid #7F1D1D', background: '#7F1D1D', color: '#FCA5A5', fontSize: 10, cursor: 'pointer' }}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                )}
+                <button type="button" onClick={() => onStartRouteConnect?.(component.id)} disabled={!onStartRouteConnect}
+                  style={{ width: '100%', padding: '5px 0', borderRadius: 4, border: '1px solid #1E40AF', background: onStartRouteConnect ? '#1E40AF' : 'var(--navi-content)', color: onStartRouteConnect ? '#BFDBFE' : 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600, cursor: onStartRouteConnect ? 'pointer' : 'not-allowed' }}>
+                  Connect to Route…
                 </button>
               </div>
             </div>

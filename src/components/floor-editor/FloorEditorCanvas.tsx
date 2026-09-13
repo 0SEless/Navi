@@ -30,6 +30,7 @@ import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
 import { buildFloorRectangleEditCommand, rectangleRotationHandleScreenPoint } from './floor-rectangle-authoring'
+import { resolveRouteTargetHit, type DoorRouteConnectTarget } from './route-target-authoring'
 
 
 import { computeFloorPlanCoords } from '@/lib/floor-plan-coords'
@@ -400,6 +401,9 @@ interface FloorEditorCanvasProps {
   pendingRouteAnchor?: EntranceRouteAnchor
   onRouteStartRejected?: (reason: string) => void
   onRouteAccessAssigned?: (access: { entranceId: string; outdoorNodeId: string; indoorRouteNodeId: string }) => void
+  routeConnectPick?: { doorId: string } | null
+  onRouteConnectResolved?: (target: DoorRouteConnectTarget) => void
+  onRouteConnectCancel?: () => void
 }
 
 function componentToFeature(c: Component, overridePolygon?: LatLng[]): GeoJSON.Feature | null {
@@ -515,7 +519,7 @@ function setSourceData(map: maplibregl.Map, sourceId: string, features: GeoJSON.
   if (source) source.setData({ type: 'FeatureCollection', features })
 }
 
-export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
@@ -563,6 +567,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   const [wallEditError, setWallEditError] = useState<string | null>(null)
   const routeNodeDragRef = useRef<RouteNodeDrag | null>(null)
   const [routeNodePreview, setRouteNodePreview] = useState<{ nodeId: string; position: LocalCoord } | null>(null)
+  const [doorConnectPrompt, setDoorConnectPrompt] = useState<{ edgeId: string; position: LatLng } | null>(null)
 
   useEffect(() => { selectedWallIdRef.current = selectedWallId }, [selectedWallId])
   useEffect(() => { snapModeRef.current = snapMode ?? DEFAULT_SNAP_MODE }, [snapMode])
@@ -2323,6 +2328,31 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
 
   }, [mapReady, selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id, floor, readOnly, onSelect, cancelWallJunctionDrag, calibrationMode, onCalibrationClick, planAlignment, buildingFp, onCalibrationImageLoaded])
 
+  // Door "Connect to Route…" pick mode: a node click resolves directly, an
+  // edge click opens the junction-creation prompt.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !routeConnectPick) return
+    const handlePickClick = (e: maplibregl.MapMouseEvent) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ['floor-route-nodes-circle', 'floor-route-edges-line'] })
+      const target = resolveRouteTargetHit(features as never, { lat: e.lngLat.lat, lng: e.lngLat.lng })
+      if (!target) return
+      if (target.kind === 'node') {
+        onRouteConnectResolved?.({ doorId: routeConnectPick.doorId, routeNodeId: target.id })
+        return
+      }
+      if (target.kind === 'edge') {
+        setDoorConnectPrompt({ edgeId: target.id, position: target.position })
+      }
+    }
+    map.on('click', handlePickClick)
+    return () => { try { map.off('click', handlePickClick) } catch { /* map removed */ } }
+  }, [mapReady, routeConnectPick, onRouteConnectResolved])
+
+  useEffect(() => {
+    if (!routeConnectPick) setDoorConnectPrompt(null)
+  }, [routeConnectPick])
+
   // Keyboard shortcuts (window-level — no canvas focus needed)
   useEffect(() => {
     if (readOnly) return
@@ -2536,6 +2566,18 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
             style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #475569', background: '#334155', color: '#E2E8F0', fontSize: 11, cursor: 'pointer' }}>
             No
           </button>
+        </div>
+      )}
+      {doorConnectPrompt && routeConnectPick && (
+        <div role="dialog" aria-label="Create junction and connect door?" data-testid="door-route-connect-prompt"
+          style={{ position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, background: '#1E293B', borderRadius: 8, padding: '8px 10px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', zIndex: 13 }}>
+          <span style={{ fontSize: 12, color: '#F8FAFC' }}>Create junction and connect door?</span>
+          <button type="button"
+            onClick={() => { onRouteConnectResolved?.({ doorId: routeConnectPick.doorId, segment: { edgeId: doorConnectPrompt.edgeId, position: doorConnectPrompt.position } }); setDoorConnectPrompt(null) }}
+            style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Yes</button>
+          <button type="button"
+            onClick={() => { setDoorConnectPrompt(null); onRouteConnectCancel?.() }}
+            style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #475569', background: '#334155', color: '#E2E8F0', fontSize: 11, cursor: 'pointer' }}>No</button>
         </div>
       )}
       {rectangleMessage && (

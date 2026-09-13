@@ -381,7 +381,9 @@ describe('Door properties', () => {
     mocks.document.buildings[0].floors[0].doors = [{
       id: 'door-1', roomId: 'room-semantic-1', ownership: { status: 'assigned' }, name: 'Lab Door', doorType: 'standard',
       position: { x: 2, y: 3 }, width: 1.2, depth: 0.25, rotation: Math.PI / 2,
-      geometry: { type: 'rectangle', min: { x: 1.4, y: 2.875 }, max: { x: 2.6, y: 3.125 }, rotation: Math.PI / 2 }, metadata: {},
+      geometry: { type: 'rectangle', min: { x: 1.4, y: 2.875 }, max: { x: 2.6, y: 3.125 }, rotation: Math.PI / 2 },
+      routeConnection: { anchorNodeId: 'route-node-2', targetRouteNodeId: 'route-node-2', connectorEdgeId: 'route-edge-connector' },
+      metadata: {},
     }]
   })
 
@@ -394,11 +396,13 @@ describe('Door properties', () => {
     expect(screen.getByLabelText('Door rotation')).toHaveValue(90)
     expect(screen.getByLabelText('Door type')).toHaveValue('standard')
     expect(screen.getByText('Assigned')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Connect Door to Route' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Connect to Route…' })).toBeDisabled()
+    expect(screen.queryByRole('combobox', { name: 'Door route node' })).toBeNull()
   })
 
-  it('saves Door properties and connects only the selected route node', () => {
-    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} />)
+  it('saves Door properties and starts the route connect pick from the panel', () => {
+    const onStartRouteConnect = vi.fn()
+    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} onStartRouteConnect={onStartRouteConnect} />)
     fireEvent.change(screen.getByLabelText('Door width'), { target: { value: '1.5' } })
     fireEvent.change(screen.getByLabelText('Door rotation'), { target: { value: '45' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -407,9 +411,9 @@ describe('Door properties', () => {
       payload: expect.objectContaining({ doorId: 'door-1', patch: expect.objectContaining({ width: 1.5, rotation: Math.PI / 4, roomId: 'room-semantic-1' }) }),
     }))
 
-    fireEvent.change(screen.getByLabelText('Door route node'), { target: { value: 'route-node-2' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Connect Door to Route' }))
-    expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ id: 'door.route.connect', payload: { doorId: 'door-1', routeNodeId: 'route-node-2' } }))
+    fireEvent.click(screen.getByRole('button', { name: 'Connect to Route…' }))
+    expect(onStartRouteConnect).toHaveBeenCalledWith('door-1')
+    expect(screen.queryByRole('combobox', { name: 'Door route node' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({
