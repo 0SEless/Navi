@@ -1,5 +1,26 @@
 # PROGRESS.md — Session log
 
+## 2026-09-13: P0 — Production sync stabilization, migration 009 prep, test isolation, deployment
+
+### Completed
+- Source commit `6e3ed5b` (navi-next): per-campus save queue + strict ack contract, metadata-placeholder adoption, `/api/campuses` insert-only (409), fail-closed production project guards, clean-database/seed/clear guards, fixture lifecycle helper, SaveStatus UX, migration 009 hardening (advisory lock, clock_timestamp, search_path, placeholder adoption), regression suites.
+- Root docs commit `c943794`: P0 spec/plan + ledger + guarded `clear_nodes.sql`.
+- Regression: focused store/guard/API/UI suites green; full suite **15 failed / 29 failed tests = documented pre-existing baseline** (all compiler/floor-editor/runtime fixtures), 542 files passing; `npm run build` exit 0; `tsc` only the known `data-identity-comparison.test.ts(255,3)` baseline; scoped ESLint clean (pre-existing `as any` only).
+- Runtime guard proof: TS guard, `.mjs` guard, and `clean-database --dry-run` all refused production (`oltfaepqcktrumfhadzb`) with exit 1.
+- Behavioral E2E (disposable production campus `e2e-p0-*`, explicit override, **16/16 PASS**): create via fixed route, repeat POST → 409, F3 marker adoption, editor mount, sequential save ack chain (marker == server revision), rapid edits with **max one POST in flight**, no self-conflict, reload + second session persistence, divergent state conflict UI, **complete six-table cleanup verified** (all tables 0 rows).
+- Protected campus `map-map-1-k6bv` read-only before/after: updated_at `2026-09-13T10:10:07.45635+00:00`, stable SHA-256 `c8e5ea41…b5afed`, 29/53/50, campus_maps row identical, no published map — **byte-identical; no production mutation**.
+- Deployment: **READY** `dpl_29MTMWDBUoXu5JZDG2hzxyTFeLyZ`, aliases `https://navi-next.vercel.app` + `https://navi-next-navi01.vercel.app`; deployed from the verified working tree via the project's normal CLI path; live read-only `/api/graph` for k6bv confirmed unchanged.
+
+### Blocked (external setup required)
+- Migration 009 not applied: `SUPABASE_ACCESS_TOKEN` returns 401 (Management API unauthorized); no DB password/psql/MCP available. Hardened SQL validated with a real PostgreSQL parser (`pg-query-emscripten` parses all migrations incl. the 009 PL/pgSQL body). Apply via refreshed token or dashboard with `supabase/migrations/009_graph_snapshot_optimistic_concurrency.sql`.
+- Separate dev/test Supabase project not provisioned (needs dashboard/management access). Contract and `.env.example` are in place; guards fail closed until a non-production project is configured.
+- Clean-HEAD deploy is impossible pre-existing: Vercel build of `6e3ed5b` alone fails module-not-found (committed tree depends on uncommitted WIP; e.g. `field.tsx` lacks `tokens`, selectors lack `useFloor`). Successful production deploy therefore matches prior CLI deploys from the working tree.
+
+### Next
+- Refresh Supabase credentials → apply hardened 009 → re-run migration contract checks (updatedAt echo, CAS 409, transport-field stripping) on a non-production project, then verify production headers.
+- Provision dev/test Supabase project and repoint `navi-next/.env.local`.
+- Proceed to the separate k6bv recovery task only after 009 + isolation prerequisites are met.
+
 ## 2026-09-13: P0 — Single-user sync root cause + per-campus save serialization (audit + fix)
 
 ### Root cause (evidence)

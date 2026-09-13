@@ -1,5 +1,19 @@
 # ERRORS.md — Ledger of errors encountered
 
+## 2026-09-13: P0 stabilization — Supabase management credential rejected (migration 009 blocked)
+- **Error**: `supabase projects list` with `SUPABASE_ACCESS_TOKEN` from `navi-next/.env.local` returned `LegacyProjectsListUnexpectedStatusError … Unauthorized`; no DB password/psql or Management API path is available, so production migration 009 could not be applied.
+- **Cause**: The personal access token is expired/revoked (same class as the earlier cleanup-token entry); the CLI is not linked and no database password exists in any env file.
+- **Fix**: Did not attempt alternative destructive paths. Hardened the migration file, validated all migrations with a real PostgreSQL parser (`pg-query-emscripten`, including the 009 PL/pgSQL body), and kept the client GET-confirm ack path that is correct against both the deployed (no `updatedAt`) and 009 RPCs. Rollout reported as external setup required.
+- **Prevention**: Refresh `SUPABASE_ACCESS_TOKEN` (or provide a migration-capable connection) before a migration window; never assume a repo token grants SQL access.
+- **Related tasks**: Phase 2/4/17
+
+## 2026-09-13: P0 stabilization — clean-checkout deployment failed because HEAD is not self-buildable
+- **Error**: `vercel --prod` from a clean worktree at commit `6e3ed5b` failed with `next build` module-not-found errors (`tokens`, `useFloor`, `useCanvasEditingAdapter`, `validatePoiNavigation`, …). Local `npm run build` from the working tree passes.
+- **Cause**: The repo's committed tree is incomplete relative to its working tree: required exports currently live only in uncommitted WIP files (e.g. `field.tsx` lacks `tokens` at HEAD; `use-document-selector.ts` lacks `useFloor`). This is a pre-existing repo condition, not caused by the stabilization commit.
+- **Fix**: Deployed via the project's established CLI path from the fully verified working tree (local build + full suite + behavioral E2E all ran on that exact tree); the failed clean-HEAD deployment was left as a failed record. Documented the limitation; no unrelated WIP was committed.
+- **Prevention**: Before Git-integrated deploys become viable, commit the WIP that HEAD depends on (or adopt a buildable-branch policy/CI build gate). Verify a clean `git worktree` build as part of release hygiene.
+- **Related tasks**: Phase 13/14
+
 ## 2026-09-13: Studio save banner contract — No new errors
 - **Error**: None encountered during implementation. Focused suites passed on the first run; ESLint surfaced only the known pre-existing `FloorEditor.tsx` baseline (28 problems, none on changed lines).
 - **Cause**: N/A — presentation-only change; no store or editor-package behavior changed.
