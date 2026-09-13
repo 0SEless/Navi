@@ -67,7 +67,12 @@ async function featureCenter(page, sourceId, featureId) {
     const features = (data?.features ? data : data?.geojson)?.features ?? []
     const feature = features.find((candidate) => String(candidate.properties?.id ?? candidate.id) === wanted)
     if (!feature) return null
-    const ring = feature.geometry.type === 'Polygon' ? feature.geometry.coordinates[0].slice(0, -1) : [feature.geometry.coordinates]
+    const geometry = feature.geometry
+    const ring = geometry.type === 'Polygon'
+      ? geometry.coordinates[0].slice(0, -1)
+      : geometry.type === 'LineString'
+        ? geometry.coordinates
+        : [geometry.coordinates]
     const lng = ring.reduce((sum, point) => sum + point[0], 0) / ring.length
     const lat = ring.reduce((sum, point) => sum + point[1], 0) / ring.length
     const projected = window.__floorStabilizationMap.project([lng, lat])
@@ -187,7 +192,13 @@ const graph = {
       entrances: [{ id: 'entrance-fixture', label: 'Main Entrance', position: { x: -8, y: 0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
       connectorStops: [],
       parametricComponents: [],
-      routeNetwork: { nodes: [{ id: 'route-fixture-1', type: 'waypoint', position: { x: 6, y: 0 }, floor: 0 }], edges: [] },
+      routeNetwork: {
+        nodes: [
+          { id: 'route-fixture-1', type: 'waypoint', position: { x: 6, y: 0 }, floor: 0 },
+          { id: 'route-fixture-2', type: 'waypoint', position: { x: -6, y: 0 }, floor: 0 },
+        ],
+        edges: [{ id: 'route-fixture-edge-1', from: 'route-fixture-1', to: 'route-fixture-2', type: 'walk', distance: 12 }],
+      },
     }],
   }],
   nodes: [],
@@ -267,6 +278,11 @@ try {
   const rightCenter = await featureCenter(page, 'floor-rooms', 'room-right')
 
   await clickTool(page, 'Door')
+  const rectangleStatus = page.getByTestId('floor-rectangle-authoring-status')
+  check('Door activation explains the rectangle gesture', await rectangleStatus.innerText() === 'Door: click and drag to draw a rectangle.', await rectangleStatus.innerText())
+  await page.mouse.click(leftCenter.x, leftCenter.y)
+  await sleep(page, 100)
+  check('Door click explains why no object was created', await rectangleStatus.innerText() === 'No Door created — drag at least 0.2 m wide and deep.', await rectangleStatus.innerText())
   await drag(page, { x: leftCenter.x - 28, y: leftCenter.y - 18 }, { x: leftCenter.x + 28, y: leftCenter.y + 18 })
   let doors = await sourceFeatures(page, 'floor-door-areas')
   check('Door click-drag creates one spatial footprint', doors.length === 1, doors.map((feature) => feature.properties?.id))
@@ -277,14 +293,54 @@ try {
   await nameInput.fill('Browser Main Door')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await sleep(page, 350)
-  await page.getByRole('combobox', { name: 'Door route node' }).selectOption('route-fixture-1')
-  await page.getByRole('button', { name: 'Connect Door to Route', exact: true }).click()
+  // Route layers are hidden by default in Architecture; the pick mode resolves
+  // rendered features, so reveal the persisted graph through the Layers panel.
+  await page.getByRole('button', { name: 'Navigation Preview', exact: true }).click()
+  await page.getByRole('button', { name: 'Graph', exact: true }).click()
+  await sleep(page, 700)
+  await page.getByRole('button', { name: 'Connect to Route…', exact: true }).click()
+  const routeNodeCenter = await featureCenter(page, 'floor-route-nodes', 'route-fixture-1')
+  await page.mouse.click(routeNodeCenter.x, routeNodeCenter.y)
   await sleep(page, 7000)
   let snapshot = await floorSnapshot(page, mapId)
   let door = snapshot.floor?.doors?.find((candidate) => candidate.id === doorId)
   check('Door inside Room receives its parent roomId', door?.roomId === 'room-left', door?.roomId)
   check('Door route connection is explicit and persisted locally', door?.routeConnection?.targetRouteNodeId === 'route-fixture-1', door?.routeConnection)
   check('Door metadata is editable in Inspector', door?.name === 'Browser Main Door', door?.name)
+
+  await clickTool(page, 'Door')
+  await drag(page, { x: rightCenter.x + 40, y: rightCenter.y + 60 }, { x: rightCenter.x + 80, y: rightCenter.y + 100 })
+  const doorsAfter = await sourceFeatures(page, 'floor-door-areas')
+  const door2Id = String(doorsAfter.find(feature => feature.properties?.id !== doorId)?.properties?.id ?? '')
+  check('second Door created for segment connection', Boolean(door2Id), door2Id)
+
+  await page.locator('main input:not([type])').last().fill('Segment Door')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await sleep(page, 350)
+  await page.getByRole('button', { name: 'Connect to Route…', exact: true }).click()
+  const edgeCenter = await featureCenter(page, 'floor-route-edges', 'route-fixture-edge-1')
+  await page.mouse.click(edgeCenter.x, edgeCenter.y)
+  await page.waitForSelector('[data-testid="door-route-connect-prompt"]', { timeout: 5000 })
+  // The route authoring message toast (z-index 50) overlaps the junction
+  // prompt; dismiss it the way the UI offers before confirming.
+  await page.getByRole('button', { name: 'Dismiss route message' }).click()
+  await sleep(page, 200)
+  const beforeJunction = await floorSnapshot(page, mapId)
+  await page.getByRole('button', { name: 'Yes', exact: true }).click()
+  await sleep(page, 7000)
+  const afterJunction = await floorSnapshot(page, mapId)
+  const door2 = afterJunction.floor?.doors?.find(candidate => candidate.id === door2Id)
+  const junctionId = door2?.routeConnection?.targetRouteNodeId
+  const junction = afterJunction.floor?.routeNetwork?.nodes.find(node => node.id === junctionId)
+  const incident = afterJunction.floor?.routeNetwork?.edges?.filter(edge => edge.from === junctionId || edge.to === junctionId) ?? []
+  check('door segment connect creates a shared junction (split + connector)', junction?.type === 'waypoint' && incident.length === 3, { junction, incident: incident.length })
+  check('segment junction split added topology', (afterJunction.floor?.routeNetwork?.edges?.length ?? 0) === (beforeJunction.floor?.routeNetwork?.edges?.length ?? 0) + 2, { before: beforeJunction.floor?.routeNetwork?.edges?.length ?? 0, after: afterJunction.floor?.routeNetwork?.edges?.length ?? 0 })
+
+  // The route connector now runs under the Door footprint; route layers sit
+  // above it and would steal canvas selection, so hide the graph again for the
+  // Door interaction checks.
+  await page.getByRole('button', { name: 'Graph', exact: true }).click()
+  await sleep(page, 500)
 
   await clickTool(page, 'Navigate')
   let doorCenter = await featureCenter(page, 'floor-door-areas', doorId)
@@ -338,6 +394,23 @@ try {
   const entrances = (await sourceFeatures(page, 'floor-point-items')).filter((feature) => feature.properties?.type === 'entrance')
   check('Entrance remains visibly represented on the Floor canvas', entrances.some((feature) => feature.properties?.id === 'entrance-fixture'))
 
+  await clickTool(page, 'Route')
+  await page.mouse.click(rightCenter.x + 60, rightCenter.y + 70) // free first vertex
+  const routeEdgesBefore = (await floorSnapshot(page, mapId)).floor?.routeNetwork?.edges?.length ?? 0
+  // The first edge is collinear with the door junction, so its rendered node
+  // circle overlaps the midpoint click; the door2 connector midpoint is clear
+  // of every route node.
+  const openEdges = await sourceFeatures(page, 'floor-route-edges')
+  const openEdge = openEdges[openEdges.length - 1]
+  const openEdgeId = String(openEdge?.properties?.id ?? '')
+  const openEdgeCenter = await featureCenter(page, 'floor-route-edges', openEdgeId)
+  await page.mouse.click(openEdgeCenter.x, openEdgeCenter.y)
+  await page.waitForSelector('[data-testid="route-connection-prompt"]', { timeout: 5000 })
+  await page.getByRole('button', { name: 'Yes', exact: true }).click()
+  await sleep(page, 7000)
+  const routeEdgesAfter = (await floorSnapshot(page, mapId)).floor?.routeNetwork?.edges?.length ?? 0
+  check('Route tool segment finish intentionally connects through a junction', routeEdgesAfter === routeEdgesBefore + 2, { before: routeEdgesBefore, after: routeEdgesAfter })
+
   await page.getByRole('button', { name: 'Architecture', exact: true }).click()
   await page.getByRole('button', { name: '2.5D', exact: true }).click()
   await sleep(page, 700)
@@ -350,7 +423,8 @@ try {
   await page.screenshot({ path: `${OUT}/01-25d-populated.png` })
   await page.getByRole('button', { name: '2D', exact: true }).click()
   await sleep(page, 500)
-  check('switching back to 2D keeps authored objects intact', (await sourceFeatures(page, 'floor-door-areas')).length === 1)
+  const doorsIn2d = await sourceFeatures(page, 'floor-door-areas')
+  check('switching back to 2D keeps authored objects intact', doorsIn2d.length === 2, doorsIn2d.map((feature) => feature.properties?.id))
 
   const roomsCollapse = page.getByRole('button', { name: 'Collapse Rooms', exact: true })
   check('Rooms hierarchy exposes collapse control', await roomsCollapse.isVisible())
