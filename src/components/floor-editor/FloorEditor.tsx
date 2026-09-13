@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT } from '@navi/editor'
+import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT, needsDoorOwnershipReconcile } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
@@ -146,9 +146,13 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   // ROU Task 5: silent auto-reconcile. The effect depends on the stable
   // fingerprint only — the command rewrites door ownership, not the canonical
-  // room-id set, so its own commit cannot re-trigger this effect.
+  // room-id set, so its own commit cannot re-trigger this effect. The pure
+  // predicate mirrors the handler's change detection (F1): a floor with
+  // nothing to fix skips the dispatch entirely, so it never commits, never
+  // bumps the document version, and never dirties the project.
   useEffect(() => {
     if (!currentFloorId) return
+    if (!canonicalFloor || !needsDoorOwnershipReconcile(canonicalFloor)) return
     services.get('dispatcher')?.execute(
       {
         id: 'door.ownership.reconcile',
@@ -367,7 +371,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         e.preventDefault()
         historyRef.current.redo()
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !e.repeat) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !e.shiftKey && !e.repeat) {
         const target = e.target as HTMLElement | null
         if (target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
         if (!selectedId) return

@@ -67,6 +67,14 @@ describe('buildDuplicatedDoor', () => {
     expect(source.metadata.tags).toEqual(['a'])
   })
 
+  it('copies the door leaf angle when present and omits it when absent', () => {
+    const withAngle = buildDuplicatedDoor(sourceDoor({ angle: 45 }), 'door-copy', { x: 0, y: 0 })
+    expect(withAngle.angle).toBe(45)
+
+    const withoutAngle = buildDuplicatedDoor(sourceDoor(), 'door-copy', { x: 0, y: 0 })
+    expect('angle' in withoutAngle).toBe(false)
+  })
+
   it('omits optional fields absent on the source and defaults connectedToType to room', () => {
     const duplicate = buildDuplicatedDoor(sourceDoor(), 'door-copy', { x: 0, y: 0 })
 
