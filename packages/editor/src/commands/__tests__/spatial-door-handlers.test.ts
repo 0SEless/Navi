@@ -68,4 +68,38 @@ describe('spatial Door commands', () => {
     expect(floor.routeNetwork?.nodes.find(node => node.id === connection?.anchorNodeId)?.position).toEqual({ x: 2, y: 2 })
     expect(floor.routeNetwork?.edges.find(edge => edge.id === connection?.connectorEdgeId)?.distance).toBeCloseTo(Math.hypot(6, 0))
   })
+
+  it('connects a Door to a route segment through a real shared junction', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+
+    const result = doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 5, y: 2 } } })
+
+    expect(result.success).toBe(true)
+    const door = floor.doors?.[0]
+    const junctionId = door?.routeConnection?.targetRouteNodeId
+    expect(junctionId).toBeTruthy()
+    expect(floor.routeNetwork?.edges.find(e => e.id === 'edge-1-2')).toBeUndefined()
+    expect(floor.routeNetwork?.nodes.find(n => n.id === junctionId)).toMatchObject({ type: 'waypoint', position: { x: 5, y: 2 } })
+    expect(floor.routeNetwork?.edges.filter(e => e.from === junctionId || e.to === junctionId)).toHaveLength(3)
+  })
+
+  it('restores the split network byte-exact when a segment Door connection is undone', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    const before = JSON.parse(JSON.stringify(floor))
+
+    const result = doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 5, y: 2 } } })
+    const inverse = doorRouteConnectHandler.inverse({ doorId: 'd' }, result)
+    expect(inverse).not.toBeNull()
+    doorRouteConnectHandler.execute(document, inverse!.payload as Record<string, unknown>)
+
+    expect(JSON.parse(JSON.stringify(floor))).toEqual(before)
+  })
 })

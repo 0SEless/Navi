@@ -5,6 +5,7 @@ import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
 import { cleanupFeatureRoutingReferences } from './routing-relationship-cleanup'
+import { applyRouteJunctionSplit } from './route-junctions'
 import { collectFloorRoomOwnershipPolygons, resolveUniqueRoomOwner } from '../geometry/room-ownership'
 
 // ── P1-T5 (R2.2): POI handlers ──
@@ -643,9 +644,25 @@ export const doorRouteConnectHandler: CommandHandler = {
       return { success: true, entityId: doorId }
     }
 
-    const targetRouteNodeId = payload.routeNodeId as string
-    const target = ctx.floor.routeNetwork?.nodes.find(node => node.id === targetRouteNodeId)
-    if (!target) return { success: false, error: `Route node not found: ${targetRouteNodeId}` }
+    const segment = payload.segment as { edgeId?: string; position?: { x?: unknown; y?: unknown } } | undefined
+    const requestedNodeId = payload.routeNodeId as string | undefined
+
+    if (!segment && !requestedNodeId) {
+      return { success: false, error: 'door.route.connect requires routeNodeId or segment' }
+    }
+    if (segment) {
+      const position = segment.position
+      if (typeof segment.edgeId !== 'string' || !position
+        || typeof position.x !== 'number' || typeof position.y !== 'number'
+        || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+        return { success: false, error: 'segment must contain an edgeId and finite position' }
+      }
+      const edge = ctx.floor.routeNetwork?.edges.find(candidate => candidate.id === segment.edgeId)
+      if (!edge) return { success: false, error: `Route edge not found: ${segment.edgeId}` }
+    }
+    if (requestedNodeId && !ctx.floor.routeNetwork?.nodes.some(node => node.id === requestedNodeId)) {
+      return { success: false, error: `Route node not found: ${requestedNodeId}` }
+    }
     const oldNetwork = structuredClone(ctx.floor.routeNetwork)
     const oldRouteConnection = ctx.door.routeConnection ? structuredClone(ctx.door.routeConnection) : undefined
     const network = ctx.floor.routeNetwork!
@@ -654,11 +671,46 @@ export const doorRouteConnectHandler: CommandHandler = {
       network.edges = network.edges.filter(edge => edge.id !== ctx.door.routeConnection!.connectorEdgeId)
     }
 
+    let resolvedTargetId = requestedNodeId ?? ''
+    if (segment) {
+      const split = applyRouteJunctionSplit(
+        network,
+        segment.edgeId as string,
+        { x: segment.position!.x as number, y: segment.position!.y as number },
+        ctx.floor.level,
+      )
+      if (!split.ok) {
+        ctx.floor.routeNetwork = oldNetwork
+        ctx.door.routeConnection = oldRouteConnection
+        return { success: false, error: split.error }
+      }
+      resolvedTargetId = split.junctionId
+      if (!split.reusedEndpoint) {
+        recordChange(document, { entityId: split.junctionId, entityType: 'route-node', operation: 'created' })
+        for (const createdEdgeId of split.createdEdgeIds) {
+          recordChange(document, { entityId: createdEdgeId, entityType: 'route-edge', operation: 'created' })
+        }
+      }
+    }
+
+    const resolvedTarget = network.nodes.find(node => node.id === resolvedTargetId)
+    if (!resolvedTarget) {
+      ctx.floor.routeNetwork = oldNetwork
+      ctx.door.routeConnection = oldRouteConnection
+      return { success: false, error: `Resolved route target not found: ${resolvedTargetId}` }
+    }
+
     const anchorNodeId = genId('route-node')
     const connectorEdgeId = genId('route-edge')
     network.nodes.push({ id: anchorNodeId, type: 'portal', position: { ...ctx.door.position }, floor: ctx.floor.level })
-    network.edges.push({ id: connectorEdgeId, from: anchorNodeId, to: target.id, type: 'walk', distance: Math.hypot(target.position.x - ctx.door.position.x, target.position.y - ctx.door.position.y) })
-    ctx.door.routeConnection = { anchorNodeId, targetRouteNodeId, connectorEdgeId }
+    network.edges.push({
+      id: connectorEdgeId,
+      from: anchorNodeId,
+      to: resolvedTargetId,
+      type: 'walk',
+      distance: Math.hypot(resolvedTarget.position.x - ctx.door.position.x, resolvedTarget.position.y - ctx.door.position.y),
+    })
+    ctx.door.routeConnection = { anchorNodeId, targetRouteNodeId: resolvedTargetId, connectorEdgeId }
     recordChange(document, { entityId: anchorNodeId, entityType: 'route-node', operation: 'created' })
     recordChange(document, { entityId: connectorEdgeId, entityType: 'route-edge', operation: 'created' })
     recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
