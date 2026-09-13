@@ -13,7 +13,9 @@ export interface RouteTargetHit {
 
 export type DoorRouteConnectTarget =
   | { doorId: string; routeNodeId: string }
-  | { doorId: string; segment: { edgeId: string; position: LatLng } }
+  // Segment picks are building-local (LocalCoord) — the coordinate system
+  // door.route.connect validates and every route-network command uses.
+  | { doorId: string; segment: { edgeId: string; position: { x: number; y: number } } }
 
 interface FeatureLike {
   layer?: { id?: string }

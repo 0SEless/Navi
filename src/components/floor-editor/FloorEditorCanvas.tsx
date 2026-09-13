@@ -2573,7 +2573,14 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           style={{ position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, background: '#1E293B', borderRadius: 8, padding: '8px 10px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', zIndex: 13 }}>
           <span style={{ fontSize: 12, color: '#F8FAFC' }}>Create junction and connect door?</span>
           <button type="button"
-            onClick={() => { onRouteConnectResolved?.({ doorId: routeConnectPick.doorId, segment: { edgeId: doorConnectPrompt.edgeId, position: doorConnectPrompt.position } }); setDoorConnectPrompt(null) }}
+            onClick={() => {
+              // The prompt stores the click in world LatLng for display purposes;
+              // door.route.connect consumes building-local meters (LocalCoord).
+              const local = transformer?.worldToBuildingLocal(doorConnectPrompt.position, building.id)
+              if (!local) return
+              onRouteConnectResolved?.({ doorId: routeConnectPick.doorId, segment: { edgeId: doorConnectPrompt.edgeId, position: { x: local.x, y: local.y } } })
+              setDoorConnectPrompt(null)
+            }}
             style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Yes</button>
           <button type="button"
             onClick={() => { setDoorConnectPrompt(null); onRouteConnectCancel?.() }}

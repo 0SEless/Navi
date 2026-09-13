@@ -1913,7 +1913,7 @@ describe('Door route pick mode', () => {
     expect(onRouteConnectResolved).toHaveBeenCalledWith({ doorId: 'door-1', routeNodeId: 'rn-a' })
   })
 
-  it('prompts on a segment click and resolves only on Yes', async () => {
+  it('prompts on a segment click and resolves only on Yes with building-local coordinates', async () => {
     mockRenderedFeaturesByLayer = {
       'floor-route-edges-line': [{
         type: 'Feature',
@@ -1923,7 +1923,49 @@ describe('Door route pick mode', () => {
       }],
     }
     const onRouteConnectResolved = vi.fn()
-    renderCanvasWithRealContext({ tool: 'select', routeConnectPick: { doorId: 'door-1' }, onRouteConnectResolved })
+    const { ctx } = renderCanvasWithRealContext({ tool: 'select', routeConnectPick: { doorId: 'door-1' }, onRouteConnectResolved })
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // Click a world point whose building-local mapping is known. The segment
+    // payload must carry building-local meters ({ x, y }) — the same coordinate
+    // system door.route.connect validates — never world LatLng.
+    const expectedLocal = { x: 3, y: -2 }
+    const clickWorld = ctx.transformer!.buildingLocalToWorld(expectedLocal, mockBuildingId)!
+    act(() => { simulateMapClick(clickWorld.lat, clickWorld.lng) })
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByText('Create junction and connect door?')).toBeTruthy()
+    expect(onRouteConnectResolved).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+
+    const resolved = onRouteConnectResolved.mock.calls[0]?.[0] as {
+      doorId: string
+      segment: { edgeId: string; position: { x: number; y: number } }
+    }
+    expect(resolved.doorId).toBe('door-1')
+    expect(resolved.segment.edgeId).toBe('re-ab')
+    expect(resolved.segment.position.x).toBeCloseTo(expectedLocal.x, 6)
+    expect(resolved.segment.position.y).toBeCloseTo(expectedLocal.y, 6)
+    expect(resolved.segment.position).not.toHaveProperty('lat')
+    expect(resolved.segment.position).not.toHaveProperty('lng')
+    expect(screen.queryByText('Create junction and connect door?')).toBeNull()
+  })
+
+  it('leaves the segment prompt open when the click cannot be converted to building-local', async () => {
+    mockRenderedFeaturesByLayer = {
+      'floor-route-edges-line': [{
+        type: 'Feature',
+        layer: { id: 'floor-route-edges-line' },
+        properties: { id: 're-ab', type: 'walk', distance: 10 },
+        geometry: { type: 'LineString', coordinates: [[122.0922, 11.8195], [122.0923, 11.8195]] },
+      }],
+    }
+    const onRouteConnectResolved = vi.fn()
+    const { ctx } = renderCanvasWithRealContext({ tool: 'select', routeConnectPick: { doorId: 'door-1' }, onRouteConnectResolved })
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -1932,14 +1974,12 @@ describe('Door route pick mode', () => {
     await act(async () => { await Promise.resolve() })
 
     expect(screen.getByText('Create junction and connect door?')).toBeTruthy()
-    expect(onRouteConnectResolved).not.toHaveBeenCalled()
 
+    vi.spyOn(ctx.transformer!, 'worldToBuildingLocal').mockReturnValue(null)
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
-    expect(onRouteConnectResolved).toHaveBeenCalledWith({
-      doorId: 'door-1',
-      segment: { edgeId: 're-ab', position: { lat: 11.8195, lng: 122.09225 } },
-    })
-    expect(screen.queryByText('Create junction and connect door?')).toBeNull()
+
+    expect(onRouteConnectResolved).not.toHaveBeenCalled()
+    expect(screen.getByText('Create junction and connect door?')).toBeTruthy()
   })
 
   it('cancels a segment pick without resolving', async () => {
