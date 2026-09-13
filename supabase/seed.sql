@@ -4,6 +4,18 @@
 
 -- Idempotent: uses ON CONFLICT DO NOTHING / DO UPDATE
 
+-- SAFETY (2026-09-13 P0 stabilization): this seed updates campus rows, including
+-- graph_snapshots.updated_at (the optimistic-concurrency revision). Never paste
+-- it into a production database casually. Opt in for the current session:
+--   SELECT set_config('navi.allow_seed', 'yes', false);
+DO $$
+BEGIN
+  IF current_setting('navi.allow_seed', true) IS DISTINCT FROM 'yes' THEN
+    RAISE EXCEPTION 'Refusing seed.sql: set navi.allow_seed=yes for this session after verifying the target database.';
+  END IF;
+END
+$$;
+
 -- 1. Graph snapshot placeholder
 INSERT INTO graph_snapshots (campus_id, data, version)
 VALUES (

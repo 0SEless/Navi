@@ -1,3 +1,6 @@
+import { requireSafeTestEnvironment } from './e2e/support/campus-guard.mjs'
+requireSafeTestEnvironment()
+
 import { chromium } from 'playwright'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'

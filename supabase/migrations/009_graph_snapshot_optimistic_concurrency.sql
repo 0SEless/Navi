@@ -1,16 +1,28 @@
 -- Reject stale editor saves atomically. The client sends the exact
 -- graph_snapshots.updated_at revision it last observed. Control fields are
 -- removed before storing the authored graph JSON.
+--
+-- Hardening (2026-09-13 P0 stabilization audit):
+--   F1: pg_advisory_xact_lock serializes first-write races where the row does
+--       not exist yet (SELECT ... FOR UPDATE locks nothing for absent rows).
+--   F2: saved_revision uses clock_timestamp() AFTER the lock so a waited
+--       writer can never store a revision older than the committed one.
+--   F4: SET search_path = 'public' restores the 004 hardening that 005/009
+--       previously reset by omission.
+--   F3: a metadata-only placeholder row (no buildings/nodes) may be adopted by
+--       a first real save instead of permanently conflicting.
 CREATE OR REPLACE FUNCTION sync_graph_snapshot(payload JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
+SET search_path = 'public'
 AS $$
 DECLARE
   campus TEXT := payload->>'campusId';
   expected_revision TIMESTAMPTZ := NULLIF(payload->>'expectedServerUpdatedAt', '')::TIMESTAMPTZ;
   force_overwrite BOOLEAN := COALESCE((payload->>'forceServerOverwrite')::BOOLEAN, FALSE);
   current_revision TIMESTAMPTZ;
-  saved_revision TIMESTAMPTZ := NOW();
+  current_data JSONB;
+  saved_revision TIMESTAMPTZ;
   authored_payload JSONB := payload - 'expectedServerUpdatedAt' - 'forceServerOverwrite';
   b JSONB;
   n JSONB;
@@ -18,14 +30,27 @@ DECLARE
 BEGIN
   IF campus IS NULL THEN campus := 'asu-ibajay'; END IF;
 
-  SELECT updated_at INTO current_revision
+  -- F1: serialize writers per campus even before the row exists.
+  PERFORM pg_advisory_xact_lock(hashtext('navi_graph_snapshot:' || campus));
+
+  SELECT updated_at, data INTO current_revision, current_data
   FROM graph_snapshots
   WHERE campus_id = campus
   FOR UPDATE;
 
+  -- F2: authoritative revision is generated after the lock is held.
+  saved_revision := clock_timestamp();
+
   IF NOT force_overwrite AND payload ? 'expectedServerUpdatedAt' THEN
     IF current_revision IS NOT NULL AND expected_revision IS NULL THEN
-      RAISE EXCEPTION 'GRAPH_SNAPSHOT_CONFLICT: server snapshot exists but the editor has no matching revision' USING ERRCODE = '40001';
+      -- F3: allow a first real save to adopt a metadata-only placeholder row.
+      IF current_data IS NULL
+        OR (COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(current_data->'buildings') = 'array' THEN current_data->'buildings' END), 0) = 0
+            AND COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(current_data->'nodes') = 'array' THEN current_data->'nodes' END), 0) = 0) THEN
+        NULL;
+      ELSE
+        RAISE EXCEPTION 'GRAPH_SNAPSHOT_CONFLICT: server snapshot exists but the editor has no matching revision' USING ERRCODE = '40001';
+      END IF;
     END IF;
     IF current_revision IS NULL AND expected_revision IS NOT NULL THEN
       RAISE EXCEPTION 'GRAPH_SNAPSHOT_CONFLICT: expected server snapshot no longer exists' USING ERRCODE = '40001';

@@ -517,80 +517,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       console.warn('[graph-store] syncToSupabase blocked while a server conflict is unresolved:', unresolvedConflict)
       throw new Error(unresolvedConflict)
     }
-    set({ syncStatus: 'syncing', syncError: null })
-    const snapshot = get().graph.toJSON()
-    const snapshotHash = graphFingerprint(snapshot)
     const mapId = get().currentMapId
     if (!mapId) {
       const message = 'Cannot sync without an active map'
       set({ syncStatus: 'error', syncError: message })
       throw new Error(message)
     }
-    // Serialize through the mapping layer to ensure RPC-compatible format
-    // and inject the correct campusId from currentMapId
-    const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId)
-    const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
-    const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: options?.force === true })
-
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const res = await fetch('/api/graph', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body,
-        })
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-          const msg = errBody.error ?? `HTTP ${res.status}`
-          if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
-            await sleep(SYNC_RETRY_DELAYS[attempt])
-            continue
-          }
-          throw new Error(msg)
-        }
-        const serverResult = await res.json().catch(() => ({})) as { updatedAt?: string }
-        const localSnapshot = localStorage.getItem(storageKey(mapId))
-        let localMatches = false
-        if (localSnapshot) {
-          try {
-            localMatches = graphFingerprint(JSON.parse(localSnapshot)) === snapshotHash
-          } catch {
-            localMatches = false
-          }
-        }
-        if (localMatches) {
-          const previousMarker = readSyncMarker(mapId)
-          // Only a server-returned revision may advance serverTimestamp.
-          writeSyncMarker(mapId, snapshotHash, new Date().toISOString(), serverResult.updatedAt ?? previousMarker?.serverTimestamp ?? null)
-        }
-        set({ syncStatus: 'synced', syncError: null })
-        return
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Sync failed'
-        if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
-          await sleep(SYNC_RETRY_DELAYS[attempt])
-          continue
-        }
-        if (isNetworkError(msg)) {
-          // Transient network failure — the graph is already safe in
-          // localStorage, so surface a calm status and resume automatically
-          // when the connection comes back.
-          bindOnlineResync()
-          const offlineMessage = 'Offline — changes saved locally. Will retry when back online.'
-          console.warn('[graph-store] syncToSupabase offline — saved locally, will retry when back online:', msg)
-          set({ syncStatus: 'error', syncError: offlineMessage })
-          throw new Error(offlineMessage)
-        } else if (/server changed|snapshot conflict/i.test(msg)) {
-          set({ syncStatus: 'conflict', syncError: msg })
-          throw new Error(msg)
-        } else {
-          console.error('[graph-store] syncToSupabase failed:', msg)
-          set({ syncStatus: 'error', syncError: msg })
-          throw new Error(msg)
-        }
-      }
-    }
+    // Per-campus queue: overlapping autosave/visibility/manual writes must not
+    // race each other with the same expectedServerUpdatedAt.
+    await enqueueCampusSave(mapId, options?.force === true)
   },
 
   /**
@@ -688,7 +623,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as GraphSnapshot & { updatedAt?: string }
       if (!data || !data.nodes) {
-        set({ syncStatus: 'idle' })
+        // F3: metadata-only or legacy rows carry an authoritative revision but
+        // no graph arrays. Record that revision and mount an empty graph so the
+        // editor can open and adopt the row on its first save.
+        if (effectiveMapId && data?.updatedAt) {
+          let fingerprint: string
+          try {
+            fingerprint = graphFingerprint(data)
+          } catch {
+            fingerprint = snapshotFingerprint(stableStringify(data))
+          }
+          writeSyncMarker(effectiveMapId, fingerprint, data.updatedAt, data.updatedAt)
+        }
+        const emptyGraph = new Graph()
+        if (effectiveMapId) emptyGraph.campusId = effectiveMapId
+        set({ graph: emptyGraph, currentMapId: effectiveMapId ?? null, syncStatus: 'idle' })
         return
       }
       const graph = Graph.fromJSON(data)
@@ -706,3 +655,197 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
 }))
+
+// ── Per-campus save serialization ─────────────────────────────────────────
+//
+// Optimistic concurrency requires a single writer per campus: when two POSTs
+// read the same expectedServerUpdatedAt, the second one conflicts against the
+// revision produced by the first (a self-conflict). All save triggers
+// (autosave debounce, visibility/unload flush, building drag, wizard, online
+// resync, forced re-sync) funnel through this queue.
+//
+// Contract:
+//   - at most one `/api/graph` POST in flight per campus;
+//   - while one runs, callers join a single coalesced follow-up;
+//   - the follow-up re-reads the newest graph and the latest acknowledged
+//     revision at execution time, so a later local edit is never lost.
+
+interface CampusSaveQueue {
+  running: boolean
+  hasPending: boolean
+  pendingForce: boolean
+  waiters: Array<{ resolve: () => void; reject: (reason: unknown) => void }>
+}
+
+const campusSaveQueues = new Map<string, CampusSaveQueue>()
+
+/** Test-only: clears queued/running save state between test cases. */
+export function __resetGraphSaveQueuesForTests(): void {
+  campusSaveQueues.clear()
+}
+
+function getCampusSaveQueue(mapId: string): CampusSaveQueue {
+  let queue = campusSaveQueues.get(mapId)
+  if (!queue) {
+    queue = { running: false, hasPending: false, pendingForce: false, waiters: [] }
+    campusSaveQueues.set(mapId, queue)
+  }
+  return queue
+}
+
+function enqueueCampusSave(mapId: string, force: boolean): Promise<void> {
+  const queue = getCampusSaveQueue(mapId)
+
+  if (queue.running) {
+    queue.hasPending = true
+    queue.pendingForce = queue.pendingForce || force
+    return new Promise<void>((resolve, reject) => {
+      queue.waiters.push({ resolve, reject })
+    })
+  }
+
+  queue.running = true
+  const firstRun = performSyncToSupabase(mapId, force)
+  // Drain after the first run settles. `firstRun` is also the first caller's
+  // result, so its outcome is not coupled to later queued writes.
+  void firstRun.then(
+    () => {
+      void drainCampusSaveQueue(mapId, queue)
+    },
+    (error: unknown) => {
+      rejectQueuedSaves(queue, error)
+      queue.running = false
+    },
+  )
+  return firstRun
+}
+
+async function drainCampusSaveQueue(mapId: string, queue: CampusSaveQueue): Promise<void> {
+  while (queue.hasPending) {
+    const force = queue.pendingForce
+    const waiters = queue.waiters.splice(0)
+    queue.hasPending = false
+    queue.pendingForce = false
+    try {
+      await performSyncToSupabase(mapId, force)
+      for (const waiter of waiters) waiter.resolve()
+    } catch (error) {
+      rejectQueuedSaves(queue, error, waiters)
+      break
+    }
+  }
+  queue.running = false
+}
+
+function rejectQueuedSaves(
+  queue: CampusSaveQueue,
+  error: unknown,
+  settled: CampusSaveQueue['waiters'] = [],
+): void {
+  const stillWaiting = queue.waiters.splice(0)
+  queue.hasPending = false
+  queue.pendingForce = false
+  for (const waiter of [...settled, ...stillWaiting]) waiter.reject(error)
+}
+
+async function performSyncToSupabase(mapId: string, force: boolean): Promise<void> {
+  const unresolvedConflict =
+    useGraphStore.getState().syncStatus === 'conflict' ? useGraphStore.getState().syncError : null
+  if (unresolvedConflict) {
+    console.warn('[graph-store] syncToSupabase blocked while a server conflict is unresolved:', unresolvedConflict)
+    throw new Error(unresolvedConflict)
+  }
+  if (useGraphStore.getState().currentMapId !== mapId) {
+    // The editor moved to another map while this save was queued; the graph
+    // for `mapId` is no longer the active one. Its local cache is intact.
+    console.warn(`[graph-store] syncToSupabase skipped: map "${mapId}" is no longer active`)
+    return
+  }
+
+  useGraphStore.setState({ syncStatus: 'syncing', syncError: null })
+  const snapshot = useGraphStore.getState().graph.toJSON()
+  const snapshotHash = graphFingerprint(snapshot)
+  // Serialize through the mapping layer to ensure RPC-compatible format
+  // and inject the correct campusId from currentMapId
+  const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId)
+  const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
+  const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force })
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch('/api/graph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body,
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        const msg = errBody.error ?? `HTTP ${res.status}`
+        if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
+          await sleep(SYNC_RETRY_DELAYS[attempt])
+          continue
+        }
+        throw new Error(msg)
+      }
+      const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
+      const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult.updatedAt ?? null)
+      if (!acknowledgedRevision) {
+        // No authoritative revision means the next save would claim a stale
+        // expectedServerUpdatedAt. Never report synchronized in that state.
+        const message =
+          'The save reached the server, but the authoritative revision could not be confirmed. Local changes remain cached; retry when the server is reachable.'
+        console.warn('[graph-store] syncToSupabase could not confirm the server revision.')
+        useGraphStore.setState({ syncStatus: 'error', syncError: message })
+        throw new Error(message)
+      }
+      // A confirmed server revision always becomes the marker's revision. The
+      // fingerprint records the exact content the server acknowledged, while
+      // newer local edits remain tracked as unsynced by the fingerprint mismatch.
+      writeSyncMarker(mapId, snapshotHash, new Date().toISOString(), acknowledgedRevision)
+      useGraphStore.setState({ syncStatus: 'synced', syncError: null })
+      return
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Sync failed'
+      if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
+        await sleep(SYNC_RETRY_DELAYS[attempt])
+        continue
+      }
+      if (isNetworkError(msg)) {
+        // Transient network failure — the graph is already safe in
+        // localStorage, so surface a calm status and resume automatically
+        // when the connection comes back.
+        bindOnlineResync()
+        const offlineMessage = 'Offline — changes saved locally. Will retry when back online.'
+        console.warn('[graph-store] syncToSupabase offline — saved locally, will retry when back online:', msg)
+        useGraphStore.setState({ syncStatus: 'error', syncError: offlineMessage })
+        throw new Error(offlineMessage)
+      } else if (/server changed|snapshot conflict/i.test(msg)) {
+        useGraphStore.setState({ syncStatus: 'conflict', syncError: msg })
+        throw new Error(msg)
+      } else {
+        console.error('[graph-store] syncToSupabase failed:', msg)
+        useGraphStore.setState({ syncStatus: 'error', syncError: msg })
+        throw new Error(msg)
+      }
+    }
+  }
+}
+
+/**
+ * Resolve the revision the save must acknowledge.
+ *
+ * Migration 009 returns `updatedAt`; the deployed 004/005 RPC does not. When
+ * the POST response carries no revision, read the authoritative value back so
+ * the next save never claims a revision the server has already advanced past.
+ */
+async function resolveAcknowledgedRevision(
+  mapId: string,
+  responseUpdatedAt: string | null,
+): Promise<string | null> {
+  if (typeof responseUpdatedAt === 'string' && responseUpdatedAt.length > 0) {
+    return responseUpdatedAt
+  }
+  const data = await fetchServerSnapshot(mapId)
+  return data?.updatedAt ?? null
+}

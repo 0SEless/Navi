@@ -6,6 +6,7 @@
  * Run: npx playwright test e2e/autosave-roundtrip.spec.ts --reporter=line
  */
 import { test, expect } from '@playwright/test'
+import { requireDisposableTestCampusId } from './support/safety'
 
 const BASE = 'http://localhost:3000'
 
@@ -24,20 +25,11 @@ async function loginAsAdmin(page: import('@playwright/test').Page) {
 }
 
 async function openCampusEditor(page: import('@playwright/test').Page) {
-  // Fetch campus list from the API to get a valid campus ID
-  const response = await page.goto(`${BASE}/api/campus-maps`)
-  await page.waitForLoadState('networkidle')
-  const campusData = await response?.json()
-  console.log('Campus API response:', JSON.stringify(campusData)?.substring(0, 300))
-
-  // Extract first campus ID
-  const maps = campusData?.maps ?? campusData?.campus_maps ?? []
-  if (maps.length === 0) {
-    throw new Error('No campuses found in /api/campus-maps — create one first')
-  }
-
-  const campusId = maps[0].id
-  console.log('Using campus ID:', campusId, '(', maps[0].name, ')')
+  // Never pick a campus implicitly: local dev + e2e share the production
+  // Supabase project, and the only existing campus today is protected.
+  // Create a disposable campus and pass its id explicitly.
+  const campusId = requireDisposableTestCampusId()
+  console.log('Using explicit E2E campus ID:', campusId)
 
   // Navigate directly to the editor
   await page.goto(`${BASE}/studio/${campusId}/edit`)

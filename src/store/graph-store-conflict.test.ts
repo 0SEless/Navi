@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
-import { useGraphStore } from './graph-store'
+import { useGraphStore, __resetGraphSaveQueuesForTests } from './graph-store'
 
 const MAP_ID = 'conflict-map'
 const CACHE_KEY = `navi-graph-${MAP_ID}`
@@ -43,7 +43,7 @@ function stubServer(
 }
 
 async function seedCleanLocal(buildingName: string): Promise<void> {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })))
+  stubServer(serverPayload(buildingName, '2026-09-12T09:00:00.000Z'))
   useGraphStore.setState({ graph: makeGraph(buildingName), currentMapId: MAP_ID, syncStatus: 'idle', syncError: null })
   await useGraphStore.getState().save()
 }
@@ -63,15 +63,20 @@ async function loadFresh(): Promise<void> {
 describe('graph store stale-local conflict handling', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    __resetGraphSaveQueuesForTests()
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
   })
 
-  it('never stamps the sync marker with the local clock as serverTimestamp', async () => {
+  it('stamps the sync marker only with a server-confirmed revision, never the local clock', async () => {
     await seedCleanLocal('Local Hall')
     const marker = JSON.parse(localStorage.getItem(MARKER_KEY) ?? '{}')
-    expect(marker.serverTimestamp).toBeNull()
+    // The legacy RPC does not echo updatedAt; the revision must still come from
+    // the server (GET confirmation), never from the local clock.
+    expect(marker.serverTimestamp).toBe('2026-09-12T09:00:00.000Z')
     expect(typeof marker.syncedAt).toBe('string')
+    expect(marker.serverTimestamp).not.toBe(marker.syncedAt)
   })
 
   it('adopts a differing server snapshot when the local copy is clean', async () => {

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   if (campusId) {
     const { data, error } = await supabase
       .from("graph_snapshots")
-      .select("campus_id, version, updated_at")
+      .select("campus_id, version, updated_at, data")
       .eq("campus_id", campusId)
       .maybeSingle();
 
@@ -47,9 +47,13 @@ export async function GET(request: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("campus_id", campusId);
 
+    const snapData = (data.data ?? {}) as Record<string, unknown>;
     return NextResponse.json({
       id: data.campus_id,
       campus_id: data.campus_id,
+      name: typeof snapData.name === 'string' ? snapData.name : data.campus_id,
+      description: typeof snapData.description === 'string' ? snapData.description : '',
+      address: typeof snapData.address === 'string' ? snapData.address : '',
       version: data.version,
       updated_at: data.updated_at,
       building_count: buildingCount ?? 0,
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("graph_snapshots")
-    .select("campus_id, version, updated_at")
+    .select("campus_id, version, updated_at, data")
     .order("campus_id");
 
   if (error) {
@@ -72,7 +76,17 @@ export async function GET(request: NextRequest) {
         .from("buildings")
         .select("*", { count: "exact", head: true })
         .eq("campus_id", c.campus_id);
-      return { ...c, building_count: bc ?? 0 };
+      const snapData = (c.data ?? {}) as Record<string, unknown>;
+      return {
+        id: c.campus_id,
+        campus_id: c.campus_id,
+        name: typeof snapData.name === 'string' ? snapData.name : c.campus_id,
+        description: typeof snapData.description === 'string' ? snapData.description : '',
+        address: typeof snapData.address === 'string' ? snapData.address : '',
+        version: c.version,
+        updated_at: c.updated_at,
+        building_count: bc ?? 0,
+      };
     }),
   );
 
@@ -91,17 +105,21 @@ export async function POST(request: NextRequest) {
 
     const { error: snapError } = await supabase
       .from("graph_snapshots")
-      .upsert(
-        {
-          campus_id,
-          data: { campusId: campus_id, name: name || campus_id, description: description || "", address: address || "" },
-          version: "1.0.0",
-        },
-        { onConflict: "campus_id" },
-      );
+      .insert({
+        campus_id,
+        data: { campusId: campus_id, name: name || campus_id, description: description || "", address: address || "" },
+        version: "1.0.0",
+      });
 
     if (snapError) {
-      return NextResponse.json({ error: snapError.message }, { status: 500 });
+      if (snapError.code === '23505') {
+        return NextResponse.json(
+          { error: 'Campus already exists', code: 'CAMPUS_ALREADY_EXISTS' },
+          { status: 409 },
+        );
+      }
+      const snapMsg = snapError.message || 'Failed to create campus';
+      return NextResponse.json({ error: snapMsg }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, campus_id });

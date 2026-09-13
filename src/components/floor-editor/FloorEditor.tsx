@@ -72,6 +72,14 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const selectedCount = lastSelected ? 1 : 0
 
   const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'conflict' ? 'conflict' : syncStatus === 'error' ? 'error' : 'unsaved'
+  const headerStatusMessage =
+    syncStatus === 'conflict'
+      ? 'Changes not synced'
+      : syncStatus === 'error'
+        ? syncError?.startsWith('Offline')
+          ? 'Saved on this device'
+          : 'Sync failed'
+        : undefined
 
   const [layers, setLayers] = useState<LayerVisibility>({
     ...DEFAULT_LAYER_VISIBILITY,
@@ -589,7 +597,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         buildingName={building?.name ?? ''}
         floorLabel={floorLabel}
         status={headerStatus}
-        statusMessage={syncError ?? undefined}
+        statusMessage={headerStatusMessage}
         selectedCount={selectedCount}
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
