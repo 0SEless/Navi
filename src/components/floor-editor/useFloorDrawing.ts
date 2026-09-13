@@ -16,6 +16,15 @@ import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
 import { buildFloorRectangleCommand } from './floor-rectangle-authoring'
 import type { FloorRectangleTool } from './floor-rectangle-authoring'
 
+/** Two clicks closer than this are a browser-reported multi-click repeat, not a new vertex. */
+export const DUPLICATE_CLICK_EPSILON_METERS = 0.25
+
+function sameClickedSpot(a: { lat: number; lng: number }, b: { lat: number; lng: number }): boolean {
+  const metersPerDegLat = 111320
+  const metersPerDegLng = 111320 * Math.cos((a.lat * Math.PI) / 180)
+  return Math.hypot((a.lat - b.lat) * metersPerDegLat, (a.lng - b.lng) * metersPerDegLng) <= DUPLICATE_CLICK_EPSILON_METERS
+}
+
 /** Wall drawing state — simple two-click line with snapping */
 interface WallDrawState {
   start: LatLng | null
@@ -188,6 +197,15 @@ interface RectangleDrawState {
   current: SnapPoint2D
 }
 
+function rectangleToolLabel(tool: FloorRectangleTool): string {
+  return tool === 'door' ? 'Door' : tool === 'stairs' ? 'Stair' : 'Elevator'
+}
+
+function rectangleReadyMessage(tool: StudioTool): string | null {
+  if (tool !== 'door' && tool !== 'stairs' && tool !== 'elevator') return null
+  return `${rectangleToolLabel(tool)}: click and drag to draw a rectangle.`
+}
+
 export function computeWidthBuffer(centerline: LatLng[], totalWidth: number): LatLng[] {
   return computeHallwayPolygon(centerline, totalWidth)
 }
@@ -350,6 +368,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
   const routeStartedRef = useRef(false)
+  const lastClickPositionRef = useRef<{ lat: number; lng: number } | null>(null)
 
   // Snap mode state for wall drawing
   const [internalSnapMode, setInternalSnapMode] = useState<SnapMode>(DEFAULT_SNAP_MODE)
@@ -364,7 +383,11 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   useEffect(() => { doorDrawRef.current = doorDraw }, [doorDraw])
   const [rectangleDraw, setRectangleDraw] = useState<RectangleDrawState | null>(null)
   const rectangleDrawRef = useRef(rectangleDraw)
-  useEffect(() => { rectangleDrawRef.current = rectangleDraw }, [rectangleDraw])
+  const [rectangleMessage, setRectangleMessage] = useState<string | null>(() => rectangleReadyMessage(tool))
+  const updateRectangleDraw = useCallback((next: RectangleDrawState | null) => {
+    rectangleDrawRef.current = next
+    setRectangleDraw(next)
+  }, [])
 
   // Initialize layers
   useEffect(() => {
@@ -401,9 +424,10 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     routeStartedRef.current = false
     setWallDraw({ start: null, startLocal: null })
     setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
-    setRectangleDraw(null)
+    updateRectangleDraw(null)
+    setRectangleMessage(rectangleReadyMessage(tool))
     if (map && mapReady) clearPreview(map)
-  }, [tool, map])
+  }, [tool, map, mapReady, updateRectangleDraw])
 
   // A confirmed outdoor target fixes the first indoor Route vertex to the
   // exact Entrance position. The author only needs to click the next point;
@@ -644,7 +668,14 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
   // Map click handler
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
-    if ((e.originalEvent as MouseEvent).detail > 1) return
+    const clickPosition: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+    const previousClick = lastClickPositionRef.current
+    lastClickPositionRef.current = { ...clickPosition }
+    // A browser multi-click at the same spot is the double-click finish gesture;
+    // a multi-click at a different spot is a fast author clicking corners.
+    if ((e.originalEvent as MouseEvent).detail > 1 && previousClick && sameClickedSpot(previousClick, clickPosition)) {
+      return
+    }
     const currentTool = toolRef.current
     if (currentTool === 'select') {
       const layers = [
@@ -673,7 +704,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       return
     }
 
-    const pos: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
+    const pos = clickPosition
 
     switch (currentTool) {
       case 'space':
@@ -925,9 +956,14 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       const currentTool = toolRef.current
       if (!isRectangleTool(currentTool) || event.originalEvent.button !== 0) return
       const local = toLocal(event)
-      if (!local) return
+      const label = rectangleToolLabel(currentTool)
+      if (!local) {
+        setRectangleMessage(`${label} could not start because floor coordinates are unavailable.`)
+        return
+      }
       map.dragPan?.disable()
-      setRectangleDraw({ tool: currentTool, start: local, current: local })
+      updateRectangleDraw({ tool: currentTool, start: local, current: local })
+      setRectangleMessage(`${label}: drag to size, then release to create.`)
     }
 
     const handleMouseMove = (event: maplibregl.MapMouseEvent) => {
@@ -935,33 +971,48 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       if (!current) return
       const local = toLocal(event)
       if (!local) return
-      setRectangleDraw({ ...current, current: local })
+      updateRectangleDraw({ ...current, current: local })
     }
 
     const handleMouseUp = (event: maplibregl.MapMouseEvent) => {
       const current = rectangleDrawRef.current
       if (!current) return
       const end = toLocal(event)
-      setRectangleDraw(null)
+      const label = rectangleToolLabel(current.tool)
+      updateRectangleDraw(null)
       map.dragPan?.enable()
-      if (!end) return
+      if (!end) {
+        setRectangleMessage(`No ${label} created — floor coordinates were unavailable at release.`)
+        clearPreview(map, mapReady)
+        return
+      }
       const bounds = normalizeLocalRectangle(current.start, end)
       const width = bounds.max.x - bounds.min.x
       const depth = bounds.max.y - bounds.min.y
       if (width < 0.2 || depth < 0.2) {
         clearPreview(map, mapReady)
+        setRectangleMessage(`No ${label} created — drag at least 0.2 m wide and deep.`)
         return
       }
       const building = findBuilding(doc, buildingId)
       const activeFloor = building?.floors.find(candidate => candidate.level === floor)
-      if (!activeFloor) return
+      if (!activeFloor) {
+        setRectangleMessage(`No ${label} created — the active floor is unavailable.`)
+        clearPreview(map, mapReady)
+        return
+      }
       const points = localRectangleFromDrag(bounds.min, bounds.max)
       const entityId = genId(current.tool === 'door' ? 'door' : current.tool === 'stairs' ? 'stair' : 'elev')
       const authored = buildFloorRectangleCommand(current.tool, {
         min: bounds.min, max: bounds.max, center: { x: (bounds.min.x + bounds.max.x) / 2, y: (bounds.min.y + bounds.max.y) / 2 }, width, depth, points,
       }, { buildingId, floorId: activeFloor.id, floorLevel: floor, entityId })
       const result = dispatcher.execute(authored.command)
-      if (result?.success !== false) onSelect?.(authored.selectedId)
+      if (result?.success !== false) {
+        onSelect?.(authored.selectedId)
+        setRectangleMessage(`${label} created. Drag to place another, or choose Navigate to edit it.`)
+      } else {
+        setRectangleMessage(`No ${label} created — ${result.error || 'the editor rejected the command.'}`)
+      }
       clearPreview(map, mapReady)
     }
 
@@ -974,7 +1025,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       try { map.off('mouseup', handleMouseUp) } catch {}
       if (rectangleDrawRef.current) map.dragPan?.enable()
     }
-  }, [buildingId, dispatcher, doc, floor, map, mapReady, onSelect, transformer])
+  }, [buildingId, dispatcher, doc, floor, map, mapReady, onSelect, transformer, updateRectangleDraw])
 
   // Right-click to cancel
   useEffect(() => {
@@ -1013,5 +1064,5 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })
   }, [])
 
-  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); setRectangleDraw(null); if (map) { map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, rectangleMessage, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); updateRectangleDraw(null); setRectangleMessage(rectangleReadyMessage(toolRef.current)); if (map) { map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
 }
