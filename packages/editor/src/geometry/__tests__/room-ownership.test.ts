@@ -1,10 +1,26 @@
 import { describe, expect, it } from 'vitest'
+import { SEMANTIC_ROOM_ID_PREFIX } from '@navi/core'
 import { collectFloorRoomOwnershipPolygons, resolveUniqueRoomOwner } from '../room-ownership'
+import { deriveRooms } from '../room-derivation'
+import { wallsToSegments } from '../wall-to-segment'
 
 const square = (id: string, minX: number, maxX: number) => ({
   id,
   points: [{ x: minX, y: 0 }, { x: maxX, y: 0 }, { x: maxX, y: 10 }, { x: minX, y: 10 }],
 })
+
+const enclosureWalls = () => [
+  { id: 'w1', start: { x: 0, y: 0 }, end: { x: 4, y: 0 }, thickness: 0.15, height: 3 },
+  { id: 'w2', start: { x: 4, y: 0 }, end: { x: 4, y: 4 }, thickness: 0.15, height: 3 },
+  { id: 'w3', start: { x: 4, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 3 },
+  { id: 'w4', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 3 },
+]
+
+const derivedFaceId = (): string => {
+  const faceId = deriveRooms(wallsToSegments(enclosureWalls()), [])[0]?.faceId
+  if (!faceId) throw new Error('fixture did not derive an enclosed face')
+  return faceId
+}
 
 describe('reusable room ownership contract', () => {
   it('assigns exactly one containing room', () => {
@@ -33,8 +49,44 @@ describe('reusable room ownership contract', () => {
     const withoutIdentity = collectFloorRoomOwnershipPolygons(floor)
     expect(withoutIdentity).toEqual([])
 
-    const derivedFaceId = collectFloorRoomOwnershipPolygons({ ...floor, roomAttributes: undefined }, true)[0]?.id
-    floor.roomAttributes[0].faceId = derivedFaceId
+    const fallbackId = collectFloorRoomOwnershipPolygons({ ...floor, roomAttributes: undefined }, true)[0]?.id
+    floor.roomAttributes[0].faceId = fallbackId!.replace(SEMANTIC_ROOM_ID_PREFIX, '')
     expect(resolveUniqueRoomOwner({ x: 2, y: 2 }, collectFloorRoomOwnershipPolygons(floor))).toEqual({ status: 'assigned', roomId: 'semantic-room' })
+  })
+
+  it('uses the prefixed canonical id for attributes without a roomId', () => {
+    const walls = enclosureWalls()
+    const faceId = derivedFaceId()
+    const floor = {
+      rooms: [],
+      walls,
+      roomAttributes: [{ faceId, name: 'Open Lab', searchable: false }],
+    }
+
+    const polygons = collectFloorRoomOwnershipPolygons(floor)
+
+    expect(polygons).toHaveLength(1)
+    expect(polygons[0].id).toBe(`${SEMANTIC_ROOM_ID_PREFIX}${faceId}`)
+  })
+
+  it('keeps legacy room ids when the floor has no semantic geometry', () => {
+    const polygons = collectFloorRoomOwnershipPolygons({
+      rooms: [square('legacy-a', 0, 4), square('legacy-b', 6, 10)].map(room => ({
+        id: room.id,
+        polygon: { points: room.points },
+      })),
+    })
+
+    expect(polygons.map(polygon => polygon.id)).toEqual(['legacy-a', 'legacy-b'])
+  })
+
+  it('uses the prefixed canonical fallback for unassigned derived faces when requested', () => {
+    const faceId = derivedFaceId()
+
+    const polygons = collectFloorRoomOwnershipPolygons({ rooms: [], walls: enclosureWalls() }, true)
+
+    expect(polygons).toHaveLength(1)
+    expect(polygons[0].id).toBe(`${SEMANTIC_ROOM_ID_PREFIX}${faceId}`)
+    expect(polygons[0].id).not.toBe(faceId)
   })
 })

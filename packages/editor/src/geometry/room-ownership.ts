@@ -1,4 +1,5 @@
 import type { LocalCoord } from '@navi/core'
+import { canonicalRoomId } from '@navi/core'
 import { deriveRooms } from './room-derivation'
 import { wallsToSegments } from './wall-to-segment'
 
@@ -48,13 +49,13 @@ type OwnershipFloor = {
 /** Prefer semantic wall-derived Rooms when present; legacy polygons are fallback only. */
 export function collectFloorRoomOwnershipPolygons(floor: OwnershipFloor, includeUnassignedDerived = false): RoomOwnershipPolygon[] {
   if (floor.walls?.length && (floor.roomAttributes?.length || includeUnassignedDerived)) {
-    const identityByFace = new Map((floor.roomAttributes ?? []).map(attributes => [attributes.faceId, attributes.roomId]))
+    const identityByFace = new Map((floor.roomAttributes ?? []).map(attributes => [attributes.faceId, canonicalRoomId(attributes)]))
     return deriveRooms(wallsToSegments(floor.walls), [])
       .filter(room => Boolean(room.faceId))
       .flatMap(room => {
         const roomId = identityByFace.get(room.faceId!)
         if (!roomId && !includeUnassignedDerived) return []
-        return [{ id: roomId ?? room.faceId!, points: room.polygon.points }]
+        return [{ id: roomId ?? canonicalRoomId({ faceId: room.faceId! }), points: room.polygon.points }]
       })
   }
   return floor.rooms.map(room => ({ id: room.id, points: room.polygon.points }))

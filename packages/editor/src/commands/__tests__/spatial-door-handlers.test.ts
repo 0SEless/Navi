@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { SEMANTIC_ROOM_ID_PREFIX } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import { doorCreateHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, doorUpdateHandler } from '../feature-handlers'
+import { deriveRooms } from '../../geometry/room-derivation'
+import { wallsToSegments } from '../../geometry/wall-to-segment'
 
 function doc(): CampusDocument {
   return {
@@ -20,6 +23,24 @@ function doc(): CampusDocument {
 }
 
 const rectangle = (minX: number, maxX: number) => ({ type: 'rectangle' as const, min: { x: minX, y: 1 }, max: { x: maxX, y: 3 }, rotation: 0 })
+
+/** Floor whose only room is an attribute-only wall-derived face (no assigned roomId). */
+function semanticDoc(): { document: CampusDocument; canonicalId: string } {
+  const document = doc()
+  const floor = document.buildings[0].floors[0]
+  const walls = [
+    { id: 'w1', start: { x: 0, y: 0 }, end: { x: 4, y: 0 }, thickness: 0.15, height: 3 },
+    { id: 'w2', start: { x: 4, y: 0 }, end: { x: 4, y: 4 }, thickness: 0.15, height: 3 },
+    { id: 'w3', start: { x: 4, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 3 },
+    { id: 'w4', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 3 },
+  ]
+  const faceId = deriveRooms(wallsToSegments(walls), [])[0]?.faceId
+  if (!faceId) throw new Error('semantic fixture did not derive an enclosed face')
+  floor.rooms = []
+  floor.walls = walls
+  floor.roomAttributes = [{ faceId, name: 'Unassigned Lab', searchable: false }]
+  return { document, canonicalId: `${SEMANTIC_ROOM_ID_PREFIX}${faceId}` }
+}
 
 describe('spatial Door commands', () => {
   it('assigns, reparents, and clears Room ownership from rectangle containment', () => {
@@ -334,5 +355,42 @@ describe('spatial Door commands', () => {
     expect(floor.routeNetwork?.nodes.find(node => node.id === junctionId)).toBeDefined()
     expect(floor.routeNetwork?.edges.map(edge => edge.id).sort()).toEqual([...splitEdgeIds].sort())
     expect(document.buildings[0].verticalTransitions).toHaveLength(1)
+  })
+
+  // ── Canonical room ids: legacy + semantic identities share one accepted set ──
+
+  it('accepts a canonical fallback room id on create and update, rejecting unknown ids', () => {
+    const { document, canonicalId } = semanticDoc()
+    const floor = document.buildings[0].floors[0]
+
+    const created = doorCreateHandler.execute(document, {
+      buildingId: 'b', floorId: 'f', roomId: canonicalId,
+      door: { id: 'd', position: { x: 2, y: 2 }, width: 0.9, metadata: {} },
+    })
+    expect(created.success).toBe(true)
+    expect(floor.doors?.[0]).toMatchObject({ roomId: canonicalId, ownership: { status: 'assigned' } })
+
+    const updated = doorUpdateHandler.execute(document, { doorId: 'd', patch: { roomId: canonicalId } })
+    expect(updated.success).toBe(true)
+    expect(floor.doors?.[0].roomId).toBe(canonicalId)
+
+    const unknown = doorUpdateHandler.execute(document, { doorId: 'd', patch: { roomId: 'ghost-room' } })
+    expect(unknown.success).toBe(false)
+    expect(unknown.error).toMatch(/not found/i)
+    expect(floor.doors?.[0].roomId).toBe(canonicalId)
+  })
+
+  it('assigns the canonical id to a containment-created door inside an attribute-only room', () => {
+    const { document, canonicalId } = semanticDoc()
+    const floor = document.buildings[0].floors[0]
+
+    const result = doorCreateHandler.execute(document, {
+      buildingId: 'b', floorId: 'f',
+      door: { id: 'd', position: { x: 2, y: 2 }, width: 0.9, geometry: rectangle(1, 3), metadata: {} },
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.data?.roomId).toBe(canonicalId)
+    expect(floor.doors?.[0]).toMatchObject({ roomId: canonicalId, ownership: { status: 'assigned' } })
   })
 })

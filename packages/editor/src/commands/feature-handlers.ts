@@ -1,6 +1,6 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
-import { isPOICategory, isDoorType, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
+import { isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
@@ -452,7 +452,7 @@ export const doorCreateHandler: CommandHandler = {
     const floor = building.floors.find(f => f.id === floorId)
     if (!floor) return { success: false, error: `Floor not found: ${floorId}` }
     const requestedRoomId = payload.roomId as string | undefined
-    if (requestedRoomId !== undefined && !floor.rooms.some(room => room.id === requestedRoomId) && !floor.roomAttributes?.some(attributes => attributes.roomId === requestedRoomId)) {
+    if (requestedRoomId !== undefined && !isKnownRoomId(floor, requestedRoomId)) {
       return { success: false, error: `Room not found: ${requestedRoomId}` }
     }
 
@@ -539,9 +539,7 @@ export const doorUpdateHandler: CommandHandler = {
 
     if ('roomId' in patch) {
       const roomId = patch.roomId as string | undefined
-      const knownRoom = roomId === undefined
-        || ctx.floor.rooms.some(room => room.id === roomId)
-        || ctx.floor.roomAttributes?.some(attributes => attributes.roomId === roomId)
+      const knownRoom = roomId === undefined || isKnownRoomId(ctx.floor, roomId)
       if (!knownRoom) return { success: false, error: `Room not found: ${roomId}` }
       ctx.door.roomId = roomId
       ctx.door.ownership = roomId ? { status: 'assigned' } : { status: 'unassigned' }
