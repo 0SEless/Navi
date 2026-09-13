@@ -26,6 +26,18 @@ const floorSnapshot = (page, mapId) => page.evaluate((id) => {
   return { graph, floor: graph?.buildings?.[0]?.floorData?.[0] ?? null }
 }, mapId)
 
+// The canonical snapshot is written by a debounced autosave; poll instead of
+// trusting a short fixed sleep (ERRORS.md 2026-09-13 autosave-timing entry).
+async function waitForSnapshot(page, mapId, predicate, timeout = 15000) {
+  const started = Date.now()
+  let snapshot = await floorSnapshot(page, mapId)
+  while (!predicate(snapshot) && Date.now() - started < timeout) {
+    await sleep(page, 300)
+    snapshot = await floorSnapshot(page, mapId)
+  }
+  return snapshot
+}
+
 async function acquireMap(page, attempts = 20) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const acquired = await page.evaluate(() => {
@@ -60,6 +72,16 @@ const sourceFeatures = (page, sourceId) => page.evaluate((id) => {
   const collection = data && (data.features ? data : data.geojson)
   return collection?.features ?? []
 }, sourceId)
+
+async function waitForSourceFeatures(page, sourceId, predicate, timeout = 10000) {
+  const started = Date.now()
+  let features = await sourceFeatures(page, sourceId)
+  while (!predicate(features) && Date.now() - started < timeout) {
+    await sleep(page, 300)
+    features = await sourceFeatures(page, sourceId)
+  }
+  return features
+}
 
 async function featureCenter(page, sourceId, featureId) {
   return page.evaluate(({ sourceId: id, featureId: wanted }) => {
@@ -147,6 +169,20 @@ const roomComponent = (id, name, minX, maxX) => ({
   metadata: {},
 })
 
+// Two wall enclosures on the fixture floor. With no RoomAttributes present the
+// ownership resolver keeps using the legacy Room polygons, so every earlier
+// check is unaffected; the semantic check declares one face with the Room tool
+// and one attribute-only face through the production declare command.
+const wallEntity = (id, x1, y1, x2, y2) => ({ id, start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.15, height: 3.5, metadata: {} })
+const wallEnclosure = (prefix, minX, minY, maxX, maxY) => [
+  wallEntity(`${prefix}-south`, minX, minY, maxX, minY),
+  wallEntity(`${prefix}-east`, maxX, minY, maxX, maxY),
+  wallEntity(`${prefix}-north`, maxX, maxY, minX, maxY),
+  wallEntity(`${prefix}-west`, minX, maxY, minX, minY),
+]
+const semanticEnclosureA = wallEnclosure('semantic-a', 10, 2, 14, 6)
+const semanticEnclosureB = wallEnclosure('semantic-b', 10, -6, 14, -2)
+
 const graph = {
   id: mapId,
   version: 1,
@@ -185,10 +221,19 @@ const graph = {
         { id: 'room-right', name: 'Room 102', number: '102', polygon: { points: [{ x: 0, y: -7 }, { x: 9, y: -7 }, { x: 9, y: 7 }, { x: 0, y: 7 }] }, color: '#DCFCE7' },
       ],
       hallways: [],
-      walls: [],
+      walls: [...semanticEnclosureA, ...semanticEnclosureB],
       staircases: [],
       elevators: [],
-      doors: [],
+      doors: [{
+        id: 'orphan-door',
+        doorType: 'standard',
+        position: { x: -5, y: 0 },
+        width: 0.9,
+        depth: 0.2,
+        rotation: 0,
+        geometry: { type: 'rectangle', min: { x: -5.45, y: -0.1 }, max: { x: -4.55, y: 0.1 }, rotation: 0 },
+        metadata: {},
+      }],
       entrances: [{ id: 'entrance-fixture', label: 'Main Entrance', position: { x: -8, y: 0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
       connectorStops: [],
       parametricComponents: [],
@@ -272,6 +317,10 @@ try {
   }
   await sleep(page, 1800)
 
+  const adoptedSnapshot = await waitForSnapshot(page, mapId, (candidate) => candidate.floor?.doors?.some((door) => door.id === 'orphan-door' && door.roomId === 'room-left'))
+  const adoptedOrphan = adoptedSnapshot.floor?.doors?.find((door) => door.id === 'orphan-door')
+  check('seeded orphan Door is silently adopted by its containing Room on floor open', adoptedOrphan?.roomId === 'room-left' && adoptedOrphan?.ownership?.status === 'assigned', adoptedOrphan)
+
   const rooms = await sourceFeatures(page, 'floor-rooms')
   check('populated 2D floor renders both fixture Rooms', rooms.length === 2, rooms.map((feature) => feature.properties?.id))
   const leftCenter = await featureCenter(page, 'floor-rooms', 'room-left')
@@ -285,8 +334,9 @@ try {
   check('Door click explains why no object was created', await rectangleStatus.innerText() === 'No Door created — drag at least 0.2 m wide and deep.', await rectangleStatus.innerText())
   await drag(page, { x: leftCenter.x - 28, y: leftCenter.y - 18 }, { x: leftCenter.x + 28, y: leftCenter.y + 18 })
   let doors = await sourceFeatures(page, 'floor-door-areas')
-  check('Door click-drag creates one spatial footprint', doors.length === 1, doors.map((feature) => feature.properties?.id))
-  const doorId = String(doors[0]?.properties?.id ?? '')
+  const createdDoors = doors.filter((feature) => String(feature.properties?.id ?? '') !== 'orphan-door')
+  check('Door click-drag creates one new spatial footprint beside the seeded orphan', createdDoors.length === 1 && doors.length === 2, doors.map((feature) => feature.properties?.id))
+  const doorId = String(createdDoors[0]?.properties?.id ?? '')
   check('Door creation keeps Inspector editing available', await page.getByRole('combobox', { name: 'Door parent room' }).isVisible())
 
   const nameInput = page.locator('main input:not([type])').last()
@@ -314,10 +364,20 @@ try {
   check('Door route connection is explicit and persisted locally', door?.routeConnection?.targetRouteNodeId === 'route-fixture-1', door?.routeConnection)
   check('Door metadata is editable in Inspector', door?.name === 'Browser Main Door', door?.name)
 
+  const outlinerText = await page.locator('main').innerText()
+  check('Outliner nests the assigned Door under its Room with a Doors subfolder', outlinerText.includes('Computer Laboratory') && outlinerText.includes('Doors ('), outlinerText.includes('Computer Laboratory'))
+  check('Unassigned Doors group is absent while every Door is assigned', !outlinerText.includes('Unassigned Doors'), outlinerText.includes('Unassigned Doors'))
+
+  const beforeManualReconcile = await floorSnapshot(page, mapId)
+  await page.getByRole('button', { name: 'Reconcile room ownership' }).click()
+  await sleep(page, 800)
+  const afterManualReconcile = await floorSnapshot(page, mapId)
+  check('manual Reconcile room ownership is an idempotent no-op', JSON.stringify(beforeManualReconcile.floor) === JSON.stringify(afterManualReconcile.floor), { doors: afterManualReconcile.floor?.doors?.length, roomAttributes: afterManualReconcile.floor?.roomAttributes?.length ?? 0 })
+
   await clickTool(page, 'Door')
   await drag(page, { x: rightCenter.x + 40, y: rightCenter.y + 60 }, { x: rightCenter.x + 80, y: rightCenter.y + 100 })
   const doorsAfter = await sourceFeatures(page, 'floor-door-areas')
-  const door2Id = String(doorsAfter.find(feature => feature.properties?.id !== doorId)?.properties?.id ?? '')
+  const door2Id = String(doorsAfter.find(feature => feature.properties?.id !== doorId && feature.properties?.id !== 'orphan-door')?.properties?.id ?? '')
   check('second Door created for segment connection', Boolean(door2Id), door2Id)
 
   await page.locator('main input:not([type])').last().fill('Segment Door')
@@ -375,14 +435,52 @@ try {
   check('moving Door into another Room reparents it', door?.roomId === 'room-right', door?.roomId)
   check('Door remains nested under its Room in the Outliner', (await page.locator('main').innerText()).includes('Browser Main Door'))
 
-  const movedGeometry = JSON.stringify((await sourceFeatures(page, 'floor-door-areas'))[0]?.geometry)
+  const doorGeometry = async (id) => JSON.stringify((await sourceFeatures(page, 'floor-door-areas')).find((feature) => feature.properties?.id === id)?.geometry)
+  const movedGeometry = await doorGeometry(doorId)
   await page.keyboard.press('Control+z')
   await sleep(page, 650)
-  const undoGeometry = JSON.stringify((await sourceFeatures(page, 'floor-door-areas'))[0]?.geometry)
+  const undoGeometry = await doorGeometry(doorId)
   await page.keyboard.press('Control+Shift+z')
   await sleep(page, 650)
-  const redoGeometry = JSON.stringify((await sourceFeatures(page, 'floor-door-areas'))[0]?.geometry)
+  const redoGeometry = await doorGeometry(doorId)
   check('Door move participates in undo/redo', undoGeometry !== movedGeometry && redoGeometry === movedGeometry)
+
+  // ── Panel Duplicate (Task 9 addition 5) ──
+  const beforeDuplicate = await floorSnapshot(page, mapId)
+  const sourceDoorBeforeDuplicate = beforeDuplicate.floor?.doors?.find((candidate) => candidate.id === doorId)
+  const doorCountBeforeDuplicate = beforeDuplicate.floor?.doors?.length ?? 0
+  const sourceDoorCenter = await featureCenter(page, 'floor-door-areas', doorId)
+  await page.mouse.click(sourceDoorCenter.x, sourceDoorCenter.y)
+  await sleep(page, 350)
+  check('source Door Inspector shows its route connection before duplication', (await page.locator('main').innerText()).includes('Connected to route-fixture-1'))
+  const duplicateButton = page.getByRole('button', { name: 'Duplicate', exact: true })
+  check('Door Inspector exposes the Duplicate action', await duplicateButton.isVisible())
+  await duplicateButton.click()
+  const afterDuplicate = await waitForSnapshot(page, mapId, (snapshot) => (snapshot.floor?.doors?.length ?? 0) === doorCountBeforeDuplicate + 1)
+  const duplicateId = (afterDuplicate.floor?.doors ?? []).map((candidate) => candidate.id).find((id) => !(beforeDuplicate.floor?.doors ?? []).some((candidate) => candidate.id === id))
+  const duplicateDoor = afterDuplicate.floor?.doors?.find((candidate) => candidate.id === duplicateId)
+  const duplicateOffsetX = Number(duplicateDoor?.position?.x) - Number(sourceDoorBeforeDuplicate?.position?.x)
+  const duplicateOffsetY = Number(duplicateDoor?.position?.y) - Number(sourceDoorBeforeDuplicate?.position?.y)
+  check('panel Duplicate adds exactly one new Door', Boolean(duplicateId) && (afterDuplicate.floor?.doors?.length ?? 0) === doorCountBeforeDuplicate + 1, duplicateId)
+  check('panel duplicate receives a new identity and a ~0.5 m offset', duplicateId !== doorId && Math.abs(duplicateOffsetX - 0.5) < 0.05 && Math.abs(duplicateOffsetY - 0.5) < 0.05, { duplicateId, duplicateOffsetX, duplicateOffsetY })
+  check('panel duplicate keeps canonical room ownership', duplicateDoor?.roomId === sourceDoorBeforeDuplicate?.roomId && duplicateDoor?.ownership?.status === 'assigned', { roomId: duplicateDoor?.roomId, sourceRoomId: sourceDoorBeforeDuplicate?.roomId })
+  check('panel duplicate never copies the source route connection', duplicateDoor?.routeConnection === undefined, duplicateDoor?.routeConnection)
+  check('selection follows the panel duplicate', !(await page.locator('main').innerText()).includes('Connected to route-fixture-1'))
+
+  // ── Ctrl+D duplicate (Task 9 addition 6) ──
+  const idsAfterDuplicate = new Set((afterDuplicate.floor?.doors ?? []).map((candidate) => candidate.id))
+  const doorCountBeforeCtrlD = afterDuplicate.floor?.doors?.length ?? 0
+  const duplicateCenter = await featureCenter(page, 'floor-door-areas', duplicateId)
+  await page.mouse.click(duplicateCenter.x, duplicateCenter.y)
+  await sleep(page, 350)
+  await page.keyboard.press('Control+d')
+  const afterCtrlD = await waitForSnapshot(page, mapId, (snapshot) => (snapshot.floor?.doors?.length ?? 0) === doorCountBeforeCtrlD + 1)
+  const ctrlDDoor = (afterCtrlD.floor?.doors ?? []).find((candidate) => !idsAfterDuplicate.has(candidate.id))
+  check('Ctrl+D duplicates the selected Door with a new identity', Boolean(ctrlDDoor?.id) && ctrlDDoor?.id !== duplicateId, ctrlDDoor?.id)
+  check('Ctrl+D duplicate never copies a route connection', ctrlDDoor?.routeConnection === undefined, ctrlDDoor?.routeConnection)
+  await page.keyboard.press('Control+z')
+  const afterCtrlDUndo = await waitForSnapshot(page, mapId, (snapshot) => !(snapshot.floor?.doors ?? []).some((candidate) => candidate.id === ctrlDDoor?.id))
+  check('Ctrl+Z removes the Ctrl+D duplicate from canonical state', (afterCtrlDUndo.floor?.doors?.length ?? 0) === doorCountBeforeCtrlD, afterCtrlDUndo.floor?.doors?.length)
 
   await page.getByRole('button', { name: 'Navigation', exact: true }).click()
   await clickTool(page, 'Stair')
@@ -439,7 +537,7 @@ try {
   await page.getByRole('button', { name: '2D', exact: true }).click()
   await sleep(page, 500)
   const doorsIn2d = await sourceFeatures(page, 'floor-door-areas')
-  check('switching back to 2D keeps authored objects intact', doorsIn2d.length === 2, doorsIn2d.map((feature) => feature.properties?.id))
+  check('switching back to 2D keeps authored objects intact', doorsIn2d.length === 4, doorsIn2d.map((feature) => feature.properties?.id))
 
   const roomsCollapse = page.getByRole('button', { name: 'Collapse Rooms', exact: true })
   check('Rooms hierarchy exposes collapse control', await roomsCollapse.isVisible())
@@ -451,10 +549,71 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.maplibregl-map', { timeout: 30000 })
   await acquireMap(page)
+  // The floor-plan setup modal returns on every load; dismiss it before the
+  // semantic tool interactions so the canvas and dock are reachable.
+  const continueAfterReload = page.getByRole('button', { name: 'Continue without floor plan', exact: true })
+  if (await continueAfterReload.isVisible().catch(() => false)) {
+    await continueAfterReload.click()
+    await sleep(page, 500)
+  }
   await sleep(page, 1800)
   snapshot = await floorSnapshot(page, mapId)
   door = snapshot.floor?.doors?.find((candidate) => candidate.id === doorId)
   check('Door and explicit route relationship survive save/reload', door?.name === 'Browser Main Door' && door?.routeConnection?.targetRouteNodeId === 'route-fixture-1', door)
+  const orphanAfterReload = snapshot.floor?.doors?.find((candidate) => candidate.id === 'orphan-door')
+  check('orphan Door adoption persists across save/reload', orphanAfterReload?.roomId === 'room-left' && orphanAfterReload?.ownership?.status === 'assigned', orphanAfterReload)
+  const duplicateAfterReload = snapshot.floor?.doors?.find((candidate) => candidate.id === duplicateId)
+  check('panel duplicate survives save/reload with unchanged ownership and no connection', duplicateAfterReload?.roomId === duplicateDoor?.roomId && duplicateAfterReload?.routeConnection === undefined, duplicateAfterReload)
+
+  // ── Semantic canonical ownership (Task 9 addition 7) ──
+  const derivedFaces = await waitForSourceFeatures(page, 'floor-derived-rooms', (features) => features.filter((feature) => typeof feature.properties?.faceId === 'string').length >= 2)
+  const faceRows = derivedFaces
+    .filter((feature) => typeof feature.properties?.faceId === 'string')
+    .map((feature) => {
+      const ring = feature.geometry.coordinates[0] ?? []
+      const lat = ring.reduce((sum, point) => sum + point[1], 0) / Math.max(ring.length, 1)
+      return { faceId: feature.properties.faceId, lat }
+    })
+    .sort((left, right) => right.lat - left.lat)
+  const semanticFaceIdA = faceRows[0]?.faceId
+  const semanticFaceIdB = faceRows[1]?.faceId
+  check('wall enclosures derive two semantic faces on the disposable floor', Boolean(semanticFaceIdA && semanticFaceIdB) && semanticFaceIdA !== semanticFaceIdB, faceRows)
+  const semanticCenterA = await featureCenter(page, 'floor-derived-rooms', semanticFaceIdA)
+  const semanticCenterB = await featureCenter(page, 'floor-derived-rooms', semanticFaceIdB)
+  if (!semanticCenterA || !semanticCenterB) throw new Error('Semantic face centers were not resolvable')
+
+  await clickTool(page, 'Room')
+  await page.mouse.click(semanticCenterA.x, semanticCenterA.y)
+  const afterRoomToolDeclaration = await waitForSnapshot(page, mapId, (candidate) => (candidate.floor?.roomAttributes?.length ?? 0) >= 1)
+  const semanticAttributeA = afterRoomToolDeclaration.floor?.roomAttributes?.find((attribute) => attribute.faceId === semanticFaceIdA)
+  check('Room tool declares the derived face as a canonical semantic Room', Boolean(semanticAttributeA?.roomId), { faceId: semanticFaceIdA, roomId: semanticAttributeA?.roomId })
+
+  const semanticFloorId = await page.evaluate(() => window.__naviContext?.document?.buildings?.[0]?.floors?.[0]?.id ?? null)
+  const fallbackDeclaration = await page.evaluate(({ buildingId: building, floorId: targetFloorId, faceId }) => {
+    const dispatcher = window.__naviContext?.services?.get('dispatcher')
+    const result = dispatcher?.execute({ id: 'roomAttributes.declare', label: 'Declare Room', payload: { buildingId: building, floorId: targetFloorId, faceId, roomId: '', name: 'Fallback Semantic Room' } })
+    return result ? { success: result.success, entityId: result.entityId, error: result.error } : null
+  }, { buildingId, floorId: semanticFloorId, faceId: semanticFaceIdB })
+  const afterFallbackDeclaration = await waitForSnapshot(page, mapId, (candidate) => (candidate.floor?.roomAttributes?.length ?? 0) >= 2)
+  const semanticAttributeB = afterFallbackDeclaration.floor?.roomAttributes?.find((attribute) => attribute.faceId === semanticFaceIdB)
+  check('attribute-only semantic Room is declared without an explicit roomId', fallbackDeclaration?.success === true && semanticAttributeB?.faceId === semanticFaceIdB, { fallbackDeclaration, attribute: semanticAttributeB })
+
+  await clickTool(page, 'Door')
+  const doorIdsBeforeSemanticA = new Set((afterFallbackDeclaration.floor?.doors ?? []).map((candidate) => candidate.id))
+  await drag(page, { x: semanticCenterA.x - 20, y: semanticCenterA.y - 20 }, { x: semanticCenterA.x + 20, y: semanticCenterA.y + 20 })
+  const semanticDoorAMessage = await page.getByTestId('floor-rectangle-authoring-status').innerText().catch(() => null)
+  await page.screenshot({ path: `${OUT}/02-semantic-door-a.png` })
+  const afterSemanticDoorA = await waitForSnapshot(page, mapId, (candidate) => (candidate.floor?.doors?.length ?? 0) === doorIdsBeforeSemanticA.size + 1)
+  const semanticDoorA = (afterSemanticDoorA.floor?.doors ?? []).find((candidate) => !doorIdsBeforeSemanticA.has(candidate.id))
+  check('Door created inside the Room-tool semantic Room receives its canonical id', semanticDoorA?.roomId === semanticAttributeA?.roomId && semanticDoorA?.ownership?.status === 'assigned', { doorRoomId: semanticDoorA?.roomId, ownership: semanticDoorA?.ownership, position: semanticDoorA?.position, declaredRoomId: semanticAttributeA?.roomId, message: semanticDoorAMessage })
+
+  await clickTool(page, 'Door')
+  const doorIdsBeforeSemanticB = new Set((afterSemanticDoorA.floor?.doors ?? []).map((candidate) => candidate.id))
+  await drag(page, { x: semanticCenterB.x - 20, y: semanticCenterB.y - 20 }, { x: semanticCenterB.x + 20, y: semanticCenterB.y + 20 })
+  const semanticDoorBMessage = await page.getByTestId('floor-rectangle-authoring-status').innerText().catch(() => null)
+  const afterSemanticDoorB = await waitForSnapshot(page, mapId, (candidate) => (candidate.floor?.doors?.length ?? 0) === doorIdsBeforeSemanticB.size + 1)
+  const semanticDoorB = (afterSemanticDoorB.floor?.doors ?? []).find((candidate) => !doorIdsBeforeSemanticB.has(candidate.id))
+  check('Door inside an attribute-only semantic Room receives the semantic-room- canonical id', String(semanticDoorB?.roomId ?? '').startsWith('semantic-room-') && semanticDoorB?.roomId === `semantic-room-${semanticFaceIdB}` && semanticDoorB?.ownership?.status === 'assigned', { doorRoomId: semanticDoorB?.roomId, ownership: semanticDoorB?.ownership, position: semanticDoorB?.position, expectedRoomId: `semantic-room-${semanticFaceIdB}`, faceIdB: semanticFaceIdB, message: semanticDoorBMessage })
 
   // A simulated optimistic-concurrency rejection must preserve the dirty
   // local graph and expose deliberate recovery, never auto-load the server.
