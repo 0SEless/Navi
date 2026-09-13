@@ -21,7 +21,7 @@ import { boundarySetHandler, boundaryClearHandler } from '../commands/boundary-h
 import { areaCreateHandler, areaDeleteHandler } from '../commands/area-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from '../commands/feature-handlers'
-import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorRouteConnectHandler, openingCreateHandler, openingDeleteHandler } from '../commands/feature-handlers'
+import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingDeleteHandler } from '../commands/feature-handlers'
 import { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from '../commands/route-network-handlers'
 import { roomAccessAssignHandler, roomAccessUnassignHandler, entranceAccessAssignHandler, entranceAccessUnassignHandler } from '../commands/route-access-handlers'
 import { featureLevelUpdateHandler, featureLevelCopyHandler } from '../commands/levels-handlers'
@@ -824,6 +824,7 @@ export function createEditorContext(
   registryCmd.register(doorUpdateHandler)
   registryCmd.register(doorDeleteHandler)
   registryCmd.register(doorRouteConnectHandler)
+  registryCmd.register(doorRouteDisconnectHandler)
   // W7A: canonical wall-attached openings (doors + windows)
   registryCmd.register(openingCreateHandler)
   registryCmd.register(openingDeleteHandler)

@@ -722,6 +722,70 @@ export const doorRouteConnectHandler: CommandHandler = {
   },
 }
 
+/** Rejoin the two halves of a split edge when nothing else uses the junction. */
+function rejoinOrphanedJunction(network: RouteNetwork, junctionId: string): boolean {
+  const incident = network.edges.filter(edge => edge.from === junctionId || edge.to === junctionId)
+  if (incident.length !== 2) return false
+  const [first, second] = incident
+  const neighborA = first.from === junctionId ? first.to : first.from
+  const neighborB = second.from === junctionId ? second.to : second.from
+  if (neighborA === neighborB) return false
+  const nodeA = network.nodes.find(node => node.id === neighborA)
+  const nodeB = network.nodes.find(node => node.id === neighborB)
+  if (!nodeA || !nodeB) return false
+  network.edges = network.edges.filter(edge => edge.id !== first.id && edge.id !== second.id)
+  network.nodes = network.nodes.filter(node => node.id !== junctionId)
+  network.edges.push({
+    id: genId('route-edge'),
+    from: neighborA,
+    to: neighborB,
+    type: first.type === second.type ? first.type : 'walk',
+    distance: Math.hypot(nodeB.position.x - nodeA.position.x, nodeB.position.y - nodeA.position.y),
+  })
+  return true
+}
+
+/** Remove the Door-owned anchor + connector; keep or rejoin the junction by reference count. */
+export const doorRouteDisconnectHandler: CommandHandler = {
+  id: 'door.route.disconnect',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    const doorId = payload.doorId as string
+    const ctx = findFloorAndDoor(document, doorId)
+    if (!ctx) return { success: false, error: `Door not found: ${doorId}` }
+
+    if (payload.restore === true) {
+      ctx.floor.routeNetwork = payload.network === undefined ? undefined : structuredClone(payload.network) as RouteNetwork
+      if (payload.routeConnection === undefined) delete ctx.door.routeConnection
+      else ctx.door.routeConnection = structuredClone(payload.routeConnection) as NonNullable<RoomDoor['routeConnection']>
+      recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
+      return { success: true, entityId: doorId }
+    }
+
+    const connection = ctx.door.routeConnection
+    if (!connection) return { success: false, error: `Door has no route connection: ${doorId}` }
+    const network = ctx.floor.routeNetwork
+    if (!network) return { success: false, error: `Floor has no route network: ${doorId}` }
+    const oldNetwork = structuredClone(network)
+    const oldRouteConnection = structuredClone(connection)
+
+    network.nodes = network.nodes.filter(node => node.id !== connection.anchorNodeId)
+    network.edges = network.edges.filter(edge => edge.id !== connection.connectorEdgeId)
+    rejoinOrphanedJunction(network, connection.targetRouteNodeId)
+    delete ctx.door.routeConnection
+
+    recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
+    return { success: true, entityId: doorId, data: { oldNetwork, oldRouteConnection } }
+  },
+  inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
+    if (!result.data) return null
+    return {
+      id: 'door.route.disconnect',
+      label: 'Undo Door Route Disconnect',
+      payload: { doorId: result.entityId, restore: true, network: result.data.oldNetwork, routeConnection: result.data.oldRouteConnection },
+    }
+  },
+}
+
 function findFeature(document: CampusDocument, featureId: string) {
   for (const bld of document.buildings) {
     if (bld.staircases) {

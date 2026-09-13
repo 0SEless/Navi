@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CampusDocument } from '@navi/core'
-import { doorCreateHandler, doorRouteConnectHandler, doorUpdateHandler } from '../feature-handlers'
+import { doorCreateHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, doorUpdateHandler } from '../feature-handlers'
 
 function doc(): CampusDocument {
   return {
@@ -99,6 +99,57 @@ describe('spatial Door commands', () => {
     const inverse = doorRouteConnectHandler.inverse({ doorId: 'd' }, result)
     expect(inverse).not.toBeNull()
     doorRouteConnectHandler.execute(document, inverse!.payload as Record<string, unknown>)
+
+    expect(JSON.parse(JSON.stringify(floor))).toEqual(before)
+  })
+
+  it('disconnect removes only the Door link and rejoins an orphaned junction', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 4, y: 2 } } })
+    const junctionId = floor.doors?.[0].routeConnection?.targetRouteNodeId
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    expect(floor.doors?.[0].routeConnection).toBeUndefined()
+    expect(floor.routeNetwork?.nodes.find(n => n.id === junctionId)).toBeUndefined()
+    expect(floor.routeNetwork?.edges).toHaveLength(1)
+    expect(floor.routeNetwork?.edges[0]).toMatchObject({ from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+  })
+
+  it('keeps a junction that another Door still references', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd1', doorType: 'standard', position: { x: 2, y: 2 }, width: 1, depth: 1, geometry: rectangle(1.5, 2.5), metadata: {} } })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd2', doorType: 'standard', position: { x: 6, y: 2 }, width: 1, depth: 1, geometry: rectangle(5.5, 6.5), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd1', segment: { edgeId: 'edge-1-2', position: { x: 3, y: 2 } } })
+    const junctionId = floor.doors?.find(d => d.id === 'd1')?.routeConnection?.targetRouteNodeId
+    doorRouteConnectHandler.execute(document, { doorId: 'd2', routeNodeId: junctionId! })
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd1' })
+
+    expect(result.success).toBe(true)
+    expect(floor.routeNetwork?.nodes.find(n => n.id === junctionId)).toBeDefined()
+    expect(floor.doors?.find(d => d.id === 'd2')?.routeConnection?.targetRouteNodeId).toBe(junctionId)
+  })
+
+  it('disconnect is byte-exact reversible', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', routeNodeId: 'route-1' })
+    const before = JSON.parse(JSON.stringify(floor))
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+    const inverse = doorRouteDisconnectHandler.inverse({ doorId: 'd' }, result)
+    expect(inverse).not.toBeNull()
+    doorRouteDisconnectHandler.execute(document, inverse!.payload as Record<string, unknown>)
 
     expect(JSON.parse(JSON.stringify(floor))).toEqual(before)
   })

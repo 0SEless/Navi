@@ -410,6 +410,12 @@ describe('Door properties', () => {
     fireEvent.change(screen.getByLabelText('Door route node'), { target: { value: 'route-node-2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Connect Door to Route' }))
     expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ id: 'door.route.connect', payload: { doorId: 'door-1', routeNodeId: 'route-node-2' } }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'door.route.disconnect',
+      payload: { doorId: 'door-1' },
+    }))
   })
 
   it('deletes through the canonical Door command', () => {

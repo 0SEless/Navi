@@ -772,6 +772,13 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
               <div>
                 <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>ROUTE CONNECTION</label>
                 {doorEntity?.routeConnection && <div style={{ marginBottom: 4, fontSize: 10, color: '#4ADE80' }}>Connected to {doorEntity.routeConnection.targetRouteNodeId}</div>}
+                <button
+                  type="button"
+                  onClick={() => dispatcher.execute({ id: 'door.route.disconnect', label: 'Disconnect Door from Route', payload: { doorId: component.id } })}
+                  style={{ marginBottom: 4, padding: '3px 6px', borderRadius: 4, border: '1px solid #7F1D1D', background: '#7F1D1D', color: '#FCA5A5', fontSize: 10, cursor: 'pointer' }}
+                >
+                  Disconnect
+                </button>
                 <select aria-label="Door route node" value={doorRouteNodeId} onChange={(event) => setDoorRouteNodeId(event.target.value)}
                   style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }}>
                   <option value="">Choose a route node…</option>
