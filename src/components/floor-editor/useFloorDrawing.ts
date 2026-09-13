@@ -15,6 +15,7 @@ import { isPolygonAuthoringTool } from './semantic-room-interaction'
 import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
 import { buildFloorRectangleCommand } from './floor-rectangle-authoring'
 import type { FloorRectangleTool } from './floor-rectangle-authoring'
+import { resolveRouteTargetHit, ROUTE_TARGET_LAYER_IDS } from './route-target-authoring'
 
 /** Two clicks closer than this are a browser-reported multi-click repeat, not a new vertex. */
 export const DUPLICATE_CLICK_EPSILON_METERS = 0.25
@@ -339,6 +340,8 @@ function openingWindowFeature(
   }
 }
 
+type RoutePointInput = { x: number; y: number; existingNodeId?: string; junction?: { edgeId: string; position: { x: number; y: number } } }
+
 interface UseFloorDrawingOptions {
   map: maplibregl.Map | null
   mapReady?: boolean
@@ -368,6 +371,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
   const routeStartedRef = useRef(false)
+  const [routeConnectionPrompt, setRouteConnectionPrompt] = useState<{ edgeId: string; position: LatLng } | null>(null)
   const seededRouteAnchorRef = useRef<EntranceRouteAnchor | null>(null)
   const lastClickPositionRef = useRef<{ lat: number; lng: number } | null>(null)
 
@@ -424,6 +428,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     dispatch({ type: 'RESET' })
     routeStartedRef.current = false
     seededRouteAnchorRef.current = null
+    setRouteConnectionPrompt(null)
     setWallDraw({ start: null, startLocal: null })
     setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
     updateRectangleDraw(null)
@@ -498,25 +503,15 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     updatePreview(map, features, mapReady)
   }, [map, mapReady, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, rectangleDraw, transformer, buildingId])
 
-  const confirmPolygon = useCallback(() => {
-    const tool = toolRef.current
-    if (!isPolygonAuthoringTool(tool)) return
-    const minPoints = tool === 'hallway' ? 2 : 3
-    if (drawState.pendingPolygon.length < minPoints || !map) return
-
+  const commitRoutePoints = useCallback((localPoints: RoutePointInput[]) => {
+    const currentTool = toolRef.current
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
 
-    if (!floorId || !transformer) return
+    if (!floorId || !transformer || !map) return
 
-    const localPoints: { x: number; y: number }[] = []
-    for (const p of drawState.pendingPolygon) {
-      const local = transformer.worldToBuildingLocal(p, buildingId)
-      if (local) localPoints.push(local)
-    }
-
-    if (tool === 'hallway') {
+    if (currentTool === 'hallway') {
       const result = dispatcher.execute({
         id: 'route.path.create', label: 'Create Route',
         payload: { buildingId, floorId, points: localPoints, nodeType: 'waypoint', edgeType: 'walk' },
@@ -592,7 +587,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       return
     }
 
-    if (tool === 'elevator') {
+    if (currentTool === 'elevator') {
       const local = localPoints[0] ?? { x: 0, y: 0 }
       const pc = ElevatorDefinition.create({ position: local })
       const result = dispatcher.execute({
@@ -616,7 +611,62 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       onSelect?.(selectedId)
       return
     }
-  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned])
+  }, [map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned])
+
+  const confirmPolygon = useCallback(() => {
+    const currentTool = toolRef.current
+    if (!isPolygonAuthoringTool(currentTool)) return
+    const minPoints = currentTool === 'hallway' ? 2 : 3
+    if (drawState.pendingPolygon.length < minPoints || !map || !transformer) return
+
+    const bld = findBuilding(doc, buildingId)
+    const fl = bld?.floors?.find((f: any) => f.level === floor)
+    const floorId = fl?.id
+
+    if (!floorId) return
+
+    const localPoints: RoutePointInput[] = []
+    for (const p of drawState.pendingPolygon) {
+      const local = transformer.worldToBuildingLocal(p, buildingId)
+      if (local) localPoints.push(local)
+    }
+
+    commitRoutePoints(localPoints)
+  }, [drawState.pendingPolygon, map, doc, transformer, buildingId, floor, commitRoutePoints])
+
+  const buildPromptLocalPoints = useCallback((): RoutePointInput[] | null => {
+    if (!routeConnectionPrompt || !transformer) return null
+    const localPoints: RoutePointInput[] = []
+    for (const p of drawState.pendingPolygon) {
+      const l = transformer.worldToBuildingLocal(p, buildingId)
+      if (l) localPoints.push(l)
+    }
+    const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
+    if (!promptLocal) return null
+    return localPoints
+  }, [routeConnectionPrompt, drawState.pendingPolygon, transformer, buildingId])
+
+  const acceptRouteConnection = useCallback(() => {
+    if (!routeConnectionPrompt || !transformer) return
+    const localPoints = buildPromptLocalPoints()
+    const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
+    if (!localPoints || !promptLocal) return
+    localPoints.push({ x: promptLocal.x, y: promptLocal.y, junction: { edgeId: routeConnectionPrompt.edgeId, position: promptLocal } })
+    routeStartedRef.current = false
+    setRouteConnectionPrompt(null)
+    commitRoutePoints(localPoints)
+  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints])
+
+  const declineRouteConnection = useCallback(() => {
+    if (!routeConnectionPrompt || !transformer) return
+    const localPoints = buildPromptLocalPoints()
+    const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
+    if (!localPoints || !promptLocal) return
+    localPoints.push({ x: promptLocal.x, y: promptLocal.y })
+    routeStartedRef.current = false
+    setRouteConnectionPrompt(null)
+    commitRoutePoints(localPoints)
+  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = genId(type)
@@ -757,6 +807,31 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
             dispatch({ type: 'ADD_POLYGON_POINT', point: start.position })
             routeStartedRef.current = true
             break
+          }
+        }
+        if (drawState.pendingPolygon.length > 0 && map) {
+          const hits = map.queryRenderedFeatures(e.point, { layers: [...ROUTE_TARGET_LAYER_IDS] })
+          const target = resolveRouteTargetHit(hits as never, pos)
+          if (target && transformer) {
+            if (target.kind === 'node') {
+              const local = transformer.worldToBuildingLocal(target.position, buildingId)
+              const localPoints: RoutePointInput[] = []
+              for (const p of drawState.pendingPolygon) {
+                const l = transformer.worldToBuildingLocal(p, buildingId)
+                if (l) localPoints.push(l)
+              }
+              if (local) {
+                localPoints.push({ x: local.x, y: local.y, existingNodeId: target.id })
+                routeStartedRef.current = false
+                setRouteConnectionPrompt(null)
+                commitRoutePoints(localPoints)
+              }
+              break
+            }
+            if (target.kind === 'edge') {
+              setRouteConnectionPrompt({ edgeId: target.id, position: target.position })
+              break
+            }
           }
         }
         routeStartedRef.current = true
@@ -960,7 +1035,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         break
       }
     }
-  }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected])
+  }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected, commitRoutePoints])
 
   // Door, Stair, and Elevator share the same click-drag-release rectangle gesture.
   useEffect(() => {
@@ -1080,5 +1155,5 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })
   }, [])
 
-  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, rectangleMessage, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); updateRectangleDraw(null); setRectangleMessage(rectangleReadyMessage(toolRef.current)); if (map) { if (toolRef.current !== 'hallway') map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, rectangleMessage, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); updateRectangleDraw(null); setRectangleMessage(rectangleReadyMessage(toolRef.current)); setRouteConnectionPrompt(null); if (map) { if (toolRef.current !== 'hallway') map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection }
 }
