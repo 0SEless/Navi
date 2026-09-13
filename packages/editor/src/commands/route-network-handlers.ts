@@ -1,5 +1,5 @@
 import { recordChange } from '@navi/core'
-import type { CampusDocument, LocalCoord, RouteNetwork, RouteNode, RouteEdge, RouteNodeType, RouteEdgeType } from '@navi/core'
+import type { CampusDocument, EntityChange, LocalCoord, RouteNetwork, RouteNode, RouteEdge, RouteNodeType, RouteEdgeType } from '@navi/core'
 import { isRouteNodeType, isRouteEdgeType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
@@ -98,7 +98,7 @@ export const routePathCreateHandler: CommandHandler = {
         return { success: false, error: `Route path point ${index + 1} existingNodeId must be a string` }
       }
       const junction = point.junction as Record<string, unknown> | undefined
-      if (junction !== undefined) {
+      if (junction != null) {
         const junctionPosition = junction.position as Record<string, unknown> | undefined
         if (typeof junction.edgeId !== 'string' || !junctionPosition
           || typeof junctionPosition.x !== 'number' || typeof junctionPosition.y !== 'number'
@@ -142,6 +142,9 @@ export const routePathCreateHandler: CommandHandler = {
     // a node; an ordinary point always plans a fresh waypoint.
     const resolvedNodeIds: string[] = []
     const plannedNewNodes: Array<{ plannedId: string; position: { x: number; y: number } }> = []
+    // Buffer split changes so a later resolution failure emits nothing to the
+    // journal and never advances document.version.
+    const pendingJunctionChanges: EntityChange[] = []
     for (let pointIndex = 0; pointIndex < (points as unknown[]).length; pointIndex += 1) {
       const point = (points as Array<{ x: number; y: number; existingNodeId?: string; junction?: { edgeId: string; position: LocalCoord } }>)[pointIndex]
 
@@ -151,15 +154,15 @@ export const routePathCreateHandler: CommandHandler = {
           return failWithRestore(`Selected route node not found: ${point.existingNodeId}`)
         }
         resolvedNodeIds.push(point.existingNodeId)
-      } else if (point.junction !== undefined) {
+      } else if (point.junction != null) {
         const junctionInput = point.junction as { edgeId: string; position: LocalCoord }
         const split = applyRouteJunctionSplit(network, junctionInput.edgeId, junctionInput.position, floor.level)
         if (!split.ok) return failWithRestore(split.error)
         resolvedNodeIds.push(split.junctionId)
         if (!split.reusedEndpoint) {
-          recordChange(document, { entityId: split.junctionId, entityType: 'route-node', operation: 'created' })
+          pendingJunctionChanges.push({ entityId: split.junctionId, entityType: 'route-node', operation: 'created' })
           for (const createdEdgeId of split.createdEdgeIds) {
-            recordChange(document, { entityId: createdEdgeId, entityType: 'route-edge', operation: 'created' })
+            pendingJunctionChanges.push({ entityId: createdEdgeId, entityType: 'route-edge', operation: 'created' })
           }
         }
       } else {
@@ -171,6 +174,9 @@ export const routePathCreateHandler: CommandHandler = {
       if (pointIndex > 0 && resolvedNodeIds[pointIndex] === resolvedNodeIds[pointIndex - 1]) {
         return failWithRestore(`Route path points ${pointIndex} and ${pointIndex + 1} resolve to the same node`)
       }
+    }
+    for (const change of pendingJunctionChanges) {
+      recordChange(document, change)
     }
     const plannedIdToActualId = new Map<string, string>()
     for (const plannedNode of plannedNewNodes) {

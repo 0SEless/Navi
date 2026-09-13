@@ -827,4 +827,44 @@ describe('V1: route.path.create', () => {
     expect(result.error).toMatch(/route edge not found/i)
     expect(doc).toEqual(before)
   })
+
+  it('a later resolution failure after a successful junction split leaves network, version, and journal untouched', () => {
+    const doc = createTestDoc()
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'a', position: { x: 0, y: 0 } } })
+    routeNodeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', node: { id: 'b', position: { x: 10, y: 0 } } })
+    routeEdgeCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-0', edge: { id: 'e-ab', from: 'a', to: 'b', type: 'walk' } })
+
+    const networkBefore = JSON.parse(JSON.stringify(getNetwork(doc, 'flr-0')))
+    const versionBefore = doc.version
+    const journalBefore = JSON.parse(JSON.stringify(doc._changeJournal ?? []))
+
+    const result = routePathCreateHandler.execute(doc, {
+      buildingId: 'bld-1',
+      floorId: 'flr-0',
+      points: [
+        { x: 4, y: 0, junction: { edgeId: 'e-ab', position: { x: 4, y: 0 } } },
+        { x: 3, y: 3, existingNodeId: 'missing-node' },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/selected route node not found/i)
+    expect(JSON.parse(JSON.stringify(getNetwork(doc, 'flr-0')))).toEqual(networkBefore)
+    expect(doc.version).toBe(versionBefore)
+    expect(JSON.parse(JSON.stringify(doc._changeJournal ?? []))).toEqual(journalBefore)
+  })
+
+  it('treats a null junction as absent instead of throwing', () => {
+    const doc = createTestDoc()
+    const result = routePathCreateHandler.execute(doc, {
+      buildingId: 'bld-1',
+      floorId: 'flr-0',
+      points: [{ x: 0, y: 0 }, { x: 1, y: 0, junction: null }],
+    })
+
+    expect(result.success).toBe(true)
+    const network = getNetwork(doc, 'flr-0')!
+    expect(network.nodes).toHaveLength(2)
+    expect(network.edges).toHaveLength(1)
+  })
 })
