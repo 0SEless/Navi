@@ -13,6 +13,7 @@ import { resolveEntranceFinishAccess, routeStartError, snapRouteStartToEntrance 
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
 import { isPolygonAuthoringTool } from './semantic-room-interaction'
 import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
+import type { EntranceAccess } from '@navi/core'
 import { buildFloorRectangleCommand } from './floor-rectangle-authoring'
 import type { FloorRectangleTool } from './floor-rectangle-authoring'
 import { resolveRouteTargetHit, ROUTE_TARGET_LAYER_IDS } from './route-target-authoring'
@@ -347,7 +348,14 @@ export interface EntranceAccessRequiredRequest {
   buildingId: string
   floorId: string
   indoorRouteNodeId: string
-  restore: { buildingId: string; floorId: string; hadNetwork: boolean; previousNetwork?: unknown }
+  restore: {
+    buildingId: string
+    floorId: string
+    hadNetwork: boolean
+    previousNetwork?: unknown
+    /** Pre-assignment snapshot for the pending Entrance anchor, when this finish also assigned it. */
+    anchorAccessRestore?: { entranceId: string; previousEntranceAccess: EntranceAccess[] | undefined }
+  }
 }
 
 interface UseFloorDrawingOptions {
@@ -531,6 +539,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         ? routeData.nodeIds.filter((nodeId: unknown): nodeId is string => typeof nodeId === 'string')
         : []
       const indoorRouteNodeId = nodeIds[0] ?? (typeof result.entityId === 'string' ? result.entityId : null)
+      let anchorAccessRestore: NonNullable<EntranceAccessRequiredRequest['restore']['anchorAccessRestore']> | undefined
 
       if (pendingRouteAnchor) {
         if (!indoorRouteNodeId) {
@@ -581,6 +590,10 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           return null
         }
 
+        anchorAccessRestore = {
+          entranceId: pendingRouteAnchor.entranceId,
+          previousEntranceAccess: accessResult.data?.previousEntranceAccess,
+        }
         onRouteAccessAssigned?.({
           entranceId: pendingRouteAnchor.entranceId,
           outdoorNodeId: pendingRouteAnchor.outdoorNodeId,
@@ -594,7 +607,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       dispatch({ type: 'RESET' })
       clearPreview(map)
       onSelect?.(selectedId)
-      return routeData
+      return anchorAccessRestore ? { ...(routeData ?? {}), anchorAccessRestore } : routeData
     }
 
     if (currentTool === 'elevator') {
@@ -652,7 +665,10 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     if (access.kind === 'required') {
       onEntranceAccessRequired?.({
         entranceId, buildingId, floorId: fl.id, indoorRouteNodeId,
-        restore: { buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork },
+        restore: {
+          buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork,
+          ...(routeData.anchorAccessRestore ? { anchorAccessRestore: routeData.anchorAccessRestore } : {}),
+        },
       })
       return
     }

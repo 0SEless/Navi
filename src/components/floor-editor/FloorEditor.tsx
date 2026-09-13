@@ -195,7 +195,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setOutdoorPickerEntranceId(request.entranceId)
   }, [])
   const handleFinishAccessConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
-    if (!pendingFinishAccess || !currentFloorId) return
+    if (!pendingFinishAccess) return
     const dispatcher = services.get('dispatcher')
     const result = dispatcher?.execute({
       id: 'entrance.access.assign',
@@ -211,16 +211,43 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     })
     if (!result?.success) {
       dispatcher?.execute({ id: 'route.path.create', label: 'Restore Route after failed Entrance connection', payload: { restore: true, ...pendingFinishAccess.restore } })
+      const anchorAccessRestore = pendingFinishAccess.restore.anchorAccessRestore
+      if (anchorAccessRestore) {
+        dispatcher?.execute({
+          id: 'entrance.access.unassign',
+          label: 'Restore Entrance Access after cancelled finish',
+          payload: {
+            buildingId: pendingFinishAccess.buildingId,
+            floorId: pendingFinishAccess.floorId,
+            entranceId: anchorAccessRestore.entranceId,
+            restoreEntranceAccess: anchorAccessRestore.previousEntranceAccess,
+          },
+        })
+      }
       setRouteAuthoringMessage(result?.error ?? 'The Route was restored because the Entrance connection could not be saved.')
     } else {
       setRouteAuthoringMessage(null)
     }
     setOutdoorPickerEntranceId(null)
     setPendingFinishAccess(null)
-  }, [pendingFinishAccess, services, currentFloorId])
+  }, [pendingFinishAccess, services])
   const handleFinishAccessCancel = useCallback(() => {
     if (pendingFinishAccess) {
-      services.get('dispatcher')?.execute({ id: 'route.path.create', label: 'Restore Route after cancelled Entrance connection', payload: { restore: true, ...pendingFinishAccess.restore } })
+      const dispatcher = services.get('dispatcher')
+      dispatcher?.execute({ id: 'route.path.create', label: 'Restore Route after cancelled Entrance connection', payload: { restore: true, ...pendingFinishAccess.restore } })
+      const anchorAccessRestore = pendingFinishAccess.restore.anchorAccessRestore
+      if (anchorAccessRestore) {
+        dispatcher?.execute({
+          id: 'entrance.access.unassign',
+          label: 'Restore Entrance Access after cancelled finish',
+          payload: {
+            buildingId: pendingFinishAccess.buildingId,
+            floorId: pendingFinishAccess.floorId,
+            entranceId: anchorAccessRestore.entranceId,
+            restoreEntranceAccess: anchorAccessRestore.previousEntranceAccess,
+          },
+        })
+      }
     }
     setOutdoorPickerEntranceId(null)
     setPendingFinishAccess(null)

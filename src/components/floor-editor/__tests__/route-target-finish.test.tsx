@@ -98,6 +98,9 @@ beforeEach(() => {
         },
       }
     }
+    if (command?.id === 'entrance.access.assign') {
+      return { success: true, entityId: 'entrance-1', data: { previousEntranceAccess: undefined } }
+    }
     return { success: true, entityId: 'route-node-new' }
   })
 })
@@ -252,5 +255,38 @@ describe('Route target finish', () => {
     expect(request).toMatchObject({ entranceId: 'entrance-1', buildingId: 'BLD01', floorId: 'flr-0' })
     expect(request.indoorRouteNodeId).toBeTruthy()
     expect(request.restore).toMatchObject({ buildingId: 'BLD01', floorId: 'flr-0', hadNetwork: true })
+  })
+
+  it('hands off with the pending anchor access snapshot so a cancelled finish can restore it', async () => {
+    const onEntranceAccessRequired = vi.fn()
+    const probe = createProbe()
+    const view = renderHook(() => useFloorDrawing({
+      map: probe.map, buildingId: 'BLD01', campusId: 'C1', floor: 0, tool: 'hallway', mapReady: true,
+      pendingRouteAnchor: {
+        entranceId: 'entrance-anchor',
+        outdoorNodeId: 'outdoor-anchor',
+        position: { lat: 11.8195, lng: 122.0935 },
+      },
+      onEntranceAccessRequired,
+    }))
+
+    await waitFor(() => expect(view.result.current.pendingPolygon).toHaveLength(1))
+    probe.setHits([{
+      layer: { id: 'floor-items-entrance' },
+      properties: { id: 'entrance-1' },
+      geometry: { type: 'Point', coordinates: [122.0910, 11.8195] },
+    }])
+    act(() => { probe.click(11.8195, 122.0910) })
+
+    await waitFor(() => expect(onEntranceAccessRequired).toHaveBeenCalled())
+    const anchorAssign = mockExecute.mock.calls.find(
+      call => call[0].id === 'entrance.access.assign' && call[0].payload.entranceId === 'entrance-anchor',
+    )
+    expect(anchorAssign).toBeTruthy()
+    const request = onEntranceAccessRequired.mock.calls.at(-1)![0]
+    expect(request.restore.anchorAccessRestore).toBeDefined()
+    expect(request.restore.anchorAccessRestore.entranceId).toBe('entrance-anchor')
+    expect(Object.prototype.hasOwnProperty.call(request.restore.anchorAccessRestore, 'previousEntranceAccess')).toBe(true)
+    expect(request.restore.anchorAccessRestore.previousEntranceAccess).toBeUndefined()
   })
 })
