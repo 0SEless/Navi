@@ -184,9 +184,10 @@ interface ComponentPropertiesProps {
   validationChecks?: ValidationCheck[]
   onOpenOutdoorRoutePicker?: (entranceId: string) => void
   onStartRouteConnect?: (doorId: string) => void
+  onSelectComponent?: (id: string) => void
 }
 
-export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker, onStartRouteConnect }: ComponentPropertiesProps) {
+export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker, onStartRouteConnect, onSelectComponent }: ComponentPropertiesProps) {
   const component = useFloorComponent(componentId)
   const { services, document } = useEditor()
   const documentVersion = useDocumentVersion()
@@ -551,6 +552,12 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     onClose()
   }
 
+  const handleDuplicateDoor = () => {
+    if (!isDoor) return
+    const result = dispatcher.execute({ id: 'door.duplicate', label: 'Duplicate Door', payload: { doorId: component.id } })
+    if (result?.success && typeof result.entityId === 'string') onSelectComponent?.(result.entityId)
+  }
+
 
   return (
     <div style={{ borderTop: '1px solid var(--navi-border)' }}>
@@ -781,6 +788,10 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                   Connect to Route…
                 </button>
               </div>
+              <button type="button" onClick={handleDuplicateDoor}
+                style={{ width: '100%', padding: '5px 0', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                Duplicate
+              </button>
             </div>
           )}
 

@@ -557,6 +557,38 @@ describe('Door properties', () => {
     expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ id: 'door.delete', payload: { doorId: 'door-1' } }))
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('duplicates the Door through the canonical command and selects the new Door', () => {
+    const onSelectComponent = vi.fn()
+    mocks.execute.mockReturnValueOnce({ success: true, entityId: 'door-dup' })
+    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} onSelectComponent={onSelectComponent} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+
+    expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'door.duplicate',
+      label: 'Duplicate Door',
+      payload: { doorId: 'door-1' },
+    }))
+    expect(onSelectComponent).toHaveBeenCalledWith('door-dup')
+  })
+
+  it('keeps the current selection when the duplicate command creates no Door', () => {
+    const onSelectComponent = vi.fn()
+    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} onSelectComponent={onSelectComponent} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+
+    expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ id: 'door.duplicate' }))
+    expect(onSelectComponent).not.toHaveBeenCalled()
+  })
+
+  it('does not offer Duplicate for non-door components', () => {
+    mocks.component = semanticRoom()
+    render(<ComponentProperties componentId="room-semantic-1" onClose={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).toBeNull()
+  })
 })
 
 describe('vertical rectangle properties', () => {

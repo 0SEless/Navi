@@ -351,6 +351,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }, [viewMode, activeTool, activateTool, CREATION_TOOLS_2_5D])
 
   const historyRef = useRef(services.get('history'))
+  const dispatcher = services.get('dispatcher')
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return
@@ -366,10 +367,20 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         e.preventDefault()
         historyRef.current.redo()
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !e.repeat) {
+        const target = e.target as HTMLElement | null
+        if (target?.tagName === 'TEXTAREA' || target?.isContentEditable) return
+        if (!selectedId) return
+        const selectedComponent = floorComponents.find((component) => component.id === selectedId)
+        if (selectedComponent?.type !== 'door') return
+        e.preventDefault()
+        const result = dispatcher?.execute({ id: 'door.duplicate', label: 'Duplicate Door', payload: { doorId: selectedId } })
+        if (result?.success && typeof result.entityId === 'string') select(result.entityId)
+      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [editorMode])
+  }, [editorMode, selectedId, floorComponents, select, dispatcher])
 
   const floorCount = building?.floors?.length ?? 0
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
@@ -917,7 +928,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             </div>
           )}
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} onStartRouteConnect={handleStartRouteConnect} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} onStartRouteConnect={handleStartRouteConnect} onSelectComponent={(id) => select(id)} />
           )}
         </div>
       </div>
