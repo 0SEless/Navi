@@ -153,4 +153,103 @@ describe('spatial Door commands', () => {
 
     expect(JSON.parse(JSON.stringify(floor))).toEqual(before)
   })
+
+  it('keeps an authored corner junction whose neighbors are not collinear', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    const network = floor.routeNetwork!
+    network.nodes = [
+      { id: 'corner-a', type: 'waypoint', position: { x: 0, y: 0 }, floor: 0 },
+      { id: 'corner-j', type: 'waypoint', position: { x: 5, y: 5 }, floor: 0 },
+      { id: 'corner-b', type: 'waypoint', position: { x: 10, y: 0 }, floor: 0 },
+    ]
+    network.edges = [
+      { id: 'edge-aj', from: 'corner-a', to: 'corner-j', type: 'walk', distance: Math.hypot(5, 5) },
+      { id: 'edge-jb', from: 'corner-j', to: 'corner-b', type: 'walk', distance: Math.hypot(5, 5) },
+    ]
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, rotation: 0, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', routeNodeId: 'corner-j' })
+    const journalLength = document._changeJournal?.length ?? 0
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    expect(floor.doors?.[0].routeConnection).toBeUndefined()
+    expect(network.nodes.find(n => n.id === 'corner-j')).toBeDefined()
+    expect(network.edges).toHaveLength(2)
+    expect(network.edges.find(e => e.id === 'edge-aj')).toMatchObject({ from: 'corner-a', to: 'corner-j' })
+    expect(network.edges.find(e => e.id === 'edge-jb')).toMatchObject({ from: 'corner-j', to: 'corner-b' })
+    expect(network.edges.some(e => (e.from === 'corner-a' && e.to === 'corner-b') || (e.from === 'corner-b' && e.to === 'corner-a'))).toBe(false)
+    expect((document._changeJournal ?? []).slice(journalLength).filter(entry => entry.entityType === 'route-edge' && entry.operation === 'created')).toHaveLength(0)
+  })
+
+  it('keeps a split junction still referenced by floor.entranceAccess', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, rotation: 0, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 5, y: 2 } } })
+    const junctionId = floor.doors?.[0].routeConnection?.targetRouteNodeId
+    const connectorEdgeId = floor.doors?.[0].routeConnection?.connectorEdgeId
+    const splitEdgeIds = floor.routeNetwork!.edges
+      .filter(e => (e.from === junctionId || e.to === junctionId) && e.id !== connectorEdgeId)
+      .map(e => e.id)
+    floor.entranceAccess = [{ entranceId: 'ent-1', outdoorNodeId: 'out-1', indoorRouteNodeId: junctionId! }]
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    expect(floor.doors?.[0].routeConnection).toBeUndefined()
+    expect(floor.routeNetwork?.nodes.find(n => n.id === junctionId)).toBeDefined()
+    expect(floor.routeNetwork?.edges.map(e => e.id).sort()).toEqual([...splitEdgeIds].sort())
+  })
+
+  it('keeps a split junction still referenced by a room access point', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, rotation: 0, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 5, y: 2 } } })
+    const junctionId = floor.doors?.[0].routeConnection?.targetRouteNodeId
+    const connectorEdgeId = floor.doors?.[0].routeConnection?.connectorEdgeId
+    const splitEdgeIds = floor.routeNetwork!.edges
+      .filter(e => (e.from === junctionId || e.to === junctionId) && e.id !== connectorEdgeId)
+      .map(e => e.id)
+    floor.roomAttributes = [{
+      faceId: 'face-1',
+      name: 'Room One',
+      searchable: false,
+      accessPoints: [{ routeNodeId: junctionId!, primary: true }],
+    }]
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    expect(floor.doors?.[0].routeConnection).toBeUndefined()
+    expect(floor.routeNetwork?.nodes.find(n => n.id === junctionId)).toBeDefined()
+    expect(floor.routeNetwork?.edges.map(e => e.id).sort()).toEqual([...splitEdgeIds].sort())
+  })
+
+  it('journals the merged edge as created when a disconnect rejoins an orphaned junction', () => {
+    const document = doc()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork!.nodes.push({ id: 'route-2', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 })
+    floor.routeNetwork!.edges.push({ id: 'edge-1-2', from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    doorCreateHandler.execute(document, { buildingId: 'b', floorId: 'f', door: { id: 'd', doorType: 'standard', position: { x: 2, y: 2 }, width: 2, depth: 1, rotation: 0, geometry: rectangle(1, 3), metadata: {} } })
+    doorRouteConnectHandler.execute(document, { doorId: 'd', segment: { edgeId: 'edge-1-2', position: { x: 4, y: 2 } } })
+    const journalLength = document._changeJournal?.length ?? 0
+
+    const result = doorRouteDisconnectHandler.execute(document, { doorId: 'd' })
+
+    expect(result.success).toBe(true)
+    const mergedEdge = floor.routeNetwork?.edges[0]
+    expect(mergedEdge).toMatchObject({ from: 'route-1', to: 'route-2', type: 'walk', distance: 6 })
+    const createdEdges = (document._changeJournal ?? [])
+      .slice(journalLength)
+      .filter(entry => entry.entityType === 'route-edge' && entry.operation === 'created')
+    expect(createdEdges).toHaveLength(1)
+    expect(createdEdges[0].entityId).toBe(mergedEdge?.id)
+  })
 })

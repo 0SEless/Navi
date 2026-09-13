@@ -722,27 +722,48 @@ export const doorRouteConnectHandler: CommandHandler = {
   },
 }
 
-/** Rejoin the two halves of a split edge when nothing else uses the junction. */
-function rejoinOrphanedJunction(network: RouteNetwork, junctionId: string): boolean {
+const REJOIN_COLLINEAR_EPSILON_METERS = 1e-6
+
+/** True when the junction is still pinned by access relationships outside the route-network edges. */
+function isJunctionReferencedByAccessRelationships(
+  floor: CampusDocument['buildings'][number]['floors'][number],
+  junctionId: string,
+): boolean {
+  if (floor.entranceAccess?.some(access => access.indoorRouteNodeId === junctionId)) return true
+  return floor.roomAttributes?.some(attributes =>
+    attributes.accessPoints?.some(point => point.routeNodeId === junctionId)) ?? false
+}
+
+/** Rejoin the two halves of a split edge when the junction is orphaned and geometrically redundant. */
+function rejoinOrphanedJunction(network: RouteNetwork, junctionId: string): string | null {
   const incident = network.edges.filter(edge => edge.from === junctionId || edge.to === junctionId)
-  if (incident.length !== 2) return false
+  if (incident.length !== 2) return null
   const [first, second] = incident
   const neighborA = first.from === junctionId ? first.to : first.from
   const neighborB = second.from === junctionId ? second.to : second.from
-  if (neighborA === neighborB) return false
+  if (neighborA === neighborB) return null
   const nodeA = network.nodes.find(node => node.id === neighborA)
   const nodeB = network.nodes.find(node => node.id === neighborB)
-  if (!nodeA || !nodeB) return false
+  const junction = network.nodes.find(node => node.id === junctionId)
+  if (!nodeA || !nodeB || !junction) return null
+  const length = Math.hypot(nodeB.position.x - nodeA.position.x, nodeB.position.y - nodeA.position.y)
+  if (length < REJOIN_COLLINEAR_EPSILON_METERS) return null
+  const perpendicularDistance = Math.abs(
+    (nodeB.position.x - nodeA.position.x) * (junction.position.y - nodeA.position.y)
+    - (nodeB.position.y - nodeA.position.y) * (junction.position.x - nodeA.position.x),
+  ) / length
+  if (perpendicularDistance > REJOIN_COLLINEAR_EPSILON_METERS) return null
+  const mergedEdgeId = genId('route-edge')
   network.edges = network.edges.filter(edge => edge.id !== first.id && edge.id !== second.id)
   network.nodes = network.nodes.filter(node => node.id !== junctionId)
   network.edges.push({
-    id: genId('route-edge'),
+    id: mergedEdgeId,
     from: neighborA,
     to: neighborB,
     type: first.type === second.type ? first.type : 'walk',
-    distance: Math.hypot(nodeB.position.x - nodeA.position.x, nodeB.position.y - nodeA.position.y),
+    distance: length,
   })
-  return true
+  return mergedEdgeId
 }
 
 /** Remove the Door-owned anchor + connector; keep or rejoin the junction by reference count. */
@@ -770,7 +791,12 @@ export const doorRouteDisconnectHandler: CommandHandler = {
 
     network.nodes = network.nodes.filter(node => node.id !== connection.anchorNodeId)
     network.edges = network.edges.filter(edge => edge.id !== connection.connectorEdgeId)
-    rejoinOrphanedJunction(network, connection.targetRouteNodeId)
+    if (!isJunctionReferencedByAccessRelationships(ctx.floor, connection.targetRouteNodeId)) {
+      const mergedEdgeId = rejoinOrphanedJunction(network, connection.targetRouteNodeId)
+      if (mergedEdgeId) {
+        recordChange(document, { entityId: mergedEdgeId, entityType: 'route-edge', operation: 'created' })
+      }
+    }
     delete ctx.door.routeConnection
 
     recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
