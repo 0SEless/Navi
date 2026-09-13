@@ -690,6 +690,18 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         label: 'Restore Route after failed Entrance connection',
         payload: { restore: true, buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork },
       })
+      const anchorAccessRestore = routeData.anchorAccessRestore
+      if (anchorAccessRestore) {
+        dispatcher.execute({
+          id: 'entrance.access.unassign',
+          label: 'Restore Entrance Access after failed finish',
+          payload: {
+            buildingId, floorId: fl.id,
+            entranceId: anchorAccessRestore.entranceId,
+            restoreEntranceAccess: anchorAccessRestore.previousEntranceAccess,
+          },
+        })
+      }
       onRouteStartRejected?.(result?.error ?? 'The Route was restored because the Entrance connection could not be saved.')
       return
     }

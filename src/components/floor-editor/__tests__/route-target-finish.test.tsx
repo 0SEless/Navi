@@ -289,4 +289,79 @@ describe('Route target finish', () => {
     expect(Object.prototype.hasOwnProperty.call(request.restore.anchorAccessRestore, 'previousEntranceAccess')).toBe(true)
     expect(request.restore.anchorAccessRestore.previousEntranceAccess).toBeUndefined()
   })
+
+  it('restores the pending anchor access when the direct target assign fails', async () => {
+    mockDocument.buildings[0].floors[0].entranceAccess = [{
+      entranceId: 'entrance-1',
+      outdoorNodeId: 'outdoor-1',
+      indoorRouteNodeId: 'old-node',
+    }]
+    const previousAnchorAccess = [{
+      entranceId: 'entrance-anchor',
+      outdoorNodeId: 'outdoor-previous',
+      indoorRouteNodeId: 'previous-node',
+    }]
+    mockExecute.mockImplementation((command: { id?: string; payload?: Record<string, any> } | undefined) => {
+      if (command?.id === 'route.path.create') {
+        return {
+          success: true,
+          entityId: 'route-node-new',
+          data: {
+            nodeIds: ['route-node-new'],
+            edgeIds: [],
+            buildingId: 'BLD01',
+            floorId: 'flr-0',
+            hadNetwork: true,
+            previousNetwork: undefined,
+          },
+        }
+      }
+      if (command?.id === 'entrance.access.assign' && command.payload?.entranceId === 'entrance-anchor') {
+        return { success: true, entityId: 'entrance-anchor', data: { previousEntranceAccess: previousAnchorAccess } }
+      }
+      if (command?.id === 'entrance.access.assign') {
+        return { success: false, error: 'Target Entrance is invalid' }
+      }
+      return { success: true }
+    })
+
+    const onEntranceAccessRequired = vi.fn()
+    const onRouteStartRejected = vi.fn()
+    const probe = createProbe()
+    const view = renderHook(() => useFloorDrawing({
+      map: probe.map, buildingId: 'BLD01', campusId: 'C1', floor: 0, tool: 'hallway', mapReady: true,
+      pendingRouteAnchor: {
+        entranceId: 'entrance-anchor',
+        outdoorNodeId: 'outdoor-anchor',
+        position: { lat: 11.8195, lng: 122.0935 },
+      },
+      onEntranceAccessRequired,
+      onRouteStartRejected,
+    }))
+
+    await waitFor(() => expect(view.result.current.pendingPolygon).toHaveLength(1))
+    probe.setHits([{
+      layer: { id: 'floor-items-entrance' },
+      properties: { id: 'entrance-1' },
+      geometry: { type: 'Point', coordinates: [122.0910, 11.8195] },
+    }])
+    act(() => { probe.click(11.8195, 122.0910) })
+
+    await waitFor(() => {
+      expect(mockExecute.mock.calls.some(call => call[0].id === 'entrance.access.unassign')).toBe(true)
+    })
+    expect(onEntranceAccessRequired).not.toHaveBeenCalled()
+    expect(onRouteStartRejected).toHaveBeenCalled()
+    const unassign = mockExecute.mock.calls.find(call => call[0].id === 'entrance.access.unassign')![0]
+    expect(unassign.payload).toEqual({
+      buildingId: 'BLD01',
+      floorId: 'flr-0',
+      entranceId: 'entrance-anchor',
+      restoreEntranceAccess: previousAnchorAccess,
+    })
+    const routeRestores = mockExecute.mock.calls.filter(
+      call => call[0].id === 'route.path.create' && call[0].payload?.restore === true,
+    )
+    expect(routeRestores).toHaveLength(1)
+  })
 })
