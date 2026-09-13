@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CoordinateTransformer, serializeDocument, deserializeDocument, roundTrip } from '@navi/core'
-import type { CampusDocument, Building, Floor, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, Road, Panorama, QRCheckpoint } from '@navi/core'
+import type { CampusDocument, Building, Floor, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, Road, Panorama, QRCheckpoint, LatLng, Wall, Window } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { GraphAdapter } from '../graph-adapter'
 import { createDocument } from '../context/create-editor-context'
@@ -10,6 +10,7 @@ function makeFullDocument(): CampusDocument {
     schemaVersion: 1,
     version: 42,
     metadata: {
+      campusId: 'ASU Polytechnic',
       name: 'ASU Polytechnic',
       description: 'Main campus for testing',
       lastModified: '2026-07-15T10:30:00.000Z',
@@ -106,7 +107,8 @@ function makeFullDocument(): CampusDocument {
               {
                 id: 'ent-main',
                 label: 'Main Entrance',
-                position: { lat: 33.4205, lng: -111.9295 },
+                // Legacy world position (P1-T4: dual-mode tolerance)
+                position: { lat: 33.4205, lng: -111.9295 } as any,
                 level: 0,
                 type: 'main',
                 hasQR: true,
@@ -140,7 +142,8 @@ function makeFullDocument(): CampusDocument {
       {
         id: 'pano-front',
         label: 'Front Gate View',
-        position: { lat: 33.42, lng: -111.93 },
+        // Legacy world position (P1-T4: dual-mode tolerance)
+        position: { lat: 33.42, lng: -111.93 } as any,
         heading: 180,
         imageAssetId: 'asset-pano-front-001',
         buildingId: 'bld-eng',
@@ -158,7 +161,8 @@ function makeFullDocument(): CampusDocument {
       {
         id: 'qr-entrance',
         label: 'Engineering QR',
-        position: { lat: 33.4205, lng: -111.9295 },
+        // Legacy world position (P1-T4: dual-mode tolerance)
+        position: { lat: 33.4205, lng: -111.9295 } as any,
         floor: 0,
         buildingId: 'bld-eng',
         code: 'https://navi.app/checkin/eng',
@@ -545,7 +549,8 @@ describe('S-001: Data round-trip integrity', () => {
       const p2 = doc2.panoramas.find(p => p.id === 'pano-front')!
       expect(p2).toBeDefined()
       expect(p2.label).toBe(p1.label)
-      expect(p2.position).toEqual(p1.position)
+      // P1-T4: stored positions are building-local; the pipeline round-trips world→local
+      expect(p2.position).toEqual(transformer.worldToBuildingLocal(p1.position as LatLng, 'bld-eng'))
       expect(p2.buildingId).toBe(p1.buildingId)
       expect(p2.floor).toBe(p1.floor)
     })
@@ -566,10 +571,447 @@ describe('S-001: Data round-trip integrity', () => {
       const q2 = doc2.qrCheckpoints.find(q => q.id === 'qr-entrance')!
       expect(q2).toBeDefined()
       expect(q2.label).toBe(q1.label)
-      expect(q2.position).toEqual(q1.position)
+      // P1-T4: stored positions are building-local; the pipeline round-trips world→local
+      expect(q2.position).toEqual(transformer.worldToBuildingLocal(q1.position as LatLng, 'bld-eng'))
       expect(q2.floor).toBe(q1.floor)
       expect(q2.buildingId).toBe(q1.buildingId)
       expect(q2.code).toBe(q1.code)
     })
+  })
+
+  // ── Phase 3: Wall/Window persistence round-trip (W2) ──
+  describe('W2: Wall/Window persistence round-trip', () => {
+    function makeDocWithWalls(): CampusDocument {
+      const wallA: Wall = {
+        id: 'wall-a1',
+        start: { x: 1, y: 2 },
+        end: { x: 10, y: 2 },
+        thickness: 0.15,
+        height: 3.5,
+        metadata: { material: 'concrete' },
+      }
+      const wallA2: Wall = {
+        id: 'wall-a2',
+        start: { x: 10, y: 2 },
+        end: { x: 10, y: 8 },
+        thickness: 0.2,
+        height: 3.0,
+      }
+      const wallB: Wall = {
+        id: 'wall-b1',
+        start: { x: 0, y: 0 },
+        end: { x: 5, y: 0 },
+        thickness: 0.15,
+        height: 3.5,
+      }
+      const winA: Window = {
+        id: 'win-a1',
+        wallId: 'wall-a1',
+        offset: 2.5,
+        width: 1.2,
+        sillHeight: 0.8,
+        metadata: { type: 'casement' },
+      }
+
+      return {
+        schemaVersion: 1,
+        version: 42,
+        metadata: {
+          campusId: 'wall-test',
+          name: 'Wall Test Campus',
+          lastModified: '2026-08-24T00:00:00.000Z',
+        },
+        buildings: [
+          {
+            id: 'bld-a',
+            name: 'Building A',
+            code: 'A',
+            category: 'academic',
+            footprint: {
+              points: [
+                { lat: 33.42, lng: -111.93 },
+                { lat: 33.421, lng: -111.93 },
+                { lat: 33.421, lng: -111.929 },
+                { lat: 33.42, lng: -111.929 },
+                { lat: 33.42, lng: -111.93 },
+              ],
+            },
+            baseElevation: 0,
+            height: 20,
+            color: '#111111',
+            metadata: {},
+            floors: [
+              {
+                id: 'flr-a1',
+                level: 0,
+                label: 'Ground Floor',
+                elevation: 0,
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                entrances: [],
+                connectorStops: [],
+                parametricComponents: [],
+                metadata: {},
+                walls: [wallA, wallA2],
+                windows: [winA],
+              },
+              {
+                id: 'flr-a2',
+                level: 1,
+                label: 'Second Floor',
+                elevation: 3.5,
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                entrances: [],
+                connectorStops: [],
+                parametricComponents: [],
+                metadata: {},
+                walls: [],
+                windows: [],
+              },
+            ],
+          },
+          {
+            id: 'bld-b',
+            name: 'Building B',
+            code: 'B',
+            category: 'admin',
+            footprint: {
+              points: [
+                { lat: 33.43, lng: -111.94 },
+                { lat: 33.431, lng: -111.94 },
+                { lat: 33.431, lng: -111.939 },
+                { lat: 33.43, lng: -111.939 },
+                { lat: 33.43, lng: -111.94 },
+              ],
+            },
+            baseElevation: 0,
+            height: 15,
+            color: '#222222',
+            metadata: {},
+            floors: [
+              {
+                id: 'flr-b1',
+                level: 0,
+                label: 'Ground Floor',
+                elevation: 0,
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                entrances: [],
+                connectorStops: [],
+                parametricComponents: [],
+                metadata: {},
+                walls: [wallB],
+                windows: [],
+              },
+            ],
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      }
+    }
+
+    it('Walls survive full pipeline round-trip (id, start, end, thickness, height, metadata)', () => {
+      const doc = makeDocWithWalls()
+      const graph = new Graph()
+      const transformer = new CoordinateTransformer()
+      transformer.registerBuilding({ buildingId: 'bld-a', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      transformer.registerBuilding({ buildingId: 'bld-b', origin: { lat: 33.4305, lng: -111.9395 }, rotation: 0 })
+      new GraphAdapter(graph, transformer).sync(doc)
+      const doc2 = createDocument(graph, transformer)
+
+      const bA = doc2.buildings.find(b => b.id === 'bld-a')!
+      const fA1 = bA.floors.find(f => f.id === 'flr-a1')!
+
+      expect(fA1.walls).toBeDefined()
+      expect(fA1.walls).toHaveLength(2)
+
+      const w1 = fA1.walls!.find(w => w.id === 'wall-a1')!
+      expect(w1.start).toEqual({ x: 1, y: 2 })
+      expect(w1.end).toEqual({ x: 10, y: 2 })
+      expect(w1.thickness).toBe(0.15)
+      expect(w1.height).toBe(3.5)
+      expect(w1.metadata).toEqual({ material: 'concrete' })
+
+      const w2 = fA1.walls!.find(w => w.id === 'wall-a2')!
+      expect(w2.thickness).toBe(0.2)
+      expect(w2.height).toBe(3.0)
+      expect(w2.metadata).toBeUndefined()
+    })
+
+    it('Windows survive round-trip', () => {
+      const doc = makeDocWithWalls()
+      const graph = new Graph()
+      const transformer = new CoordinateTransformer()
+      transformer.registerBuilding({ buildingId: 'bld-a', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      transformer.registerBuilding({ buildingId: 'bld-b', origin: { lat: 33.4305, lng: -111.9395 }, rotation: 0 })
+      new GraphAdapter(graph, transformer).sync(doc)
+      const doc2 = createDocument(graph, transformer)
+
+      const bA = doc2.buildings.find(b => b.id === 'bld-a')!
+      const fA1 = bA.floors.find(f => f.id === 'flr-a1')!
+
+      expect(fA1.windows).toBeDefined()
+      expect(fA1.windows).toHaveLength(1)
+
+      const win = fA1.windows![0]
+      expect(win.id).toBe('win-a1')
+      expect(win.wallId).toBe('wall-a1')
+      expect(win.offset).toBe(2.5)
+      expect(win.width).toBe(1.2)
+      expect(win.sillHeight).toBe(0.8)
+      expect(win.metadata).toEqual({ type: 'casement' })
+    })
+
+    it('Floor 1 Walls do not appear on Floor 2', () => {
+      const doc = makeDocWithWalls()
+      const graph = new Graph()
+      const transformer = new CoordinateTransformer()
+      transformer.registerBuilding({ buildingId: 'bld-a', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      transformer.registerBuilding({ buildingId: 'bld-b', origin: { lat: 33.4305, lng: -111.9395 }, rotation: 0 })
+      new GraphAdapter(graph, transformer).sync(doc)
+      const doc2 = createDocument(graph, transformer)
+
+      const bA = doc2.buildings.find(b => b.id === 'bld-a')!
+      const fA2 = bA.floors.find(f => f.id === 'flr-a2')!
+
+      // Floor 2 has walls array but it's empty — no Floor 1 walls leaked
+      expect(fA2.walls).toBeDefined()
+      expect(fA2.walls).toHaveLength(0)
+    })
+
+    it('Building A Walls do not appear in Building B', () => {
+      const doc = makeDocWithWalls()
+      const graph = new Graph()
+      const transformer = new CoordinateTransformer()
+      transformer.registerBuilding({ buildingId: 'bld-a', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      transformer.registerBuilding({ buildingId: 'bld-b', origin: { lat: 33.4305, lng: -111.9395 }, rotation: 0 })
+      new GraphAdapter(graph, transformer).sync(doc)
+      const doc2 = createDocument(graph, transformer)
+
+      const bB = doc2.buildings.find(b => b.id === 'bld-b')!
+      const fB1 = bB.floors.find(f => f.id === 'flr-b1')!
+
+      expect(fB1.walls).toBeDefined()
+      expect(fB1.walls).toHaveLength(1)
+      expect(fB1.walls![0].id).toBe('wall-b1')
+
+      // Building A's wall-a1 should NOT appear in Building B
+      const leaked = fB1.walls!.find(w => w.id === 'wall-a1')
+      expect(leaked).toBeUndefined()
+    })
+
+    it('Legacy documents without Walls still load', () => {
+      // A document with no walls/windows fields at all
+      const legacyDoc: CampusDocument = {
+        schemaVersion: 1,
+        version: 1,
+        metadata: {
+          campusId: 'legacy',
+          name: 'Legacy Campus',
+          lastModified: '2026-01-01T00:00:00.000Z',
+        },
+        buildings: [
+          {
+            id: 'bld-old',
+            name: 'Old Building',
+            code: 'OLD',
+            category: 'admin',
+            footprint: {
+              points: [
+                { lat: 33.42, lng: -111.93 },
+                { lat: 33.421, lng: -111.93 },
+                { lat: 33.421, lng: -111.929 },
+                { lat: 33.42, lng: -111.929 },
+                { lat: 33.42, lng: -111.93 },
+              ],
+            },
+            baseElevation: 0,
+            height: 10,
+            color: '#999999',
+            metadata: {},
+            floors: [
+              {
+                id: 'flr-old',
+                level: 0,
+                label: 'Ground',
+                elevation: 0,
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                entrances: [],
+                connectorStops: [],
+                parametricComponents: [],
+                metadata: {},
+                // deliberately no walls/windows
+              },
+            ],
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      }
+
+      const graph = new Graph()
+      const transformer = new CoordinateTransformer()
+      transformer.registerBuilding({ buildingId: 'bld-old', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      new GraphAdapter(graph, transformer).sync(legacyDoc)
+      const doc2 = createDocument(graph, transformer)
+
+      const f = doc2.buildings[0].floors[0]
+      // Walls may be undefined or empty — both are acceptable
+      expect(f.walls === undefined || (Array.isArray(f.walls) && f.walls.length === 0)).toBe(true)
+      expect(f.windows === undefined || (Array.isArray(f.windows) && f.windows.length === 0)).toBe(true)
+    })
+  })
+
+  // ── Phase 4: Idempotency (save → reload → save → reload) ──
+  describe('W2: Wall/Window idempotency', () => {
+    it('save → reload → save → reload produces identical Walls', () => {
+      const wall: Wall = {
+        id: 'wall-idem',
+        start: { x: 0, y: 0 },
+        end: { x: 8, y: 0 },
+        thickness: 0.15,
+        height: 3.5,
+        metadata: { tag: 'exterior' },
+      }
+      const win: Window = {
+        id: 'win-idem',
+        wallId: 'wall-idem',
+        offset: 3.0,
+        width: 1.5,
+        sillHeight: 0.9,
+        metadata: {},
+      }
+
+      const doc1: CampusDocument = {
+        schemaVersion: 1,
+        version: 1,
+        metadata: { campusId: 'idem', name: 'Idem Test', lastModified: '2026-08-24T00:00:00.000Z' },
+        buildings: [
+          {
+            id: 'bld-idem',
+            name: 'Idem Building',
+            code: 'ID',
+            category: 'academic',
+            footprint: {
+              points: [
+                { lat: 33.42, lng: -111.93 },
+                { lat: 33.421, lng: -111.93 },
+                { lat: 33.421, lng: -111.929 },
+                { lat: 33.42, lng: -111.929 },
+                { lat: 33.42, lng: -111.93 },
+              ],
+            },
+            baseElevation: 0,
+            height: 10,
+            color: '#aaaaaa',
+            metadata: {},
+            floors: [
+              {
+                id: 'flr-idem',
+                level: 0,
+                label: 'G',
+                elevation: 0,
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                entrances: [],
+                connectorStops: [],
+                parametricComponents: [],
+                metadata: {},
+                walls: [wall],
+                windows: [win],
+              },
+            ],
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      }
+
+      // Round 1: save → reload
+      const graph1 = new Graph()
+      const t1 = new CoordinateTransformer()
+      t1.registerBuilding({ buildingId: 'bld-idem', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      new GraphAdapter(graph1, t1).sync(doc1)
+      const doc2 = createDocument(graph1, t1)
+
+      // Round 2: save doc2 → reload again
+      const graph2 = new Graph()
+      const t2 = new CoordinateTransformer()
+      t2.registerBuilding({ buildingId: 'bld-idem', origin: { lat: 33.4205, lng: -111.9295 }, rotation: 0 })
+      new GraphAdapter(graph2, t2).sync(doc2)
+      const doc3 = createDocument(graph2, t2)
+
+      // Compare doc2 vs doc3 — Walls should be identical
+      const walls2 = doc2.buildings[0].floors[0].walls!
+      const walls3 = doc3.buildings[0].floors[0].walls!
+
+      expect(walls3).toHaveLength(walls2.length)
+      expect(walls3[0].id).toBe(walls2[0].id)
+      expect(walls3[0].start).toEqual(walls2[0].start)
+      expect(walls3[0].end).toEqual(walls2[0].end)
+      expect(walls3[0].thickness).toBe(walls2[0].thickness)
+      expect(walls3[0].height).toBe(walls2[0].height)
+      expect(walls3[0].metadata).toEqual(walls2[0].metadata)
+
+      // Compare windows
+      const wins2 = doc2.buildings[0].floors[0].windows!
+      const wins3 = doc3.buildings[0].floors[0].windows!
+
+      expect(wins3).toHaveLength(wins2.length)
+      expect(wins3[0].id).toBe(wins2[0].id)
+      expect(wins3[0].wallId).toBe(wins2[0].wallId)
+      expect(wins3[0].offset).toBe(wins2[0].offset)
+      expect(wins3[0].width).toBe(wins2[0].width)
+      expect(wins3[0].sillHeight).toBe(wins2[0].sillHeight)
+    })
+  })
+
+  it('preserves a split route junction and door connection byte-exact', () => {
+    const doc = makeFullDocument()
+    const floor = doc.buildings[0].floors[0]
+    floor.routeNetwork = {
+      nodes: [
+        { id: 'n-a', type: 'waypoint', position: { x: 0, y: 0 }, floor: 0 },
+        { id: 'j-1', type: 'waypoint', position: { x: 4, y: 0 }, floor: 0 },
+        { id: 'n-b', type: 'waypoint', position: { x: 10, y: 0 }, floor: 0 },
+        { id: 'door-anchor', type: 'portal', position: { x: 2, y: 2 }, floor: 0 },
+      ],
+      edges: [
+        { id: 'e-a-j', from: 'n-a', to: 'j-1', type: 'walk', distance: 4 },
+        { id: 'e-j-b', from: 'j-1', to: 'n-b', type: 'walk', distance: 6 },
+        { id: 'e-connector', from: 'door-anchor', to: 'j-1', type: 'walk', distance: Math.hypot(2, 2) },
+      ],
+    }
+    floor.doors = [{
+      id: 'door-1', name: 'Test Door', doorType: 'standard',
+      position: { x: 2, y: 2 }, width: 1, depth: 1, rotation: 0,
+      routeConnection: { anchorNodeId: 'door-anchor', targetRouteNodeId: 'j-1', connectorEdgeId: 'e-connector' },
+      geometry: { type: 'rectangle', min: { x: 1.5, y: 1.5 }, max: { x: 2.5, y: 2.5 }, rotation: 0 },
+      metadata: {},
+    }] as unknown as typeof floor.doors
+    const expectedNetwork = JSON.parse(JSON.stringify(floor.routeNetwork))
+    const expectedConnection = JSON.parse(JSON.stringify(floor.doors?.[0]?.routeConnection))
+
+    const revived = deserializeDocument(serializeDocument(doc))
+    const revivedFloor = revived.buildings[0].floors[0]
+
+    expect(revivedFloor.routeNetwork).toEqual(expectedNetwork)
+    expect(revivedFloor.doors?.[0]?.routeConnection).toEqual(expectedConnection)
   })
 })
