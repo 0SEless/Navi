@@ -22,6 +22,36 @@ const derivedFaceId = (): string => {
   return faceId
 }
 
+const adjacentEnclosureWalls = () => [
+  { id: 'a1', start: { x: 0, y: 0 }, end: { x: 4, y: 0 }, thickness: 0.15, height: 3 },
+  { id: 'a2', start: { x: 4, y: 0 }, end: { x: 4, y: 4 }, thickness: 0.15, height: 3 },
+  { id: 'a3', start: { x: 4, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 3 },
+  { id: 'a4', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 3 },
+  { id: 'b1', start: { x: 4, y: 0 }, end: { x: 8, y: 0 }, thickness: 0.15, height: 3 },
+  { id: 'b2', start: { x: 8, y: 0 }, end: { x: 8, y: 4 }, thickness: 0.15, height: 3 },
+  { id: 'b3', start: { x: 8, y: 4 }, end: { x: 4, y: 4 }, thickness: 0.15, height: 3 },
+]
+
+const centroidX = (points: Array<{ x: number; y: number }>): number =>
+  points.reduce((sum, point) => sum + point.x, 0) / points.length
+
+/** Two adjacent 4 m x 4 m semantic rooms sharing the wall at x = 4. */
+const adjacentSemanticFloor = () => {
+  const walls = adjacentEnclosureWalls()
+  const derived = deriveRooms(wallsToSegments(walls), [])
+  const roomA = derived.find(room => centroidX(room.polygon.points) < 4)
+  const roomB = derived.find(room => centroidX(room.polygon.points) > 4)
+  if (!roomA?.faceId || !roomB?.faceId) throw new Error('fixture did not derive two adjacent faces')
+  return {
+    rooms: [],
+    walls,
+    roomAttributes: [
+      { faceId: roomA.faceId, roomId: 'room-a', name: 'Room A', searchable: true },
+      { faceId: roomB.faceId, roomId: 'room-b', name: 'Room B', searchable: true },
+    ],
+  }
+}
+
 describe('reusable room ownership contract', () => {
   it('assigns exactly one containing room', () => {
     expect(resolveUniqueRoomOwner({ x: 2, y: 5 }, [square('a', 0, 4), square('b', 6, 10)])).toEqual({ status: 'assigned', roomId: 'a' })
@@ -88,5 +118,42 @@ describe('reusable room ownership contract', () => {
     expect(polygons).toHaveLength(1)
     expect(polygons[0].id).toBe(`${SEMANTIC_ROOM_ID_PREFIX}${faceId}`)
     expect(polygons[0].id).not.toBe(faceId)
+  })
+})
+
+describe('degenerate ring edges', () => {
+  it('assigns a point clearly inside one of two adjacent semantic rooms to exactly that room', () => {
+    const polygons = collectFloorRoomOwnershipPolygons(adjacentSemanticFloor())
+
+    expect(polygons).toHaveLength(2)
+    expect(resolveUniqueRoomOwner({ x: 2, y: 2 }, polygons)).toEqual({ status: 'assigned', roomId: 'room-a' })
+    expect(resolveUniqueRoomOwner({ x: 6, y: 2 }, polygons)).toEqual({ status: 'assigned', roomId: 'room-b' })
+  })
+
+  it('keeps ambiguity for a point exactly on the shared non-degenerate wall', () => {
+    const polygons = collectFloorRoomOwnershipPolygons(adjacentSemanticFloor())
+
+    expect(resolveUniqueRoomOwner({ x: 4, y: 2 }, polygons)).toEqual({
+      status: 'ambiguous',
+      candidateRoomIds: ['room-a', 'room-b'],
+    })
+  })
+
+  it('still detects a shared corner through the adjacent non-degenerate edges', () => {
+    const polygons = collectFloorRoomOwnershipPolygons(adjacentSemanticFloor())
+
+    expect(resolveUniqueRoomOwner({ x: 4, y: 4 }, polygons)).toEqual({
+      status: 'ambiguous',
+      candidateRoomIds: ['room-a', 'room-b'],
+    })
+  })
+
+  it('does not contain a far point through a repeated closing vertex', () => {
+    const closedRing = {
+      id: 'closed-ring',
+      points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 0, y: 4 }, { x: 0, y: 0 }],
+    }
+
+    expect(resolveUniqueRoomOwner({ x: 25, y: -19 }, [closedRing])).toEqual({ status: 'unassigned' })
   })
 })

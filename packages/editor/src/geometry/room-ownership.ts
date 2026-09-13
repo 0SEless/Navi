@@ -11,10 +11,19 @@ export type RoomOwnershipResolution =
   | { status: 'ambiguous'; candidateRoomIds: string[] }
 
 function pointOnSegment(point: LocalCoord, a: LocalCoord, b: LocalCoord): boolean {
+  const lengthSq = (b.x - a.x) ** 2 + (b.y - a.y) ** 2
+  // Derived room rings repeat their first vertex as the last point, so the
+  // closing edge is degenerate. Without this guard a zero-length segment
+  // satisfies the dot-product bounds for every point (0 >= 0 && 0 <= 0) and
+  // marks the whole plane as "on the edge". Boundary membership at a shared or
+  // duplicated vertex is still detected by the two adjacent non-degenerate
+  // edges, so returning false here preserves genuine on-edge detection for
+  // real segments while ignoring the degenerate closing edge.
+  if (lengthSq <= 1e-18) return false
   const cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y)
   if (Math.abs(cross) > 1e-8) return false
   const dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)
-  return dot >= 0 && dot <= (b.x - a.x) ** 2 + (b.y - a.y) ** 2
+  return dot >= 0 && dot <= lengthSq
 }
 
 function containsPoint(points: LocalCoord[], point: LocalCoord): boolean {
