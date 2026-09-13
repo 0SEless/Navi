@@ -265,6 +265,27 @@ describe('semantic Room projected outliner item', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand Rooms' }))
     expect(screen.getByText('Room')).toBeInTheDocument()
   })
+
+  it('dispatches the room-ownership reconcile from the Outliner header', () => {
+    render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} activeFloorId="floor-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reconcile room ownership' }))
+
+    expect(mocks.execute).toHaveBeenCalledTimes(1)
+    const [command, options] = mocks.execute.mock.calls[0] as [Record<string, unknown>, unknown]
+    expect(command).toEqual({
+      id: 'door.ownership.reconcile',
+      label: 'Reconcile Room Ownership',
+      payload: { buildingId: 'building-1', floorId: 'floor-1' },
+    })
+    expect(options).toBeUndefined()
+  })
+
+  it('hides the reconcile action when the active floor id is missing', () => {
+    render(<FloorOutliner building={building} activeFloor={0} mapId="map-1" selectedId={null} onSelect={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'Reconcile room ownership' })).toBeNull()
+  })
 })
 
 describe('route graph projected properties', () => {

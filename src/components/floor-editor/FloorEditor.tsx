@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { useEditor, useSelection, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT } from '@navi/editor'
+import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
@@ -40,6 +40,7 @@ import type { FloorPlanStorageScope } from '@/services/floor-plan-lifecycle'
 import { FloorPlanTransformInspector } from './FloorPlanTransformInspector'
 import { Eye, EyeOff, Upload, Trash2, RefreshCw, Box, Layers } from 'lucide-react'
 import { useGraphStore } from '@/store/graph-store'
+import { canonicalRoomIds } from '@navi/core'
 import type { PlanAlignment } from '@navi/core'
 
 interface FloorEditorProps {
@@ -91,6 +92,16 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const currentFloorData = building?.floorData?.find((fd: any) => fd.level === currentLevel)
   const currentFloorId = (currentFloorData as any)?.id as string | undefined
   const planAlignment = (currentFloorData as any)?.planAlignment as PlanAlignment | undefined
+
+  // ROU Task 5: canonical room-id fingerprint of the active floor. The document
+  // version subscription re-renders on every commit; the derived string only
+  // changes when the canonical room set changes, so edits that leave the room
+  // set untouched never re-dispatch the reconcile effect.
+  useDocumentVersion()
+  const canonicalFloor = editorDoc.buildings
+    .find((candidate) => candidate.id === buildingId)
+    ?.floors.find((candidate) => candidate.id === currentFloorId)
+  const roomIdFingerprint = canonicalFloor ? canonicalRoomIds(canonicalFloor).join('|') : ''
   const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[floor], currentFloorData as any)
   const hasPlan = !!planImageUrl
   const persistedLocked = !!(currentFloorData as any)?.locked
@@ -132,6 +143,22 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setLocked(persistedLocked)
     if (persistedLocked) setMode('mapping')
   }, [currentFloorId, persistedLocked])
+
+  // ROU Task 5: silent auto-reconcile. The effect depends on the stable
+  // fingerprint only — the command rewrites door ownership, not the canonical
+  // room-id set, so its own commit cannot re-trigger this effect.
+  useEffect(() => {
+    if (!currentFloorId) return
+    services.get('dispatcher')?.execute(
+      {
+        id: 'door.ownership.reconcile',
+        label: 'Reconcile Room Ownership',
+        payload: { buildingId, floorId: currentFloorId },
+      },
+      { skipHooks: true },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- [buildingId, currentFloorId, roomIdFingerprint] is the loop guard; `services` is stable
+  }, [buildingId, currentFloorId, roomIdFingerprint])
 
   const [navPreviewOpen, setNavPreviewOpen] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
@@ -553,7 +580,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
+        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} activeFloorId={currentFloorId} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />

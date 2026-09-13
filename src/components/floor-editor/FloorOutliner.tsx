@@ -14,6 +14,7 @@ interface FloorOutlinerProps {
   mapId: string
   selectedId: string | null
   onSelect: (id: string | null) => void
+  activeFloorId?: string
 }
 
 function floorLabel(f: number) {
@@ -31,7 +32,7 @@ const TYPE_GROUPS: { type: ComponentType; label: string; icon: React.ElementType
   { type: 'route-edge', label: 'Route Edges', icon: Route },
 ]
 
-export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSelect }: FloorOutlinerProps) {
+export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSelect, activeFloorId }: FloorOutlinerProps) {
   const [expandedFloors, setExpandedFloors] = useState<Set<number>>(new Set([activeFloor]))
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(building.floors.flatMap((floor) => [`${floor}:route-node`, `${floor}:route-edge`])),
@@ -132,8 +133,28 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
       flexShrink: 0,
     }}>
       <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Outliner
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Outliner
+          </div>
+          {activeFloorId && (
+            <button
+              type="button"
+              aria-label="Reconcile room ownership"
+              title="Reconcile room ownership"
+              onClick={() => dispatcher.execute({
+                id: 'door.ownership.reconcile',
+                label: 'Reconcile Room Ownership',
+                payload: { buildingId: building.id, floorId: activeFloorId },
+              })}
+              style={{
+                border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                color: 'var(--navi-text-secondary)', fontSize: 10, fontWeight: 600,
+              }}
+            >
+              Reconcile
+            </button>
+          )}
         </div>
       </div>
 
