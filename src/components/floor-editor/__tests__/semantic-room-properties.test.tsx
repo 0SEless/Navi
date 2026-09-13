@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ComponentProperties } from '../ComponentProperties'
 import { FloorOutliner } from '../FloorOutliner'
 import type { Building, Component } from '@/types/nav-types'
@@ -398,6 +398,23 @@ describe('Door properties', () => {
     expect(screen.getByText('Assigned')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Connect to Route…' })).toBeDisabled()
     expect(screen.queryByRole('combobox', { name: 'Door route node' })).toBeNull()
+  })
+
+  it('lists attribute rooms without a roomId under their canonical semantic id', () => {
+    mocks.document.buildings[0].floors[0].roomAttributes.push(
+      { faceId: 'face-unbound', name: 'Unbound Room', searchable: true },
+      { faceId: 'face-code-only', code: 'B-2', searchable: true },
+      { faceId: 'face-bare', searchable: true },
+    )
+    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} />)
+
+    const select = screen.getByLabelText('Door parent room')
+    const optionValue = (name: string) =>
+      (within(select).getByRole('option', { name }) as HTMLOptionElement).value
+
+    expect(optionValue('Unbound Room')).toBe('semantic-room-face-unbound')
+    expect(optionValue('B-2')).toBe('semantic-room-face-code-only')
+    expect(optionValue('semantic-room-face-bare')).toBe('semantic-room-face-bare')
   })
 
   it('saves Door properties and starts the route connect pick from the panel', () => {

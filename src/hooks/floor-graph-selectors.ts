@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useEditor, useDocumentSelector, useDocumentVersion, useBuilding, findBuilding, resolveLevelGeometry } from '@navi/editor'
-import { localRectangleCornersOf } from '@navi/core'
+import { canonicalRoomId, localRectangleCornersOf } from '@navi/core'
 import type { CampusDocument, CoordinateTransformer, LocalCoord } from '@navi/core'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
@@ -87,7 +87,7 @@ export function extractFloorComponents(
       if (!attributes) continue
       const worldPoints = localPointsToWorld(derived.polygon.points, buildingId, transformer)
       if (worldPoints.length < 3) continue
-      const roomId = attributes.roomId ?? `semantic-room-${derived.faceId}`
+      const roomId = canonicalRoomId(attributes)
       const roomType = attributes.type !== undefined ? attributes.type : attributes.category
       const roomCode = attributes.code !== undefined ? attributes.code : attributes.number
       result.push({

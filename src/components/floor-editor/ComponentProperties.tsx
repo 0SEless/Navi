@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useEditor, useEditingEngine, useDocumentVersion } from '@navi/editor'
-import { SpatialQueryService } from '@navi/core'
+import { canonicalRoomId, SpatialQueryService } from '@navi/core'
 import type { Road } from '@navi/core'
 import { RelationshipService, RelationshipSuggestionService } from '@navi/editor'
 import { isSemanticRoomComponent, useFloorComponent } from '@/hooks/floor-graph-selectors'
@@ -291,7 +291,8 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     const options = new Map<string, string>()
     for (const room of componentFloor?.rooms ?? []) options.set(room.id, room.name || room.number || room.id)
     for (const attributes of componentFloor?.roomAttributes ?? []) {
-      if (attributes.roomId) options.set(attributes.roomId, attributes.name || attributes.code || attributes.number || attributes.roomId)
+      const canonicalId = canonicalRoomId(attributes)
+      options.set(canonicalId, attributes.name || attributes.code || attributes.number || canonicalId)
     }
     return [...options.entries()].map(([id, label]) => ({ id, label }))
   }, [componentFloor])

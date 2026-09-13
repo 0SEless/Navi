@@ -48,6 +48,23 @@ describe('semantic Room component projection', () => {
     expect(semantic?.metadata).toMatchObject({ source: 'derived-face', semanticRoom: true, faceId, roomId: 'semantic-room-1', type: 'laboratory', code: 'CL-101', description: 'A computing room', searchable: true })
   })
 
+  it('uses the canonical semantic id for attributes without a roomId', () => {
+    const faceId = deriveRooms(wallsToSegments(walls), [])[0].faceId!
+    const floor = {
+      id: 'flr-1', level: 0, rooms: [],
+      hallways: [], staircases: [], elevators: [], entrances: [], parametricComponents: [], walls,
+      roomAttributes: [{ faceId, name: 'Unassigned Lab', searchable: true }],
+    }
+
+    const components = extractFloorComponents(createDoc(floor), 'bld-1', floor, transformer)
+    const canonicalId = `semantic-room-${faceId}`
+    const semantic = components.find((component) => component.id === canonicalId)
+
+    expect(semantic).toMatchObject({ id: canonicalId, type: 'room', name: 'Unassigned Lab' })
+    expect(semantic?.metadata).toMatchObject({ source: 'derived-face', semanticRoom: true, faceId, roomId: canonicalId })
+    expect(isSemanticRoomComponent(semantic)).toBe(true)
+  })
+
   it('maps legacy number/category values into canonical Code/Type metadata', () => {
     const faceId = deriveRooms(wallsToSegments(walls), [])[0].faceId!
     const floor = {
