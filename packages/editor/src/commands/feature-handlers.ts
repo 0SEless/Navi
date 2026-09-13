@@ -7,6 +7,7 @@ import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
 import { cleanupFeatureRoutingReferences, collectDoorConnectorEdgeIds, isRouteNodeReferencedByAccessRelationships } from './routing-relationship-cleanup'
 import { applyRouteJunctionSplit } from './route-junctions'
 import { collectFloorRoomOwnershipPolygons, resolveUniqueRoomOwner } from '../geometry/room-ownership'
+import { buildDuplicatedDoor } from './duplicate-helpers'
 
 // ── P1-T5 (R2.2): POI handlers ──
 // POIs are floor-local discovery landmarks — NOT rooms, never destination
@@ -624,6 +625,55 @@ export const doorDeleteHandler: CommandHandler = {
           metadata: oldDoor.metadata,
         },
       },
+    }
+  },
+}
+
+export const doorDuplicateHandler: CommandHandler = {
+  id: 'door.duplicate',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    const doorId = payload.doorId as string
+    const ctx = findFloorAndDoor(document, doorId)
+    if (!ctx) return { success: false, error: `Door not found: ${doorId}` }
+
+    let offset: LocalCoord = { x: 0.5, y: 0.5 }
+    if (payload.offset !== undefined) {
+      const supplied = payload.offset as { x?: unknown; y?: unknown } | null
+      if (!supplied
+        || typeof supplied.x !== 'number' || typeof supplied.y !== 'number'
+        || !Number.isFinite(supplied.x) || !Number.isFinite(supplied.y)) {
+        return { success: false, error: 'Door duplicate offset must be a building-local LocalCoord ({x, y} meters)' }
+      }
+      offset = { x: supplied.x, y: supplied.y }
+    }
+
+    const id = genId('door')
+    // Locked decisions: the duplicate never inherits route connectivity,
+    // graph identity, or the other-side reference; room ownership is
+    // re-evaluated by containment at the new position (same resolution
+    // as door.create).
+    const duplicate = buildDuplicatedDoor(ctx.door, id, offset)
+    const owner = resolveUniqueRoomOwner(duplicate.position, collectFloorRoomOwnershipPolygons(ctx.floor))
+    if (owner.status === 'assigned') {
+      duplicate.roomId = owner.roomId
+      duplicate.ownership = { status: 'assigned' }
+    } else if (owner.status === 'ambiguous') {
+      duplicate.ownership = { status: 'ambiguous', candidateRoomIds: owner.candidateRoomIds }
+    } else {
+      duplicate.ownership = { status: 'unassigned' }
+    }
+    if (!ctx.floor.doors) ctx.floor.doors = []
+    ctx.floor.doors.push(duplicate)
+
+    recordChange(document, { entityId: id, entityType: 'door', operation: 'created' })
+    return { success: true, entityId: id, data: { buildingId: ctx.building.id, floorId: ctx.floor.id, roomId: duplicate.roomId } }
+  },
+  inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
+    if (!result.entityId) return null
+    return {
+      id: 'door.delete',
+      label: 'Undo Duplicate Door',
+      payload: { doorId: result.entityId },
     }
   },
 }
