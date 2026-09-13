@@ -44,7 +44,7 @@ export { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandle
 export { poiCreateHandler, poiUpdateHandler, poiDeleteHandler } from './feature-handlers'
 export { doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler } from './feature-handlers'
 export { buildDuplicatedDoor } from './duplicate-helpers'
-export { doorOwnershipReconcileHandler } from './door-ownership'
+export { doorOwnershipReconcileHandler, needsDoorOwnershipReconcile } from './door-ownership'
 export type { DoorOwnershipChange, DoorOwnershipSnapshot } from './door-ownership'
 export { windowCreateHandler, windowUpdateHandler, windowDeleteHandler } from './feature-handlers'
 export { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from './route-network-handlers'

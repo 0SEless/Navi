@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SEMANTIC_ROOM_ID_PREFIX } from '@navi/core'
 import type { CampusDocument, Floor, LocalCoord, Room, RoomDoor, Wall } from '@navi/core'
-import { doorOwnershipReconcileHandler } from '../door-ownership'
+import { doorOwnershipReconcileHandler, needsDoorOwnershipReconcile } from '../door-ownership'
 import type { DoorOwnershipChange } from '../door-ownership'
 import { deriveRooms } from '../../geometry/room-derivation'
 import { wallsToSegments } from '../../geometry/wall-to-segment'
@@ -174,5 +174,86 @@ describe('door.ownership.reconcile', () => {
 
     expect(restored.success).toBe(true)
     expect(JSON.parse(JSON.stringify(floor.doors))).toEqual(before)
+  })
+
+  it('heals a canonical roomId whose ownership status is stale, keeping the assignment', () => {
+    const { document, floor } = legacyFloor()
+    floor.doors = [door('stale-pair', { x: 100, y: 100 }, { roomId: 'legacy-a', ownership: { status: 'unassigned' } })]
+    const before = JSON.parse(JSON.stringify(floor.doors))
+
+    const result = doorOwnershipReconcileHandler.execute(document, { buildingId: 'b', floorId: 'f' })
+
+    expect(result.success).toBe(true)
+    const changes = result.data?.changes as DoorOwnershipChange[]
+    expect(changes).toEqual([{
+      doorId: 'stale-pair',
+      before: { roomId: 'legacy-a', ownership: { status: 'unassigned' } },
+      after: { roomId: 'legacy-a', ownership: { status: 'assigned' } },
+    }])
+    expect(floor.doors?.[0]).toMatchObject({ roomId: 'legacy-a', ownership: { status: 'assigned' } })
+    expect(document._changeJournal).toEqual([{ entityId: 'stale-pair', entityType: 'door', operation: 'updated' }])
+
+    const afterFirst = JSON.stringify(floor.doors)
+    const second = doorOwnershipReconcileHandler.execute(document, { buildingId: 'b', floorId: 'f' })
+    expect(second.data?.changes).toEqual([])
+    expect(JSON.stringify(floor.doors)).toBe(afterFirst)
+
+    const inverse = doorOwnershipReconcileHandler.inverse?.({ buildingId: 'b', floorId: 'f' }, result)
+    const restored = doorOwnershipReconcileHandler.execute(document, inverse?.payload ?? {})
+    expect(restored.success).toBe(true)
+    expect(JSON.parse(JSON.stringify(floor.doors))).toEqual(before)
+  })
+
+  it('heals a canonical roomId with missing ownership without re-evaluating geometry', () => {
+    const { document, floor } = legacyFloor()
+    floor.doors = [
+      door('missing-ownership', { x: 20, y: 20 }, { roomId: 'legacy-a' }),
+      door('settled', { x: 100, y: 100 }, { roomId: 'legacy-b', ownership: { status: 'assigned' } }),
+    ]
+
+    const result = doorOwnershipReconcileHandler.execute(document, { buildingId: 'b', floorId: 'f' })
+
+    const changes = result.data?.changes as DoorOwnershipChange[]
+    expect(changes.map(change => change.doorId)).toEqual(['missing-ownership'])
+    expect(changes[0].after).toEqual({ roomId: 'legacy-a', ownership: { status: 'assigned' } })
+    expect(floor.doors?.[0]).toMatchObject({ roomId: 'legacy-a', ownership: { status: 'assigned' } })
+    expect(floor.doors?.[1]).toMatchObject({ roomId: 'legacy-b', ownership: { status: 'assigned' } })
+  })
+})
+
+describe('needsDoorOwnershipReconcile', () => {
+  it('returns false for a clean floor with settled doors', () => {
+    const { floor, canonicalId } = semanticFloor()
+    expect(needsDoorOwnershipReconcile(floor)).toBe(false)
+
+    floor.doors = [
+      door('assigned', { x: 2, y: 2 }, { roomId: canonicalId, ownership: { status: 'assigned' } }),
+      door('outside', { x: 50, y: 50 }, { ownership: { status: 'unassigned' } }),
+    ]
+    expect(needsDoorOwnershipReconcile(floor)).toBe(false)
+  })
+
+  it('returns true for an orphan door until the reconcile adopts it (adopted state is false)', () => {
+    const { document, floor } = semanticFloor()
+    floor.doors = [door('orphan', { x: 2, y: 2 })]
+    expect(needsDoorOwnershipReconcile(floor)).toBe(true)
+
+    doorOwnershipReconcileHandler.execute(document, { buildingId: 'b', floorId: 'f' })
+    expect(needsDoorOwnershipReconcile(floor)).toBe(false)
+  })
+
+  it('returns true for a canonical roomId with stale ownership', () => {
+    const { floor, canonicalId } = semanticFloor()
+    floor.doors = [door('stale', { x: 2, y: 2 }, { roomId: canonicalId, ownership: { status: 'unassigned' } })]
+    expect(needsDoorOwnershipReconcile(floor)).toBe(true)
+  })
+
+  it('returns true for a canonical roomId with missing ownership and false after healing', () => {
+    const { document, floor, canonicalId } = semanticFloor()
+    floor.doors = [door('missing', { x: 2, y: 2 }, { roomId: canonicalId })]
+    expect(needsDoorOwnershipReconcile(floor)).toBe(true)
+
+    doorOwnershipReconcileHandler.execute(document, { buildingId: 'b', floorId: 'f' })
+    expect(needsDoorOwnershipReconcile(floor)).toBe(false)
   })
 })
