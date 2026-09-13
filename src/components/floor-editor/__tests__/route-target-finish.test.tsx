@@ -139,6 +139,33 @@ describe('Route target finish', () => {
     expect(view.result.current.routeConnectionPrompt).toBeNull()
   })
 
+  it('surfaces a rejected junction commit and keeps the prompt instead of clearing it silently', async () => {
+    mockExecute.mockImplementation((command: { id?: string } | undefined) => {
+      if (command?.id === 'route.path.create') {
+        return { success: false, error: 'Route edge e1 is a door connector and cannot be a junction target' }
+      }
+      return { success: true }
+    })
+    const onRouteStartRejected = vi.fn()
+    const probe = createProbe()
+    const view = renderHook(() => useFloorDrawing({
+      map: probe.map, buildingId: 'BLD01', campusId: 'C1', floor: 0, tool: 'hallway', mapReady: true,
+      onRouteStartRejected,
+    }))
+
+    act(() => { probe.click(11.8190, 122.0915) })
+    probe.setHits([{ layer: { id: 'floor-route-edges-line' }, properties: { id: 'e1' } }])
+    act(() => { probe.click(11.8195, 122.0922) })
+    await waitFor(() => expect(view.result.current.routeConnectionPrompt?.edgeId).toBe('e1'))
+
+    act(() => { view.result.current.acceptRouteConnection() })
+
+    await waitFor(() => expect(onRouteStartRejected).toHaveBeenCalledWith(
+      'Route edge e1 is a door connector and cannot be a junction target',
+    ))
+    expect(view.result.current.routeConnectionPrompt).not.toBeNull()
+  })
+
   it('No commits the path at the clicked point without any junction', async () => {
     const probe = createProbe()
     const view = renderRouteTool(probe)

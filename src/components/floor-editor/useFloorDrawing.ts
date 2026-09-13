@@ -343,6 +343,16 @@ function openingWindowFeature(
 
 type RoutePointInput = { x: number; y: number; existingNodeId?: string; junction?: { edgeId: string; position: { x: number; y: number } } }
 
+/**
+ * Result of committing pending Route points. `rejected` carries the command
+ * error so callers surface it (via onRouteStartRejected) instead of silently
+ * dropping the authoring; `skipped` means the commit did not apply to the tool.
+ */
+type RouteCommitOutcome =
+  | { status: 'ok'; data?: Record<string, unknown> }
+  | { status: 'rejected'; error: string }
+  | { status: 'skipped' }
+
 export interface EntranceAccessRequiredRequest {
   entranceId: string
   buildingId: string
@@ -520,20 +530,20 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     updatePreview(map, features, mapReady)
   }, [map, mapReady, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, rectangleDraw, transformer, buildingId])
 
-  const commitRoutePoints = useCallback((localPoints: RoutePointInput[]) => {
+  const commitRoutePoints = useCallback((localPoints: RoutePointInput[]): RouteCommitOutcome => {
     const currentTool = toolRef.current
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
 
-    if (!floorId || !transformer || !map) return
+    if (!floorId || !transformer || !map) return { status: 'skipped' }
 
     if (currentTool === 'hallway') {
       const result = dispatcher.execute({
         id: 'route.path.create', label: 'Create Route',
         payload: { buildingId, floorId, points: localPoints, nodeType: 'waypoint', edgeType: 'walk' },
       })
-      if (!result?.success) return null
+      if (!result?.success) return { status: 'rejected', error: result?.error ?? 'The Route could not be created.' }
       const routeData = result.data
       const nodeIds = routeData && Array.isArray(routeData.nodeIds)
         ? routeData.nodeIds.filter((nodeId: unknown): nodeId is string => typeof nodeId === 'string')
@@ -543,7 +553,6 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
       if (pendingRouteAnchor) {
         if (!indoorRouteNodeId) {
-          onRouteStartRejected?.('The Route was created without a usable first node, so the Entrance connection was not saved.')
           if (routeData && typeof routeData.buildingId === 'string' && typeof routeData.floorId === 'string' && typeof routeData.hadNetwork === 'boolean') {
             dispatcher.execute({
               id: 'route.path.create',
@@ -557,7 +566,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               },
             })
           }
-          return null
+          return { status: 'rejected', error: 'The Route was created without a usable first node, so the Entrance connection was not saved.' }
         }
 
         const accessResult = dispatcher.execute({
@@ -573,7 +582,6 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           },
         })
         if (!accessResult?.success) {
-          onRouteStartRejected?.(accessResult?.error ?? 'The Route was created, but the Entrance connection could not be saved.')
           if (routeData && typeof routeData.buildingId === 'string' && typeof routeData.floorId === 'string' && typeof routeData.hadNetwork === 'boolean') {
             dispatcher.execute({
               id: 'route.path.create',
@@ -587,7 +595,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               },
             })
           }
-          return null
+          return { status: 'rejected', error: accessResult?.error ?? 'The Route was created, but the Entrance connection could not be saved.' }
         }
 
         anchorAccessRestore = {
@@ -607,7 +615,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       dispatch({ type: 'RESET' })
       clearPreview(map)
       onSelect?.(selectedId)
-      return anchorAccessRestore ? { ...(routeData ?? {}), anchorAccessRestore } : routeData
+      return { status: 'ok', data: anchorAccessRestore ? { ...(routeData ?? {}), anchorAccessRestore } : routeData }
     }
 
     if (currentTool === 'elevator') {
@@ -627,14 +635,16 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           drawing: { definitionId: 'elevator', properties: pc.properties },
         },
       })
-      if (!result?.success) return
+      if (!result?.success) return { status: 'rejected', error: result?.error ?? 'The Elevator could not be created.' }
       const selectedId = `${pc.id}-${floor}`
       dispatch({ type: 'RESET' })
       clearPreview(map)
       onSelect?.(selectedId)
-      return
+      return { status: 'ok' }
     }
-  }, [map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned])
+
+    return { status: 'skipped' }
+  }, [map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteAccessAssigned])
 
   const buildPendingLocalPoints = useCallback((): RoutePointInput[] => {
     const points: RoutePointInput[] = []
@@ -655,8 +665,13 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     if (!local) return
     const localPoints = buildPendingLocalPoints()
     localPoints.push({ x: local.x, y: local.y })
-    const routeData = commitRoutePoints(localPoints)
-    if (!routeData) return
+    const outcome = commitRoutePoints(localPoints)
+    if (outcome.status === 'rejected') {
+      onRouteStartRejected?.(outcome.error)
+      return
+    }
+    if (outcome.status !== 'ok' || !outcome.data) return
+    const routeData = outcome.data
     const nodeIds = Array.isArray(routeData.nodeIds) ? routeData.nodeIds as string[] : []
     const indoorRouteNodeId = nodeIds.at(-1)
     if (!indoorRouteNodeId) return
@@ -726,8 +741,9 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       if (local) localPoints.push(local)
     }
 
-    commitRoutePoints(localPoints)
-  }, [drawState.pendingPolygon, map, doc, transformer, buildingId, floor, commitRoutePoints])
+    const outcome = commitRoutePoints(localPoints)
+    if (outcome.status === 'rejected') onRouteStartRejected?.(outcome.error)
+  }, [drawState.pendingPolygon, map, doc, transformer, buildingId, floor, commitRoutePoints, onRouteStartRejected])
 
   const buildPromptLocalPoints = useCallback((): RoutePointInput[] | null => {
     if (!routeConnectionPrompt || !transformer) return null
@@ -747,10 +763,17 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
     if (!localPoints || !promptLocal) return
     localPoints.push({ x: promptLocal.x, y: promptLocal.y, junction: { edgeId: routeConnectionPrompt.edgeId, position: promptLocal } })
+    const outcome = commitRoutePoints(localPoints)
+    if (outcome.status === 'rejected') {
+      // Keep the prompt open: the junction target was refused (e.g. a Door
+      // connector) and the author must hear why instead of losing the choice.
+      onRouteStartRejected?.(outcome.error)
+      return
+    }
+    if (outcome.status !== 'ok') return
     routeStartedRef.current = false
     setRouteConnectionPrompt(null)
-    commitRoutePoints(localPoints)
-  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints])
+  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints, onRouteStartRejected])
 
   const declineRouteConnection = useCallback(() => {
     if (!routeConnectionPrompt || !transformer) return
@@ -758,10 +781,15 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
     if (!localPoints || !promptLocal) return
     localPoints.push({ x: promptLocal.x, y: promptLocal.y })
+    const outcome = commitRoutePoints(localPoints)
+    if (outcome.status === 'rejected') {
+      onRouteStartRejected?.(outcome.error)
+      return
+    }
+    if (outcome.status !== 'ok') return
     routeStartedRef.current = false
     setRouteConnectionPrompt(null)
-    commitRoutePoints(localPoints)
-  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints])
+  }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints, onRouteStartRejected])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = genId(type)
@@ -917,9 +945,13 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               }
               if (local) {
                 localPoints.push({ x: local.x, y: local.y, existingNodeId: target.id })
+                const outcome = commitRoutePoints(localPoints)
+                if (outcome.status === 'rejected') {
+                  onRouteStartRejected?.(outcome.error)
+                  break
+                }
                 routeStartedRef.current = false
                 setRouteConnectionPrompt(null)
-                commitRoutePoints(localPoints)
               }
               break
             }
