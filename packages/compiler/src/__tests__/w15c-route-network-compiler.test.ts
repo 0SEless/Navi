@@ -296,6 +296,7 @@ describe('extractRouteNetwork', () => {
     // Traversal proof: BFS from R-n-a must reach R-n-b and the door anchor via R-j-1.
     const adjacency = new Map<string, string[]>()
     for (const edge of contribution.edges!) {
+      if (!('from' in edge) || !('to' in edge)) continue
       adjacency.set(edge.from, [...(adjacency.get(edge.from) ?? []), edge.to])
       adjacency.set(edge.to, [...(adjacency.get(edge.to) ?? []), edge.from])
     }
