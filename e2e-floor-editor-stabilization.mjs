@@ -402,11 +402,20 @@ try {
 
   await clickTool(page, 'Route')
   await page.mouse.click(rightCenter.x + 60, rightCenter.y + 70) // free first vertex
-  const routeEdgesBefore = (await floorSnapshot(page, mapId)).floor?.routeNetwork?.edges?.length ?? 0
-  // The first edge is collinear with the door junction, so its rendered node
-  // circle overlaps the midpoint click; the door2 connector midpoint is clear
-  // of every route node.
-  const openEdges = await sourceFeatures(page, 'floor-route-edges')
+  const routeSnapshotBefore = await floorSnapshot(page, mapId)
+  const routeEdgesBefore = routeSnapshotBefore.floor?.routeNetwork?.edges?.length ?? 0
+  // Door connector stubs are Door-owned and rejected as junction targets, so
+  // filter them out of the pick. The remaining split half's midpoint is clear
+  // of every route node at the fixture's map scale (the first edge is
+  // collinear with the door junction, whose node circle covers its midpoint).
+  const connectorEdgeIds = new Set(
+    (routeSnapshotBefore.floor?.doors ?? [])
+      .map(door => door.routeConnection?.connectorEdgeId)
+      .filter(Boolean)
+      .map(String)
+  )
+  const openEdges = (await sourceFeatures(page, 'floor-route-edges'))
+    .filter(feature => !connectorEdgeIds.has(String(feature.properties?.id ?? '')))
   const openEdge = openEdges[openEdges.length - 1]
   const openEdgeId = String(openEdge?.properties?.id ?? '')
   const openEdgeCenter = await featureCenter(page, 'floor-route-edges', openEdgeId)
