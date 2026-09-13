@@ -44,7 +44,7 @@ function makeDoc() {
           ],
           edges: [{ id: 'e1', from: 'n1', to: 'n2', type: 'walk', distance: 10 }],
         },
-        entrances: [],
+        entrances: [{ id: 'entrance-1', position: { lat: 11.8195, lng: 122.0910 }, level: 0 }],
       }],
     }],
   }
@@ -83,7 +83,23 @@ function renderRouteTool(probe: ReturnType<typeof createProbe>) {
 beforeEach(() => {
   mockDocument = makeDoc()
   mockExecute.mockReset()
-  mockExecute.mockReturnValue({ success: true, entityId: 'route-node-new' })
+  mockExecute.mockImplementation((command: { id?: string } | undefined) => {
+    if (command?.id === 'route.path.create') {
+      return {
+        success: true,
+        entityId: 'route-node-new',
+        data: {
+          nodeIds: ['route-node-new'],
+          edgeIds: [],
+          buildingId: 'BLD01',
+          floorId: 'flr-0',
+          hadNetwork: true,
+          previousNetwork: undefined,
+        },
+      }
+    }
+    return { success: true, entityId: 'route-node-new' }
+  })
 })
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
@@ -185,5 +201,56 @@ describe('Route target finish', () => {
       .filter(([command]) => (command as { id?: string } | undefined)?.id === 'route.path.create')
       .length
     expect(routeCreatesAfterAccept).toBe(routeCreatesAfterCommit)
+  })
+
+  it('finishes at an Entrance with an existing outdoor target and assigns access', async () => {
+    mockDocument.buildings[0].floors[0].entranceAccess = [{
+      entranceId: 'entrance-1',
+      outdoorNodeId: 'outdoor-1',
+      indoorRouteNodeId: 'old-node',
+    }]
+    const onEntranceAccessRequired = vi.fn()
+    const probe = createProbe()
+    renderHook(() => useFloorDrawing({
+      map: probe.map, buildingId: 'BLD01', campusId: 'C1', floor: 0, tool: 'hallway', mapReady: true,
+      onEntranceAccessRequired,
+    }))
+
+    act(() => { probe.click(11.8190, 122.0915) })
+    probe.setHits([{
+      layer: { id: 'floor-items-entrance' },
+      properties: { id: 'entrance-1' },
+      geometry: { type: 'Point', coordinates: [122.0910, 11.8195] },
+    }])
+    act(() => { probe.click(11.8195, 122.0910) })
+
+    await waitFor(() => expect(mockExecute).toHaveBeenCalledWith(expect.objectContaining({ id: 'entrance.access.assign' })))
+    expect(onEntranceAccessRequired).not.toHaveBeenCalled()
+    const assign = mockExecute.mock.calls.find(call => call[0].id === 'entrance.access.assign')![0]
+    expect(assign.payload).toMatchObject({ entranceId: 'entrance-1', outdoorNodeId: 'outdoor-1' })
+  })
+
+  it('hands off to the outdoor picker when the Entrance has no outdoor target', async () => {
+    const onEntranceAccessRequired = vi.fn()
+    const probe = createProbe()
+    renderHook(() => useFloorDrawing({
+      map: probe.map, buildingId: 'BLD01', campusId: 'C1', floor: 0, tool: 'hallway', mapReady: true,
+      onEntranceAccessRequired,
+    }))
+
+    act(() => { probe.click(11.8190, 122.0915) })
+    probe.setHits([{
+      layer: { id: 'floor-items-entrance' },
+      properties: { id: 'entrance-1' },
+      geometry: { type: 'Point', coordinates: [122.0910, 11.8195] },
+    }])
+    act(() => { probe.click(11.8195, 122.0910) })
+
+    await waitFor(() => expect(onEntranceAccessRequired).toHaveBeenCalled())
+    expect(mockExecute.mock.calls.some(call => call[0].id === 'entrance.access.assign')).toBe(false)
+    const request = onEntranceAccessRequired.mock.calls.at(-1)![0]
+    expect(request).toMatchObject({ entranceId: 'entrance-1', buildingId: 'BLD01', floorId: 'flr-0' })
+    expect(request.indoorRouteNodeId).toBeTruthy()
+    expect(request.restore).toMatchObject({ buildingId: 'BLD01', floorId: 'flr-0', hadNetwork: true })
   })
 })

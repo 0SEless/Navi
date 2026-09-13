@@ -10,6 +10,7 @@ import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
 import { OutdoorRoutePicker } from './OutdoorRoutePicker'
 import type { OutdoorRouteCandidate } from './outdoor-route-picker-model'
+import type { EntranceAccessRequiredRequest } from './useFloorDrawing'
 import type { DoorRouteConnectTarget } from './route-target-authoring'
 import { InteractionProvider, useInteraction } from './InteractionContext'
 import { StatusBar } from './StatusBar'
@@ -145,6 +146,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     candidate: OutdoorRouteCandidate
   } | null>(null)
   const [routeAuthoringMessage, setRouteAuthoringMessage] = useState<string | null>(null)
+  const [pendingFinishAccess, setPendingFinishAccess] = useState<EntranceAccessRequiredRequest | null>(null)
   const [doorRoutePick, setDoorRoutePick] = useState<{ doorId: string } | null>(null)
   const handleStartRouteConnect = useCallback((doorId: string) => {
     setDoorRoutePick({ doorId })
@@ -188,6 +190,41 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setPendingEntranceRoute(null)
     setRouteAuthoringMessage(null)
   }, [])
+  const handleEntranceAccessRequired = useCallback((request: EntranceAccessRequiredRequest) => {
+    setPendingFinishAccess(request)
+    setOutdoorPickerEntranceId(request.entranceId)
+  }, [])
+  const handleFinishAccessConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
+    if (!pendingFinishAccess || !currentFloorId) return
+    const dispatcher = services.get('dispatcher')
+    const result = dispatcher?.execute({
+      id: 'entrance.access.assign',
+      label: 'Assign Entrance Route Access',
+      payload: {
+        buildingId: pendingFinishAccess.buildingId,
+        floorId: pendingFinishAccess.floorId,
+        entranceId: pendingFinishAccess.entranceId,
+        outdoorNodeId: candidate.id,
+        indoorRouteNodeId: pendingFinishAccess.indoorRouteNodeId,
+        ...(candidate.routeId ? { outdoorRouteId: candidate.routeId, outdoorPosition: candidate.position } : {}),
+      },
+    })
+    if (!result?.success) {
+      dispatcher?.execute({ id: 'route.path.create', label: 'Restore Route after failed Entrance connection', payload: { restore: true, ...pendingFinishAccess.restore } })
+      setRouteAuthoringMessage(result?.error ?? 'The Route was restored because the Entrance connection could not be saved.')
+    } else {
+      setRouteAuthoringMessage(null)
+    }
+    setOutdoorPickerEntranceId(null)
+    setPendingFinishAccess(null)
+  }, [pendingFinishAccess, services, currentFloorId])
+  const handleFinishAccessCancel = useCallback(() => {
+    if (pendingFinishAccess) {
+      services.get('dispatcher')?.execute({ id: 'route.path.create', label: 'Restore Route after cancelled Entrance connection', payload: { restore: true, ...pendingFinishAccess.restore } })
+    }
+    setOutdoorPickerEntranceId(null)
+    setPendingFinishAccess(null)
+  }, [pendingFinishAccess, services])
   const validationChecks = useMemo(
     () => runValidationChecks(building, floorAdapter.activeFloorIndex, floorComponents, undefined, editorDoc.roads, editorDoc),
     [building, floorAdapter.activeFloorIndex, floorComponents, editorDoc],
@@ -491,7 +528,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
           {selectedEntranceForPicker && (
             <OutdoorRoutePicker
               open
@@ -502,8 +539,8 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
               campusBuildings={graphBuildings}
               campusRoads={editorDoc.roads}
               campusAreas={graphAreas}
-              onCancel={handleOutdoorRouteCancel}
-              onConfirm={handleOutdoorRouteConfirm}
+              onCancel={pendingFinishAccess ? handleFinishAccessCancel : handleOutdoorRouteCancel}
+              onConfirm={pendingFinishAccess ? handleFinishAccessConfirm : handleOutdoorRouteConfirm}
             />
           )}
           <StatusBar />

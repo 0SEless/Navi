@@ -11,6 +11,7 @@ import type { CoordinateTransformer, LocalCoord, PlanAlignment, Wall } from '@na
 import { resizeRectangleFootprint, rotateRectangleFootprint } from '@navi/core'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { DEFAULT_SNAP_MODE, SNAP_CONFIGS, useFloorDrawing } from './useFloorDrawing'
+import type { EntranceAccessRequiredRequest } from './useFloorDrawing'
 import { extractHallwayData } from '@/types/hallway-types'
 import { computeHallwayPolygon } from '@/types/hallway-types'
 import { FloorPlanAlignment } from './FloorPlanAlignment'
@@ -401,6 +402,7 @@ interface FloorEditorCanvasProps {
   pendingRouteAnchor?: EntranceRouteAnchor
   onRouteStartRejected?: (reason: string) => void
   onRouteAccessAssigned?: (access: { entranceId: string; outdoorNodeId: string; indoorRouteNodeId: string }) => void
+  onEntranceAccessRequired?: (request: EntranceAccessRequiredRequest) => void
   routeConnectPick?: { doorId: string } | null
   onRouteConnectResolved?: (target: DoorRouteConnectTarget) => void
   onRouteConnectCancel?: () => void
@@ -519,7 +521,7 @@ function setSourceData(map: maplibregl.Map, sourceId: string, features: GeoJSON.
   if (source) source.setData({ type: 'FeatureCollection', features })
 }
 
-export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
@@ -636,7 +638,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
   }, [])
 
   // Wire drawing interactions (state-driven so hook sees map after init)
-  const { drawMode, pendingPolygon, rectangleMessage, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned })
+  const { drawMode, pendingPolygon, rectangleMessage, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired })
 
   // ---- New Architecture: Linear Geometry Editing for Hallways ----
 

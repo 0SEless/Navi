@@ -9,7 +9,7 @@ import type { StudioTool } from '@/types/studio-types'
 import { computeHallwayPolygon } from '@/types/hallway-types'
 import { StairDefinition, ElevatorDefinition } from '@/types/parametric-types'
 import { drawReducer } from './draw-reducer'
-import { routeStartError, snapRouteStartToEntrance } from './entrance-route-authoring'
+import { resolveEntranceFinishAccess, routeStartError, snapRouteStartToEntrance } from './entrance-route-authoring'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
 import { isPolygonAuthoringTool } from './semantic-room-interaction'
 import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
@@ -342,6 +342,14 @@ function openingWindowFeature(
 
 type RoutePointInput = { x: number; y: number; existingNodeId?: string; junction?: { edgeId: string; position: { x: number; y: number } } }
 
+export interface EntranceAccessRequiredRequest {
+  entranceId: string
+  buildingId: string
+  floorId: string
+  indoorRouteNodeId: string
+  restore: { buildingId: string; floorId: string; hadNetwork: boolean; previousNetwork?: unknown }
+}
+
 interface UseFloorDrawingOptions {
   map: maplibregl.Map | null
   mapReady?: boolean
@@ -356,9 +364,10 @@ interface UseFloorDrawingOptions {
   pendingRouteAnchor?: EntranceRouteAnchor
   onRouteStartRejected?: (reason: string) => void
   onRouteAccessAssigned?: (access: { entranceId: string; outdoorNodeId: string; indoorRouteNodeId: string }) => void
+  onEntranceAccessRequired?: (request: EntranceAccessRequiredRequest) => void
 }
 
-export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, tool, onSelect, editEngine, snapMode: externalSnapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned }: UseFloorDrawingOptions) {
+export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, tool, onSelect, editEngine, snapMode: externalSnapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired }: UseFloorDrawingOptions) {
   const editor = useEditor()
   const doc = editor.document
   const transformer = editor.transformer
@@ -516,7 +525,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         id: 'route.path.create', label: 'Create Route',
         payload: { buildingId, floorId, points: localPoints, nodeType: 'waypoint', edgeType: 'walk' },
       })
-      if (!result?.success) return
+      if (!result?.success) return null
       const routeData = result.data
       const nodeIds = routeData && Array.isArray(routeData.nodeIds)
         ? routeData.nodeIds.filter((nodeId: unknown): nodeId is string => typeof nodeId === 'string')
@@ -539,7 +548,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               },
             })
           }
-          return
+          return null
         }
 
         const accessResult = dispatcher.execute({
@@ -569,7 +578,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               },
             })
           }
-          return
+          return null
         }
 
         onRouteAccessAssigned?.({
@@ -585,7 +594,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       dispatch({ type: 'RESET' })
       clearPreview(map)
       onSelect?.(selectedId)
-      return
+      return routeData
     }
 
     if (currentTool === 'elevator') {
@@ -613,6 +622,63 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       return
     }
   }, [map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned])
+
+  const buildPendingLocalPoints = useCallback((): RoutePointInput[] => {
+    const points: RoutePointInput[] = []
+    if (!transformer) return points
+    for (const p of drawState.pendingPolygon) {
+      const local = transformer.worldToBuildingLocal(p, buildingId)
+      if (local) points.push(local)
+    }
+    return points
+  }, [drawState.pendingPolygon, transformer, buildingId])
+
+  const finishRouteAtEntrance = useCallback((entranceId: string, position: LatLng) => {
+    if (!transformer) return
+    const bld = findBuilding(doc, buildingId)
+    const fl = bld?.floors?.find((candidate) => candidate.level === floor)
+    if (!fl?.id) return
+    const local = transformer.worldToBuildingLocal(position, buildingId)
+    if (!local) return
+    const localPoints = buildPendingLocalPoints()
+    localPoints.push({ x: local.x, y: local.y })
+    const routeData = commitRoutePoints(localPoints)
+    if (!routeData) return
+    const nodeIds = Array.isArray(routeData.nodeIds) ? routeData.nodeIds as string[] : []
+    const indoorRouteNodeId = nodeIds.at(-1)
+    if (!indoorRouteNodeId) return
+
+    const access = resolveEntranceFinishAccess(fl, entranceId)
+    if (access.kind === 'required') {
+      onEntranceAccessRequired?.({
+        entranceId, buildingId, floorId: fl.id, indoorRouteNodeId,
+        restore: { buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork },
+      })
+      return
+    }
+
+    const result = dispatcher.execute({
+      id: 'entrance.access.assign',
+      label: 'Connect Entrance to Route',
+      payload: {
+        buildingId, floorId: fl.id, entranceId, indoorRouteNodeId,
+        outdoorNodeId: access.outdoorNodeId,
+        ...(access.outdoorRouteId !== undefined && access.outdoorPosition !== undefined
+          ? { outdoorRouteId: access.outdoorRouteId, outdoorPosition: access.outdoorPosition }
+          : {}),
+      },
+    })
+    if (!result?.success) {
+      dispatcher.execute({
+        id: 'route.path.create',
+        label: 'Restore Route after failed Entrance connection',
+        payload: { restore: true, buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork },
+      })
+      onRouteStartRejected?.(result?.error ?? 'The Route was restored because the Entrance connection could not be saved.')
+      return
+    }
+    onRouteAccessAssigned?.({ entranceId, outdoorNodeId: access.outdoorNodeId, indoorRouteNodeId })
+  }, [transformer, doc, buildingId, floor, buildPendingLocalPoints, commitRoutePoints, dispatcher, onEntranceAccessRequired, onRouteStartRejected, onRouteAccessAssigned])
 
   const confirmPolygon = useCallback(() => {
     const currentTool = toolRef.current
@@ -833,6 +899,12 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
               setRouteConnectionPrompt({ edgeId: target.id, position: target.position })
               break
             }
+            if (target.kind === 'entrance') {
+              routeStartedRef.current = false
+              setRouteConnectionPrompt(null)
+              finishRouteAtEntrance(target.id, target.position)
+              break
+            }
           }
         }
         routeStartedRef.current = true
@@ -1036,7 +1108,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         break
       }
     }
-  }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected, commitRoutePoints])
+  }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected, commitRoutePoints, finishRouteAtEntrance])
 
   // Door, Stair, and Elevator share the same click-drag-release rectangle gesture.
   useEffect(() => {

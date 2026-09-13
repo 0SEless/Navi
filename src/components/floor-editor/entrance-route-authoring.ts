@@ -39,3 +39,24 @@ export function routeStartError({ hasExistingRoute, hasEntranceAnchor }: { hasEx
   if (hasExistingRoute || hasEntranceAnchor) return null
   return 'Select an Entrance, connect it to an outdoor route point, then start the first Route there.'
 }
+
+export interface EntranceFinishAccess {
+  kind: 'existing'
+  outdoorNodeId: string
+  outdoorRouteId?: string
+  outdoorPosition?: { lat: number; lng: number }
+}
+
+export function resolveEntranceFinishAccess(
+  floor: { entranceAccess?: Array<{ entranceId: string; outdoorNodeId: string; outdoorRouteId?: string; outdoorPosition?: { lat: number; lng: number } }> },
+  entranceId: string,
+): EntranceFinishAccess | { kind: 'required' } {
+  const record = floor.entranceAccess?.find(access => access.entranceId === entranceId)
+  if (!record) return { kind: 'required' }
+  return {
+    kind: 'existing',
+    outdoorNodeId: record.outdoorNodeId,
+    ...(record.outdoorRouteId !== undefined ? { outdoorRouteId: record.outdoorRouteId } : {}),
+    ...(record.outdoorPosition !== undefined ? { outdoorPosition: record.outdoorPosition } : {}),
+  }
+}
