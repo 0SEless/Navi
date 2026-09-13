@@ -150,6 +150,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const [doorRoutePick, setDoorRoutePick] = useState<{ doorId: string } | null>(null)
   const handleStartRouteConnect = useCallback((doorId: string) => {
     setDoorRoutePick({ doorId })
+    setLayers((prev) => ({ ...prev, nodes: true, edges: true }))
     setRouteAuthoringMessage('Click a route node to reuse it, or a route line to create a junction for this door.')
   }, [])
   const handleRouteConnectResolved = useCallback((target: DoorRouteConnectTarget) => {
@@ -572,10 +573,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           )}
           <StatusBar />
           {routeAuthoringMessage && (
-            <div role="status" style={{ position: 'absolute', bottom: 42, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 'min(520px, 80%)', padding: '7px 10px', borderRadius: 6, background: '#1E293B', border: '1px solid #334155', color: '#E2E8F0', fontSize: 11, lineHeight: 1.35, zIndex: 50, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+            <div role="status" style={{ position: 'absolute', bottom: 42, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 'min(520px, 80%)', padding: '7px 10px', borderRadius: 6, background: '#1E293B', border: '1px solid #334155', color: '#E2E8F0', fontSize: 11, lineHeight: 1.35, zIndex: 50, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', pointerEvents: 'none' }}>
               <span style={{ color: '#67E8F9' }}>Route</span>
               <span style={{ flex: 1 }}>{routeAuthoringMessage}</span>
-              <button type="button" aria-label="Dismiss route message" onClick={() => setRouteAuthoringMessage(null)} style={{ border: 'none', background: 'transparent', color: '#94A3B8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+              <button type="button" aria-label="Dismiss route message" onClick={() => setRouteAuthoringMessage(null)} style={{ border: 'none', background: 'transparent', color: '#94A3B8', cursor: 'pointer', fontSize: 14, lineHeight: 1, pointerEvents: 'auto' }}>×</button>
             </div>
           )}
           {!hasPlan && !uploadCardDismissed && (

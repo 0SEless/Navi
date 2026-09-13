@@ -293,12 +293,18 @@ try {
   await nameInput.fill('Browser Main Door')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await sleep(page, 350)
-  // Route layers are hidden by default in Architecture; the pick mode resolves
-  // rendered features, so reveal the persisted graph through the Layers panel.
+  // Route layers default to hidden in Architecture; starting the pick must
+  // reveal them itself (no manual Graph toggle), otherwise MapLibre's
+  // queryRenderedFeatures cannot resolve the node/edge click.
   await page.getByRole('button', { name: 'Navigation Preview', exact: true }).click()
-  await page.getByRole('button', { name: 'Graph', exact: true }).click()
-  await sleep(page, 700)
   await page.getByRole('button', { name: 'Connect to Route…', exact: true }).click()
+  const routeLayersAutoRevealed = await page.waitForFunction(() => {
+    const map = window.__floorStabilizationMap
+    return Boolean(map?.getLayer('floor-route-nodes-circle') && map.getLayer('floor-route-edges-line'))
+      && map.getLayoutProperty('floor-route-nodes-circle', 'visibility') === 'visible'
+      && map.getLayoutProperty('floor-route-edges-line', 'visibility') === 'visible'
+  }, null, { timeout: 5000 }).then(() => true, () => false)
+  check('door pick auto-reveals the hidden route layers', routeLayersAutoRevealed)
   const routeNodeCenter = await featureCenter(page, 'floor-route-nodes', 'route-fixture-1')
   await page.mouse.click(routeNodeCenter.x, routeNodeCenter.y)
   await sleep(page, 7000)
@@ -321,10 +327,10 @@ try {
   const edgeCenter = await featureCenter(page, 'floor-route-edges', 'route-fixture-edge-1')
   await page.mouse.click(edgeCenter.x, edgeCenter.y)
   await page.waitForSelector('[data-testid="door-route-connect-prompt"]', { timeout: 5000 })
-  // The route authoring message toast (z-index 50) overlaps the junction
-  // prompt; dismiss it the way the UI offers before confirming.
-  await page.getByRole('button', { name: 'Dismiss route message' }).click()
-  await sleep(page, 200)
+  // The route authoring toast must stay visible and its pointer-events must let
+  // this Yes click through, with no Dismiss workaround.
+  const toastStillVisible = await page.getByRole('button', { name: 'Dismiss route message' }).isVisible()
+  check('junction prompt is confirmed with the route toast still visible', toastStillVisible)
   const beforeJunction = await floorSnapshot(page, mapId)
   await page.getByRole('button', { name: 'Yes', exact: true }).click()
   await sleep(page, 7000)
