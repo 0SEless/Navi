@@ -368,6 +368,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
   const routeStartedRef = useRef(false)
+  const seededRouteAnchorRef = useRef<EntranceRouteAnchor | null>(null)
   const lastClickPositionRef = useRef<{ lat: number; lng: number } | null>(null)
 
   // Snap mode state for wall drawing
@@ -422,6 +423,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   useEffect(() => {
     dispatch({ type: 'RESET' })
     routeStartedRef.current = false
+    seededRouteAnchorRef.current = null
     setWallDraw({ start: null, startLocal: null })
     setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
     updateRectangleDraw(null)
@@ -447,6 +449,8 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   // preserving the existing Route creation and access-assignment transaction.
   useEffect(() => {
     if (tool !== 'hallway' || !pendingRouteAnchor || drawState.pendingPolygon.length > 0) return
+    if (seededRouteAnchorRef.current === pendingRouteAnchor) return
+    seededRouteAnchorRef.current = pendingRouteAnchor
     dispatch({ type: 'ADD_POLYGON_POINT', point: { ...pendingRouteAnchor.position } })
     routeStartedRef.current = true
   }, [drawState.pendingPolygon.length, pendingRouteAnchor, tool])
@@ -1076,5 +1080,5 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })
   }, [])
 
-  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, rectangleMessage, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); updateRectangleDraw(null); setRectangleMessage(rectangleReadyMessage(toolRef.current)); if (map) { map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, rectangleMessage, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); updateRectangleDraw(null); setRectangleMessage(rectangleReadyMessage(toolRef.current)); if (map) { if (toolRef.current !== 'hallway') map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
 }

@@ -121,4 +121,19 @@ describe('Route multi-click reliability', () => {
     rerender({ tool: 'select' })
     await waitFor(() => expect(probe.dragPan.enable).toHaveBeenCalled())
   })
+
+  it('keeps map drag-pan disabled when an active Route drawing is cancelled', async () => {
+    const { probe, view } = renderDrawing()
+
+    await waitFor(() => expect(probe.dragPan.disable).toHaveBeenCalled())
+    await waitFor(() => expect(probe.previewFeatures()).toHaveLength(2))
+
+    act(() => { probe.click(11.8195, 122.0922, 1) })
+    await waitFor(() => expect(probe.previewFeatures()).toHaveLength(3))
+
+    act(() => { view.result.current.cancel() })
+
+    expect(probe.dragPan.enable).not.toHaveBeenCalled()
+    expect(view.result.current.drawMode).toBe('idle')
+  })
 })
