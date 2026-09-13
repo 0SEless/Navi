@@ -1,3 +1,5 @@
+import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing } from '@navi/core'
+
 export interface LatLng {
   lat: number;
   lng: number;
@@ -12,7 +14,7 @@ export interface NavNode {
   floor: number;
   buildingId: string;
   campusId: string;
-  type: 'room' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker' | 'corner' | 'staircase' | 'intersection' | 'building_entrance' | 'outdoor' | 'hallway' | 'connector_stop';
+  type: 'room' | 'room_door' | 'walkway' | 'stair' | 'elevator' | 'entrance' | 'qr_marker' | 'corner' | 'staircase' | 'intersection' | 'building_entrance' | 'outdoor' | 'hallway' | 'connector_stop';
   componentId?: string;
   metadata?: Record<string, unknown>;
   svgOffset?: { x: number; y: number };
@@ -28,6 +30,8 @@ export interface NavEdge {
   weight?: number;
   type: 'walkway' | 'stair' | 'elevator' | 'hallway' | 'outdoor' | 'corridor' | 'stairs' | 'transition' | 'walk' | 'wall' | 'door';
   campusId?: string;
+  /** Canonical compiler provenance used by standard terrain-aware routing. */
+  routing?: RoadEdgeRouting;
 }
 
 export interface BuildingEntrance {
@@ -46,6 +50,7 @@ export interface Building {
   footprint: LatLng[];
   baseElevation: number;
   height: number;
+  rotation?: number;
   color?: string;
   center?: LatLng;
   code?: string;
@@ -53,13 +58,17 @@ export interface Building {
   outline?: LatLng[];
   floorPlanUrl?: string;
   floorPlanUrls?: Record<number, string>;
+  floorPlanVisuals?: Record<number, { imageUrl: string; alignment?: PlanAlignment }>;
   entrances?: BuildingEntrance[];
   department?: string;
   category?: string;
   aliases?: string[];
   metadata?: Record<string, unknown>;
+  staircases?: any[];
+  elevators?: any[];
   floorData?: Record<string, unknown>[];
 }
+
 
 export interface FloorInfo {
   level: number;
@@ -86,6 +95,13 @@ export interface MapComponent {
   connections?: string[];
 }
 
+export interface Area {
+  id: string;
+  name: string;
+  points: LatLng[];
+  color: string;
+}
+
 export interface GraphSnapshot {
   id: string;
   campusId: string;
@@ -96,31 +112,51 @@ export interface GraphSnapshot {
   nodes: NavNode[];
   edges: NavEdge[];
   traces?: TracePath[];
+  areas?: Area[];
+  /** Outdoor/campus POIs (world geometry). Indoor POIs remain inside building floorData. */
+  pois?: OutdoorPointOfInterest[];
   boundary?: { points: LatLng[] };
+  doors?: DoorData[];
+  separatedCrossings?: SeparatedCrossing[];
+  /** Connectivity semantics contract version. Present for modern canonical documents. */
+  connectivitySemanticsVersion?: string;
 }
 
 export interface PathResult {
   path: string[];
   cost: number;
+  /** Generalized traversal cost used by canonical routing; separate from cost (meters). */
+  generalizedCost?: number;
   steps: PathStep[];
 }
 
 export interface SearchEntry {
   id: string;
   label: string;
-  type: 'building' | 'room' | 'entrance' | 'facility';
-  nodeId: string;
+  type: 'building' | 'room' | 'entrance' | 'facility' | 'poi';
+  nodeId?: string;
   position?: LatLng;
   tags?: string[];
   buildingId?: string;
   floor?: number;
+  category?: string;
+  floorId?: string;
+  source?: 'authored' | 'graph-derived';
+  sourceId?: string;
 }
 
 export interface CampusBundle {
+  /** Explicit human-readable display name from the active public contract. */
+  campusName?: string;
   nodes: NavNode[];
   edges: NavEdge[];
   searchEntries: SearchEntry[];
   buildings: Building[];
+  /** Indoor components (rooms, hallways, staircases, elevators, entrances).
+   *  Sourced from the editor's GraphSnapshot via the published artifacts. */
+  components?: Component[];
+  /** Indoor doors — authored via Room.roomDoors, serialized for the rendering pipeline. */
+  doors?: DoorData[];
   poi: unknown[];
   boundingBox: {
     minLat: number;
@@ -128,10 +164,18 @@ export interface CampusBundle {
     minLng: number;
     maxLng: number;
   } | null;
+  /** Floor geometry artifact — contains building anchors, floor polygons, rooms, doors, etc. */
+  floorGeometry?: FloorGeometryArtifact;
+  /** Panorama index — contains panorama data for 360 tours */
+  panoramaIndex?: PanoramaIndex;
+  /** Opaque QR checkpoint index from the published artifact bundle. */
+  qrIndex?: QrIndex;
 }
 
 export interface PathStep {
   nodeId: string;
+  /** Exact incoming edge selected by canonical routing. */
+  edgeId?: string;
   instruction: string;
   distance: number;
 }
@@ -170,11 +214,36 @@ export type EdgeType =
 
 export type ComponentType =
   | 'room'
+  | 'door'
   | 'stair'
   | 'elevator'
   | 'hallway'
   | 'entrance'
-  | 'restroom';
+  | 'restroom'
+  /** Editor-only projections of Floor.routeNetwork entities. */
+  | 'route-node'
+  | 'route-edge';
+
+/** Runtime door data — authored via Floor.doors (P1-T6) in the editor,
+ *  serialized to CampusBundle for the rendering pipeline. */
+export interface DoorData {
+  id: string;
+  /** Absent while a spatial Door is not yet assigned to one unambiguous Room. */
+  roomId?: string;
+  buildingId: string;
+  floor: number;
+  /** Door center in world coordinates (LatLng). */
+  position: LatLng;
+  /** Door width in meters (default 1.0). */
+  width: number;
+  /** Door leaf angle in degrees (0 = E–W line). */
+  angle?: number;
+  /** ID of the room or hallway this door connects to (the "other side").
+   *  Optional (P1-T6): unlinked/exterior doors may have no target. */
+  connectedToId?: string;
+  /** Whether the door is on the building exterior. */
+  isExterior?: boolean;
+}
 
 export interface Component {
   id: string;
@@ -204,10 +273,14 @@ export interface TracePath {
   floor: number;
   points: LatLng[];
   type: 'arterial' | 'connector';
+  /** Optional for legacy snapshots; missing is equivalent to `visible`. */
+  displayMode?: RoadDisplayMode;
   color?: string;
   width?: number;
   connectorToBuildingId?: string;
   connectorToEntranceId?: string;
+  /** Optional normalized authored Road routing metadata; absent for legacy traces. */
+  routing?: RoadRouting;
   metadata?: Record<string, unknown>;
 }
 

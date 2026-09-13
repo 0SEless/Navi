@@ -67,9 +67,10 @@ vi.mock('@/hooks/floor-graph-selectors', () => ({
 }))
 
 vi.mock('@navi/editor', async () => {
-  const actual = await vi.importActual('@navi/editor')
+  const actual = await vi.importActual<typeof import('@navi/editor')>('@navi/editor')
   return {
     ...actual,
+    ICONS: actual.ICONS ?? {},
     useSelection: () => ({ lastSelected: null, select: vi.fn(), clear: vi.fn(), toggle: vi.fn(), isSelected: () => false, setMode: vi.fn(), setHover: vi.fn(), clearHover: vi.fn() }),
     useEditor: () => ({
       document: { schemaVersion: 1, metadata: {} as any, buildings: [], roads: [], panoramas: [], qrCheckpoints: [] },

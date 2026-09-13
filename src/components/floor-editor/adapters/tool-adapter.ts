@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import type { CurrentToolStore } from '@navi/editor'
 import type { StudioTool } from '@/types/studio-types'
 
-const FLOOR_TOOL_IDS = new Set<string>(['select', 'room', 'entrance', 'stairs', 'elevator', 'hallway'])
+const FLOOR_TOOL_IDS = new Set<string>(['select', 'space', 'entrance', 'stairs', 'staircase', 'elevator', 'poi', 'hallway', 'wall', 'door'])
 
 function toStudioTool(id: string | null): StudioTool {
   if (id && FLOOR_TOOL_IDS.has(id)) return id as StudioTool

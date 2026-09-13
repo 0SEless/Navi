@@ -2,20 +2,96 @@
 
 import { useCallback, useRef, useEffect, useReducer, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useEditor, findBuilding, genId } from '@navi/editor'
+import { useEditor, findBuilding, genId, snapPoint } from '@navi/editor'
+import type { SnapPoint2D, SnapConfig } from '@navi/editor'
 import type { LatLng, ComponentType } from '@/types/nav-types'
 import type { StudioTool } from '@/types/studio-types'
 import { computeHallwayPolygon } from '@/types/hallway-types'
 import { StairDefinition, ElevatorDefinition } from '@/types/parametric-types'
 import { drawReducer } from './draw-reducer'
+import { routeStartError, snapRouteStartToEntrance } from './entrance-route-authoring'
+import type { EntranceRouteAnchor } from './entrance-route-authoring'
+import { isPolygonAuthoringTool } from './semantic-room-interaction'
+import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
+import { buildFloorRectangleCommand } from './floor-rectangle-authoring'
+import type { FloorRectangleTool } from './floor-rectangle-authoring'
+
+/** Wall drawing state — simple two-click line with snapping */
+interface WallDrawState {
+  start: LatLng | null
+  /** Snapped building-local coordinate of the start point (for snap continuity) */
+  startLocal: SnapPoint2D | null
+}
+
+/** Door/window drawing state — two-click placement on wall */
+interface DoorDrawState {
+  start: LatLng | null
+  startLocal: SnapPoint2D | null
+  wallId: string | null
+  startOffset: number | null
+}
+
+/** Snap modes for wall drawing */
+export type SnapMode = 'architectural' | 'trace' | 'free'
+
+/** Snap configurations for each mode */
+export const SNAP_CONFIGS: Record<SnapMode, SnapConfig> = {
+  architectural: {
+    gridSize: 1,
+    endpointSnap: 0.5,
+    gridSnap: 0.2,
+    orthogonalSnap: true,
+    angle45Snap: true,
+  },
+  trace: {
+    gridSize: 1,
+    endpointSnap: 0.5,
+    gridSnap: 0,
+    orthogonalSnap: false,
+    angle45Snap: false,
+  },
+  free: {
+    gridSize: 1,
+    endpointSnap: 0,
+    gridSnap: 0,
+    orthogonalSnap: false,
+    angle45Snap: false,
+  },
+}
+
+export const DEFAULT_SNAP_MODE: SnapMode = 'trace'
 
 const DRAW_SRC = 'floor-draw-preview'
 
-function addDrawLayers(map: maplibregl.Map) {
-  if (map.getSource(DRAW_SRC)) return
+function isDrawingMapReady(map: maplibregl.Map | null | undefined, parentReady?: boolean): boolean {
+  if (!map || parentReady === false) return false
+  // MapLibre exposes isStyleLoaded(). The parent Canvas readiness flag is
+  // necessary for the shared lifecycle, but it must not override a style that
+  // is still loading (or a map instance that has already been removed).
+  if (typeof map.isStyleLoaded === 'function') {
+    try { return Boolean(map.isStyleLoaded()) }
+    catch { return false }
+  }
+  // Keep the drawing hook compatible with lightweight map doubles that do not
+  // expose isStyleLoaded().
+  return parentReady !== undefined ? parentReady : true
+}
+
+function addDrawLayers(map: maplibregl.Map | null | undefined, parentReady?: boolean): boolean {
+  if (!map || !isDrawingMapReady(map, parentReady)) return false
+  try {
+    if (map.getSource(DRAW_SRC)) return true
+  } catch {
+    // A MapLibre instance can be removed between the readiness check and this
+    // effect. Wait for the next lifecycle transition instead of crashing the
+    // Floor Editor error boundary.
+    return false
+  }
   map.addSource(DRAW_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   // preview line (trace)
   map.addLayer({ id: 'floor-draw-line', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'line'], paint: { 'line-color': '#F59E0B', 'line-width': 3, 'line-opacity': 0.7, 'line-dasharray': [4, 3] } })
+  // wall preview line (thicker, distinct color)
+  map.addLayer({ id: 'floor-draw-wall-line', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'wall'], paint: { 'line-color': '#EF4444', 'line-width': 4, 'line-opacity': 0.8 } })
   // preview polygon fill + outline (room)
   map.addLayer({ id: 'floor-draw-polygon-fill', type: 'fill', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'fill-color': '#10B981', 'fill-opacity': 0.15 } })
   map.addLayer({ id: 'floor-draw-polygon-outline', type: 'line', source: DRAW_SRC, filter: ['==', ['get', 'type'], 'polygon'], paint: { 'line-color': '#10B981', 'line-width': 2, 'line-dasharray': [4, 3] } })
@@ -33,14 +109,40 @@ function addDrawLayers(map: maplibregl.Map) {
     layout: { 'text-field': ['get', 'label'], 'text-size': 10, 'text-offset': [0, -1.5], 'text-anchor': 'bottom' },
     paint: { 'text-color': '#1E293B', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1 },
   })
+  return true
 }
 
-function updatePreview(map: maplibregl.Map, features: GeoJSON.Feature[]) {
+function queryRenderedFeatures(
+  map: maplibregl.Map | null | undefined,
+  point: maplibregl.Point,
+  layerIds: string[],
+): maplibregl.MapGeoJSONFeature[] {
+  if (!map) return []
+
+  const availableLayerIds = typeof map.getLayer === 'function'
+    ? layerIds.filter((layerId) => {
+      try { return Boolean(map.getLayer(layerId)) }
+      catch { return false }
+    })
+    : layerIds
+
+  if (availableLayerIds.length === 0) return []
+  try {
+    return map.queryRenderedFeatures(point, { layers: availableLayerIds })
+  } catch {
+    // A style transition can remove a layer between getLayer() and the query.
+    return []
+  }
+}
+
+function updatePreview(map: maplibregl.Map, features: GeoJSON.Feature[], parentReady?: boolean) {
+  if (!isDrawingMapReady(map, parentReady)) return
   const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
   if (src) src.setData({ type: 'FeatureCollection', features })
 }
 
-function clearPreview(map: maplibregl.Map) {
+function clearPreview(map: maplibregl.Map, parentReady?: boolean) {
+  if (!isDrawingMapReady(map, parentReady)) return
   try {
     const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
     if (src) src.setData({ type: 'FeatureCollection', features: [] })
@@ -68,16 +170,26 @@ function pointsToVertices(points: LatLng[]): GeoJSON.Feature[] {
   }))
 }
 
-export function computeWidthBuffer(centerline: LatLng[], totalWidth: number): LatLng[] {
-  return computeHallwayPolygon(centerline, totalWidth)
+/** Collect wall bodies so new endpoints can form exact T-junctions. */
+function collectWallSegments(doc: any, buildingId: string, floorId: string): WallSegment[] {
+  const bld = findBuilding(doc, buildingId)
+  const fl = bld?.floors?.find((f: any) => f.id === floorId)
+  if (!fl?.walls) return []
+  return fl.walls.map((wall: WallSegment) => ({
+    id: wall.id,
+    start: { x: wall.start.x, y: wall.start.y },
+    end: { x: wall.end.x, y: wall.end.y },
+  }))
 }
 
-function pointsToBuffer(points: LatLng[], width: number): GeoJSON.Feature {
-  const buffer = computeHallwayPolygon(points, width)
-  return {
-    type: 'Feature', properties: { type: 'buffer' },
-    geometry: { type: 'Polygon', coordinates: [[...buffer.map((p) => [p.lng, p.lat] as [number, number]), [buffer[0].lng, buffer[0].lat] as [number, number]]] },
-  }
+interface RectangleDrawState {
+  tool: FloorRectangleTool
+  start: SnapPoint2D
+  current: SnapPoint2D
+}
+
+export function computeWidthBuffer(centerline: LatLng[], totalWidth: number): LatLng[] {
+  return computeHallwayPolygon(centerline, totalWidth)
 }
 
 function placedItem(position: LatLng, label: string): GeoJSON.Feature {
@@ -87,75 +199,275 @@ function placedItem(position: LatLng, label: string): GeoJSON.Feature {
   }
 }
 
+/** Wall segment in building-local coordinates for projection */
+export interface WallSegment {
+  id: string
+  start: { x: number; y: number }
+  end: { x: number; y: number }
+}
+
+/** Apply the Wall Tool's endpoint > wall-body > mode-specific snap contract. */
+export function snapWallAuthoringPoint(
+  point: SnapPoint2D,
+  config: SnapConfig,
+  walls: readonly WallSegment[],
+  lastPoint?: SnapPoint2D,
+) {
+  const endpoints = walls.flatMap((wall) => [wall.start, wall.end])
+  return snapPoint(point, config, endpoints, lastPoint, walls)
+}
+
+const DOOR_OPENING_THRESHOLD = 2.0 // meters — max distance from wall to place a door/window
+const DEFAULT_WINDOW_WIDTH = 1.2
+const DEFAULT_WINDOW_SILL = 0.9
+
+/**
+ * Find the nearest wall segment to a building-local point within the threshold.
+ * Returns wallId, offset along wall, and perpendicular distance, or null.
+ */
+export function findNearestWall(
+  point: { x: number; y: number },
+  walls: WallSegment[],
+  threshold: number = DOOR_OPENING_THRESHOLD,
+): { wallId: string; offset: number; distance: number } | null {
+  let best: { wallId: string; offset: number; distance: number } | null = null
+  for (const wall of walls) {
+    const dx = wall.end.x - wall.start.x
+    const dy = wall.end.y - wall.start.y
+    const lenSq = dx * dx + dy * dy
+    if (lenSq < 1e-10) continue
+    // Project point onto infinite line
+    const t = ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / lenSq
+    const clampedT = Math.max(0, Math.min(1, t))
+    const projX = wall.start.x + clampedT * dx
+    const projY = wall.start.y + clampedT * dy
+    const dist = Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2)
+    if (dist <= threshold) {
+      const offset = clampedT * Math.sqrt(lenSq)
+      if (!best || dist < best.distance) {
+        best = { wallId: wall.id, offset, distance: dist }
+      }
+    }
+  }
+  return best
+}
+
+/**
+ * Build a GeoJSON feature for a door opening on a wall.
+ * Door = gap (perpendicular segment across the wall) rendered as a thick line.
+ */
+function openingDoorFeature(
+  openingPosition: { lng: number; lat: number },
+  wallStart: { lng: number; lat: number },
+  wallEnd: { lng: number; lat: number },
+  openingId: string,
+): GeoJSON.Feature {
+  // Compute perpendicular unit vector to wall
+  const dx = wallEnd.lng - wallStart.lng
+  const dy = wallEnd.lat - wallStart.lat
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len < 1e-10) {
+    return {
+      type: 'Feature', properties: { type: 'door', id: openingId },
+      geometry: { type: 'Point', coordinates: [openingPosition.lng, openingPosition.lat] },
+    }
+  }
+  const halfWidth = 0.25 // visual gap half-width in degrees (~2m at 18 zoom)
+  const nx = (-dy / len) * halfWidth
+  const ny = (dx / len) * halfWidth
+  return {
+    type: 'Feature', properties: { type: 'door', id: openingId },
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [openingPosition.lng + nx, openingPosition.lat + ny],
+        [openingPosition.lng - nx, openingPosition.lat - ny],
+      ],
+    },
+  }
+}
+
+/**
+ * Build a GeoJSON feature for a window opening on a wall.
+ * Window = short perpendicular segment rendered with contrasting color.
+ */
+function openingWindowFeature(
+  openingPosition: { lng: number; lat: number },
+  wallStart: { lng: number; lat: number },
+  wallEnd: { lng: number; lat: number },
+  openingId: string,
+): GeoJSON.Feature {
+  const dx = wallEnd.lng - wallStart.lng
+  const dy = wallEnd.lat - wallStart.lat
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len < 1e-10) {
+    return {
+      type: 'Feature', properties: { type: 'window', id: openingId },
+      geometry: { type: 'Point', coordinates: [openingPosition.lng, openingPosition.lat] },
+    }
+  }
+  const halfWidth = 0.18 // window visual half-width
+  const nx = (-dy / len) * halfWidth
+  const ny = (dx / len) * halfWidth
+  return {
+    type: 'Feature', properties: { type: 'window', id: openingId },
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [openingPosition.lng + nx, openingPosition.lat + ny],
+        [openingPosition.lng - nx, openingPosition.lat - ny],
+      ],
+    },
+  }
+}
+
 interface UseFloorDrawingOptions {
   map: maplibregl.Map | null
+  mapReady?: boolean
   buildingId: string
   campusId: string
   floor: number
   tool: StudioTool
   onSelect?: (id: string | null) => void
   editEngine?: { begin: (op: any) => void; doCommit: () => { committed: boolean } }
+  snapMode?: SnapMode
+  onSnapModeChange?: (mode: SnapMode) => void
+  pendingRouteAnchor?: EntranceRouteAnchor
+  onRouteStartRejected?: (reason: string) => void
+  onRouteAccessAssigned?: (access: { entranceId: string; outdoorNodeId: string; indoorRouteNodeId: string }) => void
 }
 
-export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSelect, editEngine }: UseFloorDrawingOptions) {
+export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, tool, onSelect, editEngine, snapMode: externalSnapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned }: UseFloorDrawingOptions) {
   const editor = useEditor()
   const doc = editor.document
   const transformer = editor.transformer
   const dispatcher = editor.services.get('dispatcher')!
 
   const [drawState, dispatch] = useReducer(drawReducer, { drawMode: 'idle', pendingPoints: [], pendingPolygon: [] })
-  const [hallwayWidth, setHallwayWidth] = useState(3)
+  const [wallDraw, setWallDraw] = useState<WallDrawState>({ start: null, startLocal: null })
+  const wallDrawRef = useRef(wallDraw)
+  useEffect(() => { wallDrawRef.current = wallDraw }, [wallDraw])
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
+  const routeStartedRef = useRef(false)
+
+  // Snap mode state for wall drawing
+  const [internalSnapMode, setInternalSnapMode] = useState<SnapMode>(DEFAULT_SNAP_MODE)
+  const snapMode = externalSnapMode ?? internalSnapMode
+  const setSnapMode = onSnapModeChange ?? setInternalSnapMode
+  const snapModeRef = useRef(snapMode)
+  useEffect(() => { snapModeRef.current = snapMode }, [snapMode])
+
+  // Door/window drawing state: two-click placement
+  const [doorDraw, setDoorDraw] = useState<DoorDrawState>({ start: null, startLocal: null, wallId: null, startOffset: null })
+  const doorDrawRef = useRef(doorDraw)
+  useEffect(() => { doorDrawRef.current = doorDraw }, [doorDraw])
+  const [rectangleDraw, setRectangleDraw] = useState<RectangleDrawState | null>(null)
+  const rectangleDrawRef = useRef(rectangleDraw)
+  useEffect(() => { rectangleDrawRef.current = rectangleDraw }, [rectangleDraw])
 
   // Initialize layers
   useEffect(() => {
-    if (!map) return
-    addDrawLayers(map)
-    return () => { clearPreview(map) }
-  }, [map])
+    if (!map || mapReady === false) return
+    let active = true
+    let initialized = false
+    const initialize = () => {
+      if (!active || initialized || !isDrawingMapReady(map, mapReady)) return
+      initialized = addDrawLayers(map, mapReady)
+    }
+
+    initialize()
+    if (!initialized) {
+      // The parent Canvas may have consumed MapLibre's one-shot load event
+      // before this hook mounts. idle/styledata cover that late-subscription
+      // case while still waiting for the actual style readiness check above.
+      map.once('load', initialize)
+      map.on('idle', initialize)
+      map.on('styledata', initialize)
+    }
+
+    return () => {
+      active = false
+      try { map.off('load', initialize) } catch { /* map may have been removed */ }
+      try { map.off('idle', initialize) } catch { /* map may have been removed */ }
+      try { map.off('styledata', initialize) } catch { /* map may have been removed */ }
+      clearPreview(map, mapReady)
+    }
+  }, [map, mapReady])
 
   // Reset state on tool change
   useEffect(() => {
     dispatch({ type: 'RESET' })
-    if (map) clearPreview(map)
+    routeStartedRef.current = false
+    setWallDraw({ start: null, startLocal: null })
+    setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
+    setRectangleDraw(null)
+    if (map && mapReady) clearPreview(map)
   }, [tool, map])
+
+  // A confirmed outdoor target fixes the first indoor Route vertex to the
+  // exact Entrance position. The author only needs to click the next point;
+  // this avoids a fragile pixel-perfect hit on the Entrance marker while
+  // preserving the existing Route creation and access-assignment transaction.
+  useEffect(() => {
+    if (tool !== 'hallway' || !pendingRouteAnchor || drawState.pendingPolygon.length > 0) return
+    dispatch({ type: 'ADD_POLYGON_POINT', point: { ...pendingRouteAnchor.position } })
+    routeStartedRef.current = true
+  }, [drawState.pendingPolygon.length, pendingRouteAnchor, tool])
 
   // Update preview
   useEffect(() => {
-    if (!map) return
+    if (!map || !isDrawingMapReady(map, mapReady)) return
     const features: GeoJSON.Feature[] = []
     if (drawState.drawMode === 'placing-points' && drawState.pendingPoints.length > 0) {
       features.push(pointsToLine(drawState.pendingPoints), ...pointsToVertices(drawState.pendingPoints))
     }
     if (drawState.drawMode === 'placing-polygon' && drawState.pendingPolygon.length > 0) {
       if (toolRef.current === 'hallway') {
-        features.push(pointsToBuffer(drawState.pendingPolygon, hallwayWidth), pointsToLine(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
+        // The visible hallway-compatible tool is now Route. It authors a
+        // centerline graph, never a buffered hallway polygon.
+        features.push(pointsToLine(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
       } else {
         features.push(pointsToPolygon(drawState.pendingPolygon), ...pointsToVertices(drawState.pendingPolygon))
       }
     }
-    updatePreview(map, features)
-  }, [map, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, hallwayWidth])
+    // Wall preview: show start vertex while waiting for end click
+    if (toolRef.current === 'wall' && wallDrawRef.current.start) {
+      const ws = wallDrawRef.current.start
+      features.push({
+        type: 'Feature', properties: { type: 'vertex', index: 0 },
+        geometry: { type: 'Point', coordinates: [ws.lng, ws.lat] },
+      })
+    }
+    // Window preview: show the first wall position while waiting for the end click.
+    // Door now uses the shared rectangle gesture below.
+    if (toolRef.current === 'window' && doorDrawRef.current.start) {
+      const ds = doorDrawRef.current.start
+      features.push({
+        type: 'Feature', properties: { type: 'vertex', index: 0 },
+        geometry: { type: 'Point', coordinates: [ds.lng, ds.lat] },
+      })
+    }
+    if (rectangleDraw && transformer) {
+      const localPoints = localRectangleFromDrag(rectangleDraw.start, rectangleDraw.current)
+      const worldPoints = localPoints
+        .map(point => transformer.buildingLocalToWorld(point, buildingId))
+        .filter((point): point is LatLng => point !== null)
+      if (worldPoints.length === 4) features.push(pointsToPolygon(worldPoints))
+    }
+    updatePreview(map, features, mapReady)
+  }, [map, mapReady, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, rectangleDraw, transformer, buildingId])
 
   const confirmPolygon = useCallback(() => {
     const tool = toolRef.current
-    if (tool !== 'room' && tool !== 'hallway' && tool !== 'elevator') return
+    if (!isPolygonAuthoringTool(tool)) return
     const minPoints = tool === 'hallway' ? 2 : 3
     if (drawState.pendingPolygon.length < minPoints || !map) return
 
-    const id = genId(tool)
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
     const floorId = fl?.id
-    let existingCount = 0
-    if (fl && transformer) {
-      if (tool === 'room') existingCount = fl.rooms?.length ?? 0
-      else if (tool === 'hallway') existingCount = fl.hallways?.length ?? 0
-      else if (tool === 'elevator') existingCount = fl.elevators?.length ?? 0
-    }
 
-    const name = tool === 'room' ? `Room ${existingCount + 1}` : `${tool.charAt(0).toUpperCase() + tool.slice(1)} ${existingCount + 1}`
     if (!floorId || !transformer) return
 
     const localPoints: { x: number; y: number }[] = []
@@ -164,39 +476,107 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
       if (local) localPoints.push(local)
     }
 
-    const selectedId = tool === 'elevator' ? genId('pc') : id
+    if (tool === 'hallway') {
+      const result = dispatcher.execute({
+        id: 'route.path.create', label: 'Create Route',
+        payload: { buildingId, floorId, points: localPoints, nodeType: 'waypoint', edgeType: 'walk' },
+      })
+      if (!result?.success) return
+      const routeData = result.data
+      const nodeIds = routeData && Array.isArray(routeData.nodeIds)
+        ? routeData.nodeIds.filter((nodeId: unknown): nodeId is string => typeof nodeId === 'string')
+        : []
+      const indoorRouteNodeId = nodeIds[0] ?? (typeof result.entityId === 'string' ? result.entityId : null)
 
-    if (tool === 'room') {
-      if (editEngine) {
-        editEngine.begin({ kind: 'create', entityType: 'space', geometry: localPoints, properties: { name, buildingId, floorId } })
-        editEngine.doCommit()
+      if (pendingRouteAnchor) {
+        if (!indoorRouteNodeId) {
+          onRouteStartRejected?.('The Route was created without a usable first node, so the Entrance connection was not saved.')
+          if (routeData && typeof routeData.buildingId === 'string' && typeof routeData.floorId === 'string' && typeof routeData.hadNetwork === 'boolean') {
+            dispatcher.execute({
+              id: 'route.path.create',
+              label: 'Restore Route after failed Entrance connection',
+              payload: {
+                restore: true,
+                buildingId: routeData.buildingId,
+                floorId: routeData.floorId,
+                hadNetwork: routeData.hadNetwork,
+                previousNetwork: routeData.previousNetwork,
+              },
+            })
+          }
+          return
+        }
+
+        const accessResult = dispatcher.execute({
+          id: 'entrance.access.assign',
+          label: 'Connect Entrance to Route',
+          payload: {
+            buildingId,
+            floorId,
+            entranceId: pendingRouteAnchor.entranceId,
+            outdoorNodeId: pendingRouteAnchor.outdoorNodeId,
+            indoorRouteNodeId,
+            ...(pendingRouteAnchor.outdoorRouteId ? { outdoorRouteId: pendingRouteAnchor.outdoorRouteId, outdoorPosition: pendingRouteAnchor.position } : {}),
+          },
+        })
+        if (!accessResult?.success) {
+          onRouteStartRejected?.(accessResult?.error ?? 'The Route was created, but the Entrance connection could not be saved.')
+          if (routeData && typeof routeData.buildingId === 'string' && typeof routeData.floorId === 'string' && typeof routeData.hadNetwork === 'boolean') {
+            dispatcher.execute({
+              id: 'route.path.create',
+              label: 'Restore Route after failed Entrance connection',
+              payload: {
+                restore: true,
+                buildingId: routeData.buildingId,
+                floorId: routeData.floorId,
+                hadNetwork: routeData.hadNetwork,
+                previousNetwork: routeData.previousNetwork,
+              },
+            })
+          }
+          return
+        }
+
+        onRouteAccessAssigned?.({
+          entranceId: pendingRouteAnchor.entranceId,
+          outdoorNodeId: pendingRouteAnchor.outdoorNodeId,
+          indoorRouteNodeId,
+        })
       }
-      dispatcher.execute({
-        id: 'room.create', label: 'Create Room',
-        payload: { buildingId, floorId, id, name, points: localPoints, category: 'other' },
-      })
-    } else if (tool === 'hallway') {
-      if (editEngine) {
-        editEngine.begin({ kind: 'create', entityType: 'hallway', geometry: localPoints, properties: { name, buildingId, floorId } })
-        editEngine.doCommit()
-      }
-      dispatcher.execute({
-        id: 'hallway.create', label: 'Create Hallway',
-        payload: { buildingId, floorId, id, name, points: localPoints, width: hallwayWidth },
-      })
-    } else {
-      const local = localPoints[0] ?? { x: 0, y: 0 }
-      const pc = ElevatorDefinition.create({ position: local })
-      dispatcher.execute({
-        id: 'parametric.create', label: 'Create Elevator',
-        payload: { buildingId, floorId, id: pc.id, definitionId: 'elevator', position: pc.position, rotation: pc.rotation, properties: pc.properties },
-      })
+
+      const selectedId = pendingRouteAnchor?.entranceId ?? (typeof result.entityId === 'string' ? result.entityId : null)
+      routeStartedRef.current = false
+      dispatch({ type: 'RESET' })
+      clearPreview(map)
+      onSelect?.(selectedId)
+      return
     }
 
-    dispatch({ type: 'RESET' })
-    clearPreview(map)
-    onSelect?.(selectedId)
-  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, hallwayWidth, editEngine])
+    if (tool === 'elevator') {
+      const local = localPoints[0] ?? { x: 0, y: 0 }
+      const pc = ElevatorDefinition.create({ position: local })
+      const result = dispatcher.execute({
+        id: 'feature.create', label: 'Create Elevator',
+        payload: {
+          buildingId,
+          floor,
+          id: pc.id,
+          featureType: 'elevator',
+          position: pc.position,
+          rotation: pc.rotation,
+          fromLevel: floor,
+          toLevel: floor + 1,
+          drawing: { definitionId: 'elevator', properties: pc.properties },
+        },
+      })
+      if (!result?.success) return
+      const selectedId = `${pc.id}-${floor}`
+      dispatch({ type: 'RESET' })
+      clearPreview(map)
+      onSelect?.(selectedId)
+      return
+    }
+  }, [drawState.pendingPolygon, map, doc, transformer, dispatcher, floor, buildingId, onSelect, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
     const id = genId(type)
@@ -215,15 +595,44 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
         id: 'entrance.create', label: 'Create Entrance',
         payload: { buildingId, floorId, id, label: 'Entrance', position, level: floor, type: 'side' },
       })
-    } else {
+    } else if (type === 'stair' || type === 'stairs' as any) {
       const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }
       const pc = StairDefinition.create({ position: localPos })
       dispatcher.execute({
-        id: 'parametric.create', label: 'Create Staircase',
-        payload: { buildingId, floorId, id: pc.id, definitionId: 'stair', position: pc.position, rotation: pc.rotation, properties: { ...pc.properties, fromLevel: floor, toLevel: floor + 1 } },
+        id: 'feature.create', label: 'Create Staircase',
+        payload: {
+          buildingId,
+          floor,
+          id: pc.id,
+          featureType: 'staircase',
+          position: pc.position,
+          rotation: pc.rotation,
+          fromLevel: floor,
+          toLevel: floor + 1,
+          drawing: { definitionId: 'stair', properties: pc.properties },
+        },
       })
-      selectedComponentId = pc.id
+      selectedComponentId = `${pc.id}-${floor}`
+    } else if (type === 'elevator') {
+      const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }
+      const pc = ElevatorDefinition.create({ position: localPos })
+      dispatcher.execute({
+        id: 'feature.create', label: 'Create Elevator',
+        payload: {
+          buildingId,
+          floor,
+          id: pc.id,
+          featureType: 'elevator',
+          position: pc.position,
+          rotation: pc.rotation,
+          fromLevel: floor,
+          toLevel: floor + 1,
+          drawing: { definitionId: 'elevator', properties: pc.properties },
+        },
+      })
+      selectedComponentId = `${pc.id}-${floor}`
     }
+
 
     onSelect?.(selectedComponentId)
     if (map) {
@@ -238,8 +647,24 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     if ((e.originalEvent as MouseEvent).detail > 1) return
     const currentTool = toolRef.current
     if (currentTool === 'select') {
-      const layers = ['floor-rooms-fill', 'floor-rooms-outline', 'floor-elevator-areas-fill', 'floor-elevator-areas-outline', 'floor-items-stairs', 'floor-items-entrance', 'floor-point-items', 'floor-draw-placed']
-      const features = map!.queryRenderedFeatures(e.point, { layers })
+      const layers = [
+        'floor-rooms-fill',
+        'floor-rooms-outline',
+        'floor-stair-areas-fill',
+        'floor-stair-areas-outline',
+        'floor-stair-treads-line',
+        'floor-stair-arrows-line',
+        'floor-elevator-areas-fill',
+        'floor-elevator-areas-outline',
+        'floor-elevator-cabins-outline',
+        'floor-items-stairs',
+        'floor-items-entrance',
+        'floor-draw-placed',
+        'floor-route-nodes-circle',
+        'floor-route-edges-line',
+      ]
+
+      const features = queryRenderedFeatures(map, e.point, layers)
       if (features.length > 0) {
         onSelect?.(features[0].properties?.id as string ?? null)
       } else {
@@ -251,19 +676,305 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     const pos: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
 
     switch (currentTool) {
-      case 'room':
+      case 'space':
+        // Room authoring targets an existing derived wall face. The active
+        // FloorEditorCanvas click listener owns declaration/selection; this
+        // drawing hook must never accumulate an independent polygon.
+        break
       case 'hallway':
-      case 'elevator':
+        if (!routeStartedRef.current && drawState.pendingPolygon.length === 0) {
+          const bld = findBuilding(doc, buildingId)
+          const fl = bld?.floors?.find((candidate: any) => candidate.level === floor)
+          const hasExistingRoute = (fl?.routeNetwork?.nodes?.length ?? 0) > 0
+          const startError = routeStartError({ hasExistingRoute, hasEntranceAnchor: Boolean(pendingRouteAnchor) })
+          if (startError) {
+            onRouteStartRejected?.(startError)
+            if (map) {
+              const feedback = placedItem(pos, startError)
+              updatePreview(map, [feedback], mapReady)
+              setTimeout(() => { if (map) clearPreview(map, mapReady) }, 1800)
+            }
+            break
+          }
+          if (pendingRouteAnchor) {
+            const start = snapRouteStartToEntrance(pos, pendingRouteAnchor)
+            if (!start.accepted) {
+              onRouteStartRejected?.(start.reason)
+              if (map) {
+                const feedback = placedItem(pos, start.reason)
+                updatePreview(map, [feedback], mapReady)
+                setTimeout(() => { if (map) clearPreview(map, mapReady) }, 1800)
+              }
+              break
+            }
+            dispatch({ type: 'ADD_POLYGON_POINT', point: start.position })
+            routeStartedRef.current = true
+            break
+          }
+        }
+        routeStartedRef.current = true
         dispatch({ type: 'ADD_POLYGON_POINT', point: pos })
+        break
+      case 'elevator':
         break
       case 'entrance':
         placeComponent(pos, 'entrance')
         break
       case 'stairs':
-        placeComponent(pos, 'stair')
         break
+      case 'door':
+        break
+      case 'window': {
+        // Two-point door/window placement on wall
+        if (!transformer) break
+        const bld = findBuilding(doc, buildingId)
+        const fl = bld?.floors?.find((f: any) => f.level === floor)
+        const floorId = fl?.id
+        if (!floorId) break
+
+        const localRaw = transformer.worldToBuildingLocal(pos, buildingId)
+        if (!localRaw) break
+
+        const walls: WallSegment[] = (fl.walls || []).map((w: any) => ({
+          id: w.id,
+          start: { x: w.start.x, y: w.start.y },
+          end: { x: w.end.x, y: w.end.y },
+        }))
+        const hit = findNearestWall(localRaw, walls)
+        const ds = doorDrawRef.current
+        if (!hit) {
+          // Too far from any wall — reject
+          if (map) {
+            const feedback = placedItem(pos, 'Too far from wall')
+            updatePreview(map, [feedback])
+            setTimeout(() => { if (map) clearPreview(map) }, 1500)
+          }
+          break
+        }
+
+        if (!ds.start) {
+          // First click: store wallId, offset, and start position
+          setDoorDraw({ start: pos, startLocal: localRaw, wallId: hit.wallId, startOffset: hit.offset })
+          if (map) {
+            const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
+            if (src) {
+              src.setData({
+                type: 'FeatureCollection',
+                features: [{
+                  type: 'Feature', properties: { type: 'vertex', index: 0 },
+                  geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] },
+                }],
+              })
+            }
+          }
+        } else {
+          // Second click: verify same wall, compute width, validate, create opening
+          // Try to find the originally selected wall with a larger threshold
+          let matchedWallId = hit.wallId
+          let matchedOffset = hit.offset
+
+          if (hit.wallId !== ds.wallId) {
+            // Different wall detected — try to find the original wall with larger threshold
+            const originalWallHit = findNearestWall(localRaw, walls, DOOR_OPENING_THRESHOLD * 3)
+            if (originalWallHit && originalWallHit.wallId === ds.wallId) {
+              matchedWallId = originalWallHit.wallId
+              matchedOffset = originalWallHit.offset
+            } else {
+              // Still different wall — reject
+              if (map) {
+                const feedback = placedItem(pos, 'Click on same wall')
+                updatePreview(map, [feedback])
+                setTimeout(() => { if (map) clearPreview(map) }, 1500)
+              }
+              break
+            }
+          }
+
+          const openingType = 'window'
+          const sillHeight = DEFAULT_WINDOW_SILL
+
+          // Compute width as distance between offsets along wall
+          const width = Math.abs(matchedOffset - ds.startOffset!)
+          const offset = Math.min(matchedOffset, ds.startOffset!)
+
+          // Validation
+          const MIN_DOOR_WIDTH = 0.3
+          if (width < MIN_DOOR_WIDTH) {
+            if (map) {
+              const feedback = placedItem(pos, `Min width: ${MIN_DOOR_WIDTH}m`)
+              updatePreview(map, [feedback])
+              setTimeout(() => { if (map) clearPreview(map) }, 1500)
+            }
+            break
+          }
+
+          // Check if opening extends beyond wall endpoints
+          const wall = walls.find((w) => w.id === ds.wallId)
+          if (wall) {
+            const wallLength = Math.sqrt(
+              (wall.end.x - wall.start.x) ** 2 + (wall.end.y - wall.start.y) ** 2
+            )
+            if (offset + width > wallLength) {
+              if (map) {
+                const feedback = placedItem(pos, 'Extends beyond wall')
+                updatePreview(map, [feedback])
+                setTimeout(() => { if (map) clearPreview(map) }, 1500)
+              }
+              break
+            }
+          }
+
+          const id = genId('opening')
+          dispatcher.execute({
+            id: 'opening.create', label: 'Create Window',
+            payload: {
+              buildingId, floorId,
+              opening: {
+                id,
+                type: openingType,
+                wallId: ds.wallId!,
+                offset,
+                width,
+                ...(sillHeight !== undefined ? { sillHeight } : {}),
+              },
+            },
+          })
+
+          onSelect?.(id)
+          setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
+          if (map) {
+            const feedback = placedItem(pos, 'Window')
+            updatePreview(map, [feedback])
+            setTimeout(() => { if (map) clearPreview(map) }, 1500)
+          }
+        }
+        break
+      }
+      case 'wall': {
+        const ws = wallDrawRef.current.start
+        const wsLocal = wallDrawRef.current.startLocal
+        if (!ws) {
+          // First click — snap and record start point
+          if (!transformer) break
+          const bld = findBuilding(doc, buildingId)
+          const fl = bld?.floors?.find((f: any) => f.level === floor)
+          const floorId = fl?.id
+          if (!floorId) break
+
+          const localRaw = transformer.worldToBuildingLocal(pos, buildingId)
+          if (!localRaw) break
+
+          const existingWalls = collectWallSegments(doc, buildingId, floorId)
+          const snapConfig = SNAP_CONFIGS[snapModeRef.current]
+          const snapResult = snapWallAuthoringPoint(localRaw, snapConfig, existingWalls)
+
+          const snappedLatLng = transformer.buildingLocalToWorld(snapResult.position, buildingId)
+          if (!snappedLatLng) break
+
+          setWallDraw({ start: snappedLatLng, startLocal: snapResult.position })
+          if (map) {
+            const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
+            if (src) {
+              src.setData({
+                type: 'FeatureCollection',
+                features: [{
+                  type: 'Feature', properties: { type: 'vertex', index: 0 },
+                  geometry: { type: 'Point', coordinates: [snappedLatLng.lng, snappedLatLng.lat] },
+                }],
+              })
+            }
+          }
+        } else {
+          // Second click — snap end and create wall
+          if (!transformer) break
+          const bld = findBuilding(doc, buildingId)
+          const fl = bld?.floors?.find((f: any) => f.level === floor)
+          const floorId = fl?.id
+          if (!floorId) break
+
+          const localEndRaw = transformer.worldToBuildingLocal(pos, buildingId)
+          if (!localEndRaw || !wsLocal) break
+
+          const existingWalls = collectWallSegments(doc, buildingId, floorId)
+          const snapConfig = SNAP_CONFIGS[snapModeRef.current]
+          const snapResult = snapWallAuthoringPoint(localEndRaw, snapConfig, existingWalls, wsLocal)
+
+          dispatcher.execute({
+            id: 'wall.create', label: 'Create Wall',
+            payload: {
+              buildingId, floorId,
+              start: wsLocal, end: snapResult.position,
+              thickness: 0.15, height: 3.5,
+            },
+          })
+          setWallDraw({ start: null, startLocal: null })
+          if (map) clearPreview(map)
+        }
+        break
+      }
     }
-  }, [map, placeComponent, onSelect])
+  }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected])
+
+  // Door, Stair, and Elevator share the same click-drag-release rectangle gesture.
+  useEffect(() => {
+    if (!map) return
+    const isRectangleTool = (value: string): value is FloorRectangleTool => value === 'door' || value === 'stairs' || value === 'elevator'
+    const toLocal = (event: maplibregl.MapMouseEvent) => transformer?.worldToBuildingLocal({ lat: event.lngLat.lat, lng: event.lngLat.lng }, buildingId) ?? null
+
+    const handleMouseDown = (event: maplibregl.MapMouseEvent) => {
+      const currentTool = toolRef.current
+      if (!isRectangleTool(currentTool) || event.originalEvent.button !== 0) return
+      const local = toLocal(event)
+      if (!local) return
+      map.dragPan?.disable()
+      setRectangleDraw({ tool: currentTool, start: local, current: local })
+    }
+
+    const handleMouseMove = (event: maplibregl.MapMouseEvent) => {
+      const current = rectangleDrawRef.current
+      if (!current) return
+      const local = toLocal(event)
+      if (!local) return
+      setRectangleDraw({ ...current, current: local })
+    }
+
+    const handleMouseUp = (event: maplibregl.MapMouseEvent) => {
+      const current = rectangleDrawRef.current
+      if (!current) return
+      const end = toLocal(event)
+      setRectangleDraw(null)
+      map.dragPan?.enable()
+      if (!end) return
+      const bounds = normalizeLocalRectangle(current.start, end)
+      const width = bounds.max.x - bounds.min.x
+      const depth = bounds.max.y - bounds.min.y
+      if (width < 0.2 || depth < 0.2) {
+        clearPreview(map, mapReady)
+        return
+      }
+      const building = findBuilding(doc, buildingId)
+      const activeFloor = building?.floors.find(candidate => candidate.level === floor)
+      if (!activeFloor) return
+      const points = localRectangleFromDrag(bounds.min, bounds.max)
+      const entityId = genId(current.tool === 'door' ? 'door' : current.tool === 'stairs' ? 'stair' : 'elev')
+      const authored = buildFloorRectangleCommand(current.tool, {
+        min: bounds.min, max: bounds.max, center: { x: (bounds.min.x + bounds.max.x) / 2, y: (bounds.min.y + bounds.max.y) / 2 }, width, depth, points,
+      }, { buildingId, floorId: activeFloor.id, floorLevel: floor, entityId })
+      const result = dispatcher.execute(authored.command)
+      if (result?.success !== false) onSelect?.(authored.selectedId)
+      clearPreview(map, mapReady)
+    }
+
+    map.on('mousedown', handleMouseDown)
+    map.on('mousemove', handleMouseMove)
+    map.on('mouseup', handleMouseUp)
+    return () => {
+      try { map.off('mousedown', handleMouseDown) } catch {}
+      try { map.off('mousemove', handleMouseMove) } catch {}
+      try { map.off('mouseup', handleMouseUp) } catch {}
+      if (rectangleDrawRef.current) map.dragPan?.enable()
+    }
+  }, [buildingId, dispatcher, doc, floor, map, mapReady, onSelect, transformer])
 
   // Right-click to cancel
   useEffect(() => {
@@ -271,6 +982,7 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     const handleContext = (e: maplibregl.MapMouseEvent) => {
       if (drawState.drawMode !== 'idle') {
         e.originalEvent.preventDefault()
+        routeStartedRef.current = false
         dispatch({ type: 'RESET' })
         clearPreview(map)
       }
@@ -301,5 +1013,5 @@ export function useFloorDrawing({ map, buildingId, campusId, floor, tool, onSele
     dispatch({ type: 'REMOVE_LAST_POLYGON_POINT' })
   }, [])
 
-  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, hallwayWidth, setHallwayWidth, confirm: confirmPolygon, cancel: () => { dispatch({ type: 'RESET' }); if (map) clearPreview(map) }, removeLastPoint }
+  return { drawMode: drawState.drawMode, pendingPoints: drawState.pendingPoints, pendingPolygon: drawState.pendingPolygon, snapMode, setSnapMode, confirm: confirmPolygon, cancel: () => { routeStartedRef.current = false; dispatch({ type: 'RESET' }); setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null }); setRectangleDraw(null); if (map) { map.dragPan?.enable(); clearPreview(map) } }, removeLastPoint }
 }

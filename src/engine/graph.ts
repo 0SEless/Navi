@@ -1,5 +1,5 @@
 import type {
-  NavNode, NavEdge, Building, Component, LatLng, TracePath,
+  NavNode, NavEdge, Building, Component, DoorData, LatLng, TracePath, Area,
   GraphSnapshot, PathResult, ValidationResult, DirEntry,
 } from '../types/nav-types'
 import { aStar, getAdjacencyList } from './a-star'
@@ -9,6 +9,12 @@ import { buildDirectory } from './directory'
 import { compileTrace } from './trace-compiler'
 import { lineSegmentIntersection, closestPointOnSegment, pointToSegmentDistance } from './geo-utils'
 import { genId } from './component-compiler'
+import {
+  CONNECTIVITY_POSITION_TOLERANCE_METERS,
+  hasSeparatedCrossingAtPosition,
+  SpatialQueryService,
+} from '@navi/core'
+import type { OutdoorPointOfInterest, SeparatedCrossing } from '@navi/core'
 
 export class Graph {
   campusId: string = 'asu-ibajay'
@@ -16,13 +22,23 @@ export class Graph {
   private _edges: Map<string, NavEdge> = new Map()
   private _buildings: Map<string, Building> = new Map()
   private _components: Map<string, Component> = new Map()
+  private _doors: DoorData[] = []
   private _traces: Map<string, TracePath> = new Map()
+  private _areas: Area[] = []
   private _boundary?: { points: LatLng[] }
+  /** Outdoor/campus POIs (world geometry). Indoor POIs live in Building.floorData. */
+  private _pois: OutdoorPointOfInterest[] = []
   private _cachedNodes: NavNode[] | null = null
   private _cachedEdges: NavEdge[] | null = null
   private _cachedBuildings: Building[] | null = null
   private _cachedComponents: Component[] | null = null
   private _cachedTraces: TracePath[] | null = null
+  private _spatialIndex: SpatialQueryService | null = null
+  private _separatedCrossings: SeparatedCrossing[] = []
+  /** Persisted document metadata; never used as the active compile gate. */
+  private _connectivitySemanticsVersion?: string
+  /** Explicit transient intent for trace intersection compilation. */
+  private _allowGeometricInference = true
 
   // ---- Accessors ----
 
@@ -46,6 +62,14 @@ export class Graph {
     return this._cachedComponents
   }
 
+  get doors(): DoorData[] {
+    return this._doors
+  }
+
+  setDoors(doors: DoorData[]): void {
+    this._doors = doors
+  }
+
   get traces(): TracePath[] {
     if (!this._cachedTraces) this._cachedTraces = Array.from(this._traces.values())
     return this._cachedTraces
@@ -59,10 +83,69 @@ export class Graph {
     this._boundary = b
   }
 
+  get areas(): Area[] {
+    return this._areas
+  }
+
+  set areas(a: Area[]) {
+    this._areas = a
+  }
+
+  get pois(): OutdoorPointOfInterest[] {
+    return this._pois
+  }
+
+  set pois(pois: OutdoorPointOfInterest[]) {
+    this._pois = pois
+  }
+
+  get separatedCrossings(): SeparatedCrossing[] {
+    return this._separatedCrossings
+  }
+
+  set separatedCrossings(crossings: SeparatedCrossing[]) {
+    this._separatedCrossings = crossings
+  }
+
+  setConnectivitySemanticsVersion(version?: string): void {
+    this._connectivitySemanticsVersion = version
+  }
+
+  setAllowGeometricInference(allow: boolean): void {
+    this._allowGeometricInference = allow
+  }
+
   get buildingCount(): number { return this._buildings.size }
   get nodeCount(): number { return this._nodes.size }
   get edgeCount(): number { return this._edges.size }
   get componentCount(): number { return this._components.size }
+
+  /** Compute actual connected components via BFS on the node/edge graph. */
+  get connectedComponentCount(): number {
+    if (this._nodes.size === 0) return 0
+    const adj = new Map<string, Set<string>>()
+    for (const n of this._nodes.values()) adj.set(n.id, new Set())
+    for (const e of this._edges.values()) {
+      adj.get(e.from)?.add(e.to)
+      adj.get(e.to)?.add(e.from)
+    }
+    const visited = new Set<string>()
+    let components = 0
+    for (const n of this._nodes.values()) {
+      if (visited.has(n.id)) continue
+      components++
+      const queue = [n.id]
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (visited.has(current)) continue
+        visited.add(current)
+        for (const neighbor of adj.get(current) ?? []) {
+          if (!visited.has(neighbor)) queue.push(neighbor)
+        }
+      }
+    }
+    return components
+  }
 
   getNode(id: string): NavNode | undefined {
     return this._nodes.get(id)
@@ -85,6 +168,7 @@ export class Graph {
   addNode(node: NavNode): void {
     this._nodes.set(node.id, node)
     this._cachedNodes = null
+    this._spatialIndex = null
   }
 
   addEdge(edge: NavEdge): void {
@@ -101,6 +185,7 @@ export class Graph {
     }
     this._cachedNodes = null
     this._cachedEdges = null
+    this._spatialIndex = null
   }
 
   removeEdge(id: string): void {
@@ -113,6 +198,7 @@ export class Graph {
     if (existing) {
       this._nodes.set(id, { ...existing, ...partial })
       this._cachedNodes = null
+      this._spatialIndex = null
     }
   }
 
@@ -152,6 +238,7 @@ export class Graph {
     this._cachedBuildings = null
     this._cachedNodes = null
     this._cachedEdges = null
+    this._spatialIndex = null
   }
 
   // ---- Component Operations ----
@@ -184,6 +271,7 @@ export class Graph {
     this._cachedComponents = null
     this._cachedNodes = null
     this._cachedEdges = null
+    this._spatialIndex = null
   }
 
   getNodesByComponent(componentId: string): NavNode[] {
@@ -260,13 +348,21 @@ export class Graph {
 
   addTraceWithCompile(
     trace: TracePath,
-    roomNodes: NavNode[]
+    roomNodesOrConnectivityRadius: NavNode[] | number = [],
+    allowGeometricInference = this._allowGeometricInference,
   ): void {
+    // Preserve the pre-Phase-6 array call shape while allowing the editor
+    // adapter to pass an explicit connectivity radius. The current
+    // trace-compiler intentionally does not create room-door edges; accepting
+    // the old array form avoids breaking the store caller without reviving
+    // that bypass path.
+    const connectivityRadius = typeof roomNodesOrConnectivityRadius === 'number'
+      ? roomNodesOrConnectivityRadius
+      : undefined
     const result = compileTrace(
       trace,
       this.nodes,
       this.edges,
-      roomNodes
     )
     this.addTrace(trace)
     for (const node of result.nodes) {
@@ -276,10 +372,10 @@ export class Graph {
     for (const edge of result.edges) {
       this.addEdge(edge)
     }
-    this.syncTraceIntersections(trace.id)
+    this.syncTraceIntersections(trace.id, connectivityRadius, allowGeometricInference)
   }
 
-  recompileTrace(id: string): void {
+  recompileTrace(id: string, allowGeometricInference = this._allowGeometricInference): void {
     const trace = this._traces.get(id)
     if (!trace) return
 
@@ -333,7 +429,7 @@ export class Graph {
     }
 
     // 6. Re-run intersection detection against other routes
-    this.syncTraceIntersections(id)
+    this.syncTraceIntersections(id, undefined, allowGeometricInference)
 
     // 7. Invalidate all caches
     this._cachedTraces = null
@@ -389,6 +485,29 @@ export class Graph {
     return node
   }
 
+  /**
+   * Split an authored trace edge using a caller-owned, stable node identity.
+   * The node is supplied by the explicit access projection; unlike splitEdge,
+   * this method never invents the persisted node ID from a generated counter.
+   */
+  splitEdgeWithNode(edgeId: string, node: NavNode): NavNode | null {
+    const edge = this._edges.get(edgeId)
+    if (!edge) return null
+    const existing = this._nodes.get(node.id)
+    if (existing && (edge.from === existing.id || edge.to === existing.id)) return existing
+
+    const fromPos = this._nodePosition(edge.from)
+    const toPos = this._nodePosition(edge.to)
+    const splitNode = existing ?? node
+    const d1 = haversine(splitNode.position, fromPos)
+    const d2 = haversine(splitNode.position, toPos)
+    this.removeEdge(edgeId)
+    if (!existing) this.addNode(node)
+    this.addEdge({ ...edge, id: genId('E'), from: edge.from, to: splitNode.id, distance: d1, weight: d1 })
+    this.addEdge({ ...edge, id: genId('E'), from: splitNode.id, to: edge.to, distance: d2, weight: d2 })
+    return splitNode
+  }
+
   setTraces(traces: TracePath[]): void {
     this._traces.clear()
     for (const t of traces) this._traces.set(t.id, t)
@@ -401,6 +520,7 @@ export class Graph {
     this._nodes.clear()
     for (const n of nodes) this._nodes.set(n.id, n)
     this._cachedNodes = null
+    this._spatialIndex = null
   }
 
   setEdges(edges: NavEdge[]): void {
@@ -442,17 +562,19 @@ export class Graph {
     return this.edges.filter((e) => e.from === nodeId || e.to === nodeId)
   }
 
-  getNearestNode(position: LatLng, maxDistance = 50): NavNode | null {
-    let nearest: NavNode | null = null
-    let minDist = maxDistance
-    for (const node of this.nodes) {
-      const d = haversine(position, node.position)
-      if (d < minDist) {
-        minDist = d
-        nearest = node
-      }
+  private _buildSpatialIndex(): SpatialQueryService {
+    if (!this._spatialIndex) {
+      this._spatialIndex = new SpatialQueryService()
+      this._spatialIndex.loadFromNodes(this.nodes as unknown as Array<{ id: string; position: LatLng; type?: string; floor?: number; buildingId?: string; [key: string]: unknown }>)
     }
-    return nearest
+    return this._spatialIndex
+  }
+
+  getNearestNode(position: LatLng, maxDistance = 50): NavNode | null {
+    const index = this._buildSpatialIndex()
+    const result = index.nearestEntity(position, { maxDistance })
+    if (!result) return null
+    return this._nodes.get(result.entity.id) ?? null
   }
 
   syncHallwayIntersections(buildingId: string, floor: number): void {
@@ -481,7 +603,7 @@ export class Graph {
     }
 
     const TARGET_THRESHOLD = 5
-    const SAME_POS = 0.5
+    const SAME_POS = CONNECTIVITY_POSITION_TOLERANCE_METERS
 
     const edgeExists = (a: string, b: string) =>
       this.edges.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a))
@@ -508,7 +630,7 @@ export class Graph {
 
             const intersection = lineSegmentIntersection(p1, p2, p3, p4)
             if (!intersection) continue
-            if (this.nodes.some(n => haversine(n.position, intersection) < SAME_POS)) continue
+            if (this._buildSpatialIndex().nearestEntity(intersection, { maxDistance: SAME_POS })) continue
 
             const newNode: NavNode = {
               id: genId('N'),
@@ -539,7 +661,8 @@ export class Graph {
             const closest = closestPointOnSegment(
               ep.position, targetNodes[sj].position, targetNodes[sj + 1].position
             )
-            const near = this.nodes.find(n => n.type === 'intersection' && haversine(n.position, closest) < SAME_POS)
+            const nearResult = this._buildSpatialIndex().nearestEntity(closest, { maxDistance: SAME_POS, type: 'intersection' })
+            const near = nearResult ? this._nodes.get(nearResult.entity.id) ?? null : null
 
             if (near) {
               if (!edgeExists(ep.id, near.id)) {
@@ -583,48 +706,177 @@ export class Graph {
     }
   }
 
-  syncTraceIntersections(traceId: string): void {
+  syncTraceIntersections(
+    traceId: string,
+    connectivityRadius = 5,
+    allowGeometricInference = this._allowGeometricInference,
+  ): void {
     const trace = this._traces.get(traceId)
     if (!trace || trace.points.length < 2) return
 
-    const TARGET_THRESHOLD = 5
+    const TARGET_THRESHOLD = connectivityRadius
     const SAME_POS = 0.5
-
-    // Collect new trace's compiled nodes
-    const newNodes = this.nodes.filter(n => n.metadata?.traceId === traceId)
-    if (newNodes.length < 2) return
-
-    // Get existing traces (excluding the one being added/recompiled)
-    const existingTraces = this.traces.filter(t => t.id !== traceId && t.points.length >= 2)
-    if (existingTraces.length === 0) return
-
-    // Build ordered node+edge chain for each existing trace
-    const chains: { traceId: string; nodes: NavNode[]; edges: NavEdge[] }[] = []
-    for (const et of existingTraces) {
-      const nodes: NavNode[] = []
-      for (const p of et.points) {
-        const n = this.nodes.find(nn =>
-          nn.metadata?.traceId === et.id &&
-          Math.abs(nn.position.lat - p.lat) < 0.00001 &&
-          Math.abs(nn.position.lng - p.lng) < 0.00001
-        )
-        if (n) nodes.push(n)
-      }
-      if (nodes.length < 2) continue
-      const edges: NavEdge[] = []
-      for (let i = 0; i < nodes.length - 1; i++) {
-        const e = this.edges.find(edge =>
-          (edge.from === nodes[i].id && edge.to === nodes[i + 1].id) ||
-          (edge.from === nodes[i + 1].id && edge.to === nodes[i].id)
-        )
-        if (e) edges.push(e)
-      }
-      if (edges.length > 0) chains.push({ traceId: et.id, nodes, edges })
-    }
-    if (chains.length === 0) return
 
     const edgeExists = (a: string, b: string) =>
       this.edges.some(e => (e.from === a && e.to === b) || (e.from === b && e.to === a))
+
+    type ProjectedNode = {
+      node: NavNode
+      distance: number
+      along: number
+      segmentIndex: number
+    }
+    type TraceChain = {
+      traceId: string
+      nodes: NavNode[]
+      edges: (NavEdge | undefined)[]
+    }
+
+    const traceIdsForNode = (node: NavNode): string[] => {
+      const metadata = node.metadata
+      return [...new Set([
+        ...(typeof metadata?.traceId === 'string' ? [metadata.traceId] : []),
+        ...(Array.isArray(metadata?.traceIds)
+          ? metadata.traceIds.filter((id): id is string => typeof id === 'string')
+          : []),
+      ])]
+    }
+
+    const projectNode = (node: NavNode, points: LatLng[]): ProjectedNode | null => {
+      if (points.length < 2) return null
+
+      let cumulative = 0
+      let best: ProjectedNode | null = null
+      for (let i = 0; i < points.length - 1; i++) {
+        const start = points[i]
+        const end = points[i + 1]
+        const closest = closestPointOnSegment(node.position, start, end)
+        const distance = haversine(node.position, closest)
+        const segmentLength = haversine(start, end)
+        const along = cumulative + haversine(start, closest)
+        if (!best || distance < best.distance) {
+          best = { node, distance, along, segmentIndex: i }
+        }
+        cumulative += segmentLength
+      }
+      return best
+    }
+
+    const buildTraceChain = (targetTrace: TracePath): TraceChain | null => {
+      const authoredNodes: NavNode[] = []
+      for (const point of targetTrace.points) {
+        const node = this.nodes.find(n =>
+          n.metadata?.traceId === targetTrace.id &&
+          Math.abs(n.position.lat - point.lat) < 0.00001 &&
+          Math.abs(n.position.lng - point.lng) < 0.00001
+        )
+        if (node && !authoredNodes.some(existing => existing.id === node.id)) {
+          authoredNodes.push(node)
+        }
+      }
+      if (authoredNodes.length < 2) return null
+
+      const authoredNodeIds = new Set(authoredNodes.map(node => node.id))
+      const sharedNodes: ProjectedNode[] = []
+      for (const node of this.nodes) {
+        if (authoredNodeIds.has(node.id)) continue
+        const metadata = node.metadata
+        if (!Array.isArray(metadata?.traceIds) || !traceIdsForNode(node).includes(targetTrace.id)) continue
+
+        const projected = projectNode(node, targetTrace.points)
+        if (!projected || projected.distance > TARGET_THRESHOLD) continue
+
+        const samePositionNode = authoredNodes.find(authored =>
+          haversine(authored.position, node.position) <= SAME_POS
+        )
+        if (samePositionNode) {
+          if (!edgeExists(samePositionNode.id, node.id)) {
+            const distance = haversine(samePositionNode.position, node.position)
+            this.addEdge({
+              id: genId('E'),
+              from: samePositionNode.id,
+              to: node.id,
+              type: 'walk',
+              distance,
+              weight: distance,
+              campusId: targetTrace.campusId ?? this.campusId,
+            })
+          }
+          continue
+        }
+
+        sharedNodes.push(projected)
+      }
+
+      // Split authored edges in order along each polyline segment. This uses
+      // the persisted node itself, so no singular traceId is assigned to a
+      // junction shared by multiple roads.
+      for (let segmentIndex = 0; segmentIndex < authoredNodes.length - 1; segmentIndex++) {
+        const segmentJunctions = sharedNodes
+          .filter(projected => projected.segmentIndex === segmentIndex)
+          .sort((left, right) => left.along - right.along || left.node.id.localeCompare(right.node.id))
+
+        let leftNode = authoredNodes[segmentIndex]
+        const rightNode = authoredNodes[segmentIndex + 1]
+        for (const projected of segmentJunctions) {
+          const edge = this.edges.find(candidate =>
+            (candidate.from === leftNode.id && candidate.to === rightNode.id) ||
+            (candidate.from === rightNode.id && candidate.to === leftNode.id)
+          )
+          if (edge && edge.from !== projected.node.id && edge.to !== projected.node.id) {
+            this.splitEdgeWithNode(edge.id, projected.node)
+          }
+          leftNode = projected.node
+        }
+      }
+
+      const ordered = [
+        ...authoredNodes.map(node => projectNode(node, targetTrace.points)).filter((node): node is ProjectedNode => node !== null),
+        ...sharedNodes,
+      ].sort((left, right) => left.along - right.along || left.node.id.localeCompare(right.node.id))
+
+      const nodes: NavNode[] = []
+      for (const projected of ordered) {
+        if (!nodes.some(existing => existing.id === projected.node.id)) nodes.push(projected.node)
+      }
+
+      const edges: (NavEdge | undefined)[] = []
+      for (let i = 0; i < nodes.length - 1; i++) {
+        edges[i] = this.edges.find(edge =>
+          (edge.from === nodes[i].id && edge.to === nodes[i + 1].id) ||
+          (edge.from === nodes[i + 1].id && edge.to === nodes[i].id)
+        )
+      }
+      return { traceId: targetTrace.id, nodes, edges }
+    }
+
+    // Prepare the newly compiled trace too. A persisted junction may be
+    // interior to this trace, in which case Phase 2 must see both sides of
+    // its already-split edge and must not create a duplicate junction.
+    const newChain = buildTraceChain(trace)
+    if (!newChain || newChain.nodes.length < 2) return
+    const newNodes = newChain.nodes
+    const newNodeIds = newNodes
+      .filter(node => node.metadata?.traceId === traceId)
+      .map(node => node.id)
+
+    // Get existing traces (excluding the one being added/recompiled).
+    const existingTraces = this.traces.filter(t => t.id !== traceId && t.points.length >= 2)
+    if (existingTraces.length === 0) return
+
+    // Build ordered node+edge chains for existing traces. Shared junctions
+    // participate through plural traceIds and are sorted by polyline position.
+    const chains: TraceChain[] = []
+    for (const existingTrace of existingTraces) {
+      const chain = buildTraceChain(existingTrace)
+      if (chain && chain.edges.some(Boolean)) chains.push(chain)
+    }
+    if (chains.length === 0) return
+
+    // Persisted/shared junction nodes were incorporated by buildTraceChain
+    // above. Everything below this point derives topology from geometry, so
+    // explicit-only compilation must stop here.
+    if (!allowGeometricInference) return
 
     // ---- Phase 1: Endpoint T-junctions ----
     const endpoints = [newNodes[0], newNodes[newNodes.length - 1]]
@@ -640,18 +892,17 @@ export class Graph {
             ep.position, chain.nodes[sj].position, chain.nodes[sj + 1].position
           )
 
-          // Snap trace endpoint to the closest point (trim excess)
-          if (ep === newNodes[0]) {
-            trace.points[0] = { ...closest }
-          } else {
-            trace.points[trace.points.length - 1] = { ...closest }
-          }
+          // Snap trace endpoint to the closest point (trim excess).
+          // Do NOT mutate trace.points — authored geometry is canonical.
           ep.position = { ...closest }
 
           // Check for existing node at the closest point
-          const near = this.nodes.find(n =>
-            n.type === 'intersection' && haversine(n.position, closest) < SAME_POS
-          )
+          const nearResult = this._buildSpatialIndex().nearestEntity(closest, {
+            maxDistance: SAME_POS,
+            type: 'intersection',
+            exclude: newNodeIds,
+          })
+          const near = nearResult ? this._nodes.get(nearResult.entity.id) ?? null : null
 
           let intersectionNode: NavNode
           if (near) {
@@ -661,34 +912,31 @@ export class Graph {
             const ids = [...new Set([...existingIds, traceId, chain.traceId])]
             near.metadata = { ...meta, traceIds: ids, connectionNode: true }
           } else {
-            // Capture edge info before splitting
-            const edgeFrom = chain.edges[sj].from
-            const edgeTo = chain.edges[sj].to
-            const edgeType = chain.edges[sj].type
-            const edgeCampusId = chain.edges[sj].campusId
+            // The endpoint is already the canonical node for the new trace.
+            // Reuse it as the junction so the resolver cannot create a
+            // zero-length self-loop from the endpoint to a duplicate node.
+            const targetEdge = chain.edges[sj]
+            if (!targetEdge) continue
+            const edgeFrom = targetEdge.from
+            const edgeTo = targetEdge.to
+            const edgeType = targetEdge.type
+            const edgeCampusId = targetEdge.campusId
 
-            const id = genId('N')
-            const buildingId = trace.buildingId ?? chain.nodes[sj].buildingId
-            intersectionNode = {
-              id, label: 'Route Junction', name: 'Route Junction',
-              type: 'intersection',
-              campusId: trace.campusId ?? '',
-              floor: trace.floor,
-              buildingId,
-              position: closest,
-              metadata: { traceIds: [chain.traceId, traceId], connectionNode: true },
-            }
-            this.removeEdge(chain.edges[sj].id)
-            this.addNode(intersectionNode)
+            intersectionNode = ep
+            const meta = ep.metadata || {}
+            const existingIds = (meta.traceIds as string[]) || (meta.traceId ? [meta.traceId as string] : [])
+            const ids = [...new Set([...existingIds, traceId, chain.traceId])]
+            ep.metadata = { ...meta, traceIds: ids, connectionNode: true }
+            this.removeEdge(targetEdge.id)
             this.addEdge({
-              id: genId('E'), from: edgeFrom, to: id,
+              id: genId('E'), from: edgeFrom, to: ep.id,
               type: edgeType,
               distance: haversine(this._nodePosition(edgeFrom), closest),
               weight: haversine(this._nodePosition(edgeFrom), closest),
               campusId: edgeCampusId ?? '',
             })
             this.addEdge({
-              id: genId('E'), from: id, to: edgeTo,
+              id: genId('E'), from: ep.id, to: edgeTo,
               type: edgeType,
               distance: haversine(closest, this._nodePosition(edgeTo)),
               weight: haversine(closest, this._nodePosition(edgeTo)),
@@ -697,7 +945,7 @@ export class Graph {
           }
 
           // Connect the new trace's endpoint node to the intersection node
-          if (!edgeExists(ep.id, intersectionNode.id)) {
+          if (ep.id !== intersectionNode.id && !edgeExists(ep.id, intersectionNode.id)) {
             const dist = haversine(ep.position, intersectionNode.position)
             this.addEdge({
               id: genId('E'), from: ep.id, to: intersectionNode.id,
@@ -705,12 +953,25 @@ export class Graph {
               campusId: trace.campusId ?? '',
             })
           }
+
+          // Rebuild this chain's edge references after the split, so
+          // subsequent endpoints see the updated edge topology.
+          for (let i = 0; i < chain.nodes.length - 1; i++) {
+            chain.edges[i] = this.edges.find(edge =>
+              (edge.from === chain.nodes[i].id && edge.to === chain.nodes[i + 1].id) ||
+              (edge.from === chain.nodes[i + 1].id && edge.to === chain.nodes[i].id)
+            )
+          }
+
           break // only one connection per endpoint
         }
       }
     }
 
     // ---- Phase 2: Crossings (X-intersections) ----
+    // In modern canonical mode (connectivitySemanticsVersion present), geometry
+    // alone does NOT create connectivity. Only explicit authored junctions
+    // create connections. Skip geometric crossing detection.
     for (let si = 0; si < newNodes.length - 1; si++) {
       for (const chain of chains) {
         for (let sj = 0; sj < chain.nodes.length - 1; sj++) {
@@ -719,14 +980,41 @@ export class Graph {
             chain.nodes[sj].position, chain.nodes[sj + 1].position
           )
           if (!intersection) continue
-          if (this.nodes.some(n => haversine(n.position, intersection) < SAME_POS)) continue
 
-          // Capture edge info before splitting
-          const edgeId = chain.edges[sj].id
-          const edgeFrom = chain.edges[sj].from
-          const edgeTo = chain.edges[sj].to
-          const edgeType = chain.edges[sj].type
-          const edgeCampusId = chain.edges[sj].campusId
+          // Skip only this crossing position. A separated P1 must not suppress
+          // a geometric P2 junction for the same road pair.
+          if (hasSeparatedCrossingAtPosition(
+            this._separatedCrossings,
+            traceId,
+            chain.traceId,
+            intersection,
+          )) continue
+
+          if (this._buildSpatialIndex().nearestEntity(intersection, {
+            maxDistance: SAME_POS,
+            exclude: newNodeIds,
+          })) continue
+
+          const newEdge = this.edges.find(edge =>
+            (edge.from === newNodes[si].id && edge.to === newNodes[si + 1].id) ||
+            (edge.from === newNodes[si + 1].id && edge.to === newNodes[si].id)
+          )
+          if (!newEdge) continue
+
+          // Capture edge info before splitting. A segment without a direct
+          // edge is already represented by a split/shared junction and must
+          // not be dereferenced or guessed at.
+          const targetEdge = chain.edges[sj]
+          if (!targetEdge) continue
+          const edgeId = targetEdge.id
+          const edgeFrom = targetEdge.from
+          const edgeTo = targetEdge.to
+          const edgeType = targetEdge.type
+          const edgeCampusId = targetEdge.campusId
+          const newEdgeFrom = newEdge.from
+          const newEdgeTo = newEdge.to
+          const newEdgeType = newEdge.type
+          const newEdgeCampusId = newEdge.campusId
 
           const id = genId('N')
           const buildingId = trace.buildingId ?? chain.nodes[sj].buildingId
@@ -756,21 +1044,26 @@ export class Graph {
             campusId: edgeCampusId ?? '',
           })
 
-          // Connect the closer new trace node to the intersection
-          const dFrom = haversine(newNodes[si].position, intersection)
-          const dTo = haversine(newNodes[si + 1].position, intersection)
-          const closestNode = dFrom <= dTo ? newNodes[si] : newNodes[si + 1]
-          if (!edgeExists(closestNode.id, id)) {
-            const dist = haversine(closestNode.position, intersection)
-            this.addEdge({
-              id: genId('E'), from: closestNode.id, to: id,
-              type: 'walk', distance: dist, weight: dist,
-              campusId: trace.campusId ?? '',
-            })
-          }
-        }
-      }
+          // Split the new trace too. Connecting only its closer endpoint
+          // leaves the junction attached to one side of the crossing.
+          this.removeEdge(newEdge.id)
+          this.addEdge({
+            id: genId('E'), from: newEdgeFrom, to: id,
+            type: newEdgeType,
+            distance: haversine(this._nodePosition(newEdgeFrom), intersection),
+            weight: haversine(this._nodePosition(newEdgeFrom), intersection),
+            campusId: newEdgeCampusId ?? '',
+          })
+          this.addEdge({
+            id: genId('E'), from: id, to: newEdgeTo,
+            type: newEdgeType,
+            distance: haversine(intersection, this._nodePosition(newEdgeTo)),
+            weight: haversine(intersection, this._nodePosition(newEdgeTo)),
+            campusId: newEdgeCampusId ?? '',
+          })
     }
+    }
+    } // end canonical mode guard — Phase 2 skipped when version marker present
 
     this._cachedNodes = null
     this._cachedEdges = null
@@ -804,7 +1097,12 @@ export class Graph {
       edges: this.edges,
       components: this.components,
       traces: this.traces,
+      areas: this.areas,
+      ...(this._pois.length > 0 ? { pois: this._pois } : {}),
       boundary: this._boundary,
+      doors: this._doors.length > 0 ? this._doors : undefined,
+      separatedCrossings: this._separatedCrossings.length > 0 ? this._separatedCrossings : undefined,
+      connectivitySemanticsVersion: this._connectivitySemanticsVersion,
     }
   }
 
@@ -816,7 +1114,15 @@ export class Graph {
     graph.setEdges(snapshot.edges)
     graph.setComponents(snapshot.components ?? [])
     if (snapshot.traces) graph.setTraces(snapshot.traces)
+    if (snapshot.areas) graph.areas = snapshot.areas
+    if (snapshot.pois) graph.pois = snapshot.pois
     if (snapshot.boundary) graph._boundary = snapshot.boundary
+    if (snapshot.doors) graph._doors = snapshot.doors
+    if (snapshot.separatedCrossings) graph._separatedCrossings = snapshot.separatedCrossings
+    if (snapshot.connectivitySemanticsVersion) {
+      graph._connectivitySemanticsVersion = snapshot.connectivitySemanticsVersion
+      graph._allowGeometricInference = false
+    }
     return graph
   }
 

@@ -4,6 +4,7 @@ import type {
   LegacyElevator,
   LegacyStaircase,
 } from '../types/entities'
+import { isDoorType, isRouteNodeType, isRouteEdgeType } from '../types/enums'
 
 // ── Serialize CampusDocument to JSON string ──
 
@@ -129,6 +130,10 @@ function validateDocument(doc: unknown): asserts doc is Record<string, unknown> 
   if (!Array.isArray(d.qrCheckpoints)) {
     throw new Error('Invalid document: qrCheckpoints must be an array')
   }
+  // Outdoor/campus POIs are additive-optional; when present they must be an array.
+  if (d.pois !== undefined && !Array.isArray(d.pois)) {
+    throw new Error('Invalid document: pois must be an array')
+  }
   validateFeatures(d.buildings)
 }
 
@@ -172,6 +177,31 @@ function validateFeatureShape(kind: 'staircase' | 'elevator', feature: unknown):
 
 // ── Migration on deserialization ──
 
+// P1-T6 (R2.4/D7): doorType is a closed enum — unknown values fail loudly
+// on deserialize rather than silently corrupting the door model.
+function assertDoorType(door: Record<string, unknown>): void {
+  const id = typeof door.id === 'string' ? door.id : '<unnamed>'
+  if (!isDoorType(door.doorType)) {
+    throw new Error(`Invalid document: RoomDoor "${id}" has unknown doorType "${String(door.doorType)}"`)
+  }
+}
+
+// P1-T7 (R2.5/D10): route-network node/edge types are closed enums — unknown
+// values fail loudly on deserialize (same contract as assertDoorType).
+function assertRouteNodeType(node: Record<string, unknown>): void {
+  const id = typeof node.id === 'string' ? node.id : '<unnamed>'
+  if (!isRouteNodeType(node.type)) {
+    throw new Error(`Invalid document: RouteNode "${id}" has unknown type "${String(node.type)}"`)
+  }
+}
+
+function assertRouteEdgeType(edge: Record<string, unknown>): void {
+  const id = typeof edge.id === 'string' ? edge.id : '<unnamed>'
+  if (!isRouteEdgeType(edge.type)) {
+    throw new Error(`Invalid document: RouteEdge "${id}" has unknown type "${String(edge.type)}"`)
+  }
+}
+
 function migrateDocument(doc: Record<string, unknown>): void {
   if (typeof doc.schemaVersion !== 'number') {
     doc.schemaVersion = 1
@@ -182,6 +212,10 @@ function migrateDocument(doc: Record<string, unknown>): void {
     if (!Array.isArray(bld.verticalConnectors)) {
       bld.verticalConnectors = []
     }
+    // P1-T1 (R2.1/D12): per-floor origin fields are ADDITIVE OPTIONAL — legacy
+    // documents keep them absent (no rewrite, no migration prompt); defaults
+    // ({x:0,y:0} / 0) are applied at consumption time (CoordinateTransformer
+    // identity fallback, forward-adapter `??` fallbacks).
     mintFeatures(bld)
     const floors = bld.floors as Record<string, unknown>[]
     if (Array.isArray(floors)) {
@@ -194,7 +228,28 @@ function migrateDocument(doc: Record<string, unknown>): void {
           for (const room of rooms) {
             if (!Array.isArray(room.roomDoors)) {
               room.roomDoors = []
+            } else {
+              // P1-T6 (R2.4): unknown doorType values are rejected on load.
+              for (const door of room.roomDoors) assertDoorType(door)
             }
+          }
+        }
+        // P1-T6: extracted Floor.doors collection obeys the same enum.
+        const doors = floor.doors as Record<string, unknown>[] | undefined
+        if (Array.isArray(doors)) {
+          for (const door of doors) assertDoorType(door)
+        }
+        // P1-T7 (R2.5/D10): authored route network obeys the closed enums.
+        // Verbatim passthrough otherwise (D12 additive-absent).
+        const routeNetwork = floor.routeNetwork as Record<string, unknown> | undefined
+        if (routeNetwork && typeof routeNetwork === 'object') {
+          const nodes = routeNetwork.nodes as Record<string, unknown>[] | undefined
+          if (Array.isArray(nodes)) {
+            for (const node of nodes) assertRouteNodeType(node)
+          }
+          const edges = routeNetwork.edges as Record<string, unknown>[] | undefined
+          if (Array.isArray(edges)) {
+            for (const edge of edges) assertRouteEdgeType(edge)
           }
         }
       }

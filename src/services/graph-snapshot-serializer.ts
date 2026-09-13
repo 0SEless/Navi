@@ -51,6 +51,10 @@ export interface RpcPayload {
   edges: unknown[]
   components: unknown[]
   traces?: unknown[]
+  areas?: unknown[]
+  pois?: unknown[]
+  doors?: unknown[]
+  separatedCrossings?: unknown[]
 }
 
 export interface BuildingLike {
@@ -80,6 +84,10 @@ export interface GraphSnapshotLike {
   edges?: unknown[]
   components?: unknown[]
   traces?: unknown[]
+  areas?: unknown[]
+  pois?: unknown[]
+  doors?: unknown[]
+  separatedCrossings?: unknown[]
 }
 
 /**
@@ -92,7 +100,10 @@ export function serializeSnapshot(
   snapshot: GraphSnapshotLike,
   overrideCampusId?: string | null,
 ): RpcPayload {
-  const campusId = overrideCampusId || snapshot.campusId || 'asu-ibajay'
+  const campusId = overrideCampusId || snapshot.campusId
+  if (!campusId) {
+    throw new Error('Cannot serialize snapshot: campusId is required')
+  }
 
   return {
     id: snapshot.id || campusId,
@@ -104,6 +115,12 @@ export function serializeSnapshot(
     edges: snapshot.edges ?? [],
     components: snapshot.components ?? [],
     traces: snapshot.traces,
+    areas: snapshot.areas,
+    // Outdoor/campus POIs (world geometry) — additive-optional pass-through.
+    pois: snapshot.pois,
+    doors: snapshot.doors,
+    // Persistence fix: explicit separation decisions must survive save/reload.
+    separatedCrossings: snapshot.separatedCrossings,
   }
 }
 

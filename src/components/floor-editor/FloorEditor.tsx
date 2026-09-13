@@ -1,38 +1,49 @@
-'use client'
+﻿'use client'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { useEditor, useSelection, Viewport, CurrentToolStore, ContextHeader, ToolDock, INTERIOR_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
+import { useEditor, useSelection, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
 import { FloorOutliner } from './FloorOutliner'
 import { ComponentProperties } from './ComponentProperties'
+import { OutdoorRoutePicker } from './OutdoorRoutePicker'
+import type { OutdoorRouteCandidate } from './outdoor-route-picker-model'
+import { InteractionProvider, useInteraction } from './InteractionContext'
+import { StatusBar } from './StatusBar'
 import { useFloorAdapter } from './adapters/floor-adapter'
 import { useToolAdapter } from './adapters/tool-adapter'
 import type { LayerVisibility } from '@/types/studio-types'
+import { DEFAULT_LAYER_VISIBILITY } from '@/types/studio-types'
 
 const FloorEditorCanvas = dynamic(
   () => import('./FloorEditorCanvas').then((m) => m.FloorEditorCanvas),
-  { ssr: false, loading: () => <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: 12 }}>Loading map…</div> }
+  { ssr: false, loading: () => <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: 12 }}>Loading mapâ€¦</div> }
 )
-import { Eye, EyeOff } from 'lucide-react'
+import { ScaleCalibration } from './ScaleCalibration'
+import { TwoPointCalibration, validateCalibrationPoints, computeCalibration } from './TwoPointCalibration'
+import type { CalibrationStep, CalibrationError } from './TwoPointCalibration'
+import type { Point2D } from '@/lib/two-point-calibration'
+import { getFootprintFrameMeters } from '@/lib/floor-plan-transform'
+import { normalizePlanAlignmentForWrite } from '@/lib/floor-plan-inspector'
+import { commitFloorPlanAlignment } from '@/lib/floor-plan-commit'
+import { uploadFloorPlanImage, deleteFloorPlanImage } from '@/services/floor-plan-storage'
+import {
+  buildFloorPlanReplaceAlignment,
+  readFloorPlanImageDimensions,
+  resolveFloorPlanUrl,
+} from '@/services/floor-plan-lifecycle'
+import type { FloorPlanStorageScope } from '@/services/floor-plan-lifecycle'
+import { FloorPlanTransformInspector } from './FloorPlanTransformInspector'
+import { Eye, EyeOff, Upload, Trash2, RefreshCw, Box, Layers } from 'lucide-react'
+import { useGraphStore } from '@/store/graph-store'
+import type { PlanAlignment } from '@navi/core'
 
 interface FloorEditorProps {
   mapId: string
   buildingId: string
   floor: number
-}
-
-// Map spec tool IDs to current StudioTool IDs (until Phase 6 renames them)
-const TOOL_ID_MAP: Record<string, string> = {
-  navigate: 'select',
-  select: 'select',
-  space: 'room',
-  hallway: 'hallway',
-  entrance: 'entrance',
-  stair: 'stairs',
-  elevator: 'elevator',
 }
 
 const ARCHITECTURE_LAYERS: { key: keyof LayerVisibility; label: string }[] = [
@@ -44,7 +55,7 @@ const ARCHITECTURE_LAYERS: { key: keyof LayerVisibility; label: string }[] = [
 ]
 
 export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
-  const { services } = useEditor()
+  const { services, document: editorDoc } = useEditor()
   const viewport = services.get('viewport')
 
   const building = useLegacyBuilding(buildingId)
@@ -57,37 +68,122 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const selectedId = lastSelected?.id ?? null
   const selectedCount = lastSelected ? 1 : 0
 
-  const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'error' ? 'error' : 'unsaved'
+  const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'conflict' ? 'conflict' : syncStatus === 'error' ? 'error' : 'unsaved'
 
   const [layers, setLayers] = useState<LayerVisibility>({
-    osm: false, satellite: false, floor_plan: true, buildings: false,
-    rooms: true, hallways: true, assets: true, nodes: false, edges: false, labels: true,
+    ...DEFAULT_LAYER_VISIBILITY,
+    floor_plan: true, buildings: false,
   })
 
-  const [editorMode, setEditorMode] = useState<'architecture' | 'navigation-preview'>('architecture')
-  // Floor plan opacity (separate from alignment to allow preview without persistence)
-  const [alignOpacity, setAlignOpacity] = useState(0.7)
+  const [editorMode, setEditorMode] = useState<'architecture' | 'navigation'>('architecture')
+  const [viewMode, setViewMode] = useState<'2d' | '2.5d'>('2d')
+  // Camera snapshot for deterministic restore when toggling 2D ↔ 2.5D
+  const cameraSnapshotRef = useRef<{ pitch: number; bearing: number; zoom: number; center: [number, number] } | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
-  const hasPlan = !!building?.floorPlanUrls?.[floor]
-  const [mode, setMode] = useState<'setup' | 'mapping'>(hasPlan ? 'mapping' : 'mapping')
-  const [locked, setLocked] = useState(false)
+  // Snap mode for wall drawing
+  const [snapMode, setSnapMode] = useState<'architectural' | 'trace' | 'free'>('trace')
+
+
+  const currentLevel = building?.floors?.[floorAdapter.activeFloorIndex] ?? floor
+  const currentFloorData = building?.floorData?.find((fd: any) => fd.level === currentLevel)
+  const currentFloorId = (currentFloorData as any)?.id as string | undefined
+  const planAlignment = (currentFloorData as any)?.planAlignment as PlanAlignment | undefined
+  const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[floor], currentFloorData as any)
+  const hasPlan = !!planImageUrl
+  const persistedLocked = !!(currentFloorData as any)?.locked
+
+  const [mode, setMode] = useState<'setup' | 'mapping'>(
+    persistedLocked ? 'mapping' : 'setup'
+  )
+  const [locked, setLocked] = useState(persistedLocked)
   const [showGotIt, setShowGotIt] = useState(false)
   const [setupCardHidden, setSetupCardHidden] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showCalibrate, setShowCalibrate] = useState(false)
+  const [twoPointCalibration, setTwoPointCalibration] = useState(false)
+  const [calibrationStep, setCalibrationStep] = useState<CalibrationStep>('plan-a')
+  const [calPlanA, setCalPlanA] = useState<Point2D | null>(null)
+  const [calPlanB, setCalPlanB] = useState<Point2D | null>(null)
+  const [calMapA, setCalMapA] = useState<Point2D | null>(null)
+  const [calMapB, setCalMapB] = useState<Point2D | null>(null)
+  const [calError, setCalError] = useState<CalibrationError | null>(null)
+  const [calImageWidth, setCalImageWidth] = useState(0)
+  const [calImageHeight, setCalImageHeight] = useState(0)
   const [uploadCardDismissed, setUploadCardDismissed] = useState(false)
   const [showUnlockWarning, setShowUnlockWarning] = useState(false)
+  const [aspectRatioLocked, setAspectRatioLocked] = useState(true)
+
+  const calibrationFrame = useMemo(
+    () => getFootprintFrameMeters(building?.footprint ?? []),
+    [building?.footprint],
+  )
+  const calibrationFootprintLocal = useMemo(
+    () => calibrationFrame.corners.map((point) => [point.x, point.y] as Point2D),
+    [calibrationFrame],
+  )
+
+  // The editor document can hydrate after this component's first render. Keep
+  // the local interaction gate aligned with the persisted floor lock once the
+  // active floor record is available.
+  useEffect(() => {
+    if (!currentFloorId) return
+    setLocked(persistedLocked)
+    if (persistedLocked) setMode('mapping')
+  }, [currentFloorId, persistedLocked])
 
   const [navPreviewOpen, setNavPreviewOpen] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
   const floorComponents = useFloorComponents(buildingId, floorAdapter.activeFloorIndex)
+  const graphNodes = useGraphStore((state) => state.graph.nodes)
+  const graphEdges = useGraphStore((state) => state.graph.edges)
+  const graphBuildings = useGraphStore((state) => state.graph.buildings)
+  const graphAreas = useGraphStore((state) => state.graph.areas)
+  const [outdoorPickerEntranceId, setOutdoorPickerEntranceId] = useState<string | null>(null)
+  const [pendingEntranceRoute, setPendingEntranceRoute] = useState<{
+    entranceId: string
+    candidate: OutdoorRouteCandidate
+  } | null>(null)
+  const [routeAuthoringMessage, setRouteAuthoringMessage] = useState<string | null>(null)
+  const pendingRouteAnchor = useMemo(() => pendingEntranceRoute ? {
+    entranceId: pendingEntranceRoute.entranceId,
+    outdoorNodeId: pendingEntranceRoute.candidate.id,
+    position: pendingEntranceRoute.candidate.position,
+    ...(pendingEntranceRoute.candidate.routeId ? { outdoorRouteId: pendingEntranceRoute.candidate.routeId } : {}),
+  } : undefined, [pendingEntranceRoute])
+  const selectedEntranceForPicker = useMemo(() => {
+    if (!outdoorPickerEntranceId) return null
+    const selected = floorComponents.find((component) => component.id === outdoorPickerEntranceId && component.type === 'entrance')
+    return selected ? { id: selected.id, name: selected.name, position: selected.position } : null
+  }, [floorComponents, outdoorPickerEntranceId])
+  const handleOpenOutdoorRoutePicker = useCallback((entranceId: string) => {
+    const entrance = floorComponents.find((component) => component.id === entranceId && component.type === 'entrance')
+    if (!entrance) return
+    setRouteAuthoringMessage(null)
+    setOutdoorPickerEntranceId(entranceId)
+  }, [floorComponents])
+  const handleOutdoorRouteConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
+    if (!selectedEntranceForPicker) return
+    setPendingEntranceRoute({ entranceId: selectedEntranceForPicker.id, candidate })
+    setOutdoorPickerEntranceId(null)
+    setEditorMode('navigation')
+    setMode('mapping')
+    setRouteAuthoringMessage('Outdoor target selected. The Route starts at the selected Entrance; click each next turn or branch point.')
+    activateTool('hallway')
+  }, [activateTool, selectedEntranceForPicker])
+  const handleOutdoorRouteCancel = useCallback(() => setOutdoorPickerEntranceId(null), [])
+  const handleRouteStartRejected = useCallback((reason: string) => setRouteAuthoringMessage(reason), [])
+  const handleRouteAccessAssigned = useCallback(() => {
+    setPendingEntranceRoute(null)
+    setRouteAuthoringMessage(null)
+  }, [])
   const validationChecks = useMemo(
-    () => validationVisible ? runValidationChecks(building, floorAdapter.activeFloorIndex, floorComponents) : [],
-    [validationVisible, building, floorAdapter.activeFloorIndex, floorComponents],
+    () => runValidationChecks(building, floorAdapter.activeFloorIndex, floorComponents, undefined, editorDoc.roads, editorDoc),
+    [building, floorAdapter.activeFloorIndex, floorComponents, editorDoc],
   )
 
   // Sync nav preview state when editor mode changes
   useEffect(() => {
-    if (editorMode === 'navigation-preview') {
+    if (editorMode === 'navigation') {
       setNavPreviewOpen(true)
       if (!(layers.nodes && layers.edges)) {
         setLayers((prev) => ({ ...prev, nodes: true, edges: true }))
@@ -105,18 +201,50 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
+  // Tools that create geometry — disabled in 2.5D preview mode
+  const CREATION_TOOLS_2_5D = useMemo(() => new Set(['wall', 'door', 'window', 'hallway']), [])
+
   const handleToolActivate = useCallback((toolId: string) => {
-    if (editorMode === 'navigation-preview' && toolId !== 'select') return
-    if (toolId === 'align') return // alignment handled by workflow state
-    const mappedId = TOOL_ID_MAP[toolId] || toolId
-    activateTool(mappedId)
+    if (viewMode === '2.5d' && CREATION_TOOLS_2_5D.has(toolId)) return
+    if (toolId === 'align') {
+      if (locked) return
+      // Enter setup mode for alignment
+      setMode('setup')
+      setLocked(false)
+      return
+    }
+    // Exit setup mode when selecting other tools
+    if (mode === 'setup' && toolId !== 'align') {
+      setMode('mapping')
+    }
+    activateTool(toolId)
     clear()
-  }, [activateTool, clear, editorMode])
+  }, [activateTool, clear, editorMode, viewMode, CREATION_TOOLS_2_5D, mode, locked])
+
+  const interiorToolGroups = useMemo(
+    () => buildInteriorToolGroups(toolRegistry, ICONS, editorMode),
+    [editorMode],
+  )
+  const dockToolGroups = useMemo(
+    () => locked ? interiorToolGroups.filter((group) => group.id !== 'alignment') : interiorToolGroups,
+    [interiorToolGroups, locked],
+  )
 
   // Find the active tool ID in the groups (reverse mapping)
-  const dockActiveTool = editorMode === 'navigation-preview' ? 'select' : mode === 'setup' ? 'select' : Object.entries(TOOL_ID_MAP).find(([, v]) => v === activeTool)?.[0] || activeTool
+  const dockActiveTool = mode === 'setup' ? 'select' : viewMode === '2.5d' ? 'select' : activeTool
 
-  useToolDockShortcuts(INTERIOR_TOOL_GROUPS, dockActiveTool, handleToolActivate)
+  useToolDockShortcuts(dockToolGroups, dockActiveTool, handleToolActivate)
+
+  const handleViewModeToggle = useCallback(() => {
+    setViewMode((prev) => (prev === '2d' ? '2.5d' : '2d'))
+  }, [])
+
+  // When switching to 2.5D, if a creation tool is active, force select
+  useEffect(() => {
+    if (viewMode === '2.5d' && CREATION_TOOLS_2_5D.has(activeTool)) {
+      activateTool('select')
+    }
+  }, [viewMode, activeTool, activateTool, CREATION_TOOLS_2_5D])
 
   const historyRef = useRef(services.get('history'))
   useEffect(() => {
@@ -141,46 +269,161 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   const floorCount = building?.floors?.length ?? 0
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
-  const canvasTool = mode === 'setup' ? 'select' : editorMode === 'navigation-preview' ? 'select' : activeTool
-
-  // Find planAlignment for current floor from floorData
-  const currentLevel = building?.floors?.[floorAdapter.activeFloorIndex] ?? floor
-  const currentFloorData = building?.floorData?.find((fd: any) => fd.level === currentLevel)
-  const planAlignment = (currentFloorData as any)?.planAlignment as { offset?: { x: number; y: number }; scale?: number; rotation?: number; opacity?: number } | undefined
+  const canvasTool = mode === 'setup' ? 'select' : viewMode === '2.5d' ? 'select' : activeTool
 
   const [editorAlignment, setEditorAlignment] = useState(planAlignment)
   useEffect(() => setEditorAlignment(planAlignment), [planAlignment])
 
-  const currentFloorId = (currentFloorData as any)?.id as string | undefined
-  // Persist alignment when mode transitions from setup → mapping (lock)
-  const prevModeRef = useRef(mode)
-  useEffect(() => {
-    if (prevModeRef.current === 'setup' && mode === 'mapping' && currentFloorId && editorAlignment) {
-      const dispatcher = services.get('dispatcher') as any
-      dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { planAlignment: editorAlignment } } })
+  /**
+   * Sole committed-alignment authority. Pointermove never reaches this
+   * callback; FloorPlanAlignment calls it only after a completed gesture.
+   */
+  const commitAlignment = useCallback((candidate: PlanAlignment) => {
+    const next = normalizePlanAlignmentForWrite(candidate)
+    if (!currentFloorId) {
+      setEditorAlignment(next)
+      return
     }
-    prevModeRef.current = mode
-  }, [mode, currentFloorId, editorAlignment, services])
+    const dispatcher = services.get('dispatcher') as any
+    const committed = dispatcher ? commitFloorPlanAlignment(dispatcher, currentFloorId, next) : next
+    if (committed) setEditorAlignment(committed)
+  }, [currentFloorId, services])
 
-  const handleUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // T1: Supabase Storage Upload Handler
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const dataUrl = reader.result as string
-      const dispatcher = services.get('dispatcher') as any
-      dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { planImageId: dataUrl } } })
-      setShowGotIt(true)
-      setMode('setup')
+    if (!file || !currentFloorId || !buildingId) return
+    const existingUrl = planImageUrl
+    setIsUploading(true)
+    try {
+      const publicUrl = await uploadFloorPlanImage(file, mapId, buildingId, currentLevel)
+      if (publicUrl) {
+        const dispatcher = services.get('dispatcher') as any
+        if (!dispatcher?.execute) return
+        const [previousDimensions, replacementDimensions] = await Promise.all([
+          readFloorPlanImageDimensions(existingUrl),
+          readFloorPlanImageDimensions(publicUrl),
+        ])
+        const nextAlignment = buildFloorPlanReplaceAlignment(
+          editorAlignment,
+          previousDimensions,
+          replacementDimensions,
+        )
+        const updateResult = dispatcher?.execute({
+          id: 'entity.update',
+          label: 'Replace Floor Plan',
+          payload: {
+            entityId: currentFloorId,
+            changes: { planImageId: publicUrl, floorPlanState: 'active', planAlignment: nextAlignment },
+          },
+        })
+        if (updateResult?.success === false) return
+        setEditorAlignment(nextAlignment)
+        if (existingUrl && existingUrl !== publicUrl) {
+          const scope: FloorPlanStorageScope = {
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+            mapId,
+            buildingId,
+            floorLevel: currentLevel,
+          }
+          await deleteFloorPlanImage(existingUrl, scope)
+        }
+        setUploadCardDismissed(true)
+        setMode('setup')
+        setLocked(false)
+        setShowGotIt(true)
+        setSetupCardHidden(false)
+      }
+    } catch (err) {
+      console.error('Failed to upload floor plan:', err)
+    } finally {
+      setIsUploading(false)
     }
-    reader.readAsDataURL(file)
-  }, [services, currentFloorId])
+  }, [services, currentFloorId, buildingId, mapId, currentLevel])
+
+  // T5: Remove Floor Plan Handler
+  const handleRemoveFloorPlan = useCallback(async () => {
+    if (!currentFloorId) return
+    const existingUrl = planImageUrl
+    const dispatcher = services.get('dispatcher') as any
+    if (!dispatcher?.execute) return
+    const updateResult = dispatcher?.execute({
+      id: 'entity.update',
+      label: 'Remove Floor Plan',
+      payload: { entityId: currentFloorId, changes: { planImageId: null, floorPlanState: 'none', planAlignment: null } },
+    })
+    if (updateResult?.success === false) return
+    setEditorAlignment(undefined)
+    if (existingUrl) {
+      const scope: FloorPlanStorageScope = {
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+        mapId,
+        buildingId,
+        floorLevel: currentLevel,
+      }
+      await deleteFloorPlanImage(existingUrl, scope)
+    }
+    setMode('mapping')
+    setShowGotIt(false)
+  }, [services, currentFloorId, planImageUrl, editorAlignment, mapId, buildingId, currentLevel])
+
+  const handleCalibrationClick = useCallback((type: 'plan' | 'map', point: Point2D) => {
+    setCalError(null)
+    if (type === 'plan') {
+      if (calibrationStep === 'plan-a') {
+        setCalPlanA(point)
+        setCalibrationStep('plan-b')
+      } else if (calibrationStep === 'plan-b' && calPlanA) {
+        const err = validateCalibrationPoints('plan-b', point, calPlanA, null, null, calImageWidth, calImageHeight, [])
+        if (err) { setCalError(err); return }
+        setCalPlanB(point)
+        setCalibrationStep('map-a')
+      }
+    } else {
+      if (calibrationStep === 'map-a') {
+        setCalMapA(point)
+        setCalibrationStep('map-b')
+      } else if (calibrationStep === 'map-b' && calMapA) {
+        const err = validateCalibrationPoints('map-b', point, null, null, calMapA, 0, 0, calibrationFootprintLocal)
+        if (err) { setCalError(err); return }
+        setCalMapB(point)
+        setCalibrationStep('preview')
+      }
+    }
+  }, [calibrationStep, calPlanA, calMapA, calImageWidth, calImageHeight, calibrationFootprintLocal])
+
+  const handleCalibrationApply = useCallback((alignment: any) => {
+    commitAlignment({ ...editorAlignment, ...alignment })
+    setTwoPointCalibration(false)
+    setCalibrationStep('plan-a')
+    setCalPlanA(null)
+    setCalPlanB(null)
+    setCalMapA(null)
+    setCalMapB(null)
+    setCalError(null)
+  }, [commitAlignment, editorAlignment])
+
+  const handleCalibrationClose = useCallback(() => {
+    setTwoPointCalibration(false)
+    setCalibrationStep('plan-a')
+    setCalPlanA(null)
+    setCalPlanB(null)
+    setCalMapA(null)
+    setCalMapB(null)
+    setCalError(null)
+  }, [])
 
   const handleLock = useCallback(() => {
+    if (currentFloorId) {
+      const dispatcher = services.get('dispatcher') as any
+      // This is the authored-floor editing lock, intentionally distinct from
+      // the reference-layer planAlignment.locked Inspector control.
+      dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { locked: true } } })
+    }
     setLocked(true)
     setMode('mapping')
     setShowGotIt(false)
-  }, [])
+  }, [currentFloorId, services])
 
   const handleUnlock = useCallback(() => {
     const roomCount = floorComponents.filter((c) => c.type === 'room').length
@@ -188,20 +431,29 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     if (roomCount > 0 || hallwayCount > 0) {
       setShowUnlockWarning(true)
     } else {
+      if (currentFloorId) {
+        const dispatcher = services.get('dispatcher') as any
+        dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { locked: false } } })
+      }
       setMode('setup')
       setLocked(false)
       setSetupCardHidden(false)
     }
-  }, [floorComponents])
+  }, [floorComponents, currentFloorId, services])
 
   const confirmUnlock = useCallback(() => {
     setShowUnlockWarning(false)
+    if (currentFloorId) {
+      const dispatcher = services.get('dispatcher') as any
+      dispatcher?.execute({ id: 'entity.update', payload: { entityId: currentFloorId, changes: { locked: false } } })
+    }
     setMode('setup')
     setLocked(false)
     setSetupCardHidden(false)
-  }, [])
+  }, [currentFloorId, services])
 
   return (
+    <InteractionProvider>
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {!building ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
@@ -220,21 +472,45 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         status={headerStatus}
         statusMessage={syncError ?? undefined}
         selectedCount={selectedCount}
+        onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} alignMode={mode === 'setup'} readOnly={editorMode === 'navigation-preview'} locked={locked} onAlignmentChange={(a) => setEditorAlignment(a)} />
+          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} />
+          {selectedEntranceForPicker && (
+            <OutdoorRoutePicker
+              open
+              building={building}
+              entrance={selectedEntranceForPicker}
+              nodes={graphNodes}
+              edges={graphEdges}
+              campusBuildings={graphBuildings}
+              campusRoads={editorDoc.roads}
+              campusAreas={graphAreas}
+              onCancel={handleOutdoorRouteCancel}
+              onConfirm={handleOutdoorRouteConfirm}
+            />
+          )}
+          <StatusBar />
+          {routeAuthoringMessage && (
+            <div role="status" style={{ position: 'absolute', bottom: 42, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 'min(520px, 80%)', padding: '7px 10px', borderRadius: 6, background: '#1E293B', border: '1px solid #334155', color: '#E2E8F0', fontSize: 11, lineHeight: 1.35, zIndex: 50, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+              <span style={{ color: '#67E8F9' }}>Route</span>
+              <span style={{ flex: 1 }}>{routeAuthoringMessage}</span>
+              <button type="button" aria-label="Dismiss route message" onClick={() => setRouteAuthoringMessage(null)} style={{ border: 'none', background: 'transparent', color: '#94A3B8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+            </div>
+          )}
           {!hasPlan && !uploadCardDismissed && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)', zIndex: 20 }}>
               <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: 12, padding: '28px 32px', maxWidth: 360, textAlign: 'center' }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#F1F5F9', marginBottom: 6 }}>{floorLabel}</div>
                 <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 16 }}>This floor has no floor plan.</div>
-                <label style={{ display: 'inline-block', padding: '8px 20px', borderRadius: 6, background: '#3B82F6', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}>
-                  Upload Floor Plan
-                  <input type="file" accept="image/png,image/jpeg" onChange={handleUpload} style={{ display: 'none' }} />
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 6, background: '#3B82F6', color: '#fff', fontSize: 12, fontWeight: 600, cursor: isUploading ? 'not-allowed' : 'pointer', marginBottom: 10, opacity: isUploading ? 0.7 : 1 }}>
+                  {isUploading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {isUploading ? 'Uploadingâ€¦' : 'Upload Floor Plan'}
+                  <input type="file" accept={SUPPORTED_PLAN_ACCEPT} onChange={handleUpload} disabled={isUploading} style={{ display: 'none' }} />
                 </label>
                 <div>
                   <button onClick={() => { setUploadCardDismissed(true); setMode('mapping') }} style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>
@@ -252,29 +528,79 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
               </div>
             </div>
           )}
+          {showCalibrate && (
+            <ScaleCalibration
+              currentScale={editorAlignment?.scaleX ?? editorAlignment?.scale ?? 1}
+              onApplyScale={(newScale) => commitAlignment({ ...editorAlignment, scaleX: newScale, scaleY: newScale })}
+              onClose={() => setShowCalibrate(false)}
+            />
+          )}
+          {twoPointCalibration && (
+            <TwoPointCalibration
+              imageWidth={calImageWidth}
+              imageHeight={calImageHeight}
+              buildingFootprint={calibrationFootprintLocal}
+              footprintFrame={calibrationFrame}
+              onApply={handleCalibrationApply}
+              onClose={handleCalibrationClose}
+              planA={calPlanA}
+              planB={calPlanB}
+              mapA={calMapA}
+              mapB={calMapB}
+              error={calError}
+            />
+          )}
           <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             {mode === 'setup' ? (
               <div style={{ display: 'flex', background: 'var(--navi-card)', borderRadius: 6, border: '1px solid var(--navi-border)', padding: '3px 6px', gap: 4, alignItems: 'center' }}>
                 <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 600, marginRight: 4 }}>Setup</span>
                 <button onClick={() => setEditorMode('architecture')} style={{ padding: '4px 8px', borderRadius: 4, border: 'none', background: 'transparent', color: '#E2E8F0', fontSize: 11, cursor: 'pointer' }}>Move</button>
-                <label style={{ fontSize: 10, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Opacity
-                  <input type="range" min="0" max="1" step="0.05" value={editorAlignment?.opacity ?? alignOpacity}
-                    onChange={(e) => { const v = parseFloat(e.target.value); setAlignOpacity(v); setEditorAlignment((prev) => ({ ...prev, opacity: v })) }}
-                    style={{ width: 60 }} />
-                </label>
-                <button onClick={() => setShowAdvanced((a) => !a)} style={{ padding: '4px 6px', borderRadius: 4, border: 'none', background: 'transparent', color: '#94A3B8', fontSize: 10, cursor: 'pointer' }}>{showAdvanced ? 'Hide' : 'Advanced'}</button>
-                <button onClick={() => setEditorAlignment({})} style={{ padding: '4px 6px', borderRadius: 4, border: 'none', background: 'transparent', color: '#EF4444', fontSize: 10, cursor: 'pointer' }}>Reset</button>
-                <button onClick={handleLock} style={{ padding: '4px 10px', borderRadius: 4, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Lock Alignment</button>
+                <button onClick={() => setShowCalibrate((c) => !c)} style={{ padding: '4px 6px', borderRadius: 4, border: 'none', background: 'transparent', color: '#3B82F6', fontSize: 10, cursor: 'pointer' }}>Calibrate</button>
+                <button onClick={() => { setTwoPointCalibration(true); setCalibrationStep('plan-a'); setCalPlanA(null); setCalPlanB(null); setCalMapA(null); setCalMapB(null); setCalError(null) }} style={{ padding: '4px 6px', borderRadius: 4, border: 'none', background: 'transparent', color: '#8B5CF6', fontSize: 10, cursor: 'pointer' }}>2-Point Cal</button>
+                <button onClick={handleLock} style={{ padding: '4px 10px', borderRadius: 4, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Lock Floor Editing</button>
               </div>
             ) : (
-              <ToolDock groups={INTERIOR_TOOL_GROUPS} activeTool={dockActiveTool} onActivateTool={handleToolActivate} />
+              <ToolDock groups={dockToolGroups} activeTool={dockActiveTool} onActivateTool={handleToolActivate} />
+            )}
+            {mode === 'mapping' && canvasTool === 'wall' && (
+              <div style={{
+                display: 'flex', background: 'var(--navi-card)', borderRadius: 6, overflow: 'hidden',
+                border: '1px solid var(--navi-border)',
+              }}>
+                <button onClick={() => setSnapMode('architectural')}
+                  style={{
+                    padding: '5px 8px', border: 'none', cursor: 'pointer', fontSize: 10,
+                    background: snapMode === 'architectural' ? '#3B82F6' : 'transparent',
+                    color: snapMode === 'architectural' ? '#fff' : 'var(--navi-text-secondary)',
+                    fontWeight: snapMode === 'architectural' ? 600 : 400,
+                  }}>
+                  Arch
+                </button>
+                <button onClick={() => setSnapMode('trace')}
+                  style={{
+                    padding: '5px 8px', border: 'none', cursor: 'pointer', fontSize: 10,
+                    background: snapMode === 'trace' ? '#10B981' : 'transparent',
+                    color: snapMode === 'trace' ? '#fff' : 'var(--navi-text-secondary)',
+                    fontWeight: snapMode === 'trace' ? 600 : 400,
+                  }}>
+                  Trace
+                </button>
+                <button onClick={() => setSnapMode('free')}
+                  style={{
+                    padding: '5px 8px', border: 'none', cursor: 'pointer', fontSize: 10,
+                    background: snapMode === 'free' ? '#F59E0B' : 'transparent',
+                    color: snapMode === 'free' ? '#fff' : 'var(--navi-text-secondary)',
+                    fontWeight: snapMode === 'free' ? 600 : 400,
+                  }}>
+                  Free
+                </button>
+              </div>
             )}
             <div style={{
               display: 'flex', background: 'var(--navi-card)', borderRadius: 6, overflow: 'hidden',
               border: '1px solid var(--navi-border)',
             }}>
-              <button onClick={() => setEditorMode('architecture')}
+              <button onClick={() => { setEditorMode('architecture'); activateTool('select'); clear() }}
                 style={{
                   padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 10,
                   background: editorMode === 'architecture' ? 'var(--navi-text)' : 'transparent',
@@ -283,16 +609,43 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
                 }}>
                 Architecture
               </button>
-              <button onClick={() => setEditorMode('navigation-preview')}
+              <button onClick={() => { setEditorMode('navigation'); activateTool('select'); clear() }}
                 style={{
                   padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 10,
-                  background: editorMode === 'navigation-preview' ? '#8B5CF6' : 'transparent',
-                  color: editorMode === 'navigation-preview' ? '#fff' : 'var(--navi-text-secondary)',
-                  fontWeight: editorMode === 'navigation-preview' ? 600 : 400,
+                  background: editorMode === 'navigation' ? '#8B5CF6' : 'transparent',
+                  color: editorMode === 'navigation' ? '#fff' : 'var(--navi-text-secondary)',
+                  fontWeight: editorMode === 'navigation' ? 600 : 400,
                 }}>
                 Navigation
               </button>
             </div>
+            {editorMode === 'architecture' && (
+              <div style={{
+                display: 'flex', background: 'var(--navi-card)', borderRadius: 6, overflow: 'hidden',
+                border: '1px solid var(--navi-border)',
+              }}>
+                <button onClick={() => setViewMode('2d')}
+                  data-testid="viewmode-2d"
+                  style={{
+                    padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 10,
+                    background: viewMode === '2d' ? '#3B82F6' : 'transparent',
+                    color: viewMode === '2d' ? '#fff' : 'var(--navi-text-secondary)',
+                    fontWeight: viewMode === '2d' ? 600 : 400,
+                  }}>
+                  2D
+                </button>
+                <button onClick={() => setViewMode('2.5d')}
+                  data-testid="viewmode-2.5d"
+                  style={{
+                    padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: 10,
+                    background: viewMode === '2.5d' ? '#F59E0B' : 'transparent',
+                    color: viewMode === '2.5d' ? '#fff' : 'var(--navi-text-secondary)',
+                    fontWeight: viewMode === '2.5d' ? 600 : 400,
+                  }}>
+                  2.5D
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -315,6 +668,17 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
                 <span>{mode === 'mapping' && locked ? '\u2713' : '\u25CB'}</span> Lock
               </div>
             </div>
+            {hasPlan && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <label style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 6px', borderRadius: 4, background: 'var(--navi-content)', border: '1px solid var(--navi-border)', color: 'var(--navi-text)', fontSize: 10, cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                  <RefreshCw size={10} /> Replace
+                  <input type="file" accept={SUPPORTED_PLAN_ACCEPT} onChange={handleUpload} disabled={isUploading} style={{ display: 'none' }} />
+                </label>
+                <button onClick={handleRemoveFloorPlan} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '4px 6px', borderRadius: 4, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#EF4444', fontSize: 10, cursor: 'pointer' }}>
+                  <Trash2 size={10} /> Remove
+                </button>
+              </div>
+            )}
             {mode === 'mapping' && (
               <>
                 <div style={{ borderTop: '1px solid #334155', margin: '8px 0' }} />
@@ -416,42 +780,14 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             )}
           </div>
 
-          {mode === 'setup' && showAdvanced && (
-            <div style={{ padding: '10px 12px', borderTop: '1px solid var(--navi-border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                Advanced Alignment
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
-                  Rotation (°)
-                  <input type="number" min="-180" max="180" step="0.5"
-                    value={editorAlignment?.rotation ?? 0}
-                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, rotation: parseFloat(e.target.value) || 0 }))}
-                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
-                </label>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
-                  Scale
-                  <input type="number" min="0.1" max="5" step="0.05"
-                    value={editorAlignment?.scale ?? 1}
-                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, scale: parseFloat(e.target.value) || 1 }))}
-                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
-                </label>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
-                  Offset X (m)
-                  <input type="number" step="0.5"
-                    value={editorAlignment?.offset?.x ?? 0}
-                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, offset: { ...prev.offset, x: parseFloat(e.target.value) || 0 } }))}
-                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
-                </label>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)' }}>
-                  Offset Y (m)
-                  <input type="number" step="0.5"
-                    value={editorAlignment?.offset?.y ?? 0}
-                    onChange={(e) => setEditorAlignment((prev) => ({ ...prev, offset: { ...prev.offset, y: parseFloat(e.target.value) || 0 } }))}
-                    style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11 }} />
-                </label>
-              </div>
-            </div>
+          {mode === 'setup' && hasPlan && (
+            <FloorPlanTransformInspector
+              frame={calibrationFrame}
+              alignment={editorAlignment}
+              aspectRatioLocked={aspectRatioLocked}
+              onAspectRatioLockedChange={setAspectRatioLocked}
+              onCommit={commitAlignment}
+            />
           )}
           {validationVisible && validationChecks.length > 0 && (
             <div style={{ borderTop: '1px solid var(--navi-border)', maxHeight: 240, overflowY: 'auto' }}>
@@ -459,18 +795,25 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
                 diagnostics={validationChecks.map((c, i) => ({
                   id: c.id,
                   code: c.code as any,
-                  category: 'document' as any,
+                  category: c.layer === 'navigation' || c.layer === 'access' ? 'navigation' : 'document',
                   severity: c.severity,
-                  title: c.title,
+                  title: c.layer ? `${c.layer[0].toUpperCase()}${c.layer.slice(1)} · ${c.title}` : c.title,
                   message: c.message,
                   provider: 'validation',
-                  target: c.entityId ? { entityType: 'component', entityId: c.entityId } : undefined,
+                  rule: c.ruleId,
+                  target: c.entityId ? {
+                    entityType: (c.entityType ?? 'component') as any,
+                    entityId: c.entityId,
+                    buildingId: c.buildingId,
+                    floorId: c.floorId,
+                    layer: c.layer,
+                  } : undefined,
                 }))}
               />
             </div>
           )}
           {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} />
+            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} />
           )}
         </div>
       </div>
@@ -489,5 +832,6 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         </>
       )}
     </div>
+    </InteractionProvider>
   )
 }

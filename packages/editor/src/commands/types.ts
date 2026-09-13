@@ -19,6 +19,14 @@ export interface MutationResult {
   error?: string
 }
 
+/** Result of an all-or-none sequence of existing editor commands. */
+export interface BatchMutationResult {
+  success: boolean
+  results: MutationResult[]
+  error?: string
+  failedCommandIndex?: number
+}
+
 export interface PreHook {
   id: string
   before(command: Command, document: CampusDocument): void | Promise<void>
@@ -27,4 +35,6 @@ export interface PreHook {
 export interface PostHook {
   id: string
   after(command: Command, result: MutationResult, document: CampusDocument): void | Promise<void>
+  /** Called once after an all-or-none batch commits successfully. */
+  afterBatch?(commands: Command[], results: MutationResult[], document: CampusDocument, snapshotBefore: CampusDocument): void | Promise<void>
 }

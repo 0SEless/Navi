@@ -1,9 +1,11 @@
-import type { CampusDocument, LatLng as CoreLatLng } from '@navi/core'
-import { CoordinateTransformer } from '@navi/core'
+import type { CampusDocument, LatLng as CoreLatLng, EntranceAccess, RoadJunction } from '@navi/core'
+import { CoordinateTransformer, haversine, collectFloorDoors, explicitEntranceAccessNodeId, CONNECTIVITY_CONTRACT_VERSION, normalizeRoadRouting, ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { compileComponent } from '@/engine/component-compiler'
 import type { CompileContext } from '@/engine/component-compiler'
-import type { Component, ComponentType, TracePath, Building as LegacyBuilding, NavNode, NavEdge, LatLng as LegacyLatLng } from '@/types/nav-types'
+import type { Component, ComponentType, DoorData, TracePath, Building as LegacyBuilding, NavNode, NavEdge, LatLng as LegacyLatLng } from '@/types/nav-types'
+import { pointToSegmentDistance } from '@/engine/geo-utils'
+import { resolveLevelGeometry } from './geometry/resolve-level-geometry'
 
 function coreLatLngToLegacy(p: CoreLatLng): LegacyLatLng {
   return { lat: p.lat, lng: p.lng }
@@ -33,6 +35,179 @@ function computeBBox(points: LegacyLatLng[]): { width: number; height: number } 
   return { width, height }
 }
 
+const EXPLICIT_ACCESS_NODE_REUSE_METERS = 0.75
+const EXPLICIT_ACCESS_SEGMENT_TOLERANCE_METERS = 8
+
+function traceIdsForNode(node: NavNode | undefined): string[] {
+  if (!node) return []
+  const metadata = node.metadata
+  return [...new Set([
+    ...(typeof metadata?.traceId === 'string' ? [metadata.traceId] : []),
+    ...(Array.isArray(metadata?.traceIds) ? metadata.traceIds.filter((id): id is string => typeof id === 'string') : []),
+  ])]
+}
+
+function nodeBelongsToTrace(node: NavNode | undefined, traceId: string): boolean {
+  return traceIdsForNode(node).includes(traceId)
+}
+
+/**
+ * Resolve an explicit outdoor target without using Entrance proximity. Trace
+ * anchors are re-found by authored trace identity + position on every sync;
+ * only a missing target is left unconnected for validation to report.
+ */
+function resolveExplicitOutdoorTarget(graph: Graph, access: EntranceAccess): NavNode | null {
+  if (!access.outdoorRouteId || !access.outdoorPosition) {
+    return graph.getNode(access.outdoorNodeId) ?? null
+  }
+
+  const routeId = access.outdoorRouteId
+  const position = coreLatLngToLegacy(access.outdoorPosition)
+  const traceNodes = graph.nodes.filter((node) =>
+    (node.type === 'intersection' || node.type === 'outdoor') && nodeBelongsToTrace(node, routeId),
+  )
+  const existing = traceNodes
+    .map((node) => ({ node, distance: haversine(node.position, position) }))
+    .sort((left, right) => left.distance - right.distance)[0]
+  if (existing && existing.distance <= EXPLICIT_ACCESS_NODE_REUSE_METERS) return existing.node
+
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
+  const edge = graph.edges
+    .map((candidate) => {
+      const from = nodeById.get(candidate.from)
+      const to = nodeById.get(candidate.to)
+      if (!from || !to) return null
+      // Only authored edges within the selected outdoor trace are valid
+      // segment targets. In particular, never split an already-created
+      // EntranceAccess bridge merely because one endpoint is on the trace.
+      if (!nodeBelongsToTrace(from, routeId) || !nodeBelongsToTrace(to, routeId)) return null
+      const distance = pointToSegmentDistance(position, from.position, to.position)
+      return { edge: candidate, distance }
+    })
+    .filter((candidate): candidate is { edge: NavEdge; distance: number } => candidate !== null)
+    .sort((left, right) => left.distance - right.distance)[0]
+  if (!edge || edge.distance > EXPLICIT_ACCESS_SEGMENT_TOLERANCE_METERS) return null
+
+  const stableId = access.outdoorNodeId || explicitEntranceAccessNodeId(access.entranceId)
+  const stableNode: NavNode = {
+    id: stableId,
+    label: 'Entrance access junction',
+    name: 'Entrance access junction',
+    type: 'intersection',
+    buildingId: '__outdoor__',
+    campusId: graph.campusId,
+    floor: 0,
+    position,
+    metadata: {
+      connectionNode: true,
+      traceId: routeId,
+      entranceAccessId: access.entranceId,
+      explicitAccess: true,
+    },
+  }
+  return graph.splitEdgeWithNode(edge.edge.id, stableNode)
+}
+
+function projectExplicitEntranceAccess(graph: Graph, document: CampusDocument): void {
+  for (const building of document.buildings) {
+    for (const floor of building.floors) {
+      for (const access of floor.entranceAccess ?? []) {
+        const entranceNode = graph.nodes.find((node) =>
+          node.type === 'building_entrance' && node.componentId === access.entranceId,
+        )
+        const indoorNode = graph.nodes.find((node) =>
+          node.metadata?.routeNodeId === access.indoorRouteNodeId
+            && node.buildingId === building.id
+            && node.floor === floor.level,
+        )
+        const outdoorNode = resolveExplicitOutdoorTarget(graph, access)
+        if (!entranceNode || !indoorNode || !outdoorNode) continue
+
+        const addAccessEdge = (id: string, from: NavNode, to: NavNode) => {
+          if (graph.edges.some((edge) => edge.id === id)) return
+          const distance = haversine(from.position, to.position)
+          graph.addEdge({
+            id,
+            from: from.id,
+            to: to.id,
+            type: 'walkway',
+            distance,
+            weight: distance,
+            campusId: graph.campusId,
+          })
+        }
+
+        addAccessEdge(`E-access-${access.entranceId}-outdoor`, outdoorNode, entranceNode)
+        addAccessEdge(`E-access-${access.entranceId}-indoor`, entranceNode, indoorNode)
+      }
+    }
+  }
+}
+
+export interface ReconcileAuthoredJunctionsInput {
+  existing: RoadJunction[]
+  junctionNodes: NavNode[]
+  actualTraceIds: Set<string>
+  validRoadIds: Set<string>
+}
+
+/**
+ * Reconcile persisted junction authority after a graph sync pass.
+ *
+ * Two sources are combined:
+ *  1. Junction nodes regenerated by this pass (reuse their stored record).
+ *  2. Previously stored records that remain structurally valid (both roads
+ *     still exist) but were NOT regenerated this pass.
+ *
+ * Persistence fix: a sync pass must never erase explicit authored junction
+ * authority just because it did not regenerate a matching derived node.
+ * Records referencing fewer than two existing roads are dropped (invalid).
+ */
+export function reconcileAuthoredJunctions(input: ReconcileAuthoredJunctionsInput): RoadJunction[] {
+  const { existing, junctionNodes, actualTraceIds, validRoadIds } = input
+  const existingById = new Map(existing.map(j => [j.id, j]))
+  const usedIds = new Set<string>()
+  const result: RoadJunction[] = []
+
+  for (const node of junctionNodes) {
+    const rawTraceIds = node.metadata?.traceIds
+    if (!Array.isArray(rawTraceIds)) continue
+    const traceIds = [...new Set(
+      (rawTraceIds as string[]).filter(id => actualTraceIds.has(id) && validRoadIds.has(id)),
+    )]
+    if (traceIds.length < 2) continue
+
+    const preSeededId = node.metadata?.junctionRecordId as string | undefined
+    // Resolve only an existing authority record. Derived graph nodes never
+    // create authority; the position fallback keeps old stored records stable
+    // when their graph metadata predates the ID.
+    const record = (preSeededId ? existingById.get(preSeededId) : undefined) ?? existing.find(j =>
+      !usedIds.has(j.id) &&
+      Math.abs(j.position.lat - node.position.lat) < 0.00001 &&
+      Math.abs(j.position.lng - node.position.lng) < 0.00001
+    )
+    if (!record) continue
+
+    usedIds.add(record.id)
+    result.push({
+      ...record,
+      position: { ...node.position },
+      roadIds: traceIds,
+      source: record.source ?? 'legacy-inferred',
+    })
+  }
+
+  // Preserve valid stored authority that this pass did not regenerate.
+  for (const record of existing) {
+    if (usedIds.has(record.id)) continue
+    const roadIds = [...new Set(record.roadIds.filter(id => validRoadIds.has(id)))]
+    if (roadIds.length < 2) continue
+    result.push({ ...record, roadIds })
+  }
+
+  return result
+}
+
 export class GraphAdapter {
   private graph: Graph
   private transformer?: CoordinateTransformer
@@ -43,7 +218,23 @@ export class GraphAdapter {
   }
 
   sync(document: CampusDocument): void {
+    // Ordinary editor sync is explicit-only. Existing RoadJunction records are
+    // pre-seeded below and reconstructed, but geometry alone never authors new
+    // cross-road topology (including for unversioned/legacy documents).
+    const allowGeometricInference = false
+    this.graph.setAllowGeometricInference(allowGeometricInference)
+    this.graph.setConnectivitySemanticsVersion(undefined)
+
+    if (!this.transformer) {
+      this.transformer = new CoordinateTransformer()
+      for (const b of document.buildings) {
+        const origin = b.footprint.points.length > 0 ? b.footprint.points[0] : { lat: 0, lng: 0 }
+        this.transformer.registerBuilding({ buildingId: b.id, origin, rotation: 0 })
+      }
+    }
     this.graph.setBuildings([])
+
+
     this.graph.setComponents([])
     this.graph.setNodes([])
     this.graph.setEdges([])
@@ -70,7 +261,12 @@ export class GraphAdapter {
         department: docBuilding.department,
         aliases: docBuilding.aliases,
         metadata: docBuilding.metadata,
+        ...(docBuilding.rotation !== undefined ? { rotation: docBuilding.rotation } : {}),
+        staircases: docBuilding.staircases,
+        elevators: docBuilding.elevators,
+        ...(docBuilding.verticalTransitions !== undefined ? { verticalTransitions: docBuilding.verticalTransitions } : {}),
         floorData: docBuilding.floors.map(f => ({
+
           id: f.id,
           level: f.level,
           label: f.label,
@@ -80,6 +276,26 @@ export class GraphAdapter {
           textureId: f.textureId,
           svgOverlayId: f.svgOverlayId,
           metadata: f.metadata,
+        ...(f.walls !== undefined ? { walls: f.walls } : {}),
+        ...(f.windows !== undefined ? { windows: f.windows } : {}),
+        ...(f.openings !== undefined ? { openings: f.openings } : {}),
+        ...(f.roomAttributes !== undefined ? { roomAttributes: f.roomAttributes } : {}),
+        ...(f.entranceAccess !== undefined ? { entranceAccess: f.entranceAccess } : {}),
+        ...(f.routeNetwork !== undefined ? { routeNetwork: f.routeNetwork } : {}),
+        // Floor.doors is the canonical authoring record. Keep the full local
+        // rectangle, ownership, and explicit route relationship in floorData;
+        // graph.doors below remains only the world-coordinate runtime view.
+        ...(collectFloorDoors(f).length > 0
+          ? { doors: collectFloorDoors(f).map((door) => structuredClone(door)) }
+          : {}),
+        ...(f.shortLabel !== undefined ? { shortLabel: f.shortLabel } : {}),
+        ...(f.visible !== undefined ? { visible: f.visible } : {}),
+        ...(f.locked !== undefined ? { locked: f.locked } : {}),
+        ...(f.floorPlanState !== undefined ? { floorPlanState: f.floorPlanState } : {}),
+        ...(f.offset !== undefined ? { offset: f.offset } : {}),
+        ...(f.rotation !== undefined ? { rotation: f.rotation } : {}),
+        ...(f.height !== undefined ? { height: f.height } : {}),
+        ...(f.pois !== undefined ? { pois: f.pois } : {}),
         })),
       }
       this.graph.addBuilding(legacyBuilding)
@@ -139,42 +355,136 @@ export class GraphAdapter {
         }
 
         // Staircases
-        for (const st of floor.staircases) {
-          if (!this.transformer) continue
-          const world = this.transformer.buildingLocalToWorld(st.position, docBuilding.id)
-          if (!world) continue
-          floorComponents.push({
-            id: st.id,
-            type: 'stair',
-            name: st.name,
-            buildingId: docBuilding.id,
-            campusId: this.graph.campusId,
-            floor: floor.level,
-            position: coreLatLngToLegacy(world),
-            range: { from: st.fromLevel, to: st.toLevel },
-            metadata: { type: st.type },
-          })
+        if (docBuilding.staircases && docBuilding.staircases.length > 0) {
+          for (const st of docBuilding.staircases) {
+            const levelGeom = st.levels[floor.level]
+            if (!levelGeom) continue
+            if (!this.transformer) continue
+            const world = this.transformer.buildingLocalToWorld(levelGeom.position, docBuilding.id)
+            if (!world) continue
+            const { polygon: localPoly, landing } = resolveLevelGeometry(st, floor.level)
+            let worldPolygon: LegacyLatLng[] | undefined
+            let dims: { width: number; height: number } | undefined
+            if (localPoly && localPoly.points.length > 0) {
+              const pts: LegacyLatLng[] = []
+              for (const p of localPoly.points) {
+                const w = this.transformer.buildingLocalToWorld(p, docBuilding.id)
+                if (w) pts.push(coreLatLngToLegacy(w))
+              }
+              if (pts.length >= 3) {
+                worldPolygon = pts
+                dims = computeBBox(pts)
+              }
+            }
+            floorComponents.push({
+              id: `${st.id}-${floor.level}`,
+              featureId: st.id,
+              type: 'stair',
+              name: st.name,
+              buildingId: docBuilding.id,
+              campusId: this.graph.campusId,
+              floor: floor.level,
+              position: coreLatLngToLegacy(world),
+              polygon: worldPolygon,
+              dimensions: dims ? { width: Math.round(dims.width), height: Math.round(dims.height) } : undefined,
+              range: { from: st.fromLevel, to: st.toLevel },
+              metadata: {
+                type: st.type,
+                ...(landing ? { landing } : {}),
+                ...(levelGeom.drawing ? { drawing: levelGeom.drawing } : {}),
+              },
+
+            })
+          }
+        } else {
+          for (const st of floor.staircases) {
+            if (!this.transformer) continue
+            const world = this.transformer.buildingLocalToWorld(st.position, docBuilding.id)
+            if (!world) continue
+            floorComponents.push({
+              id: st.id,
+              type: 'stair',
+              name: st.name,
+              buildingId: docBuilding.id,
+              campusId: this.graph.campusId,
+              floor: floor.level,
+              position: coreLatLngToLegacy(world),
+              range: { from: st.fromLevel, to: st.toLevel },
+              metadata: { type: st.type },
+            })
+          }
         }
 
         // Elevators
-        for (const el of floor.elevators) {
-          if (!this.transformer) continue
-          const world = this.transformer.buildingLocalToWorld(el.position, docBuilding.id)
-          if (!world) continue
-          floorComponents.push({
-            id: el.id,
-            type: 'elevator',
-            name: el.name,
-            buildingId: docBuilding.id,
-            campusId: this.graph.campusId,
-            floor: floor.level,
-            position: coreLatLngToLegacy(world),
-            range: { from: el.fromLevel, to: el.toLevel },
-          })
+        if (docBuilding.elevators && docBuilding.elevators.length > 0) {
+          for (const el of docBuilding.elevators) {
+            const levelGeom = el.levels[floor.level]
+            if (!levelGeom) continue
+            if (!this.transformer) continue
+            const world = this.transformer.buildingLocalToWorld(levelGeom.position, docBuilding.id)
+            if (!world) continue
+            const { polygon: localPoly, landing } = resolveLevelGeometry(el, floor.level)
+            let worldPolygon: LegacyLatLng[] | undefined
+            let dims: { width: number; height: number } | undefined
+            if (localPoly && localPoly.points.length > 0) {
+              const pts: LegacyLatLng[] = []
+              for (const p of localPoly.points) {
+                const w = this.transformer.buildingLocalToWorld(p, docBuilding.id)
+                if (w) pts.push(coreLatLngToLegacy(w))
+              }
+              if (pts.length >= 3) {
+                worldPolygon = pts
+                dims = computeBBox(pts)
+              }
+            }
+            floorComponents.push({
+              id: `${el.id}-${floor.level}`,
+              featureId: el.id,
+              type: 'elevator',
+              name: el.name,
+              buildingId: docBuilding.id,
+              campusId: this.graph.campusId,
+              floor: floor.level,
+              position: coreLatLngToLegacy(world),
+              polygon: worldPolygon,
+              dimensions: dims ? { width: Math.round(dims.width), height: Math.round(dims.height) } : undefined,
+              range: { from: el.fromLevel, to: el.toLevel },
+              metadata: {
+                ...(landing ? { landing } : {}),
+                ...(levelGeom.drawing ? { drawing: levelGeom.drawing } : {}),
+              },
+
+            })
+          }
+        } else {
+          for (const el of floor.elevators) {
+            if (!this.transformer) continue
+            const world = this.transformer.buildingLocalToWorld(el.position, docBuilding.id)
+            if (!world) continue
+            floorComponents.push({
+              id: el.id,
+              type: 'elevator',
+              name: el.name,
+              buildingId: docBuilding.id,
+              campusId: this.graph.campusId,
+              floor: floor.level,
+              position: coreLatLngToLegacy(world),
+              range: { from: el.fromLevel, to: el.toLevel },
+            })
+          }
         }
 
         // Entrances
+        // P1-T4 (D9): document positions are building-local — derive world for
+        // the graph node. A legacy world-stored entrance (pre-migration doc) is
+        // passed through verbatim so it still compiles identically.
         for (const ent of floor.entrances) {
+          const legacyWorld = (ent.position as unknown as { lat?: number }).lat !== undefined
+            ? (ent.position as unknown as { lat: number; lng: number })
+            : (this.transformer
+              ? this.transformer.buildingLocalToWorld(ent.position, docBuilding.id)
+              : null)
+          if (!legacyWorld) continue
           floorComponents.push({
             id: ent.id,
             type: 'entrance',
@@ -182,13 +492,14 @@ export class GraphAdapter {
             buildingId: docBuilding.id,
             campusId: this.graph.campusId,
             floor: ent.level,
-            position: coreLatLngToLegacy(ent.position),
+            position: coreLatLngToLegacy(legacyWorld),
             metadata: { hasQR: ent.hasQR, hasPanorama: ent.hasPanorama },
           })
         }
 
         // ConnectorStops → nodes
-        for (const stop of floor.connectorStops) {
+        for (const stop of (floor.connectorStops ?? [])) {
+
           if (!this.transformer) continue
           const world = this.transformer.buildingLocalToWorld(stop.position, docBuilding.id)
           if (!world) continue
@@ -279,12 +590,52 @@ export class GraphAdapter {
             }
           }
         }
+
+        // RouteNetwork → graph nodes and edges (authored per-floor, never synthesized)
+        if (floor.routeNetwork && this.transformer) {
+          const routeNodeIdMap = new Map<string, string>()
+          for (const rn of floor.routeNetwork.nodes) {
+            const world = this.transformer.buildingLocalToWorld(rn.position, docBuilding.id)
+            if (!world) continue
+            const graphNodeId = `N-route-${rn.id}`
+            routeNodeIdMap.set(rn.id, graphNodeId)
+            const node: NavNode = {
+              id: graphNodeId,
+              label: `Route ${rn.type}`,
+              name: `Route ${rn.type}`,
+              type: 'intersection',
+              buildingId: docBuilding.id,
+              campusId: this.graph.campusId,
+              floor: floor.level,
+              position: coreLatLngToLegacy(world),
+              metadata: { routeNodeId: rn.id, routeNodeType: rn.type },
+            }
+            this.graph.addNode(node)
+            allCompiledNodes.push(node)
+          }
+          for (const re of floor.routeNetwork.edges) {
+            const fromGraphId = routeNodeIdMap.get(re.from)
+            const toGraphId = routeNodeIdMap.get(re.to)
+            if (!fromGraphId || !toGraphId) continue
+            const edge: NavEdge = {
+              id: `E-route-${re.id}`,
+              from: fromGraphId,
+              to: toGraphId,
+              distance: re.distance,
+              type: re.type === 'stairs' ? 'stair' : re.type === 'elevator' ? 'elevator' : 'walkway',
+              campusId: this.graph.campusId,
+            }
+            this.graph.addEdge(edge)
+            allCompiledEdges.push(edge)
+          }
+        }
       }
 
       // VerticalConnector edges: connect all stops belonging to the same connector
+      // Only include stops from THIS building to prevent cross-building connector ID collisions
       const stopNodesMap = new Map<string, NavNode[]>()
       for (const n of allCompiledNodes) {
-        if (n.type === 'connector_stop') {
+        if (n.type === 'connector_stop' && n.buildingId === docBuilding.id) {
           const cid = n.metadata?.connectorId as string | undefined
           if (cid) {
             if (!stopNodesMap.has(cid)) stopNodesMap.set(cid, [])
@@ -292,13 +643,18 @@ export class GraphAdapter {
           }
         }
       }
-      for (const conn of docBuilding.verticalConnectors) {
+      const seenEdgeIds = new Set(allCompiledEdges.map(e => e.id))
+      for (const conn of (docBuilding.verticalConnectors ?? [])) {
+
         const stops = stopNodesMap.get(conn.id) ?? []
         // Sort by floor level to create sequential edges
         stops.sort((a, b) => a.floor - b.floor)
         for (let i = 0; i < stops.length - 1; i++) {
+          const edgeId = `E-vconn-${conn.id}-${stops[i].floor}-${stops[i + 1].floor}`
+          if (seenEdgeIds.has(edgeId)) continue
+          seenEdgeIds.add(edgeId)
           const edge: NavEdge = {
-            id: `E-vconn-${conn.id}-${stops[i].floor}-${stops[i + 1].floor}`,
+            id: edgeId,
             from: stops[i].id,
             to: stops[i + 1].id,
             distance: 0,
@@ -310,36 +666,135 @@ export class GraphAdapter {
         }
       }
 
-      // RoomDoor edges: connect room nodes to their neighbors
-      const roomNodesMap = new Map<string, NavNode>()
+      // RoomDoor edges: connect room door nodes to their neighbors (rooms OR hallways)
+      // Valid routing model: room_door ↔ hallway (no direct room↔entrance links).
+      // Build lookup for room_door nodes AND hallway nodes
+      const connectionNodeMap = new Map<string, NavNode>()
+      const hallwayNodesByFloor = new Map<number, NavNode[]>()
       for (const n of allCompiledNodes) {
-        if (n.type === 'room') roomNodesMap.set(n.id, n)
+        if (n.type === 'room_door' && n.componentId) {
+          connectionNodeMap.set(n.componentId, n)
+        }
+        if (n.type === 'hallway' && n.buildingId === docBuilding.id) {
+          const fl = n.floor
+          if (!hallwayNodesByFloor.has(fl)) hallwayNodesByFloor.set(fl, [])
+          hallwayNodesByFloor.get(fl)!.push(n)
+        }
       }
       for (const floor of docBuilding.floors) {
-        for (const room of floor.rooms) {
-          for (const door of room.roomDoors) {
-            const sourceNode = roomNodesMap.get(door.roomId)
-            const targetNode = roomNodesMap.get(door.connectedToId)
-            if (sourceNode && targetNode) {
-              const edge: NavEdge = {
-                id: `E-door-${door.id}`,
-                from: sourceNode.id,
-                to: targetNode.id,
-                distance: 0,
-                type: 'door',
-                campusId: this.graph.campusId,
+        // P1-T6: doors read through the single-source helper (extracted
+        // Floor.doors authoritative; nested legacy fallback).
+        for (const door of collectFloorDoors(floor)) {
+          if (!door.roomId) continue
+          const sourceNode = connectionNodeMap.get(door.roomId)
+          if (!sourceNode) continue
+
+          let targetNode: NavNode | undefined
+          if (door.connectedToType === 'room' && door.connectedToId !== undefined) {
+            targetNode = connectionNodeMap.get(door.connectedToId)
+          } else if (door.connectedToType === 'hallway') {
+            // Find nearest hallway node on the same floor
+            const hallwayNodes = hallwayNodesByFloor.get(floor.level) ?? []
+            // Prefer the specific hallway component if connectedToId matches
+            if (door.connectedToId) {
+              const preferred = hallwayNodes.find(n => n.componentId === door.connectedToId)
+              if (preferred) {
+                targetNode = preferred
               }
-              this.graph.addEdge(edge)
-              allCompiledEdges.push(edge)
+            }
+            if (!targetNode && hallwayNodes.length > 0) {
+              // Fall back to nearest hallway node by haversine
+              let bestDist = Infinity
+              for (const hn of hallwayNodes) {
+                const d = haversine(sourceNode.position, hn.position)
+                if (d < bestDist) {
+                  bestDist = d
+                  targetNode = hn
+                }
+              }
             }
           }
+
+          if (!targetNode) continue
+
+          const edge: NavEdge = {
+            id: `E-door-${door.id}`,
+            from: sourceNode.id,
+            to: targetNode.id,
+            distance: haversine(sourceNode.position, targetNode.position),
+            type: 'door',
+            campusId: this.graph.campusId,
+          }
+          this.graph.addEdge(edge)
+          allCompiledEdges.push(edge)
         }
+      }
+
+      // Serialize door data for the rendering pipeline
+      // (separate from routing edges — these are first-class render entities)
+      const allDoors: DoorData[] = []
+      for (const floor of docBuilding.floors) {
+        // P1-T6: single-source door access (extracted or nested legacy)
+        for (const door of collectFloorDoors(floor)) {
+          // Transform door position from building-local meters to world LatLng
+          if (!this.transformer) continue
+          const worldPos = this.transformer.buildingLocalToWorld(door.position, docBuilding.id)
+          if (!worldPos) continue
+          allDoors.push({
+            id: door.id,
+            roomId: door.roomId,
+            buildingId: docBuilding.id,
+            floor: floor.level,
+            position: worldPos,
+            width: door.width,
+            connectedToId: door.connectedToId,
+            isExterior: door.connectedToType === 'hallway' && !door.connectedToId,
+          })
+        }
+      }
+      if (allDoors.length > 0) {
+        const existing = this.graph.doors
+        this.graph.setDoors([...existing, ...allDoors])
       }
     }
 
     // 9. Roads → Traces
-    const roomNodes = allCompiledNodes.filter((n: NavNode) => n.type === 'room')
+    // Traces compile independently from buildings. They deliberately do NOT
+    // connect to entrances or room doors; those relationships are projected
+    // only from explicit Floor.entranceAccess below.
+
+    // 8b. Pre-seed explicit road junction nodes so syncTraceIntersections
+    // reuses their stable IDs instead of generating new ones.
+    // Junction identity is authoring truth; graph nodes are derived.
+    if (document.roadJunctions) {
+      for (const j of document.roadJunctions) {
+        if (j.roadIds.length < 2) continue
+        const node: NavNode = {
+          id: j.id,
+          label: 'Road Junction',
+          name: 'Road Junction',
+          type: 'intersection',
+          campusId: this.graph.campusId,
+          floor: 0,
+          buildingId: '',
+          position: j.position,
+          metadata: {
+            connectionNode: true,
+            traceIds: [...j.roadIds],
+            junctionRecordId: j.id,
+            junctionSource: j.source ?? 'legacy-inferred',
+          },
+        }
+        this.graph.addNode(node)
+      }
+    }
+
+    // Phase 4: Load separated crossings into the graph so syncTraceIntersections
+    // respects "Keep Separate" decisions during X-crossing detection.
+    this.graph.separatedCrossings = document.separatedCrossings ?? []
+
     for (const road of document.roads) {
+      const routing = normalizeRoadRouting(road.routing)
       const trace: TracePath = {
         id: road.id,
         name: road.name,
@@ -348,16 +803,83 @@ export class GraphAdapter {
         floor: 0,
         points: road.polyline.points.map(coreLatLngToLegacy),
         type: road.type === 'service' ? 'connector' : 'arterial',
+        displayMode: road.displayMode ?? 'visible',
         width: road.width,
+        ...(routing === undefined ? {} : { routing }),
+        // Preserve authored road metadata through the Road → Trace →
+        // GraphSnapshot → CampusDocument round trip. Surface is included in
+        // metadata because the legacy Trace shape has no dedicated field.
+        metadata: { ...(road.metadata ?? {}), surface: road.surface },
       }
-      this.graph.addTraceWithCompile(trace, roomNodes)
+      // Phase 3C: Legacy compatibility — use 5m radius for documents that
+      // have legacy-inferred junctions (pre-Phase 3 maps). Canonical documents
+      // use the 0.5m connection discovery radius so editor projection matches
+      // the compiler merge gate (explicit authored junctions only).
+      const isLegacy = (document.roadJunctions ?? []).some(j => j.source === 'legacy-inferred')
+      // Canonical documents use the same 0.5 m radius as discovery and the
+      // compiler merge gate — explicit authored junctions only.
+      const connectivityRadius = isLegacy ? 5 : ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
+      this.graph.addTraceWithCompile(trace, connectivityRadius, allowGeometricInference)
     }
+
+    // Phase 4: Clean up pre-seeded junction nodes that are no longer valid
+    // (roads moved apart, crossing disappeared). Only keep junctions that
+    // have ≥2 traces that actually exist in the compiled graph.
+    const actualTraceIds = new Set(this.graph.traces.map(t => t.id))
+    const validJunctionIds = new Set<string>()
+    for (const node of this.graph.nodes) {
+      if (node.metadata?.connectionNode && Array.isArray(node.metadata?.traceIds)) {
+        const traceIds = node.metadata.traceIds as string[]
+        const validIds = traceIds.filter(id => actualTraceIds.has(id))
+        if (validIds.length >= 2) {
+          validJunctionIds.add(node.id)
+          // Clean stale traceIds from metadata so _persistJunctions doesn't write them back
+          if (validIds.length !== traceIds.length) {
+            node.metadata = { ...node.metadata, traceIds: validIds }
+          }
+        }
+      }
+    }
+    // Remove pre-seeded junction nodes that aren't valid anymore
+    for (const node of [...this.graph.nodes]) {
+      if (node.metadata?.junctionRecordId && !validJunctionIds.has(node.id)) {
+        this.graph.removeNode(node.id)
+      }
+    }
+
+    // 9a. Persist only already-authored/stored junction records from graph
+    // nodes back to the document. Derived graph nodes cannot create authority.
+    this._persistJunctions(document)
+
+    // 9b. Project only explicit EntranceAccess relationships. The target may
+    // reuse an authored trace node or split one compiled trace edge at the
+    // exact position selected by the author.
+    projectExplicitEntranceAccess(this.graph, document)
 
     // 10. Boundary
     this.graph.boundary = document.boundary
 
+    // 10b. Connectivity semantics version — stamp on first save, preserve thereafter
+    // This ensures legacy documents are upgraded to canonical mode after one save cycle.
+    if (!document.connectivitySemanticsVersion) {
+      document.connectivitySemanticsVersion = CONNECTIVITY_CONTRACT_VERSION
+    }
+    // Store the version only after the current pass has compiled and persisted
+    // its explicit or legacy-derived connectivity.
+    this.graph.setConnectivitySemanticsVersion(document.connectivitySemanticsVersion)
+
     // 11. Panoramas → Nodes
+    // P1-T4 (D9): document positions are building-local — derive world for the
+    // graph node when the panorama is anchored to a known building. A panorama
+    // without buildingId (or a legacy world-stored one) passes through verbatim
+    // (R15.8: entity data is never dropped).
     for (const pano of document.panoramas) {
+      const legacyWorld = 'lat' in pano.position
+        ? pano.position
+        : (pano.buildingId && this.transformer
+          ? this.transformer.buildingLocalToWorld(pano.position, pano.buildingId)
+          : null)
+      if (!legacyWorld) continue
       const node: NavNode = {
         id: `N-pano-${pano.id}`,
         label: `Panorama: ${pano.label}`,
@@ -366,7 +888,7 @@ export class GraphAdapter {
         buildingId: pano.buildingId ?? '',
         campusId: this.graph.campusId,
         floor: pano.floor ?? 0,
-        position: coreLatLngToLegacy(pano.position),
+        position: coreLatLngToLegacy(legacyWorld),
         hasPanorama: true,
         metadata: { panoramaId: pano.id },
       }
@@ -374,7 +896,15 @@ export class GraphAdapter {
     }
 
     // 11. QR Checkpoints → Nodes
+    // P1-T4 (D9): QR positions are building-local — same world derivation as
+    // entrances/panoramas, with verbatim pass-through for legacy world records.
     for (const qr of document.qrCheckpoints) {
+      const legacyWorld = (qr.position as unknown as { lat?: number }).lat !== undefined
+        ? (qr.position as unknown as { lat: number; lng: number })
+        : (this.transformer
+          ? this.transformer.buildingLocalToWorld(qr.position, qr.buildingId)
+          : null)
+      if (!legacyWorld) continue
       const node: NavNode = {
         id: `N-qr-${qr.id}`,
         label: `QR: ${qr.label}`,
@@ -383,12 +913,43 @@ export class GraphAdapter {
         buildingId: qr.buildingId,
         campusId: this.graph.campusId,
         floor: qr.floor,
-        position: coreLatLngToLegacy(qr.position),
+        position: coreLatLngToLegacy(legacyWorld),
         hasQr: true,
         metadata: { qrCode: qr.code, qrId: qr.id, qrMetadata: qr.metadata },
       }
       this.graph.addNode(node)
     }
+
+    // 12. Areas (pass-through — no conversion needed, stored as-is)
+    this.graph.areas = (document.areas ?? []).map(a => ({
+      id: a.id,
+      name: a.name,
+      points: a.points.map(coreLatLngToLegacy),
+      color: a.color,
+    }))
+
+    // 12b. Outdoor/campus POIs (pass-through — world geometry, no conversion).
+    // Indoor POIs stay on Building.floorData (written in the building loop).
+    this.graph.pois = (document.pois ?? []).map(poi => structuredClone(poi))
+  }
+
+  /**
+   * Persist junction records from graph nodes back to the document.
+   * Delegates to reconcileAuthoredJunctions, which both reuses regenerated
+   * junction nodes and preserves valid stored authority that a sync pass did
+   * not regenerate (persistence fix — no silent authority erasure).
+   */
+  private _persistJunctions(document: CampusDocument): void {
+    const result = reconcileAuthoredJunctions({
+      existing: document.roadJunctions ?? [],
+      junctionNodes: this.graph.nodes.filter(
+        n => n.metadata?.connectionNode === true && Array.isArray(n.metadata?.traceIds) && (n.metadata.traceIds as string[]).length >= 2
+      ),
+      actualTraceIds: new Set(this.graph.traces.map(t => t.id)),
+      validRoadIds: new Set(document.roads.map(r => r.id)),
+    })
+
+    document.roadJunctions = result.length > 0 ? result : undefined
   }
 
   syncEntity(entityId: string, document: CampusDocument): void {

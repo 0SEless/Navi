@@ -1,4 +1,4 @@
-import type { CampusDocument, Building, Floor, Room, Hallway } from '@navi/core'
+import type { CampusDocument, Building, Floor, Room, Hallway, PointOfInterest } from '@navi/core'
 
 export function findBuilding(document: CampusDocument, id: string): Building | undefined {
   return document.buildings.find((b) => b.id === id)
@@ -29,12 +29,13 @@ export interface FloorEntities {
   staircases: import('@navi/core').LegacyStaircase[]
   elevators: import('@navi/core').LegacyElevator[]
   entrances: import('@navi/core').Entrance[]
+  pois: PointOfInterest[]
 }
 
 export function getFloorEntities(document: CampusDocument, buildingId: string, level: number): FloorEntities {
   const floor = findFloorByLevel(document, buildingId, level)
   if (!floor) {
-    return { rooms: [], hallways: [], staircases: [], elevators: [], entrances: [] }
+    return { rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], pois: [] }
   }
   return {
     rooms: floor.rooms,
@@ -42,6 +43,7 @@ export function getFloorEntities(document: CampusDocument, buildingId: string, l
     staircases: floor.staircases,
     elevators: floor.elevators,
     entrances: floor.entrances,
+    pois: floor.pois ?? [],
   }
 }
 
@@ -51,7 +53,7 @@ export function findRoom(document: CampusDocument, buildingId: string, floorLeve
 }
 
 export interface EntityResult {
-  type: 'building' | 'floor' | 'room' | 'hallway' | 'staircase' | 'elevator' | 'entrance' | 'road' | 'panorama' | 'qr'
+  type: 'building' | 'floor' | 'room' | 'hallway' | 'staircase' | 'elevator' | 'entrance' | 'road' | 'panorama' | 'qr' | 'poi'
   path: string[]
   data: unknown
 }
@@ -90,6 +92,16 @@ export function findEntity(document: CampusDocument, entityId: string): EntityRe
           return { type: 'entrance', path: [`buildings.${building.id}`, `floors.${floor.id}`, `entrances.${entrance.id}`], data: entrance }
         }
       }
+      for (const poi of floor.pois ?? []) {
+        if (poi.id === entityId) {
+          return { type: 'poi', path: [`buildings.${building.id}`, `floors.${floor.id}`, `pois.${poi.id}`], data: poi }
+        }
+      }
+    }
+  }
+  for (const poi of document.pois ?? []) {
+    if (poi.id === entityId) {
+      return { type: 'poi', path: [`pois.${poi.id}`], data: poi }
     }
   }
   for (const road of document.roads) {

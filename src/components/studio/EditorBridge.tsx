@@ -5,14 +5,16 @@ import {
   EditorProvider,
   SelectionBridge,
   SelectionOrigin,
+  asEntityId,
   findEntityById,
   NavigationCompiler,
   createEditorContext,
   GraphAdapter,
 } from '@navi/editor'
-import type { EntitySelector, PersistenceAdapter, EditorContext } from '@navi/editor'
+import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
+import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 
 /**
@@ -58,12 +60,21 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
         ga.sync(ctx.document)
       }
-      useGraphStore.getState().save()
+      // Fire and forget: a blocked sync (unresolved server conflict) must never
+      // surface as an unhandled rejection from the editor persistence adapter.
+      void useGraphStore.getState().save().catch((error: unknown) => {
+        console.warn('EditorBridge adapter save failed:', error)
+      })
+      // Bump renderVersion so NavigationGraphRenderer re-renders with updated areas/graph
+      useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
     },
     syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
     publish: async (artifacts) => {
       const ctx = contextRef.current
-      const campusId = ctx?.document?.metadata?.name ?? 'campus'
+      const campusId = ctx?.document?.metadata?.campusId
+      if (!campusId) {
+        return { success: false, message: 'Cannot publish: document has no campusId' }
+      }
       const revision = ctx?.document?.version ?? 1
       const response = await fetch('/api/publish', {
         method: 'POST',
@@ -98,6 +109,56 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   // Ensure contextRef.current is always in sync with the active committed context
   contextRef.current = context
 
+  // Existing map snapshots may predate derived road endpoint markers. Rebuild
+  // the legacy graph once at mount so both authored endpoints are immediately
+  // visible after load, without inferring any new connection edges.
+  useEffect(() => {
+    const graph = useGraphStore.getState().graph
+    if (typeof graph?.setBuildings !== 'function') return
+    new GraphAdapter(graph, context.transformer).sync(context.document)
+    useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
+  }, [context])
+
+  // The editor document is authoritative, but the Studio map still has a
+  // legacy Graph projection for areas, navigation nodes, and edges. Keep that
+  // projection in lockstep with every document mutation, including the
+  // inverse command dispatched by HistoryStack.undo(). Without this bridge,
+  // undo removes an Explorer/document entity while its old map geometry stays
+  // rendered until a later Save happens to rebuild the graph.
+  useEffect(() => {
+    const eventBus = context.services.get('eventBus') as DocumentEventBus | undefined
+    if (!eventBus) return
+    const selectionManager = context.services.get('selection') as {
+      lastSelectedId: string | null
+      clear: (origin?: SelectionOrigin) => void
+    } | undefined
+
+    const unsubscribe = eventBus.on('document.changed', () => {
+      const graph = useGraphStore.getState().graph
+      new GraphAdapter(graph, context.transformer).sync(context.document)
+      useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
+
+      // Undo can remove the currently selected Building through an inverse
+      // command without going through the normal canvas selection path. Clear
+      // that stale selection so the inspector does not show "Entity not
+      // found" for an entity that was just removed.
+      const activeBuildingId = useStudioStore.getState().activeBuildingId
+      if (activeBuildingId && !context.document.buildings.some((building) => building.id === activeBuildingId)) {
+        useStudioStore.getState().setActiveBuilding(null)
+      }
+
+      // Undo/delete can remove the selected entity without going through a
+      // canvas click. Clear the authoritative selection immediately so the
+      // Inspector cannot render a stale "Entity not found" state.
+      const selectedId = selectionManager?.lastSelectedId
+      if (selectedId && !findEntityById(context.document, selectedId)) {
+        selectionManager.clear(SelectionOrigin.Programmatic)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [context])
+
   // Save on tab close / navigation away — fires even if autosave debounce hasn't
   // elapsed. Uses synchronous localStorage write (via graphStore.save()) so data
   // survives browser close. The async Supabase sync runs in the background.
@@ -109,7 +170,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
           const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
           ga.sync(ctx.document)
         }
-        useGraphStore.getState().save()
+        void useGraphStore.getState().save().catch((error: unknown) => {
+          console.warn('EditorBridge visibility persistence failed:', error)
+        })
       }
     }
     const handleBeforeUnload = () => {
@@ -118,7 +181,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
         ga.sync(ctx.document)
       }
-      useGraphStore.getState().save()
+      void useGraphStore.getState().save().catch((error: unknown) => {
+        console.warn('EditorBridge unload persistence failed:', error)
+      })
     }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -167,9 +232,24 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       // so pushing again would be a redundant cycle (also blocked by `syncing`).
       if (legacyId === selectionManager.lastSelectedId) return
       const found = findEntityById(context.document, legacyId)
-      const selector = found
-        ? ({ type: found.path, id: legacyId } as unknown as EntitySelector)
-        : ({ type: 'building', id: legacyId } as unknown as EntitySelector)
+      let selector: EntitySelector
+      if (found?.path === 'poi') {
+        const owner = context.document.buildings
+          .flatMap(building => building.floors.map(floor => ({ building, floor })))
+          .find(({ floor }) => floor.pois?.some(poi => poi.id === legacyId))
+        selector = owner
+          ? {
+              type: 'poi',
+              id: asEntityId(legacyId),
+              buildingId: asEntityId(owner.building.id),
+              floorId: asEntityId(owner.floor.id),
+            }
+          : ({ type: 'poi', id: asEntityId(legacyId) } as unknown as EntitySelector)
+      } else {
+        selector = found
+          ? ({ type: found.path, id: asEntityId(legacyId) } as unknown as EntitySelector)
+          : ({ type: 'building', id: asEntityId(legacyId) } as unknown as EntitySelector)
+      }
       bridge.pushExternal(selector, SelectionOrigin.Canvas)
     })
 
@@ -186,6 +266,32 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const unsub = eventBus.on('road.edit', (payload: { roadId: string }) => {
       useStudioStore.getState().setVertexEditing('trace', payload.roadId)
     })
+    return () => { unsub?.() }
+  }, [context])
+
+  // ── Bridge compile result to compiled-graph-store ──
+  // After a successful publish, the compile result contains the NavigationGraph
+  // which we need for Route Testing and other features.
+  useEffect(() => {
+    const eventBus = context.services.get('eventBus') as any
+    if (!eventBus?.on) return
+
+    const unsub = eventBus.on('publish.completed', (payload: any) => {
+      // Use the navigation graph from the publish event directly — no recompile needed.
+      // The PublishService already compiled the document; recompiling here was fragile
+      // and silently swallowed errors, leaving Route Testing on mock data.
+      const navGraph = payload?.navigationGraph
+      if (!navGraph?.nodes?.length) return
+
+      useCompiledGraphStore.getState().setResult(navGraph)
+
+      // Also push V2 nodes/edges into useGraphStore so NavigationGraphRenderer
+      // shows the real compiled graph on the Studio map (not the legacy graph).
+      const { nodes, edges } = useCompiledGraphStore.getState()
+      useGraphStore.getState().setNodes(nodes as any)
+      useGraphStore.getState().setEdges(edges as any)
+    })
+
     return () => { unsub?.() }
   }, [context])
 

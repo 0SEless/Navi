@@ -10,10 +10,13 @@ export interface ToolPointerEvent {
 }
 
 import type { ServiceAccessor } from '../context'
+import type { CampusDocument } from '@navi/core'
 
 export interface ToolContext {
   /** Typed access to editor services. */
   services: ServiceAccessor
+  /** The current campus document (for resolving entity IDs to levels, etc.). */
+  document?: CampusDocument
 }
 
 export interface Tool {

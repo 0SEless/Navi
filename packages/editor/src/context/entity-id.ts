@@ -24,6 +24,9 @@ export type EntityType =
   | 'road'
   | 'panorama'
   | 'qr'
+  | 'area'
+  | 'poi'
+  | 'door'
 
 // ── EntitySelector — discriminated union per entity type ──────
 // Uniquely identifies any entity in the document tree.
@@ -89,6 +92,32 @@ export interface QRSelector {
   id: EntityId
 }
 
+export interface AreaSelector {
+  type: 'area'
+  id: EntityId
+}
+
+/**
+ * An authored POI landmark. Indoor POIs carry their owning building/floor;
+ * outdoor/campus POIs omit both (world scope, no floor context).
+ */
+export interface PoiSelector {
+  type: 'poi'
+  id: EntityId
+  buildingId?: EntityId
+  floorId?: EntityId
+}
+
+// P1-T6 (R2.4/R9.2/D7): doors are independently selectable entities —
+// a door selector must never be coerced into its owning room's selector.
+export interface DoorSelector {
+  type: 'door'
+  id: EntityId
+  buildingId: EntityId
+  floorId: EntityId
+  roomId: EntityId
+}
+
 export type EntitySelector =
   | BuildingSelector
   | FloorSelector
@@ -100,6 +129,9 @@ export type EntitySelector =
   | RoadSelector
   | PanoramaSelector
   | QRSelector
+  | AreaSelector
+  | PoiSelector
+  | DoorSelector
 
 // ── Selection metadata ────────────────────────────────────────
 

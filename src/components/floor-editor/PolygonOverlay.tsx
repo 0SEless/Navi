@@ -65,13 +65,17 @@ function addSources(map: maplibregl.Map) {
 }
 
 function removeSources(map: maplibregl.Map) {
-  const ids = [EDGES_LINE, VERTICES_DRAG, VERTICES_HOVER, VERTICES_LAYER, MIDPOINTS_LAYER]
-  for (const id of ids) {
-    if (map.getLayer(id)) map.removeLayer(id)
-  }
-  const srcs = [SOURCE, VERTICES, MIDPOINTS]
-  for (const id of srcs) {
-    if (map.getSource(id)) map.removeSource(id)
+  try {
+    const ids = [EDGES_LINE, VERTICES_DRAG, VERTICES_HOVER, VERTICES_LAYER, MIDPOINTS_LAYER]
+    for (const id of ids) {
+      if (map.getLayer(id)) map.removeLayer(id)
+    }
+    const srcs = [SOURCE, VERTICES, MIDPOINTS]
+    for (const id of srcs) {
+      if (map.getSource(id)) map.removeSource(id)
+    }
+  } catch {
+    // map may already be destroyed during React cleanup
   }
 }
 
@@ -213,17 +217,21 @@ export function PolygonOverlay({
     map.on('mouseup', onMapMouseUp)
 
     return () => {
-      map.off('click', VERTICES_LAYER, onVertexClick as (e: maplibregl.MapMouseEvent) => void)
-      map.off('click', VERTICES_HOVER, onVertexClick as (e: maplibregl.MapMouseEvent) => void)
-      map.off('mouseenter', VERTICES_LAYER, onVertexEnter as (e: maplibregl.MapMouseEvent) => void)
-      map.off('mouseenter', VERTICES_HOVER, onVertexEnter as (e: maplibregl.MapMouseEvent) => void)
-      map.off('mouseleave', VERTICES_LAYER, onVertexLeave)
-      map.off('mouseleave', VERTICES_HOVER, onVertexLeave)
-      map.off('click', MIDPOINTS_LAYER, onMidpointClick as (e: maplibregl.MapMouseEvent) => void)
-      map.off('mouseenter', MIDPOINTS_LAYER, onMidpointEnter as (e: maplibregl.MapMouseEvent) => void)
-      map.off('mouseleave', MIDPOINTS_LAYER, onMidpointLeave)
-      map.off('mousemove', onMapMouseMove)
-      map.off('mouseup', onMapMouseUp)
+      try {
+        map.off('click', VERTICES_LAYER, onVertexClick as (e: maplibregl.MapMouseEvent) => void)
+        map.off('click', VERTICES_HOVER, onVertexClick as (e: maplibregl.MapMouseEvent) => void)
+        map.off('mouseenter', VERTICES_LAYER, onVertexEnter as (e: maplibregl.MapMouseEvent) => void)
+        map.off('mouseenter', VERTICES_HOVER, onVertexEnter as (e: maplibregl.MapMouseEvent) => void)
+        map.off('mouseleave', VERTICES_LAYER, onVertexLeave)
+        map.off('mouseleave', VERTICES_HOVER, onVertexLeave)
+        map.off('click', MIDPOINTS_LAYER, onMidpointClick as (e: maplibregl.MapMouseEvent) => void)
+        map.off('mouseenter', MIDPOINTS_LAYER, onMidpointEnter as (e: maplibregl.MapMouseEvent) => void)
+        map.off('mouseleave', MIDPOINTS_LAYER, onMidpointLeave)
+        map.off('mousemove', onMapMouseMove)
+        map.off('mouseup', onMapMouseUp)
+      } catch {
+        // map may already be destroyed during React cleanup
+      }
     }
   }, [map, enabled, polygon, onVertexPointerDown, onEdgePointerDown, onPointerMove, onPointerUp, unproject, setHoveredVertex, setHoveredEdge])
 
