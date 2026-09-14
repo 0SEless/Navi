@@ -2,10 +2,11 @@ import type maplibregl from 'maplibre-gl'
 import { normalizeCaptureHeading } from '@/features/capture/direction'
 
 /**
- * Capture's direction arrow remains a small geographic Point rendered by a
- * MapLibre symbol. Navigate's beam helpers live in this module too so the
- * heading normalization stays shared, but they are deliberately separate
- * contracts.
+ * Shared passive current-location rendering for Capture and Navigate.
+ *
+ * This module owns only MapLibre data, image, layer, and cleanup contracts.
+ * It does not acquire location, resolve heading permission, smooth position,
+ * compute route progress, record Capture samples, or control the camera.
  */
 export const NAVIGATION_HEADING_ARROW_IMAGE_WIDTH_PX = 32
 export const NAVIGATION_HEADING_ARROW_IMAGE_HEIGHT_PX = 40
@@ -22,27 +23,33 @@ export interface NavigationHeadingArrowProperties {
 
 export type NavigationHeadingArrowGeoJson = GeoJSON.FeatureCollection<GeoJSON.Point, NavigationHeadingArrowProperties>
 
+export interface PassiveLocationArrowProperties {
+  kind: string
+  heading: number
+}
+
+export type PassiveLocationArrowGeoJson = GeoJSON.FeatureCollection<GeoJSON.Point, PassiveLocationArrowProperties>
+export type PassiveLocationPositionGeoJson = GeoJSON.FeatureCollection<GeoJSON.Point, GeoJSON.GeoJsonProperties>
+
+export interface PassiveLocationMarkerIds {
+  positionSourceId: string
+  positionLayerId: string
+  directionSourceId: string
+  directionLayerId: string
+  imageId: string
+}
+
 export type NavigationHeadingArrowImage = {
   width: number
   height: number
   data: Uint8Array | Uint8ClampedArray
 }
 
-export type NavigationHeadingBeamBand = 'beam' | 'core'
-
-export interface NavigationHeadingBeamProperties {
-  kind: 'navigation-heading-beam'
-  heading: number
-  band: NavigationHeadingBeamBand
-}
-
-export type NavigationHeadingBeamGeoJson = GeoJSON.FeatureCollection<GeoJSON.Polygon, NavigationHeadingBeamProperties>
-
-function emptyNavigationHeadingArrowGeoJson(): NavigationHeadingArrowGeoJson {
+function emptyPositionGeoJson(): PassiveLocationPositionGeoJson {
   return { type: 'FeatureCollection', features: [] }
 }
 
-function emptyNavigationHeadingBeamGeoJson(): NavigationHeadingBeamGeoJson {
+function emptyArrowGeoJson(): PassiveLocationArrowGeoJson {
   return { type: 'FeatureCollection', features: [] }
 }
 
@@ -57,22 +64,44 @@ function isValidCoordinate(position: NavigationHeadingArrowCoordinate | null | u
     && position.longitude <= 180
 }
 
-/** Build the protected Capture-compatible geographic point. */
-export function buildNavigationHeadingArrowGeoJson(
+/** Build the geographic current-position dot consumed by the shared layer set. */
+export function buildPassiveLocationPositionGeoJson(
+  position: NavigationHeadingArrowCoordinate | null | undefined,
+): PassiveLocationPositionGeoJson {
+  if (!isValidCoordinate(position)) return emptyPositionGeoJson()
+
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [position.longitude, position.latitude],
+      },
+    }],
+  }
+}
+
+/**
+ * Build the compact geographic heading arrow. The caller supplies the display
+ * heading; this helper only normalizes it and never adds a second smoothing
+ * system.
+ */
+export function buildPassiveLocationArrowGeoJson(
   position: NavigationHeadingArrowCoordinate | null | undefined,
   heading: number | null | undefined,
-): NavigationHeadingArrowGeoJson {
+  kind = 'navigation-forward-heading-arrow',
+): PassiveLocationArrowGeoJson {
   const normalizedHeading = normalizeCaptureHeading(heading)
-  if (!isValidCoordinate(position) || normalizedHeading === null) {
-    return emptyNavigationHeadingArrowGeoJson()
-  }
+  if (!isValidCoordinate(position) || normalizedHeading === null) return emptyArrowGeoJson()
 
   return {
     type: 'FeatureCollection',
     features: [{
       type: 'Feature',
       properties: {
-        kind: 'navigation-forward-heading-arrow',
+        kind,
         heading: normalizedHeading,
       },
       geometry: {
@@ -83,7 +112,15 @@ export function buildNavigationHeadingArrowGeoJson(
   }
 }
 
-/** Keep the Capture arrow aligned to geographic north and rotate it from its heading property. */
+/** Compatibility wrapper for existing Navigate helper consumers. */
+export function buildNavigationHeadingArrowGeoJson(
+  position: NavigationHeadingArrowCoordinate | null | undefined,
+  heading: number | null | undefined,
+): NavigationHeadingArrowGeoJson {
+  return buildPassiveLocationArrowGeoJson(position, heading) as NavigationHeadingArrowGeoJson
+}
+
+/** Keep the Capture arrow aligned to the map and rotate it from geographic heading. */
 export function createNavigationHeadingArrowLayer(imageId: string) {
   return {
     type: 'symbol' as const,
@@ -96,6 +133,28 @@ export function createNavigationHeadingArrowLayer(imageId: string) {
       'icon-pitch-alignment': 'map',
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
+    },
+  }
+}
+
+/** Return the Capture-compatible dot plus map-aligned arrow layers. */
+export function createPassiveLocationMarkerLayers(ids: PassiveLocationMarkerIds) {
+  return {
+    direction: {
+      id: ids.directionLayerId,
+      source: ids.directionSourceId,
+      ...createNavigationHeadingArrowLayer(ids.imageId),
+    },
+    position: {
+      id: ids.positionLayerId,
+      type: 'circle' as const,
+      source: ids.positionSourceId,
+      paint: {
+        'circle-color': '#059669',
+        'circle-radius': 8,
+        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-width': 3,
+      },
     },
   }
 }
@@ -114,8 +173,7 @@ function pointInPolygon(x: number, y: number, polygon: Array<[number, number]>):
 
 /**
  * Create the small green Capture arrow without relying on a DOM canvas. This
- * keeps the MapLibre StyleImageInterface usable in tests and during SSR
- * setup, while retaining the same symbol/image rendering contract.
+ * keeps the MapLibre StyleImageInterface usable in tests and during SSR setup.
  */
 export function createNavigationHeadingArrowImage(): NavigationHeadingArrowImage {
   const width = NAVIGATION_HEADING_ARROW_IMAGE_WIDTH_PX
@@ -144,106 +202,39 @@ export function createNavigationHeadingArrowImage(): NavigationHeadingArrowImage
   return { width, height, data }
 }
 
-/** Register Capture's symbol image once per MapLibre map. */
-export function ensureNavigationHeadingArrowImage(map: maplibregl.Map, imageId: string): void {
+/** Register the shared symbol image once per MapLibre map. */
+export function ensurePassiveLocationMarkerImage(map: maplibregl.Map, imageId: string): void {
   if (map.hasImage(imageId)) return
   map.addImage(imageId, createNavigationHeadingArrowImage())
 }
 
-function buildRoundedBeamPolygon(
-  lng: number,
-  lat: number,
-  heading: number,
-  spreadDegrees: number,
-  radiusDegrees: number,
-  arcSegments: number,
-): number[][] {
-  const halfSpread = spreadDegrees / 2
-  const startAngle = heading - halfSpread
-  const angleStep = spreadDegrees / arcSegments
-  const coordinates: number[][] = [[lng, lat]]
-
-  // Sampling the front arc gives the fan a rounded cap instead of a sharp
-  // triangular tip. The origin remains the location anchor for the beam.
-  for (let index = 0; index <= arcSegments; index++) {
-    const angle = startAngle + index * angleStep
-    const angleRad = (angle * Math.PI) / 180
-    coordinates.push([
-      lng + radiusDegrees * Math.sin(angleRad),
-      lat + radiusDegrees * Math.cos(angleRad),
-    ])
-  }
-
-  coordinates.push([lng, lat])
-  return coordinates
+/** Compatibility wrapper for existing Capture helper consumers. */
+export function ensureNavigationHeadingArrowImage(map: maplibregl.Map, imageId: string): void {
+  ensurePassiveLocationMarkerImage(map, imageId)
 }
 
-/**
- * Build one visual Navigate heading beam from two compact opacity bands. Both
- * bands share the same short rounded fan; neither is an oversized secondary
- * cone, and both consume the already-resolved heading unchanged.
- */
-export function buildNavigationHeadingBeamGeoJson(
-  position: NavigationHeadingArrowCoordinate | null | undefined,
-  heading: number | null | undefined,
-): NavigationHeadingBeamGeoJson {
-  const normalizedHeading = normalizeCaptureHeading(heading)
-  if (!isValidCoordinate(position) || normalizedHeading === null) {
-    return emptyNavigationHeadingBeamGeoJson()
+/** Remove only the namespaced passive marker resources. */
+export function removePassiveLocationMarkerLayers(
+  map: maplibregl.Map | null | undefined,
+  ids: PassiveLocationMarkerIds,
+): void {
+  if (!map) return
+
+  try {
+    if (typeof map.getLayer === 'function' && typeof map.removeLayer === 'function') {
+      ;[ids.directionLayerId, ids.positionLayerId].forEach((layerId) => {
+        if (map.getLayer(layerId)) map.removeLayer(layerId)
+      })
+    }
+    if (typeof map.getSource === 'function' && typeof map.removeSource === 'function') {
+      ;[ids.directionSourceId, ids.positionSourceId].forEach((sourceId) => {
+        if (map.getSource(sourceId)) map.removeSource(sourceId)
+      })
+    }
+    if (typeof map.hasImage === 'function' && typeof map.removeImage === 'function' && map.hasImage(ids.imageId)) {
+      map.removeImage(ids.imageId)
+    }
+  } catch {
+    // NavigationMap can tear down its MapLibre instance before child cleanup.
   }
-
-  const bands: Array<{ band: NavigationHeadingBeamBand; spread: number; radius: number; segments: number }> = [
-    { band: 'beam', spread: 42, radius: 0.00032, segments: 20 },
-    { band: 'core', spread: 24, radius: 0.0002, segments: 16 },
-  ]
-
-  return {
-    type: 'FeatureCollection',
-    features: bands.map(({ band, spread, radius, segments }) => ({
-      type: 'Feature' as const,
-      properties: {
-        kind: 'navigation-heading-beam' as const,
-        heading: normalizedHeading,
-        band,
-      },
-      geometry: {
-        type: 'Polygon' as const,
-        coordinates: [buildRoundedBeamPolygon(
-          position.longitude,
-          position.latitude,
-          normalizedHeading,
-          spread,
-          radius,
-          segments,
-        )],
-      },
-    })),
-  }
-}
-
-export function createNavigationHeadingBeamLayers(sourceId: string) {
-  return [
-    {
-      id: `${sourceId}-beam`,
-      type: 'fill' as const,
-      source: sourceId,
-      filter: ['==', ['get', 'band'], 'beam'] as const,
-      paint: {
-        'fill-color': '#10b981',
-        'fill-opacity': 0.1,
-        'fill-antialias': true,
-      },
-    },
-    {
-      id: `${sourceId}-core`,
-      type: 'fill' as const,
-      source: sourceId,
-      filter: ['==', ['get', 'band'], 'core'] as const,
-      paint: {
-        'fill-color': '#10b981',
-        'fill-opacity': 0.24,
-        'fill-antialias': true,
-      },
-    },
-  ]
 }

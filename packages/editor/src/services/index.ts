@@ -15,3 +15,9 @@ export type { AutosaveOptions } from './autosave-service'
 export { PublishStore } from './publish-store'
 export type { PublishState, PublishSnapshot } from './publish-store'
 export { PublishService } from './publish-service'
+
+export { RelationshipService } from './RelationshipService'
+export type { Relationship, RelationshipType, RelationshipState, ConnectResult, DisconnectResult } from './RelationshipService'
+
+export { RelationshipSuggestionService } from './RelationshipSuggestionService'
+export type { RelationshipSuggestion } from './RelationshipSuggestionService'

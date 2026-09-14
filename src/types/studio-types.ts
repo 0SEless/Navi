@@ -53,3 +53,16 @@ export interface LayerVisibility {
   edges: boolean
   labels: boolean
 }
+
+export const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
+  osm: true,
+  satellite: false,
+  floor_plan: false,
+  buildings: true,
+  rooms: true,
+  hallways: true,
+  assets: true,
+  nodes: false,
+  edges: false,
+  labels: true,
+}

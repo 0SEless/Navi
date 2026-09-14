@@ -34,7 +34,6 @@ import { useCampusBoundary } from './CampusBoundary'
 import { useOsmImportTool } from './OsmImportTool'
 import { ImportToast, showImportToast } from './ImportToast'
 import { useBuildingTracer } from './BuildingTracer'
-import { useAreaTracer } from './AreaTracer'
 import { useVertexEditor } from './useVertexEditor'
 import { useMarkerDrag } from './useMarkerDrag'
 import { ConfirmBar } from './ConfirmBar'
@@ -131,11 +130,6 @@ export function StudioCanvas({ center }: StudioCanvasProps) {
   useBuildingTracer(mapInstance, (result) => {
     drawing.setDrawPoints(result.points)
     drawing.requestConfirm('building')
-  }, drawing)
-
-  useAreaTracer(mapInstance, (result) => {
-    drawing.setDrawPoints(result.points)
-    drawing.requestConfirm('area')
   }, drawing)
 
   return (

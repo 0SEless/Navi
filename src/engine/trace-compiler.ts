@@ -1,29 +1,14 @@
 import type { TracePath, NavNode, NavEdge, LatLng } from '../types/nav-types'
-import { findEndpointNodes, findProximityConnections } from './intersection-engine'
+import { findEndpointNodes } from './intersection-engine'
+import { haversine } from './geo-utils'
+// Share the engine's single id counter so trace nodes can never collide with
+// compiled component nodes (two independent counters produced identical ids
+// like N0001, silently overwriting hallway/room nodes in the graph).
+import { genId } from './component-compiler'
 
 export interface CompileTraceResult {
   nodes: NavNode[]
   edges: NavEdge[]
-}
-
-let _idCounter = 0
-export function genId(prefix: string): string {
-  _idCounter++
-  return `${prefix}${String(_idCounter).padStart(4, '0')}`
-}
-
-function haversine(a: LatLng, b: LatLng): number {
-  const R = 6371000
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const aVal =
-    sinDLat * sinDLat +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      sinDLng * sinDLng
-  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
 }
 
 function pointToLatLng(pt: LatLng): string {
@@ -34,7 +19,6 @@ export function compileTrace(
   trace: TracePath,
   existingNodes: NavNode[],
   existingEdges: NavEdge[],
-  roomNodes?: NavNode[]
 ): CompileTraceResult {
   if (trace.metadata?.role === 'wall') return { nodes: [], edges: [] }
 
@@ -45,6 +29,7 @@ export function compileTrace(
   // 1. Collect node positions from trace endpoints and all points
   const nodePositions: LatLng[] = []
   const endpoints = findEndpointNodes(trace)
+  const endpointKeys = new Set(endpoints.map(pointToLatLng))
   for (const ep of endpoints) {
     const key = pointToLatLng(ep)
     if (!generatedNodePositions.has(key)) {
@@ -73,6 +58,10 @@ export function compileTrace(
       campusId: trace.campusId ?? '',
       floor: trace.floor,
       position: pos,
+      // Endpoint availability is distinct from a shared intersection. The
+      // renderer uses this marker to expose both ends for explicit authoring;
+      // it must never be interpreted as an automatic graph connection.
+      metadata: endpointKeys.has(key) ? { roadEndpoint: true } : {},
     }
     nodeMap.set(key, node)
     nodes.push(node)
@@ -102,32 +91,10 @@ export function compileTrace(
     }
   }
 
-  // 4. Connect to nearby room nodes
-  const allRoomNodes = [...(roomNodes ?? []), ...existingNodes.filter(n => n.type === 'room')]
-  for (const node of nodes) {
-    const nearbyRooms = findProximityConnections(node.position, allRoomNodes.map(n => n.position), 10)
-    for (const roomPos of nearbyRooms) {
-      const roomNode = allRoomNodes.find(
-        (n) => n.position.lat === roomPos.lat && n.position.lng === roomPos.lng
-      )
-      if (roomNode) {
-        const edgeExists = existingEdges.some(
-          (e) => (e.from === node.id && e.to === roomNode.id) ||
-                 (e.from === roomNode.id && e.to === node.id)
-        )
-        if (!edgeExists) {
-          edges.push({
-            id: genId('E'),
-            from: node.id, to: roomNode.id,
-            type: 'transition',
-            distance: haversine(node.position, roomNode.position),
-            weight: haversine(node.position, roomNode.position),
-            campusId: trace.campusId ?? '',
-          })
-        }
-      }
-    }
-  }
+  // 4. NOTE: traces intentionally do NOT connect to room doors. A road→room_door
+  //    edge would bypass the building entrance (road → entrance → hallway →
+  //    room_door is the ONLY valid path into a building). Buildings link to
+  //    traces via their entrances only (see GraphAdapter post-trace pass).
 
   return { nodes, edges }
 }

@@ -1,3 +1,6 @@
+import { requireSafeTestEnvironment } from './e2e/support/campus-guard.mjs'
+requireSafeTestEnvironment()
+
 import { chromium } from 'playwright';
 
 async function main() {
