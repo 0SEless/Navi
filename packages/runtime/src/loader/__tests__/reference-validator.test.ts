@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { ReferenceValidator, type ArtifactBundle } from '../reference-validator'
 import type { NavigationGraphFile, SearchIndexFile, BuildingIndexFile, POIIndexFile } from '@navi/core'
 
@@ -6,7 +6,7 @@ const validator = new ReferenceValidator()
 
 function validGraph(): NavigationGraphFile {
   return {
-    schemaVersion: '1.0',
+    schemaVersion: '1.0.0',
     campusId: 'campus-1',
     checksum: 'abc',
     nodes: [
@@ -31,9 +31,9 @@ describe('ReferenceValidator', () => {
   it('passes with all artifact types referencing valid nodes', () => {
     const bundle: ArtifactBundle = {
       graph: validGraph(),
-      search: { schemaVersion: '1.0', entries: [{ id: 's1', label: 'Room', type: 'room', nodeId: 'n1', lat: 1, lng: 2, tags: [] }] },
-      buildings: { schemaVersion: '1.0', buildings: [{ id: 'b1', name: 'Bldg', code: 'A', position: { lat: 1, lng: 2 }, floors: [], entrances: [{ id: 'e1', label: 'Main', nodeId: 'n3' }] }] },
-      poi: { schemaVersion: '1.0', points: [{ id: 'p1', label: 'Cafe', category: 'food', lat: 1, lng: 2, nodeId: 'n2', properties: {} }] },
+      search: { schemaVersion: '1.0.0', entries: [{ id: 's1', label: 'Room', type: 'room', nodeId: 'n1', lat: 1, lng: 2, tags: [] }] },
+      buildings: { schemaVersion: '1.0.0', buildings: [{ id: 'b1', name: 'Bldg', code: 'A', position: { lat: 1, lng: 2 }, floors: [], entrances: [{ id: 'e1', label: 'Main', nodeId: 'n3' }] }] },
+      poi: { schemaVersion: '1.0.0', points: [{ id: 'p1', label: 'Cafe', category: 'food', lat: 1, lng: 2, nodeId: 'n2', properties: {} }] },
     }
     const result = validator.validate(bundle)
     expect(result.success).toBe(true)
@@ -63,7 +63,7 @@ describe('ReferenceValidator', () => {
 
   it('rejects search entry referencing missing node', () => {
     const search: SearchIndexFile = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       entries: [{ id: 's1', label: 'Ghost', type: 'room', nodeId: 'nonexistent', lat: 1, lng: 2, tags: [] }],
     }
     const result = validator.validate({ graph: validGraph(), search })
@@ -75,7 +75,7 @@ describe('ReferenceValidator', () => {
 
   it('rejects building entrance referencing missing node', () => {
     const buildings: BuildingIndexFile = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       buildings: [{ id: 'b1', name: 'B', code: 'B', position: { lat: 1, lng: 2 }, floors: [], entrances: [{ id: 'e1', label: 'In', nodeId: 'no-such-node' }] }],
     }
     const result = validator.validate({ graph: validGraph(), buildings })
@@ -87,7 +87,7 @@ describe('ReferenceValidator', () => {
 
   it('rejects POI referencing missing node', () => {
     const poi: POIIndexFile = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       points: [{ id: 'p1', label: 'Ghost Cafe', category: 'food', lat: 1, lng: 2, nodeId: 'lost-node', properties: {} }],
     }
     const result = validator.validate({ graph: validGraph(), poi })
@@ -110,7 +110,7 @@ describe('ReferenceValidator', () => {
 
   it('passes empty graph (no nodes, no edges)', () => {
     const emptyGraph: NavigationGraphFile = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       campusId: 'empty',
       checksum: '',
       nodes: [],

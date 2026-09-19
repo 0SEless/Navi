@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { ArtifactHydrator, type HydrateFailure } from '../artifact-hydrator'
 import { graphValidator } from '../validators/graph-validator'
 import { searchValidator } from '../validators/search-validator'
@@ -9,7 +9,7 @@ const hydrator = new ArtifactHydrator()
 
 function validGraph(): string {
   return JSON.stringify({
-    schemaVersion: '1.0',
+    schemaVersion: '1.0.0',
     campusId: 'campus-1',
     checksum: 'abc',
     nodes: [{ id: 'n1', type: 'waypoint', lat: 1, lng: 2, floor: 0, buildingId: 'b1' }],
@@ -19,21 +19,21 @@ function validGraph(): string {
 
 function validSearch(): string {
   return JSON.stringify({
-    schemaVersion: '1.0',
+    schemaVersion: '1.0.0',
     entries: [{ id: 's1', label: 'Room 101', type: 'room', nodeId: 'n1', lat: 1, lng: 2, tags: [] }],
   })
 }
 
 function validBuilding(): string {
   return JSON.stringify({
-    schemaVersion: '1.0',
+    schemaVersion: '1.0.0',
     buildings: [{ id: 'b1', name: 'Bldg A', code: 'A', position: { lat: 1, lng: 2 }, floors: [], entrances: [] }],
   })
 }
 
 function validPoi(): string {
   return JSON.stringify({
-    schemaVersion: '1.0',
+    schemaVersion: '1.0.0',
     points: [{ id: 'p1', label: 'Cafe', category: 'food', lat: 1, lng: 2, nodeId: 'n1', properties: {} }],
   })
 }
@@ -99,7 +99,7 @@ describe('ArtifactHydrator', () => {
   })
 
   it('rejects missing required fields', async () => {
-    const json = JSON.stringify({ schemaVersion: '1.0', nodes: [] })
+    const json = JSON.stringify({ schemaVersion: '1.0.0', nodes: [] })
     const result = await hydrator.hydrate(json, graphValidator)
     expect(result.success).toBe(false)
     if (!result.success) {

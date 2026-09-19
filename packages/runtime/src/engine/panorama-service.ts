@@ -1,6 +1,5 @@
-import type { LatLng } from '@navi/core'
+import { type LatLng, type PanoramaEntry, type HotspotEntry, SpatialQueryService } from '@navi/core'
 import type { LoadedPackage } from '../loader'
-import type { PanoramaEntry, HotspotEntry } from '@navi/core'
 
 // ── Panorama Service (M6.5b) ──
 // Viewer-agnostic capability. Exposes panorama metadata and hotspot relationships
@@ -21,6 +20,15 @@ export interface PanoramaResult {
   readonly position: LatLng
 }
 
+export interface HotspotContent {
+  readonly title?: string
+  readonly description?: string
+  readonly imageUrl?: string
+  readonly linkUrl?: string
+  readonly linkLabel?: string
+  readonly entityId?: string
+}
+
 export interface HotspotResult {
   readonly id: string
   readonly type: 'navigation' | 'information' | 'link'
@@ -29,24 +37,34 @@ export interface HotspotResult {
   readonly targetRoomId?: string
   readonly targetUrl?: string
   readonly label?: string
-}
-
-// Approximate straight-line distance in meters between two lat/lng points.
-// Consistent with BuildingService's nearest calculation.
-function distanceMeters(a: LatLng, b: LatLng): number {
-  const dLat = (a.lat - b.lat) * 111320
-  const avgLat = ((a.lat + b.lat) / 2) * Math.PI / 180
-  const dLng = (a.lng - b.lng) * 111320 * Math.cos(avgLat)
-  return Math.hypot(dLat, dLng)
+  readonly hotspotType?: 'navigation' | 'information'
+  readonly content?: HotspotContent
 }
 
 export class PanoramaService {
   private readonly panoramas: readonly PanoramaEntry[]
   private readonly panoramaIds: ReadonlySet<string>
+  private spatialIndex?: SpatialQueryService
 
   constructor(pkg: LoadedPackage) {
     this.panoramas = pkg.panoramaIndex?.panoramas ?? []
     this.panoramaIds = new Set(this.panoramas.map(p => p.id))
+  }
+
+  private getSpatialIndex(): SpatialQueryService {
+    if (!this.spatialIndex) {
+      this.spatialIndex = new SpatialQueryService()
+      this.spatialIndex.loadFromNodes(
+        this.panoramas.map(p => ({
+          id: p.id,
+          position: p.position,
+          type: 'panorama' as const,
+          buildingId: p.buildingId,
+          floor: p.floor,
+        })),
+      )
+    }
+    return this.spatialIndex
   }
 
   get(id: string): PanoramaResult | undefined {
@@ -63,16 +81,11 @@ export class PanoramaService {
 
   findNearest(position: LatLng): PanoramaResult | undefined {
     if (this.panoramas.length === 0) return undefined
-    let nearest = this.panoramas[0]
-    let minDist = distanceMeters(position, nearest.position)
-    for (let i = 1; i < this.panoramas.length; i++) {
-      const dist = distanceMeters(position, this.panoramas[i].position)
-      if (dist < minDist) {
-        minDist = dist
-        nearest = this.panoramas[i]
-      }
-    }
-    return this.mapPanorama(nearest)
+    const idx = this.getSpatialIndex()
+    const result = idx.nearestEntity(position)
+    if (!result) return undefined
+    const entry = this.panoramas.find(p => p.id === result.entity.id)
+    return entry ? this.mapPanorama(entry) : undefined
   }
 
   getHotspots(panoramaId: string): HotspotResult[] {
@@ -107,6 +120,8 @@ export class PanoramaService {
       type: h.type,
       position: { yaw: h.yaw, pitch: h.pitch },
       label: h.label,
+      hotspotType: h.hotspotType,
+      content: h.content,
     }
     if (h.type === 'navigation') {
       if (this.panoramaIds.has(h.target)) {

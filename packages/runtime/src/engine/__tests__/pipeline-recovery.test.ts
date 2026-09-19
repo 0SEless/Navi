@@ -1,9 +1,9 @@
-/**
- * Wave 5 — Pipeline/Recovery
+﻿/**
+ * Wave 5 â€” Pipeline/Recovery
  *
  * T27: Full pipeline end-to-end test.
- * Uses CampusCompiler (V2) → artifact builders → RuntimeEngine.
- * No file I/O — tests the real compile→artifacts→runtime pipeline
+ * Uses CampusCompiler (V2) â†’ artifact builders â†’ RuntimeEngine.
+ * No file I/O â€” tests the real compileâ†’artifactsâ†’runtime pipeline
  * in-memory with the same implementations the production path uses.
  */
 
@@ -16,7 +16,7 @@ function pipelineDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 0,
-    metadata: { name: 'PipelineTest', description: 'E2E test', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'PipelineTest', name: 'PipelineTest', description: 'E2E test', lastModified: '', editorVersion: '1.0.0' },
     buildings: [{
       id: 'b1', name: 'Main', code: 'M', category: 'academic', description: '',
       footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
@@ -33,7 +33,7 @@ function pipelineDoc(): CampusDocument {
             capacity: 25, roomDoors: [], metadata: {} },
         ],
         hallways: [], staircases: [], elevators: [],
-        entrances: [{ id: 'e1', label: 'Main Entrance', position: { lat: 14.0005, lng: 121.0005 }, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
+        entrances: [{ id: 'e1', label: 'Main Entrance', position: { lat: 14.0005, lng: 121.0005 } as any, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
         connectorStops: [],
         metadata: {},
       }],
@@ -60,16 +60,17 @@ async function buildLoadedPackage(doc: CampusDocument): Promise<LoadedPackage> {
   return {
     manifest: {
       schemaVersion: '1.0',
+  formatVersion: '0',
       campusId: doc.metadata.name,
       campusName: doc.metadata.name,
       publishedAt: new Date().toISOString(),
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'navigation.graph.json', checksum: graph.checksum, size: 0, schemaVersion: '1.0' },
-        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'navigation.graph.json', checksum: graph.checksum, size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: {
         nodeCount: graph.nodes.length,
@@ -84,12 +85,12 @@ async function buildLoadedPackage(doc: CampusDocument): Promise<LoadedPackage> {
     searchIndex: searchIndex as any,
     buildingIndex: buildingIndex as any,
     poiIndex: poiIndex as unknown as POIIndex,
-    reports: [],
+    reports: [], warnings: [],
   }
 }
 
 describe('Wave 5 | Pipeline / Recovery', () => {
-  describe('Full pipeline: compile → artifacts → runtime → route', () => {
+  describe('Full pipeline: compile â†’ artifacts â†’ runtime â†’ route', () => {
     it('compiles, builds artifacts, creates engine, and finds a route', async () => {
       const doc = pipelineDoc()
       const pkg = await buildLoadedPackage(doc)

@@ -1,16 +1,7 @@
-import type { LatLng, BuildingEntry } from '@navi/core'
+import { type LatLng, type BuildingEntry, distanceMeters, SpatialQueryService } from '@navi/core'
 import type { LoadedPackage } from '../loader'
 
 const CONTAINMENT_RADIUS_METERS = 100
-
-// Approximate distance in meters between two lat/lng points.
-// Accurate enough for nearest-building and containment checks at campus scale.
-function distanceMeters(a: LatLng, b: LatLng): number {
-  const dLat = (a.lat - b.lat) * 111320
-  const avgLat = (a.lat + b.lat) / 2 * Math.PI / 180
-  const dLng = (a.lng - b.lng) * 111320 * Math.cos(avgLat)
-  return Math.hypot(dLat, dLng)
-}
 
 export interface BuildingResult {
   readonly id: string
@@ -30,9 +21,24 @@ export interface EntranceResult {
 
 export class BuildingService {
   private buildings: BuildingEntry[]
+  private spatialIndex?: SpatialQueryService
 
   constructor(pkg: LoadedPackage) {
     this.buildings = pkg.buildingIndex?.buildings ?? []
+  }
+
+  private getSpatialIndex(): SpatialQueryService {
+    if (!this.spatialIndex) {
+      this.spatialIndex = new SpatialQueryService()
+      this.spatialIndex.loadFromNodes(
+        this.buildings.map(b => ({
+          id: b.id,
+          position: b.position,
+          type: 'building' as const,
+        })),
+      )
+    }
+    return this.spatialIndex
   }
 
   get(id: string): BuildingResult | undefined {
@@ -48,16 +54,11 @@ export class BuildingService {
 
   findNearest(position: LatLng): BuildingResult | undefined {
     if (this.buildings.length === 0) return undefined
-    let nearest = this.buildings[0]
-    let minDist = distanceMeters(position, nearest.position)
-    for (let i = 1; i < this.buildings.length; i++) {
-      const dist = distanceMeters(position, this.buildings[i].position)
-      if (dist < minDist) {
-        minDist = dist
-        nearest = this.buildings[i]
-      }
-    }
-    return this.mapResult(nearest)
+    const idx = this.getSpatialIndex()
+    const result = idx.nearestEntity(position)
+    if (!result) return undefined
+    const entry = this.buildings.find(b => b.id === result.entity.id)
+    return entry ? this.mapResult(entry) : undefined
   }
 
   getEntrances(buildingId: string): EntranceResult[] {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { LocationService } from '../location-service'
 import type { NavNode, BuildingIndex, LatLng } from '@navi/core'
 import type { LoadedPackage } from '../../loader'
@@ -13,10 +13,10 @@ function makePkg(nodes: NavNode[], buildingIndex?: BuildingIndex): LoadedPackage
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: { routeable: true, nodeCount: nodes.length, edgeCount: 0, buildings: buildingIndex?.buildings.length ?? 0, floors: 1, boundingBox: { minLat: 14, maxLat: 15, minLng: 121, maxLng: 122 } },
     },
@@ -98,7 +98,7 @@ describe('LocationService', () => {
       expect(result!.distance).toBeGreaterThanOrEqual(0)
     })
 
-    it('is stateless — same input returns same result', () => {
+    it('is stateless â€” same input returns same result', () => {
       const a = svc.snapToNode({ lat: 14.5, lng: 121.0 })
       const b = svc.snapToNode({ lat: 14.5, lng: 121.0 })
       expect(a!.node.id).toBe(b!.node.id)

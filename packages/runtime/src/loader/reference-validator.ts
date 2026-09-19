@@ -59,6 +59,10 @@ export class ReferenceValidator {
 
     if (bundle.search) {
       for (const entry of bundle.search.entries) {
+        // P1-T11: entries with an empty nodeId are document-anchored
+        // (e.g. building discovery entries — no graph node exists); only
+        // graph-anchored entries participate in reference integrity.
+        if (!entry.nodeId) continue
         if (!nodeIds.has(entry.nodeId)) {
           errors.push({ source: 'search.entries', field: 'nodeId', missingId: entry.nodeId })
         }
@@ -77,8 +81,9 @@ export class ReferenceValidator {
 
     if (bundle.poi) {
       for (const point of bundle.poi.points) {
-        if (!nodeIds.has(point.nodeId)) {
-          errors.push({ source: 'poi.points', field: 'nodeId', missingId: point.nodeId })
+        if (!point.nodeId && point.source === 'authored') continue
+        if (!nodeIds.has(point.nodeId ?? '')) {
+          errors.push({ source: 'poi.points', field: 'nodeId', missingId: point.nodeId ?? '' })
         }
       }
     }

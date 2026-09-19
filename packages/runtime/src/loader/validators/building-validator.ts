@@ -1,4 +1,4 @@
-import type { BuildingIndexFile } from '@navi/core'
+﻿import type { BuildingIndexFile } from '@navi/core'
 import type { ArtifactValidator } from '../artifact-hydrator'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -7,7 +7,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export const buildingValidator: ArtifactValidator<BuildingIndexFile> = {
   artifactType: 'building',
-  supportedSchemaVersion: '1.0',
+  supportedSchemaVersion: '1.0.0',
   validate(data: unknown): data is BuildingIndexFile {
     if (!isRecord(data)) return false
     if (!Array.isArray(data.buildings)) return false

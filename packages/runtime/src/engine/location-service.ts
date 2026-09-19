@@ -1,5 +1,5 @@
 import type { LoadedPackage } from '../loader'
-import type { NavNode, BuildingEntry, LatLng } from '@navi/core'
+import { type NavNode, type BuildingEntry, type LatLng, SpatialQueryService } from '@navi/core'
 import type { BuildingResult } from './building-service'
 
 export interface SnapResult {
@@ -14,22 +14,30 @@ export interface LocationContext {
   readonly isIndoor: boolean
 }
 
-function distanceMeters(a: LatLng, b: LatLng): number {
-  const dLat = (a.lat - b.lat) * 111320
-  const avgLat = (a.lat + b.lat) / 2 * Math.PI / 180
-  const dLng = (a.lng - b.lng) * 111320 * Math.cos(avgLat)
-  return Math.hypot(dLat, dLng)
-}
-
 const BUILDING_CONTAINMENT_METERS = 100
 
 export class LocationService {
   private nodes: NavNode[]
   private buildings: BuildingEntry[]
+  private buildingSpatialIndex?: SpatialQueryService
 
   constructor(pkg: LoadedPackage) {
     this.nodes = pkg.graph.nodes
     this.buildings = pkg.buildingIndex?.buildings ?? []
+  }
+
+  private getBuildingSpatialIndex(): SpatialQueryService {
+    if (!this.buildingSpatialIndex) {
+      this.buildingSpatialIndex = new SpatialQueryService()
+      this.buildingSpatialIndex.loadFromNodes(
+        this.buildings.map(b => ({
+          id: b.id,
+          position: b.position,
+          type: 'building' as const,
+        })),
+      )
+    }
+    return this.buildingSpatialIndex
   }
 
   resolve(position: LatLng): LocationContext {
@@ -65,30 +73,22 @@ export class LocationService {
 
   private findNearestNode(position: LatLng): SnapResult | null {
     if (this.nodes.length === 0) return null
-    let nearest = this.nodes[0]
-    let minDist = distanceMeters(position, nearest.position)
-    for (let i = 1; i < this.nodes.length; i++) {
-      const dist = distanceMeters(position, this.nodes[i].position)
-      if (dist < minDist) {
-        minDist = dist
-        nearest = this.nodes[i]
-      }
-    }
-    return { node: nearest, distance: minDist }
+    const svc = new SpatialQueryService()
+    svc.loadFromNodes(this.nodes as unknown as Array<{ id: string; position: LatLng; type?: string; floor?: number; buildingId?: string; [key: string]: unknown }>)
+    const result = svc.nearestEntity(position)
+    if (!result) return null
+    const node = this.nodes.find(n => n.id === result.entity.id)
+    if (!node) return null
+    return { node, distance: result.distance }
   }
 
   private findContainingBuilding(position: LatLng): BuildingResult | null {
     if (this.buildings.length === 0) return null
-    let nearest = this.buildings[0]
-    let minDist = distanceMeters(position, nearest.position)
-    for (let i = 1; i < this.buildings.length; i++) {
-      const dist = distanceMeters(position, this.buildings[i].position)
-      if (dist < minDist) {
-        minDist = dist
-        nearest = this.buildings[i]
-      }
-    }
-    if (minDist > BUILDING_CONTAINMENT_METERS) return null
+    const idx = this.getBuildingSpatialIndex()
+    const result = idx.nearestEntity(position, { maxDistance: BUILDING_CONTAINMENT_METERS })
+    if (!result) return null
+    const nearest = this.buildings.find(b => b.id === result.entity.id)
+    if (!nearest) return null
     return {
       id: nearest.id,
       name: nearest.name,

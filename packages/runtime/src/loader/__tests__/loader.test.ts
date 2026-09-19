@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import type { LoadedPackage, LoadResult, LoadReport, LoadFailure, LoadErrorCode } from '../types'
 import { load } from '../loader'
 
@@ -8,6 +8,7 @@ describe('Loader types', () => {
       manifest: null as unknown as LoadedPackage['manifest'],
       graph: null as unknown as LoadedPackage['graph'],
       reports: [],
+      warnings: [],
     }
     expect(pkg.reports).toEqual([])
   })
@@ -44,8 +45,10 @@ describe('Loader types', () => {
       'INVALID_SCHEMA',
       'INVALID_REFERENCE',
       'IO_ERROR',
+      // P1-T11 (R11.2): unsupported major schemaVersion rejection
+      'UNSUPPORTED_SCHEMA_VERSION',
     ]
-    expect(codes).toHaveLength(7)
+    expect(codes).toHaveLength(8)
   })
 
   it('exported load() returns LoadFailure for nonexistent path', async () => {

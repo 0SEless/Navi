@@ -135,4 +135,16 @@ describe('NavigationService', () => {
     expect(route!.travelTime.minutes).toBeGreaterThanOrEqual(0)
     expect(route!.travelTime.formatted).toMatch(/^(\d+s|\d+m \d+s|\d+m)$/)
   })
+
+  it('does not activate wheelchair filtering through legacy accessible preferences', () => {
+    const pkg = testGraph()
+    pkg.graph.edges[0].routing = {
+      sourceRoadId: 'road-a-b',
+      authoredOrientation: 'forward',
+      authored: { wheelchairAccessible: false },
+    }
+    const svc = new NavigationService(pkg)
+
+    expect(svc.findRoute('a', 'c', { mode: 'accessible' })).not.toBeNull()
+  })
 })

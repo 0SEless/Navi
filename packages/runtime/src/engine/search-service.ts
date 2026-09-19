@@ -8,10 +8,16 @@ export interface SearchResult {
   readonly id: string
   readonly title: string
   readonly category: SearchCategory
-  readonly nodeId: string
+  readonly nodeId?: string
+  readonly position: SearchEntry['position']
   readonly score?: number
   readonly buildingId?: string
   readonly floor?: number
+  readonly floorId?: string
+  /** POI-specific category; `category` remains the broad search type. */
+  readonly poiCategory?: string
+  readonly source?: SearchEntry['source']
+  readonly sourceId?: string
 }
 
 export class SearchService {
@@ -59,10 +65,15 @@ export class SearchService {
       id: entry.id,
       title: entry.label,
       category: entry.type,
-      nodeId: entry.nodeId,
+      ...(entry.nodeId !== undefined ? { nodeId: entry.nodeId } : {}),
+      position: entry.position,
       score,
-      buildingId: entry.buildingId,
-      floor: entry.floor,
+      ...(entry.buildingId !== undefined ? { buildingId: entry.buildingId } : {}),
+      ...(entry.floor !== undefined ? { floor: entry.floor } : {}),
+      ...(entry.floorId !== undefined ? { floorId: entry.floorId } : {}),
+      ...(entry.category !== undefined ? { poiCategory: entry.category } : {}),
+      ...(entry.source !== undefined ? { source: entry.source } : {}),
+      ...(entry.sourceId !== undefined ? { sourceId: entry.sourceId } : {}),
     }
   }
 }

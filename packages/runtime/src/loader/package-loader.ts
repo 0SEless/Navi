@@ -13,18 +13,20 @@ import { searchValidator } from './validators/search-validator'
 import { buildingValidator } from './validators/building-validator'
 import { poiValidator } from './validators/poi-validator'
 import { panoramaValidator } from './validators/panorama-validator'
-import { toRuntimeGraph, toRuntimeSearch, toRuntimeBuildings, toRuntimePOI, toRuntimePanorama } from './runtime-converter'
-import type { NavigationPackageManifest, PackageArtifact, NavigationGraphFile, SearchIndexFile, BuildingIndexFile, POIIndexFile, PanoramaIndexFile } from '@navi/core'
+import { qrValidator } from './validators/qr-validator'
+import { floorGeometryValidator } from './validators/floor-geometry-validator'
+import { toRuntimeGraph, toRuntimeSearch, toRuntimeBuildings, toRuntimePOI, toRuntimePanorama, toRuntimeQrIndex, toRuntimeFloorGeometry } from './runtime-converter'
+import type { NavigationPackageManifest, PackageArtifact, NavigationGraphFile, SearchIndexFile, BuildingIndexFile, POIIndexFile, PanoramaIndexFile, QrIndexFile, FloorGeometryFile } from '@navi/core'
 
 interface ArtifactData {
-  fileType: 'graph' | 'search' | 'buildings' | 'poi' | 'panorama'
+  fileType: 'graph' | 'search' | 'buildings' | 'poi' | 'panorama' | 'qrIndex' | 'floorGeometry'
   fileData: unknown
   report: ArtifactReport
 }
 
 interface ValidatorBinding {
   validator: ArtifactValidator<unknown>
-  fileType: 'graph' | 'search' | 'buildings' | 'poi' | 'panorama'
+  fileType: 'graph' | 'search' | 'buildings' | 'poi' | 'panorama' | 'qrIndex' | 'floorGeometry'
 }
 
 const ARTIFACT_REGISTRY: Record<string, ValidatorBinding> = {
@@ -33,6 +35,10 @@ const ARTIFACT_REGISTRY: Record<string, ValidatorBinding> = {
   buildings: { validator: buildingValidator, fileType: 'buildings' },
   poi: { validator: poiValidator, fileType: 'poi' },
   panorama: { validator: panoramaValidator, fileType: 'panorama' },
+  // P1-T13 (R10.2): published QR index — opaque checkpoint resolution.
+  qrIndex: { validator: qrValidator, fileType: 'qrIndex' },
+  // P1.5 (R6.1/D15): floor-geometry.json — indoor geometry for rendering.
+  floorGeometry: { validator: floorGeometryValidator, fileType: 'floorGeometry' },
 }
 
 export class PackageLoader {
@@ -70,6 +76,25 @@ export class PackageLoader {
       }
     }
 
+    // P1-T11 (R11.2): versioned compatibility rule — consumers accept the
+    // same major schemaVersion; formatVersion covers minor evolutions.
+    // Legacy manifests without version fields are tolerated (assumed
+    // major 1 / format 0 — documented behavior).
+    const manifestMajor = (manifest.schemaVersion ?? '1.0.0').split('.')[0] ?? '1'
+    if (manifestMajor !== '1') {
+      return {
+        success: false,
+        code: 'UNSUPPORTED_SCHEMA_VERSION',
+        message: `Manifest schemaVersion "${manifest.schemaVersion}" is not supported by this runtime (supported major: 1). Re-publish the campus with a compatible compiler or update the runtime.`,
+        durationMs: Date.now() - start,
+      }
+    }
+    const warnings: string[] = []
+    const manifestFormat = manifest.formatVersion ?? '0'
+    if (manifestFormat !== '0') {
+      warnings.push(`Manifest formatVersion "${manifestFormat}" differs from the supported "0" — loaded with documented tolerance (R11.2).`)
+    }
+
     const artifacts: ArtifactData[] = []
 
     for (const [key, artifactMeta] of Object.entries(manifest.artifacts)) {
@@ -84,6 +109,8 @@ export class PackageLoader {
     const buildingsFile = artifacts.find(a => a.fileType === 'buildings')?.fileData as BuildingIndexFile | undefined
     const poiFile = artifacts.find(a => a.fileType === 'poi')?.fileData as POIIndexFile | undefined
     const panoramaFile = artifacts.find(a => a.fileType === 'panorama')?.fileData as PanoramaIndexFile | undefined
+    const qrFile = artifacts.find(a => a.fileType === 'qrIndex')?.fileData as QrIndexFile | undefined
+    const floorGeometryFile = artifacts.find(a => a.fileType === 'floorGeometry')?.fileData as FloorGeometryFile | undefined
 
     const refResult = this.referenceValidator.validate({
       graph: graphFile,
@@ -108,7 +135,12 @@ export class PackageLoader {
       buildingIndex: buildingsFile ? toRuntimeBuildings(buildingsFile) : undefined,
       poiIndex: poiFile ? toRuntimePOI(poiFile) : undefined,
       panoramaIndex: panoramaFile ? toRuntimePanorama(panoramaFile) : undefined,
+      // P1-T13 (R10.2): QR index for opaque checkpoint resolution.
+      qrIndex: qrFile ? toRuntimeQrIndex(qrFile) : undefined,
+      // P1.5 (R6.1/D15): floor-geometry for indoor rendering.
+      floorGeometry: floorGeometryFile ? toRuntimeFloorGeometry(floorGeometryFile) : undefined,
       reports,
+      warnings,
     }
 
     return {

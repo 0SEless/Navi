@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { PanoramaService } from '../panorama-service'
 import type { LoadedPackage } from '../../loader'
 import type { PanoramaIndex } from '@navi/core'
@@ -6,14 +6,15 @@ import type { PanoramaIndex } from '@navi/core'
 function makePackage(index?: PanoramaIndex): LoadedPackage {
   return {
     manifest: {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
+    formatVersion: '0',
       campusId: 'test-campus',
       campusName: 'Test',
       publishedAt: '',
       compilerVersion: '',
       revision: '',
       artifacts: {
-        graph: { path: 'g.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'g.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: {
         nodeCount: 1, edgeCount: 0, buildingCount: 1, floorCount: 1,
@@ -26,7 +27,7 @@ function makePackage(index?: PanoramaIndex): LoadedPackage {
       metadata: { nodeCount: 0, edgeCount: 0, buildings: 0, floors: 0, boundingBox: { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 } },
     },
     panoramaIndex: index,
-    reports: [],
+    reports: [], warnings: [],
   }
 }
 

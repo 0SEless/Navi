@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { FilesystemReader } from '../package-reader'

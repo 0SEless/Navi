@@ -16,13 +16,16 @@ const DEFAULT_CONFIG: Required<SearchConfig> = {
 }
 
 function tokenize(text: string): string[] {
-  return text.toLowerCase().split(/[\s,.-]+/).filter(Boolean)
+  return text.toLowerCase().split(/[\s,_\-:;,.!?]+/).filter(Boolean)
 }
 
 function scoreEntry(entry: SearchEntry, queryTokens: string[]): number {
   let score = 0
   const labelLower = entry.label.toLowerCase()
-  const tagLower = entry.tags.map(t => t.toLowerCase())
+  const tagLower = [
+    ...entry.tags.map(t => t.toLowerCase()),
+    ...(entry.category ? [entry.category.toLowerCase()] : []),
+  ]
 
   for (const token of queryTokens) {
     if (labelLower === token) score += 10

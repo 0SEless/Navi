@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { BuildingService } from '../building-service'
 import type { BuildingIndex } from '@navi/core'
 import type { LoadedPackage } from '../../loader'
@@ -13,10 +13,10 @@ function makePkg(buildingIndex?: BuildingIndex): LoadedPackage {
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: { routeable: true, nodeCount: 0, edgeCount: 0, buildings: 2, floors: 3, boundingBox: { minLat: 14.4, maxLat: 14.6, minLng: 121.0, maxLng: 121.1 } },
     },

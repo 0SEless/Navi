@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+﻿import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,7 +12,7 @@ function sha256Hex(s: string): string {
 }
 
 const panoramaFile: PanoramaIndexFile = {
-  schemaVersion: '1.0',
+  schemaVersion: '1.0.0',
   panoramas: [
     {
       id: 'pano-1',
@@ -32,7 +32,7 @@ const panoramaFile: PanoramaIndexFile = {
 }
 
 const graphFile = {
-  schemaVersion: '1.0',
+  schemaVersion: '1.0.0',
   campusId: 'test-campus',
   checksum: 'g',
   nodes: [{ id: 'n1', label: 'N1', type: 'waypoint', lat: 14.5, lng: 121.0, floor: 0, buildingId: 'b1' }],
@@ -51,15 +51,15 @@ describe('Panorama loader (M6.5a)', () => {
     const panoBytes = JSON.stringify(panoramaFile)
 
     const manifest = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       campusId: 'test-campus',
       campusName: 'Test',
       publishedAt: '2026-07-17T00:00:00Z',
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'graph.json', checksum: sha256Hex(graphBytes), size: graphBytes.length, schemaVersion: '1.0' },
-        panorama: { path: 'panorama.json', checksum: sha256Hex(panoBytes), size: panoBytes.length, schemaVersion: '1.0' },
+        graph: { path: 'graph.json', checksum: sha256Hex(graphBytes), size: graphBytes.length, schemaVersion: '1.0.0' },
+        panorama: { path: 'panorama.json', checksum: sha256Hex(panoBytes), size: panoBytes.length, schemaVersion: '1.0.0' },
       },
       metadata: {
         nodeCount: 1, edgeCount: 0, buildingCount: 1, floorCount: 1,
@@ -96,13 +96,13 @@ describe('Panorama loader (M6.5a)', () => {
 
   it('toRuntimePanorama maps files to runtime types', () => {
     const idx = toRuntimePanorama(panoramaFile)
-    expect(idx.version).toBe('1.0')
+    expect(idx.version).toBe('1.0.0')
     expect(idx.panoramas[0].title).toBe('Lobby')
     expect(idx.panoramas[0].hotspots[0].target).toBe('rm-1')
   })
 })
 
-describe('Panorama loader — graceful absence', () => {
+describe('Panorama loader â€” graceful absence', () => {
   let dir: string
 
   beforeAll(() => {
@@ -111,14 +111,14 @@ describe('Panorama loader — graceful absence', () => {
     const base = join(dir, 'test-campus')
     const graphBytes = JSON.stringify(graphFile)
     const manifest = {
-      schemaVersion: '1.0',
+      schemaVersion: '1.0.0',
       campusId: 'test-campus',
       campusName: 'Test',
       publishedAt: '2026-07-17T00:00:00Z',
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'graph.json', checksum: sha256Hex(graphBytes), size: graphBytes.length, schemaVersion: '1.0' },
+        graph: { path: 'graph.json', checksum: sha256Hex(graphBytes), size: graphBytes.length, schemaVersion: '1.0.0' },
       },
       metadata: {
         nodeCount: 1, edgeCount: 0, buildingCount: 1, floorCount: 1,

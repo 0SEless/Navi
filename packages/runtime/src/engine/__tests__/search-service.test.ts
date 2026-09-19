@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { SearchService } from '../search-service'
 import type { SearchIndex, SearchEntry } from '@navi/core'
 import type { LoadedPackage } from '../../loader'
@@ -13,10 +13,10 @@ function makePkg(searchIndex?: SearchIndex): LoadedPackage {
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        search: { path: 'search.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        buildings: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: { routeable: true, nodeCount: 0, edgeCount: 0, buildings: 1, floors: 1, boundingBox: { minLat: 0, maxLat: 1, minLng: 0, maxLng: 1 } },
     },
@@ -38,6 +38,20 @@ function testIndex(): SearchIndex {
     ],
   }
 }
+
+const authoredSearchEntry = {
+  id: 'poi-study-area',
+  label: 'Student Study Area',
+  type: 'poi',
+  position: { lng: 121.002, lat: 14.002 },
+  tags: ['student', 'study', 'area', 'owner', 'library'],
+  category: 'study_area',
+  buildingId: 'b1',
+  floor: 1,
+  floorId: 'f1',
+  source: 'authored',
+  sourceId: 'poi-study-area',
+} as unknown as SearchEntry
 
 describe('SearchService', () => {
   const pkg = makePkg(testIndex())
@@ -141,6 +155,24 @@ describe('SearchService', () => {
       expect(room).toBeDefined()
       expect(room!.buildingId).toBe('b1')
       expect(room!.floor).toBe(1)
+    })
+
+    it('maps an authored no-node POI as a discovery result', () => {
+      const authoredSvc = new SearchService(makePkg({ version: '1.0.0', entries: [authoredSearchEntry] }))
+      const result = authoredSvc.search('study_area')[0]
+      expect(result).toMatchObject({
+        id: 'poi-study-area',
+        title: 'Student Study Area',
+        category: 'poi',
+        position: { lat: 14.002, lng: 121.002 },
+        poiCategory: 'study_area',
+        source: 'authored',
+        sourceId: 'poi-study-area',
+        floorId: 'f1',
+        buildingId: 'b1',
+        floor: 1,
+      })
+      expect(result?.nodeId).toBeUndefined()
     })
   })
 

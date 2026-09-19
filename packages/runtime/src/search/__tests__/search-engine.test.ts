@@ -6,6 +6,20 @@ function makeIndex(entries: SearchIndex['entries']): SearchIndex {
   return { version: '1.0.0', entries }
 }
 
+const authoredPoi = {
+  id: 'poi-study-area',
+  label: 'Student Study Area',
+  type: 'poi',
+  position: { lng: 121.002, lat: 14.002 },
+  tags: ['student', 'study', 'area', 'owner', 'library'],
+  category: 'study_area',
+  buildingId: 'b1',
+  floor: 1,
+  floorId: 'f1',
+  source: 'authored',
+  sourceId: 'poi-study-area',
+} as unknown as SearchIndex['entries'][number]
+
 describe('SearchEngine', () => {
   const index = makeIndex([
     { id: 'b1', label: 'Engineering Building', type: 'building', nodeId: 'n1', position: { lng: 121, lat: 14 }, tags: ['engineering', 'academic'], buildingId: 'b1' },
@@ -32,6 +46,48 @@ describe('SearchEngine', () => {
     const engine = new SearchEngine(index)
     const results = engine.query('classroom')
     expect(results.some(r => r.entry.id === 'r1')).toBe(true)
+  })
+
+  it('matches authored POIs by normalized category tokens without a node', () => {
+    const engine = new SearchEngine(makeIndex([...index.entries, authoredPoi]))
+    const results = engine.query('study_area')
+    expect(results[0]?.entry).toMatchObject({
+      id: 'poi-study-area',
+      type: 'poi',
+      category: 'study_area',
+      source: 'authored',
+    })
+    expect(results[0]?.entry.nodeId).toBeUndefined()
+  })
+
+  it('finds outdoor/campus POIs with stable identity and no building/floor context', () => {
+    const outdoorPoi = {
+      id: 'outdoor-guard-post',
+      label: 'Guard Post',
+      type: 'poi',
+      position: { lng: 121.05, lat: 14.05 },
+      tags: ['guard', 'post'],
+      category: 'other',
+      source: 'authored',
+      sourceId: 'outdoor-guard-post',
+      scope: 'outdoor',
+    } as unknown as SearchIndex['entries'][number]
+
+    const engine = new SearchEngine(makeIndex([...index.entries, outdoorPoi]))
+    const results = engine.query('guard post')
+
+    expect(results.length).toBeGreaterThan(0)
+    expect(results[0]?.entry).toMatchObject({
+      id: 'outdoor-guard-post',
+      type: 'poi',
+      source: 'authored',
+      sourceId: 'outdoor-guard-post',
+      scope: 'outdoor',
+      position: { lat: 14.05, lng: 121.05 },
+    })
+    expect(results[0]?.entry.nodeId).toBeUndefined()
+    expect(results[0]?.entry.buildingId).toBeUndefined()
+    expect(results[0]?.entry.floor).toBeUndefined()
   })
 
   it('returns multiple results ranked by score', () => {

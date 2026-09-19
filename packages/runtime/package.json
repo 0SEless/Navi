@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./loader": "./src/loader/index.ts"
+    "./engine": "./src/engine/index.ts",
+    "./loader": "./src/loader/index.ts",
+    "./routing": "./src/routing/index.ts"
   },
   "types": "./src/index.ts",
   "scripts": {

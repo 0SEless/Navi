@@ -10,9 +10,12 @@ import type {
   FloorEntryFile,
   POIIndexFile,
   POIEntryFile,
-  PanoramaIndexFile,
+ PanoramaIndexFile,
   PanoramaEntryFile,
+  QrIndexFile,
+  QrIndex,
   HotspotFile,
+  FloorGeometryFile,
 } from '@navi/core'
 import type {
   NavigationGraph,
@@ -29,6 +32,7 @@ import type {
   PanoramaEntry,
   HotspotEntry,
   BoundingBox,
+  FloorGeometryArtifact,
 } from '@navi/core'
 
 function computeBoundingBox(nodes: NavNodeFile[]): BoundingBox {
@@ -46,18 +50,26 @@ function computeBoundingBox(nodes: NavNodeFile[]): BoundingBox {
 function toNavNode(n: NavNodeFile): NavNode {
   return {
     id: n.id,
-    label: '',
+    label: n.label ?? '',
     type: n.type as NavNode['type'],
     position: { lat: n.lat, lng: n.lng },
     floor: n.floor,
     buildingId: n.buildingId,
-    properties: {},
+    properties: n.properties ? { ...n.properties } : {},
   }
 }
 
 function toNavEdge(e: NavEdgeFile): NavEdge {
   const type = e.type === 'escalator' || e.type === 'ramp' ? 'walk' as const : e.type as NavEdge['type']
-  return { id: e.id, from: e.from, to: e.to, type, distance: e.distance, weight: e.weight }
+  return {
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    type,
+    distance: e.distance,
+    weight: e.weight,
+    ...(e.routing ? { routing: e.routing } : {}),
+  }
 }
 
 function toSearchEntry(e: SearchEntryFile): SearchEntry {
@@ -65,11 +77,16 @@ function toSearchEntry(e: SearchEntryFile): SearchEntry {
     id: e.id,
     label: e.label,
     type: e.type,
-    nodeId: e.nodeId,
     position: { lat: e.lat, lng: e.lng },
     tags: e.tags,
-    buildingId: e.buildingId,
-    floor: e.floor,
+    ...(e.nodeId !== undefined ? { nodeId: e.nodeId } : {}),
+    ...(e.buildingId !== undefined ? { buildingId: e.buildingId } : {}),
+    ...(e.floor !== undefined ? { floor: e.floor } : {}),
+    ...(e.category !== undefined ? { category: e.category } : {}),
+    ...(e.floorId !== undefined ? { floorId: e.floorId } : {}),
+    ...(e.source !== undefined ? { source: e.source } : {}),
+    ...(e.sourceId !== undefined ? { sourceId: e.sourceId } : {}),
+    ...(e.scope !== undefined ? { scope: e.scope } : {}),
   }
 }
 
@@ -77,8 +94,13 @@ function toFloorEntry(f: FloorEntryFile): FloorEntry {
   return {
     level: f.level,
     label: f.label,
-    elevation: 0,
-    rooms: f.nodeIds.map(id => ({ id, name: '', number: '', nodeId: id })),
+    elevation: f.elevation ?? 0,
+    rooms: (f.rooms ?? f.nodeIds.map(id => ({ id, name: '', number: '' }))).map(r => ({
+      id: r.id,
+      name: r.name,
+      number: r.number,
+      nodeId: r.id,
+    })),
   }
 }
 
@@ -87,7 +109,7 @@ function toBuildingEntry(b: BuildingEntryFile): BuildingEntry {
     id: b.id,
     name: b.name,
     code: b.code,
-    category: '',
+    category: b.category ?? '',
     position: b.position,
     floors: b.floors.map(toFloorEntry),
     entrances: b.entrances.map((e: EntranceEntryFile) => ({
@@ -95,7 +117,14 @@ function toBuildingEntry(b: BuildingEntryFile): BuildingEntry {
       label: e.label,
       position: { lat: 0, lng: 0 },
     })),
-    nodeId: '',
+    footprint: b.footprint,
+    color: b.color,
+    height: b.height,
+    baseElevation: b.baseElevation,
+    nodeId: b.nodeId ?? '',
+    metadata: b.metadata,
+    floorPlanUrls: b.floorPlanUrls,
+    floorPlanVisuals: b.floorPlanVisuals,
   }
 }
 
@@ -105,9 +134,17 @@ function toPOI(p: POIEntryFile): POI {
     label: p.label,
     category: p.category,
     position: { lat: p.lat, lng: p.lng },
-    buildingId: p.buildingId,
-    floor: p.floor,
-    nodeId: p.nodeId,
+    ...(p.nodeId !== undefined ? { nodeId: p.nodeId } : {}),
+    ...(p.buildingId !== undefined ? { buildingId: p.buildingId } : {}),
+    ...(p.floor !== undefined ? { floor: p.floor } : {}),
+    ...(p.floorId !== undefined ? { floorId: p.floorId } : {}),
+    ...(p.source !== undefined ? { source: p.source } : {}),
+    ...(p.sourceId !== undefined ? { sourceId: p.sourceId } : {}),
+    ...(p.geometry !== undefined ? { geometry: structuredClone(p.geometry) } : {}),
+    ...(p.appearance !== undefined ? { appearance: structuredClone(p.appearance) } : {}),
+    ...(p.scope !== undefined ? { scope: p.scope } : {}),
+    ...(p.visibility !== undefined ? { visibility: structuredClone(p.visibility) } : {}),
+    ...(p.approach !== undefined ? { approach: { mode: p.approach.mode, position: { lat: p.approach.lat, lng: p.approach.lng } } } : {}),
     properties: p.properties,
   }
 }
@@ -151,6 +188,8 @@ function toHotspot(h: HotspotFile): HotspotEntry {
     yaw: h.yaw,
     pitch: h.pitch,
     label: h.label,
+    hotspotType: h.hotspotType,
+    content: h.content,
   }
 }
 
@@ -169,4 +208,51 @@ function toPanoramaEntry(p: PanoramaEntryFile): PanoramaEntry {
 
 export function toRuntimePanorama(file: PanoramaIndexFile): PanoramaIndex {
   return { version: file.schemaVersion, panoramas: file.panoramas.map(toPanoramaEntry) }
+}
+
+// P1-T13 (R10.2/D16): qr-index.json → runtime QrIndex (positions stay
+// building-local meters — world derivation happens at consumption).
+export function toRuntimeQrIndex(file: QrIndexFile): QrIndex {
+  return {
+    schemaVersion: 1,
+    formatVersion: 0,
+    campusId: file.campusId,
+    checkpoints: file.checkpoints.map(c => ({
+      id: c.id,
+      label: c.label,
+      buildingId: c.buildingId,
+      floor: c.floor,
+      position: { x: c.position.x, y: c.position.y },
+      code: c.code,
+    })),
+  }
+}
+
+// P1.5 (R6.1/D15): floor-geometry.json → runtime FloorGeometryArtifact
+// (structural pass-through — file and artifact schemas are equivalent;
+// schemaVersion narrowed from string to number for the runtime contract).
+export function toRuntimeFloorGeometry(file: FloorGeometryFile): FloorGeometryArtifact {
+  return {
+    schemaVersion: parseInt(file.schemaVersion, 10) || 1,
+    formatVersion: file.formatVersion,
+    campusId: file.campusId,
+    buildings: file.buildings.map(b => ({
+      id: b.id,
+      name: b.name,
+      anchor: { origin: b.anchor.origin, rotation: b.anchor.rotation },
+      floors: b.floors.map(f => ({
+        level: f.level,
+        label: f.label,
+        elevation: f.elevation,
+        offset: f.offset,
+        rooms: f.rooms,
+        hallways: f.hallways,
+        staircases: f.staircases,
+        elevators: f.elevators,
+        doors: f.doors,
+        pois: f.pois,
+        qrCheckpoints: f.qrCheckpoints,
+      })),
+    })),
+  }
 }

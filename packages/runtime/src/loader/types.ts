@@ -1,5 +1,6 @@
 import type {
   NavigationPackageManifest,
+  FloorGeometryArtifact,
 } from '@navi/core'
 import type {
   NavigationGraph,
@@ -7,6 +8,7 @@ import type {
   BuildingIndex,
   POIIndex,
   PanoramaIndex,
+  QrIndex,
 } from '@navi/core'
 
 // ── LoadedPackage (ADR-012 §3) — runtime-ready types ──
@@ -19,6 +21,15 @@ export interface LoadedPackage {
   readonly poiIndex?: POIIndex
   readonly panoramaIndex?: PanoramaIndex
   readonly reports: readonly ArtifactReport[]
+  /** P1-T11 (R11.2): non-fatal compatibility notes (e.g. formatVersion
+   *  drift) — documented behavior, never blocks loading. */
+  readonly warnings: readonly string[]
+  /** P1-T13 (R10.2/D16): published QR index — opaque checkpoint resolution,
+   *  local-first with API fallback. */
+  readonly qrIndex?: QrIndex
+  /** P1.5 (R6.1/D15): floor-geometry — indoor geometry in building-local
+   *  meters + building anchor for world derivation. */
+  readonly floorGeometry?: FloorGeometryArtifact
 }
 
 // ── LoadResult (ADR-012 §2) ──
@@ -46,6 +57,8 @@ export type LoadErrorCode =
   | 'INVALID_SCHEMA'
   | 'INVALID_REFERENCE'
   | 'IO_ERROR'
+  // P1-T11 (R11.2): manifest major schemaVersion not supported by this runtime
+  | 'UNSUPPORTED_SCHEMA_VERSION'
 
 // ── Artifact Reports (per-artifact tracking) ──
 
