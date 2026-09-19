@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { MOCK_COOKIE, decodeMockSession, isMockAuthEnabled } from "@/lib/mock-auth";
+import { isAdminIdentity } from "@/lib/admin-authz";
 
 const adminPrefixes = ["/dashboard", "/panoramas", "/qr", "/routes", "/dataset", "/studio", "/capture"];
 
@@ -36,15 +37,24 @@ export async function middleware(request: NextRequest) {
     ? decodeMockSession(request.cookies.get(MOCK_COOKIE)?.value ?? "")
     : null;
 
-  if (!user && !mockUser && isAdminRoute && !isLoginPage) {
+  // Canonical server-side admin authorization (shared with API guards).
+  // Authentication alone is NOT authorization.
+  const isAdmin = Boolean(
+    (user && isAdminIdentity({ email: user.email, app_metadata: user.app_metadata as Record<string, unknown> | null })) ||
+    (mockUser && isAdminIdentity({ email: mockUser.email, role: mockUser.role })),
+  );
+
+  if (!isAdmin && isAdminRoute && !isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    // Unauthenticated visitors go to login; authenticated non-admins are sent to
+    // the public home (safe state, reveals nothing about other accounts).
+    url.pathname = user || mockUser ? "/" : "/login";
     return NextResponse.redirect(url);
   }
 
   if ((user || mockUser) && isLoginPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = isAdmin ? "/dashboard" : "/";
     return NextResponse.redirect(url);
   }
 

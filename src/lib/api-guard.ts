@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decodeMockSession, isMockAuthEnabled, MOCK_COOKIE } from "@/lib/mock-auth";
+import { isAdminIdentity } from "@/lib/admin-authz";
 
 /** Campuses whose data is the live production source of truth. */
 export const PROTECTED_CAMPUS_IDS = ["map-map-1-k6bv"] as const;
@@ -197,11 +198,7 @@ function serverAdminEmails(): string[] {
 
 /** Server-side authorization: verified user must carry an admin role or be allow-listed. */
 export function isAdminUser(user: { email?: string | null; app_metadata?: Record<string, unknown> | null; role?: string } | null | undefined): boolean {
-  if (!user) return false;
-  const claimedRole = typeof user.app_metadata?.role === "string" ? user.app_metadata.role : user.role;
-  if (typeof claimedRole === "string" && (ADMIN_ROLES as readonly string[]).includes(claimedRole)) return true;
-  const email = typeof user.email === "string" ? user.email.toLowerCase() : "";
-  return email !== "" && serverAdminEmails().includes(email);
+  return isAdminIdentity(user);
 }
 
 /**
