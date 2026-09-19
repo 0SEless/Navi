@@ -1,46 +1,79 @@
 {
-  "schemaVersion": "1.0",
-  "campusId": "ASU-Ibajay Campus",
-  "campusName": "ASU-Ibajay Campus",
-  "publishedAt": "2026-08-02T02:58:53.798Z",
-  "compilerVersion": "0.1.0",
+  "schemaVersion": "1.0.0",
+  "formatVersion": "0",
+  "campusId": "test-campus-ok",
+  "campusName": "test-campus-ok",
+  "publishedAt": "2026-09-17T11:50:47.108Z",
+  "compilerVersion": "1.0.0",
   "revision": "1",
   "artifacts": {
     "graph": {
       "path": "navigation.graph.json",
-      "checksum": "63c75cf5fdb20b23f9a666a8aa1121305790d6ff7bad663b3cf1e0380c9e1d89",
-      "size": 23326,
-      "schemaVersion": "1.0"
+      "checksum": "7c350fae36fa0766dd712e8e60fbe7c8c6eabd94c599dd5fb39dd6d16241dec1",
+      "size": 280,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
     },
     "search": {
       "path": "search.index.json",
-      "checksum": "04327ac7cdb2c772ba7f5b869e46563820ff5ec4431f7e7a64fdbebeb62bc646",
-      "size": 8829,
-      "schemaVersion": "1.0"
-    },
-    "buildings": {
-      "path": "building-index.json",
-      "checksum": "dedb22438c384943a9610c7d83f91f4fa88ec3dc134574fa5e404ab63e0d53d0",
-      "size": 6354,
-      "schemaVersion": "1.0"
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
     },
     "poi": {
       "path": "poi.json",
-      "checksum": "eb1a6f4b2d7de3f673471ee0146ce50fc50a1dc547b3f82de9f101ea9b3fa69d",
-      "size": 11950,
-      "schemaVersion": "1.0"
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
+    },
+    "buildings": {
+      "path": "building-index.json",
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
+    },
+    "spatial": {
+      "path": "spatial-index.json",
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
+    },
+    "panorama": {
+      "path": "panorama-index.json",
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
+    },
+    "floorGeometry": {
+      "path": "floor-geometry.json",
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
+    },
+    "qrIndex": {
+      "path": "qr-index.json",
+      "checksum": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "size": 4,
+      "schemaVersion": "1.0.0",
+      "formatVersion": "0"
     }
   },
   "metadata": {
-    "nodeCount": 36,
-    "edgeCount": 69,
-    "buildingCount": 3,
-    "floorCount": 5,
+    "nodeCount": 1,
+    "edgeCount": 0,
+    "buildingCount": 0,
+    "floorCount": 0,
     "boundingBox": {
-      "minLng": 122.165,
-      "maxLng": 122.1725,
-      "minLat": 11.815,
-      "maxLat": 11.823051527128998
+      "minLat": 0,
+      "maxLat": 0,
+      "minLng": 0,
+      "maxLng": 0
     },
     "routeable": true
   }
