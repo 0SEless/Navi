@@ -756,11 +756,25 @@ export class GraphAdapter {
       allProjectedDoors.push(...allDoors)
     }
 
-    // Door data is a derived runtime projection. Replace it once per sync
-    // from the canonical floorData.doors records collected above; never append
-    // to the previous projection across repeated document.changed events or
-    // graph save/reload cycles.
-    this.graph.setDoors(allProjectedDoors)
+    // P0.2 SAFETY CONTRACT: door data is a scoped editor projection, NOT the
+    // authority to delete canonical doors. Merge semantics:
+    //   - scopes actually covered by this sync (building#floor) may add/update/
+    //     remove their own doors (authored deletes stay possible);
+    //   - canonical doors belonging to scopes NOT covered by this document
+    //     projection are PRESERVED verbatim (a partially hydrated or scoped
+    //     document can never wipe unrelated doors again).
+    const coveredScopes = new Set<string>()
+    for (const b of document.buildings) {
+      for (const f of b.floors) coveredScopes.add(`${b.id}#${f.level}`)
+    }
+    const doorKey = (d: DoorData) => `${d.id}|${d.buildingId}|${d.floor}`
+    const projectedKeys = new Set(allProjectedDoors.map(doorKey))
+    const preservedDoors = this.graph.doors.filter(
+      (d) => !coveredScopes.has(`${d.buildingId}#${d.floor}`) && !projectedKeys.has(doorKey(d)),
+    )
+    const mergedByKey = new Map<string, DoorData>()
+    for (const d of [...preservedDoors, ...allProjectedDoors]) mergedByKey.set(doorKey(d), d)
+    this.graph.setDoors([...mergedByKey.values()])
 
     // 9. Roads → Traces
     // Traces compile independently from buildings. They deliberately do NOT
