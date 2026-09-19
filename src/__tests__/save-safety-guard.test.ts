@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { guardCrossScopeDestruction, type GuardCollections, type GuardScope } from '../save-safety-guard'
+import { guardCrossScopeDestruction, type GuardCollections, type GuardScope } from '../lib/save-safety-guard'
 
 const prev: GuardCollections = {
   buildings: [{ id: 'A' }, { id: 'B' }],
