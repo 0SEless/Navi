@@ -26,7 +26,7 @@ const expectRedirect = (res: Response, location: string) => {
 describe('middleware admin page authorization (canonical policy)', () => {
   beforeEach(() => {
     currentUser = null
-    mockCreate.mockReset().mockImplementation(async () => ({ auth: { getUser: async () => ({ data: { user: currentUser } }) } }))
+    mockCreate.mockReset().mockImplementation(() => ({ auth: { getUser: async () => ({ data: { user: currentUser } }) } }))
   })
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
