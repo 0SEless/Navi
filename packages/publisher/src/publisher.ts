@@ -1,4 +1,5 @@
 import type { NavigationArtifacts } from '@navi/core'
+import { MANIFEST_FORMAT_VERSION } from '@navi/core'
 import { build } from './package-builder'
 import { buildManifest } from './manifest-builder'
 import { PackageWriter } from './package-writer'
@@ -15,10 +16,13 @@ import type {
 } from './types'
 import { join } from 'node:path'
 
-const ARTIFACT_NAMES = ['graph', 'search', 'spatial', 'building', 'poi', 'panorama'] as const
+const ARTIFACT_NAMES = ['graph', 'search', 'spatial', 'buildings', 'poi', 'panorama', 'floorGeometry', 'qrIndex'] as const
 type ArtifactName = (typeof ARTIFACT_NAMES)[number]
 
 function artifactPath(name: string): string {
+  // P1-T10 (R6.1)/P1-T13 (R10.2): spec filenames for the dedicated artifacts.
+  if (name === 'floorGeometry') return 'floor-geometry.json'
+  if (name === 'qrIndex') return 'qr-index.json'
   return `${name}.json`
 }
 
@@ -97,7 +101,8 @@ export class Publisher {
         return { success: false, artifacts: results }
       }
 
-      results.push({ name, path, checksum, size: bytes.byteLength, schemaVersion })
+      // P1-T11 (R11.1): every artifact record carries its format version.
+      results.push({ name, path, checksum, size: bytes.byteLength, schemaVersion, formatVersion: MANIFEST_FORMAT_VERSION })
     }
 
     return { success: true, artifacts: results }

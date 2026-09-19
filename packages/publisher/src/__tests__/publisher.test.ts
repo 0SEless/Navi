@@ -119,7 +119,7 @@ describe('Publisher', () => {
       const finalDir = join(outputDir, 'campus-1')
       expect(existsSync(join(finalDir, 'graph.json'))).toBe(true)
       expect(existsSync(join(finalDir, 'search.json'))).toBe(true)
-      expect(existsSync(join(finalDir, 'building.json'))).toBe(true)
+      expect(existsSync(join(finalDir, 'buildings.json'))).toBe(true)
       expect(existsSync(join(finalDir, 'manifest.json'))).toBe(true)
     })
 
@@ -239,10 +239,10 @@ describe('Publisher', () => {
       const manifest: NavigationPackageManifest = JSON.parse(readFileSync(join(finalDir, 'manifest.json'), 'utf-8'))
       const graph: NavigationGraphFile = JSON.parse(readFileSync(join(finalDir, 'graph.json'), 'utf-8'))
       const search: SearchIndexFile = JSON.parse(readFileSync(join(finalDir, 'search.json'), 'utf-8'))
-      const building: BuildingIndexFile = JSON.parse(readFileSync(join(finalDir, 'building.json'), 'utf-8'))
+      const building: BuildingIndexFile = JSON.parse(readFileSync(join(finalDir, 'buildings.json'), 'utf-8'))
 
       expect(manifest.campusId).toBe('campus-1')
-      expect(sortedKeys(manifest.artifacts)).toEqual(['building', 'graph', 'search'])
+      expect(sortedKeys(manifest.artifacts)).toEqual(['buildings', 'graph', 'search'])
       expect(manifest.artifacts.graph.checksum).toHaveLength(64)
 
       expect(graph.campusId).toBe('campus-1')
@@ -256,5 +256,38 @@ describe('Publisher', () => {
       expect(building.buildings[0].entrances[0].nodeId).toBe('n3')
       expect(building.buildings[0].floors[0].nodeIds).toEqual(['n1', 'n3'])
     })
+  })
+})
+
+describe('Publisher — P1-T11 versioned manifest (R11.1)', () => {
+  it('publishing a fixture produces a manifest whose versions match the emitted schemas', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'navi-pub-ver-'))
+    try {
+      const verifier = new RoundTripVerifier(
+        { hash, hashFile },
+        { serialize, deserialize: <T>(b: Uint8Array) => JSON.parse(new TextDecoder().decode(b)) as T },
+      )
+      const publisher = new Publisher(
+        { serialize, deserialize: <T>(b: Uint8Array) => JSON.parse(new TextDecoder().decode(b)) as T },
+        { hash, hashFile },
+        new EnvironmentProbe(),
+        verifier,
+        new RenameCommitter(),
+      )
+      const opts = { campusId: 'campus-1', campusName: 'Test Campus', outputDir, publishedAt: '2026-07-17T00:00:00Z' }
+      const result = await publisher.publish(makeArtifacts(), opts) as PublisherReport
+
+      const manifest: NavigationPackageManifest = JSON.parse(readFileSync(join(result.path, 'manifest.json'), 'utf-8'))
+      // Manifest requires BOTH version fields (R11.1)
+      expect(manifest.schemaVersion).toBe('1.0.0')
+      expect(manifest.formatVersion).toBe('0')
+      // Each artifact is listed WITH its version
+      for (const [, meta] of Object.entries(manifest.artifacts)) {
+        expect(meta.schemaVersion).toBe('1.0.0')
+        expect(meta.formatVersion).toBeDefined()
+      }
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
   })
 })

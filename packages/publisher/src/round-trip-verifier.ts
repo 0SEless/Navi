@@ -71,8 +71,9 @@ export class RoundTripVerifier {
     if (poi && graph) {
       const nodeIds = new Set(graph.nodes.map(n => n.id))
       for (const p of poi.points) {
-        if (!nodeIds.has(p.nodeId)) {
-          errors.push(`POI ${p.id} references unknown node: ${p.nodeId}`)
+        if (!p.nodeId && p.source === 'authored') continue
+        if (!nodeIds.has(p.nodeId ?? '')) {
+          errors.push(`POI ${p.id} references unknown node: ${p.nodeId ?? ''}`)
         }
       }
     }

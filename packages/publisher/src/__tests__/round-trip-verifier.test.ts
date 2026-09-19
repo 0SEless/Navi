@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -14,15 +14,16 @@ describe('RoundTripVerifier', () => {
 
   const manifest: NavigationPackageManifest = {
     schemaVersion: '1.0.0',
+  formatVersion: '0',
     campusId: 'campus-1',
     campusName: 'Test',
     publishedAt: '2026-07-17T12:00:00Z',
     compilerVersion: '1.0.0',
     revision: 'abc',
     artifacts: {
-      graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0.0' },
-      building: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0.0' },
-      poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0.0' },
+      graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
+      building: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
+      poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
     },
     metadata: {
       nodeCount: 3, edgeCount: 2, buildingCount: 1, floorCount: 2,
@@ -51,7 +52,7 @@ describe('RoundTripVerifier', () => {
     buildings: [{
       id: 'b1', name: 'Building One', code: 'B1',
       position: { lat: 0, lng: 0 },
-      floors: [{ level: 0, label: 'G', nodeIds: ['n1', 'n2', 'n3'] }],
+      floors: [{ level: 0, label: 'G', elevation: 0, nodeIds: ['n1', 'n2', 'n3'] }],
       entrances: [{ id: 'ent-1', label: 'Main', nodeId: 'n3' }],
     }],
   }
@@ -161,6 +162,32 @@ describe('RoundTripVerifier', () => {
     expect(result.errors.some(e => e.includes('unknown node') && e.includes('ghost'))).toBe(true)
   })
 
+  it('accepts authored POIs without a navigation node reference', async () => {
+    await writeWithChecksum('graph', graphFile)
+    await writeWithChecksum('building', buildingFile)
+
+    const authoredPoi = {
+      schemaVersion: '1.0.0',
+      points: [{
+        id: 'authored-poi',
+        label: 'Authored POI',
+        category: 'food',
+        lat: 0.25,
+        lng: 0.25,
+        source: 'authored',
+        sourceId: 'authored-poi',
+        floorId: 'f1',
+        geometry: { type: 'point', position: { lat: 0.25, lng: 0.25 } },
+        properties: { owner: 'studio' },
+      }],
+    } as unknown as POIIndexFile
+    await writeWithChecksum('poi', authoredPoi)
+
+    const result = await verifier.verify(manifest, stagingDir)
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
+  })
+
   it('accumulates multiple errors', async () => {
     const result = await verifier.verify(manifest, stagingDir)
     expect(result.ok).toBe(false)
@@ -170,6 +197,7 @@ describe('RoundTripVerifier', () => {
   it('succeeds when manifest has no artifacts', async () => {
     const empty: NavigationPackageManifest = {
       schemaVersion: '1.0.0',
+  formatVersion: '0',
       campusId: 'campus-1',
       campusName: 'Test',
       publishedAt: '',

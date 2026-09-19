@@ -101,8 +101,9 @@ describe('PackageBuilder', () => {
       expect.objectContaining({ id: 'n1', lat: 14.5, lng: 121.0, floor: 0, buildingId: 'b1' }),
     )
     expect(pkg.graph.nodes[0]).not.toHaveProperty('position')
-    expect(pkg.graph.nodes[0]).not.toHaveProperty('label')
-    expect(pkg.graph.nodes[0]).not.toHaveProperty('properties')
+    // P2: label and properties are now serialized (previously dropped)
+    expect(pkg.graph.nodes[0]).toHaveProperty('label')
+    expect(pkg.graph.nodes[0]).toHaveProperty('properties')
   })
 
   it('maps NavNode types to published format types', () => {
@@ -133,7 +134,7 @@ describe('PackageBuilder', () => {
   it('flattens BuildingEntry positions into lat/lng fields', () => {
     const pkg = build(makeArtifacts(), { campusId: 'campus-1', campusName: 'Test Campus', outputDir: '/tmp' })
 
-    expect(pkg.building?.buildings[0]?.position).toEqual({ lat: 14.5, lng: 121.0 })
+    expect(pkg.buildings?.buildings[0]?.position).toEqual({ lat: 14.5, lng: 121.0 })
   })
 
   it('flattens POI positions into lat/lng fields', () => {
@@ -148,7 +149,7 @@ describe('PackageBuilder', () => {
   it('computes nodeIds per floor from graph nodes', () => {
     const pkg = build(makeArtifacts(), { campusId: 'campus-1', campusName: 'Test Campus', outputDir: '/tmp' })
 
-    const b1 = pkg.building?.buildings.find(b => b.id === 'b1')
+    const b1 = pkg.buildings?.buildings.find(b => b.id === 'b1')
     expect(b1?.floors).toBeDefined()
     expect(b1?.floors[0]?.nodeIds).toContain('n1')
     expect(b1?.floors[0]?.nodeIds).toContain('n3')
@@ -158,7 +159,7 @@ describe('PackageBuilder', () => {
   it('maps entrances to nodeIds', () => {
     const pkg = build(makeArtifacts(), { campusId: 'campus-1', campusName: 'Test Campus', outputDir: '/tmp' })
 
-    const b1 = pkg.building?.buildings.find(b => b.id === 'b1')
+    const b1 = pkg.buildings?.buildings.find(b => b.id === 'b1')
     expect(b1?.entrances[0]?.nodeId).toBe('n3')
   })
 
@@ -221,7 +222,7 @@ describe('PackageBuilder', () => {
     const pkg = build(arts, { campusId: 'campus-1', campusName: 'Test Campus', outputDir: '/tmp' })
     expect(pkg.search).toBeUndefined()
     expect(pkg.spatial).toBeUndefined()
-    expect(pkg.building).toBeUndefined()
+    expect(pkg.buildings).toBeUndefined()
     expect(pkg.poi).toBeUndefined()
   })
 
@@ -250,7 +251,7 @@ describe('PackageBuilder', () => {
     expect(pkg.schemaVersions.graph).toBe('1.0.0')
     expect(pkg.schemaVersions.search).toBe('1.0.0')
     expect(pkg.schemaVersions.spatial).toBe('1.0.0')
-    expect(pkg.schemaVersions.building).toBe('1.0.0')
+    expect(pkg.schemaVersions.buildings).toBe('1.0.0')
     expect(pkg.schemaVersions.poi).toBe('1.0.0')
   })
 
@@ -305,5 +306,80 @@ describe('Panorama artifact (M6.5a)', () => {
     arts.panoramaIndex = undefined
     const pkg = build(arts, { campusId: 'c-1', campusName: 'C', outputDir: '/tmp' })
     expect(pkg.panorama).toBeUndefined()
+  })
+})
+
+describe('PackageBuilder — P1-T10 floor-geometry artifact', () => {
+  it('emits a floor-geometry file with its schema version when the artifact is present', () => {
+    const artifacts = makeArtifacts({
+      floorGeometry: {
+        schemaVersion: 1,
+        formatVersion: 0,
+        campusId: 'campus-1',
+        buildings: [
+          {
+            id: 'b1',
+            name: 'Building One',
+            anchor: { origin: { lat: 14.5, lng: 121.0 }, rotation: 0 },
+            floors: [
+              {
+                level: 0,
+                label: 'Ground',
+                elevation: 0,
+                offset: { x: 0, y: 0 },
+                rooms: [],
+                hallways: [],
+                staircases: [],
+                elevators: [],
+                doors: [],
+                pois: [],
+                qrCheckpoints: [],
+              },
+            ],
+          },
+        ],
+      },
+    })
+    const pkg = build(artifacts, {
+      campusId: 'campus-1',
+      campusName: 'Test Campus',
+      outputDir: '/tmp',
+      schemaVersions: { floorGeometry: '1.0.0' },
+    })
+    expect(pkg.floorGeometry).toBeDefined()
+    expect(pkg.floorGeometry!.schemaVersion).toBe('1.0.0')
+    expect(pkg.floorGeometry!.formatVersion).toBe(0)
+    expect(pkg.floorGeometry!.buildings[0].anchor.origin).toEqual({ lat: 14.5, lng: 121.0 })
+    expect(pkg.schemaVersions.floorGeometry).toBe('1.0.0')
+  })
+
+  it('omits the floor-geometry file when the artifact is absent', () => {
+    const pkg = build(makeArtifacts(), { campusId: 'campus-1', campusName: 'Test Campus', outputDir: '/tmp' })
+    expect(pkg.floorGeometry).toBeUndefined()
+  })
+})
+
+describe('PackageBuilder — P1-T13 QR index artifact', () => {
+  it('emits qr-index.json with its schema version when the artifact is present', () => {
+    const artifacts = makeArtifacts({
+      qrIndex: {
+        schemaVersion: 1,
+        formatVersion: 0,
+        campusId: 'campus-1',
+        checkpoints: [
+          { id: 'qr-1', label: 'A', buildingId: 'b1', floor: 0, position: { x: 1, y: 2 }, code: 'navi.app/q/qr-1' },
+        ],
+      },
+    })
+    const pkg = build(artifacts, {
+      campusId: 'campus-1',
+      campusName: 'Test Campus',
+      outputDir: '/tmp',
+      schemaVersions: { qrIndex: '1.0.0' },
+    })
+    expect(pkg.qrIndex).toBeDefined()
+    expect(pkg.qrIndex!.schemaVersion).toBe('1.0.0')
+    expect(pkg.qrIndex!.checkpoints[0].position).toEqual({ x: 1, y: 2 })
+    expect(pkg.schemaVersions.qrIndex).toBe('1.0.0')
   })
 })

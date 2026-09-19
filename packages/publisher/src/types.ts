@@ -1,4 +1,4 @@
-// ── Package Format Types (re-exported from @navi/core per ADR-012) ──
+﻿// â”€â”€ Package Format Types (re-exported from @navi/core per ADR-012) â”€â”€
 
 export type {
   NavNodeFile,
@@ -26,9 +26,11 @@ import type {
   BuildingIndexFile,
   POIIndexFile,
   PanoramaIndexFile,
+  FloorGeometryFile,
+  FloorGeometryFeatureFile,
 } from '@navi/core'
 
-// ── BuiltPackage (PackageBuilder output) ──
+// â”€â”€ BuiltPackage (PackageBuilder output) â”€â”€
 
 export interface BuiltPackage {
   campusId: string
@@ -40,9 +42,13 @@ export interface BuiltPackage {
   graph: NavigationGraphFile
   search?: SearchIndexFile
   spatial?: SpatialIndexFile
-  building?: BuildingIndexFile
+  buildings?: BuildingIndexFile
   poi?: POIIndexFile
   panorama?: PanoramaIndexFile
+  /** P1-T10 (R6.1/D15): floor-geometry.json file. */
+  floorGeometry?: FloorGeometryFile
+  /** P1-T13 (R10.2/D16): qr-index.json file. */
+  qrIndex?: QrIndexFile
   schemaVersions: {
     graph: string
     search: string
@@ -50,10 +56,20 @@ export interface BuiltPackage {
     building: string
     poi: string
     panorama: string
+    floorGeometry: string
+    qrIndex: string
   }
 }
 
-// ── Publisher Result Types (ADR-011 §4) ──
+// P1-T10 (R6.1/D15): floor-geometry.json file contract — shared with @navi/runtime via @navi/core.
+export type { FloorGeometryFile, FloorGeometryFeatureFile } from '@navi/core'
+
+// P1-T13 (R10.2/D16): the qr-index.json file contract lives in @navi/core
+// package-format (shared with the runtime loader).
+import type { QrIndexFile } from '@navi/core'
+export type { QrIndexFile } from '@navi/core'
+
+// ── Publisher Result Types (ADR-011 ┬º4) ──
 
 export interface PublishOptions {
   campusId: string
@@ -67,6 +83,8 @@ export interface PublishOptions {
     building: string
     poi: string
     panorama: string
+    floorGeometry: string
+    qrIndex: string
   }>
 }
 
@@ -76,6 +94,8 @@ export interface ArtifactResult {
   checksum: string
   size: number
   schemaVersion: string
+  /** P1-T11 (R11.1): minor evolution marker carried into the manifest. */
+  formatVersion: string
 }
 
 export interface PublisherReport {
