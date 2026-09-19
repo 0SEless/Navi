@@ -7,7 +7,7 @@ function preM5Document(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'legacy-campus', description: 'Pre-M5 campus', lastModified: '', editorVersion: '1.0' },
+    metadata: { campusId: 'legacy-campus', name: 'legacy-campus', description: 'Pre-M5 campus', lastModified: '', editorVersion: '1.0' },
     buildings: [
       {
         id: 'legacy-bld',
@@ -41,7 +41,7 @@ function preM5Document(): CampusDocument {
             staircases: [],
             elevators: [],
             entrances: [
-              { id: 'ent-1', label: 'Main Entrance', position: { lat: 14.0, lng: 121.0 }, level: 1, type: 'main', hasQR: false, hasPanorama: false },
+              { id: 'ent-1', label: 'Main Entrance', position: { lat: 14.0, lng: 121.0 } as any, level: 1, type: 'main', hasQR: false, hasPanorama: false },
             ],
             connectorStops: [],
             metadata: {},

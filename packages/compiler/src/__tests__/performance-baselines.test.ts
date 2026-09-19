@@ -30,7 +30,8 @@ function makeRoom(id: string, name: string, x: number, y: number): Room {
 }
 
 function makeEntrance(id: string, label: string, lat: number, lng: number): Entrance {
-  return { id, label, position: { lat, lng }, level: 0, type: 'main', hasQR: false, hasPanorama: false }
+  // Legacy world-stored position (dual-mode tolerance — see P1-T4 D9).
+  return { id, label, position: { lat, lng } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }
 }
 
 function makeFloor(id: string, level: number, rooms: Room[], entrance: Entrance): Floor {
@@ -68,7 +69,7 @@ function makeDoc(numBuildings: number, floorsPerBuilding: number, roomsPerFloor:
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: `Perf-${numBuildings}b-${floorsPerBuilding}f-${roomsPerFloor}r`, description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: `Perf-${numBuildings}b-${floorsPerBuilding}f-${roomsPerFloor}r`, name: `Perf-${numBuildings}b-${floorsPerBuilding}f-${roomsPerFloor}r`, description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings, roads: [], panoramas: [], qrCheckpoints: [],
   }
 }

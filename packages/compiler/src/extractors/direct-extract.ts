@@ -59,18 +59,25 @@ export function directExtract(campus: CampusDocument): ExtractionResult {
           position: entrancePos,
           floor: floor.level,
           buildingId: building.id,
-          properties: {},
+          // Preserve the legacy explicit connector for the deprecated
+          // artifact path. Unassigned entrances must not be connected by
+          // proximity during graph construction.
+          properties: {
+            entityId: entrance.id,
+            ...(entrance.connectorRoadId ? { connectorRoadId: entrance.connectorRoadId } : {}),
+          },
           connectsTo: building.id,
         })
       }
     }
   }
 
-  // Map RoadType ('arterial' | 'connector' | 'service') to CorridorType ('hallway' | 'road' | 'walkway')
+  // Map RoadType to CorridorType
   const corridorTypeMap: Record<RoadType, CorridorType> = {
     arterial: 'road',
     connector: 'walkway',
     service: 'walkway',
+    pedestrian: 'walkway',
   }
 
   for (const road of campus.roads) {
@@ -83,7 +90,12 @@ export function directExtract(campus: CampusDocument): ExtractionResult {
         polyline: points,
         surface: road.surface ?? 'paved',
         width: road.width ?? 2,
-        properties: {},
+        // Preserve the reverse legacy connector as extraction metadata so
+        // buildGraph can honor it without selecting a road by distance.
+        properties: {
+          roadId: road.id,
+          ...(road.connectorEntranceId ? { connectorEntranceId: road.connectorEntranceId } : {}),
+        },
         buildingId: '',
         floor: 0,
       })

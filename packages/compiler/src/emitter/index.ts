@@ -76,7 +76,13 @@ export function emitGraph(graph: ConnectivityGraph): NavigationGraph {
           position: node.position,
           floor: node.floor,
           buildingId: node.buildingId,
-          properties: {},
+          // P1-T9 (R8.4): carry the vertical entity's identity so consumers
+          // can tell stair/elevator/connector nodes apart — one node per
+          // access floor (`N-stair-{id}-{floor}` semantics via properties).
+          properties: {
+            ...(node.source?.entityType ? { entityType: node.source.entityType, entityId: node.source.entityId } : {}),
+            ...((node.source?.entityType === 'staircase' || node.source?.entityType === 'elevator') ? { level: node.floor } : {}),
+          },
         })
         nodeIdMap.set(node.id, [id])
         break
@@ -141,6 +147,7 @@ export function emitGraph(graph: ConnectivityGraph): NavigationGraph {
           type: 'walk',
           distance: edge.distance,
           weight: edge.distance,
+          ...(edge.routing ? { routing: edge.routing } : {}),
         })
         break
       }

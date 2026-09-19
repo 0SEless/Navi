@@ -56,7 +56,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: '', description: '', lastModified: '', editorVersion: '' },
+        metadata: { campusId: '', name: '', description: '', lastModified: '', editorVersion: '' },
         buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
       }
       const result = compile(doc, {
@@ -73,7 +73,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'Tiny', description: '', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'Tiny', name: 'Tiny', description: '', lastModified: '', editorVersion: '1.0.0' },
         buildings: [{
           id: 'b1', name: 'Solo', code: 'S', category: 'academic', description: '',
           footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
@@ -84,7 +84,7 @@ describe('Wave 6 | Release Readiness', () => {
               polygon: { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }, { x: 0, y: 0 }] },
               roomDoors: [], capacity: 10, metadata: {} }],
             hallways: [], staircases: [], elevators: [], connectorStops: [],
-            entrances: [{ id: 'e1', label: 'Door', position: { lat: 14.0003, lng: 121.0003 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+            entrances: [{ id: 'e1', label: 'Door', position: { lat: 14.0003, lng: 121.0003 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
             metadata: {},
           }],
           verticalConnectors: [], color: '#ccc', aliases: [], metadata: {},
@@ -102,7 +102,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'Café & Räume — Test', description: 'Über cool! 日本語', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'Café & Räume — Test', name: 'Café & Räume — Test', description: 'Über cool! 日本語', lastModified: '', editorVersion: '1.0.0' },
         buildings: [{
           id: 'b1', name: 'Hauptgebäude', code: 'HG', category: 'academic', description: '',
           footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
@@ -113,7 +113,7 @@ describe('Wave 6 | Release Readiness', () => {
               polygon: { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }, { x: 0, y: 5 }] },
               roomDoors: [], capacity: 10, metadata: {} }],
             hallways: [], staircases: [], elevators: [], connectorStops: [],
-            entrances: [{ id: 'e1', label: 'Eingang → Straße', position: { lat: 14.0, lng: 121.0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+            entrances: [{ id: 'e1', label: 'Eingang → Straße', position: { lat: 14.0, lng: 121.0 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
             metadata: {},
           }],
           verticalConnectors: [], color: '#ccc', aliases: [], metadata: {},
@@ -130,7 +130,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'Extreme', description: '', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'Extreme', name: 'Extreme', description: '', lastModified: '', editorVersion: '1.0.0' },
         buildings: [{
           id: 'b1', name: 'North Pole Campus', code: 'NP', category: 'academic', description: '',
           footprint: { points: [{ lat: 89.9, lng: 179.9 }, { lat: 89.9, lng: -179.9 }, { lat: 89.99, lng: -179.9 }, { lat: 89.99, lng: 179.9 }, { lat: 89.9, lng: 179.9 }] },
@@ -141,7 +141,7 @@ describe('Wave 6 | Release Readiness', () => {
               polygon: { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }, { x: 0, y: 0 }] },
               roomDoors: [], capacity: 10, metadata: {} }],
             hallways: [], staircases: [], elevators: [], connectorStops: [],
-            entrances: [{ id: 'e1', label: 'Ice Door', position: { lat: 89.95, lng: 180 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+            entrances: [{ id: 'e1', label: 'Ice Door', position: { lat: 89.95, lng: 180 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
             metadata: {},
           }],
           verticalConnectors: [], color: '#fff', aliases: [], metadata: {},
@@ -162,20 +162,20 @@ describe('Wave 6 | Release Readiness', () => {
 
     it('handles a building with many floors but one room each', () => {
       const rooms: Array<{ id: string; name: string; number: string; category: 'classroom'; polygon: { points: Array<{ x: number; y: number }> }; roomDoors: never[]; capacity: number; metadata: Record<string, unknown> }> = []
-      const entrances: Array<{ id: string; label: string; position: { lat: number; lng: number }; level: number; type: 'main'; hasQR: boolean; hasPanorama: boolean }> = []
+      const entrances: Array<{ id: string; label: string; position: { x: number; y: number }; level: number; type: 'main'; hasQR: boolean; hasPanorama: boolean }> = []
       const floors: Floor[] = []
       for (let i = 0; i < 20; i++) {
         rooms.push({ id: `r${i}`, name: `Room ${i}`, number: `${100 + i}`, category: 'classroom',
           polygon: { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }, { x: 0, y: 0 }] },
           roomDoors: [], capacity: 10, metadata: {} })
-        entrances.push({ id: `e${i}`, label: `Ent ${i}`, position: { lat: 14.0 + i * 0.001, lng: 121.0 }, level: i, type: 'main', hasQR: false, hasPanorama: false })
+        entrances.push({ id: `e${i}`, label: `Ent ${i}`, position: { lat: 14.0 + i * 0.001, lng: 121.0 } as any, level: i, type: 'main', hasQR: false, hasPanorama: false })
         floors.push({ id: `f${i}`, level: i, label: `Floor ${i}`, elevation: i * 3,
           rooms: [rooms[i]], hallways: [], staircases: [], elevators: [], entrances: [entrances[i]], connectorStops: [], metadata: {} })
       }
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'Skyscraper', description: '', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'Skyscraper', name: 'Skyscraper', description: '', lastModified: '', editorVersion: '1.0.0' },
         buildings: [{
           id: 'b1', name: 'Tower', code: 'T', category: 'academic', description: '',
           footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
@@ -199,7 +199,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'Check', description: '', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'Check', name: 'Check', description: '', lastModified: '', editorVersion: '1.0.0' },
         buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
       }
       const result = compile(doc, {
@@ -227,7 +227,7 @@ describe('Wave 6 | Release Readiness', () => {
       const doc: CampusDocument = {
         schemaVersion: 1,
         version: 1,
-        metadata: { name: 'PosCheck', description: '', lastModified: '', editorVersion: '1.0.0' },
+        metadata: { campusId: 'PosCheck', name: 'PosCheck', description: '', lastModified: '', editorVersion: '1.0.0' },
         buildings: [{
           id: 'b1', name: 'B', code: 'B', category: 'academic', description: '',
           footprint: { points: [{ lat: 14.0, lng: 121.0 }, { lat: 14.0, lng: 121.001 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121.0 }, { lat: 14.0, lng: 121.0 }] },
@@ -238,7 +238,7 @@ describe('Wave 6 | Release Readiness', () => {
               polygon: { points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 5 }, { x: 0, y: 5 }, { x: 0, y: 0 }] },
               roomDoors: [], capacity: 10, metadata: {} }],
             hallways: [], staircases: [], elevators: [], connectorStops: [],
-            entrances: [{ id: 'e1', label: 'Door', position: { lat: 14.0003, lng: 121.0003 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+            entrances: [{ id: 'e1', label: 'Door', position: { lat: 14.0003, lng: 121.0003 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
             metadata: {},
           }],
           verticalConnectors: [], color: '#ccc', aliases: [], metadata: {},

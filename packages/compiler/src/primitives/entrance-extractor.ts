@@ -26,6 +26,7 @@ export function extractEntrances(document: NormalizedDocument, _context: Generat
           buildingId: building.id,
           entranceId: entrance.id,
           accessible: entrance.accessible,
+          connectorRoadId: entrance.connectorRoadId,
           source: {
             entityId: entrance.id,
             entityType: 'entrance',

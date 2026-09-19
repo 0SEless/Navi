@@ -6,7 +6,6 @@ export {
   ParseStage, parseDocument,
   BuildNodesStage, buildNodes,
   BuildEdgesStage, buildEdges,
-  CampusConnectorStage, connectCampuses,
   OptimizeStage, optimizeGraph,
   ValidateStage,
 } from './pipeline/stages'
@@ -21,3 +20,12 @@ export { validateConnectivity } from './connectivity/validator'
 export type { ValidationReport as ConnectivityValidationReport } from './connectivity/validator'
 export { emitGraph } from './emitter'
 export { buildArtifacts } from './emitter/artifacts'
+export { COMPILER_VERSION } from './version'
+export {
+  validateNavigationArtifacts,
+} from './validation'
+export type {
+  ArtifactDiagnostic,
+  ArtifactValidationOptions,
+  ArtifactValidationResult,
+} from './validation'

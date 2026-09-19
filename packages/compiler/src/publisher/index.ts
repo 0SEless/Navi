@@ -2,6 +2,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { createHash } from 'crypto'
 import type { CampusDocument, NavigationPackageManifest } from '@navi/core'
+import { MANIFEST_SCHEMA_VERSION, MANIFEST_FORMAT_VERSION } from '@navi/core'
 import type { CompileResult } from '../types'
 import { generateArtifacts } from '../artifacts'
 
@@ -34,17 +35,18 @@ export function publish(campus: CampusDocument, result: CompileResult, options: 
   }
 
   const manifest: NavigationPackageManifest = {
-    schemaVersion: '1.0',
-    campusId: campus.metadata.name,
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    formatVersion: MANIFEST_FORMAT_VERSION,
+    campusId: campus.metadata.campusId,
     campusName: campus.metadata.name,
     publishedAt: new Date().toISOString(),
     compilerVersion,
     revision: '1',
     artifacts: {
-      graph: { path: 'navigation.graph.json', checksum: sha256(files['navigation.graph.json']), size: Buffer.byteLength(files['navigation.graph.json'], 'utf-8'), schemaVersion: '1.0' },
-      search: { path: 'search.index.json', checksum: sha256(files['search.index.json']), size: Buffer.byteLength(files['search.index.json'], 'utf-8'), schemaVersion: '1.0' },
-      buildings: { path: 'building-index.json', checksum: sha256(files['building-index.json']), size: Buffer.byteLength(files['building-index.json'], 'utf-8'), schemaVersion: '1.0' },
-      poi: { path: 'poi.json', checksum: sha256(files['poi.json']), size: Buffer.byteLength(files['poi.json'], 'utf-8'), schemaVersion: '1.0' },
+      graph: { path: 'navigation.graph.json', checksum: sha256(files['navigation.graph.json']), size: Buffer.byteLength(files['navigation.graph.json'], 'utf-8'), schemaVersion: MANIFEST_SCHEMA_VERSION, formatVersion: MANIFEST_FORMAT_VERSION },
+      search: { path: 'search.index.json', checksum: sha256(files['search.index.json']), size: Buffer.byteLength(files['search.index.json'], 'utf-8'), schemaVersion: MANIFEST_SCHEMA_VERSION, formatVersion: MANIFEST_FORMAT_VERSION },
+      buildings: { path: 'building-index.json', checksum: sha256(files['building-index.json']), size: Buffer.byteLength(files['building-index.json'], 'utf-8'), schemaVersion: MANIFEST_SCHEMA_VERSION, formatVersion: MANIFEST_FORMAT_VERSION },
+      poi: { path: 'poi.json', checksum: sha256(files['poi.json']), size: Buffer.byteLength(files['poi.json'], 'utf-8'), schemaVersion: MANIFEST_SCHEMA_VERSION, formatVersion: MANIFEST_FORMAT_VERSION },
     },
     metadata: {
       nodeCount: result.graph.nodes.length,

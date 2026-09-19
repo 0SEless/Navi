@@ -1,6 +1,5 @@
 export { ParseStage, parseDocument } from './parse-stage'
 export { BuildNodesStage, buildNodes } from './build-nodes-stage'
 export { BuildEdgesStage, buildEdges } from './build-edges-stage'
-export { CampusConnectorStage, connectCampuses } from './connect-campuses-stage'
 export { OptimizeStage, optimizeGraph } from './optimize-stage'
 export { ValidateStage } from './validate-stage'

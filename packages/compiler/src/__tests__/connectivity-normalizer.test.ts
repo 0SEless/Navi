@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { normalizeConnectivity } from '../connectivity/normalizer'
 import type { PrimitiveGraph, WaypointNode, EntrancePortalNode, POINode, SkeletonEdge, AccessEdge, PortalEdge } from '../types'
 
-function makeWp(id: string, lat = 14.0, lng = 121.0, floor = 0, buildingId = 'b1'): WaypointNode {
-  return { id, kind: 'waypoint', position: { lat, lng }, floor, buildingId, source: { entityId: id, entityType: 'waypoint', generatorId: 'test' } }
+function makeWp(id: string, lat = 14.0, lng = 121.0, floor = 0, buildingId = 'b1', sourceEntityId = id, sourceEntityType = 'waypoint'): WaypointNode {
+  return { id, kind: 'waypoint', position: { lat, lng }, floor, buildingId, source: { entityId: sourceEntityId, entityType: sourceEntityType, generatorId: 'test' } }
 }
 
 function makeEp(id: string): EntrancePortalNode {
@@ -49,8 +49,8 @@ describe('normalizeConnectivity', () => {
 
   it('snaps nearby waypoints within merge threshold', () => {
     // Two waypoints 0.3m apart — should merge (threshold 0.5)
-    const wp1 = makeWp('wp1', 14.0, 121.0)
-    const wp2 = makeWp('wp2', 14.0, 121.000002) // ~0.2m apart at equator
+    const wp1 = makeWp('wp1', 14.0, 121.0, 0, 'b1', 'shared-entity')
+    const wp2 = makeWp('wp2', 14.0, 121.000002, 0, 'b1', 'shared-entity') // ~0.2m apart at equator
     const sk = makeSk('sk1', 'wp1', 'wp2', 5)
     const graph = makeGraph({ nodes: [wp1, wp2], edges: [sk] })
     const result = normalizeConnectivity(graph, 0.5)
@@ -68,8 +68,8 @@ describe('normalizeConnectivity', () => {
   })
 
   it('repairs edge references when a node is merged', () => {
-    const wp1 = makeWp('wp1', 14.0, 121.0)
-    const wp2 = makeWp('wp2', 14.0, 121.000002) // will be merged into wp1
+    const wp1 = makeWp('wp1', 14.0, 121.0, 0, 'b1', 'shared-entity')
+    const wp2 = makeWp('wp2', 14.0, 121.000002, 0, 'b1', 'shared-entity') // will be merged into wp1
     const wp3 = makeWp('wp3', 14.001, 121.001)
     const sk = makeSk('sk1', 'wp2', 'wp3', 150) // wp2 is removed, edge should point to wp1
     const graph = makeGraph({ nodes: [wp1, wp2, wp3], edges: [sk] })
@@ -79,6 +79,38 @@ describe('normalizeConnectivity', () => {
     expect(edge).toBeDefined()
     expect(edge.from).toBe('wp1') // repaired to survivor
     expect(edge.to).toBe('wp3')
+  })
+
+  it('does not merge nearby waypoints owned by distinct authored route nodes', () => {
+    const wp1 = makeWp('wp1', 14.0, 121.0, 0, 'b1', 'route-node-a', 'route_node')
+    const wp2 = makeWp('wp2', 14.0, 121.000002, 0, 'b1', 'route-node-b', 'route_node')
+    const graph = makeGraph({ nodes: [wp1, wp2], edges: [makeSk('sk1', 'wp1', 'wp2', 0.2)] })
+
+    const result = normalizeConnectivity(graph, 0.5)
+
+    expect(result.nodes).toHaveLength(2)
+    expect(result.diagnostics.some(d => d.code === 'WAYPOINT_MERGED')).toBe(false)
+  })
+
+  it('does not merge nearby waypoints when either source identity is missing', () => {
+    const wp1 = makeWp('wp1', 14.0, 121.0, 0, 'b1', 'route-node-a', 'route_node')
+    const wp2 = makeWp('wp2', 14.0, 121.000002, 0, 'b1', '', 'route_node')
+    const graph = makeGraph({ nodes: [wp1, wp2], edges: [makeSk('sk1', 'wp1', 'wp2', 0.2)] })
+
+    const result = normalizeConnectivity(graph, 0.5)
+
+    expect(result.nodes).toHaveLength(2)
+  })
+
+  it('merges duplicate representations of one source across compatible generator types', () => {
+    const roadWaypoint = makeWp('road-wp', 14.0, 121.0, 0, '__outdoor__', 'road-a', 'road')
+    const accessAnchor = makeWp('access-anchor', 14.0, 121.000002, 0, '__outdoor__', 'road-a', 'road_access_anchor')
+    const graph = makeGraph({ nodes: [roadWaypoint, accessAnchor], edges: [makeSk('sk1', 'road-wp', 'access-anchor', 0.2)] })
+
+    const result = normalizeConnectivity(graph, 0.5)
+
+    expect(result.nodes).toHaveLength(1)
+    expect(result.diagnostics.some(d => d.code === 'WAYPOINT_MERGED')).toBe(true)
   })
 
   it('removes dangling waypoints with zero incident edges', () => {
@@ -133,5 +165,27 @@ describe('normalizeConnectivity', () => {
     const result = normalizeConnectivity(graph)
     expect(result.metadata.buildingCount).toBe(2)
     expect(result.metadata.floorCount).toBe(3) // b1:0, b1:1, b2:0
+  })
+
+  it('P1-T2: does NOT merge waypoints on DIFFERENT floors at the same position', () => {
+    // Two stacked floors with identical floor plans produce waypoints at
+    // identical world coordinates — they must NOT merge, or the upper floor's
+    // routing network collapses into the lower floor (cross-floor contamination).
+    const f0 = makeWp('wp-f0', 14.0, 121.0, 0, 'b1')
+    const f1 = makeWp('wp-f1', 14.0, 121.0, 1, 'b1') // same position, floor 1
+    const sk = makeSk('sk1', 'wp-f0', 'wp-f1', 5)
+    const graph = makeGraph({ nodes: [f0, f1], edges: [sk] })
+    const result = normalizeConnectivity(graph, 0.5)
+    expect(result.nodes.length).toBe(2)
+    expect(result.diagnostics.some(d => d.code === 'WAYPOINT_MERGED')).toBe(false)
+  })
+
+  it('P1-T2: does NOT merge waypoints in DIFFERENT buildings at the same position', () => {
+    const b1 = makeWp('wp-b1', 14.0, 121.0, 0, 'b1')
+    const b2 = makeWp('wp-b2', 14.0, 121.0, 0, 'b2') // same position, other building
+    const sk = makeSk('sk1', 'wp-b1', 'wp-b2', 5)
+    const graph = makeGraph({ nodes: [b1, b2], edges: [sk] })
+    const result = normalizeConnectivity(graph, 0.5)
+    expect(result.nodes.length).toBe(2)
   })
 })

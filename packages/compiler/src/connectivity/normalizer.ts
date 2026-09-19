@@ -1,12 +1,18 @@
-import { haversineDistance } from '@navi/core'
+import {
+  haversineDistance,
+  hasSeparatedCrossingAtPosition,
+  SpatialQueryService,
+  ROUTE_NETWORK_THRESHOLDS,
+} from '@navi/core'
 import type { PrimitiveGraph, ConnectivityGraph, PrimitiveNode, PrimitiveEdge, CompilerDiagnostic } from '../types'
+import type { ConnectivitySemantics } from '@navi/core'
 
 /**
  * Phase 3.1: Normalize Connectivity.
  *
  * This is the ONLY phase that modifies the PrimitiveGraph.
  * Responsibilities (in order):
- *   1. Snap nearby waypoints within mergeThreshold
+ *   1. Dedupe nearby representations of the same authorized identity
  *   2. Remove dangling waypoints (zero incident edges)
  *   3. Repair broken edge references → reconnect to nearest survivor
  *   4. Merge overlapping access edges (same doorway)
@@ -15,15 +21,26 @@ import type { PrimitiveGraph, ConnectivityGraph, PrimitiveNode, PrimitiveEdge, C
  */
 export function normalizeConnectivity(
   graph: PrimitiveGraph,
-  mergeThreshold: number = 0.5,
+  // P1-T8 (R8.3): dedupe threshold owned by the route-network definitions
+  // module — single source (risk R7). Default is the centralized 0.5 m.
+  mergeThreshold: number = ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters,
+  // Connectivity semantics for explicit road-junction authorization and
+  // separated-crossing enforcement.
+  connectivitySemantics?: ConnectivitySemantics,
 ): ConnectivityGraph {
   const diagnostics: CompilerDiagnostic[] = [...graph.diagnostics]
   const { nodes, edges } = deepCloneGraph(graph)
 
-  // ── Step 1: Snap nearby waypoints ──
+  // ── Step 1: Dedupe authorized waypoint representations ──
+  // Building/floor equality and distance are necessary but not sufficient:
+  // waypoint identity must come from a shared source entity or an explicit
+  // persisted road junction at this position.
   const removedIds = new Set<string>()
   const mergeMap = new Map<string, string>() // removedId → survivorId
 
+  // Build separated road pairs with positions for merge prevention
+  // Separation is position-specific: only prevent merges near the separation point
+  const separatedCrossings = connectivitySemantics?.separatedCrossings ?? []
   for (let i = 0; i < nodes.length; i++) {
     if (removedIds.has(nodes[i].id)) continue
     if (nodes[i].kind !== 'waypoint') continue
@@ -32,19 +49,50 @@ export function normalizeConnectivity(
       if (removedIds.has(nodes[j].id)) continue
       if (nodes[j].kind !== 'waypoint') continue
 
-      const d = haversineDistance(nodes[i].position, nodes[j].position)
-      if (d <= mergeThreshold) {
-        removedIds.add(nodes[j].id)
-        mergeMap.set(nodes[j].id, nodes[i].id)
-        diagnostics.push({
-          severity: 'info',
-          sourceEntityId: graph.metadata.campusId,
-          phase: 'connectivity',
-          code: 'WAYPOINT_MERGED',
-          message: `Waypoint ${nodes[j].id} merged into ${nodes[i].id} (distance ${d.toFixed(2)}m)`,
-          relatedNodeIds: [nodes[i].id, nodes[j].id],
-        })
+      const a = nodes[i]
+      const b = nodes[j]
+      if (a.buildingId !== b.buildingId || a.floor !== b.floor) continue
+
+      const d = haversineDistance(a.position, b.position)
+      if (d > mergeThreshold) continue
+
+      const sourceA = a.source?.entityId
+      const sourceB = b.source?.entityId
+      // Missing provenance cannot authorize an identity merge.
+      if (!sourceA || !sourceB) continue
+
+      // Skip merge if waypoints belong to separated road pairs AND are near
+      // the separation position. Separation is position-specific: a separation
+      // at P1 must not prevent merges at P2 for the same road pair.
+      if (separatedCrossings.length > 0) {
+        if (sourceA !== sourceB) {
+          // Check the shared position-aware predicate near either waypoint.
+          const isNearSeparation =
+            hasSeparatedCrossingAtPosition(separatedCrossings, sourceA, sourceB, a.position) ||
+            hasSeparatedCrossingAtPosition(separatedCrossings, sourceA, sourceB, b.position)
+          if (isNearSeparation) continue
+        }
       }
+
+      const explicitlyJunctioned = sourceA !== sourceB &&
+        (connectivitySemantics?.junctions ?? []).some(junction =>
+          junction.roadIds.includes(sourceA) &&
+          junction.roadIds.includes(sourceB) &&
+          haversineDistance(junction.position, a.position) <= ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters &&
+          haversineDistance(junction.position, b.position) <= ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters
+        )
+      if (sourceA !== sourceB && !explicitlyJunctioned) continue
+
+      removedIds.add(b.id)
+      mergeMap.set(b.id, a.id)
+      diagnostics.push({
+        severity: 'info',
+        sourceEntityId: graph.metadata.campusId,
+        phase: 'connectivity',
+        code: 'WAYPOINT_MERGED',
+        message: `Waypoint ${b.id} merged into ${a.id} (distance ${d.toFixed(2)}m) [sourceA=${sourceA} sourceB=${sourceB}]`,
+        relatedNodeIds: [a.id, b.id],
+      })
     }
   }
 
@@ -171,17 +219,17 @@ export function normalizeConnectivity(
 }
 
 function findNearestWaypoint(pos: { lat: number; lng: number }, nodes: PrimitiveNode[]): PrimitiveNode | null {
-  let best: PrimitiveNode | null = null
-  let bestDist = Infinity
-  for (const node of nodes) {
-    if (node.kind !== 'waypoint') continue
-    const d = haversineDistance(pos, node.position)
-    if (d < bestDist) {
-      bestDist = d
-      best = node
-    }
-  }
-  return best
+  const svc = new SpatialQueryService()
+  svc.loadFromNodes(nodes.map(n => ({
+    id: n.id,
+    position: n.position,
+    type: n.kind,
+    floor: n.floor,
+    buildingId: n.buildingId,
+  })))
+  const result = svc.nearestEntity(pos, { type: 'waypoint' })
+  if (!result) return null
+  return nodes.find(n => n.id === result.entity.id) ?? null
 }
 
 function deepCloneGraph(graph: PrimitiveGraph): { nodes: PrimitiveNode[]; edges: PrimitiveEdge[] } {

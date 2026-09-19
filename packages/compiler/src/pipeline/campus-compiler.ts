@@ -1,4 +1,5 @@
 import type { CampusDocument } from '@navi/core'
+import { ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
 import type {
   CompilerStagePlugin,
   CompilerStageInput,
@@ -17,7 +18,6 @@ import type {
 import { ParseStage, parseDocument } from './stages/parse-stage'
 import { BuildNodesStage, buildNodes } from './stages/build-nodes-stage'
 import { BuildEdgesStage, buildEdges } from './stages/build-edges-stage'
-import { CampusConnectorStage, connectCampuses } from './stages/connect-campuses-stage'
 import { OptimizeStage, optimizeGraph } from './stages/optimize-stage'
 import { ValidateStage } from './stages/validate-stage'
 import { normalizeDocument } from '../normalize'
@@ -32,7 +32,6 @@ const DEFAULT_STAGES: Record<CompileStageId, CompilerStagePlugin> = {
   'parse': new ParseStage(),
   'build-nodes': new BuildNodesStage(),
   'build-edges': new BuildEdgesStage(),
-  'connect-campuses': new CampusConnectorStage(),
   'optimize': new OptimizeStage(),
   'validate': new ValidateStage(),
 }
@@ -41,7 +40,6 @@ const STAGE_NAMES: Record<CompileStageId, string> = {
   'parse': 'Parsing document',
   'build-nodes': 'Building nodes',
   'build-edges': 'Building edges',
-  'connect-campuses': 'Connecting campuses',
   'optimize': 'Optimizing graph',
   'validate': 'Validating graph',
 }
@@ -50,7 +48,6 @@ const STAGE_ORDER: CompileStageId[] = [
   'parse',
   'build-nodes',
   'build-edges',
-  'connect-campuses',
   'optimize',
   'validate',
 ]
@@ -88,7 +85,6 @@ export class CampusCompiler {
       ['parse', 'parse'],
       ['build-nodes', 'build-nodes'],
       ['build-edges', 'build-edges'],
-      ['connect-campuses', 'connect-campuses'],
       ['optimize', 'optimize'],
       ['validate', 'validate'],
     ]
@@ -128,8 +124,11 @@ export class CampusCompiler {
     const warnings: CompileWarning[] = []
     const errors: CompileError[] = []
 
-    const nodeInterval = this.config.nodeInterval ?? 10
-    const mergeThreshold = this.config.mergeThreshold ?? 0.5
+    // P1-T8 (R8.3): compiler defaults flow from the route-network definitions
+    // module — single source (risk R7). Explicit config still wins.
+    const nodeInterval = this.config.nodeInterval ?? ROUTE_NETWORK_THRESHOLDS.nodeIntervalMeters
+    const mergeThreshold = this.config.mergeThreshold ?? ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters
+    const maxEntranceRoadDistance = this.config.maxEntranceRoadDistance ?? ROUTE_NETWORK_THRESHOLDS.compilerFallbackMeters
 
     try {
       // ── Stage 1: Normalize ──
@@ -145,11 +144,15 @@ export class CampusCompiler {
       }
 
       // ── Stage 2: Generate Primitives ──
-      const primitiveGraph = generatePrimitives(normResult.document, { nodeInterval, mergeThreshold })
+      const primitiveGraph = generatePrimitives(normResult.document, {
+        nodeInterval,
+        mergeThreshold,
+        maxEntranceRoadDistance,
+      })
       diagnostics.push(...primitiveGraph.diagnostics.filter(d => !diagnostics.includes(d)))
 
       // ── Stage 3.1: Connectivity Normalize ──
-      const connectivityGraph = normalizeConnectivity(primitiveGraph, mergeThreshold)
+      const connectivityGraph = normalizeConnectivity(primitiveGraph, mergeThreshold, normResult.document.connectivitySemantics)
       diagnostics.push(...connectivityGraph.diagnostics.filter(d => !diagnostics.includes(d)))
 
       // ── Stage 3.2: Connectivity Validate (read-only) ──
@@ -157,7 +160,7 @@ export class CampusCompiler {
       diagnostics.push(...validation.diagnostics)
 
       // ── Stage 3.3: Emit Graph ──
-      connectivityGraph.metadata.campusId = document.metadata.name
+      connectivityGraph.metadata.campusId = document.metadata.campusId
       const navGraph = emitGraph(connectivityGraph)
       navGraph.createdAt = new Date().toISOString()
 
@@ -400,7 +403,7 @@ export class CampusCompiler {
       nodes,
       edges,
       version: '1.0.0',
-      campusId: document.metadata.name,
+      campusId: document.metadata.campusId,
       metadata: {
         nodeCount: nodes.length,
         edgeCount: edges.length,
@@ -412,7 +415,7 @@ export class CampusCompiler {
 
     return {
       version: '1.0.0',
-      campusId: document.metadata.name,
+      campusId: document.metadata.campusId,
       createdAt: new Date().toISOString(),
       checksum: createHash('sha256').update(JSON.stringify(contentOnly)).digest('hex'),
       nodes,

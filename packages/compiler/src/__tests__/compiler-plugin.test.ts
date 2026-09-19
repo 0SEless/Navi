@@ -15,7 +15,8 @@ import { accessibilityWeightPlugin } from '../plugins/accessibility-plugin'
 import { customValidationPlugin } from '../plugins/custom-validation-plugin'
 import { CampusCompiler } from '../pipeline/campus-compiler'
 import { compile } from '../pipeline/compile'
-import type { CampusDocument, Building, Floor, Room, Entrance, Road } from '@navi/core'
+import { buildEdges } from '../pipeline/stages/build-edges-stage'
+import type { CampusDocument, Building, Floor, Room, Hallway, Entrance, Road } from '@navi/core'
 import type {
   CompilerStagePlugin,
   CompilerStageInput,
@@ -30,7 +31,7 @@ function makeEmptyDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Empty', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Empty', name: 'Empty', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [],
     roads: [],
     panoramas: [],
@@ -57,25 +58,33 @@ function makeRoom(id: string, name: string, number: string, x: number, y: number
 }
 
 function makeEntrance(id: string, label: string, lat: number, lng: number, level = 0): Entrance {
+  // Legacy world-stored position (dual-mode tolerance — see P1-T4 D9).
   return {
-    id, label, position: { lat, lng }, level, type: 'main',
+    id, label, position: { lat, lng } as any, level, type: 'main',
     hasQR: false, hasPanorama: false,
   }
 }
 
 function makeFloor(id: string, level: number, label: string, opts?: {
   rooms?: Room[]
+  hallways?: Hallway[]
   entrances?: Entrance[]
 }): Floor {
   return {
     id, level, label, elevation: level * 3,
     rooms: opts?.rooms ?? [],
-    hallways: [],
+    hallways: opts?.hallways ?? [],
     staircases: [],
     elevators: [],
     entrances: opts?.entrances ?? [],
     connectorStops: [],
     metadata: {},
+  }
+}
+
+function makeHallway(id: string, name: string, pts: Array<{ x: number; y: number }>, width = 3): Hallway {
+  return {
+    id, name, polyline: { points: pts }, width, metadata: {},
   }
 }
 
@@ -108,13 +117,17 @@ function makeRoad(id: string, name: string, pts: Array<{ lat: number; lng: numbe
 function simpleDoc(): CampusDocument {
   const roomA = makeRoom('r-a', 'Room A', '101', 0, 0)
   const roomB = makeRoom('r-b', 'Room B', '102', 15, 0)
-  const entrance = makeEntrance('e-main', 'Main Entrance', 0.005, 0.005)
-  const floor = makeFloor('flr-0', 0, 'Ground', { rooms: [roomA, roomB], entrances: [entrance] })
+  // Hallway runs along the rooms so each room door connects to it
+  const hallway = makeHallway('hw-1', 'Main Hallway', [{ x: 0, y: -3 }, { x: 15, y: -3 }])
+  // Entrance sits near the hallway start (within connection range).
+  // Building origin = footprint centroid (0.004, 0.004), so place entrance nearby.
+  const entrance = makeEntrance('e-main', 'Main Entrance', 0.00405, 0.00405)
+  const floor = makeFloor('flr-0', 0, 'Ground', { rooms: [roomA, roomB], hallways: [hallway], entrances: [entrance] })
   const building = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floor])
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Simple', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Simple', name: 'Simple', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
     panoramas: [],
@@ -124,20 +137,22 @@ function simpleDoc(): CampusDocument {
 
 function multiBuildingDoc(): CampusDocument {
   const roomA = makeRoom('r-a', 'Room A', 'A1', 0, 0)
-  const entA = makeEntrance('e-a', 'Entrance A', 0.0045, 0.0045)
-  const floorA = makeFloor('flr-0', 0, 'Ground', { rooms: [roomA], entrances: [entA] })
+  const hwA = makeHallway('hw-a', 'Hallway A', [{ x: 0, y: -3 }, { x: 10, y: -3 }])
+  const entA = { ...makeEntrance('e-a', 'Entrance A', 0.00405, 0.00405), connectorRoadId: 'road-1' }
+  const floorA = makeFloor('flr-0', 0, 'Ground', { rooms: [roomA], hallways: [hwA], entrances: [entA] })
   const bldA = makeBuilding('b-a', 'Building A', 'A', 0, 0, [floorA])
 
   const roomB = makeRoom('r-b', 'Room B', 'B1', 0, 0)
-  const entB = makeEntrance('e-b', 'Entrance B', 0.0145, 0.0145)
-  const floorB = makeFloor('flr-1', 0, 'Ground', { rooms: [roomB], entrances: [entB] })
+  const hwB = makeHallway('hw-b', 'Hallway B', [{ x: 0, y: -3 }, { x: 10, y: -3 }])
+  const entB = { ...makeEntrance('e-b', 'Entrance B', 0.01405, 0.01405), connectorRoadId: 'road-1' }
+  const floorB = makeFloor('flr-1', 0, 'Ground', { rooms: [roomB], hallways: [hwB], entrances: [entB] })
   const bldB = makeBuilding('b-b', 'Building B', 'B', 0.01, 0.01, [floorB])
 
   const road = makeRoad('road-1', 'Campus Road', [{ lat: 0.005, lng: 0.005 }, { lat: 0.015, lng: 0.015 }])
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Multi', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Multi', name: 'Multi', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [bldA, bldB],
     roads: [road],
     panoramas: [],
@@ -148,6 +163,54 @@ function multiBuildingDoc(): CampusDocument {
 // ── Tests ──
 
 describe('Wave 7 | Compiler Stage Plugin System', () => {
+
+  it('does not proximity-link an unassigned entrance to an outdoor corridor', () => {
+    const entrance: NavNode = {
+      id: 'entrance-node',
+      label: 'Main Entrance',
+      type: 'transition',
+      position: { lat: 14.5, lng: 121.49 },
+      floor: 0,
+      buildingId: 'bld-x',
+      properties: { entityType: 'entrance', entityId: 'entrance-1' },
+    }
+    const road: NavNode = {
+      id: 'road-node',
+      label: 'Campus Road',
+      type: 'corridor',
+      position: { lat: 14.50028, lng: 121.49 },
+      floor: 0,
+      buildingId: '',
+      properties: { entityType: 'road', entityId: 'road-near' },
+    }
+
+    const edges = buildEdges([entrance, road], { buildings: [], rooms: [], hallways: [], entrances: [], stairs: [], elevators: [], roads: [] } as any)
+    expect(edges.some((edge) => edge.from === entrance.id || edge.to === entrance.id)).toBe(false)
+  })
+
+  it('keeps an explicit legacy entrance road link', () => {
+    const entrance: NavNode = {
+      id: 'entrance-node',
+      label: 'Main Entrance',
+      type: 'transition',
+      position: { lat: 14.5, lng: 121.49 },
+      floor: 0,
+      buildingId: 'bld-x',
+      properties: { entityType: 'entrance', entityId: 'entrance-1', connectorRoadId: 'road-far' },
+    }
+    const road: NavNode = {
+      id: 'road-node',
+      label: 'Campus Road',
+      type: 'corridor',
+      position: { lat: 15, lng: 121.49 },
+      floor: 0,
+      buildingId: '',
+      properties: { entityType: 'road', entityId: 'road-far' },
+    }
+
+    const edges = buildEdges([entrance, road], { buildings: [], rooms: [], hallways: [], entrances: [], stairs: [], elevators: [], roads: [] } as any)
+    expect(edges.some((edge) => edge.from === entrance.id && edge.to === road.id)).toBe(true)
+  })
 
   // ── CampusCompiler basics ──
 
@@ -462,12 +525,12 @@ describe('Wave 7 | Compiler Stage Plugin System', () => {
         progressCalls.push({ name: stage.name, progress })
       })
 
-      // Should have called for all 6 stages
-      expect(progressCalls.length).toBe(6)
+      // Should have called for all 5 stages
+      expect(progressCalls.length).toBe(5)
       expect(progressCalls[0].name).toBe('Parsing document')
-      expect(progressCalls[5].name).toBe('Validating graph')
-      expect(progressCalls[0].progress).toBeCloseTo(1 / 6, 1)
-      expect(progressCalls[5].progress).toBeCloseTo(1, 1)
+      expect(progressCalls[4].name).toBe('Validating graph')
+      expect(progressCalls[0].progress).toBeCloseTo(1 / 5, 1)
+      expect(progressCalls[4].progress).toBeCloseTo(1, 1)
     })
 
     it('progress values are monotonic', () => {
@@ -595,27 +658,53 @@ describe('Wave 7 | Compiler Stage Plugin System', () => {
       expect(result.report.errors).toHaveLength(0)
     })
 
-    it('legacy and new compiler produce same graph structure', () => {
+    it('new compiler enforces the valid routing topology (no room shortcuts)', () => {
       const doc = simpleDoc()
-
-      // Legacy
-      const legacyResult = compile(doc, {
+      const compiler = new CampusCompiler({
         nodeInterval: 10, mergeThreshold: 5,
         optimizationLevel: 'none', includeAccessibility: false,
       })
+      const result = compiler.compile(doc)
 
-      // New
-      const newCompiler = new CampusCompiler({
-        nodeInterval: 10, mergeThreshold: 5,
-        optimizationLevel: 'none', includeAccessibility: false,
-      })
-      const newResult = newCompiler.compile(doc)
+      expect(result.success).toBe(true)
 
-      // Both should produce the same number of nodes
-      // (exact node IDs differ since different ID generation)
-      expect(newResult.graph!.nodes.length).toBe(legacyResult.graph.nodes.length)
-      // Both should produce at least the same number of edges
-      expect(newResult.graph!.edges.length).toBe(legacyResult.graph.edges.length)
+      // Every edge must follow the valid-connection model:
+      //   road → entrance → hallway → room door
+      const edges = result.graph!.edges
+      const nodesById = new Map(result.graph!.nodes.map(n => [n.id, n]))
+      for (const e of edges) {
+        const fromType = nodesById.get(e.from)!.type
+        const toType = nodesById.get(e.to)!.type
+        // No room↔room or room↔entrance shortcuts
+        if (fromType === 'space' || toType === 'space') {
+          const other = fromType === 'space' ? toType : fromType
+          expect(other).toBe('corridor')
+        }
+        // No entrance↔entrance edges
+        expect(fromType === 'transition' && toType === 'transition').toBe(false)
+      }
+
+      // Every room must reach an entrance via the hallway network
+      const roomIds = result.graph!.nodes.filter(n => n.type === 'space').map(n => n.id)
+      const entranceIds = result.graph!.nodes.filter(n => n.type === 'transition').map(n => n.id)
+      const adj = new Map<string, string[]>()
+      for (const e of edges) {
+        if (!adj.has(e.from)) adj.set(e.from, [])
+        if (!adj.has(e.to)) adj.set(e.to, [])
+        adj.get(e.from)!.push(e.to)
+        adj.get(e.to)!.push(e.from)
+      }
+      const reachable = new Set<string>(entranceIds)
+      const queue = [...entranceIds]
+      while (queue.length > 0) {
+        const cur = queue.shift()!
+        for (const nb of adj.get(cur) ?? []) {
+          if (!reachable.has(nb)) { reachable.add(nb); queue.push(nb) }
+        }
+      }
+      for (const roomId of roomIds) {
+        expect(reachable.has(roomId)).toBe(true)
+      }
     })
 
     it('CampusCompiler constructor works with empty config', () => {

@@ -1,4 +1,5 @@
-import type { CampusDocument } from '@navi/core'
+import type { CampusDocument, LatLng } from '@navi/core'
+import { extractConnectivitySemantics, normalizeRoadRouting } from '@navi/core'
 import type {
   NormalizedDocument,
   NormalizedBuilding,
@@ -170,15 +171,44 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
         }
       }
 
-      const entrances: NormalizedEntrance[] = floor.entrances.map(ent => ({
-        id: ent.id,
-        label: ent.label,
-        outdoorPosition: ent.position,
-        indoorPosition: ent.position,
-        level: ent.level,
-        buildingId: bld.id,
-        accessible: true,
-      }))
+      const entrances: NormalizedEntrance[] = floor.entrances.map(ent => {
+        // P1-T4 (D9): entrance positions are building-local — derive world here
+        // (same localToLatLng convention as rooms/hallways). Legacy world-stored
+        // records pass through verbatim so they normalize identically.
+        const isWorld = (ent.position as unknown as { lat?: number }).lat !== undefined
+        const worldPos = isWorld
+          ? (ent.position as unknown as LatLng)
+          : localToLatLng(ent.position.x, ent.position.y, origin.lat, origin.lng)
+        // Compute indoorPosition offset ~2m inward from outdoorPosition toward building centroid.
+        // This creates a meaningful portal edge (instead of overlapping nodes at the same spot).
+        const INDOOR_OFFSET_METERS = 2
+        const dLat = (origin.lat - worldPos.lat)
+        const dLng = (origin.lng - worldPos.lng)
+        const distToOrigin = Math.sqrt(dLat * dLat + dLng * dLng)
+        let indoorPosition = worldPos
+        if (distToOrigin > 0) {
+          // Normalize direction and scale to ~2m offset
+          // At ASU latitude (~33.42): 1° lat ≈ 111,000m, 1° lng ≈ 93,000m
+          const latPerMeter = 1 / 111000
+          const lngPerMeter = 1 / 93000
+          const offsetLat = (dLat / distToOrigin) * INDOOR_OFFSET_METERS * latPerMeter
+          const offsetLng = (dLng / distToOrigin) * INDOOR_OFFSET_METERS * lngPerMeter
+          indoorPosition = {
+            lat: worldPos.lat + offsetLat,
+            lng: worldPos.lng + offsetLng,
+          }
+        }
+        return {
+          id: ent.id,
+          label: ent.label,
+          outdoorPosition: worldPos,
+          indoorPosition,
+          level: ent.level,
+          buildingId: bld.id,
+          accessible: true,
+          connectorRoadId: (ent as { connectorRoadId?: string }).connectorRoadId,
+        }
+      })
 
       floors.push({
         id: floorId,
@@ -191,6 +221,10 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
         connectorStops,
         entrances,
         anchors,
+        // W15B: pass-through canonical navigation data — no coordinate transformation
+        routeNetwork: floor.routeNetwork,
+        roomAttributes: floor.roomAttributes,
+        entranceAccess: floor.entranceAccess,
       })
     }
 
@@ -203,20 +237,64 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
       baseElevation: bld.baseElevation,
       height: bld.height,
       floors,
+      // P1-T9 (R2.6/D19): carry levels-based features (access floors only,
+      // world positions). Absent = legacy connector-stop path.
+      ...((bld.staircases && bld.staircases.length > 0)
+        ? { staircases: bld.staircases.map(st => ({
+            id: st.id,
+            name: st.name,
+            accessible: st.accessible,
+            fromLevel: st.fromLevel,
+            toLevel: st.toLevel,
+            levels: Object.fromEntries(
+              Object.entries(st.levels ?? {}).map(([k, geom]) => [
+                Number(k),
+                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
+              ]),
+            ),
+          })) }
+        : {}),
+      ...((bld.elevators && bld.elevators.length > 0)
+        ? { elevators: bld.elevators.map(el => ({
+            id: el.id,
+            name: el.name,
+            accessible: el.accessible,
+            fromLevel: el.fromLevel,
+            toLevel: el.toLevel,
+            levels: Object.fromEntries(
+              Object.entries(el.levels ?? {}).map(([k, geom]) => [
+                Number(k),
+                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
+              ]),
+            ),
+          })) }
+        : {}),
+      // W15B: pass-through vertical transitions — no transformation
+      verticalTransitions: bld.verticalTransitions,
     })
   }
 
-  const roads: NormalizedRoad[] = (document.roads || []).map(r => ({
-    id: r.id,
-    name: r.name,
-    polyline: r.polyline.points,
-    width: r.width,
-    surface: r.surface,
-    type: r.type,
-  }))
+  const roads: NormalizedRoad[] = (document.roads || []).map(r => {
+    const routing = normalizeRoadRouting(r.routing)
+    return {
+      id: r.id,
+      name: r.name,
+      polyline: r.polyline.points,
+      width: r.width,
+      surface: r.surface,
+      type: r.type,
+      connectorEntranceId: (r as { connectorEntranceId?: string }).connectorEntranceId,
+      ...(routing ? { routing } : {}),
+    }
+  })
 
   return {
-    document: { buildings, roads },
+    document: {
+      buildings,
+      roads,
+      connectivitySemantics: extractConnectivitySemantics(document),
+      connectivitySemanticsVersion: document.connectivitySemanticsVersion,
+    },
     diagnostics,
   }
 }

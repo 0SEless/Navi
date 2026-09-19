@@ -18,7 +18,8 @@ function docWithFloorPlans(useFloorPlanUrls: boolean): CampusDocument {
     floors: [{
       id: 'f0', level: 0, label: 'GF', elevation: 0,
       rooms: [], hallways: [], staircases: [], elevators: [], entrances: [],
-      planImageId: 'data:image/png;base64,AAA',
+    planImageId: 'data:image/png;base64,AAA',
+      planAlignment: { offset: { x: 2, y: -1 }, scale: 1.25, rotation: 18, opacity: 0.6 },
       metadata: {},
     }],
     color: '#1C6BEB', aliases: [], metadata: {},
@@ -29,19 +30,16 @@ function docWithFloorPlans(useFloorPlanUrls: boolean): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Campus', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Campus', name: 'Campus', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [], panoramas: [], qrCheckpoints: [],
   }
 }
 
-// TODO(M6):
-// Re-enable once BuildingIndex/BuildingEntry includes published floor plan assets.
-// The current compiler contract (ADR-009 NavigationArtifacts → BuildingIndex)
-// intentionally does NOT expose floorPlanUrls. These assertions validate an
-// unimplemented future contract, not current behavior — quarantined rather than
-// weakened with `any` or by expanding production types to satisfy an old test.
-describe.skip('Gate 2 | Publish artifact includes floor plans', () => {
+// Compatibility coverage for the additive BuildingIndex floor-plan URL and
+// visual metadata contract. Legacy URLs remain readable; alignment is
+// presentation-only and never enters the navigation graph.
+describe('Gate 2 | Publish artifact includes floor plans', () => {
   const graph: any = { nodes: [], edges: [] }
   it('emits floorPlanUrls when the building carries floorPlanUrls', () => {
     const { buildings: entries } = buildBuildingIndex(docWithFloorPlans(true), graph)
@@ -53,5 +51,20 @@ describe.skip('Gate 2 | Publish artifact includes floor plans', () => {
     const { buildings: entries } = buildBuildingIndex(docWithFloorPlans(false), graph)
     expect((entries[0] as any).floorPlanUrls).toBeDefined()
     expect((entries[0] as any).floorPlanUrls?.[0]).toContain('data:image/png')
+  })
+
+  it('publishes optional visual alignment metadata without changing graph topology', () => {
+    const graphWithTopology: any = {
+      nodes: [{ id: 'n1', buildingId: 'b1', floor: 0, position: { lat: 14, lng: 121 } }],
+      edges: [{ id: 'e1', from: 'n1', to: 'n1', weight: 0 }],
+    }
+    const before = JSON.stringify(graphWithTopology)
+    const { buildings: entries } = buildBuildingIndex(docWithFloorPlans(false), graphWithTopology)
+
+    expect((entries[0] as any).floorPlanVisuals?.[0]).toEqual({
+      imageUrl: 'data:image/png;base64,AAA',
+      alignment: { offset: { x: 2, y: -1 }, scale: 1.25, rotation: 18, opacity: 0.6 },
+    })
+    expect(JSON.stringify(graphWithTopology)).toBe(before)
   })
 })

@@ -1,4 +1,4 @@
-import type { CampusDocument } from '@navi/core'
+import type { CampusDocument, LatLng } from '@navi/core'
 import type {
   CompilerStagePlugin,
   CompilerStageInput,
@@ -83,6 +83,8 @@ export function parseDocument(document: CampusDocument): ParsedDocument {
       height: bld.height,
       floors: bld.floors.map(f => f.level),
       color: bld.color,
+      // P1-T17: authored elevations by level for vertical-edge distances
+      floorElevations: Object.fromEntries(bld.floors.map(f => [f.level, f.elevation])),
     })
 
     for (const floor of bld.floors) {
@@ -120,6 +122,8 @@ export function parseDocument(document: CampusDocument): ParsedDocument {
         })
       }
 
+      // Legacy per-floor stair records (fallback — the feature path below runs
+      // once per BUILDING, after the floor loop; R2.6/D19 prefers levels).
       for (const st of floor.staircases) {
         const worldPos = localToLatLng(st.position.x, st.position.y, origin.lat, origin.lng)
         stairs.push({
@@ -128,6 +132,8 @@ export function parseDocument(document: CampusDocument): ParsedDocument {
           position: worldPos,
           buildingId: bld.id,
           isAccessible: true,
+          fromLevel: st.fromLevel ?? floor.level,
+          toLevel: st.toLevel ?? Math.max(st.fromLevel ?? floor.level + 1, floor.level + 1),
         })
       }
 
@@ -139,19 +145,82 @@ export function parseDocument(document: CampusDocument): ParsedDocument {
           position: worldPos,
           buildingId: bld.id,
           isAccessible: true,
+          fromLevel: el.fromLevel ?? floor.level,
+          toLevel: el.toLevel ?? Math.max(el.fromLevel ?? floor.level + 1, floor.level + 1),
         })
       }
 
       for (const ent of floor.entrances) {
+        // P1-T4 (D9): entrance positions are building-local — derive world the
+        // same way as stairs/elevators. Legacy world-stored records (pre-migration
+        // docs) pass through verbatim so they compile identically.
+        const isWorld = (ent.position as unknown as { lat?: number }).lat !== undefined
+        const worldPos = isWorld
+          ? (ent.position as unknown as LatLng)
+          : localToLatLng(ent.position.x, ent.position.y, origin.lat, origin.lng)
         entrances.push({
           id: ent.id,
           name: ent.label,
-          position: ent.position,
+          position: worldPos,
           level: ent.level,
           buildingId: bld.id,
           isAccessible: true,
           hasQR: ent.hasQR,
           hasPanorama: ent.hasPanorama,
+          connectorRoadId: ent.connectorRoadId,
+        })
+      }
+    }
+
+    // P1-T9 (R2.6/D19): levels-based feature entities win when present —
+    // ONE ParsedStair/ParsedElevator per physical feature with per-ACCESS-floor
+    // placements (absent floors simply absent, never zero-filled). Runs once
+    // per BUILDING (outside the floor loop). Legacy records fall back to the
+    // per-floor path above.
+    const featureStairs = bld.staircases ?? []
+    if (featureStairs.length > 0) {
+      for (const st of featureStairs) {
+        const levels: Record<number, { position: LatLng }> = {}
+        for (const [levelKey, geom] of Object.entries(st.levels ?? {})) {
+          const level = Number(levelKey)
+          if (Number.isInteger(level)) {
+            levels[level] = { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) }
+          }
+        }
+        const firstPos = levels[st.fromLevel] ?? Object.values(levels)[0]
+        stairs.push({
+          id: st.id,
+          name: st.name,
+          position: firstPos?.position ?? localToLatLng(0, 0, origin.lat, origin.lng),
+          buildingId: bld.id,
+          isAccessible: st.accessible,
+          fromLevel: st.fromLevel,
+          toLevel: st.toLevel,
+          levels: Object.keys(levels).length > 0 ? levels : undefined,
+        })
+      }
+    }
+
+    const featureElevators = bld.elevators ?? []
+    if (featureElevators.length > 0) {
+      for (const el of featureElevators) {
+        const levels: Record<number, { position: LatLng }> = {}
+        for (const [levelKey, geom] of Object.entries(el.levels ?? {})) {
+          const level = Number(levelKey)
+          if (Number.isInteger(level)) {
+            levels[level] = { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) }
+          }
+        }
+        const firstPos = levels[el.fromLevel] ?? Object.values(levels)[0]
+        elevators.push({
+          id: el.id,
+          name: el.name,
+          position: firstPos?.position ?? localToLatLng(0, 0, origin.lat, origin.lng),
+          buildingId: bld.id,
+          isAccessible: el.accessible,
+          fromLevel: el.fromLevel,
+          toLevel: el.toLevel,
+          levels: Object.keys(levels).length > 0 ? levels : undefined,
         })
       }
     }
@@ -164,6 +233,7 @@ export function parseDocument(document: CampusDocument): ParsedDocument {
     width: r.width,
     surface: r.surface,
     type: r.type,
+    connectorEntranceId: r.connectorEntranceId,
   }))
 
   return { buildings, rooms, hallways, entrances, stairs, elevators, roads }

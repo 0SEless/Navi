@@ -27,7 +27,7 @@ function makeEmptyDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Empty', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Empty', name: 'Empty', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [],
     roads: [],
     panoramas: [],
@@ -54,8 +54,9 @@ function makeRoom(id: string, name: string, number: string, x: number, y: number
 }
 
 function makeEntrance(id: string, label: string, lat: number, lng: number, level = 0): Entrance {
+  // Legacy world-stored position (dual-mode tolerance — see P1-T4 D9).
   return {
-    id, label, position: { lat, lng }, level, type: 'main',
+    id, label, position: { lat, lng } as any, level, type: 'main',
     hasQR: false, hasPanorama: false,
   }
 }
@@ -114,7 +115,7 @@ function simpleDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Simple', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Simple', name: 'Simple', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
     panoramas: [],
@@ -138,7 +139,7 @@ function multiBuildingDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Multi', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Multi', name: 'Multi', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [bldA, bldB],
     roads: [road],
     panoramas: [],
@@ -156,7 +157,7 @@ function distantRoomsDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Distant', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Distant', name: 'Distant', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
     panoramas: [],
@@ -173,7 +174,7 @@ function noEntranceDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'NoEntrance', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'NoEntrance', name: 'NoEntrance', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
     panoramas: [],
@@ -193,7 +194,7 @@ function multiFloorDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'MultiFloor', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'MultiFloor', name: 'MultiFloor', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [building],
     roads: [],
     panoramas: [],

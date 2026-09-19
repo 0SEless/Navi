@@ -1,4 +1,5 @@
 import type { CampusDocument } from '@navi/core'
+import { haversine } from '@navi/core'
 import type {
   CompilerStagePlugin,
   CompilerStageInput,
@@ -7,16 +8,7 @@ import type {
   NavEdge,
   ParsedDocument,
 } from '../../types'
-
-function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371000
-  const dLat = (b.lat - a.lat) * Math.PI / 180
-  const dLng = (b.lng - a.lng) * Math.PI / 180
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const h = sinDLat * sinDLat + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sinDLng * sinDLng
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
-}
+import { verticalEdgeDistance } from '../../primitives/vertical-distance'
 
 /**
  * Stage 3: Build Edges — Connects nodes based on entity relationships.
@@ -29,7 +21,7 @@ export class BuildEdgesStage implements CompilerStagePlugin {
   meta = {
     name: 'Build Edges Stage',
     version: '1.0.0',
-    description: 'Creates edges between nodes based on entity relationships and proximity',
+    description: 'Creates edges between nodes from authored relationships and same-floor indoor topology',
   }
 
   execute(input: CompilerStageInput, _next: (input: CompilerStageInput) => CompilerStageOutput): CompilerStageOutput {
@@ -69,7 +61,8 @@ export function buildEdges(nodes: NavNode[], parsed: ParsedDocument): NavEdge[] 
     const transitionNodes = floorNodes.filter(n => n.type === 'transition')
 
     for (const sn of spaceNodes) {
-      // Nearest corridor (hallway)
+      // Nearest corridor (hallway) — this is the ONLY valid connection for a
+      // room access point. The room is reached via its door on the hallway.
       let bestCorridorDist = Infinity
       let bestCorridor: NavNode | null = null
       for (const cn of corridorNodes) {
@@ -91,71 +84,70 @@ export function buildEdges(nodes: NavNode[], parsed: ParsedDocument): NavEdge[] 
         }
       }
 
-      // Nearest transition (entrance)
-      let bestTransDist = Infinity
-      let bestTrans: NavNode | null = null
-      for (const tn of transitionNodes) {
-        const d = haversine(sn.position, tn.position)
-        if (d < bestTransDist) { bestTransDist = d; bestTrans = tn }
-      }
-      if (bestTrans && bestTrans.id !== bestCorridor?.id && bestTransDist < 200) {
-        const key = edgeKey(sn.id, bestTrans.id)
-        if (!seen.has(key)) {
-          seen.add(key)
-          edges.push({
-            id: `edge-${idx++}`,
-            from: sn.id,
-            to: bestTrans.id,
-            type: 'walk',
-            distance: bestTransDist,
-            weight: bestTransDist,
-          })
-        }
-      }
-
-      // Connect nearby rooms on same floor (within 50m)
-      for (const sn2 of spaceNodes) {
-        if (sn2.id >= sn.id) continue
-        const d = haversine(sn.position, sn2.position)
-        if (d > 0 && d < 50) {
-          const key = edgeKey(sn.id, sn2.id)
-          if (!seen.has(key)) {
-            seen.add(key)
-            edges.push({
-              id: `edge-${idx++}`,
-              from: sn.id,
-              to: sn2.id,
-              type: 'walk',
-              distance: d,
-              weight: d,
-            })
-          }
-        }
-      }
+      // NOTE: rooms (space nodes) intentionally do NOT connect to transitions
+      // (entrances) or other rooms. The valid routing model is:
+      //   road → entrance → hallway → room door
+      // Connecting rooms directly to entrances or to each other would create
+      // shortcuts that bypass the hallway network (see valid-connection model).
     }
 
-    // Connect transitions to nearest corridor
+    // Connect transitions to the routing network.
+    // Valid model: road → entrance → hallway → room door.
+    // - ENTRANCES (entityType 'entrance') retain the legacy same-floor
+    //   hallway link for documents that predate explicit EntranceAccess.
+    //   Outdoor route links are only honored when an explicit legacy connector
+    //   field names the road; proximity is never used for this relationship.
+    // - STAIRS/ELEVATORS (entityType 'staircase'/'elevator') are per-floor
+    //   nodes: they link to the nearest hallway ON THEIR FLOOR and chain
+    //   vertically to the same entity's node on adjacent floors (below).
+    //   They NEVER link to roads — only entrances bridge indoor↔outdoor.
+    const outdoorCorridors = (byFloor.get(':0') ?? []).filter(n => n.type === 'corridor')
     for (const tn of transitionNodes) {
-      let bestDist = Infinity
-      let bestNode: NavNode | null = null
+      // Edge 1: transition ↔ nearest hallway
+      let bestHallwayDist = Infinity
+      let bestHallway: NavNode | null = null
       for (const cn of corridorNodes) {
         const d = haversine(tn.position, cn.position)
-        if (d < bestDist) { bestDist = d; bestNode = cn }
+        if (d < bestHallwayDist) { bestHallwayDist = d; bestHallway = cn }
       }
-      if (bestNode && bestDist < 200) {
-        const key = edgeKey(tn.id, bestNode.id)
+      if (bestHallway && bestHallwayDist < 200) {
+        const key = edgeKey(tn.id, bestHallway.id)
         if (!seen.has(key)) {
           seen.add(key)
           edges.push({
             id: `edge-${idx++}`,
             from: tn.id,
-            to: bestNode.id,
+            to: bestHallway.id,
             type: 'walk',
-            distance: bestDist,
-            weight: bestDist,
+            distance: bestHallwayDist,
+            weight: bestHallwayDist,
           })
         }
       }
+
+      if (tn.properties?.entityType !== 'entrance') continue
+      const entranceId = String(tn.properties.entityId || '')
+      const explicitRoadId = typeof tn.properties.connectorRoadId === 'string' && tn.properties.connectorRoadId.length > 0
+        ? tn.properties.connectorRoadId
+        : parsed.roads.find((road) => road.connectorEntranceId === entranceId)?.id
+      if (!explicitRoadId) continue
+
+      const explicitRoad = outdoorCorridors.find((candidate) => candidate.properties?.entityId === explicitRoadId)
+      if (!explicitRoad) continue
+      const key = edgeKey(tn.id, explicitRoad.id)
+      if (!seen.has(key)) {
+        seen.add(key)
+        const distance = haversine(tn.position, explicitRoad.position)
+        edges.push({
+          id: `edge-${idx++}`,
+          from: tn.id,
+          to: explicitRoad.id,
+          type: 'walk',
+          distance,
+          weight: distance,
+        })
+      }
+
     }
 
     // Connect corridor end-to-end (hallway segments)
@@ -182,6 +174,53 @@ export function buildEdges(nodes: NavNode[], parsed: ParsedDocument): NavEdge[] 
           })
         }
       }
+    }
+  }
+
+  // Vertical chains: chain each stair/elevator's per-floor nodes across
+  // adjacent floors (staircase/elevator ↔ staircase/elevator). Without this,
+  // the F0 stair node and the F1 stair node would be separate components and
+  // upper floors would be unreachable.
+  //
+  // P1-T17: edge distance = authored floor-elevation delta where both floors
+  // are known; ROUTE_NETWORK_THRESHOLDS.verticalEdgeFallbackMeters otherwise.
+  // Single source: vertical-distance.ts (risk R7) — the old fixed 4 m
+  // literals lived here and in the primitives connector.
+  const elevationsByBuilding = new Map<string, Record<number, number>>()
+  for (const b of parsed.buildings) {
+    if (b.floorElevations) elevationsByBuilding.set(b.id, b.floorElevations)
+  }
+  const byVerticalEntity = new Map<string, NavNode[]>()
+  for (const node of nodes) {
+    if (node.type !== 'transition') continue
+    const et = node.properties?.entityType
+    if (et !== 'staircase' && et !== 'elevator') continue
+    const eid = String(node.properties.entityId || '')
+    if (!byVerticalEntity.has(eid)) byVerticalEntity.set(eid, [])
+    byVerticalEntity.get(eid)!.push(node)
+  }
+  for (const [, group] of byVerticalEntity) {
+    const sorted = [...group].sort((a, b) => a.floor - b.floor)
+    const edgeType = sorted[0]?.properties?.entityType === 'elevator' ? 'elevator' : 'stairs'
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const a = sorted[i]
+      const b = sorted[i + 1]
+      if (a.floor === b.floor) continue
+      const key = edgeKey(a.id, b.id)
+      if (seen.has(key)) continue
+      seen.add(key)
+      const dist = verticalEdgeDistance(
+        elevationsByBuilding.get(a.buildingId)?.[a.floor],
+        elevationsByBuilding.get(b.buildingId)?.[b.floor],
+      )
+      edges.push({
+        id: `edge-${idx++}`,
+        from: a.id,
+        to: b.id,
+        type: edgeType,
+        distance: dist,
+        weight: dist,
+      })
     }
   }
 

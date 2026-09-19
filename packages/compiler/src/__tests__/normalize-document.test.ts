@@ -6,7 +6,7 @@ function makeMinimalDoc(overrides?: Partial<CampusDocument>): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'Test', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'Test', name: 'Test', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [],
     roads: [],
     panoramas: [],
@@ -34,7 +34,7 @@ function makeBuildingDoc(): CampusDocument {
         connectorStops: [{
           id: 'cs1', connectorId: 'vc1', position: { x: 5, y: 8 }, anchors: [], accessible: true, metadata: {},
         }],
-        entrances: [{ id: 'e1', label: 'Main Door', position: { lat: 14.0005, lng: 121.0005 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+        entrances: [{ id: 'e1', label: 'Main Door', position: { lat: 14.0005, lng: 121.0005 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
         metadata: {},
       }],
       verticalConnectors: [{ id: 'vc1', type: 'staircase', name: 'Stair A', stopIds: ['cs1'], accessible: true, metadata: {} }],
@@ -96,12 +96,21 @@ describe('normalizeDocument', () => {
     expect(elevatorStop.baseCost).toBe(20)
   })
 
-  it('converts entrances (world coords already)', () => {
+  it('converts entrances with indoor offset toward building centroid', () => {
     const result = normalizeDocument(makeBuildingDoc())
     const ent = result.document.buildings[0]!.floors[0]!.entrances[0]!
     expect(ent.label).toBe('Main Door')
     expect(ent.outdoorPosition.lat).toBe(14.0005)
-    expect(ent.indoorPosition.lat).toBe(14.0005)
+    // indoorPosition should be offset ~2m inward from outdoorPosition toward building centroid
+    expect(ent.indoorPosition.lat).not.toBe(ent.outdoorPosition.lat)
+    expect(ent.indoorPosition.lng).not.toBe(ent.outdoorPosition.lng)
+    // The offset should be small (~0.00002 degrees ≈ 2m at this latitude)
+    const dLat = Math.abs(ent.indoorPosition.lat - ent.outdoorPosition.lat)
+    const dLng = Math.abs(ent.indoorPosition.lng - ent.outdoorPosition.lng)
+    expect(dLat).toBeGreaterThan(0)
+    expect(dLat).toBeLessThan(0.001) // less than ~100m
+    expect(dLng).toBeGreaterThan(0)
+    expect(dLng).toBeLessThan(0.001)
   })
 
   it('emits a diagnostic when a building has no footprint', () => {

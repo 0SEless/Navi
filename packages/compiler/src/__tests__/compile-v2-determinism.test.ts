@@ -6,7 +6,7 @@ function makeDocument(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'det-test', description: 'Determinism test', lastModified: '', editorVersion: '1.0' },
+    metadata: { campusId: 'det-test', name: 'det-test', description: 'Determinism test', lastModified: '', editorVersion: '1.0' },
     buildings: [
       {
         id: 'b1',
@@ -37,7 +37,7 @@ function makeDocument(): CampusDocument {
             hallways: [{ id: 'hw1', name: 'Hallway', polyline: { points: [{ x: 0, y: 5 }, { x: 15, y: 5 }] }, width: 3 }],
             staircases: [],
             elevators: [],
-            entrances: [{ id: 'e1', label: 'Entrance', position: { lat: 14.0, lng: 121.0 }, level: 1, type: 'main', hasQR: false, hasPanorama: false }],
+            entrances: [{ id: 'e1', label: 'Entrance', position: { lat: 14.0, lng: 121.0 } as any, level: 1, type: 'main', hasQR: false, hasPanorama: false }],
             connectorStops: [],
             metadata: {},
           },

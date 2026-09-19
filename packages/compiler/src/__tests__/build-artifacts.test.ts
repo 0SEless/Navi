@@ -6,7 +6,7 @@ import type { CampusDocument } from '@navi/core'
 const emptyDoc: CampusDocument = {
   schemaVersion: 2,
   version: 0,
-  metadata: { name: 'test', description: '', lastModified: '', editorVersion: '' },
+  metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '' },
   buildings: [],
   roads: [],
   panoramas: [],
@@ -94,14 +94,14 @@ describe('buildArtifacts', () => {
       return {
         schemaVersion: 2,
         version: 0,
-        metadata: { name: 'test', description: '', lastModified: '', editorVersion: '' },
+        metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '' },
         buildings: [],
         roads: [],
         panoramas: [
           {
             id: 'pano-b1',
             label: 'Building 1 Lobby',
-            position: { lat: 14.0, lng: 121.0 },
+            position: { lat: 14.0, lng: 121.0 } as any,
             heading: 180,
             imageAssetId: 'img-b1',
             buildingId: 'b1',
@@ -114,7 +114,7 @@ describe('buildArtifacts', () => {
           {
             id: 'pano-b2',
             label: 'Building 2 Entrance',
-            position: { lat: 14.1, lng: 121.1 },
+            position: { lat: 14.1, lng: 121.1 } as any,
             heading: 0,
             imageAssetId: 'img-b2',
             buildingId: 'b2',
@@ -269,6 +269,176 @@ describe('buildArtifacts', () => {
       const bld = arts.buildingIndex.buildings.find(b => b.id === 'b1')!
       expect(bld.entrances.length).toBe(1)
       expect(bld.entrances[0]!.id).toBe('n2')
+    })
+
+    it('publishes optional floor-plan visuals without graph metadata', () => {
+      const alignment = { offset: { x: 2, y: -1 }, scaleX: 1.2, scaleY: 0.8, rotation: 18, opacity: 0.6, locked: true }
+      const doc = {
+        ...emptyDoc,
+        buildings: [{
+          id: 'b1',
+          name: 'Visual Building',
+          code: 'VB',
+          category: 'academic',
+          description: '',
+          footprint: { points: [{ lat: 14, lng: 121 }, { lat: 14, lng: 121.001 }, { lat: 14.001, lng: 121.001 }] },
+          baseElevation: 0,
+          height: 10,
+          floors: [{
+            id: 'f0',
+            level: 0,
+            label: 'GF',
+            elevation: 0,
+            planImageId: 'plan.png',
+            planAlignment: alignment,
+            rooms: [],
+            hallways: [],
+            staircases: [],
+            elevators: [],
+            entrances: [],
+            connectorStops: [],
+            parametricComponents: [],
+            metadata: {},
+          }],
+          aliases: [],
+          verticalConnectors: [],
+          color: '#fff',
+          metadata: {},
+        }],
+      } as CampusDocument
+      const arts = buildArtifacts(
+        makeConnGraph({ nodes: [makeWp('wp1', 'b1', 0)] }),
+        makeNavGraph({ nodes: [n('n1', 'waypoint', 'b1', 0)] }),
+        doc,
+      )
+      const visual = arts.buildingIndex.buildings.find(b => b.id === 'b1')!.floorPlanVisuals?.[0]
+
+      expect(visual).toEqual({ imageUrl: 'plan.png', alignment })
+      expect(arts.graph.nodes.map(node => node.id)).toEqual(['n1'])
+      expect(arts.graph.edges).toEqual([])
+    })
+
+    it('emits footprint, color, height, baseElevation from document buildings', () => {
+      const doc: CampusDocument = {
+        schemaVersion: 2,
+        version: 0,
+        metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '' },
+        buildings: [
+          {
+            id: 'b1',
+            name: 'Main Building',
+            code: 'MAIN',
+            category: 'administrative',
+            description: '',
+            footprint: {
+              points: [
+                { lat: 14.0, lng: 121.0 },
+                { lat: 14.0, lng: 121.001 },
+                { lat: 14.001, lng: 121.001 },
+                { lat: 14.001, lng: 121.0 },
+                { lat: 14.0, lng: 121.0 }, // closed ring
+              ],
+            },
+            baseElevation: 5,
+            height: 15,
+            color: '#FF0000',
+            floors: [],
+            verticalConnectors: [],
+            aliases: [],
+            metadata: { source: 'osm' },
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      } as CampusDocument
+
+      const cg = makeConnGraph({ nodes: [makeWp('wp1', 'b1')] })
+      const ng = makeNavGraph({
+        nodes: [n('n1', 'waypoint', 'b1')],
+      })
+      const arts = buildArtifacts(cg, ng, doc)
+      const bld = arts.buildingIndex.buildings.find(b => b.id === 'b1')!
+
+      expect(bld.name).toBe('Main Building')
+      expect(bld.code).toBe('MAIN')
+      expect(bld.category).toBe('administrative')
+      expect(bld.footprint).toHaveLength(5)
+      expect(bld.footprint![0]).toEqual({ lat: 14.0, lng: 121.0 })
+      expect(bld.height).toBe(15)
+      expect(bld.baseElevation).toBe(5)
+      expect(bld.color).toBe('#FF0000')
+      expect(bld.metadata).toEqual({ source: 'osm' })
+    })
+
+    it('omits footprint when document building has fewer than 3 points', () => {
+      const doc: CampusDocument = {
+        schemaVersion: 2,
+        version: 0,
+        metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '' },
+        buildings: [
+          {
+            id: 'b1',
+            name: 'Tiny',
+            code: 'T',
+            category: 'other',
+            description: '',
+            footprint: { points: [{ lat: 14.0, lng: 121.0 }] },
+            baseElevation: 0,
+            height: 0,
+            color: '',
+            floors: [],
+            verticalConnectors: [],
+            aliases: [],
+            metadata: {},
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      } as CampusDocument
+
+      const cg = makeConnGraph({ nodes: [makeWp('wp1', 'b1')] })
+      const ng = makeNavGraph({ nodes: [n('n1', 'waypoint', 'b1')] })
+      const arts = buildArtifacts(cg, ng, doc)
+      const bld = arts.buildingIndex.buildings.find(b => b.id === 'b1')!
+      expect(bld.footprint).toBeUndefined()
+    })
+
+    it('uses document building name when available', () => {
+      const doc: CampusDocument = {
+        schemaVersion: 2,
+        version: 0,
+        metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '' },
+        buildings: [
+          {
+            id: 'b1',
+            name: 'Library',
+            code: 'LIB',
+            category: 'library',
+            description: '',
+            footprint: { points: [] },
+            baseElevation: 0,
+            height: 0,
+            color: '',
+            floors: [],
+            verticalConnectors: [],
+            aliases: [],
+            metadata: {},
+          },
+        ],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      } as CampusDocument
+
+      const cg = makeConnGraph({ nodes: [makeWp('wp1', 'b1')] })
+      const ng = makeNavGraph({ nodes: [n('n1', 'waypoint', 'b1')] })
+      const arts = buildArtifacts(cg, ng, doc)
+      const bld = arts.buildingIndex.buildings.find(b => b.id === 'b1')!
+      expect(bld.name).toBe('Library')
+      expect(bld.code).toBe('LIB')
+      expect(bld.category).toBe('library')
     })
   })
 

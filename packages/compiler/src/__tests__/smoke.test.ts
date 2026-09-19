@@ -14,7 +14,7 @@ function demoDocument(): any {
         label: 'Ground Floor',
         spaces: [{ id: 's1', label: 'Room 101', type: 'room', polygon: [{ lng: 121.0, lat: 14.0 }, { lng: 121.001, lat: 14.0 }, { lng: 121.001, lat: 14.001 }, { lng: 121.0, lat: 14.001 }] }],
       }],
-      entrances: [{ id: 'e1', label: 'Main Entrance', position: { lng: 121.0, lat: 14.0 } }],
+      entrances: [{ id: 'e1', label: 'Main Entrance', position: { lng: 121.0, lat: 14.0 } as any }],
     }],
   }
 }

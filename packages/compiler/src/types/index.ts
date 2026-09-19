@@ -15,6 +15,14 @@ import type {
   NavigationArtifacts,
   POIIndex,
   SpatialIndex,
+  RouteNetwork,
+  RouteNode,
+  RouteEdge,
+  RoomAttributes,
+  EntranceAccess,
+  VerticalTransition,
+  RoadRouting,
+  RoadEdgeRouting,
 } from '@navi/core'
 
 export type {
@@ -33,6 +41,12 @@ export type {
   NavigationArtifacts,
   POIIndex,
   SpatialIndex,
+  RouteNetwork,
+  RouteNode,
+  RouteEdge,
+  RoomAttributes,
+  EntranceAccess,
+  VerticalTransition,
 } from '@navi/core'
 
 export interface CompilerConfig {
@@ -46,10 +60,15 @@ export interface CompilerConfig {
     parse?: new () => CompilerStagePlugin
     'build-nodes'?: new () => CompilerStagePlugin
     'build-edges'?: new () => CompilerStagePlugin
-    'connect-campuses'?: new () => CompilerStagePlugin
     'optimize'?: new () => CompilerStagePlugin
     'validate'?: new () => CompilerStagePlugin
   }
+
+  /**
+   * @deprecated Retained for source compatibility with the legacy compiler
+   * config. Unassigned entrances are never linked to roads by proximity.
+   */
+  maxEntranceRoadDistance?: number
 
   /** Third-party plugins to inject into the compile pipeline */
   plugins?: CompilerStagePlugin[]
@@ -178,7 +197,6 @@ export type CompileStageId =
   | 'parse'
   | 'build-nodes'
   | 'build-edges'
-  | 'connect-campuses'
   | 'optimize'
   | 'validate'
 
@@ -261,6 +279,9 @@ export interface ParsedBuilding {
   height: number
   floors: number[]
   color: string
+  /** P1-T17: authored floor elevations by level — consumed by the shared
+   *  verticalEdgeDistance helper for derived vertical-edge distances. */
+  floorElevations?: Record<number, number>
 }
 
 export interface ParsedRoom {
@@ -294,6 +315,8 @@ export interface ParsedEntrance {
   isAccessible: boolean
   hasQR: boolean
   hasPanorama: boolean
+  /** Legacy explicit connector retained for pre-EntranceAccess documents. */
+  connectorRoadId?: string
 }
 
 export interface ParsedStair {
@@ -302,6 +325,13 @@ export interface ParsedStair {
   position: LatLng
   buildingId: string
   isAccessible: boolean
+  /** Floor range this stair serves (from the Staircase entity). */
+  fromLevel: number
+  toLevel: number
+  /** P1-T9 (R2.6/D19): per-ACCESS-floor placements from the feature's
+   *  `levels` — keys are access floors only, each with its own position.
+   *  Absent when the source is a legacy per-floor record (range fallback). */
+  levels?: Record<number, { position: LatLng }>
 }
 
 export interface ParsedElevator {
@@ -310,6 +340,11 @@ export interface ParsedElevator {
   position: LatLng
   buildingId: string
   isAccessible: boolean
+  /** Floor range this elevator serves (from the Elevator entity). */
+  fromLevel: number
+  toLevel: number
+  /** P1-T9 (R2.6/D19): per-ACCESS-floor placements (see ParsedStair.levels). */
+  levels?: Record<number, { position: LatLng }>
 }
 
 export interface ParsedRoad {
@@ -319,6 +354,8 @@ export interface ParsedRoad {
   width: number
   surface: string
   type: string
+  /** Legacy reverse connector retained for pre-EntranceAccess documents. */
+  connectorEntranceId?: string
 }
 
 export interface CompileStats {
@@ -383,7 +420,9 @@ export interface POINode extends PrimitiveNodeBase {
 export interface TransitionNode extends PrimitiveNodeBase {
   kind: 'transition'
   connectorId: string
-  stopId: string
+  /** Connector-stop id when the node came from a legacy stop; absent for
+   *  P1-T9 levels-based feature nodes (features have no stop record). */
+  stopId?: string
   behavior: string
   accessible: boolean
   baseCost: number
@@ -395,6 +434,8 @@ export interface EntrancePortalNode extends PrimitiveNodeBase {
   indoorPosition: LatLng
   entranceId: string
   accessible: boolean
+  /** Explicit legacy road link (set by the editor); no proximity fallback. */
+  connectorRoadId?: string
 }
 
 export type PrimitiveNode = WaypointNode | POINode | TransitionNode | EntrancePortalNode
@@ -411,6 +452,8 @@ export interface PrimitiveEdgeBase {
 
 export interface SkeletonEdge extends PrimitiveEdgeBase {
   kind: 'skeleton'
+  /** Present only when this skeleton segment came from an authored routed Road. */
+  routing?: RoadEdgeRouting
 }
 
 export interface AccessEdge extends PrimitiveEdgeBase {
@@ -520,6 +563,7 @@ export interface DoorSpec {
 export interface GenerationContext {
   nodeInterval: number
   mergeThreshold: number
+  maxEntranceRoadDistance?: number
 }
 
 // ──────────────────────────────────────────────
@@ -529,6 +573,10 @@ export interface GenerationContext {
 export interface NormalizedDocument {
   buildings: NormalizedBuilding[]
   roads: NormalizedRoad[]
+  /** Canonical connectivity semantics extracted from CampusDocument. */
+  connectivitySemantics?: import('@navi/core').ConnectivitySemantics
+  /** Connectivity semantics version from the source document. */
+  connectivitySemanticsVersion?: string
 }
 
 export interface NormalizedBuilding {
@@ -540,6 +588,24 @@ export interface NormalizedBuilding {
   baseElevation: number
   height: number
   floors: NormalizedFloor[]
+  /** P1-T9 (R2.6/D19): levels-based stair/elevator features (access floors
+   *  only, per-floor world positions). Absent = legacy connector-stop path. */
+  staircases?: NormalizedFeatureLevels[]
+  elevators?: NormalizedFeatureLevels[]
+  /** W11: cross-floor route node connections through staircase/elevator features.
+   *  Pass-through from source Building.verticalTransitions. Absent = no transitions. */
+  verticalTransitions?: VerticalTransition[]
+}
+
+export interface NormalizedFeatureLevels {
+  id: string
+  name: string
+  accessible: boolean
+  fromLevel: number
+  toLevel: number
+  /** Keys are ACCESS floors only — absent floors simply absent (never
+   *  zero-filled); each entry carries that floor's own position. */
+  levels: Record<number, { position: LatLng }>
 }
 
 export interface NormalizedFloor {
@@ -553,6 +619,17 @@ export interface NormalizedFloor {
   connectorStops: NormalizedConnectorStop[]
   entrances: NormalizedEntrance[]
   anchors: NormalizedAnchor[]
+  /** P1-T8: authored route network — pass-through from source Floor.routeNetwork.
+   *  Nodes use building-local coords (same contract as rooms/door positions).
+   *  Absent = no authored network (legacy documents). */
+  routeNetwork?: RouteNetwork
+  /** W6: semantic room attributes — pass-through from source Floor.roomAttributes.
+   *  Absent = no semantic rooms (legacy documents). */
+  roomAttributes?: RoomAttributes[]
+  /** W10: entrance bridge relationships — pass-through from source Floor.entranceAccess.
+   *  outdoorNodeId remains an external campus reference (NOT an indoor node).
+   *  Absent = no bridge (legacy documents). */
+  entranceAccess?: EntranceAccess[]
 }
 
 export interface NormalizedRoom {
@@ -605,6 +682,8 @@ export interface NormalizedEntrance {
   level: number
   buildingId: string
   accessible: boolean
+  /** Road ID this entrance explicitly connects to. */
+  connectorRoadId?: string
 }
 
 export interface NormalizedAnchor {
@@ -624,4 +703,8 @@ export interface NormalizedRoad {
   width: number
   surface: string
   type: string
+  /** Sparse validated authored values; absent for legacy/invalid-only routing. */
+  routing?: RoadRouting
+  /** Entrance ID this road explicitly connects to (reverse link). */
+  connectorEntranceId?: string
 }
