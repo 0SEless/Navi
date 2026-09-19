@@ -7,6 +7,7 @@ function validDoc(): CampusDocument {
     schemaVersion: 1,
     version: 0,
     metadata: {
+      campusId: 'Test',
       name: 'Test',
       description: '',
       lastModified: new Date().toISOString(),

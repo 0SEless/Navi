@@ -8,6 +8,7 @@ function makeTestDoc(): CampusDocument {
     schemaVersion: 1,
     version: 0,
     metadata: {
+      campusId: 'ASU Ibajay',
       name: 'ASU Ibajay',
       description: 'Test campus',
       lastModified: new Date('2026-07-08').toISOString(),
@@ -64,7 +65,8 @@ function makeTestDoc(): CampusDocument {
               {
                 id: 'ent-main',
                 label: 'Main Entrance',
-                position: { lat: 33.425, lng: -111.925 },
+                // P1-T4 (D9): entrances are stored building-local.
+                position: { x: 12, y: -8 },
                 level: 0,
                 type: 'main',
                 hasQR: true,
@@ -291,15 +293,18 @@ describe('serialization', () => {
     expect(room.polygon.points[0]).not.toHaveProperty('lat')
 
     const entrance = restored.buildings[0].floors[0].entrances[0]
-    expect(entrance.position).toHaveProperty('lat')
-    expect(entrance.position).toHaveProperty('lng')
+    // P1-T4 (D9): entrances are building-local — no world LatLng storage.
+    expect(entrance.position).toHaveProperty('x')
+    expect(entrance.position).toHaveProperty('y')
+    expect(entrance.position).not.toHaveProperty('lat')
+    expect(entrance.position).not.toHaveProperty('lng')
   })
 
   it('backward-compat: old doc without new fields gets defaults (T10)', () => {
     const oldJson = JSON.stringify({
       schemaVersion: 1,
       version: 0,
-      metadata: { name: 'Legacy', description: '', lastModified: '', editorVersion: '0.0.1' },
+      metadata: { campusId: 'Legacy', name: 'Legacy', description: '', lastModified: '', editorVersion: '0.0.1' },
       buildings: [{
         id: 'bld-old',
         name: 'Old',

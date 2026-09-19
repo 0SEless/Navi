@@ -43,3 +43,25 @@ export function latLngEquals(a: LatLng, b: LatLng): boolean {
 export function localCoordEquals(a: LocalCoord, b: LocalCoord): boolean {
   return a.x === b.x && a.y === b.y
 }
+
+// ── Floor Plan Alignment ──
+// W12B: Canonical alignment type. The app's computeFloorPlanCoords uses this
+// structure. All layers that store or consume alignment must be structurally
+// compatible with this interface.
+
+export interface PlanAlignment {
+  /** Translation in building-local meters (applied after local-axis scale and rotation). */
+  offset?: { x: number; y: number }
+  /** Dimensionless legacy multiplier relative to the footprint-bbox fit. Read compatibility only when axes are present. */
+  scale?: number
+  /** Dimensionless multiplier for the image-local X axis. */
+  scaleX?: number
+  /** Dimensionless multiplier for the image-local Y axis. */
+  scaleY?: number
+  /** Rotation in degrees clockwise (after local-axis scale). */
+  rotation?: number
+  /** Render opacity only — no geometric effect. */
+  opacity?: number
+  /** Reference-image transform lock; distinct from Floor.locked. */
+  locked?: boolean
+}

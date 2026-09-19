@@ -35,6 +35,15 @@ export function webMercatorToWgs84(x: number, y: number): LatLng {
   return { lat, lng }
 }
 
+// ── Equirectangular approximation (fast, campus-accurate) ──
+
+export function distanceMeters(a: LatLng, b: LatLng): number {
+  const dLat = (a.lat - b.lat) * 111320
+  const avgLat = ((a.lat + b.lat) / 2) * (Math.PI / 180)
+  const dLng = (a.lng - b.lng) * 111320 * Math.cos(avgLat)
+  return Math.hypot(dLat, dLng)
+}
+
 // ── Haversine for direct WGS84 distance ──
 
 export function haversine(a: LatLng, b: LatLng): number {

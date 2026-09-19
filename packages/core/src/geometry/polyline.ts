@@ -27,6 +27,26 @@ function coordVal(p: LatLng | LocalCoord, axis: 'x' | 'y'): number {
   return axis === 'x' ? c.x : c.y
 }
 
+// ── Closest point on segment ──
+
+export function closestPointOnSegment(p: LatLng, a: LatLng, b: LatLng): LatLng {
+  const abx = b.lng - a.lng
+  const aby = b.lat - a.lat
+  const apx = p.lng - a.lng
+  const apy = p.lat - a.lat
+  const dot = apx * abx + apy * aby
+  const len2 = abx * abx + aby * aby
+
+  if (len2 === 0) return a
+
+  const t = Math.max(0, Math.min(1, dot / len2))
+
+  return {
+    lat: a.lat + t * aby,
+    lng: a.lng + t * abx,
+  }
+}
+
 // ── Haversine distance (world coordinates) ──
 
 export function haversineDistance(a: LatLng, b: LatLng): number {

@@ -25,6 +25,37 @@ export interface SnapTarget {
   distance: number  // in meters (world space)
 }
 
+// ── Standalone geometry helpers ──
+
+export function lineSegmentIntersection(
+  a: LatLng, b: LatLng, c: LatLng, d: LatLng,
+): LatLng | null {
+  const cross2D = (px: number, py: number, qx: number, qy: number) =>
+    px * qy - py * qx
+
+  const bx_ax = b.lng - a.lng
+  const by_ay = b.lat - a.lat
+  const dx_cx = d.lng - c.lng
+  const dy_cy = d.lat - c.lat
+  const cx_ax = c.lng - a.lng
+  const cy_ay = c.lat - a.lat
+
+  const denom = cross2D(bx_ax, by_ay, dx_cx, dy_cy)
+  if (Math.abs(denom) < 1e-10) return null
+
+  const t = cross2D(cx_ax, cy_ay, dx_cx, dy_cy) / denom
+  const u = cross2D(cx_ax, cy_ay, bx_ax, by_ay) / denom
+
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return {
+      lat: a.lat + t * by_ay,
+      lng: a.lng + t * bx_ax,
+    }
+  }
+
+  return null
+}
+
 // ── Spatial Query API ──
 
 export class SpatialQuery {

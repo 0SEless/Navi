@@ -7,6 +7,7 @@ function makeMinimalDoc(): CampusDocument {
     schemaVersion: 1,
     version: 0,
     metadata: {
+      campusId: 'Test Campus',
       name: 'Test Campus',
       description: 'Minimal test',
       lastModified: new Date().toISOString(),

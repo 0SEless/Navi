@@ -1,5 +1,6 @@
 import type { CampusDocument } from '../types/document'
 import type { Building, Floor, Room } from '../types/entities'
+import { collectFloorDoors } from '../types/floor-doors'
 
 export interface OwnershipIssue {
   type: 'orphan-stop' | 'orphan-connector-ref' | 'orphan-door-ref'
@@ -78,20 +79,21 @@ export function validateOwnership(doc: CampusDocument): OwnershipIssue[] {
     }
 
     // RoomDoor connectedToId must reference a room or hallway in the same floor
+    // (P1-T6: single-source door access; unlinked doors — no connectedToId/
+    // connectedToType — are skipped here, connectivity rules own that case)
     for (const floor of building.floors) {
       const roomIds = collectRoomIds(floor)
       const hallwayIds = collectHallwayIds(floor)
-      for (const room of floor.rooms) {
-        for (const door of room.roomDoors) {
-          const validIds = door.connectedToType === 'room' ? roomIds : hallwayIds
-          if (!validIds.has(door.connectedToId)) {
-            issues.push({
-              type: 'orphan-door-ref',
-              severity: 'error',
-              entityId: door.id,
-              message: `RoomDoor "${door.id}" in room "${room.id}" references ${door.connectedToType} "${door.connectedToId}" which does not exist on floor "${floor.id}"`,
-            })
-          }
+      for (const door of collectFloorDoors(floor)) {
+        if (!door.connectedToId || !door.connectedToType) continue
+        const validIds = door.connectedToType === 'room' ? roomIds : hallwayIds
+        if (!validIds.has(door.connectedToId)) {
+          issues.push({
+            type: 'orphan-door-ref',
+            severity: 'error',
+            entityId: door.id,
+            message: `RoomDoor "${door.id}" in room "${door.roomId}" references ${door.connectedToType} "${door.connectedToId}" which does not exist on floor "${floor.id}"`,
+          })
         }
       }
     }

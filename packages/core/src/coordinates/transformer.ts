@@ -8,6 +8,18 @@ export interface BuildingLocalSystem {
   rotation: number         // degrees from north (clockwise)
 }
 
+// ── Per-floor local system (P1-T1) ──
+// D4/R3.1 chain: floor-local (meters) → + floor.offset → building-local (meters).
+// `offset` is the floor's origin expressed in building-local meters; `rotation`
+// rotates the floor's axes relative to the building's axes (degrees clockwise,
+// same convention as BuildingLocalSystem.rotation). A floor with no registered
+// system behaves as identity (offset {0,0}, rotation 0) — legacy documents load
+// with defaults, no migration prompt (R2.1).
+export interface FloorLocalSystem {
+  offset: LocalCoord
+  rotation: number
+}
+
 // ── Camera state for screen transforms ──
 export interface CameraState {
   center: LatLng
@@ -21,6 +33,9 @@ export interface CameraState {
 // ── CoordinateTransformer ──
 export class CoordinateTransformer {
   private buildingSystems = new Map<string, BuildingLocalSystem>()
+  // P1-T1: per-floor systems keyed by `${buildingId}:${level}`. A floor with no
+  // registered system falls back to identity (offset {0,0}, rotation 0).
+  private floorSystems = new Map<string, FloorLocalSystem>()
 
   registerBuilding(system: BuildingLocalSystem): void {
     this.buildingSystems.set(system.buildingId, system)
@@ -28,6 +43,16 @@ export class CoordinateTransformer {
 
   getBuildingSystem(buildingId: string): BuildingLocalSystem | undefined {
     return this.buildingSystems.get(buildingId)
+  }
+
+  // ── Per-floor registration (P1-T1) ──
+
+  registerFloor(buildingId: string, level: number, system: FloorLocalSystem): void {
+    this.floorSystems.set(`${buildingId}:${level}`, system)
+  }
+
+  getFloorSystem(buildingId: string, level: number): FloorLocalSystem | undefined {
+    return this.floorSystems.get(`${buildingId}:${level}`)
   }
 
   // ── World ↔ Campus ──
@@ -80,24 +105,49 @@ export class CoordinateTransformer {
     return this.campusToBuildingLocal(campus, buildingId)
   }
 
-  // ── Building-local ↔ Floor plan pixel ──
+  // ── Floor-local ↔ Building-local (P1-T1, D4) ──
+  // Chain: floor-local (meters) → + floor.offset → building-local (meters).
+  // Rotation convention matches BuildingLocalSystem.rotation (degrees
+  // clockwise). Unregistered floor → identity (legacy default).
 
-  localToPixel(local: LocalCoord, calibration: FloorPlanCalibration): { x: number; y: number } {
-    const dx = local.x - calibration.originLocal.x
-    const dy = local.y - calibration.originLocal.y
+  floorLocalToBuildingLocal(local: LocalCoord, buildingId: string, level: number): LocalCoord | null {
+    if (!this.buildingSystems.has(buildingId)) return null
+    const sys = this.floorSystems.get(`${buildingId}:${level}`)
+    if (!sys) return { x: local.x, y: local.y }
+    const rad = (sys.rotation * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
     return {
-      x: dx * calibration.scale + calibration.originPixel.x,
-      y: -dy * calibration.scale + calibration.originPixel.y,  // y inverted (pixel space)
+      x: local.x * cos - local.y * sin + sys.offset.x,
+      y: local.x * sin + local.y * cos + sys.offset.y,
     }
   }
 
-  pixelToLocal(pixel: { x: number; y: number }, calibration: FloorPlanCalibration): LocalCoord {
-    const dx = pixel.x - calibration.originPixel.x
-    const dy = pixel.y - calibration.originPixel.y
+  buildingLocalToFloorLocal(local: LocalCoord, buildingId: string, level: number): LocalCoord | null {
+    if (!this.buildingSystems.has(buildingId)) return null
+    const sys = this.floorSystems.get(`${buildingId}:${level}`)
+    if (!sys) return { x: local.x, y: local.y }
+    const dx = local.x - sys.offset.x
+    const dy = local.y - sys.offset.y
+    const rad = (-sys.rotation * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
     return {
-      x: dx / calibration.scale + calibration.originLocal.x,
-      y: -dy / calibration.scale + calibration.originLocal.y,
+      x: dx * cos - dy * sin,
+      y: dx * sin + dy * cos,
     }
+  }
+
+  floorLocalToWorld(local: LocalCoord, buildingId: string, level: number): LatLng | null {
+    const buildingLocal = this.floorLocalToBuildingLocal(local, buildingId, level)
+    if (!buildingLocal) return null
+    return this.buildingLocalToWorld(buildingLocal, buildingId)
+  }
+
+  worldToFloorLocal(latlng: LatLng, buildingId: string, level: number): LocalCoord | null {
+    const buildingLocal = this.worldToBuildingLocal(latlng, buildingId)
+    if (!buildingLocal) return null
+    return this.buildingLocalToFloorLocal(buildingLocal, buildingId, level)
   }
 
   // ── Screen ↔ World ──
@@ -136,12 +186,4 @@ export class CoordinateTransformer {
       y: cy + camera.viewportHeight / 2,
     }
   }
-}
-
-// ── Floor plan calibration type (used by localToPixel/pixelToLocal) ──
-
-export interface FloorPlanCalibration {
-  originLocal: LocalCoord
-  originPixel: { x: number; y: number }
-  scale: number  // pixels per meter
 }

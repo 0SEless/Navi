@@ -10,23 +10,28 @@ import { RoadStyle } from './road-style'
  * in one place so style changes propagate to both renderers.
  */
 
+/**
+ * Road width expression — uses the feature's `width` property directly as
+ * a fixed pixel size at all zoom levels.
+ *
+ * Previously this was a zoom-dependent meters→pixels interpolation, but
+ * that caused two problems:
+ * 1. Roads at editing zoom (17-19) were massively oversized (44px for 2m roads)
+ * 2. The MapLibre error "zoom may only be used as input to a top-level step
+ *    or interpolate expression" when `roadOutlinePaint` wrapped it in `['+']`
+ *
+ * Now road.width is stored as pixel width and used directly — simple, no zoom,
+ * no compound expression nesting issues.
+ */
 export function roadWidthExpression(): ExpressionSpecification {
-  return [
-    'interpolate', ['linear'], ['zoom'],
-    10, ['max', RoadStyle.minScreenWidthPx, ['*', ['get', 'width'], 0.15]],
-    12, ['max', RoadStyle.minScreenWidthPx, ['*', ['get', 'width'], 0.60]],
-    14, ['min', ['*', ['get', 'width'], 2.39], RoadStyle.maxScreenWidthPx],
-    16, ['min', ['*', ['get', 'width'], 9.57], RoadStyle.maxScreenWidthPx],
-    18, ['min', ['*', ['get', 'width'], 38.28], RoadStyle.maxScreenWidthPx],
-    20, ['min', ['*', ['get', 'width'], 153.11], RoadStyle.maxScreenWidthPx],
-  ] as ExpressionSpecification
+  return ['get', 'width'] as unknown as ExpressionSpecification
 }
 
 /** Two-layer road rendering: black outline behind white fill (EntityRenderer) */
 export function roadOutlinePaint(): Record<string, unknown> {
   return {
     'line-color': RoadStyle.outlineColor,
-    'line-width': ['+', roadWidthExpression(), RoadStyle.outlineWidthPx],
+    'line-width': ['+', ['get', 'width'], RoadStyle.outlineWidthPx],
     'line-opacity': 0.5,
   }
 }
@@ -34,7 +39,7 @@ export function roadOutlinePaint(): Record<string, unknown> {
 export function roadFillPaint(): Record<string, unknown> {
   return {
     'line-color': RoadStyle.fillColor,
-    'line-width': roadWidthExpression(),
+    'line-width': ['get', 'width'],
     'line-opacity': 0.8,
   }
 }
@@ -43,7 +48,7 @@ export function roadFillPaint(): Record<string, unknown> {
 export function roadTracePaint(): Record<string, unknown> {
   return {
     'line-color': ['get', 'color'],
-    'line-width': roadWidthExpression(),
+    'line-width': ['get', 'width'],
     'line-opacity': 0.8,
   }
 }
@@ -51,7 +56,7 @@ export function roadTracePaint(): Record<string, unknown> {
 export function roadTraceInnerPaint(): Record<string, unknown> {
   return {
     'line-color': ['get', 'color'],
-    'line-width': roadWidthExpression(),
+    'line-width': ['get', 'width'],
     'line-opacity': 0.5,
   }
 }
