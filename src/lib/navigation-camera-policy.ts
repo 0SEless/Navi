@@ -11,6 +11,7 @@ export interface NavigationCameraPolicyInput {
   topOrientation?: TopCameraOrientation
   heading?: number | null
   currentBearing?: number | null
+  headingFollowEnabled?: boolean
   followSuspended?: boolean
   headingFollowSuspended?: boolean
   reducedMotion?: boolean
@@ -26,6 +27,8 @@ export interface NavigationCameraPolicy {
   allowPitch: boolean
   followsPosition: boolean
   followsHeading: boolean
+  preferredZoom: number
+  maxZoom: number
   transitionDurationMs: number
 }
 
@@ -39,6 +42,14 @@ export interface NavigationCameraModeSelectionInput {
 export const NAVIGATION_CAMERA_MODE_TRANSITION_MS = 360
 export const NAVIGATION_CAMERA_CONTINUOUS_TRANSITION_MS = 220
 export const NAVIGATION_COMPASS_DEADBAND_DEGREES = 3
+export const NAVIGATION_TOP_PREFERRED_ZOOM = 16
+export const NAVIGATION_FOLLOW_PREFERRED_ZOOM = 18
+export const NAVIGATION_POV_PREFERRED_ZOOM = 19
+export const NAVIGATION_TOP_MAX_ZOOM = 16
+export const NAVIGATION_FOLLOW_MAX_ZOOM = 18
+export const NAVIGATION_POV_MAX_ZOOM = 19
+export const NAVIGATION_FOLLOW_PREFERRED_PITCH = 55
+export const NAVIGATION_POV_PREFERRED_PITCH = 85
 
 function bearingFor(input: NavigationCameraPolicyInput, followHeading: boolean): number {
   const heading = normalizeCaptureHeading(input.heading)
@@ -83,9 +94,11 @@ export function getNavigationCameraPolicy(
   const followSuspended = input.followSuspended === true
   const headingFollowSuspended = input.headingFollowSuspended === true
   const headingAvailable = normalizeCaptureHeading(input.heading) !== null
-  const wantsHeadingFollow = mode === 'TOP'
-    ? topOrientation === 'heading-follow'
-    : true
+  const wantsHeadingFollow = input.surface === 'route-preview' || input.surface === 'explore'
+    ? false
+    : input.headingFollowEnabled ?? (mode === 'TOP'
+      ? topOrientation === 'heading-follow'
+      : true)
   const followsHeading = wantsHeadingFollow
     && headingAvailable
     && !followSuspended
@@ -100,29 +113,33 @@ export function getNavigationCameraPolicy(
       allowZoom: true,
       allowRotate: true,
       allowPitch: false,
-      followsPosition: topOrientation === 'heading-follow' && !followSuspended,
+      followsPosition: wantsHeadingFollow && !followSuspended,
       followsHeading,
+      preferredZoom: NAVIGATION_TOP_PREFERRED_ZOOM,
+      maxZoom: NAVIGATION_TOP_MAX_ZOOM,
       transitionDurationMs: getNavigationTransitionDuration(input.reducedMotion),
     }
   }
 
   return {
     mode,
-    pitch: mode === 'FOLLOW' ? 60 : 85,
+    pitch: mode === 'FOLLOW' ? NAVIGATION_FOLLOW_PREFERRED_PITCH : NAVIGATION_POV_PREFERRED_PITCH,
     bearing: bearingFor(input, followsHeading),
-    allowPan: mode === 'FOLLOW',
+    allowPan: true,
     allowZoom: true,
-    allowRotate: mode === 'FOLLOW',
+    allowRotate: true,
     allowPitch: false,
     followsPosition: !followSuspended,
     followsHeading,
+    preferredZoom: mode === 'FOLLOW' ? NAVIGATION_FOLLOW_PREFERRED_ZOOM : NAVIGATION_POV_PREFERRED_ZOOM,
+    maxZoom: mode === 'FOLLOW' ? NAVIGATION_FOLLOW_MAX_ZOOM : NAVIGATION_POV_MAX_ZOOM,
     transitionDurationMs: getNavigationTransitionDuration(input.reducedMotion),
   }
 }
 
 export function recenterNavigationCamera(input: Pick<
   NavigationCameraPolicyInput,
-  'mode' | 'topOrientation' | 'heading' | 'currentBearing'
+  'mode' | 'topOrientation' | 'heading' | 'currentBearing' | 'headingFollowEnabled'
 >): { bearing: number; followSuspended: false } {
   const policy = getNavigationCameraPolicy({ ...input, followSuspended: false })
   return { bearing: policy.bearing, followSuspended: false }
@@ -140,5 +157,5 @@ export function resetNavigationCompass(input: Pick<
 }
 
 export function suspendFollowAfterPan(mode: NavigationCameraMode): boolean {
-  return mode === 'POV'
+  return mode === 'TOP' || mode === 'FOLLOW' || mode === 'POV'
 }

@@ -18,7 +18,7 @@ export function FloorSelector({ floors, activeFloor, onChange }: FloorSelectorPr
   if (!floors || floors.length <= 1) return null
 
   // Sort floors descending (top floor on top, ground floor at bottom)
-  const sortedFloors = [...floors].sort((a, b) => b - a)
+  const sortedFloors = [...new Set(floors)].sort((a, b) => b - a)
 
   return (
     <div
@@ -35,18 +35,27 @@ export function FloorSelector({ floors, activeFloor, onChange }: FloorSelectorPr
         border: '1px solid var(--navi-border, #334155)',
         borderRadius: 8,
         padding: 4,
+        maxHeight: 'min(70vh, 28rem)',
+        overflowY: 'auto',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
       }}
+      role="group"
+      aria-label="Building floors"
     >
       {sortedFloors.map((level) => {
         const isActive = level === activeFloor
         return (
           <button
+            type="button"
             key={level}
             onClick={() => onChange(level)}
+            aria-label={`Switch to ${formatFloorLabel(level)}`}
+            aria-pressed={isActive}
             style={{
-              width: 32,
-              height: 32,
+              width: 44,
+              height: 44,
+              minWidth: 44,
+              minHeight: 44,
               borderRadius: 6,
               border: 'none',
               background: isActive ? 'var(--navi-primary, #3B82F6)' : 'transparent',
@@ -57,9 +66,7 @@ export function FloorSelector({ floors, activeFloor, onChange }: FloorSelectorPr
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 0.15s ease',
             }}
-            title={`Switch to ${formatFloorLabel(level)}`}
           >
             {formatFloorLabel(level)}
           </button>

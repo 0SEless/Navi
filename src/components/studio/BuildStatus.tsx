@@ -3,7 +3,12 @@
 import { useWorkflow, useEditor } from '@navi/editor'
 import { useEffect, useState } from 'react'
 
-export function BuildStatus() {
+export interface BuildStatusProps {
+  onOpenProblems?: () => void
+  problemCount?: number
+}
+
+export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusProps) {
   const { services } = useEditor()
   const { steps, percent, validate } = useWorkflow()
   const publishService = services.get('publish') as {
@@ -46,6 +51,15 @@ export function BuildStatus() {
           background: 'transparent', color: 'var(--navi-text)', cursor: 'pointer',
         }}
       >Validate</button>
+      {onOpenProblems && (
+        <button onClick={onOpenProblems}
+          style={{
+            padding: '2px 10px', fontSize: 11, fontWeight: 600,
+            border: '1px solid var(--navi-border)', borderRadius: 4,
+            background: 'transparent', color: 'var(--navi-text)', cursor: 'pointer',
+          }}
+        >View issues{problemCount > 0 ? ` (${problemCount})` : ''}</button>
+      )}
       <button onClick={() => publishService?.publish()}
         disabled={!isReady || publishState === 'compiling' || publishState === 'uploading'}
         style={{

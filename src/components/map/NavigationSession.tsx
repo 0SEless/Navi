@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useMemo, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { NavigationProvider } from './NavigationContext'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { useNavigationHeading } from '@/hooks/useNavigationHeading'
 import { computeRouteProgress } from '@/lib/nav-route-helpers'
 import { getNavigationRouteKey, resolveNavigationStatus } from '@/lib/navigation-experience'
 import { haversine } from '@/engine/geo-utils'
+import { isPoiArrival, type PoiArrivalContext } from '@navi/runtime/routing'
+import type { POI } from '@navi/core'
 import type { NavRoute } from '@/types/route-types'
 import type { LatLng } from '@/types/nav-types'
 import { isNavigationDevSimulationEnabled } from '@/lib/navigation-dev-simulation'
@@ -22,6 +24,36 @@ export interface NavigationSessionLocationOverride {
   timestamp?: number | null
 }
 
+export type NavigationSessionLocationContext = PoiArrivalContext
+
+interface NavigationArrivalLatch {
+  subscribe: (listener: () => void) => () => void
+  getSnapshot: () => string | null
+  reset: () => void
+  mark: (routeKey: string) => void
+}
+
+function createNavigationArrivalLatch(): NavigationArrivalLatch {
+  let snapshot: string | null = null
+  const listeners = new Set<() => void>()
+
+  const emit = (next: string | null) => {
+    if (snapshot === next) return
+    snapshot = next
+    listeners.forEach((listener) => listener())
+  }
+
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    getSnapshot: () => snapshot,
+    reset: () => emit(null),
+    mark: (routeKey) => emit(routeKey),
+  }
+}
+
 interface NavigationSessionProps {
   /** Enriched route from findRoute. When null, session is inactive. */
   route: NavRoute | null
@@ -33,6 +65,10 @@ interface NavigationSessionProps {
   setActiveFloor: (floor: number) => void
   /** Called when user arrives at destination. */
   onArrival?: () => void
+  /** Transient runtime POI projection used only for geometry-aware arrival. */
+  poiDestination?: POI | null
+  /** Optional authoritative indoor/outdoor localization context for arrival. */
+  locationContext?: NavigationSessionLocationContext
   /** Explicit development-only input seam; ignored in production builds. */
   locationOverride?: NavigationSessionLocationOverride
   /** Children to wrap with NavigationProvider. */
@@ -57,6 +93,8 @@ export function NavigationSession({
   activeFloor,
   setActiveFloor,
   onArrival,
+  poiDestination = null,
+  locationContext,
   locationOverride,
   children,
 }: NavigationSessionProps) {
@@ -68,7 +106,7 @@ export function NavigationSession({
     speed,
     timestamp,
     error: geoError,
-  } = useGeolocation({ watch: active })
+  } = useGeolocation({ watch: true })
 
   const position: LatLng | null = useMemo(
     () => devLocationOverride?.position
@@ -119,16 +157,42 @@ export function NavigationSession({
   }, [route, currentNodeId])
 
   const routeKey = getNavigationRouteKey(route)
+  const [arrivalLatch] = useState(createNavigationArrivalLatch)
+  const latchedRouteKey = useSyncExternalStore(
+    arrivalLatch.subscribe,
+    arrivalLatch.getSnapshot,
+    arrivalLatch.getSnapshot,
+  )
+
+  const activePoiDestination = useMemo(() => {
+    if (route?.destination?.entityType !== 'poi') return null
+    if (!poiDestination || poiDestination.id !== route.destination.entityId) return null
+    return poiDestination
+  }, [poiDestination, route])
 
   const arrivalNotifiedRef = useRef(false)
   // A new route is a new navigation session. Clear its route-scoped
   // notification guard before any new route can report arrival.
   const previousRouteKeyRef = useRef<string | null>(null)
   useEffect(() => {
+    if (!active || routeKey === null) {
+      previousRouteKeyRef.current = null
+      arrivalNotifiedRef.current = false
+      arrivalLatch.reset()
+      return
+    }
     if (routeKey === previousRouteKeyRef.current) return
     previousRouteKeyRef.current = routeKey
     arrivalNotifiedRef.current = false
-  }, [routeKey])
+    arrivalLatch.reset()
+  }, [active, arrivalLatch, routeKey])
+
+  const poiArrivalContext = useMemo<PoiArrivalContext>(() => (
+    locationContext ?? {
+      buildingId: currentNodeBuildingId,
+      floor: activeFloor,
+    }
+  ), [activeFloor, currentNodeBuildingId, locationContext])
 
   // ---- Auto floor switch ----
   useEffect(() => {
@@ -138,8 +202,14 @@ export function NavigationSession({
   }, [active, currentNodeFloor, setActiveFloor])
 
   // ---- Arrival detection ----
-  const arrived = useMemo(() => {
+  const arrivalCondition = useMemo(() => {
     if (!active || !route || !position) return false
+
+    if (route.destination?.entityType === 'poi') {
+      return activePoiDestination
+        ? isPoiArrival(position, activePoiDestination, poiArrivalContext)
+        : false
+    }
 
     const destNode = route.steps[route.steps.length - 1]
     if (!destNode) return false
@@ -149,7 +219,16 @@ export function NavigationSession({
     const atDestination = currentNodeId === route.arrival.nodeId
     const withinThreshold = distMeters < ARRIVAL_THRESHOLD_M
     return atDestination || withinThreshold
-  }, [active, currentNodeId, position, route])
+  }, [active, activePoiDestination, currentNodeId, poiArrivalContext, position, route])
+
+  useEffect(() => {
+    if (!active || routeKey === null || !arrivalCondition) return
+    arrivalLatch.mark(routeKey)
+  }, [active, arrivalCondition, arrivalLatch, routeKey])
+
+  const arrived = active
+    && routeKey !== null
+    && (arrivalCondition || latchedRouteKey === routeKey)
 
   useEffect(() => {
     if (!arrived || arrivalNotifiedRef.current) return

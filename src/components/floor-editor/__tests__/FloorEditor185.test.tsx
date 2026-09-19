@@ -47,24 +47,29 @@ const mockBuilding: Building = {
 
 let graphComponents: Component[] = []
 
-vi.mock('@/hooks/floor-graph-selectors', () => ({
-  useFloorComponents: () => [] as any[],
-  useFloorComponent: () => null,
-  useFloorComponentsAll: () => [],
-  useFloorRenderVersion: () => 0,
-  useFloorCampusId: () => 'asu-ibajay',
-  useFloorSyncStatus: () => 'synced',
-  useFloorSyncError: () => null,
-  useLegacyBuilding: (id: string) => ({
-    id, name: 'Test Building', campusId: 'asu-ibajay', floors: [0, 1],
-    footprint: [{ lat: 11.8195, lng: 122.0922 }], color: '#1C6BEB',
-    floorData: [{ id: 'flr-0', level: 0 }],
-  }),
-  useGraphBuilding: () => null,
-  useFloorPlanUrls: () => undefined,
-  countFloorComponents: () => 0,
-  findGraphBuilding: () => null,
-}))
+vi.mock('@/hooks/floor-graph-selectors', async () => {
+  const actual = await vi.importActual<typeof import('@/hooks/floor-graph-selectors')>('@/hooks/floor-graph-selectors')
+  return {
+    ...actual,
+    useFloorComponents: () => [] as any[],
+    useFloorComponent: () => null,
+    useFloorComponentsAll: () => [],
+    useFloorRenderVersion: () => 0,
+    useFloorCampusId: () => 'asu-ibajay',
+    useFloorSyncStatus: () => 'synced',
+    useFloorSyncError: () => null,
+    useFloorWorkflowSaveState: () => 'idle',
+    useLegacyBuilding: (id: string) => ({
+      id, name: 'Test Building', campusId: 'asu-ibajay', floors: [0, 1],
+      footprint: [{ lat: 11.8195, lng: 122.0922 }], color: '#1C6BEB',
+      floorData: [{ id: 'flr-0', level: 0 }],
+    }),
+    useGraphBuilding: () => null,
+    useFloorPlanUrls: () => undefined,
+    countFloorComponents: () => 0,
+    findGraphBuilding: () => null,
+  }
+})
 
 vi.mock('@navi/editor', async () => {
   const actual = await vi.importActual<typeof import('@navi/editor')>('@navi/editor')

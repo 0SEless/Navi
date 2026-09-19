@@ -74,7 +74,7 @@ describe('graph store persistence', () => {
     expect(localStorage.getItem('navi-graph-test-map')).not.toBeNull()
   })
 
-  it('restores synced status only for a matching saved local snapshot', async () => {
+  it('requires server confirmation before restoring a saved state for a matching local snapshot', async () => {
     const mapId = 'cached-map'
     const graph = new Graph()
     graph.addBuilding({
@@ -82,7 +82,7 @@ describe('graph store persistence', () => {
       name: 'Main Hall',
       campusId: mapId,
       footprint: [],
-    } as any)
+    } as never)
     useGraphStore.setState({ graph, currentMapId: mapId })
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'POST') {
@@ -92,19 +92,38 @@ describe('graph store persistence', () => {
     }))
 
     await useGraphStore.getState().save()
-
     expect(localStorage.getItem(`navi-sync-status-${mapId}`)).not.toBeNull()
+
+    // The server now serves the exact cached snapshot, so the freshness check
+    // can confirm it. Until that resolves, a matching marker only means
+    // "checking" — never "synced".
+    const cached = localStorage.getItem(`navi-graph-${mapId}`)
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'POST') {
+        return jsonResponse({ success: true, updatedAt: '2026-09-13T00:00:00.000Z' })
+      }
+      return jsonResponse(JSON.parse(cached ?? '{}'))
+    }))
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
     useGraphStore.getState().loadMapData(mapId)
-    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().syncStatus).toBe('checking')
 
-    // Content must match for the marker to restore `synced`; trailing
-    // whitespace is irrelevant, so tamper with the graph content itself.
-    const savedSnapshot = JSON.parse(localStorage.getItem(`navi-graph-${mapId}`) ?? '{}')
+    await vi.waitFor(() => {
+      expect(useGraphStore.getState().syncStatus).toBe('synced')
+    })
+
+    // Content must match for the marker to be trusted; tampering with the
+    // cached content makes it divergent and it must not claim a saved state.
+    const savedSnapshot = JSON.parse(cached ?? '{}')
     savedSnapshot.buildings[0].name = 'Tampered Hall'
     localStorage.setItem(`navi-graph-${mapId}`, JSON.stringify(savedSnapshot))
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
     useGraphStore.getState().loadMapData(mapId)
     expect(useGraphStore.getState().syncStatus).toBe('idle')
+
+    await vi.waitFor(() => {
+      expect(useGraphStore.getState().syncStatus).toBe('conflict')
+    })
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Tampered Hall')
   })
 })

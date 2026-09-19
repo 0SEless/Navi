@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, X, AlertCircle } from 'lucide-react'
+import { Check, X, AlertCircle, Info } from 'lucide-react'
 
 export interface ImportToastData {
   message: string
-  type: 'success' | 'error'
+  type: 'success' | 'error' | 'info'
 }
 
 let _globalSetToast: ((data: ImportToastData | null) => void) | null = null
@@ -35,6 +35,10 @@ export function ImportToast() {
   if (!toast) return null
 
   const isSuccess = toast.type === 'success'
+  const isInfo = toast.type === 'info'
+  const borderColor = isSuccess ? '#10B981' : isInfo ? '#0EA5E9' : '#EF4444'
+  const background = isSuccess ? '#F0FDF4' : isInfo ? '#F0F9FF' : '#FEF2F2'
+  const color = isSuccess ? '#065F46' : isInfo ? '#0C4A6E' : '#991B1B'
 
   return (
     <div style={{
@@ -42,9 +46,9 @@ export function ImportToast() {
       padding: '8px 14px',
       borderRadius: 8,
       border: '1px solid',
-      borderColor: isSuccess ? '#10B981' : '#EF4444',
-      background: isSuccess ? '#F0FDF4' : '#FEF2F2',
-      color: isSuccess ? '#065F46' : '#991B1B',
+      borderColor,
+      background,
+      color,
       fontSize: 12,
       fontWeight: 500,
       display: 'flex',
@@ -54,7 +58,7 @@ export function ImportToast() {
       pointerEvents: 'auto',
       animation: 'fadeIn 0.2s ease-out',
     }}>
-      {isSuccess ? <Check size={14} /> : <AlertCircle size={14} />}
+      {isSuccess ? <Check size={14} /> : isInfo ? <Info size={14} /> : <AlertCircle size={14} />}
       <span>{toast.message}</span>
       <button
         onClick={() => setToast(null)}

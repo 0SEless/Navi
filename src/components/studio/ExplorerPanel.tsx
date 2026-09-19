@@ -12,6 +12,7 @@ import {
 import type { EntityId, EntitySelector } from '@navi/editor'
 import { Explorer } from './Explorer'
 import { useGraphStore } from '@/store/graph-store'
+import { useStudioStore } from '@/store/studio-store'
 
 /**
  * Thin container.
@@ -29,8 +30,21 @@ export function ExplorerPanel() {
   const selection = useSelection()
   const version = useDocumentVersion()
   const editEngine = useEditingEngine()
+  const editorMode = useStudioStore((s) => s.editorMode)
 
-  const nodes = useMemo(() => ExplorerAdapter(document), [document, version])
+  const allNodes = useMemo(() => ExplorerAdapter(document), [document, version])
+
+  // Filter nodes based on editor mode
+  const nodes = useMemo(() => {
+    if (editorMode === '360-tour') {
+      // In 360 Tour mode, show only panoramas and top-level structure
+      return allNodes.filter(node => 
+        node.type === 'panorama' || 
+        node.type === 'campus'
+      )
+    }
+    return allNodes
+  }, [allNodes, editorMode])
 
   const selectedId: EntityId | null = selection.lastSelected?.id ?? null
 

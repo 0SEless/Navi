@@ -34,16 +34,16 @@ function addBoundarySourceAndLayers(map: maplibregl.Map) {
   map.addSource(BOUNDARY_SOURCE, { type: 'geojson', data: EMPTY_FC })
   map.addLayer({
     id: BOUNDARY_FILL, type: 'fill', source: BOUNDARY_SOURCE,
-    paint: { 'fill-color': '#F97316', 'fill-opacity': 0.1 },
+    paint: { 'fill-color': '#94A3B8', 'fill-opacity': 0.12 },
   })
   map.addLayer({
     id: BOUNDARY_LINE, type: 'line', source: BOUNDARY_SOURCE,
-    paint: { 'line-color': '#F97316', 'line-width': 3, 'line-dasharray': [4, 4] },
+    paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 4] },
   })
   map.addLayer({
     id: BOUNDARY_VERTICES, type: 'circle', source: BOUNDARY_SOURCE,
     paint: {
-      'circle-radius': 6, 'circle-color': '#F97316',
+      'circle-radius': 5, 'circle-color': '#94A3B8',
       'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF',
     },
   })
@@ -111,12 +111,12 @@ export function useCampusBoundary(
     addBoundarySourceAndLayers(map)
   }, [map])
 
-  // Sync visual when drawPoints changes externally (undo/cancel)
+  // Sync visual when drawPoints changes externally (undo/cancel/confirm).
   useEffect(() => {
-    if (!map || tool !== toolId || !drawingRef.current) return
-    pointsRef.current = [...drawingRef.current.drawPoints]
+    if (!map || tool !== toolId) return
+    pointsRef.current = [...(drawing?.drawPoints ?? [])]
     renderBoundaryDrawing(map, pointsRef.current)
-  }, [map, tool, toolId])
+  }, [map, tool, toolId, drawing?.drawPoints])
 
   useEffect(() => {
     const d = drawingRef.current
@@ -134,9 +134,11 @@ export function useCampusBoundary(
 
     function completePolygon() {
       if (pointsRef.current.length < 3) return
+      if (drawingRef.current?.pendingConfirm) return
+      const points = [...pointsRef.current]
       const result: BoundaryPolygon = {
         id: genId('campus-boundary'),
-        points: [...pointsRef.current],
+        points,
       }
 
       if (opts?.autoConfirm && opts?.onAutoConfirm) {
@@ -147,13 +149,17 @@ export function useCampusBoundary(
         return
       }
 
+      // Leave the completed boundary in the shared drawing session. The
+      // confirmation overlay owns the mutation and persistence; this hook
+      // only owns pointer input and its preview.
+      pointsRef.current = points
+      drawingRef.current?.setDrawPoints(points)
+      renderBoundaryDrawing(m, points)
       onCompleteRef.current?.(result)
-      pointsRef.current = []
-      clearBoundaryDrawing(m)
-      d?.clearDrawPoints()
     }
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (drawingRef.current?.pendingConfirm) return
       const pos = { lat: e.lngLat.lat, lng: e.lngLat.lng }
 
       if (pointsRef.current.length >= 3) {
@@ -178,9 +184,11 @@ export function useCampusBoundary(
     map.on('dblclick', handleDblClick)
 
     return () => {
-      map.off('click', handleClick)
-      map.off('dblclick', handleDblClick)
-      map.doubleClickZoom?.enable()
+      try {
+        map.off('click', handleClick)
+        map.off('dblclick', handleDblClick)
+        map.doubleClickZoom?.enable()
+      } catch {}
       pointsRef.current = []
       clearBoundaryDrawing(map)
       d?.clearDrawPoints()

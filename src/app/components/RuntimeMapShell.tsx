@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { RuntimeEngine } from '@navi/runtime'
+import { RuntimeEngine } from '@navi/runtime/engine'
 import type { LoadedPackage, Route, CurrentPosition } from '@navi/runtime'
 import { BlueDot } from './RuntimeMap/BlueDot'
 import { RouteOverlay } from './RuntimeMap/RouteOverlay'
@@ -38,11 +38,11 @@ export function RuntimeMapShell({ baseUrl }: Props) {
         ])
         const pkg: LoadedPackage = {
           manifest: {
-            schemaVersion: '1.0', campusId: '', campusName: '',
+            schemaVersion: '1.0.0', formatVersion: '0', campusId: '', campusName: '',
             publishedAt: '', compilerVersion: '', revision: '',
             artifacts: {}, metadata: { nodeCount: 0, edgeCount: 0, buildingCount: 0, floorCount: 0, boundingBox: { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }, routeable: false },
           },
-          graph, searchIndex, buildingIndex, poiIndex, reports: [],
+          graph, searchIndex, buildingIndex, poiIndex, reports: [], warnings: [],
         }
         setEngine(new RuntimeEngine(pkg))
       } catch (e: unknown) {
@@ -74,7 +74,7 @@ export function RuntimeMapShell({ baseUrl }: Props) {
       heading: 0,
       accuracy: 10,
     })
-    return () => { m.remove() }
+    return () => { try { m.remove() } catch {} }
   }, [engine])
 
   const findRoute = useCallback((from: string, to: string) => {
@@ -109,8 +109,8 @@ export function RuntimeMapShell({ baseUrl }: Props) {
               findRoute(position.nodeId, dest?.nodeId ?? '')
             }}
             style={{
-              padding: '8px 12px', borderRadius: 6, border: '1px solid #d1d5db',
-              fontSize: 14, background: 'white', cursor: 'pointer',
+              padding: '8px 12px', borderRadius: 6, border: '1px solid var(--navi-border)',
+              fontSize: 14, background: 'var(--navi-card)', color: 'var(--navi-text)', cursor: 'pointer',
             }}
           >
             Route from here

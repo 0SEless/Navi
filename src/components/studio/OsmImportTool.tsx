@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
-import { genId, useEditor } from '@navi/editor'
 import { useCurrentTool } from './useCurrentTool'
 import type { LatLng } from '@/types/nav-types'
 import type { DrawingSessionValue } from './useDrawingSession'
@@ -14,12 +13,6 @@ const OSM_LINE = 'osm-import-line'
 const OSM_VERTICES = 'osm-import-vertices'
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
-
-export interface OsmImportResult {
-  count: number
-  success: boolean
-  error?: string
-}
 
 function addSourceAndLayers(map: maplibregl.Map) {
   if (map.getSource(OSM_SOURCE)) return
@@ -83,19 +76,12 @@ function clearDrawing(map: maplibregl.Map) {
 
 export function useOsmImportTool(
   map: maplibregl.Map | null,
-  onComplete?: (result: OsmImportResult) => void,
   drawing?: DrawingSessionValue,
 ) {
   const tool = useCurrentTool()
   const pointsRef = useRef<LatLng[]>([])
-  const onCompleteRef = useRef(onComplete)
   const drawingRef = useRef(drawing)
-  const { services } = useEditor()
-  const dispatcherRef = useRef(services?.get('dispatcher'))
-  dispatcherRef.current = services?.get('dispatcher')
   drawingRef.current = drawing
-
-  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
   // Init sources
   useEffect(() => {
@@ -105,15 +91,18 @@ export function useOsmImportTool(
 
   // Sync from external drawPoints changes
   useEffect(() => {
-    if (!map || tool !== 'import-osm' || !drawingRef.current) return
-    pointsRef.current = [...drawingRef.current.drawPoints]
+    if (!map || tool !== 'import-osm') return
+    pointsRef.current = [...(drawing?.drawPoints ?? [])]
+    if (drawing?.pendingConfirm?.type === 'import-osm') {
+      clearDrawing(map)
+      return
+    }
     renderDrawing(map, pointsRef.current)
-  }, [map, tool])
+  }, [map, tool, drawing?.drawPoints, drawing?.pendingConfirm])
 
   // Main drawing interaction
   useEffect(() => {
     if (!map) return
-    const m = map
     if (tool !== 'import-osm') {
       pointsRef.current = []
       clearDrawing(map)
@@ -123,65 +112,13 @@ export function useOsmImportTool(
 
     map.doubleClickZoom?.disable()
 
-    async function completePolygon() {
+    function requestPolygonConfirmation() {
       if (pointsRef.current.length < 3) return
       const points = [...pointsRef.current]
-
-      // Clear drawing immediately
-      pointsRef.current = []
-      clearDrawing(m)
-      drawingRef.current?.clearDrawPoints()
-
-      // Call OSM API
-      try {
-        const res = await fetch('/api/osm-buildings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ boundary: points }),
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        const bldgs: Array<{
-          id: string; name: string; footprint: LatLng[]; height: number; color: string; center: LatLng
-        }> = data.buildings ?? []
-
-        // Dispatch building.create for each OSM building
-        let created = 0
-        const disp = dispatcherRef.current
-        if (disp) {
-          for (const b of bldgs) {
-            const id = genId('bldg')
-            const result = disp.execute({
-              id: 'building.create',
-              label: 'Import from OSM',
-              payload: {
-                id,
-                name: b.name || `Building ${b.id}`,
-                code: '',
-                footprint: { points: b.footprint },
-                floors: [{
-                  id: genId('flr'), level: 0, label: 'Ground Floor',
-                  elevation: 0, height: 3.5,
-                  rooms: [], hallways: [], staircases: [], elevators: [],
-                  entrances: [], connectorStops: [], metadata: {},
-                }],
-                height: b.height || 15,
-                color: b.color || '#1C6BEB',
-              },
-            })
-            if (!result || result.success !== false) created++
-          }
-        }
-
-        if (created > 0 || bldgs.length === 0) {
-          onCompleteRef.current?.({ count: created, success: true })
-        } else {
-          onCompleteRef.current?.({ count: 0, success: false, error: 'Failed to create buildings' })
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error'
-        onCompleteRef.current?.({ count: 0, success: false, error: msg })
-      }
+      if (drawingRef.current?.pendingConfirm) return
+      // Keep the boundary and its preview intact until the shared overlay
+      // confirms the network request and persistence result.
+      drawingRef.current?.requestConfirm('import-osm', points)
     }
 
     const handleClick = (e: maplibregl.MapMouseEvent) => {
@@ -193,7 +130,7 @@ export function useOsmImportTool(
         const dx = e.point.x - firstScreen.x
         const dy = e.point.y - firstScreen.y
         if (Math.sqrt(dx * dx + dy * dy) <= SNAP_THRESHOLD_PX) {
-          completePolygon()
+          requestPolygonConfirmation()
           return
         }
       }
@@ -203,15 +140,17 @@ export function useOsmImportTool(
       drawingRef.current?.setDrawPoints(pointsRef.current)
     }
 
-    const handleDblClick = () => completePolygon()
+    const handleDblClick = () => requestPolygonConfirmation()
 
     map.on('click', handleClick)
     map.on('dblclick', handleDblClick)
 
     return () => {
-      map.off('click', handleClick)
-      map.off('dblclick', handleDblClick)
-      map.doubleClickZoom?.enable()
+      try {
+        map.off('click', handleClick)
+        map.off('dblclick', handleDblClick)
+        map.doubleClickZoom?.enable()
+      } catch {}
       pointsRef.current = []
       clearDrawing(map)
       drawingRef.current?.clearDrawPoints()

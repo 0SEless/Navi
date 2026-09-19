@@ -3,24 +3,16 @@
 import { type ReactNode, useEffect, useRef } from 'react'
 import { AdaptiveNav } from './AdaptiveNav'
 import { SplashOnboarding } from './SplashOnboarding'
+import { PublicPreferencesSync } from './PublicPreferencesSync'
 import { usePublicStore, type TabId } from '@/store/public-store'
+import { isSecondaryPublicPath, PRIMARY_NAV_ITEMS, PRIMARY_NAV_PATHS } from '@/lib/public-app-contracts'
 import { usePathname, useRouter } from 'next/navigation'
 
-const pathToTab: Record<string, TabId> = {
-  '/map/home': 'home',
-  '/map/explore': 'explore',
-  '/map/navigate': 'navigate',
-  '/map/maps': 'maps',
-  '/map/profile': 'profile',
-}
+const pathToTab: Record<string, TabId> = Object.fromEntries(
+  PRIMARY_NAV_ITEMS.map((item) => [item.path, item.id]),
+) as Record<string, TabId>
 
-const tabToPath: Record<TabId, string> = {
-  home: '/map/home',
-  explore: '/map/explore',
-  navigate: '/map/navigate',
-  maps: '/map/maps',
-  profile: '/map/profile',
-}
+const tabToPath: Record<TabId, string> = PRIMARY_NAV_PATHS
 
 interface AdaptiveShellProps {
   children: ReactNode
@@ -42,6 +34,13 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
     }
   }, [pathname, setTab])
 
+  // Bootstrap campus data once so node-label resolution (recent destinations,
+  // profile) works on every tab, not just search/explore/navigate.
+  const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
+  useEffect(() => {
+    void fetchCampusData()
+  }, [fetchCampusData])
+
   // Redirect on nav clicks (tab changes), but never bounce nested pages
   // like /map/search which intentionally have no tab entry.
   useEffect(() => {
@@ -50,20 +49,21 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
     const tabChanged = lastTabRef.current !== null && lastTabRef.current !== activeTab
     lastTabRef.current = activeTab
     if (!tabChanged) return
+    if (isSecondaryPublicPath(pathname)) return
     if (pathname !== expectedPath && !pathname.startsWith(expectedPath)) {
       router.push(expectedPath)
     }
   }, [activeTab, pathname, router])
 
   return (
-    <>
+    <PublicPreferencesSync>
       <SplashOnboarding />
-      <div className="flex h-dvh flex-col bg-[var(--navi-content)] lg:pl-56 pb-16 lg:pb-0">
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex h-dvh w-full min-w-0 flex-col bg-[var(--navi-content)] lg:pl-56 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto">
           {children}
         </main>
       </div>
       <AdaptiveNav />
-    </>
+    </PublicPreferencesSync>
   )
 }

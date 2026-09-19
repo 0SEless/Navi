@@ -34,6 +34,7 @@ const typeLabels: Record<string, string> = {
   road: '↔',
   panorama: '◉',
   qr: '◆',
+  area: '▨',
 }
 
 function ExplorerItemImpl({
@@ -167,10 +168,13 @@ function ExplorerItemImpl({
         />
       ) : (
         <span
-          style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}
           onDoubleClick={handleDoubleClick}
         >
           {renderLabel()}
+          {node.type === 'floor' && (node.meta as any)?.hasPlan && (
+            <span title="Floor plan uploaded" style={{ fontSize: 10, opacity: 0.8 }}>🖼</span>
+          )}
         </span>
       )}
     </div>

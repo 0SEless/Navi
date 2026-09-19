@@ -1,59 +1,44 @@
 import maplibregl from 'maplibre-gl'
-import { roadTracePaint, roadTraceInnerPaint, roadOutlinePaint, roadFillPaint } from '@navi/core'
 import { SRC, LYR } from './constants'
 
 /**
  * Register all GeoJSON sources and render layers on the map.
  * Idempotent — returns early if sources already exist.
  */
-export function addSourcesAndLayers(map: maplibregl.Map): void {
-  if (map.getSource(SRC.BUILDINGS)) return
-
-  // --- Buildings ---
-  map.addSource(SRC.BUILDINGS, {
+/**
+ * Idempotently add the area source and layers.
+ * Called independently so areas can be added after the main batch.
+ */
+export function addAreaSourceAndLayer(map: maplibregl.Map): void {
+  if (map.getSource(SRC.AREAS)) return
+  map.addSource(SRC.AREAS, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
     promoteId: 'id',
   })
   map.addLayer({
-    id: LYR.BUILDINGS_FILL,
+    id: LYR.AREAS_FILL,
     type: 'fill',
-    source: SRC.BUILDINGS,
+    source: SRC.AREAS,
     paint: {
       'fill-color': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
         '#FFFFFF',
-        '#1C6BEB',
+        ['get', 'color'],
       ],
       'fill-opacity': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
         0.25,
-        0.08,
+        0.15,
       ],
     },
   })
   map.addLayer({
-    id: LYR.BUILDINGS_EXTRUSION,
-    type: 'fill-extrusion',
-    source: SRC.BUILDINGS,
-    paint: {
-      'fill-extrusion-color': [
-        'case',
-        ['boolean', ['feature-state', 'hover'], false],
-        '#FFFFFF',
-        ['get', 'color'],
-      ],
-      'fill-extrusion-height': ['get', 'height'],
-      'fill-extrusion-opacity': 0.65,
-      'fill-extrusion-base': 0,
-    },
-  })
-  map.addLayer({
-    id: LYR.BUILDINGS_OUTLINE,
+    id: LYR.AREAS_OUTLINE,
     type: 'line',
-    source: SRC.BUILDINGS,
+    source: SRC.AREAS,
     paint: {
       'line-color': [
         'case',
@@ -61,32 +46,20 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
         '#FFFFFF',
         ['get', 'color'],
       ],
-      'line-width': [
-        'case',
-        ['boolean', ['feature-state', 'hover'], false],
-        3,
-        2,
-      ],
+      'line-width': 1.5,
+      'line-dasharray': [4, 4],
+      'line-opacity': 0.6,
     },
   })
+}
 
-  // Building selection highlight
-  map.addSource('s-building-selection', {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
-  map.addLayer({
-    id: 'l-building-selection-fill',
-    type: 'fill',
-    source: 's-building-selection',
-    paint: { 'fill-color': '#22D3EE', 'fill-opacity': 0.15 },
-  })
-  map.addLayer({
-    id: 'l-building-selection-outline',
-    type: 'line',
-    source: 's-building-selection',
-    paint: { 'line-color': '#22D3EE', 'line-width': 3, 'line-opacity': 0.9 },
-  })
+/**
+ * Register all GeoJSON sources and render layers on the map.
+ * Idempotent — returns early if sources already exist.
+ * Note: Areas use a separate addAreaSourceAndLayer call.
+ */
+export function addSourcesAndLayers(map: maplibregl.Map): void {
+  if (map.getSource(SRC.NODES)) return
 
   // --- Edges ---
   map.addSource(SRC.EDGES, {
@@ -176,33 +149,6 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     },
   })
 
-  // --- Traces (roads) ---
-  map.addSource(SRC.TRACES, {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  })
-  map.addLayer({
-    id: LYR.TRACES_OUTLINE,
-    type: 'line',
-    source: SRC.TRACES,
-    paint: roadOutlinePaint() as any,
-    filter: ['==', ['get', 'type'], 'road'],
-  })
-  map.addLayer({
-    id: LYR.TRACES_LINE,
-    type: 'line',
-    source: SRC.TRACES,
-    paint: roadTracePaint() as any,
-    filter: ['==', ['get', 'type'], 'road'],
-  })
-  map.addLayer({
-    id: LYR.TRACES_INNER,
-    type: 'line',
-    source: SRC.TRACES,
-    paint: roadTraceInnerPaint() as any,
-    filter: ['!=', ['get', 'type'], 'road'],
-  })
-
   // --- Boundary ---
   map.addSource(SRC.BOUNDARY, {
     type: 'geojson',
@@ -213,8 +159,8 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     type: 'fill',
     source: SRC.BOUNDARY,
     paint: {
-      'fill-color': '#F59E0B',
-      'fill-opacity': 0.08,
+      'fill-color': '#94A3B8',
+      'fill-opacity': 0.12,
     },
   })
   map.addLayer({
@@ -222,10 +168,10 @@ export function addSourcesAndLayers(map: maplibregl.Map): void {
     type: 'line',
     source: SRC.BOUNDARY,
     paint: {
-      'line-color': '#F59E0B',
-      'line-width': 2,
+      'line-color': '#94A3B8',
+      'line-width': 1.5,
       'line-dasharray': [4, 4],
-      'line-opacity': 0.6,
+      'line-opacity': 0.5,
     },
   })
 

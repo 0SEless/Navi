@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import {
+  assertCampusMutationAllowed,
+  getCampusIdFromBody,
+  getOptionalJsonBody,
+  getQueryParam,
+  requireVerifiedMutationAuth,
+} from "@/lib/api-guard";
 
 async function getClient(auth: "publishable" | "secret") {
   const key = auth === "secret"
@@ -95,7 +102,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
     const body = await request.json();
     const { campus_id, name, description, address } = body;
 
@@ -103,6 +112,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "campus_id is required" }, { status: 400 });
     }
 
+    const blocked = assertCampusMutationAllowed(campus_id);
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
     const { error: snapError } = await supabase
       .from("graph_snapshots")
       .insert({
@@ -131,14 +144,21 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
-    const { searchParams } = new URL(request.url);
-    const campusId = searchParams.get("campus_id");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
+    const body = await getOptionalJsonBody(request);
+    const campusId =
+      getQueryParam(request, "campus_id", "campusId") ?? getCampusIdFromBody(body);
 
     if (!campusId) {
       return NextResponse.json({ error: "campus_id is required" }, { status: 400 });
     }
 
+    const blocked = assertCampusMutationAllowed(campusId);
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
     await supabase.from("route_edges").delete().eq("campus_id", campusId);
     await supabase.from("route_nodes").delete().eq("campus_id", campusId);
     await supabase.from("buildings").delete().eq("campus_id", campusId);

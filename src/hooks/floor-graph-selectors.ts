@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useEditor, useDocumentSelector, useDocumentVersion, useBuilding, findBuilding, resolveLevelGeometry } from '@navi/editor'
+import type { WorkflowSnapshot } from '@navi/editor'
 import { canonicalRoomId, localRectangleCornersOf } from '@navi/core'
 import type { CampusDocument, CoordinateTransformer, LocalCoord } from '@navi/core'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
@@ -505,6 +506,49 @@ export function useFloorSyncStatus(): string {
 
 export function useFloorSyncError(): string | null {
   return useGraphStore((s) => s.syncError ?? null)
+}
+
+export type FloorHeaderStatus = 'saved' | 'saving' | 'unsaved' | 'error' | 'conflict' | 'checking'
+
+/**
+ * The floor header may only claim "Saved" when the graph store reports a
+ * server-confirmed sync AND the workflow document has no pending edits. Graph
+ * `syncStatus` alone stays `synced` through the autosave debounce after a
+ * committed edit, which previously produced a false "Saved".
+ *
+ * Precedence: conflict > error > checking > dirty > saving/syncing >
+ * server-confirmed clean > unsaved.
+ */
+export function deriveFloorHeaderStatus(
+  syncStatus: string | null | undefined,
+  saveState: string | null | undefined,
+): FloorHeaderStatus {
+  if (syncStatus === 'conflict') return 'conflict'
+  if (syncStatus === 'error') return 'error'
+  if (syncStatus === 'checking') return 'checking'
+  if (saveState === 'dirty' || saveState === 'dirty-while-saving') return 'unsaved'
+  if (saveState === 'saving' || syncStatus === 'syncing') return 'saving'
+  if (syncStatus === 'synced' && (saveState === 'saved' || saveState === 'idle' || saveState == null)) return 'saved'
+  return 'unsaved'
+}
+
+/**
+ * Workflow save state for the floor surfaces. Subscribes to the editor's
+ * WorkflowStore when one is registered; falls back to `idle` so legacy
+ * contexts without a workflow bridge keep their previous behavior.
+ */
+export function useFloorWorkflowSaveState(): WorkflowSnapshot['saveState'] {
+  const { services } = useEditor()
+  const workflowStore = services.get('workflowStore') ?? null
+  const subscribe = useCallback(
+    (listener: () => void) => workflowStore?.subscribe(listener) ?? (() => {}),
+    [workflowStore],
+  )
+  const getSnapshot = useCallback(
+    () => workflowStore?.getSnapshot().saveState ?? 'idle',
+    [workflowStore],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 // ── Legacy Building bridge (nav-types Building) ──

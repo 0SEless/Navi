@@ -1,6 +1,7 @@
 import type { Graph } from './graph'
 import type { LatLng, NavNode } from '@/types/nav-types'
 import { haversine } from './a-star'
+import { SpatialQueryService } from '@navi/core'
 
 export interface ResolveOptions {
   floor?: number
@@ -25,16 +26,9 @@ export function resolvePosition(
     ? graph.nodes.filter((n) => n.floor === opts.floor)
     : graph.nodes
 
-  let nearest: NavNode | null = null
-  let minDist = maxDistance
-
-  for (const node of nodes) {
-    const d = haversine(coordinates, node.position)
-    if (d < minDist) {
-      minDist = d
-      nearest = node
-    }
-  }
-
-  return nearest
+  const svc = new SpatialQueryService()
+  svc.loadFromNodes(nodes as unknown as Array<{ id: string; position: LatLng; type?: string; floor?: number; buildingId?: string; [key: string]: unknown }>)
+  const result = svc.nearestEntity(coordinates, { maxDistance })
+  if (!result) return null
+  return nodes.find(n => n.id === result.entity.id) ?? null
 }

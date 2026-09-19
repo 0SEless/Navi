@@ -7,33 +7,10 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCampusMapStore } from '@/store/campus-map-store'
 import { useGraphStore } from '@/store/graph-store'
 import type { Building } from '@/types/nav-types'
-import { ArrowLeft, Edit, Satellite, Map } from 'lucide-react'
-
-const OSM_STYLE = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
-}
-
-const SATELLITE_STYLE = {
-  version: 8 as const,
-  sources: {
-    satellite: {
-      type: 'raster' as const,
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      attribution: '&copy; Esri',
-    },
-  },
-  layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
-}
+import type { BaseStyleKey } from '@/types/studio-types'
+import { ArrowLeft, Edit, Map } from 'lucide-react'
+import { BASE_STYLES, BASE_STYLE_NAMES, DEFAULT_BASE_STYLE } from './rendering/styles'
+import { MapboxBrandControl, reportMapError, syncMapboxBrandControl } from './rendering/satellite'
 
 const SRC = 'preview-buildings'
 const LYR = 'preview-buildings-extrusion'
@@ -98,7 +75,8 @@ export function MapPreview({ mapId }: MapPreviewProps) {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const [satellite, setSatellite] = useState(false)
+  const mapboxBrandControlRef = useRef<MapboxBrandControl | null>(null)
+  const [baseStyle, setBaseStyle] = useState<BaseStyleKey>(DEFAULT_BASE_STYLE)
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -111,12 +89,15 @@ export function MapPreview({ mapId }: MapPreviewProps) {
     const center = campusMap?.center ?? { lat: 11.8195, lng: 122.0922 }
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: OSM_STYLE,
+      style: BASE_STYLES[DEFAULT_BASE_STYLE].style,
       center: [center.lng, center.lat],
       zoom: 17,
+      maxZoom: 22,
       pitch: 60,
       maxPitch: 85,
+      attributionControl: { compact: false },
     })
+    map.on('error', reportMapError)
     mapRef.current = map
     map.on('load', () => {
       initSources(map)
@@ -126,6 +107,11 @@ export function MapPreview({ mapId }: MapPreviewProps) {
       const src = map.getSource(SRC) as maplibregl.GeoJSONSource
       if (src && graph.buildings.length > 0) src.setData(buildBuildingGeo(graph.buildings))
     })
+    return () => {
+      syncMapboxBrandControl(map, false, mapboxBrandControlRef)
+      try { map.remove() } catch {}
+      mapRef.current = null
+    }
   }, [campusMap, graph.buildings])
 
   // Sync buildings whenever they change
@@ -136,11 +122,12 @@ export function MapPreview({ mapId }: MapPreviewProps) {
     if (src) src.setData(buildBuildingGeo(graph.buildings))
   }, [graph.buildings])
 
-  // Satellite toggle
+  // Base style switching
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    map.setStyle(satellite ? SATELLITE_STYLE : OSM_STYLE)
+    syncMapboxBrandControl(map, baseStyle === 'satellite', mapboxBrandControlRef)
+    map.setStyle(BASE_STYLES[baseStyle].style)
     map.once('style.load', () => {
       initSources(map)
       addBoundarySource(map)
@@ -148,7 +135,7 @@ export function MapPreview({ mapId }: MapPreviewProps) {
       if (src && graph.buildings.length > 0) src.setData(buildBuildingGeo(graph.buildings))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satellite])
+  }, [baseStyle])
 
   // Boundary sync
   useEffect(() => {
@@ -189,26 +176,26 @@ export function MapPreview({ mapId }: MapPreviewProps) {
       </div>
 
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 8 }}>
-        <button
-          onClick={() => setSatellite(!satellite)}
+        <select
+          value={baseStyle}
+          onChange={(e) => setBaseStyle(e.target.value as BaseStyleKey)}
           style={{
-            padding: '7px 14px',
+            padding: '6px 10px',
             borderRadius: 8,
             border: '1px solid var(--navi-border)',
-            background: satellite ? 'var(--navi-primary)' : 'var(--navi-card)',
-            color: satellite ? '#fff' : 'var(--navi-text)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
+            background: 'var(--navi-card)',
+            color: 'var(--navi-text)',
             fontSize: 11,
             fontWeight: 600,
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            cursor: 'pointer',
+            outline: 'none',
           }}
         >
-          {satellite ? <Satellite size={14} /> : <Map size={14} />}
-          {satellite ? 'Satellite' : 'OSM'}
-        </button>
+          {(Object.keys(BASE_STYLE_NAMES) as BaseStyleKey[]).map((key) => (
+            <option key={key} value={key}>{BASE_STYLE_NAMES[key]}</option>
+          ))}
+        </select>
         <button
           onClick={() => router.push(`/studio/${mapId}/edit`)}
           style={{

@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Clock, DoorOpen, Navigation, RotateCcw, Search, X } from 'lucide-react'
+import { Building2, Clock, DoorOpen, MapPin, Navigation, RotateCcw, Search, X } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
 import { floorLabel, groupResults } from '@/lib/search-format'
 import { useHydrated } from '@/hooks/useHydrated'
+import type { SearchEntry } from '@/types/nav-types'
 
 const DEBOUNCE_MS = 200
 
@@ -26,7 +27,7 @@ export default function SearchPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!campus && !campusLoading && !campusError) void fetchCampusData('asu-ibajay')
+    if (!campus && !campusLoading && !campusError) void fetchCampusData()
   }, [campus, campusLoading, campusError, fetchCampusData])
 
   useEffect(() => {
@@ -49,11 +50,16 @@ export default function SearchPage() {
     setDebounced('')
   }
 
-  const select = (nodeId: string, label: string) => {
-    if (!nodeId) return
-    setTo(nodeId)
-    addRecentSearch(label)
-    router.push(`/map/navigate?to=${encodeURIComponent(nodeId)}`)
+  const select = (entry: SearchEntry) => {
+    addRecentSearch(entry.label)
+    if (!entry.nodeId) {
+      if (entry.buildingId) {
+        router.push(`/map/explore?building_id=${encodeURIComponent(entry.buildingId)}`)
+      }
+      return
+    }
+    setTo(entry.nodeId)
+    router.push(`/map/navigate?to=${encodeURIComponent(entry.nodeId)}`)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -61,7 +67,7 @@ export default function SearchPage() {
       const q = query.trim()
       if (!q) return
       const matches = search(q)
-      if (matches.length > 0) select(matches[0].nodeId, matches[0].label)
+      if (matches.length > 0) select(matches[0])
     } else if (e.key === 'Escape') {
       handleClear()
     }
@@ -71,14 +77,14 @@ export default function SearchPage() {
     <div className="flex h-full flex-col">
       {/* Sticky search bar */}
       <div className="sticky top-0 z-20 border-b border-[var(--navi-border)] bg-[var(--navi-card)] p-3">
-        <div className="flex items-center gap-2 rounded-xl border border-[var(--navi-border)] bg-white px-3 py-2.5 shadow-sm">
+        <div className="flex items-center gap-2 rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] px-3 py-2.5 shadow-sm">
           <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" />
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search rooms, buildings…"
+            placeholder="Search rooms, buildings, and POIs…"
             aria-label="Search campus"
             className="min-w-0 flex-1 bg-transparent text-sm text-[var(--navi-text)] outline-none placeholder:text-[var(--navi-text-secondary)]"
           />
@@ -101,7 +107,7 @@ export default function SearchPage() {
           </div>
           <div className="text-xs text-[var(--navi-error)]">{campusError}</div>
           <button
-            onClick={() => void fetchCampusData('asu-ibajay')}
+            onClick={() => void fetchCampusData()}
             className="flex items-center gap-2 rounded-lg bg-[var(--navi-primary)] px-4 py-2 text-sm font-semibold text-white"
           >
             <RotateCcw className="h-4 w-4" />
@@ -131,7 +137,7 @@ export default function SearchPage() {
                           setQuery(q)
                           setDebounced(q)
                         }}
-                        className="flex items-center gap-1.5 rounded-full border border-[var(--navi-border)] bg-white px-3 py-2.5 text-xs text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
+                        className="flex items-center gap-1.5 rounded-full border border-[var(--navi-border)] bg-[var(--navi-card)] px-3 py-2.5 text-xs text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
                       >
                         <Clock className="h-3 w-3 text-[var(--navi-text-secondary)]" />
                         {q}
@@ -149,7 +155,7 @@ export default function SearchPage() {
           ) : groups.length > 0 ? (
             <div className="pb-4">
               {groups.map((group) => (
-                <section key={group.buildingId} className="border-b border-[var(--navi-border)] bg-white">
+                <section key={group.buildingId} className="border-b border-[var(--navi-border)] bg-[var(--navi-card)]">
                   <div className="flex items-center gap-2 px-4 pb-1 pt-3">
                     <Building2 className="h-3.5 w-3.5 shrink-0 text-[var(--navi-text-secondary)]" />
                     <h2 className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">
@@ -168,11 +174,13 @@ export default function SearchPage() {
                     {group.entries.map((entry) => (
                       <li key={entry.id}>
                         <button
-                          onClick={() => select(entry.nodeId, entry.label)}
+                          onClick={() => select(entry)}
                           className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[var(--navi-content)]"
                         >
                           {entry.type === 'building' ? (
                             <Building2 className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" />
+                          ) : entry.type === 'poi' ? (
+                            <MapPin className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" />
                           ) : (
                             <DoorOpen className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" />
                           )}
@@ -180,9 +188,12 @@ export default function SearchPage() {
                             <span className="block truncate text-sm text-[var(--navi-text)]">
                               {entry.label}
                             </span>
-                            {entry.type === 'room' && (
+                            {(entry.type === 'room' || entry.type === 'poi') && (
                               <span className="block truncate text-xs text-[var(--navi-text-secondary)]">
                                 {[
+                                  entry.type === 'poi' && entry.category
+                                    ? entry.category.replace(/[_-]+/g, ' ')
+                                    : null,
                                   entry.floor !== undefined ? floorLabel(entry.floor) : null,
                                   entry.buildingId ? (group.buildingCode ?? group.buildingId) : null,
                                 ]
@@ -191,7 +202,11 @@ export default function SearchPage() {
                               </span>
                             )}
                           </span>
-                          <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--navi-primary)]" />
+                          {entry.nodeId ? (
+                            <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--navi-primary)]" />
+                          ) : (
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--navi-primary)]" />
+                          )}
                         </button>
                       </li>
                     ))}

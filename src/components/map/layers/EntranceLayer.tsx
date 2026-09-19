@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { EntranceRenderData } from '@/components/map/NavigationRenderModel'
+import { cssVar } from '@/components/map/mapTheme'
 
 const SRC = 'entrances'
 const LYR = 'entrances-layer'
@@ -30,15 +31,21 @@ export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
       }
 
       map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      // Entrance marker — house glyph, distinct green accent (spec §5.4).
       map.addLayer({
         id: LYR,
-        type: 'circle',
+        type: 'symbol',
         source: SRC,
+        minzoom: 15,
+        layout: {
+          'text-field': '⌂',
+          'text-size': 18,
+          'text-allow-overlap': true,
+        },
         paint: {
-          'circle-radius': 5,
-          'circle-color': '#8B5CF6',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#FFFFFF',
+          'text-color': cssVar('--navi-entrance-marker', '#10B981'),
+          'text-halo-color': cssVar('--navi-card', '#FFFFFF'),
+          'text-halo-width': 2,
         },
       })
 
@@ -52,9 +59,11 @@ export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
     }
 
     return () => {
-      map.off('load', init)
-      if (map.getLayer(LYR)) map.removeLayer(LYR)
-      if (map.getSource(SRC)) map.removeSource(SRC)
+      try {
+        map.off('load', init)
+        if (map.getLayer(LYR)) map.removeLayer(LYR)
+        if (map.getSource(SRC)) map.removeSource(SRC)
+      } catch {}
       initializedRef.current = false
     }
   }, [map])

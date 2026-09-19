@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import { InteractionController } from '../InteractionController'
 
+const mockHistoryUndo = vi.hoisted(() => vi.fn())
+
 let currentTool: string | null = 'select'
 
 vi.mock('../useCurrentTool', () => ({
@@ -13,6 +15,7 @@ vi.mock('@navi/editor', async (importOriginal) => {
   const mockToolRegistry = {
     activeToolId: 'select',
     subscribe: vi.fn(() => vi.fn()),
+    undo: mockHistoryUndo,
   }
   return {
     ...orig,
@@ -99,6 +102,7 @@ describe('InteractionController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockHistoryUndo.mockClear()
     currentTool = 'select'
     ;(useGraphStore as any).getState.mockReturnValue(mockGetGraphState())
     ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribeFn)
@@ -143,5 +147,23 @@ describe('InteractionController', () => {
   it('renders nothing visible', () => {
     const { container } = render(<InteractionController map={mockMap} drawing={mockDrawing} />)
     expect(container.firstChild).toBeNull()
+  })
+
+  it('delegates keyboard undo to editor history when no draft points remain', () => {
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }))
+
+    expect(mockHistoryUndo).toHaveBeenCalledTimes(1)
+  })
+
+  it('notifies the workspace when select clicks empty map space', () => {
+    const onEmptyMapClick = vi.fn()
+    render(<InteractionController map={mockMap} drawing={mockDrawing} onEmptyMapClick={onEmptyMapClick} />)
+
+    const clickHandler = mockOn.mock.calls.find(([event]) => event === 'click')?.[1]
+    clickHandler?.({ point: { x: 12, y: 18 }, lngLat: { lat: 10, lng: 20 } })
+
+    expect(onEmptyMapClick).toHaveBeenCalledTimes(1)
   })
 })

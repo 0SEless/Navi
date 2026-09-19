@@ -56,9 +56,11 @@ export function BoundaryLayer({ map, boundary }: BoundaryLayerProps) {
     }
 
     return () => {
-      map.off('load', init)
-      ;[LYR.OUTLINE, LYR.FILL].forEach(l => { if (map.getLayer(l)) map.removeLayer(l) })
-      if (map.getSource(SRC)) map.removeSource(SRC)
+      try {
+        map.off('load', init)
+        ;[LYR.OUTLINE, LYR.FILL].forEach(l => { if (map.getLayer(l)) map.removeLayer(l) })
+        if (map.getSource(SRC)) map.removeSource(SRC)
+      } catch {}
       initializedRef.current = false
     }
   }, [map])

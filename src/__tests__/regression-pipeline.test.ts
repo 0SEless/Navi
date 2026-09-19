@@ -13,6 +13,7 @@ function generateCampus(): CampusDocument {
     schemaVersion: 1,
     version: 0,
     metadata: {
+      campusId: 'regression-test-campus',
       name: 'regression-test-campus',
       description: 'Campus for regression testing',
       lastModified: new Date().toISOString(),
@@ -48,7 +49,7 @@ function generateCampus(): CampusDocument {
         hallways: [{ id: 'hlw-reg-g', name: 'Main Hallway', polyline: { points: [{ x: 9, y: 0 }, { x: 9, y: 10 }] }, width: 3 }],
         staircases: [],
         elevators: [],
-        entrances: [{ id: 'ent-reg', label: 'Main Entrance', position: { lat: 14.0, lng: 121.0 }, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
+        entrances: [{ id: 'ent-reg', label: 'Main Entrance', position: { lat: 14.0, lng: 121.0 } as any, level: 0, type: 'main', hasQR: true, hasPanorama: false }],
         connectorStops: [],
         metadata: {},
       }],

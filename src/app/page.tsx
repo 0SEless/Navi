@@ -95,7 +95,7 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm">
+      <header className="border-b border-slate-200 bg-[var(--navi-card)]/80 backdrop-blur-sm">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -138,7 +138,7 @@ export default function WelcomePage() {
             </Link>
             <Link
               href="/map"
-              className="bg-white text-slate-700 px-6 py-3 rounded-lg font-medium border border-slate-300 hover:border-slate-400 transition-colors"
+              className="bg-[var(--navi-card)] text-slate-700 px-6 py-3 rounded-lg font-medium border border-slate-300 hover:border-slate-400 transition-colors"
             >
               Explore Map
             </Link>
@@ -152,7 +152,7 @@ export default function WelcomePage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16">
-          <div className="rounded-xl bg-white border border-slate-200 p-6 shadow-sm">
+          <div className="rounded-xl bg-[var(--navi-card)] border border-slate-200 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Your Location</h2>
             {!mounted ? (
               <p className="mt-2 text-slate-500 text-sm">Checking location...</p>
@@ -186,7 +186,7 @@ export default function WelcomePage() {
               <Link
                 key={campus.id ?? `campus-${idx}`}
                 href={`/map?campus=${campus.slug}`}
-                className="group rounded-xl bg-white border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
+                className="group rounded-xl bg-[var(--navi-card)] border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all"
               >
                 <div className="h-2 w-2 rounded-full bg-blue-600 mb-3" />
                 <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
@@ -200,7 +200,7 @@ export default function WelcomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-200 bg-white">
+      <footer className="border-t border-slate-200 bg-[var(--navi-card)]">
         <div className="mx-auto max-w-6xl px-4 py-6 text-center text-sm text-slate-400">
           NAVI &mdash; Virtual Campus Navigation
         </div>

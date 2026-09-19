@@ -117,11 +117,11 @@ function paddedBoundingBox(points: LatLng[]): LatLng[] {
 }
 
 /**
- * Building outline for the map. Priority:
- *  1. `building.footprint` when it normalizes to >= 3 points (used as-is).
- *  2. Convex hull of all nodes with `buildingId === building.id` (>= 3 hull points).
- *  3. Padded bounding box (degenerate node sets: 1-2 nodes or collinear).
- * Returns null when the building has no nodes at all.
+ * Building outline for the map rendering. Priority:
+ *  1. `building.footprint` from compiled buildingIndex artifacts (used as-is).
+ *  2. Convex hull of all nodes with `buildingId === building.id` (defensive fallback for incomplete data).
+ *  3. Padded bounding box (fallback for 1-2 nodes or collinear points).
+ * Returns null when the building has no footprint and no nodes.
  */
 export function deriveBuildingFootprint(building: Building, nodes: NavNode[]): LatLng[] | null {
   const footprint = normalizeFootprint(building.footprint)

@@ -22,7 +22,7 @@ function snapshotFingerprint(snapshotJson: string): string {
   return (hash >>> 0).toString(16)
 }
 
-type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
+type SyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
 
 interface GraphState {
   graph: Graph
@@ -71,6 +71,17 @@ interface GraphState {
 
 function storageKey(mapId: string): string {
   return mapId ? `navi-graph-${mapId}` : STORAGE_KEY
+}
+
+/** One logical save attempt gets one stable mutation id (kept across transport retries). */
+function newMutationId(): string {
+  try {
+    const c = globalThis.crypto as Crypto | undefined
+    if (c?.randomUUID) return c.randomUUID()
+  } catch {
+    // fall through to non-crypto id
+  }
+  return `mut-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 /**
@@ -202,16 +213,39 @@ function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedA
  * - identical content -> mark synced;
  * - server differs, local clean -> adopt the server snapshot;
  * - server differs, local has unsynced changes -> visible conflict (no side is discarded).
- * Network failures and empty servers keep the local snapshot (offline fallback).
+ * Network failures keep the local snapshot but surface an explicit unverified
+ * state; empty server snapshots settle to idle. `synced` requires server data.
  */
 async function checkServerFreshness(mapId: string): Promise<void> {
   const data = await fetchServerSnapshot(mapId)
-  if (!data || isServerSnapshotEmpty(data)) return
 
   const state = useGraphStore.getState()
   if (state.currentMapId !== mapId) return
 
   const localRaw = localStorage.getItem(storageKey(mapId))
+
+  if (!data) {
+    // The server copy could not be read (offline or HTTP failure). The local
+    // snapshot is preserved, but synchronization is unverified: never claim
+    // `synced` from a marker alone.
+    if (localRaw) {
+      useGraphStore.setState({
+        syncStatus: 'error',
+        syncError: 'Offline — could not verify the server copy. Local changes are preserved.',
+      })
+    } else {
+      useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+    }
+    return
+  }
+
+  if (isServerSnapshotEmpty(data)) {
+    // Nothing on the server to reconcile against. Keep the local snapshot but
+    // settle on an explicit state — never leave load-time `checking` stuck.
+    useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+    return
+  }
+
   if (!localRaw) return
   let localSnapshot: unknown
   try {
@@ -471,7 +505,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     // CASE B — Local graph exists with buildings.
     // Fast paint from the local cache, then always check the server. A local
-    // snapshot must never be silently preferred over newer server data.
+    // snapshot must never be silently preferred over newer server data. A
+    // matching marker only means "was saved last session" — synchronization is
+    // unconfirmed until checkServerFreshness settles it.
     let locallySynced = false
     try {
       const marker = readSyncMarker(mapId)
@@ -479,7 +515,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     } catch {
       locallySynced = false
     }
-    set({ graph, currentMapId: mapId, syncStatus: locallySynced ? 'synced' : 'idle', syncError: null })
+    set({ graph, currentMapId: mapId, syncStatus: locallySynced ? 'checking' : 'idle', syncError: null })
     void checkServerFreshness(mapId)
   },
 
@@ -769,7 +805,9 @@ async function performSyncToSupabase(mapId: string, force: boolean): Promise<voi
   // and inject the correct campusId from currentMapId
   const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId)
   const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
-  const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force })
+  // One logical save attempt keeps one mutation id for every transport retry.
+  const mutationId = newMutationId()
+  const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -822,6 +860,11 @@ async function performSyncToSupabase(mapId: string, force: boolean): Promise<voi
         throw new Error(offlineMessage)
       } else if (/server changed|snapshot conflict/i.test(msg)) {
         useGraphStore.setState({ syncStatus: 'conflict', syncError: msg })
+        throw new Error(msg)
+      } else if (/mutation[_ ]?id[_ ]collision/i.test(msg)) {
+        // Same mutation id reused with different content: never silently treat as a retry.
+        console.error('[graph-store] syncToSupabase mutation id collision:', msg)
+        useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       } else {
         console.error('[graph-store] syncToSupabase failed:', msg)

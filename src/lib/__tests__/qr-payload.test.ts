@@ -3,8 +3,10 @@ import {
   encodeQrPayload,
   isForeignCampus,
   parseQrPayload,
+  resolveQrCheckpoint,
   resolveQrPayload,
 } from '../qr-payload'
+import type { QrIndex } from '@navi/core'
 import type { NavNode } from '@/types/nav-types'
 
 const node = (id: string): NavNode => ({
@@ -46,6 +48,17 @@ describe('parseQrPayload', () => {
     })
   })
 
+  it('rejects arbitrary external URLs instead of treating their query as a node payload', () => {
+    expect(parseQrPayload('https://evil.example/?node=node-42')).toBeNull()
+    expect(parseQrPayload('javascript:alert(1)?node=node-42')).toBeNull()
+    expect(parseQrPayload('data:text/plain,node-42')).toBeNull()
+  })
+
+  it('rejects duplicate or oversized node values', () => {
+    expect(parseQrPayload('https://navi.app/?node=one&node=two')).toBeNull()
+    expect(parseQrPayload(`https://navi.app/?node=${'x'.repeat(129)}`)).toBeNull()
+  })
+
   it('URL-decodes node ids with spaces and slashes (?node=room%20a%2Fb)', () => {
     expect(parseQrPayload('https://navi.app/?node=room%20a%2Fb')).toEqual({
       campusId: 'asu-ibajay',
@@ -73,9 +86,47 @@ describe('parseQrPayload', () => {
     expect(parseQrPayload('   ')).toBeNull()
   })
 
+  it('rejects malformed percent-encoding instead of throwing', () => {
+    expect(parseQrPayload('navi://asu-ibajay/navigate?node=%E0%A4%A')).toBeNull()
+  })
+
   it('round-trips through encodeQrPayload', () => {
     const enc = encodeQrPayload('asu-ibajay', 'node-3')
     expect(parseQrPayload(enc)).toEqual({ campusId: 'asu-ibajay', nodeId: 'node-3' })
+  })
+})
+
+describe('resolveQrCheckpoint', () => {
+  const index: QrIndex = {
+    schemaVersion: 1,
+    formatVersion: 1,
+    campusId: 'asu-ibajay',
+    checkpoints: [
+      {
+        id: 'checkpoint-1',
+        label: 'Main Gate',
+        buildingId: 'b1',
+        floor: 1,
+        position: { x: 1, y: 2 },
+        code: 'navi.app/q/checkpoint-1',
+      },
+    ],
+  }
+
+  it('resolves an opaque payload only through its exact published entry', () => {
+    expect(resolveQrCheckpoint(parseQrPayload('navi.app/q/checkpoint-1'), index, 'asu-ibajay')).toEqual({
+      status: 'resolved',
+      checkpoint: index.checkpoints[0],
+    })
+  })
+
+  it('reports foreign and unavailable indexes without inventing coordinates', () => {
+    expect(resolveQrCheckpoint(parseQrPayload('navi.app/q/checkpoint-1'), index, 'other-campus')).toEqual({
+      status: 'foreign',
+    })
+    expect(resolveQrCheckpoint(parseQrPayload('navi.app/q/checkpoint-1'), undefined, 'asu-ibajay')).toEqual({
+      status: 'unavailable',
+    })
   })
 })
 

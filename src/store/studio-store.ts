@@ -1,13 +1,18 @@
 import { create } from 'zustand'
-import type { StudioTool, EditorMode, LayerVisibility } from '../types/studio-types'
+import type { StudioTool, EditorMode, LayerVisibility, BaseStyleKey, PositionEditTarget, ValidationFocus } from '../types/studio-types'
+import { DEFAULT_LAYER_VISIBILITY } from '../types/studio-types'
 import type { LatLng } from '../types/nav-types'
+import type { RoadConnectionRequest } from '@navi/editor'
+import { DEFAULT_BASE_STYLE } from '../components/studio/rendering/styles'
 
 
-type PendingType = 'building' | 'boundary' | 'route' | null
+type PendingType = 'building' | 'boundary' | 'route' | 'area' | 'import-osm' | 'set-boundary' | null
 
 interface PendingConfirm {
   type: NonNullable<PendingType>
   points: { lat: number; lng: number }[]
+  /** Fix 1: explicit Connect / Keep Separate decisions applied atomically by road.create. */
+  connections?: RoadConnectionRequest[]
 }
 
 interface StudioState {
@@ -16,6 +21,7 @@ interface StudioState {
   activeBuildingId: string | null
   activeFloor: number
   layers: LayerVisibility
+  baseStyle: BaseStyleKey
 
   setTool: (tool: StudioTool) => void
   setEditorMode: (mode: EditorMode) => void
@@ -23,6 +29,7 @@ interface StudioState {
   setActiveFloor: (floor: number) => void
   toggleLayer: (layer: keyof LayerVisibility) => void
   setLayers: (layers: Partial<LayerVisibility>) => void
+  setBaseStyle: (style: BaseStyleKey) => void
 
   tracePoints: { lat: number; lng: number }[]
   addTracePoint: (point: { lat: number; lng: number }) => void
@@ -31,7 +38,7 @@ interface StudioState {
   undoLastTracePoint: () => void
 
   pendingConfirm: PendingConfirm | null
-  setPendingConfirm: (type: PendingType, points: { lat: number; lng: number }[]) => void
+  setPendingConfirm: (type: PendingType, points: { lat: number; lng: number }[], connections?: RoadConnectionRequest[]) => void
   clearPendingConfirm: () => void
 
   selectedTraceId: string | null
@@ -52,22 +59,15 @@ interface StudioState {
   editTargetId: string | null
   setVertexEditing: (targetType: StudioState['editTargetType'], targetId: string | null) => void
 
-  adjustBuildingId: string | null
-  setAdjustBuilding: (id: string | null) => void
+  positionEditTarget: PositionEditTarget | null
+  setPositionEditTarget: (target: PositionEditTarget | null) => void
+
+  /** Temporary validation highlight; never serialized with the campus document. */
+  validationFocus: ValidationFocus | null
+  setValidationFocus: (focus: ValidationFocus | null) => void
 }
 
-const defaultLayers: LayerVisibility = {
-  osm: true,
-  satellite: false,
-  floor_plan: false,
-  buildings: true,
-  rooms: true,
-  hallways: true,
-  assets: true,
-  nodes: true,
-  edges: false,
-  labels: true,
-}
+const defaultLayers: LayerVisibility = DEFAULT_LAYER_VISIBILITY
 
 export const useStudioStore = create<StudioState>((set) => ({
   tool: 'select',
@@ -75,6 +75,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   activeBuildingId: null,
   activeFloor: 0,
   layers: { ...defaultLayers },
+  baseStyle: DEFAULT_BASE_STYLE,
   tracePoints: [],
   drawPoints: [],
   routeWidth: 8,
@@ -89,6 +90,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   setLayers: (layers) => set((s) => ({
     layers: { ...s.layers, ...layers },
   })),
+  setBaseStyle: (style) => set({ baseStyle: style }),
 
   addTracePoint: (point) => set((s) => ({
     tracePoints: [...s.tracePoints, point],
@@ -100,7 +102,7 @@ export const useStudioStore = create<StudioState>((set) => ({
   })),
 
   pendingConfirm: null,
-  setPendingConfirm: (type, points) => set({ pendingConfirm: type ? { type, points } : null }),
+  setPendingConfirm: (type, points, connections) => set({ pendingConfirm: type ? { type, points, connections } : null }),
   clearPendingConfirm: () => set({ pendingConfirm: null }),
 
   selectedTraceId: null,
@@ -119,8 +121,11 @@ export const useStudioStore = create<StudioState>((set) => ({
     tool: targetType !== null ? 'vertex' : 'select',
   }),
 
-  adjustBuildingId: null,
-  setAdjustBuilding: (id) => set({ adjustBuildingId: id }),
+  positionEditTarget: null,
+  setPositionEditTarget: (target) => set({ positionEditTarget: target }),
+
+  validationFocus: null,
+  setValidationFocus: (focus) => set({ validationFocus: focus }),
 
   setRouteWidth: (width) => set({ routeWidth: Math.max(2, Math.min(24, width)) }),
 

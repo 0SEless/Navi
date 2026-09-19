@@ -105,7 +105,7 @@ export function useBuildingTracer(
     }
     map.on('style.load', onStyleLoad)
     addTracerSourceAndLayers(map)
-    return () => { map.off('style.load', onStyleLoad) }
+    return () => { try { map.off('style.load', onStyleLoad) } catch {} }
   }, [map])
 
   // Sync visual when drawPoints changes externally (undo/cancel)
@@ -113,7 +113,7 @@ export function useBuildingTracer(
     if (!map || tool !== 'building' || !drawingRef.current) return
     pointsRef.current = [...drawingRef.current.drawPoints]
     renderTracerDrawing(map, pointsRef.current)
-  }, [map, tool])
+  }, [map, tool, drawing?.drawPoints])
 
   useEffect(() => {
     const d = drawingRef.current
@@ -135,7 +135,7 @@ export function useBuildingTracer(
       }
       onCompleteRef.current?.(result)
       pointsRef.current = []
-      clearTracerDrawing(map)
+      if (map) clearTracerDrawing(map)
       d?.clearDrawPoints()
     }
 
@@ -164,9 +164,11 @@ export function useBuildingTracer(
     map.on('dblclick', handleDblClick)
 
     return () => {
-      map.off('click', handleClick)
-      map.off('dblclick', handleDblClick)
-      map.doubleClickZoom?.enable()
+      try {
+        map.off('click', handleClick)
+        map.off('dblclick', handleDblClick)
+        map.doubleClickZoom?.enable()
+      } catch {}
       pointsRef.current = []
       clearTracerDrawing(map)
       d?.clearDrawPoints()

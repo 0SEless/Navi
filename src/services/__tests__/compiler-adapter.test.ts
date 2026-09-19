@@ -8,6 +8,7 @@ function makeInvalidNoEntranceDoc(): CampusDocument {
     schemaVersion: 1,
     version: 1,
     metadata: {
+      campusId: 'No-Entrance Campus',
       name: 'No-Entrance Campus',
       description: 'Building with rooms but no entrances — fails MissingEntranceRule',
       lastModified: '2025-01-01T00:00:00.000Z',
@@ -98,8 +99,8 @@ describe('CampusCompilerAdapter', () => {
     const doc = makeInvalidNoEntranceDoc()
     const result = await adapter.compile(doc)
     expect(result.status).toBe('error')
-    expect(result.message).toContain('Graph validation failed')
-    expect(result.message).toContain('[GRAPH_NO_REACHABLE_TRANSITION]')
+    expect(result.message).toContain('Compilation failed')
+    expect(result.message).toContain('HALLWAY_DISCONNECTED')
   })
 
   it('fails gracefully with null doc', async () => {

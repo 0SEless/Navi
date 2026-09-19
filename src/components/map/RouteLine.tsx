@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import maplibregl, { type ExpressionSpecification } from 'maplibre-gl'
 import { splitRouteByFloor } from '@/lib/route-floors'
+import { cssVar } from '@/components/map/mapTheme'
+import type { NavigationSegment } from '@/components/map/NavigationContext'
 
 interface RouteLineProps {
   map: maplibregl.Map | null
@@ -12,12 +14,31 @@ interface RouteLineProps {
   getNodeFloor?: (nodeId: string) => number | undefined
   /** Floor to highlight in the route color (others render dimmed). */
   activeFloor?: number
+  /** Whether this route layer owns the camera fit. Canonical Navigate opts out. */
+  fitCamera?: boolean
+  /**
+   * Current navigation phase. Drives EMPHASIS only — when the user is actively
+   * navigating indoors/floor-transition the route is rendered loud; outdoor/
+   * entrance phases render it quiet. Does NOT redefine the visual language.
+   */
+  navigationSegment?: NavigationSegment | null
 }
 
 const LAYER_IDS = ['route-glow', 'route-core', 'route-flow'] as const
 const SOURCE_ID = 'route'
 
-const ACTIVE_COLOR: ExpressionSpecification = ['case', ['==', ['get', 'active'], 1], '#3b82f6', '#94a3b8']
+// Centralized route styling (spec §4.4) — resolves theme tokens at runtime.
+const ROUTE_COLOR = cssVar('--navi-route', '#3B82F6')
+const ROUTE_DIM = cssVar('--navi-route-dim', '#94A3B8')
+const ROUTE_FLOW = cssVar('--navi-route-flow', '#FFFFFF')
+
+// Active = loud (theme route color), inactive = quiet (dim). The SAME mechanism
+// is reused for both floor-based and navigation-segment-based emphasis.
+const ACTIVE_COLOR: ExpressionSpecification = [
+  'case',
+  ['==', ['get', 'active'], 1], ROUTE_COLOR,
+  ROUTE_DIM,
+]
 
 function removeRouteLayers(map: maplibregl.Map | null | undefined) {
   if (!map) return
@@ -27,7 +48,7 @@ function removeRouteLayers(map: maplibregl.Map | null | undefined) {
   if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
 }
 
-export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFloor }: RouteLineProps) {
+export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
   // Re-fit the camera only when the route itself changes, not on floor switches.
   const fittedPathRef = useRef('')
 
@@ -61,7 +82,12 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       }
       if (coords.length < 2) continue
       allCoords.push(...coords)
-      const active = multiFloor && seg.floor !== activeFloor ? 0 : 1
+      // Emphasis: floor-based when multi-floor; otherwise driven by the
+      // navigation phase (loud indoors, quiet outdoor/entrance). Same `active`
+      // channel as always — emphasis, never a restyle.
+      const active = multiFloor
+        ? (seg.floor === activeFloor ? 1 : 0)
+        : (navigationSegment === 'indoor' || navigationSegment === 'floor-transition' ? 1 : 0)
       features.push({
         type: 'Feature',
         properties: { active },
@@ -103,7 +129,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       type: 'line',
       source: SOURCE_ID,
       paint: {
-        'line-color': '#ffffff',
+        'line-color': ROUTE_FLOW,
         'line-width': 2,
         'line-dasharray': [0.5, 2],
         'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.2],
@@ -111,7 +137,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
     })
 
     const pathKey = route.path.join('\u0000')
-    if (pathKey !== fittedPathRef.current) {
+    if (fitCamera && pathKey !== fittedPathRef.current) {
       fittedPathRef.current = pathKey
       if (allCoords.length > 0) {
         const first = allCoords[0]
@@ -126,7 +152,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
     return () => {
       try { removeRouteLayers(map) } catch { /* map may be gone */ }
     }
-  }, [map, route, getNodePosition, getNodeFloor, activeFloor])
+  }, [activeFloor, fitCamera, getNodeFloor, getNodePosition, map, navigationSegment, route])
 
   return null
 }

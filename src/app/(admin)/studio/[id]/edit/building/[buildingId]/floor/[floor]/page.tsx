@@ -69,6 +69,31 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
   })
   contextRef.current = context
 
+  // Route transitions and tab exits can unmount the editor without giving the
+  // normal command autosave debounce a chance to run. Reuse the existing
+  // GraphAdapter/local graph-store path for a synchronous best-effort flush.
+  useEffect(() => {
+    const flushLocalPersistence = () => {
+      const ctx = contextRef.current
+      if (!ctx) return
+      const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+      ga.sync(ctx.document)
+      void useGraphStore.getState().save().catch((error: unknown) => {
+        console.warn('Floor editor exit persistence failed:', error)
+      })
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushLocalPersistence()
+    }
+    window.addEventListener('beforeunload', flushLocalPersistence)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('beforeunload', flushLocalPersistence)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      flushLocalPersistence()
+    }
+  }, [])
+
   return (
     <ErrorBoundary>
       <EditorProvider context={context}>

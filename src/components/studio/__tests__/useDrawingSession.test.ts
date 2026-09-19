@@ -139,4 +139,28 @@ describe('useDrawingSession', () => {
     act(() => result.current.requestConfirm('building'))
     expect(result.current.pendingConfirm).toBeNull()
   })
+
+  it('sets a pending confirmation for an OSM import boundary', () => {
+    const { result } = renderHook(() => useDrawingSession('import-osm'))
+    const points = [
+      { lat: 1, lng: 2 },
+      { lat: 1, lng: 3 },
+      { lat: 2, lng: 3 },
+    ]
+    act(() => result.current.setDrawPoints(points))
+    act(() => result.current.requestConfirm('import-osm'))
+    expect(result.current.pendingConfirm).toMatchObject({ type: 'import-osm', points })
+  })
+
+  it('sets a pending confirmation for a campus boundary', () => {
+    const { result } = renderHook(() => useDrawingSession('set-boundary'))
+    const points = [
+      { lat: 4, lng: 5 },
+      { lat: 4, lng: 6 },
+      { lat: 5, lng: 6 },
+    ]
+    act(() => result.current.setDrawPoints(points))
+    act(() => result.current.requestConfirm('set-boundary'))
+    expect(result.current.pendingConfirm).toMatchObject({ type: 'set-boundary', points })
+  })
 })

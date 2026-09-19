@@ -35,8 +35,15 @@ export function mapKeys<T>(obj: Record<string, unknown>, mapper: (k: string) => 
   return result as T
 }
 
+function validateCoord(lat: number, lng: number): void {
+  if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    throw new Error(`Invalid coordinates: lat=${lat}, lng=${lng}`)
+  }
+}
+
 // LatLng → PostGIS geography point (lon lat order for ST_MakePoint)
 export function toPoint(lat: number, lng: number): string {
+  validateCoord(lat, lng)
   return `ST_MakePoint(${lng}, ${lat})::geography`
 }
 
@@ -47,12 +54,14 @@ export function fromPoint(stX: number, stY: number): { lat: number; lng: number 
 
 // Line string for building outline
 export function toLineString(outline: { lat: number; lng: number }[]): string {
+  for (const p of outline) validateCoord(p.lat, p.lng)
   const coords = outline.map((p) => `${p.lng} ${p.lat}`).join(", ")
   return `ST_GeogFromText('SRID=4326;LINESTRING(${coords})')`
 }
 
 // Polygon for building outline (closed ring)
 export function toPolygon(outline: { lat: number; lng: number }[]): string {
+  for (const p of outline) validateCoord(p.lat, p.lng)
   const ring = [...outline, outline[0]]
   const coords = ring.map((p) => `${p.lng} ${p.lat}`).join(", ")
   return `ST_GeogFromText('SRID=4326;POLYGON((${coords}))')`

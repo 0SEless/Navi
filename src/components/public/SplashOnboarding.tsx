@@ -3,29 +3,29 @@
 import { useState, useCallback } from 'react'
 import { usePublicStore } from '@/store/public-store'
 import { useHydrated } from '@/hooks/useHydrated'
-import { ChevronRight, SkipForward } from 'lucide-react'
+import { ChevronRight, SkipForward, Map, MapPin, Landmark } from 'lucide-react'
 
 interface OnboardingSlide {
   title: string
   description: string
-  icon: string
+  icon: React.ReactNode
 }
 
 const slides: OnboardingSlide[] = [
   {
     title: 'Navigate Your Campus',
     description: 'Find your way across multiple campuses with indoor and outdoor turn-by-turn directions.',
-    icon: '🗺️',
+    icon: <Map className="h-16 w-16 text-[var(--navi-primary)]" />,
   },
   {
     title: 'Real-time Step Guidance',
     description: 'Get step-by-step directions with visual cues, floor changes, and distance tracking.',
-    icon: '📍',
+    icon: <MapPin className="h-16 w-16 text-[var(--navi-success)]" />,
   },
   {
     title: 'Discover Campus Life',
     description: 'Explore buildings, find faculty offices, labs, and discover what your campus has to offer.',
-    icon: '🏛️',
+    icon: <Landmark className="h-16 w-16 text-[var(--navi-accent)]" />,
   },
 ]
 
@@ -63,7 +63,7 @@ export function SplashOnboarding() {
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col bg-white transition-opacity duration-500
+      className={`fixed inset-0 z-[100] flex flex-col bg-[var(--navi-card)] transition-opacity duration-500
         ${animatingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
     >
       <div className="flex justify-end p-4">
@@ -78,7 +78,7 @@ export function SplashOnboarding() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-        <div className="text-6xl mb-8" aria-hidden="true">
+        <div className="mb-8" aria-hidden="true">
           {slide.icon}
         </div>
         <h1 className="text-2xl font-bold text-[var(--navi-text)] mb-3">

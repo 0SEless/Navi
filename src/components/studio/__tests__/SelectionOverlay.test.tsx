@@ -83,4 +83,17 @@ describe('SelectionOverlay', () => {
       { selected: false }
     )
   })
+
+  it('highlights a selected point POI in the canonical POI source', () => {
+    (useSelection as any).mockReturnValue({
+      lastSelected: { id: 'poi-1', type: 'poi' },
+    })
+
+    render(<SelectionOverlay map={mockMap} />)
+
+    expect(mockMap.setFeatureState).toHaveBeenCalledWith(
+      { source: 'navi-pois', id: 'poi-1' },
+      { selected: true },
+    )
+  })
 })

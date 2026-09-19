@@ -171,16 +171,18 @@ describe('graph store stale-local conflict handling', () => {
     expect(useGraphStore.getState().syncStatus).toBe('synced')
   })
 
-  it('keeps the local snapshot when the server check fails (offline fallback)', async () => {
+  it('keeps the local snapshot but reports an unverified server copy when the check fails (offline fallback)', async () => {
     await seedCleanLocal('Local Hall')
     rewriteLocalCache('Local Hall Edited')
     stubServer(serverPayload('Server Hall', '2026-09-12T10:00:00.000Z'), { failGet: true })
 
     await loadFresh()
-    await new Promise((resolve) => setTimeout(resolve, 20))
 
-    expect(useGraphStore.getState().syncStatus).toBe('idle')
-    expect(useGraphStore.getState().syncError).toBeNull()
+    await vi.waitFor(() => {
+      expect(useGraphStore.getState().syncStatus).toBe('error')
+    })
+    expect(useGraphStore.getState().syncStatus).not.toBe('synced')
+    expect(useGraphStore.getState().syncError).toMatch(/^Offline — could not verify the server copy/)
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Local Hall Edited')
   })
 

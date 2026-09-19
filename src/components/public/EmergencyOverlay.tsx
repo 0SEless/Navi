@@ -20,7 +20,7 @@ export function EmergencyOverlay({ open, onOpenChange }: EmergencyOverlayProps) 
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-[200] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] w-[calc(100%-2rem)] max-w-sm rounded-xl bg-white p-6 shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in data-[state=closed]:zoom-out data-[state=open]:zoom-out">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] w-[calc(100%-2rem)] max-w-sm rounded-xl bg-[var(--navi-card)] p-6 shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in data-[state=closed]:zoom-out data-[state=open]:zoom-out">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
@@ -48,7 +48,7 @@ export function EmergencyOverlay({ open, onOpenChange }: EmergencyOverlayProps) 
             {emergencyContacts.map((contact) => (
               <div
                 key={contact.label}
-                className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-100"
+                className="flex items-center justify-between p-3 rounded-lg bg-[var(--navi-tint-red)] border border-[var(--navi-border)]"
               >
                 <span className="text-sm font-medium text-[var(--navi-text)]">
                   {contact.label}

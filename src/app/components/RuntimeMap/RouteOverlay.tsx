@@ -51,8 +51,10 @@ export function RouteOverlay({ map, route }: Props) {
     }
 
     return () => {
-      if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
-      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      try {
+        if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
+        if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      } catch {}
       added.current = false
     }
   }, [map, route])

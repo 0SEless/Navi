@@ -14,10 +14,10 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer">
+      <div className="relative z-50 w-full max-w-lg rounded-xl bg-[var(--navi-card)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--navi-border)] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[var(--navi-text)]">{title}</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--navi-text-secondary)] hover:bg-[var(--navi-content)] hover:text-[var(--navi-text)] cursor-pointer">
             <X className="h-5 w-5" />
           </button>
         </div>

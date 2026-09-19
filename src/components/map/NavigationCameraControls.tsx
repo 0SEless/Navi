@@ -44,15 +44,6 @@ const MODE_OPTIONS: Array<{
   { mode: 'POV', label: 'POV', description: 'Steeper forward perspective' },
 ]
 
-function headingStatusLabel(status: NavigationHeadingStatus): string {
-  if (status === 'device') return 'Compass active'
-  if (status === 'gps') return 'Using GPS heading'
-  if (status === 'permission-required') return 'Compass permission needed'
-  if (status === 'denied') return 'Compass permission denied'
-  if (status === 'unsupported') return 'Compass unavailable'
-  return 'Heading unavailable'
-}
-
 function modeLabel(mode: NavigationCameraMode): string {
   return MODE_OPTIONS.find(option => option.mode === mode)?.label ?? 'Top'
 }
@@ -68,7 +59,7 @@ export default function NavigationCameraControls({
   headingStatus = 'none',
   canRequestHeadingPermission = false,
   reducedMotion = false,
-  headingFollowEnabled = true,
+  headingFollowEnabled = false,
   onModeChange,
   onRecenter,
   onResetCompass,
@@ -97,15 +88,17 @@ export default function NavigationCameraControls({
 
   return (
     <div
-      className={`absolute right-4 top-20 z-20 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-1.5 sm:right-5 ${className ?? ''}`}
+      className={`pointer-events-auto absolute right-3 top-[58%] z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-4 ${className ?? ''}`}
+      style={{ right: 'max(0.75rem, env(safe-area-inset-right, 0px))' }}
       data-testid="navigation-camera-controls"
       data-reduced-motion={String(reducedMotion)}
       data-compass-visible={String(compassVisible)}
+      data-heading-status={headingStatus}
     >
-      <div className="relative max-w-full">
+      <div className="relative">
         <button
           type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+          className="flex h-11 w-11 min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
           aria-label={`Camera view: ${selectedLabel}. Tap to cycle, long press for options.`}
           title={selectedLabel}
           onClick={cycleMode}
@@ -158,42 +151,39 @@ export default function NavigationCameraControls({
         )}
       </div>
 
-      <div className="flex max-w-full flex-wrap justify-end gap-2">
+      <button
+        type="button"
+        className="flex h-11 w-11 min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label="Recenter"
+        title="Recenter"
+        disabled={!hasLocation}
+        onClick={onRecenter}
+      >
+        <LocateFixed className="h-4 w-4" aria-hidden="true" />
+      </button>
+
+      {surface === 'active' && (
         <button
           type="button"
-          className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] px-3 text-sm text-[var(--navi-text)] shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Recenter"
-          title="Recenter"
-          disabled={!hasLocation}
-          onClick={onRecenter}
+          className={`flex h-11 w-11 min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-xl border bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg ${headingFollowEnabled ? 'border-emerald-500/60' : 'border-[var(--navi-border)]'}`}
+          aria-label={headingFollowEnabled ? 'Turn heading follow off' : 'Turn heading follow on'}
+          aria-pressed={headingFollowEnabled}
+          title={`Heading follow ${headingFollowEnabled ? 'ON' : 'OFF'}`}
+          onClick={() => {
+            const nextEnabled = !headingFollowEnabled
+            if (onToggleHeadingFollow) onToggleHeadingFollow(nextEnabled)
+            else onResetCompass()
+          }}
         >
-          <LocateFixed className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Recenter</span>
+          <Compass className="h-4 w-4" aria-hidden="true" />
         </button>
+      )}
 
-        {surface === 'active' && (
-          <button
-            type="button"
-            className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl border bg-[var(--navi-card)] px-2 text-xs text-[var(--navi-text)] shadow-lg ${headingFollowEnabled ? 'border-emerald-500/60' : 'border-[var(--navi-border)]'}`}
-            aria-label={headingFollowEnabled ? 'Turn heading follow off' : 'Turn heading follow on'}
-            aria-pressed={headingFollowEnabled}
-            title={`Heading follow ${headingFollowEnabled ? 'ON' : 'OFF'}`}
-            onClick={() => {
-              const nextEnabled = !headingFollowEnabled
-              if (onToggleHeadingFollow) onToggleHeadingFollow(nextEnabled)
-              else onResetCompass()
-            }}
-          >
-            <Compass className="h-4 w-4" aria-hidden="true" />
-            <span className="font-semibold">{headingFollowEnabled ? 'ON' : 'OFF'}</span>
-          </button>
-        )}
-      </div>
-
-      <div className="flex max-w-full flex-wrap items-center justify-end gap-2 text-xs text-[var(--navi-muted)]" aria-live="polite">
-        {suspended && <span>Following paused</span>}
-        <span>{headingStatusLabel(headingStatus)}</span>
-      </div>
+      {suspended && (
+        <div className="pointer-events-none max-w-32 text-right text-xs text-[var(--navi-muted)]" aria-live="polite">
+          Following paused
+        </div>
+      )}
       {headingStatus === 'permission-required' && canRequestHeadingPermission && onRequestHeadingPermission && (
         <button
           type="button"

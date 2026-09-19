@@ -12,6 +12,22 @@ const VERTEX_LAYER = 'vertex-points'
 const VERTEX_EDGE_LAYER = 'vertex-edges'
 const VERTEX_MIDPOINT_LAYER = 'vertex-midpoints'
 
+// Safe query wrapper that checks if layer exists before querying
+function safeQueryRenderedFeatures(
+  map: maplibregl.Map,
+  point: maplibregl.PointLike,
+  options: { layers: string[] }
+): maplibregl.MapboxGeoJSONFeature[] {
+  try {
+    // Check if all requested layers exist
+    const layersExist = options.layers.every(layer => map.getLayer(layer))
+    if (!layersExist) return []
+    return map.queryRenderedFeatures(point, options)
+  } catch {
+    return []
+  }
+}
+
 function pointsToLineCoords(points: LatLng[]): [number, number][] {
   return points.map((p) => [p.lng, p.lat] as [number, number])
 }
@@ -45,11 +61,31 @@ function buildMidpointGeo(points: LatLng[]): GeoJSON.FeatureCollection {
 }
 
 function addVertexLayers(map: maplibregl.Map) {
-  if (map.getSource(VERTEX_SOURCE)) return
-  map.addSource(VERTEX_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-  map.addLayer({ id: VERTEX_EDGE_LAYER, type: 'line', source: VERTEX_SOURCE, paint: { 'line-color': '#F59E0B', 'line-width': 2, 'line-dasharray': [2, 2] } })
-  map.addLayer({ id: VERTEX_MIDPOINT_LAYER, type: 'circle', source: VERTEX_SOURCE, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 4, 20, 8], 'circle-color': '#94A3B8', 'circle-stroke-width': 1, 'circle-stroke-color': '#1E293B', 'circle-opacity': 0.6 }, filter: ['!=', ['get', 'segment'], -1] })
-  map.addLayer({ id: VERTEX_LAYER, type: 'circle', source: VERTEX_SOURCE, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, ['case', ['boolean', ['get', 'selected'], false], 12, 8], 20, ['case', ['boolean', ['get', 'selected'], false], 18, 14]], 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' }, filter: ['==', ['get', 'segment'], -1] })
+  try {
+    if (!map.getSource(VERTEX_SOURCE)) {
+      map.addSource(VERTEX_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    }
+    if (!map.getLayer(VERTEX_EDGE_LAYER)) {
+      map.addLayer({ id: VERTEX_EDGE_LAYER, type: 'line', source: VERTEX_SOURCE, paint: { 'line-color': '#F59E0B', 'line-width': 2, 'line-dasharray': [2, 2] } })
+    }
+    if (!map.getLayer(VERTEX_MIDPOINT_LAYER)) {
+      map.addLayer({ id: VERTEX_MIDPOINT_LAYER, type: 'circle', source: VERTEX_SOURCE, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 4, 20, 8], 'circle-color': '#94A3B8', 'circle-stroke-width': 1, 'circle-stroke-color': '#1E293B', 'circle-opacity': 0.6 }, filter: ['!=', ['get', 'segment'], -1] })
+    }
+    if (!map.getLayer(VERTEX_LAYER)) {
+      map.addLayer({ id: VERTEX_LAYER, type: 'circle', source: VERTEX_SOURCE, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, ['case', ['boolean', ['get', 'selected'], false], 12, 8], 20, ['case', ['boolean', ['get', 'selected'], false], 18, 14]], 'circle-color': '#F59E0B', 'circle-stroke-width': 2, 'circle-stroke-color': '#1E293B' }, filter: ['==', ['get', 'segment'], -1] })
+    }
+
+    // Keep edit controls above authored roads/buildings after every style
+    // rebuild. `moveLayer` is best-effort because MapLibre can be between
+    // style states while a basemap is being replaced.
+    for (const layerId of [VERTEX_EDGE_LAYER, VERTEX_MIDPOINT_LAYER, VERTEX_LAYER]) {
+      if (map.getLayer(layerId)) {
+        try { map.moveLayer(layerId) } catch { /* style is still settling */ }
+      }
+    }
+  } catch {
+    // The style can be unavailable for one render tick; style.load retries it.
+  }
 }
 
 /**
@@ -120,7 +156,46 @@ export function useVertexEditor(map: maplibregl.Map | null) {
   useEffect(() => {
     if (!map) return
     addVertexLayers(map)
-  }, [map])
+
+    // Re-add vertex layers after style changes (e.g., when switching basemaps)
+    // This ensures vertex layers survive map.setStyle() calls
+    const onStyleLoad = () => {
+      addVertexLayers(map)
+      if (isVertexEditing && currentEditRoad) {
+        updateDisplay(pointsRef.current)
+      }
+    }
+    map.on('style.load', onStyleLoad)
+
+    return () => {
+      map.off('style.load', onStyleLoad)
+    }
+  }, [map, isVertexEditing, currentEditRoad, updateDisplay])
+
+  // Disable MapLibre interactions that fight vertex editing:
+  // - dragPan pans the map while dragging a vertex (vertex "escapes" the cursor)
+  // - doubleClickZoom zooms the map when double-clicking to enter vertex edit
+  // Both are restored when editing ends (or the hook unmounts mid-edit).
+  useEffect(() => {
+    if (!map) return
+    if (isVertexEditing) {
+      map.dragPan.disable()
+      map.doubleClickZoom.disable()
+    } else {
+      map.dragPan.enable()
+      map.doubleClickZoom.enable()
+    }
+    return () => {
+      if (isVertexEditing) {
+        try {
+          map.dragPan.enable()
+          map.doubleClickZoom.enable()
+        } catch {
+          /* map may already be removed (StrictMode / unmount) */
+        }
+      }
+    }
+  }, [map, isVertexEditing])
 
   // Toggle vertex editing visibility
   useEffect(() => {
@@ -141,14 +216,14 @@ export function useVertexEditor(map: maplibregl.Map | null) {
   useEffect(() => {
     if (!map || !isVertexEditing) return
     const handleClick = (e: maplibregl.MapMouseEvent) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: [VERTEX_LAYER] })
+      const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
       if (features.length > 0) {
         const idx = features[0].properties?.index as number
         if (idx != null) selectedIdxRef.current = idx
         updateDisplay(pointsRef.current, idx)
         return
       }
-      const midFeatures = map.queryRenderedFeatures(e.point, { layers: [VERTEX_MIDPOINT_LAYER] })
+      const midFeatures = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_MIDPOINT_LAYER] })
       if (midFeatures.length > 0) {
         const segIdx = midFeatures[0].properties?.segment as number
         if (segIdx != null && pointsRef.current.length > 1) {
@@ -174,7 +249,7 @@ export function useVertexEditor(map: maplibregl.Map | null) {
   useEffect(() => {
     if (!map || !isVertexEditing) return
     const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: [VERTEX_LAYER] })
+      const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
       if (features.length > 0) {
         const idx = features[0].properties?.index as number
         selectedIdxRef.current = idx
@@ -230,7 +305,7 @@ export function useVertexEditor(map: maplibregl.Map | null) {
     }
     const handleContextMenu = (e: maplibregl.MapMouseEvent) => {
       e.originalEvent.preventDefault()
-      const features = map.queryRenderedFeatures(e.point, { layers: [VERTEX_LAYER] })
+      const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
       if (features.length > 0 && pointsRef.current.length > 2) {
         const idx = features[0].properties?.index as number
         const newPoints = [...pointsRef.current]

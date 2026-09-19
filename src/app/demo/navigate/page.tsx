@@ -1,7 +1,7 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
-import { RuntimeEngine } from '@navi/runtime'
+import { RuntimeEngine } from '@navi/runtime/engine'
 import type { LoadedPackage, Route } from '@navi/runtime'
 
 const BASE = '/api/demo/artifacts?file='
@@ -30,11 +30,11 @@ export default function NavigatePage() {
         ])
         const pkg: LoadedPackage = {
           manifest: {
-            schemaVersion: '1.0', campusId: '', campusName: '',
+            schemaVersion: '1.0.0', formatVersion: '0', campusId: '', campusName: '',
             publishedAt: '', compilerVersion: '', revision: '',
             artifacts: {}, metadata: { nodeCount: 0, edgeCount: 0, buildingCount: 0, floorCount: 0, boundingBox: { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }, routeable: false },
           },
-          graph, searchIndex, buildingIndex, poiIndex, reports: [],
+          graph, searchIndex, buildingIndex, poiIndex, reports: [], warnings: [],
         }
         setEngine(new RuntimeEngine(pkg))
       } catch (err) {
@@ -68,7 +68,7 @@ export default function NavigatePage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">NAVI Runtime — Verification Page</h1>
+      <h1 className="text-2xl font-bold mb-4">NAVI Runtime â€” Verification Page</h1>
 
       <div className="mb-6 p-4 bg-gray-50 rounded">
         <h2 className="font-semibold mb-2">Loaded Dataset</h2>
@@ -96,19 +96,25 @@ export default function NavigatePage() {
           <ul className="mt-2 border rounded divide-y">
             {results.map((r, i) => (
               <li key={i} className="px-3 py-2 flex justify-between items-center">
-                <span>{r.entry.label} ({r.entry.type}) — score {r.score.toFixed(1)}</span>
-                <button
-                  onClick={() => setFromId(r.entry.nodeId)}
-                  className="text-xs bg-gray-200 px-2 py-1 rounded mr-1"
-                >
-                  From
-                </button>
-                <button
-                  onClick={() => setToId(r.entry.nodeId)}
-                  className="text-xs bg-gray-200 px-2 py-1 rounded"
-                >
-                  To
-                </button>
+                <span>{r.entry.label} ({r.entry.type}) â€” score {r.score.toFixed(1)}</span>
+                {r.entry.nodeId ? (
+                  <>
+                    <button
+                      onClick={() => setFromId(r.entry.nodeId!)}
+                      className="text-xs bg-gray-200 px-2 py-1 rounded mr-1"
+                    >
+                      From
+                    </button>
+                    <button
+                      onClick={() => setToId(r.entry.nodeId!)}
+                      className="text-xs bg-gray-200 px-2 py-1 rounded"
+                    >
+                      To
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-500">Discovery only</span>
+                )}
               </li>
             ))}
           </ul>
@@ -119,7 +125,7 @@ export default function NavigatePage() {
         <h2 className="font-semibold mb-2">Route</h2>
         <div className="flex gap-2 items-center">
           <span className="text-sm">From: {fromId ? graph.nodes.find(n => n.id === fromId)?.label || fromId : '(none)'}</span>
-          <span>→</span>
+          <span>â†’</span>
           <span className="text-sm">To: {toId ? graph.nodes.find(n => n.id === toId)?.label || toId : '(none)'}</span>
           <button onClick={handleRoute} disabled={!fromId || !toId} className="bg-green-500 text-white px-4 py-2 rounded disabled:opacity-50">
             Go
@@ -129,10 +135,10 @@ export default function NavigatePage() {
         {route && (
           <div className="mt-2 border rounded p-4">
             <p className="font-semibold">
-              {route.fromLabel} → {route.toLabel}
+              {route.fromLabel} â†’ {route.toLabel}
             </p>
             <p className="text-sm text-gray-600">
-              {Math.round(route.totalDistance)}m · ~{Math.round(route.totalDuration / 60)} min · {route.path.length} steps
+              {Math.round(route.totalDistance)}m Â· ~{Math.round(route.totalDuration / 60)} min Â· {route.path.length} steps
             </p>
             <ol className="mt-2 space-y-1">
               {route.instructions.map((inst, i) => (

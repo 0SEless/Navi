@@ -1,4 +1,6 @@
 import type { LatLng, TracePath } from '../types/nav-types'
+import { haversine, lineSegmentIntersection } from '@navi/core'
+import { SpatialQueryService } from '@navi/core'
 
 export interface IntersectionPoint {
   lat: number
@@ -35,17 +37,7 @@ function segmentsIntersect(p1: LatLng, q1: LatLng, p2: LatLng, q2: LatLng): LatL
     (o1 > 0) !== (o2 > 0) &&
     (o3 > 0) !== (o4 > 0)
   ) {
-    const d1x = q1.lng - p1.lng
-    const d1y = q1.lat - p1.lat
-    const d2x = q2.lng - p2.lng
-    const d2y = q2.lat - p2.lat
-    const denom = d1x * d2y - d1y * d2x
-    if (denom === 0) return null
-    const t = ((p2.lng - p1.lng) * d2y - (p2.lat - p1.lat) * d2x) / denom
-    return {
-      lat: p1.lat + t * d1y,
-      lng: p1.lng + t * d1x,
-    }
+    return lineSegmentIntersection(p1, q1, p2, q2)
   }
 
   return null
@@ -78,24 +70,12 @@ export function findEndpointNodes(trace: TracePath): LatLng[] {
   return [trace.points[0], trace.points[trace.points.length - 1]]
 }
 
-function haversine(a: LatLng, b: LatLng): number {
-  const R = 6371000
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const aVal =
-    sinDLat * sinDLat +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      sinDLng * sinDLng
-  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
-}
-
 export function findProximityConnections(
   point: LatLng,
   candidates: LatLng[],
   maxDistance: number
 ): LatLng[] {
-  return candidates.filter((c) => haversine(point, c) <= maxDistance)
+  const svc = new SpatialQueryService()
+  svc.loadFromNodes(candidates.map((c, i) => ({ id: String(i), position: c, type: 'room' })))
+  return svc.entitiesInRadius(point, maxDistance).map(r => r.point)
 }

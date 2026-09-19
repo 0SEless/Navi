@@ -25,6 +25,17 @@ describe('compileTrace', () => {
     expect(firstNode.buildingId).toBe('BLD01')
   })
 
+  it('marks both endpoints as connectable road endpoints', () => {
+    const result = compileTrace(hallway, [], [])
+    const endpointNodes = result.nodes.filter((node) => node.metadata?.roadEndpoint === true)
+
+    expect(endpointNodes).toHaveLength(2)
+    expect(endpointNodes.map((node) => node.position)).toEqual([
+      hallway.points[0],
+      hallway.points[hallway.points.length - 1],
+    ])
+  })
+
   it('generates edges between consecutive nodes', () => {
     const result = compileTrace(hallway, [], [])
     expect(result.edges.length).toBeGreaterThanOrEqual(1)
@@ -40,17 +51,20 @@ describe('compileTrace', () => {
     expect(result.edges.length).toBe(0)
   })
 
-  it('generates edges to existing room entrance nodes within proximity', () => {
+  it('does NOT connect traces to room door nodes (no road→door shortcuts)', () => {
+    // Regression: traces must never link directly to room doors — that would
+    // bypass the building entrance (road → entrance → hallway → room_door is
+    // the only valid path into a building).
     const roomNode: NavNode = {
-      id: 'N010', label: 'Room 101', name: 'Room 101', type: 'room',
+      id: 'N010', label: 'Room 101', name: 'Room 101', type: 'room_door',
       buildingId: 'BLD01', campusId: 'asu-ibajay', floor: 1,
       position: { lat: 11.81955, lng: 122.09225 },
     }
-    const result = compileTrace(hallway, [], [], [roomNode])
+    const result = compileTrace(hallway, [roomNode], [])
     const hasRoomConnection = result.edges.some(
       (e) => e.to === 'N010' || e.from === 'N010'
     )
-    expect(hasRoomConnection).toBe(true)
+    expect(hasRoomConnection).toBe(false)
   })
 
   it('does not duplicate existing edges', () => {

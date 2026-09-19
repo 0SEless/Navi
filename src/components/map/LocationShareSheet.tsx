@@ -61,7 +61,7 @@ export function LocationShareSheet({
 
   return (
     <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/40" role="dialog" aria-label={`Share ${label}`}>
-      <div className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-2xl">
+      <div className="w-full max-w-md rounded-t-2xl bg-[var(--navi-card)] p-5 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--navi-text)]">
             <Share2 className="h-4 w-4 text-[var(--navi-primary)]" />

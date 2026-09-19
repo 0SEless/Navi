@@ -22,6 +22,10 @@ const UNIQUE_VIOLATION = {
   message: 'duplicate key value violates unique constraint "graph_snapshots_campus_id_key"',
 }
 
+const MOCK_SESSION = Buffer.from(
+  JSON.stringify({ id: 'mock-super-admin', role: 'super_admin' }),
+).toString('base64')
+
 let insert: ReturnType<typeof vi.fn>
 let upsert: ReturnType<typeof vi.fn>
 
@@ -34,12 +38,14 @@ function mockSupabaseClient() {
 function makePost(body: unknown = {}) {
   return new NextRequest('http://localhost:3000/api/campuses', {
     method: 'POST',
+    headers: { cookie: `navi-mock-session=${MOCK_SESSION}` },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   })
 }
 
 describe('POST /api/campuses — create-only campus snapshots', () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
     mockCreateServerClient.mockReset()
     insert = vi.fn()
     upsert = vi.fn()

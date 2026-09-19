@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useStudioStore } from '../studio-store'
+import { DEFAULT_LAYER_VISIBILITY } from '@/types/studio-types'
 
 describe('useStudioStore', () => {
   beforeEach(() => {
@@ -8,11 +9,9 @@ describe('useStudioStore', () => {
       editorMode: 'campus',
       activeBuildingId: null,
       activeFloor: 0,
-      layers: {
-        osm: true, satellite: false, floor_plan: false,
-        buildings: true, rooms: true, hallways: true,
-        assets: true, nodes: false, edges: false, labels: true,
-      },
+      baseStyle: 'osm',
+      positionEditTarget: null,
+      layers: { ...DEFAULT_LAYER_VISIBILITY },
     })
   })
 
@@ -39,5 +38,27 @@ describe('useStudioStore', () => {
   it('toggles layer visibility', () => {
     useStudioStore.getState().toggleLayer('nodes')
     expect(useStudioStore.getState().layers.nodes).toBe(true)
+  })
+
+  it('keeps navigation-only routes hidden from the diagnostic view by default', () => {
+    expect(useStudioStore.getState().layers.navigation_only_routes).toBe(false)
+    useStudioStore.getState().toggleLayer('navigation_only_routes')
+    expect(useStudioStore.getState().layers.navigation_only_routes).toBe(true)
+  })
+
+  it('sets base style', () => {
+    useStudioStore.getState().setBaseStyle('dark')
+    expect(useStudioStore.getState().baseStyle).toBe('dark')
+  })
+
+  it('sets position edit target', () => {
+    useStudioStore.getState().setPositionEditTarget({ type: 'building', id: 'BLD01' })
+    expect(useStudioStore.getState().positionEditTarget).toEqual({ type: 'building', id: 'BLD01' })
+  })
+
+  it('clears position edit target', () => {
+    useStudioStore.getState().setPositionEditTarget({ type: 'building', id: 'BLD01' })
+    useStudioStore.getState().setPositionEditTarget(null)
+    expect(useStudioStore.getState().positionEditTarget).toBeNull()
   })
 })

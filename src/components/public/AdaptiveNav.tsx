@@ -1,52 +1,60 @@
 'use client'
 
-import { usePublicStore, type TabId } from '@/store/public-store'
+import { usePublicStore } from '@/store/public-store'
 import {
   Home,
   Compass,
   MapPin,
-  Map,
   User,
   type LucideIcon,
 } from 'lucide-react'
+import { PRIMARY_NAV_ITEMS, type PrimaryNavId } from '@/lib/public-app-contracts'
+import { useRouter } from 'next/navigation'
 
 interface NavItem {
-  id: TabId
+  id: PrimaryNavId
   label: string
+  path: string
   icon: LucideIcon
 }
 
-const navItems: NavItem[] = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'explore', label: 'Explore', icon: Compass },
-  { id: 'navigate', label: 'Navigate', icon: MapPin },
-  { id: 'maps', label: 'Maps', icon: Map },
-  { id: 'profile', label: 'Profile', icon: User },
-]
+const navIcons: Record<PrimaryNavId, LucideIcon> = {
+  home: Home,
+  explore: Compass,
+  navigate: MapPin,
+  profile: User,
+}
 
-function NavIcon({ item, active }: { item: NavItem; active: boolean }) {
+const navItems: NavItem[] = PRIMARY_NAV_ITEMS.map((item) => ({
+  ...item,
+  icon: navIcons[item.id],
+}))
+
+function NavIcon({ item, active, onSelect }: { item: NavItem; active: boolean; onSelect: (item: NavItem) => void }) {
   const Icon = item.icon
   return (
     <button
-      onClick={() => usePublicStore.getState().setTab(item.id)}
-      className={`flex flex-col items-center justify-center gap-0.5
+      type="button"
+      onClick={() => onSelect(item)}
+      className={`flex flex-1 flex-col items-center justify-center gap-0.5 self-stretch min-h-[44px] min-w-[44px] py-1
         ${active ? 'text-[var(--navi-primary)]' : 'text-[var(--navi-text-secondary)]'}
         transition-colors duration-150`}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
     >
       <Icon className="h-5 w-5" />
-      <span className="text-[10px] font-medium leading-tight">{item.label}</span>
+      <span className="text-[11px] font-medium leading-tight">{item.label}</span>
     </button>
   )
 }
 
-function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
+function SidebarItem({ item, active, onSelect }: { item: NavItem; active: boolean; onSelect: (item: NavItem) => void }) {
   const Icon = item.icon
   return (
     <button
-      onClick={() => usePublicStore.getState().setTab(item.id)}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+      type="button"
+      onClick={() => onSelect(item)}
+      className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
         ${active
           ? 'bg-[var(--navi-primary)]/10 text-[var(--navi-primary)]'
           : 'text-[var(--navi-text-secondary)] hover:bg-[var(--navi-border)]/50 hover:text-[var(--navi-text)]'
@@ -62,18 +70,24 @@ function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
 
 export function AdaptiveNav() {
   const activeTab = usePublicStore((s) => s.activeTab)
+  const router = useRouter()
+
+  const handleSelect = (item: NavItem) => {
+    usePublicStore.getState().setTab(item.id)
+    router.push(item.path)
+  }
 
   return (
     <>
       {/* Bottom nav: phones & tablet portrait (<1024px) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-[var(--navi-border)] bg-white px-2 shadow-[0_-1px_3px_rgba(0,0,0,0.05)] lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex min-h-16 items-stretch justify-around border-t border-[var(--navi-border)] bg-[var(--navi-card)] px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_3px_rgba(0,0,0,0.05)] lg:hidden">
         {navItems.map((item) => (
-          <NavIcon key={item.id} item={item} active={activeTab === item.id} />
+          <NavIcon key={item.id} item={item} active={activeTab === item.id} onSelect={handleSelect} />
         ))}
       </nav>
 
       {/* Sidebar: tablet landscape & desktop (>=1024px) */}
-      <aside className="hidden lg:flex lg:w-56 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:border-r lg:border-[var(--navi-border)] lg:bg-white lg:pt-4">
+      <aside className="hidden lg:flex lg:w-56 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:border-r lg:border-[var(--navi-border)] lg:bg-[var(--navi-card)] lg:pt-4">
         <div className="flex items-center gap-2 px-4 pb-4 mb-2 border-b border-[var(--navi-border)]">
           <div className="h-8 w-8 rounded-lg bg-[var(--navi-primary)] flex items-center justify-center">
             <span className="text-white font-bold text-sm">N</span>
@@ -82,7 +96,7 @@ export function AdaptiveNav() {
         </div>
         <div className="flex-1 px-2 space-y-1">
           {navItems.map((item) => (
-            <SidebarItem key={item.id} item={item} active={activeTab === item.id} />
+            <SidebarItem key={item.id} item={item} active={activeTab === item.id} onSelect={handleSelect} />
           ))}
         </div>
       </aside>

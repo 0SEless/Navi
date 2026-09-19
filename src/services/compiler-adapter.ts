@@ -36,7 +36,9 @@ export function createCompilerAdapter(): CompilerAdapter {
         }
       }
 
+      const compiledArtifacts = data.artifacts ?? {}
       const artifacts: CompiledArtifacts = {
+        ...compiledArtifacts,
         navigationGraph: data.artifacts?.navigationGraph ?? null,
         searchIndex: data.artifacts?.searchIndex ?? null,
         poiData: data.artifacts?.poiData ?? null,

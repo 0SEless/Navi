@@ -29,6 +29,7 @@ function createMockDrawing(overrides?: Partial<DrawingSessionValue>): DrawingSes
     confirm: vi.fn(),
     cancel: vi.fn(),
     setRouteWidth: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
     ...overrides,
   }
 }
@@ -48,6 +49,33 @@ describe('ConfirmBar', () => {
     currentTool = 'building'
     render(<ConfirmBar drawing={createMockDrawing({ drawPoints: [{ lat: 1, lng: 2 }] })} />)
     expect(screen.getByText('Building footprint')).toBeDefined()
+  })
+
+  it('renders OSM import confirmation controls', () => {
+    currentTool = 'import-osm'
+    const requestConfirm = vi.fn()
+    const drawing = createMockDrawing({
+      drawPoints: [{ lat: 1, lng: 2 }, { lat: 1, lng: 3 }, { lat: 2, lng: 3 }],
+      requestConfirm,
+    })
+    render(<ConfirmBar drawing={drawing} />)
+    expect(screen.getByText('Import from OSM')).toBeDefined()
+    expect(screen.getByText(/3 points/)).toBeDefined()
+    fireEvent.click(screen.getByText('Confirm'))
+    expect(requestConfirm).toHaveBeenCalledWith('import-osm')
+  })
+
+  it('renders campus boundary confirmation controls', () => {
+    currentTool = 'set-boundary'
+    const requestConfirm = vi.fn()
+    const drawing = createMockDrawing({
+      drawPoints: [{ lat: 1, lng: 2 }, { lat: 1, lng: 3 }, { lat: 2, lng: 3 }],
+      requestConfirm,
+    })
+    render(<ConfirmBar drawing={drawing} />)
+    expect(screen.getByText('Campus boundary')).toBeDefined()
+    fireEvent.click(screen.getByText('Confirm'))
+    expect(requestConfirm).toHaveBeenCalledWith('set-boundary')
   })
 
   it('shows point count', () => {

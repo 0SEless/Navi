@@ -1,15 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
-import { Building2, DoorOpen, Layers, Navigation, RotateCcw, Search, Share2, X } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Building2, RotateCcw, Search, X } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
-import type { Building, CampusBundle } from '@/types/nav-types'
-import { buildingStats, resolveBuildingEntranceNode } from '@/lib/campus-geometry'
-import { LocationShareSheet } from '@/components/map/LocationShareSheet'
+import type { CampusBundle } from '@/types/nav-types'
+import {
+  filterExploreEntries,
+  getExploreCategories,
+  type ExploreCategory,
+} from '@/lib/explore-contracts'
+import { BuildingSheet } from '@/components/map/BuildingSheet'
 
-const CampusMap = dynamic(() => import('@/components/public/CampusMap'), {
+const ExploreMap = dynamic(() => import('@/components/public/ExploreMap'), {
   ssr: false,
   loading: () => (
     <div className="flex h-full items-center justify-center text-sm text-[var(--navi-text-secondary)]">
@@ -19,27 +23,80 @@ const CampusMap = dynamic(() => import('@/components/public/CampusMap'), {
 })
 
 export default function ExplorePage() {
-  const router = useRouter()
+  return (
+    <Suspense fallback={
+      <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading campus map" role="status">
+        <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
+        <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+      </div>
+    }>
+      <ExplorePageContent />
+    </Suspense>
+  )
+}
+
+function ExplorePageContent() {
+  const searchParams = useSearchParams()
   const campus = usePublicStore((s) => s.campus)
   const campusLoading = usePublicStore((s) => s.campusLoading)
   const campusError = usePublicStore((s) => s.campusError)
   const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
-  const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
+  const selectBuilding = usePublicStore((s) => s.selectBuilding)
+  const setSheet = usePublicStore((s) => s.setSheet)
+  const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
+  const setMapAppearance = usePublicStore((s) => s.setMapAppearance)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<ExploreCategory>('all')
+  const requestedBuildingId = searchParams.get('building_id')
 
   useEffect(() => {
-    if (!campus && !campusLoading && !campusError) void fetchCampusData('asu-ibajay')
+    if (!campus && !campusLoading && !campusError) void fetchCampusData()
   }, [campus, campusLoading, campusError, fetchCampusData])
+
+  useEffect(() => {
+    if (!campus || !requestedBuildingId) return
+    const building = campus.buildings.find(candidate => candidate.id === requestedBuildingId)
+    if (!building) return
+    selectBuilding(building)
+    setSheet('half')
+  }, [campus, requestedBuildingId, selectBuilding, setSheet])
+
+  const categories = useMemo(
+    () => (campus ? getExploreCategories(campus) : []),
+    [campus],
+  )
+  const results = useMemo(
+    () => (campus ? filterExploreEntries(campus, { query, category }) : []),
+    [campus, category, query],
+  )
+
+  const handleSearchResult = (entry: CampusBundle['searchEntries'][number]) => {
+    if (!campus) return
+    const building = campus.buildings.find(candidate =>
+      candidate.id === entry.buildingId
+      || (entry.type === 'building' && candidate.id === entry.id),
+    )
+    if (!building) return
+    selectBuilding(building)
+    setSheet('half')
+    setSearchOpen(false)
+    setQuery('')
+    setCategory('all')
+  }
 
   if (campusError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
         <div className="text-sm text-[var(--navi-text-secondary)]">
-          Couldn't load the campus map.
+          Couldn&apos;t load the campus map.
         </div>
         <div className="text-xs text-[var(--navi-error)]">{campusError}</div>
         <button
-          onClick={() => void fetchCampusData('asu-ibajay')}
+          type="button"
+          onClick={() => void fetchCampusData()}
           className="flex items-center gap-2 rounded-lg bg-[var(--navi-primary)] px-4 py-2 text-sm font-semibold text-white"
+          aria-label="Retry loading campus map"
         >
           <RotateCcw className="h-4 w-4" />
           Retry
@@ -50,7 +107,7 @@ export default function ExplorePage() {
 
   if (!campus || campusLoading) {
     return (
-      <div className="flex h-full flex-col gap-4 p-4">
+      <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading campus map" role="status">
         <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
         <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
       </div>
@@ -69,189 +126,150 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="relative flex-1 w-full overflow-hidden">
-      <CampusMap bundle={campus} />
+    <div className="relative flex-1 min-w-0 w-full overflow-hidden">
+      <ExploreMap bundle={campus} />
 
-      {/* Search entry */}
-      <button
-        onClick={() => router.push('/map/search')}
-        className="absolute left-4 right-16 top-4 z-20 flex items-center gap-2 rounded-xl border border-[var(--navi-border)] bg-white px-3 py-2.5 text-left shadow-lg"
-        aria-label="Search campus"
-      >
-        <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" />
-        <span className="flex-1 truncate text-sm text-[var(--navi-text-secondary)]">
-          Search rooms, buildings…
-        </span>
-      </button>
-
-      <BuildingDetailSheet building={selectedBuilding ?? undefined} bundle={campus} />
-    </div>
-  )
-}
-
-interface SheetProps {
-  building: Building | undefined
-  bundle: CampusBundle
-}
-
-/** Bottom-sheet detail panel for the selected building (mobile & desktop). */
-function BuildingDetailSheet({ building, bundle }: SheetProps) {
-  const router = useRouter()
-  const selectBuilding = usePublicStore((s) => s.selectBuilding)
-  const setSheet = usePublicStore((s) => s.setSheet)
-  const setTo = usePublicStore((s) => s.setTo)
-  const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
-  const [shareOpen, setShareOpen] = useState(false)
-
-  const stats = useMemo(
-    () => (building ? buildingStats(bundle, building.id) : null),
-    [bundle, building],
-  )
-
-  const rooms = useMemo(() => {
-    if (!building) return []
-    return bundle.searchEntries
-      .filter((e) => e.type === 'room' && e.buildingId === building.id)
-      .slice(0, 8)
-  }, [bundle, building])
-
-  const shareNode = useMemo(() => {
-    if (!building) return null
-    return (
-      bundle.nodes.find((n) => n.buildingId === building.id && n.type === 'entrance') ??
-      bundle.nodes.find((n) => n.buildingId === building.id) ??
-      null
-    )
-  }, [bundle, building])
-
-  const floorRange =
-    building && building.floors.length > 1
-      ? `Floors ${Math.min(...building.floors)}\u2013${Math.max(...building.floors)}`
-      : `Floor ${building?.floors[0] ?? 0}`
-
-  if (!building) return null
-
-  const handleNavigate = () => {
-    const nodeId = resolveBuildingEntranceNode(bundle, building.id)
-    if (!nodeId) return
-    setTo(nodeId)
-    addRecentDestination(nodeId)
-    router.push(`/map/navigate?to=${nodeId}`)
-  }
-
-  const handleClose = () => {
-    selectBuilding(null)
-    setSheet('hidden')
-  }
-
-  return (
-    <div
-      className="absolute inset-x-0 bottom-0 z-30 rounded-t-2xl border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-8px_24px_rgba(0,0,0,0.15)]"
-      style={{ maxHeight: '45%', overflowY: 'auto' }}
-    >
-      <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-[var(--navi-border)]" />
-      <div className="flex items-start justify-between gap-3 px-4 pt-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-base font-semibold text-[var(--navi-text)]">
-              {building.name}
-            </h2>
-            {building.code && (
-              <span className="shrink-0 rounded-md bg-[var(--navi-primary-light)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--navi-primary)]">
-                {building.code}
-              </span>
-            )}
-          </div>
-          <div className="mt-0.5 text-xs text-[var(--navi-text-secondary)]">
-            {[building.category, building.description].filter(Boolean).join(' · ')}
-          </div>
-        </div>
-        <button
-          onClick={handleClose}
-          className="ml-2 shrink-0 rounded-full p-1.5 text-[var(--navi-text-secondary)] hover:bg-[var(--navi-border)]/50"
-          aria-label="Close building details"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {stats && (
-        <div className="mt-3 grid grid-cols-3 gap-2 px-4">
-          <StatChip icon={<Layers className="h-3.5 w-3.5" />} label="Floors" value={stats.floors} />
-          <StatChip icon={<DoorOpen className="h-3.5 w-3.5" />} label="Rooms" value={stats.rooms} />
-          <StatChip icon={<Navigation className="h-3.5 w-3.5" />} label="Entrances" value={stats.entrances} />
-        </div>
-      )}
-
-      {rooms.length > 0 && (
-        <div className="px-4 pb-1 pt-3">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">
-            Rooms
-          </div>
-          <div className="space-y-1">
-            {rooms.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 text-xs text-[var(--navi-text)]">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--navi-primary)]" />
-                <span className="flex-1 truncate">{r.label}</span>
-                {r.floor !== undefined && (
-                  <span className="text-[10px] text-[var(--navi-text-secondary)]">F{r.floor}</span>
-                )}
-              </div>
-            ))}
-            {bundle.searchEntries.filter((e) => e.type === 'room' && e.buildingId === building.id)
-              .length > 8 && (
-              <div className="pt-0.5 text-center text-[10px] text-[var(--navi-text-secondary)]">
-                + more rooms
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t border-[var(--navi-border)] p-3">
-        <div className="flex gap-2">
-          <button
-            onClick={handleNavigate}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--navi-primary)] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Navigation className="h-4 w-4" />
-            Navigate here
-          </button>
-          {shareNode && (
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4">
+        <div className="pointer-events-auto min-w-0">
+          {!searchOpen ? (
             <button
-              onClick={() => setShareOpen(true)}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--navi-border)] px-4 py-2.5 text-sm font-semibold text-[var(--navi-text)] transition-colors hover:bg-[var(--navi-content)]"
-              aria-label={`Share ${building.name} as NAVI code`}
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] px-3 py-2.5 text-left shadow-lg"
+              aria-label="Search campus"
             >
-              <Share2 className="h-4 w-4" />
-              Share
+              <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" />
+              <span className="min-w-0 flex-1 truncate text-sm text-[var(--navi-text-secondary)]">
+                Search rooms, buildings…
+              </span>
             </button>
+          ) : (
+            <div className="max-h-[min(70vh,36rem)] overflow-y-auto rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)] p-3 shadow-xl">
+              <div className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--navi-border)] px-3">
+                <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" />
+                <input
+                  autoFocus
+                  type="search"
+                  value={query}
+                  onChange={event => setQuery(event.target.value)}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[var(--navi-text)] outline-none placeholder:text-[var(--navi-text-secondary)]"
+                  placeholder="Search published places"
+                  aria-label="Search campus places"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchOpen(false)
+                    setQuery('')
+                    setCategory('all')
+                  }}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--navi-text-secondary)] hover:bg-[var(--navi-content)]"
+                  aria-label="Close campus search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1" role="group" aria-label="Explore categories">
+                <button
+                  type="button"
+                  onClick={() => setCategory('all')}
+                  aria-pressed={category === 'all'}
+                  className="min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold"
+                >
+                  All
+                </button>
+                {categories.map((value) => (
+                  <button
+                    type="button"
+                    key={value}
+                    onClick={() => setCategory(value)}
+                    aria-pressed={category === value}
+                    className="min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold"
+                  >
+                    {formatCategoryLabel(value)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 flex min-w-0 items-center gap-2" role="group" aria-label="Map presentation">
+                <span className="shrink-0 text-[11px] font-semibold text-[var(--navi-text-secondary)]">
+                  Map style
+                </span>
+                <div className="flex min-w-0 gap-1 overflow-x-auto">
+                  {(['department', 'navi', 'uniform'] as const).map(mode => (
+                    <button
+                      type="button"
+                      key={mode}
+                      onClick={() => setMapAppearance(mode)}
+                      aria-pressed={mapAppearance === mode}
+                      className="min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold"
+                    >
+                      {formatMapAppearanceLabel(mode)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {query.trim() ? (
+                results.length > 0 ? (
+                  <div className="mt-2 space-y-1" role="listbox" aria-label="Campus search results">
+                    {results.slice(0, 12).map(entry => (
+                      <button
+                        type="button"
+                        key={entry.id}
+                        onClick={() => handleSearchResult(entry)}
+                        className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-[var(--navi-content)]"
+                        aria-label={`Explore ${entry.label}`}
+                      >
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--navi-text)]">
+                          {entry.label}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-[var(--navi-text-secondary)]">
+                          {formatCategoryLabel(entry.type)}
+                          {entry.type === 'poi' && entry.category
+                            ? ` · ${formatPoiCategoryLabel(entry.category)}`
+                            : ''}
+                          {entry.floor !== undefined ? ` · F${entry.floor}` : ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="px-2 py-4 text-center text-sm text-[var(--navi-text-secondary)]">
+                    No matching campus places.
+                  </p>
+                )
+              ) : (
+                <p className="px-2 py-4 text-sm text-[var(--navi-text-secondary)]">
+                  Search published buildings, rooms, and facilities.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      <LocationShareSheet
-        open={shareOpen}
-        campusId={building.campusId}
-        nodeId={shareNode?.id ?? ''}
-        label={building.name}
-        sublabel={floorRange}
-        onClose={() => setShareOpen(false)}
-      />
+      <BuildingSheet bundle={campus} />
     </div>
   )
 }
 
-function StatChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl bg-[var(--navi-content)] px-2.5 py-2">
-      <span className="text-[var(--navi-primary)]">{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold leading-tight text-[var(--navi-text)]">
-          {value}
-        </span>
-        <span className="block truncate text-[10px] text-[var(--navi-text-secondary)]">{label}</span>
-      </span>
-    </div>
-  )
+function formatCategoryLabel(category: Exclude<ExploreCategory, 'all'>): string {
+  if (category === 'building') return 'Buildings'
+  if (category === 'facility') return 'Facilities'
+  if (category === 'room') return 'Rooms'
+  if (category === 'entrance') return 'Entrances'
+  return 'POIs'
+}
+
+function formatPoiCategoryLabel(category: string): string {
+  return category
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, character => character.toUpperCase())
+}
+
+function formatMapAppearanceLabel(mode: 'department' | 'navi' | 'uniform'): string {
+  if (mode === 'navi') return 'NAVI'
+  return mode.charAt(0).toUpperCase() + mode.slice(1)
 }

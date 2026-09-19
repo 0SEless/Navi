@@ -12,6 +12,9 @@ import { useGeolocation } from '@/hooks/useGeolocation'
 import { resolvePosition } from '@/engine/spatial-resolver'
 import type { LatLng, PathResult, Building, TracePath } from '@/types/nav-types'
 
+import { FloorSelector } from '@/components/map/FloorSelector'
+import { syncFloorPlanImageLayer, type FloorPlanMapLike } from '@/lib/floor-plan-map-source'
+
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
@@ -74,9 +77,6 @@ function addMapSources(map: maplibregl.Map) {
   map.addSource(SRC.ENTRANCES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.ENTRANCES, type: 'circle', source: SRC.ENTRANCES, paint: { 'circle-radius': 6, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
 
-  map.addSource(SRC.FLOORPLAN, { type: 'raster', tiles: [], tileSize: 256 })
-  map.addLayer({ id: LYR.FLOORPLAN, type: 'raster', source: SRC.FLOORPLAN, paint: { 'raster-opacity': 0.6 } })
-
   map.addSource(SRC.ROOMS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.ROOMS_FILL, type: 'fill', source: SRC.ROOMS, paint: { 'fill-color': '#E8E0D4', 'fill-opacity': 0.65 } })
   map.addLayer({ id: LYR.ROOMS_EXTRUSION, type: 'fill-extrusion', source: SRC.ROOMS, paint: { 'fill-extrusion-color': '#E8E0D4', 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.8, 'fill-extrusion-base': ['get', 'base'] } })
@@ -111,20 +111,24 @@ function syncBoundary(map: maplibregl.Map, boundary: { lat: number; lng: number 
   })
 }
 
-function syncTraces(map: maplibregl.Map, traces: TracePath[]) {
-  const src = map.getSource(SRC.TRACES) as maplibregl.GeoJSONSource
-  if (!src) return
+export function tracesToGeoJSON(traces: TracePath[]): GeoJSON.FeatureCollection {
   const features = traces
-    .filter((t) => t.points.length >= 2)
+    .filter((t) => t.displayMode !== 'navigation-only' && t.points.length >= 2)
     .map((t) => ({
       type: 'Feature' as const,
-      properties: { trace_type: t.type, name: t.name ?? '', color: t.color ?? '', width: t.width ?? 8 },
+      properties: { trace_type: t.type, name: t.name ?? '', color: t.color ?? '', width: t.width ?? 8, displayMode: t.displayMode ?? 'visible' },
       geometry: {
         type: 'LineString' as const,
         coordinates: t.points.map((p) => [p.lng, p.lat] as [number, number]),
       },
     }))
-  src.setData({ type: 'FeatureCollection', features })
+  return { type: 'FeatureCollection', features }
+}
+
+function syncTraces(map: maplibregl.Map, traces: TracePath[]) {
+  const src = map.getSource(SRC.TRACES) as maplibregl.GeoJSONSource
+  if (!src) return
+  src.setData(tracesToGeoJSON(traces))
 }
 
 function syncEntrances(map: maplibregl.Map, buildings: Building[]) {
@@ -151,6 +155,17 @@ export function PublicMap({ boundary }: PublicMapProps) {
   const [to, setTo] = useState('')
   const [path, setPath] = useState<PathResult | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null)
+  const [activeFloor, setActiveFloor] = useState<number>(0)
+
+  const handleSelectBuilding = useCallback((b: Building | null) => {
+    setSelectedBuilding(b)
+    if (b) {
+      const defaultFloor = b.floors?.[0] ?? 0
+      setActiveFloor(defaultFloor)
+    } else {
+      setActiveFloor(0)
+    }
+  }, [])
 
   const getNodePosition = useCallback((nodeId: string) => {
     const node = graph.getNode(nodeId)
@@ -221,6 +236,11 @@ export function PublicMap({ boundary }: PublicMapProps) {
       zoom: 17,
       pitch: 35,
     })
+    // Suppress tile fetch errors (e.g., zoom beyond OSM tile coverage)
+    map.on('error', (e) => {
+      if (e.error?.status === 0 || `${e.error}`.includes('Failed to fetch') || `${e.error}`.includes('CORS')) return
+      console.error(e.error)
+    })
     map.on('load', () => {
       addMapSources(map)
       readyRef.current = true
@@ -231,10 +251,10 @@ export function PublicMap({ boundary }: PublicMapProps) {
     })
     mapRef.current = map
     setMapInstance(map)
-    return () => { map.remove(); mapRef.current = null; setMapInstance(null); readyRef.current = false }
+    return () => { try { map.remove() } catch {} mapRef.current = null; setMapInstance(null); readyRef.current = false }
   }, [boundary])
 
-  // Sync graph data to map layers
+  // Sync graph data to map layers (filtered by activeFloor for rooms)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
@@ -242,13 +262,13 @@ export function PublicMap({ boundary }: PublicMapProps) {
     syncTraces(map, graph.traces)
     syncEntrances(map, graph.buildings)
 
-    // Sync rooms for selected building
+    // Sync rooms for selected building on active floor
     try {
       const roomSrc = map.getSource(SRC.ROOMS) as maplibregl.GeoJSONSource
       if (!roomSrc) return
       if (selectedBuilding) {
         const roomComponents = graph.components.filter(
-          (c) => c.type === 'room' && c.buildingId === selectedBuilding.id && c.polygon && c.polygon.length >= 3,
+          (c) => c.type === 'room' && c.buildingId === selectedBuilding.id && c.floor === activeFloor && c.polygon && c.polygon.length >= 3,
         )
         const roomGeo: GeoJSON.FeatureCollection = {
           type: 'FeatureCollection',
@@ -266,31 +286,28 @@ export function PublicMap({ boundary }: PublicMapProps) {
         roomSrc.setData({ type: 'FeatureCollection', features: [] })
       }
     } catch { /* source not ready */ }
-  }, [graph.buildings, graph.traces, graph.components, selectedBuilding])
+  }, [graph.buildings, graph.traces, graph.components, selectedBuilding, activeFloor])
 
-  // Floor plan overlay when a building is selected
+  // T2: ImageSource Floor Plan Overlay in PublicMap
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-    const src = map.getSource(SRC.FLOORPLAN) as RasterTileSource | undefined
-    if (!src) return
-    if (selectedBuilding?.floorPlanUrls) {
-      const firstFloor = Math.min(...Object.keys(selectedBuilding.floorPlanUrls).map(Number))
-      const imgUrl = selectedBuilding.floorPlanUrls[firstFloor]
-      const footprint = selectedBuilding.outline ?? selectedBuilding.footprint
-      if (imgUrl && footprint.length >= 3) {
-        const bounds = new maplibregl.LngLatBounds()
-        footprint.forEach((p) => bounds.extend([p.lng, p.lat]))
-        src.tiles = [imgUrl]
-        map.triggerRepaint()
-        try { map.setLayoutProperty(LYR.FLOORPLAN, 'visibility', 'visible') }
-        catch { /* */ }
-        return
-      }
-    }
-    try { map.setLayoutProperty(LYR.FLOORPLAN, 'visibility', 'none') }
-    catch { /* */ }
-  }, [selectedBuilding])
+    const floorData = selectedBuilding?.floorData?.find((fd: any) => fd.level === activeFloor)
+    const publishedVisual = selectedBuilding?.floorPlanVisuals?.[activeFloor]
+    const imgUrl = (selectedBuilding?.floorPlanUrls?.[activeFloor] ?? floorData?.planImageId ?? publishedVisual?.imageUrl) as string | undefined
+    const footprint = selectedBuilding?.outline ?? selectedBuilding?.footprint ?? []
+    const planAlign = (floorData?.planAlignment ?? publishedVisual?.alignment) as any
+
+    syncFloorPlanImageLayer(map as unknown as FloorPlanMapLike, {
+      sourceId: SRC.FLOORPLAN,
+      layerId: LYR.FLOORPLAN,
+      beforeLayerId: LYR.ROOMS_FILL,
+      imageUrl: imgUrl,
+      footprint,
+      alignment: planAlign,
+      opacity: planAlign?.opacity,
+    })
+  }, [selectedBuilding, activeFloor])
 
   // Building click detection
   useEffect(() => {
@@ -303,20 +320,20 @@ export function PublicMap({ boundary }: PublicMapProps) {
         const building = graph.buildings.find(
           (b) => b.id === f.id || b.name === f.properties?.name
         )
-        setSelectedBuilding(building ?? null)
+        handleSelectBuilding(building ?? null)
       }
     }
     map.on('click', LYR.BUILDINGS_FILL, handler)
-    return () => { map.off('click', LYR.BUILDINGS_FILL, handler) }
-  }, [mapInstance, graph])
+    return () => { try { map.off('click', LYR.BUILDINGS_FILL, handler) } catch {} }
+  }, [mapInstance, graph, handleSelectBuilding])
 
   const handleSearchSelect = useCallback((nodeId: string) => {
     const node = graph.getNode(nodeId)
     if (node?.buildingId) {
       const bldg = graph.buildings.find((b) => b.id === node.buildingId)
-      if (bldg) setSelectedBuilding(bldg)
+      if (bldg) handleSelectBuilding(bldg)
     }
-  }, [graph])
+  }, [graph, handleSelectBuilding])
 
   const handleRoute = useCallback(() => {
     if (!from || !to) return
@@ -333,7 +350,7 @@ export function PublicMap({ boundary }: PublicMapProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'var(--navi-content)', border: '1px solid var(--navi-border)', borderRadius: 5, fontSize: 11 }}>
             <span style={{ color: 'var(--navi-text-secondary)' }}>From:</span>
             <span style={{ color: 'var(--navi-text)', fontWeight: 500 }}>{fromNode.label || fromNode.id}</span>
-            <button onClick={() => { setFrom(''); setPath(null) }}
+            <button onClick={() => { setFrom(''); setPath(null) }} aria-label="Clear start location"
               style={{ background: 'none', border: 'none', color: 'var(--navi-text-secondary)', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}>
               &times;
             </button>
@@ -358,7 +375,14 @@ export function PublicMap({ boundary }: PublicMapProps) {
         {fromNode && <span style={{ color: 'var(--navi-success)', fontSize: 10 }}>{fromNode.label || fromNode.id}</span>}
       </div>
 
-      <div ref={mapContainerRef} style={{ flex: 1 }} />
+      <div style={{ flex: 1, position: 'relative' }}>
+        <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+        <FloorSelector
+          floors={selectedBuilding?.floors ?? []}
+          activeFloor={activeFloor}
+          onChange={setActiveFloor}
+        />
+      </div>
 
       <RouteLine map={mapInstance} route={path as { path: string[]; cost: number } | null} getNodePosition={getNodePosition} />
 

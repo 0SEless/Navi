@@ -51,11 +51,15 @@ function addLayerIfMissing(map: maplibregl.Map, def: maplibregl.LayerSpecificati
 }
 
 function removeIfExists(map: maplibregl.Map, layerId: string) {
-  if (map.getLayer(layerId)) map.removeLayer(layerId)
+  try {
+    if (map.getLayer(layerId)) map.removeLayer(layerId)
+  } catch {}
 }
 
 function removeSourceIfExists(map: maplibregl.Map, sourceId: string) {
-  if (map.getSource(sourceId)) map.removeSource(sourceId)
+  try {
+    if (map.getSource(sourceId)) map.removeSource(sourceId)
+  } catch {}
 }
 
 /**
@@ -335,9 +339,11 @@ export function RouteOverlay({ map, nodes, edges, path, animStep, showGraph, sho
     map.on('click', LYR_GRAPH_NODES, onClick)
 
     return () => {
-      map.off('mousemove', LYR_GRAPH_NODES, onMouseMove)
-      map.off('mouseleave', LYR_GRAPH_NODES, onMouseLeave)
-      map.off('click', LYR_GRAPH_NODES, onClick)
+      try {
+        map.off('mousemove', LYR_GRAPH_NODES, onMouseMove)
+        map.off('mouseleave', LYR_GRAPH_NODES, onMouseLeave)
+        map.off('click', LYR_GRAPH_NODES, onClick)
+      } catch {}
     }
   }, [map, onNodeHover, onNodeClick])
 

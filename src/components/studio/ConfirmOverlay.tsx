@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { Check, X, Loader2 } from 'lucide-react'
 import { useEditor, useEditingEngine, genId } from '@navi/editor'
+import type { RoadDisplayMode } from '@navi/core'
 import { useStudioStore } from '@/store/studio-store'
+import { showImportToast } from './ImportToast'
 
 export function ConfirmOverlay() {
   const { services } = useEditor()
@@ -15,12 +17,14 @@ export function ConfirmOverlay() {
   const clearPendingConfirm = useStudioStore((s) => s.clearPendingConfirm)
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
-  const activeFloor = useStudioStore((s) => s.activeFloor)
   const [importing, setImporting] = useState(false)
 
   const [traceName, setTraceName] = useState('')
   const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
+  const [traceDisplayMode, setTraceDisplayMode] = useState<RoadDisplayMode>('visible')
   const [traceColor, setTraceColor] = useState('#1C6BEB')
+  const [areaName, setAreaName] = useState('')
+  const [areaColor, setAreaColor] = useState('#8B5CF6')
   const routeWidth = useStudioStore((s) => s.routeWidth)
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
@@ -51,7 +55,7 @@ export function ConfirmOverlay() {
     }
 
     if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
-      editEngine.begin({ kind: 'create', entityType: 'road', geometry: pendingConfirm.points, properties: { name: traceName, type: traceType, width: routeWidth, color: traceColor } })
+      editEngine.begin({ kind: 'create', entityType: 'road', geometry: pendingConfirm.points, properties: { name: traceName, type: traceType, width: routeWidth, color: traceColor, displayMode: traceDisplayMode } })
       editEngine.doCommit()
       dispatcher.execute({
         id: 'road.create',
@@ -62,15 +66,21 @@ export function ConfirmOverlay() {
           points: pendingConfirm.points,
           type: traceType,
           width: routeWidth,
+          displayMode: traceDisplayMode,
           metadata: { color: traceColor },
+          // Fix 1: explicit Connect / Keep Separate decisions are committed
+          // atomically with the road (junction authority + geometry projection).
+          ...(pendingConfirm.connections && pendingConfirm.connections.length > 0
+            ? { connections: pendingConfirm.connections }
+            : {}),
         },
       })
       clearTracePoints()
+      setTraceDisplayMode('visible')
       await workflow.save('manual')
     }
 
-    if (pendingConfirm.type === 'boundary' && pendingConfirm.points.length >= 3) {
-      setImporting(true)
+    if ((pendingConfirm.type === 'boundary' || pendingConfirm.type === 'set-boundary') && pendingConfirm.points.length >= 3) {
       dispatcher.execute({
         id: 'boundary.set',
         label: 'Set Campus Boundary',
@@ -78,37 +88,73 @@ export function ConfirmOverlay() {
       })
       clearDrawPoints()
       await workflow.save('manual')
+      showImportToast({ message: 'Campus boundary updated', type: 'success' })
+    }
 
+    if (pendingConfirm.type === 'import-osm' && pendingConfirm.points.length >= 3) {
+      setImporting(true)
       try {
         const res = await fetch('/api/osm-buildings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ boundary: pendingConfirm.points }),
         })
-        if (res.ok) {
-          const data = await res.json()
-          const bldgs: Array<{ id: string; footprint: Array<{ lat: number; lng: number }>; height: number; color: string }> = data.buildings ?? []
-          for (let i = 0; i < bldgs.length; i++) {
-            const b = bldgs[i]
-            dispatcher.execute({
-              id: 'building.create',
-              label: 'Import Building',
-              payload: {
-                id: b.id,
-                name: `Bldg No. ${i + 1}`,
-                footprint: { points: b.footprint },
-                floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
-                height: b.height,
-                color: b.color,
-              },
-            })
-          }
-          if (bldgs.length > 0) await workflow.save('manual')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+        const data = await res.json()
+        const bldgs: Array<{ id: string; name?: string; footprint: Array<{ lat: number; lng: number }>; height: number; color: string }> = data.buildings ?? []
+        let created = 0
+        for (const b of bldgs) {
+          const id = genId('bldg')
+          const result = dispatcher.execute({
+            id: 'building.create',
+            label: 'Import Building',
+            payload: {
+              id,
+              name: b.name || `Building ${b.id}`,
+              code: '',
+              footprint: { points: b.footprint },
+              floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
+              height: b.height || 15,
+              color: b.color || '#1C6BEB',
+            },
+          })
+          if (!result || result.success !== false) created++
         }
-      } catch {
+
+        if (created !== bldgs.length) throw new Error('Failed to create buildings')
+        if (created > 0) await workflow.save('manual')
+        clearDrawPoints()
+        clearPendingConfirm()
+        showImportToast({
+          message: created > 0 ? `Imported ${created} buildings from OSM` : 'No buildings found in selected boundary',
+          type: 'success',
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        showImportToast({ message: `Import failed: ${message}`, type: 'error' })
       } finally {
         setImporting(false)
       }
+      // Keep pending points and the confirmation overlay visible after an
+      // error so the author can retry or cancel without redrawing.
+      return
+    }
+
+    if (pendingConfirm.type === 'area' && pendingConfirm.points.length >= 3) {
+      const id = genId('area')
+      dispatcher.execute({
+        id: 'area.create',
+        label: 'Create Area',
+        payload: {
+          id,
+          name: areaName || `Area ${id.slice(-6).toUpperCase()}`,
+          points: pendingConfirm.points,
+          color: areaColor,
+        },
+      })
+      clearDrawPoints()
+      await workflow.save('manual')
     }
 
     clearPendingConfirm()
@@ -117,6 +163,7 @@ export function ConfirmOverlay() {
   const handleCancel = () => {
     if (pendingConfirm.type === 'route') {
       clearTracePoints()
+      setTraceDisplayMode('visible')
     }
     clearDrawPoints()
     clearPendingConfirm()
@@ -126,6 +173,9 @@ export function ConfirmOverlay() {
     building: 'Building footprint',
     route: traceType === 'arterial' ? 'Arterial route' : 'Connector path',
     boundary: 'Boundary',
+    'set-boundary': 'Campus boundary',
+    'import-osm': 'Import from OSM',
+    area: 'Area polygon',
   }
 
   const typeOptions: { value: 'arterial' | 'connector'; label: string }[] = [
@@ -192,6 +242,32 @@ export function ConfirmOverlay() {
             </div>
           </div>
           <div>
+            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>MAP DISPLAY</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {([
+                { value: 'visible' as const, label: 'Visible route' },
+                { value: 'navigation-only' as const, label: 'Navigation-only route' },
+              ]).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={traceDisplayMode === option.value}
+                  onClick={() => setTraceDisplayMode(option.value)}
+                  title={option.value === 'navigation-only' ? 'Keep this route usable for navigation without showing it on the normal map' : 'Show this route on the normal map'}
+                  style={{
+                    padding: '4px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
+                    background: traceDisplayMode === option.value ? 'var(--navi-primary)' : 'transparent',
+                    color: traceDisplayMode === option.value ? '#fff' : 'var(--navi-text-secondary)',
+                    fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >{option.label}</button>
+              ))}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 9, lineHeight: 1.35, color: 'var(--navi-text-secondary)' }}>
+              Navigation-only routes stay in the graph but are hidden from the normal map.
+            </div>
+          </div>
+          <div>
             <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>COLOR</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {COLOR_SWATCHES.map((c) => (
@@ -225,7 +301,43 @@ export function ConfirmOverlay() {
         </div>
       )}
 
-      {pendingConfirm.type !== 'route' && (
+      {pendingConfirm.type === 'area' && (
+        <div style={{
+          background: 'var(--navi-card)',
+          border: '1px solid var(--navi-border)',
+          borderRadius: 10,
+          padding: '12px 16px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          minWidth: 280,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--navi-text-secondary)' }}>
+            {labels[pendingConfirm.type]}
+          </div>
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>NAME</div>
+            <input value={areaName} onChange={(e) => setAreaName(e.target.value)}
+              placeholder="e.g. Parking Lot A, Event Plaza"
+              style={{
+                padding: '5px 8px', borderRadius: 4, border: '1px solid var(--navi-border)',
+                background: 'var(--navi-card)', color: 'var(--navi-text)', fontSize: 12, outline: 'none', width: '100%',
+              }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)', marginBottom: 3 }}>COLOR</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {COLOR_SWATCHES.map((c) => (
+                <button key={c} onClick={() => setAreaColor(c)}
+                  style={{ width: 20, height: 20, borderRadius: 4, background: c, border: areaColor === c ? '2px solid var(--navi-text)' : '1px solid var(--navi-border)', cursor: 'pointer' }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingConfirm.type !== 'route' && pendingConfirm.type !== 'area' && (
         <div style={{
           fontSize: 11,
           color: 'var(--navi-text-secondary)',

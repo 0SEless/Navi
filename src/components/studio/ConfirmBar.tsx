@@ -1,9 +1,10 @@
 'use client'
 
 import { Trash2, Check, X } from 'lucide-react'
-import { useStudioStore } from '@/store/studio-store'
 import { useCurrentTool } from './useCurrentTool'
 import type { DrawingSessionValue } from './useDrawingSession'
+
+type ConfirmableTool = 'route' | 'building' | 'boundary' | 'area' | 'import-osm' | 'set-boundary'
 
 interface ConfirmBarProps {
   drawing: DrawingSessionValue
@@ -13,7 +14,10 @@ export function ConfirmBar({ drawing }: ConfirmBarProps) {
   const tool = useCurrentTool()
 
   // Only shown for drawing tools with points placed
-  if (tool !== 'route' && tool !== 'building' && tool !== 'boundary') return null
+  if (tool !== 'route' && tool !== 'building' && tool !== 'boundary' && tool !== 'area' && tool !== 'import-osm' && tool !== 'set-boundary') return null
+  // Once the draft has been submitted to the shared confirmation overlay,
+  // keep one authoritative confirmation surface visible.
+  if (drawing.pendingConfirm) return null
 
   const { tracePoints, drawPoints, routeWidth, requestConfirm, cancel, undoLastPoint, undoLastDrawPoint, setRouteWidth } = drawing
 
@@ -23,7 +27,15 @@ export function ConfirmBar({ drawing }: ConfirmBarProps) {
   // Don't show bar if no points placed
   if (currentPoints.length === 0) return null
 
-  const toolLabel = isRoute ? 'Campus route' : tool === 'building' ? 'Building footprint' : 'Campus boundary'
+  const toolLabel = isRoute
+    ? 'Campus route'
+    : tool === 'building'
+      ? 'Building footprint'
+      : tool === 'boundary' || tool === 'set-boundary'
+        ? 'Campus boundary'
+        : tool === 'import-osm'
+          ? 'Import from OSM'
+          : 'Area'
   const minPoints = isRoute ? 2 : 3
   const canConfirm = currentPoints.length >= minPoints
   const onUndo = isRoute ? undoLastPoint : undoLastDrawPoint
@@ -77,7 +89,7 @@ export function ConfirmBar({ drawing }: ConfirmBarProps) {
       >
         <Trash2 size={12} />
       </button>
-      <button onClick={() => requestConfirm(tool as 'route' | 'building' | 'boundary')} disabled={!canConfirm}
+      <button onClick={() => requestConfirm(tool as ConfirmableTool)} disabled={!canConfirm}
         style={{
           display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6,
           border: 'none', background: !canConfirm ? '#374151' : '#10B981',

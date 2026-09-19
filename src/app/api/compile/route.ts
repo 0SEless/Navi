@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireVerifiedMutationAuth } from '@/lib/api-guard'
 
 /**
  * POST /api/compile
@@ -8,10 +9,16 @@ import { NextRequest, NextResponse } from 'next/server'
  * depends on Node built-ins like `crypto` that are unavailable in
  * browser contexts).
  *
+ * Uses compileV2 pipeline: normalize → generatePrimitives → connectivity → emit → artifacts
+ * This produces a proper navigation graph with road waypoints, hallway skeletons,
+ * entrance portals, and door connections.
+ *
  * Request body: { document: CampusDocument }
- * Response: { status: 'success' | 'error', artifacts?, message?, timestamp }
+ * Response: { status: 'success' | 'error', artifacts?, stats?, message?, timestamp }
  */
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireVerifiedMutationAuth(request)
+  if (unauthorized) return unauthorized
   try {
     const body = await request.json()
     const document = body.document
@@ -24,40 +31,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Dynamic import — @navi/compiler uses Node crypto/fs, only safe on server
-    const { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } = await import('@navi/compiler')
+    const { CampusCompiler } = await import('@navi/compiler')
     const compiler = new CampusCompiler()
-    const result = compiler.compile(document)
+
+    // Use compileV2 — the new primitives-based pipeline that produces a navigable graph
+    const result = compiler.compileV2(document)
 
     if (!result.success || !result.graph) {
       return NextResponse.json(
         {
           status: 'error',
           message: result.errors[0]?.message ?? 'Compilation failed',
+          errors: result.errors,
           timestamp: Date.now(),
         },
         { status: 500 },
       )
     }
 
-    const graph = result.graph
-    const searchIndex = buildSearchIndex(document, graph)
-    const poiData = buildPOIData(graph)
-    const buildingIndex = buildBuildingIndex(document, graph)
-
+    // compileV2 already builds artifacts internally (searchIndex, buildingIndex, poiIndex, etc.)
+    const compiledArtifacts = result.artifacts ?? {}
     return NextResponse.json({
       status: 'success',
       artifacts: {
-        navigationGraph: graph,
-        stats: result.stats,
-        searchIndex,
-        poiData,
-        buildingIndex,
+        ...compiledArtifacts,
+        navigationGraph: result.graph,
+        searchIndex: result.artifacts?.searchIndex ?? null,
+        poiData: result.artifacts?.poiIndex ?? null,
+        buildingIndex: result.artifacts?.buildingIndex ?? null,
+        spatialIndex: result.artifacts?.spatialIndex ?? null,
+        panoramaIndex: result.artifacts?.panoramaIndex ?? null,
+        floorGeometry: result.artifacts?.floorGeometry ?? null,
+        qrIndex: result.artifacts?.qrIndex ?? null,
+        components: result.artifacts?.components ?? [],
+        doors: result.artifacts?.doors ?? [],
+        metadata: result.artifacts?.metadata ?? null,
       },
+      stats: result.stats,
+      report: result.report,
+      warnings: result.warnings,
       timestamp: Date.now(),
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { status: 'error', message: err?.message ?? 'Internal compilation error', timestamp: Date.now() },
+      {
+        status: 'error',
+        message: err instanceof Error ? err.message : 'Internal compilation error',
+        timestamp: Date.now(),
+      },
       { status: 500 },
     )
   }

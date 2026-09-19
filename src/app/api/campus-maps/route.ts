@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import {
+  assertCampusMutationAllowed,
+  getCampusMapIdFromBody,
+  getQueryParam,
+  requireVerifiedMutationAuth,
+} from "@/lib/api-guard";
 
 async function getClient(auth: "publishable" | "secret") {
   const key = auth === "secret"
@@ -57,8 +63,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
     const body = await request.json();
+
+    const blocked = assertCampusMutationAllowed(getCampusMapIdFromBody(body));
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
 
     // RPC expects a single `payload` parameter — normalize caller-friendly formats
     const rpcArgs = body.payload ? body : { payload: body };
@@ -77,14 +90,19 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
-    const { searchParams } = new URL(request.url);
-    const mapId = searchParams.get("map_id");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
+    const mapId = getQueryParam(request, "map_id", "mapId");
 
     if (!mapId) {
       return NextResponse.json({ error: "map_id required" }, { status: 400 });
     }
 
+    const blocked = assertCampusMutationAllowed(mapId);
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
     const { data: result, error: rpcError } = await supabase.rpc("delete_campus_map", { map_id_param: mapId } as never);
 
     if (rpcError) {

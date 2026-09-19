@@ -24,7 +24,7 @@ export function ConfirmOverlayAdapter({ drawing }: ConfirmOverlayAdapterProps) {
   useEffect(() => {
     const pc = drawing.pendingConfirm
     if (pc) {
-      useStudioStore.getState().setPendingConfirm(pc.type as any, pc.points as any)
+      useStudioStore.getState().setPendingConfirm(pc.type as any, pc.points as any, pc.connections)
     }
   }, [drawing.pendingConfirm])
 

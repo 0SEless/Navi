@@ -43,6 +43,15 @@ export function buildConnectionNodeGeo(nodes: NavNode[]): GeoJSON.FeatureCollect
   }
 }
 
+/**
+ * A blue connection point can be either an existing shared junction or an
+ * endpoint that is available for an explicit author connection. Keeping this
+ * predicate separate preserves the meaning of `connectionNode` in the graph.
+ */
+export function isConnectionPoint(node: NavNode): boolean {
+  return node.metadata?.connectionNode === true || node.metadata?.roadEndpoint === true
+}
+
 /** Build a GeoJSON FeatureCollection for edges. */
 export function buildEdgeGeo(
   edges: NavEdge[],

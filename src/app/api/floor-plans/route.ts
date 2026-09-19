@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireVerifiedMutationAuth } from '@/lib/api-guard'
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireVerifiedMutationAuth(request)
+  if (unauthorized) return unauthorized
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null

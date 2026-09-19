@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { NavigationInspector, computeGraphHealth, computeRouteSteps, findNearestNode } from '../RouteTesting'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
+import { usePublicStore } from '@/store/public-store'
 
 vi.mock('maplibre-gl', () => ({
   default: {
@@ -20,6 +21,13 @@ vi.mock('maplibre-gl', () => ({
       removeSource = vi.fn()
       setLayoutProperty = vi.fn()
       loaded = vi.fn(() => true)
+      // P1-T15: the component calls real maplibre APIs — the mock fixture was
+      // incomplete without them.
+      isStyleLoaded = vi.fn(() => true)
+      querySourceFeatures = vi.fn(() => [])
+      setPaintProperty = vi.fn()
+      flyTo = vi.fn()
+      dragPan = { enable: vi.fn(), disable: vi.fn() }
       once = vi.fn()
     },
     Marker: class {
@@ -51,6 +59,11 @@ vi.mock('../RouteOverlay', () => ({
   RouteOverlay: vi.fn(() => null),
 }))
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
 describe('NavigationInspector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -61,6 +74,15 @@ describe('NavigationInspector', () => {
       loadFromStorage: vi.fn(),
       result: null,
     } as any)
+    // P1-T15: the component reads campus data from public-store — reset it
+    // so tests don't leak state into each other.
+    usePublicStore.setState({
+      campus: null,
+      campusStatus: 'idle',
+      campusError: null,
+      campusLoading: false,
+      campusData: null,
+    } as never)
   })
 
   it('renders with routing tab active by default', () => {
@@ -69,14 +91,19 @@ describe('NavigationInspector', () => {
     expect(screen.getByText('Diagnostics')).toBeInTheDocument()
   })
 
-  it('switches to Routing tab and shows route controls when hasRealData is true', () => {
-    vi.mocked(useCompiledGraphStore).mockReturnValue({
-      nodes: [],
-      edges: [],
-      hasRealData: true,
-      loadFromStorage: vi.fn(),
-      result: null,
-    } as any)
+  it('switches to Routing tab and shows route controls when real campus data exists', () => {
+    // P1-T15: the component's data source is public-store (sole runtime
+    // source — no compiled-graph fallback); seed it instead of mocking the
+    // removed compiled-graph-store contract.
+    const nodes: NavNode[] = [
+      { id: 'N1', label: 'Lobby', name: 'Lobby', type: 'room', buildingId: 'b1', campusId: 'c1', floor: 0, position: { lat: 10, lng: 20 } },
+      { id: 'N2', label: 'Room 101', name: 'Room 101', type: 'room', buildingId: 'b1', campusId: 'c1', floor: 0, position: { lat: 10.001, lng: 20 } },
+    ]
+    const edges: NavEdge[] = [{ id: 'E1', from: 'N1', to: 'N2', distance: 111, weight: 111, type: 'walkway' }]
+    usePublicStore.setState({
+      campus: { nodes, edges, searchEntries: [], buildings: [], poi: [], boundingBox: null },
+      campusStatus: 'ready',
+    } as never)
     render(<NavigationInspector />)
     fireEvent.click(screen.getByText('Routing'))
     expect(screen.getByText('ROUTE CONFIGURATION')).toBeInTheDocument()
@@ -211,6 +238,62 @@ describe('computeRouteSteps', () => {
     const steps = computeRouteSteps(['A', 'B'], nodes, edges)
     expect(steps[1].edge).not.toBeNull()
     expect(steps[1].distance).toBe(55)
+  })
+
+  it('uses the canonical selected edge id when parallel endpoints are ambiguous', () => {
+    const nodes = [node('A', 'A', 'outdoor'), node('B', 'B', 'room')]
+    const edges = [
+      { ...edge('blocked-shortcut', 'A', 'B', 5), routing: { sourceRoadId: 'blocked', authoredOrientation: 'forward' as const, authored: { walkable: false } } },
+      edge('eligible-parallel', 'A', 'B', 20),
+    ]
+
+    const steps = computeRouteSteps(['A', 'B'], nodes, edges, [undefined, 'eligible-parallel'])
+
+    expect(steps[1].edge?.id).toBe('eligible-parallel')
+    expect(steps[1].distance).toBe(20)
+  })
+})
+
+describe('development terrain validation source', () => {
+  beforeEach(() => {
+    usePublicStore.setState({
+      campus: null,
+      campusStatus: 'idle',
+      campusError: null,
+      campusLoading: false,
+      campusData: null,
+    } as never)
+  })
+
+  it('exposes the existing routes page fixture selector and diagnostics', async () => {
+    render(<NavigationInspector />)
+
+    fireEvent.change(screen.getByLabelText('Route data source'), { target: { value: 'terrain-fixture' } })
+
+    expect(await screen.findByLabelText('Terrain validation fixture')).toBeInTheDocument()
+    expect(await screen.findByText('TERRAIN VALIDATION')).toBeInTheDocument()
+    expect(screen.getByText('STANDARD_TERRAIN_PROFILE_V1')).toBeInTheDocument()
+    expect(await screen.findByText('PASS')).toBeInTheDocument()
+  })
+
+  it('does not expose local fixture controls in production', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+
+    render(<NavigationInspector />)
+
+    expect(screen.queryByLabelText('Route data source')).not.toBeInTheDocument()
+  })
+
+  it('keeps fixture selection on read-only requests with no graph or publish write', async () => {
+    const fetchMock = vi.fn(async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<NavigationInspector />)
+    fireEvent.change(screen.getByLabelText('Route data source'), { target: { value: 'terrain-fixture' } })
+
+    expect(await screen.findByText('PASS')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method === undefined || init?.method === 'GET')).toBe(true)
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/api/graph') && !String(url).includes('/api/publish'))).toBe(true)
   })
 })
 

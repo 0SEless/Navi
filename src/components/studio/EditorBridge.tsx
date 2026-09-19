@@ -12,10 +12,12 @@ import {
   GraphAdapter,
 } from '@navi/editor'
 import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
+import type { PersistenceSyncState } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
+import { persistStudioGraph } from './studio-persistence'
 
 /**
  * ── Selection Ownership Invariant ─────────────────────────────────
@@ -54,21 +56,45 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   const contextRef = useRef<EditorContext | null>(null)
 
   const persistenceAdapter: PersistenceAdapter = {
-    save: async () => {
-      const ctx = contextRef.current
-      if (ctx) {
-        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-        ga.sync(ctx.document)
-      }
-      // Fire and forget: a blocked sync (unresolved server conflict) must never
-      // surface as an unhandled rejection from the editor persistence adapter.
-      void useGraphStore.getState().save().catch((error: unknown) => {
-        console.warn('EditorBridge adapter save failed:', error)
-      })
-      // Bump renderVersion so NavigationGraphRenderer re-renders with updated areas/graph
-      useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
-    },
+    save: () => persistStudioGraph({
+      syncDocument: () => {
+        const ctx = contextRef.current
+        if (ctx) {
+          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
+          ga.sync(ctx.document)
+        }
+      },
+      saveGraph: async () => {
+        try {
+          await useGraphStore.getState().save()
+        } catch (error: unknown) {
+          console.warn('EditorBridge adapter save failed:', error)
+          throw error
+        }
+      },
+      // Bump renderVersion only after graph persistence has completed.
+      bumpRenderVersion: () => {
+        useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
+      },
+    }),
     syncToSupabase: () => useGraphStore.getState().syncToSupabase(),
+    getSyncState: (): PersistenceSyncState => {
+      const state = useGraphStore.getState()
+      return { status: state.syncStatus, error: state.syncError }
+    },
+    subscribeSyncState: (listener) => {
+      let previous = {
+        status: useGraphStore.getState().syncStatus,
+        error: useGraphStore.getState().syncError,
+      }
+      return useGraphStore.subscribe(() => {
+        const state = useGraphStore.getState()
+        const next = { status: state.syncStatus, error: state.syncError }
+        if (next.status === previous.status && next.error === previous.error) return
+        previous = next
+        listener(next)
+      })
+    },
     publish: async (artifacts) => {
       const ctx = contextRef.current
       const campusId = ctx?.document?.metadata?.campusId

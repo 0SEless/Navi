@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BuildingRenderData } from '@/components/map/NavigationRenderModel'
 
@@ -25,6 +25,55 @@ export interface BuildingLayerProps {
   onBuildingClick?: (buildingId: string) => void
 }
 
+// ── Helpers ────────────────────────────────────────────────────
+
+function buildGeoJSON(buildings: BuildingRenderData[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: buildings
+      .filter(b => b.footprint.length >= 3)
+      .map(b => ({
+        type: 'Feature' as const,
+        id: b.id,
+        properties: {
+          id: b.id,
+          name: b.name,
+          color: b.color,
+          height: b.height,
+          base_elevation: 0,
+        },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [b.footprint.map(p => [p.lng, p.lat] as [number, number])],
+        },
+      })),
+  }
+}
+
+/** Selected outline is intentionally visible through color, width, and opacity. */
+export function getBuildingOutlinePaint(): maplibregl.LineLayerSpecification['paint'] {
+  return {
+    'line-color': [
+      'case',
+      ['boolean', ['feature-state', 'selected'], false],
+      '#0F6B3A',
+      ['get', 'color'],
+    ],
+    'line-width': [
+      'case',
+      ['boolean', ['feature-state', 'selected'], false],
+      4,
+      2,
+    ],
+    'line-opacity': [
+      'case',
+      ['boolean', ['feature-state', 'selected'], false],
+      1,
+      0.8,
+    ],
+  } as maplibregl.LineLayerSpecification['paint']
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export function BuildingLayer({
@@ -36,10 +85,13 @@ export function BuildingLayer({
   onBuildingClick,
 }: BuildingLayerProps) {
   const initializedRef = useRef(false)
+  // Track whether we've ever populated data, to handle late-arriving buildings
+  const hasPopulatedRef = useRef(false)
 
-  // Initialize sources and layers
+  // Initialize sources and layers — runs ONCE per map instance
   useEffect(() => {
-    if (!map || initializedRef.current) return
+    if (!map) return
+    if (initializedRef.current) return
     if (map.getSource(SRC)) {
       initializedRef.current = true
       return
@@ -75,13 +127,7 @@ export function BuildingLayer({
         type: 'line',
         source: SRC,
         paint: {
-          'line-color': ['get', 'color'],
-          'line-width': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false], 3,
-            2,
-          ],
-          'line-opacity': 0.9,
+          ...getBuildingOutlinePaint(),
         },
       })
 
@@ -131,57 +177,68 @@ export function BuildingLayer({
     }
 
     return () => {
-      map.off('load', init)
-      // Cleanup layers and source
-      ;[LYR.LABELS, LYR.EXTRUSION, LYR.OUTLINE, LYR.FILL].forEach(l => {
-        if (map.getLayer(l)) map.removeLayer(l)
-      })
-      if (map.getSource(SRC)) map.removeSource(SRC)
+      try {
+        map.off('load', init)
+        // Cleanup layers and source
+        ;[LYR.LABELS, LYR.EXTRUSION, LYR.OUTLINE, LYR.FILL].forEach(l => {
+          if (map.getLayer(l)) map.removeLayer(l)
+        })
+        if (map.getSource(SRC)) map.removeSource(SRC)
+      } catch {}
       initializedRef.current = false
+      hasPopulatedRef.current = false
     }
-  }, [map, showLabels, showExtrusion])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
 
-  // Sync building data
-  useEffect(() => {
+  // Sync building data — runs when buildings change OR after init completes
+  const setData = useCallback(() => {
     if (!map || !initializedRef.current) return
     const src = map.getSource(SRC) as maplibregl.GeoJSONSource | undefined
     if (!src) return
 
-    const features = buildings
-      .filter(b => b.footprint.length >= 3)
-      .map(b => ({
-        type: 'Feature' as const,
-        id: b.id,
-        properties: {
-          id: b.id,
-          name: b.name,
-          color: b.color,
-          height: b.height,
-          base_elevation: 0,
-        },
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: [b.footprint.map(p => [p.lng, p.lat] as [number, number])],
-        },
-      }))
-
-    src.setData({ type: 'FeatureCollection', features })
+    const data = buildGeoJSON(buildings)
+    src.setData(data)
+    hasPopulatedRef.current = true
     map.triggerRepaint()
   }, [map, buildings])
 
-  // Sync selection state
+  // Whenever buildings change, push data if initialized; otherwise a
+  // post-init effect will pick it up.
   useEffect(() => {
-    if (!map || !initializedRef.current) return
-    // Clear all selections
-    const features = map.querySourceFeatures(SRC, { sourceLayer: '' })
-    for (const f of features) {
-      if (f.id) {
-        try { map.setFeatureState({ source: SRC, id: f.id }, { selected: false }) } catch {}
+    setData()
+  }, [setData])
+
+  // Post-init safety net: if init just finished and we haven't populated yet,
+  // push data now. This handles the case where buildings arrived before the
+  // map style loaded.
+  useEffect(() => {
+    if (!map || !initializedRef.current || hasPopulatedRef.current) return
+    setData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, buildings])
+
+  // Sync selection state
+  const selectedBuildingRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!map) return
+
+    const syncSelection = () => {
+      if (!initializedRef.current || !map.isStyleLoaded() || !map.getSource(SRC)) return
+      const previousId = selectedBuildingRef.current
+      if (previousId && previousId !== selectedBuildingId) {
+        try { map.setFeatureState({ source: SRC, id: previousId }, { selected: false }) } catch {}
       }
+      if (selectedBuildingId) {
+        try { map.setFeatureState({ source: SRC, id: selectedBuildingId }, { selected: true }) } catch {}
+      }
+      selectedBuildingRef.current = selectedBuildingId ?? null
     }
-    // Set new selection
-    if (selectedBuildingId) {
-      try { map.setFeatureState({ source: SRC, id: selectedBuildingId }, { selected: true }) } catch {}
+
+    syncSelection()
+    map.on('styledata', syncSelection)
+    return () => {
+      try { map.off('styledata', syncSelection) } catch {}
     }
   }, [map, selectedBuildingId])
 
@@ -189,7 +246,7 @@ export function BuildingLayer({
   useEffect(() => {
     if (!map || !onBuildingClick) return
 
-    const handler = (e: maplibregl.MapMouseEvent & { features?: any[] }) => {
+    const handler = (e: maplibregl.MapLayerMouseEvent) => {
       if (e.features && e.features.length > 0) {
         const id = e.features[0].properties?.id
         if (id) onBuildingClick(id)
@@ -197,7 +254,7 @@ export function BuildingLayer({
     }
 
     map.on('click', LYR.FILL, handler)
-    return () => { map.off('click', LYR.FILL, handler) }
+    return () => { try { map.off('click', LYR.FILL, handler) } catch {} }
   }, [map, onBuildingClick])
 
   // Hover cursor
@@ -210,8 +267,10 @@ export function BuildingLayer({
     map.on('mouseenter', LYR.FILL, onMouseEnter)
     map.on('mouseleave', LYR.FILL, onMouseLeave)
     return () => {
-      map.off('mouseenter', LYR.FILL, onMouseEnter)
-      map.off('mouseleave', LYR.FILL, onMouseLeave)
+      try {
+        map.off('mouseenter', LYR.FILL, onMouseEnter)
+        map.off('mouseleave', LYR.FILL, onMouseLeave)
+      } catch {}
     }
   }, [map])
 

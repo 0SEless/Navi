@@ -152,7 +152,7 @@ export function CreateMapWizard() {
       setBoundaryPoints((prev) => [...prev, { lat: e.lngLat.lat, lng: e.lngLat.lng }])
     }
     map.on('click', handleClick)
-    return () => { map.off('click', handleClick) }
+    return () => { try { map.off('click', handleClick) } catch {} }
   }, [mapReady, step])
 
   // Boundary render
@@ -211,7 +211,7 @@ export function CreateMapWizard() {
       }
     }
     map.on('click', handleClick)
-    return () => { map.off('click', handleClick) }
+    return () => { try { map.off('click', handleClick) } catch {} }
   }, [mapReady, step])
 
   // Cursor change on hover
@@ -224,7 +224,7 @@ export function CreateMapWizard() {
       canvas.style.cursor = features.length > 0 ? 'pointer' : ''
     }
     map.on('mousemove', handleMove)
-    return () => { map.off('mousemove', handleMove) }
+    return () => { try { map.off('mousemove', handleMove) } catch {} }
   }, [mapReady, step])
 
   // Zoom to selected building, preserving current pitch/bearing

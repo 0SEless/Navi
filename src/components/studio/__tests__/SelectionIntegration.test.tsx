@@ -18,7 +18,7 @@ function createDocument(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 0,
-    metadata: { name: 'Test Campus', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'Test Campus', name: 'Test Campus', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1',
       name: 'Main Building',

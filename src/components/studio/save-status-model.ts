@@ -1,5 +1,5 @@
 export type StudioSaveState = 'idle' | 'saving' | 'saved' | 'error' | 'dirty' | 'dirty-while-saving'
-export type StudioGraphSyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
+export type StudioGraphSyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
 
 export interface SaveStatusModelInput {
   saveState: StudioSaveState
@@ -70,6 +70,16 @@ export function getSaveStatusModel({
       detail: FAILURE_DETAIL,
       showRecoveryActions: true,
       diagnostic,
+    }
+  }
+
+  if (syncStatus === 'checking') {
+    return {
+      label: 'Checking server…',
+      color: COLORS.neutral,
+      detail: null,
+      showRecoveryActions: false,
+      diagnostic: null,
     }
   }
 

@@ -16,18 +16,19 @@ export const MOCK_USERS: MockUser[] = [
 ];
 
 export function encodeMockSession(user: MockUser): string {
-  return Buffer.from(JSON.stringify(user)).toString("base64");
+  return btoa(JSON.stringify(user));
 }
 
 export function decodeMockSession(raw: string): MockUser | null {
   try {
-    return JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+    return JSON.parse(atob(raw));
   } catch {
     return null;
   }
 }
 
 export function isMockAuthEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
   return process.env.NEXT_PUBLIC_MOCK_AUTH === "true";
 }
 

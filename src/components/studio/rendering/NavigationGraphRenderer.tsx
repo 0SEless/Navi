@@ -8,8 +8,11 @@ import type { Graph } from '@/engine/graph'
 import type { NavNode, NavEdge } from '@/types/nav-types'
 import type { LayerVisibility } from '@/types/studio-types'
 import { SRC, HIDDEN_NODE_TYPES, LYR } from './constants'
-import { addSourcesAndLayers } from './layers'
-import { buildNodeGeo, buildConnectionNodeGeo, buildEdgeGeo } from './geojson'
+import { addSourcesAndLayers, addAreaSourceAndLayer } from './layers'
+import { buildNodeGeo, buildConnectionNodeGeo, buildEdgeGeo, isConnectionPoint } from './geojson'
+import { areasToGeoJSON } from '@navi/editor'
+import { BASE_STYLES, DEFAULT_BASE_STYLE } from './styles'
+import { MapboxBrandControl, syncMapboxBrandControl } from './satellite'
 
 // ── Base map styles ───────────────────────────────────────────────
 
@@ -25,39 +28,8 @@ const EMPTY_STYLE = {
   ],
 }
 
-const OSM_STYLE = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
-}
-
-const SATELLITE_STYLE = {
-  version: 8 as const,
-  sources: {
-    satellite: {
-      type: 'raster' as const,
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      attribution:
-        '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, UGP, UPR-EGP, and the GIS User Community',
-    },
-  },
-  layers: [{ id: 'satellite', type: 'raster' as const, source: 'satellite' as const }],
-}
-
-/**
- * Returns the initial map style used by StudioCanvas for map construction.
- * On the client, OSM tiles are shown immediately; on the server a fallback is used.
- */
 export function getInitialMapStyle() {
-  if (typeof window !== 'undefined') return OSM_STYLE
+  if (typeof window !== 'undefined') return BASE_STYLES[DEFAULT_BASE_STYLE].style
   return EMPTY_STYLE
 }
 
@@ -69,6 +41,7 @@ export function getInitialMapStyle() {
  */
 function renderGraph(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   addSourcesAndLayers(map)
+  addAreaSourceAndLayer(map)
 
   const filteredNodes = graph.nodes.filter((n: NavNode) => n.floor === activeFloor)
   const filteredEdges = graph.edges.filter((e: NavEdge) => {
@@ -78,7 +51,7 @@ function renderGraph(map: maplibregl.Map, graph: Graph, activeFloor: number) {
   })
 
   const visibleNodes = filteredNodes.filter((n) => !HIDDEN_NODE_TYPES.has(n.type))
-  const connNodes = visibleNodes.filter((n) => n.metadata?.connectionNode === true)
+  const connNodes = visibleNodes.filter(isConnectionPoint)
   const connNodeIds = new Set(connNodes.map((n) => n.id))
   const regNodes = visibleNodes.filter((n) => !connNodeIds.has(n.id))
   const visibleNodeIds = new Set(visibleNodes.map((n) => n.id))
@@ -97,6 +70,11 @@ function renderGraph(map: maplibregl.Map, graph: Graph, activeFloor: number) {
     connNodeSrc?.setData(connNodeGeo)
     const edgeSrc = map.getSource(SRC.EDGES) as maplibregl.GeoJSONSource | undefined
     edgeSrc?.setData(edgeGeo)
+
+    // Areas are campus-level (not floor-filtered) — render all of them
+    const areaGeo = areasToGeoJSON(graph.areas as any)
+    const areaSrc = map.getSource(SRC.AREAS) as maplibregl.GeoJSONSource | undefined
+    areaSrc?.setData(areaGeo)
   } catch {
     // Gracefully handle cases where map has been removed or sources aren't ready
   }
@@ -142,6 +120,7 @@ export function NavigationGraphRenderer({ map }: NavigationGraphRendererProps) {
   const renderVersion = useGraphStore((s) => s.renderVersion)
   const activeFloor = useStudioStore((s) => s.activeFloor)
   const layers = useStudioStore((s) => s.layers)
+  const baseStyle = useStudioStore((s) => s.baseStyle)
   const isVertexEditing = useStudioStore((s) => s.isVertexEditing)
 
   const graphRef = useRef(graph)
@@ -150,8 +129,11 @@ export function NavigationGraphRenderer({ map }: NavigationGraphRendererProps) {
   floorRef.current = activeFloor
   const layersRef = useRef(layers)
   layersRef.current = layers
+  const baseStyleRef = useRef(baseStyle)
+  baseStyleRef.current = baseStyle
+  const mapboxBrandControlRef = useRef<MapboxBrandControl | null>(null)
 
-  const preEditLayerVisRef = useRef<{ nodes: boolean }>({ nodes: true })
+  const preEditLayerVisRef = useRef<{ nodes: boolean }>({ nodes: layers.nodes })
 
   // ── Primary render: push GeoJSON data to sources ──
   useEffect(() => {
@@ -166,7 +148,7 @@ export function NavigationGraphRenderer({ map }: NavigationGraphRendererProps) {
     }
     map.on('style.load', onStyleLoad)
     return () => {
-      map.off('style.load', onStyleLoad)
+      try { map.off('style.load', onStyleLoad) } catch {}
     }
   }, [map])
 
@@ -176,15 +158,21 @@ export function NavigationGraphRenderer({ map }: NavigationGraphRendererProps) {
     setGraphVisibility(map, layers)
   }, [layers, map])
 
-  // ── Base style switching (satellite toggle) ──
+  // ── Base style switching ──
   useEffect(() => {
     const currentStyle = map.getStyle()
-    const isSatellite = currentStyle?.sources?.satellite != null
-    const wantsSatellite = layers.satellite
-    if (wantsSatellite === isSatellite) return
-    const targetStyle = wantsSatellite ? SATELLITE_STYLE : OSM_STYLE
-    map.setStyle(targetStyle)
-  }, [layers.satellite, map])
+    const currentKey = currentStyle?.sources ? Object.keys(currentStyle.sources)[0] : null
+    if (currentKey === baseStyle) return
+    map.setStyle(BASE_STYLES[baseStyle].style)
+  }, [baseStyle, map])
+
+  useEffect(() => {
+    syncMapboxBrandControl(map, baseStyle === 'satellite', mapboxBrandControlRef)
+  }, [baseStyle, map])
+
+  useEffect(() => {
+    return () => syncMapboxBrandControl(map, false, mapboxBrandControlRef)
+  }, [map])
 
   // ── Vertex editing layer visibility ──
   useEffect(() => {

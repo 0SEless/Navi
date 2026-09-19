@@ -36,6 +36,44 @@ describe('Studio save status model', () => {
     expect(model.label).toBe('Saving...')
     expect(model.label).not.toBe('All changes saved')
     expect(model.diagnostic).toBeNull()
+
+    expect(getSaveStatusModel({ ...base, saveState: 'saving' }).label).toBe('Saving...')
+    expect(getSaveStatusModel({ ...base, saveState: 'dirty-while-saving' }).label).toBe('Saving...')
+  })
+
+  it('shows a neutral checking state while server freshness is unresolved', () => {
+    const model = getSaveStatusModel({
+      ...base,
+      syncStatus: 'checking',
+      saveState: 'dirty',
+    })
+
+    expect(model.label).toBe('Checking server…')
+    expect(model.color).toBe('#64748b')
+    expect(model.detail).toBeNull()
+    expect(model.showRecoveryActions).toBe(false)
+    expect(model.diagnostic).toBeNull()
+    expect(model.label).not.toBe('All changes saved')
+  })
+
+  it('keeps conflict and error ahead of checking, and checking ahead of saving', () => {
+    expect(getSaveStatusModel({
+      ...base,
+      syncStatus: 'conflict',
+      syncError: 'conflict',
+    }).label).toBe('Changes not synced')
+
+    expect(getSaveStatusModel({
+      ...base,
+      syncStatus: 'error',
+      syncError: 'boom',
+    }).label).toBe('Save failed — changes preserved')
+
+    expect(getSaveStatusModel({
+      ...base,
+      saveState: 'saving',
+      syncStatus: 'checking',
+    }).label).toBe('Checking server…')
   })
 
   it('treats an offline sync failure as saved on this device', () => {

@@ -125,6 +125,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
         await fetch('/api/campus-maps', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ ...map, landmarkTypes: types, landmarkInstances: instances }),
         })
       } catch (e) { console.warn('[campus-map-store] syncToSupabase failed:', e) }
@@ -134,7 +135,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
   fetchFromSupabase: async () => {
     if (typeof window === 'undefined') return
     try {
-      const res = await fetch('/api/campus-maps')
+      const res = await fetch('/api/campus-maps', { credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
       if (!data.maps || !data.maps.length) return
@@ -147,8 +148,8 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
           imageUrl: m.imageUrl, boundary: m.boundary, center: m.center,
           createdAt: m.createdAt, updatedAt: m.updatedAt, stats: m.stats,
         })
-        if (m.landmarkTypes) landmarkTypes.push(...m.landmarkTypes)
-        if (m.landmarkInstances) landmarkInstances.push(...m.landmarkInstances)
+        if (Array.isArray(m.landmarkTypes)) landmarkTypes.push(...m.landmarkTypes)
+        if (Array.isArray(m.landmarkInstances)) landmarkInstances.push(...m.landmarkInstances)
       }
       set({ maps, landmarkTypes, landmarkInstances })
     } catch (e) { console.warn('[campus-map-store] fetchFromSupabase failed:', e) }
@@ -157,7 +158,7 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
   deleteFromSupabase: async (mapId) => {
     if (typeof window === 'undefined') return
     try {
-      await fetch(`/api/campus-maps?map_id=${encodeURIComponent(mapId)}`, { method: 'DELETE' })
+      await fetch(`/api/campus-maps?map_id=${encodeURIComponent(mapId)}`, { method: 'DELETE', credentials: 'include' })
     } catch (e) { console.warn('[campus-map-store] deleteFromSupabase failed:', e) }
   },
 
@@ -173,7 +174,11 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
           landmarkInstances: data.landmarkInstances || [],
         })
       }
-    } catch { /* corrupt */ }
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[campus-map-store] Failed to load from localStorage:', e)
+      }
+    }
     get().fetchFromSupabase()
   },
 

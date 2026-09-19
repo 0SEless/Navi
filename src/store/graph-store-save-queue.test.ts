@@ -163,6 +163,23 @@ describe('graph store per-campus save serialization and revision contract', () =
     expect(useGraphStore.getState().syncStatus).toBe('synced')
   })
 
+  it('consumes the authoritative revision across ten sequential saves', async () => {
+    const server = createMockServer()
+
+    for (let i = 1; i <= 10; i += 1) {
+      setClientGraph(`Edit ${i}`)
+      await useGraphStore.getState().save()
+      expect(readMarker().serverTimestamp).toBe(`R${i}`)
+    }
+
+    expect(server.stats.conflictCount).toBe(0)
+    expect(server.revision).toBe('R10')
+    expect(
+      server.stats.posts.map((raw) => JSON.parse(raw).expectedServerUpdatedAt),
+    ).toEqual(['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9'])
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+  })
+
   it('coalesces rapid consecutive edits, keeps one write in flight, and never self-conflicts', async () => {
     const server = createMockServer()
     server.closeGate()

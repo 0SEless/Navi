@@ -26,6 +26,7 @@ export interface NavigationMapProps {
   center?: [number, number]
   zoom?: number
   pitch?: number
+  maxPitch?: number
   maxZoom?: number
   minZoom?: number
   showZoomControls?: boolean
@@ -58,6 +59,7 @@ export default function NavigationMap({
   center = [122.1677, 11.8197],
   zoom = 16,
   pitch = 0,
+  maxPitch = 60,
   maxZoom = 22,
   minZoom = 12,
   showZoomControls = true,
@@ -83,6 +85,7 @@ export default function NavigationMap({
       center,
       zoom,
       pitch,
+      maxPitch,
       maxZoom,
       minZoom,
       attributionControl: false,

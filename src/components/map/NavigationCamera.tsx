@@ -29,6 +29,7 @@ export interface NavigationCameraProps {
   heading?: number | null
   bearing?: number | null
   routeBounds?: NavigationCameraBounds | null
+  initialSetup?: boolean
   reducedMotion?: boolean
   showControls?: boolean
   controlsClassName?: string
@@ -55,14 +56,6 @@ function toControllerMap(map: unknown): NavigationCameraMap {
   return map as NavigationCameraMap
 }
 
-function defaultHeadingFollowEnabled(
-  surface: NavigationCameraSurface,
-  mode: NavigationCameraMode,
-  topOrientation: TopCameraOrientation,
-): boolean {
-  return surface === 'active' && (mode === 'TOP' ? topOrientation === 'heading-follow' : true)
-}
-
 /** React lifecycle bridge for the imperative navigation camera controller. */
 export default function NavigationCamera({
   surface,
@@ -72,13 +65,14 @@ export default function NavigationCamera({
   heading = null,
   bearing = null,
   routeBounds = null,
+  initialSetup = false,
   reducedMotion = false,
   showControls = true,
   controlsClassName,
   suspended: suspendedProp,
   headingStatus = 'none',
   canRequestHeadingPermission = false,
-  headingFollowEnabled,
+  headingFollowEnabled = false,
   onModeChange,
   onRecenter,
   onResetCompass,
@@ -88,40 +82,13 @@ export default function NavigationCamera({
   const { map, isReady } = useNavigationMap()
   const navigationContext = useOptionalNavigationContext()
   const controllerRef = useRef<NavigationCameraController | null>(null)
-  const [modeSelection, setModeSelection] = useState<{
-    sourceMode: NavigationCameraMode
-    sourceSurface: NavigationCameraSurface
-    value: NavigationCameraMode
-  }>(() => ({
-    sourceMode: mode,
-    sourceSurface: surface,
-    value: surface === 'active' ? mode : 'TOP',
-  }))
+  const initialSetupAtMountRef = useRef(initialSetup)
   const [suspendedState, setSuspendedState] = useState(false)
-  const defaultHeadingFollow = defaultHeadingFollowEnabled(surface, mode, topOrientation)
-  const defaultHeadingFollowKey = `${surface}:${mode}:${topOrientation}`
-  const [headingFollowSelection, setHeadingFollowSelection] = useState<{
-    defaultKey: string
-    sourceValue: boolean | undefined
-    value: boolean
-  }>(() => ({
-    defaultKey: defaultHeadingFollowKey,
-    sourceValue: headingFollowEnabled,
-    value: headingFollowEnabled ?? defaultHeadingFollow,
-  }))
 
   const contextPosition = contextPositionToCenter(navigationContext?.location)
   const effectivePosition = position !== undefined ? position : contextPosition
-  const effectiveMode = surface === 'active'
-    ? modeSelection.sourceMode === mode && modeSelection.sourceSurface === surface
-      ? modeSelection.value
-      : mode
-    : 'TOP'
+  const effectiveMode = surface === 'active' ? mode : 'TOP'
   const effectiveSuspended = suspendedProp ?? suspendedState
-  const effectiveHeadingFollowEnabled = headingFollowSelection.sourceValue === headingFollowEnabled
-    && (headingFollowEnabled !== undefined || headingFollowSelection.defaultKey === defaultHeadingFollowKey)
-    ? headingFollowSelection.value
-    : headingFollowEnabled ?? defaultHeadingFollow
 
   const handleSuspensionChange = useCallback((suspended: boolean) => {
     setSuspendedState(suspended)
@@ -136,6 +103,7 @@ export default function NavigationCamera({
 
     const controller = createNavigationCameraController(toControllerMap(map), {
       reducedMotion,
+      initialSetup: initialSetupAtMountRef.current,
       onSuspensionChange: handleSuspensionChange,
     })
     controllerRef.current = controller
@@ -156,11 +124,12 @@ export default function NavigationCamera({
       topOrientation,
       position: effectivePosition,
       heading,
-      headingFollowEnabled: effectiveHeadingFollowEnabled,
+      headingFollowEnabled,
       routeBounds,
+      initialSetup,
       reducedMotion,
     })
-  }, [effectiveHeadingFollowEnabled, effectiveMode, effectivePosition, heading, isReady, reducedMotion, routeBounds, surface, topOrientation])
+  }, [effectiveMode, effectivePosition, heading, headingFollowEnabled, initialSetup, isReady, reducedMotion, routeBounds, surface, topOrientation])
 
   const compassBearing = bearing ?? heading ?? null
   const compassVisible = isNavigationCompassVisible(compassBearing)
@@ -168,13 +137,17 @@ export default function NavigationCamera({
 
   const handleModeChange = useCallback((nextMode: NavigationCameraMode) => {
     if (surface !== 'active') return
-    setModeSelection({
-      sourceMode: mode,
-      sourceSurface: surface,
-      value: nextMode,
-    })
     onModeChange?.(nextMode)
-  }, [mode, onModeChange, surface])
+  }, [onModeChange, surface])
+
+  const handleToggleHeadingFollow = useCallback((enabled: boolean) => {
+    if (surface !== 'active') return
+    if (enabled && headingStatus === 'permission-required' && canRequestHeadingPermission) {
+      onRequestHeadingPermission?.()
+    }
+    controllerRef.current?.setHeadingFollowEnabled(enabled, heading)
+    onToggleHeadingFollow?.(enabled)
+  }, [canRequestHeadingPermission, heading, headingStatus, onRequestHeadingPermission, onToggleHeadingFollow, surface])
 
   const handleRecenter = useCallback(() => {
     controllerRef.current?.recenter(effectivePosition, heading)
@@ -186,17 +159,6 @@ export default function NavigationCamera({
     onResetCompass?.()
   }, [onResetCompass])
 
-  const handleToggleHeadingFollow = useCallback((enabled: boolean) => {
-    if (surface !== 'active') return
-    setHeadingFollowSelection({
-      defaultKey: defaultHeadingFollowKey,
-      sourceValue: headingFollowEnabled,
-      value: enabled,
-    })
-    controllerRef.current?.setHeadingFollowEnabled(enabled, heading)
-    onToggleHeadingFollow?.(enabled)
-  }, [defaultHeadingFollowKey, heading, headingFollowEnabled, onToggleHeadingFollow, surface])
-
   const controlProps = useMemo<NavigationCameraControlsProps>(() => ({
     surface,
     mode: effectiveMode,
@@ -206,8 +168,8 @@ export default function NavigationCamera({
     suspended: effectiveSuspended,
     headingStatus,
     canRequestHeadingPermission,
+    headingFollowEnabled,
     reducedMotion,
-    headingFollowEnabled: effectiveHeadingFollowEnabled,
     onModeChange: handleModeChange,
     onRecenter: handleRecenter,
     onResetCompass: handleResetCompass,
@@ -218,13 +180,13 @@ export default function NavigationCamera({
     compassVisible,
     effectiveMode,
     effectiveSuspended,
+    handleToggleHeadingFollow,
     handleModeChange,
     handleRecenter,
     handleResetCompass,
+    headingFollowEnabled,
     hasLocation,
-    effectiveHeadingFollowEnabled,
     headingStatus,
-    handleToggleHeadingFollow,
     onRequestHeadingPermission,
     reducedMotion,
     surface,

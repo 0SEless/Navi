@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   MapPin, Building2, QrCode, Camera, Activity, TrendingUp, AlertTriangle,
   CheckCircle, Clock, ArrowRight, RefreshCw, Route, Database,
@@ -8,7 +8,11 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import type { ScreenName } from "@/types/screens";
+import { useGraphStore } from "@/store/graph-store";
+import { useCampusMapStore } from "@/store/campus-map-store";
 
+// Mock data for charts that we can't compute from the graph store yet
+// (QR scans, route requests, etc. would come from an analytics API)
 const nodeActivityData = [
   { time: "08:00", scans: 12, routes: 8 },
   { time: "09:00", scans: 34, routes: 22 },
@@ -20,25 +24,6 @@ const nodeActivityData = [
   { time: "15:00", scans: 49, routes: 36 },
   { time: "16:00", scans: 38, routes: 28 },
   { time: "17:00", scans: 22, routes: 15 },
-];
-
-const buildingUsageData = [
-  { name: "Admin", nodes: 12, scans: 89 },
-  { name: "LRC", nodes: 8, scans: 145 },
-  { name: "CAS", nodes: 15, scans: 203 },
-  { name: "COE", nodes: 11, scans: 167 },
-  { name: "SCI", nodes: 9, scans: 98 },
-  { name: "GYM", nodes: 5, scans: 54 },
-  { name: "SC", nodes: 7, scans: 132 },
-];
-
-const nodeTypeData = [
-  { name: "Entrance", value: 28, color: "var(--navi-primary)" },
-  { name: "Intersection", value: 19, color: "#06B6D4" },
-  { name: "Staircase", value: 14, color: "#059669" },
-  { name: "Room", value: 22, color: "#D97706" },
-  { name: "Elevator", value: 6, color: "#7C3AED" },
-  { name: "Outdoor", value: 11, color: "#64748B" },
 ];
 
 const recentActivity = [
@@ -111,13 +96,84 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [refreshing, setRefreshing] = useState(false);
   const doRefresh = () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 1200); };
 
+  // Get real data from graph store
+  const graph = useGraphStore((s) => s.graph);
+  const campusMaps = useCampusMapStore((s) => s.maps);
+
+  // Compute stats from the graph
+  const stats = useMemo(() => {
+    const nodes = graph?.nodes ?? [];
+    const edges = graph?.edges ?? [];
+    const buildings = graph?.buildings ?? [];
+
+    // Count node types
+    const nodeTypeCounts: Record<string, number> = {};
+    for (const node of nodes) {
+      const type = node.type || 'unknown';
+      nodeTypeCounts[type] = (nodeTypeCounts[type] || 0) + 1;
+    }
+
+    // Count buildings with entrances
+    const buildingsWithEntrances = buildings.filter(b => b.entrances && b.entrances.length > 0).length;
+
+    // Count total floors
+    const totalFloors = buildings.reduce((sum, b) => sum + (b.floors?.length ?? 0), 0);
+
+    // Count QR checkpoints (nodes with hasQr)
+    const qrCount = nodes.filter(n => n.hasQr).length;
+
+    // Count panoramas (nodes with hasPanorama)
+    const panoramaCount = nodes.filter(n => n.hasPanorama).length;
+
+    // Compute building usage data from graph
+    const buildingUsage = buildings.map(b => ({
+      name: b.name || b.id,
+      nodes: nodes.filter(n => n.buildingId === b.id).length,
+      scans: 0, // Would come from analytics API
+    })).filter(b => b.nodes > 0);
+
+    // Compute node type distribution for pie chart
+    const nodeTypeData = [
+      { name: "Entrance", value: nodeTypeCounts['building_entrance'] ?? nodeTypeCounts['entrance'] ?? 0, color: "var(--navi-primary)" },
+      { name: "Intersection", value: nodeTypeCounts['intersection'] ?? 0, color: "#06B6D4" },
+      { name: "Staircase", value: nodeTypeCounts['staircase'] ?? nodeTypeCounts['stair'] ?? 0, color: "#059669" },
+      { name: "Room", value: nodeTypeCounts['room'] ?? nodeTypeCounts['space'] ?? 0, color: "#D97706" },
+      { name: "Elevator", value: nodeTypeCounts['elevator'] ?? nodeTypeCounts['connector_stop'] ?? 0, color: "#7C3AED" },
+      { name: "Outdoor", value: nodeTypeCounts['outdoor'] ?? 0, color: "#64748B" },
+    ].filter(t => t.value > 0);
+
+    // Check for disconnected nodes
+    const adj: Record<string, string[]> = {};
+    for (const edge of edges) {
+      if (!adj[edge.from]) adj[edge.from] = [];
+      if (!adj[edge.to]) adj[edge.to] = [];
+      adj[edge.from].push(edge.to);
+      adj[edge.to].push(edge.from);
+    }
+    const disconnectedNodes = nodes.filter(n => !adj[n.id] || adj[n.id].length === 0);
+
+    return {
+      totalNodes: nodes.length,
+      totalEdges: edges.length,
+      totalBuildings: buildings.length,
+      totalFloors,
+      qrCount,
+      panoramaCount,
+      buildingsWithEntrances,
+      buildingUsage,
+      nodeTypeData,
+      disconnectedCount: disconnectedNodes.length,
+      disconnectedNodeIds: disconnectedNodes.slice(0, 3).map(n => n.id),
+    };
+  }, [graph]);
+
   return (
     <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column" }}>
       {/* Page header */}
       <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--navi-text)", margin: 0 }}>Dashboard</h1>
-          <p style={{ color: "var(--navi-text-secondary)", fontSize: 12, margin: "2px 0 0" }}>NAVI · ASU Ibajay Campus</p>
+          <p style={{ color: "var(--navi-text-secondary)", fontSize: 12, margin: "2px 0 0" }}>NAVI · {campusMaps?.[0]?.name ?? 'Campus'}</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--navi-success)", fontSize: 11, background: "#ECFDF5", padding: "4px 10px", borderRadius: 6 }}>
@@ -134,10 +190,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Stats grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-          <StatCard icon={MapPin} label="Navigation Nodes" value="100" sub="15 floors · 8 buildings" color="var(--navi-primary)" trend="+8" trendUp />
-          <StatCard icon={Building2} label="Campus Buildings" value="8" sub="23 total floors mapped" color="#7C3AED" trend="+1" trendUp />
-          <StatCard icon={QrCode} label="QR Checkpoints" value="47" sub="39 active · 8 pending" color="#06B6D4" trend="+5" trendUp />
-          <StatCard icon={Camera} label="Panoramas" value="34" sub="28 linked to nodes" color="#D97706" trend="3 unlinked" trendUp={false} />
+          <StatCard icon={MapPin} label="Navigation Nodes" value={stats.totalNodes} sub={`${stats.totalEdges} edges · ${stats.totalBuildings} buildings`} color="var(--navi-primary)" />
+          <StatCard icon={Building2} label="Campus Buildings" value={stats.totalBuildings} sub={`${stats.totalFloors} total floors mapped`} color="#7C3AED" />
+          <StatCard icon={QrCode} label="QR Checkpoints" value={stats.qrCount} sub="Active checkpoints" color="#06B6D4" />
+          <StatCard icon={Camera} label="Panoramas" value={stats.panoramaCount} sub="Linked to nodes" color="#D97706" />
         </div>
 
         {/* Charts row */}
@@ -170,15 +226,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ marginBottom: 12 }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)", margin: 0 }}>Building Usage</h3>
-              <p style={{ color: "var(--navi-text-secondary)", fontSize: 11, margin: "2px 0 0" }}>Nodes & scans per building</p>
+              <p style={{ color: "var(--navi-text-secondary)", fontSize: 11, margin: "2px 0 0" }}>Nodes per building</p>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={buildingUsageData} barSize={14}>
+              <BarChart data={stats.buildingUsage} barSize={14}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--navi-content)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--navi-text-secondary)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "var(--navi-text-secondary)" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: "var(--navi-sidebar)", border: "none", borderRadius: 6, fontSize: 12 }} labelStyle={{ color: "var(--navi-text-sidebar)" }} itemStyle={{ color: "var(--navi-text-sidebar-active)" }} />
-                <Bar dataKey="scans" fill="var(--navi-primary)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="nodes" fill="var(--navi-primary)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -189,15 +245,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <p style={{ color: "var(--navi-text-secondary)", fontSize: 11, margin: "0 0 10px" }}>Distribution by category</p>
             <div style={{ display: "flex", justifyContent: "center" }}>
               <PieChart width={130} height={130}>
-                <Pie data={nodeTypeData} cx={65} cy={65} innerRadius={38} outerRadius={60} dataKey="value">
-                  {nodeTypeData.map((entry, i) => (
+                <Pie data={stats.nodeTypeData} cx={65} cy={65} innerRadius={38} outerRadius={60} dataKey="value">
+                  {stats.nodeTypeData.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
                 </Pie>
               </PieChart>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
-              {nodeTypeData.map((item) => (
+              {stats.nodeTypeData.map((item) => (
                 <div key={item.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ width: 7, height: 7, borderRadius: "50%", background: item.color }} />
@@ -249,10 +305,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <div style={{ background: "var(--navi-card)", border: "1px solid var(--navi-border)", borderRadius: 10, padding: "14px 16px" }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--navi-text)", margin: "0 0 12px" }}>Dataset Health</h3>
               {[
-                { label: "Graph Connectivity", value: 94, color: "var(--navi-success)" },
-                { label: "QR Coverage", value: 78, color: "var(--navi-primary)" },
-                { label: "Panorama Linkage", value: 62, color: "#D97706" },
-                { label: "Floor Coverage", value: 85, color: "#06B6D4" },
+                { label: "Graph Connectivity", value: stats.totalEdges > 0 ? Math.round((stats.totalEdges / Math.max(stats.totalNodes, 1)) * 100) : 0, color: "var(--navi-success)" },
+                { label: "QR Coverage", value: stats.totalNodes > 0 ? Math.round((stats.qrCount / stats.totalNodes) * 100) : 0, color: "var(--navi-primary)" },
+                { label: "Panorama Linkage", value: stats.totalNodes > 0 ? Math.round((stats.panoramaCount / stats.totalNodes) * 100) : 0, color: "#D97706" },
+                { label: "Building Coverage", value: stats.totalBuildings > 0 ? Math.round((stats.buildingsWithEntrances / stats.totalBuildings) * 100) : 0, color: "#06B6D4" },
               ].map((item) => (
                 <div key={item.label} style={{ marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
@@ -287,13 +343,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Alert */}
-            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "10px 14px", display: "flex", gap: 8 }}>
-              <AlertTriangle size={13} color="var(--navi-error)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-error)", marginBottom: 2 }}>1 Disconnected Node</div>
-                <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>Node N031 has no valid path connections.</div>
+            {stats.disconnectedCount > 0 && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "10px 14px", display: "flex", gap: 8 }}>
+                <AlertTriangle size={13} color="var(--navi-error)" style={{ flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--navi-error)", marginBottom: 2 }}>{stats.disconnectedCount} Disconnected Node{stats.disconnectedCount > 1 ? 's' : ''}</div>
+                  <div style={{ fontSize: 11, color: "var(--navi-text-secondary)" }}>Node{stats.disconnectedCount > 1 ? 's' : ''} {stats.disconnectedNodeIds.join(', ')} {stats.disconnectedCount > 1 ? 'have' : 'has'} no valid path connections.</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

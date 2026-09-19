@@ -2,11 +2,14 @@ import type { Diagnostic, TopologyRule } from '../diagnostic-types'
 import type { CampusDocument } from '@navi/core'
 import { TOPOLOGY_THRESHOLDS } from '../thresholds'
 
-function pointDistance(a: { lat: number; lng: number }, b: { x: number; y: number }): number {
-  return Math.sqrt((a.lng - b.x) ** 2 + (a.lat - b.y) ** 2)
+// P1-T4 (D9): entrances and hallway geometry are both building-local — the
+// distance check is now a consistent local-vs-local comparison (this also
+// removes the previous mixed world/local units wart).
+function pointDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
 }
 
-function nearestHallwayEntranceDist(entPos: { lat: number; lng: number }, floor: any): number {
+function nearestHallwayEntranceDist(entPos: { x: number; y: number }, floor: any): number {
   let minDist = Infinity
   for (const hw of floor.hallways || []) {
     for (const pt of hw.polyline?.points || []) {

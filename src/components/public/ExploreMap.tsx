@@ -31,6 +31,7 @@ import {
   resolveExploreContext,
   type ExploreContext,
 } from '@/lib/explore-contracts'
+import { NAVIGATION_POV_PREFERRED_PITCH } from '@/lib/navigation-camera-policy'
 
 // ── Props ──────────────────────────────────────────────────────
 
@@ -42,6 +43,23 @@ export interface ExploreMapProps {
   navigationTargetBuildingId?: string
   /** Opt-in canonical camera bridge; absent keeps the legacy Explore controls. */
   camera?: NavigationCameraConfig
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function authoredPoiPosition(bundle: CampusBundle, id: string): { lat: number; lng: number } | undefined {
+  const poi = bundle.poi.find((value) => isRecord(value) && value.id === id)
+  if (!isRecord(poi)) return undefined
+  const geometry = isRecord(poi.geometry) ? poi.geometry : undefined
+  const candidate = geometry?.type === 'point'
+    ? geometry.position
+    : geometry?.type === 'circle'
+      ? geometry.center
+      : Array.isArray(geometry?.points) ? geometry.points[0] : poi.position
+  if (!isRecord(candidate) || typeof candidate.lat !== 'number' || typeof candidate.lng !== 'number') return undefined
+  return { lat: candidate.lat, lng: candidate.lng }
 }
 
 // ── Inner layer composition ────────────────────────────────────
@@ -58,6 +76,7 @@ function ExploreLayers({
   activeFloor,
   selectedBuildingId,
   navigationTargetBuildingId,
+  fitCamera,
 }: {
   model: NavigationRenderModel
   bundle: CampusBundle
@@ -66,10 +85,12 @@ function ExploreLayers({
   activeFloor: number
   selectedBuildingId?: string
   navigationTargetBuildingId?: string
+  fitCamera: boolean
 }) {
   const { map } = useNavigationMap()
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
+  const revealedPoiIds = usePublicStore((s) => s.revealedPoiIds)
   // Phase 2F foundation: consume the navigation segment so layers never decide
   // navigation state independently. T10: routes emphasize via this segment.
   const { navigationSegment } = useNavigationContext()
@@ -87,12 +108,17 @@ function ExploreLayers({
   const getNodePosition = useCallback(
     (id: string) => {
       const n = bundle.nodes.find((x) => x.id === id)
-      return n ? { lat: n.position.lat, lng: n.position.lng } : undefined
+      return n ? { lat: n.position.lat, lng: n.position.lng } : authoredPoiPosition(bundle, id)
     },
     [bundle],
   )
   const getNodeFloor = useCallback(
-    (id: string) => bundle.nodes.find((x) => x.id === id)?.floor,
+    (id: string) => {
+      const node = bundle.nodes.find((x) => x.id === id)
+      if (node) return node.floor
+      const poi = bundle.poi.find((value) => isRecord(value) && value.id === id)
+      return isRecord(poi) && typeof poi.floor === 'number' ? poi.floor : undefined
+    },
     [bundle],
   )
 
@@ -161,6 +187,7 @@ function ExploreLayers({
         pois={indoorContext.active ? model.indoor.pois : []}
         buildingId={indoorContext.buildingId}
         floor={activeFloor}
+        revealedIds={revealedPoiIds}
       />
       <RouteLine
         map={map}
@@ -169,6 +196,7 @@ function ExploreLayers({
         getNodeFloor={getNodeFloor}
         activeFloor={activeFloor}
         navigationSegment={navigationSegment}
+        fitCamera={fitCamera}
       />
     </div>
   )
@@ -350,6 +378,16 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
       }
     : camera
 
+  const hasLiveCameraPosition = Boolean(
+    cameraWithContext?.position
+    && Number.isFinite(cameraWithContext.position[0])
+    && Number.isFinite(cameraWithContext.position[1]),
+  ) || Boolean(
+    parentNavigationContext?.location
+    && Number.isFinite(parentNavigationContext.location.lat)
+    && Number.isFinite(parentNavigationContext.location.lng),
+  )
+
   const layers = (
     <ExploreLayers
       model={model}
@@ -359,20 +397,24 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
       activeFloor={effectiveFloor}
       selectedBuildingId={exploreContext.buildingId}
       navigationTargetBuildingId={navigationTargetBuildingId}
+      fitCamera={!camera}
     />
   )
 
-  const initialPitch = camera?.mode === 'POV' ? 85 : camera?.mode === 'FOLLOW' ? 55 : 0
+  const initialPitch = camera?.mode === 'POV'
+    ? NAVIGATION_POV_PREFERRED_PITCH
+    : camera?.mode === 'FOLLOW' ? 55 : 0
 
   return (
     <NavigationMap
       bounds={bundle.boundingBox}
       className="h-full w-full"
       pitch={initialPitch}
+      maxPitch={camera ? NAVIGATION_POV_PREFERRED_PITCH : undefined}
       showZoomControls={false}
       fitBoundsOnChange={camera?.surface === 'explore'
         || !camera
-        || (camera?.surface === 'active' && !camera.routeBounds)}
+        || (camera?.surface === 'active' && !camera.routeBounds && !hasLiveCameraPosition)}
     >
       {parentNavigationContext ? layers : (
         <NavigationProvider buildingId={exploreContext.buildingId} floor={effectiveFloor}>

@@ -4,11 +4,13 @@ import type { CompilerAdapter, CompileResult } from '@navi/editor'
 /**
  * Server-side CompilerAdapter that imports @navi/compiler directly.
  * NOT for client bundles — Node built-ins (crypto/fs) are unavailable there.
+ *
+ * Uses compileV2 pipeline: normalize → generatePrimitives → connectivity → emit → artifacts
  */
 export class CampusCompilerAdapter implements CompilerAdapter {
   async compile(document: CampusDocument): Promise<CompileResult> {
     try {
-      const { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } = await import('@navi/compiler')
+      const { CampusCompiler } = await import('@navi/compiler')
 
       const compiler = new CampusCompiler({
         nodeInterval: 5,
@@ -17,7 +19,8 @@ export class CampusCompilerAdapter implements CompilerAdapter {
         includeAccessibility: false,
       })
 
-      const result = compiler.compile(document)
+      // Use compileV2 — the new primitives-based pipeline
+      const result = compiler.compileV2(document)
 
       if (!result.success || !result.graph) {
         const prefix = result.errors?.some(e => e.code?.startsWith('GRAPH_'))
@@ -30,19 +33,16 @@ export class CampusCompilerAdapter implements CompilerAdapter {
         }
       }
 
-      const graph = result.graph
-      const searchIndex = buildSearchIndex(document, graph)
-      const poiData = buildPOIData(graph)
-      const buildingIndex = buildBuildingIndex(document, graph)
-
+      // compileV2 already builds artifacts internally
       return {
         status: 'success',
         timestamp: Date.now(),
         artifacts: {
-          navigationGraph: graph,
-          searchIndex,
-          poiData,
-          buildingIndex,
+          ...(result.artifacts ?? {}),
+          navigationGraph: result.graph,
+          searchIndex: result.artifacts?.searchIndex ?? null,
+          poiData: result.artifacts?.poiIndex ?? null,
+          buildingIndex: result.artifacts?.buildingIndex ?? null,
         },
       }
     } catch (err) {

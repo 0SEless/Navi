@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { CampusMap } from '@/types/campus-map'
 
+const routerPush = vi.hoisted(() => vi.fn())
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
 }))
 
 let mockState: any = { maps: [], load: vi.fn(), deleteMap: vi.fn() }
@@ -33,6 +35,7 @@ const mockMap = (overrides: Partial<CampusMap> = {}): CampusMap => ({
 describe('StudioDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routerPush.mockClear()
     mockState = { maps: [], load: vi.fn(), deleteMap: vi.fn() }
   })
 
@@ -69,5 +72,15 @@ describe('StudioDashboard', () => {
     expect(() => render(<StudioDashboard />)).not.toThrow()
     expect(screen.getByText(/3 maps/)).toBeDefined()
     expect(screen.getByText(/3 buildings/)).toBeDefined()
+  })
+
+  it('navigates from a campus card to its Capture Library', () => {
+    mockState.maps = [mockMap()]
+    render(<StudioDashboard />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Test Map' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Capture Library' }))
+
+    expect(routerPush).toHaveBeenCalledWith('/studio/map-1/edit/capture-library')
   })
 })

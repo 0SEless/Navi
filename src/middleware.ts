@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { MOCK_COOKIE, decodeMockSession, isMockAuthEnabled } from "@/lib/mock-auth";
 
-const adminPrefixes = ["/dashboard", "/panoramas", "/qr", "/routes", "/dataset", "/studio"];
+const adminPrefixes = ["/dashboard", "/panoramas", "/qr", "/routes", "/dataset", "/studio", "/capture"];
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -52,5 +52,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/panoramas/:path*", "/qr/:path*", "/routes/:path*", "/dataset/:path*", "/studio/:path*", "/login", "/auth/:path*"],
+  matcher: ["/dashboard/:path*", "/panoramas/:path*", "/qr/:path*", "/routes/:path*", "/dataset/:path*", "/studio/:path*", "/capture/:path*", "/login", "/auth/:path*"],
 };

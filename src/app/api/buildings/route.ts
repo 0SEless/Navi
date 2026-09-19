@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import {
+  assertCampusMutationAllowed,
+  getCampusIdFromBody,
+  getOptionalJsonBody,
+  getQueryParam,
+  requireVerifiedMutationAuth,
+} from "@/lib/api-guard";
 
 async function getClient(auth: "publishable" | "secret") {
   const key = auth === "secret"
@@ -20,7 +27,7 @@ async function getClient(auth: "publishable" | "secret") {
 export async function GET(request: NextRequest) {
   const supabase = await getClient("publishable");
   const { searchParams } = new URL(request.url);
-  const campusId = searchParams.get("campus_id") || "asu-ibajay";
+  const campusId = searchParams.get("campus_id");
   const buildingId = searchParams.get("id");
 
   if (buildingId) {
@@ -41,6 +48,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data as Record<string, unknown>);
   }
 
+  if (!campusId) {
+    return NextResponse.json({ error: "campus_id is required" }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from("buildings")
     .select("id, campus_id, name, code, description, floors, color, floor_plan_url, created_at, updated_at")
@@ -56,17 +67,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
     const body = await request.json();
     const { id, campus_id, name, code, description, floors, color, floor_plan_url } = body;
 
-    if (!id || !name) {
-      return NextResponse.json({ error: "id and name are required" }, { status: 400 });
+    if (!id || !name || !campus_id) {
+      return NextResponse.json({ error: "id, name, and campus_id are required" }, { status: 400 });
     }
+
+    const blocked = assertCampusMutationAllowed(campus_id);
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
 
     const row = {
       id,
-      campus_id: campus_id || "asu-ibajay",
+      campus_id,
       name,
       code: code ?? null,
       description: description ?? "",
@@ -90,14 +108,23 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await getClient("secret");
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
+    const unauthorized = await requireVerifiedMutationAuth(request);
+    if (unauthorized) return unauthorized;
+
+    const id = getQueryParam(request, "id");
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
+    const body = await getOptionalJsonBody(request);
+    const campusId =
+      getQueryParam(request, "campus_id", "campusId") ?? getCampusIdFromBody(body);
+
+    const blocked = assertCampusMutationAllowed(campusId);
+    if (blocked) return blocked;
+
+    const supabase = await getClient("secret");
     const { error } = await supabase.from("buildings").delete().eq("id", id);
 
     if (error) {

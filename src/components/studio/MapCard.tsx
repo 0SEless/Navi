@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, MoreVertical, Building2, MapPin, Route, Trash2, Eye, Pencil } from 'lucide-react'
+import { Plus, MoreVertical, Building2, MapPin, Route, Trash2, Eye, Pencil, MapPinned } from 'lucide-react'
 import type { CampusMap } from '@/types/campus-map'
 
 interface MapCardProps {
@@ -10,9 +10,10 @@ interface MapCardProps {
   onView?: (id: string) => void
   onEdit?: (id: string) => void
   onDelete?: (id: string) => void
+  onCaptureLibrary?: (id: string) => void
 }
 
-export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProps) {
+export function MapCard({ map, onCreate, onView, onEdit, onDelete, onCaptureLibrary }: MapCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -78,6 +79,7 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProp
             <div ref={menuRef} style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
+                aria-label={`Open actions for ${map.name}`}
                 style={{
                   background: 'rgba(0,0,0,0.3)',
                   border: 'none',
@@ -111,6 +113,7 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete }: MapCardProp
                   {[
                     { label: 'Preview', icon: Eye, action: () => { setMenuOpen(false); onView?.(map.id) } },
                     { label: 'Edit', icon: Pencil, action: () => { setMenuOpen(false); onEdit?.(map.id) } },
+                    { label: 'Capture Library', icon: MapPinned, action: () => { setMenuOpen(false); onCaptureLibrary?.(map.id) } },
                     { label: 'Delete', icon: Trash2, action: () => { setMenuOpen(false); onDelete?.(map.id) } },
                   ].map((item) => (
                     <button

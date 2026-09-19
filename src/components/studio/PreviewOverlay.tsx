@@ -14,7 +14,10 @@ function buildPreviewGeoJSON(
     return { type: 'FeatureCollection', features: [] }
   }
 
-  const isPolygon = pendingConfirm.type === 'building' || pendingConfirm.type === 'boundary'
+  const isPolygon = pendingConfirm.type === 'building'
+    || pendingConfirm.type === 'boundary'
+    || pendingConfirm.type === 'import-osm'
+    || pendingConfirm.type === 'set-boundary'
   const coords: [number, number][] = pendingConfirm.points.map((p: any) => [p.lng, p.lat])
 
   if (isPolygon && pendingConfirm.points.length >= 3) {

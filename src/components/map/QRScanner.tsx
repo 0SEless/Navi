@@ -4,7 +4,9 @@ import { useEffect, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 
 interface QRScannerProps {
-  onScan: (nodeId: string) => void
+  onScan?: (nodeId: string) => void
+  /** Forward the decoded text to the caller's shared resolver. */
+  onPayload?: (payload: string) => void
   onError?: (error: string) => void
 }
 
@@ -15,7 +17,7 @@ interface QRScannerProps {
  * "Cannot stop, scanner is not running" throw — an unhandled version
  * would propagate through the effect cleanup and crash the page.
  */
-export function QRScanner({ onScan, onError }: QRScannerProps) {
+export function QRScanner({ onScan, onPayload, onError }: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const runningRef = useRef(false)
 
@@ -35,12 +37,16 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          let nodeId = decodedText
-          const match = decodedText.match(/[?&]node=([^&]+)/)
-          if (match) {
-            nodeId = decodeURIComponent(match[1])
+          if (onPayload) {
+            onPayload(decodedText)
+          } else {
+            let nodeId = decodedText
+            const match = decodedText.match(/[?&]node=([^&]+)/)
+            if (match) {
+              nodeId = decodeURIComponent(match[1])
+            }
+            onScan?.(nodeId)
           }
-          onScan(nodeId)
           runningRef.current = false
           try {
             void scanner?.stop()
@@ -70,7 +76,7 @@ export function QRScanner({ onScan, onError }: QRScannerProps) {
         runningRef.current = false
       }
     }
-  }, [onScan, onError])
+  }, [onScan, onPayload, onError])
 
   return <div id="qr-reader" />
 }

@@ -8,6 +8,11 @@ export type DiagnosticCode =
   | 'TOPOLOGY_STAIR_DISCONNECTED'
   | 'TOPOLOGY_ELEVATOR_DISCONNECTED'
   | 'TOPOLOGY_ENTRANCE_UNATTACHED'
+  | 'ROUTE_NETWORK_STRUCTURE'
+  | 'ROUTE_NETWORK_DISCONNECTED'
+  | 'ROUTE_ROOM_ACCESS'
+  | 'ROUTE_ENTRANCE_ACCESS'
+  | 'ROUTE_FLOOR_CONSISTENCY'
 
 export type EntityType = 'component' | 'room' | 'hallway' | 'building' | 'floor' | 'entrance' | 'node' | 'edge' | 'intersection'
 
@@ -17,6 +22,7 @@ export interface DiagnosticTarget {
   entityIds?: string[]
   buildingId?: string
   floorId?: string
+  layer?: 'base' | 'architecture' | 'access' | 'navigation' | 'preview'
   position?: { x: number; y: number }
 }
 

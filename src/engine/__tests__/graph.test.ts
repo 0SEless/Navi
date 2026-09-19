@@ -162,7 +162,7 @@ describe('Graph trace operations', () => {
       points: [{ lat: 11.8195, lng: 122.0922 }, { lat: 11.8196, lng: 122.0923 }],
       type: 'arterial',
     }
-    graph.addTraceWithCompile(trace, [])
+    graph.addTraceWithCompile(trace)
     expect(graph.traces).toHaveLength(1)
     const nodeCount = graph.nodes.length
     graph.removeTrace('T001')

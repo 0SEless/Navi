@@ -8,6 +8,7 @@ import {
   QrCode,
   Route,
   Database,
+  MapPinned,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "qr", label: "QR Checkpoints", icon: QrCode },
   { id: "routes", label: "Route Testing", icon: Route },
   { id: "dataset", label: "Dataset Mgmt", icon: Database },
+  { id: "capture", label: "NAVI Capture", icon: MapPinned },
   { id: "studio", label: "NAVI Studio", icon: Workflow },
 ];
 
@@ -46,9 +48,10 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
   const { logout } = useAuth();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--navi-content)" }}>
+    <div className="navi-admin-shell" data-screen={currentScreen} style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--navi-content)" }}>
       {/* Top Header */}
       <header
+        className="navi-admin-header"
         style={{
           background: "var(--navi-card)",
           borderBottom: "1px solid var(--navi-border)",
@@ -61,7 +64,7 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
         }}
       >
         {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: sidebarCollapsed ? 48 : 180 }}>
+        <div className="navi-admin-brand" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: sidebarCollapsed ? 48 : 180 }}>
           <div
             style={{
               width: 28,
@@ -86,6 +89,7 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
 
         {/* Search */}
         <div
+          className="navi-admin-search"
           style={{
             display: "flex",
             alignItems: "center",
@@ -113,7 +117,7 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
           />
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="navi-admin-context" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: "var(--navi-success)", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--navi-success)", display: "inline-block" }} />
             Online
@@ -127,6 +131,7 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Left Sidebar */}
         <aside
+          className="navi-admin-sidebar"
           style={{
             width: sidebarCollapsed ? 48 : 200,
             background: "var(--navi-sidebar)",
@@ -224,7 +229,7 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
         </aside>
 
         {/* Main content */}
-        <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <main style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {children}
         </main>
       </div>

@@ -10,10 +10,6 @@ import {
   type Viewport,
 } from '@navi/editor'
 
-export interface EntityRendererBridgeProps {
-  map: maplibregl.Map
-}
-
 /**
  * Bridges the new-architecture EntityRenderer into the React tree.
  *
@@ -32,6 +28,7 @@ export interface EntityRendererBridgeProps {
 
 function setLayerVis(map: maplibregl.Map, layerId: string, visible: boolean) {
   try {
+    if (!map.getLayer(layerId)) return
     map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
   } catch {
     /* layer may not exist yet */
@@ -49,6 +46,9 @@ function setLayerVis(map: maplibregl.Map, layerId: string, visible: boolean) {
 export function EntityRendererBridge({ map }: EntityRendererBridgeProps) {
   const { document, services, transformer } = useEditor()
   const buildingsVisible = useStudioStore((s) => s.layers.buildings)
+  const showNavigationOnlyRoutes = useStudioStore((s) => s.layers.navigation_only_routes ?? false)
+  const showHiddenPois = useStudioStore((s) => s.layers.hidden_pois ?? false)
+  const activeFloor = useStudioStore((s) => s.activeFloor)
   const ref = useRef<EntityRenderer | null>(null)
 
   useEffect(() => {
@@ -58,12 +58,26 @@ export function EntityRendererBridge({ map }: EntityRendererBridgeProps) {
     const viewport = services.get('viewport') as Viewport
     const renderer = new EntityRenderer({ map, document, eventBus, selection, viewport, transformer })
     renderer.init()
+    renderer.setActiveFloor(activeFloor)
     ref.current = renderer
     return () => {
       renderer.destroy()
       ref.current = null
     }
   }, [map, document, services, transformer])
+
+  // Update active floor when it changes
+  useEffect(() => {
+    ref.current?.setActiveFloor(activeFloor)
+  }, [activeFloor])
+
+  useEffect(() => {
+    ref.current?.setShowNavigationOnlyRoutes(showNavigationOnlyRoutes)
+  }, [showNavigationOnlyRoutes])
+
+  useEffect(() => {
+    ref.current?.setShowHiddenPois(showHiddenPois)
+  }, [showHiddenPois])
 
   // Campus layer-visibility toggles (EntityRenderer owns building geometry).
   useEffect(() => {

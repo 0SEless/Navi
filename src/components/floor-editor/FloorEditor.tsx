@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT, needsDoorOwnershipReconcile } from '@navi/editor'
-import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents } from '@/hooks/floor-graph-selectors'
+import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents, useFloorWorkflowSaveState, deriveFloorHeaderStatus } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
 import { FloorOutliner } from './FloorOutliner'
@@ -64,6 +64,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const building = useLegacyBuilding(buildingId)
   const syncStatus = useFloorSyncStatus()
   const syncError = useFloorSyncError()
+  const workflowSaveState = useFloorWorkflowSaveState()
 
   const { activeTool, activateTool } = useToolAdapter(services.get('toolRegistry') as CurrentToolStore)
   const floorAdapter = useFloorAdapter(viewport as Viewport, building ?? null, floor)
@@ -71,7 +72,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const selectedId = lastSelected?.id ?? null
   const selectedCount = lastSelected ? 1 : 0
 
-  const headerStatus = syncStatus === 'synced' ? 'saved' : syncStatus === 'syncing' ? 'saving' : syncStatus === 'conflict' ? 'conflict' : syncStatus === 'error' ? 'error' : 'unsaved'
+  // "Saved" requires a server-confirmed graph sync AND a clean workflow
+  // document. Graph syncStatus alone stays `synced` through the autosave
+  // debounce after a committed edit, so it is never sufficient on its own.
+  const headerStatus = deriveFloorHeaderStatus(syncStatus, workflowSaveState)
   const headerStatusMessage =
     syncStatus === 'conflict'
       ? 'Changes not synced'

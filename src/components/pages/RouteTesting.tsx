@@ -5,15 +5,26 @@ import {
   Activity, XCircle, X, MapPin,
   Search, Navigation as NavigationIcon,
 } from 'lucide-react'
-import type { NavNode, NavEdge } from '@/types/nav-types'
-import { aStar as engineAStar, getAdjacencyList } from '@/engine/a-star'
-import { useCompiledGraphStore } from '@/store/compiled-graph-store'
+import type { NavNode, NavEdge, PathResult } from '@/types/nav-types'
+import { getAdjacencyList } from '@/engine/a-star'
+import { findCanonicalRoutePath } from '@/engine/canonical-routing-adapter'
+import {
+  getTerrainValidationCase,
+  getTerrainValidationFixture,
+  matchesTerrainExpectation,
+  summarizeTerrainRoute,
+  TERRAIN_VALIDATION_PROFILE,
+  terrainValidationFixtures,
+  type TerrainValidationCase,
+  type TerrainValidationFixture,
+} from '@/engine/fixtures/terrain-validation-fixtures'
+import { usePublicStore } from '@/store/public-store'
 import { RouteOverlay } from './RouteOverlay'
 import { BASE_STYLES, DEFAULT_BASE_STYLE } from '@/components/studio/rendering/styles'
 import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
 import { BoundaryLayer } from '@/components/map/layers/BoundaryLayer'
 import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
-import { buildFromNavigationGraph, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
+import { buildFromCampusBundle, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 
 export interface GraphHealth {
   total: number
@@ -26,6 +37,26 @@ export interface GraphHealth {
   maxDegree: number
   nodeTypes: Record<string, number>
   warnings: Array<{ nodeIds: string[]; message: string }>
+}
+
+export function findNearestNode(
+  pos: { lat: number; lng: number },
+  nodes: NavNode[],
+  maxSnapMeters?: number,
+): NavNode | null {
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const R = 6371000
+  let best: NavNode | null = null
+  let bestDist = Infinity
+  for (const n of nodes) {
+    const dLat = toRad(n.position.lat - pos.lat)
+    const dLng = toRad(n.position.lng - pos.lng)
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(pos.lat)) * Math.cos(toRad(n.position.lat)) * Math.sin(dLng / 2) ** 2
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    if (dist < bestDist) { bestDist = dist; best = n }
+  }
+  if (!best || (maxSnapMeters !== undefined && bestDist > maxSnapMeters)) return null
+  return best
 }
 
 export function computeGraphHealth(nodes: NavNode[], edges: NavEdge[]): GraphHealth {
@@ -73,87 +104,12 @@ export function computeGraphHealth(nodes: NavNode[], edges: NavEdge[]): GraphHea
   return { total: nodes.length, connected: nodes.length - disconnected, disconnected, isolated, components, deadEnds, avgDegree, maxDegree, nodeTypes, warnings }
 }
 
-const MOCK_NODES: NavNode[] = [
-  { id: 'N001', label: 'Admin Entrance', name: 'Admin Entrance', type: 'building_entrance', buildingId: 'admin', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81835, lng: 122.1705 }, hasQr: true, hasPanorama: true },
-  { id: 'N002', label: 'Library Entrance', name: 'Library Entrance', type: 'building_entrance', buildingId: 'lib', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81845, lng: 122.17105 }, hasQr: true, hasPanorama: true },
-  { id: 'N003', label: 'Science Lab Entrance', name: 'Science Lab Entrance', type: 'building_entrance', buildingId: 'sci', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81775, lng: 122.1703 }, hasQr: false, hasPanorama: false },
-  { id: 'N004', label: 'CAS Entrance', name: 'CAS Entrance', type: 'building_entrance', buildingId: 'cas', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.8175, lng: 122.1705 }, hasQr: true, hasPanorama: false },
-  { id: 'N005', label: 'COE Entrance', name: 'COE Entrance', type: 'building_entrance', buildingId: 'coe', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.81705, lng: 122.1705 }, hasQr: true, hasPanorama: true },
-  { id: 'N006', label: 'Gymnasium Entrance', name: 'Gymnasium Entrance', type: 'building_entrance', buildingId: 'gym', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.8172, lng: 122.1715 }, hasQr: false, hasPanorama: false },
-  { id: 'N007', label: 'Student Center Entrance', name: 'Student Center Entrance', type: 'building_entrance', buildingId: 'sc', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.8170, lng: 122.1720 }, hasQr: true, hasPanorama: true },
-  { id: 'N008', label: 'Chapel Entrance', name: 'Chapel Entrance', type: 'building_entrance', buildingId: 'chapel', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.8177, lng: 122.1715 }, hasQr: false, hasPanorama: false },
-  { id: 'N009', label: 'NW Junction', name: 'NW Junction', type: 'intersection', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8180, lng: 122.1704 }, hasQr: false, hasPanorama: false },
-  { id: 'N010', label: 'NE Junction', name: 'NE Junction', type: 'intersection', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8180, lng: 122.1710 }, hasQr: false, hasPanorama: false },
-  { id: 'N011', label: 'Main Plaza', name: 'Main Plaza', type: 'intersection', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8177, lng: 122.1708 }, hasQr: true, hasPanorama: true },
-  { id: 'N012', label: 'SW Junction', name: 'SW Junction', type: 'intersection', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8173, lng: 122.1705 }, hasQr: false, hasPanorama: false },
-  { id: 'N013', label: 'SE Junction', name: 'SE Junction', type: 'intersection', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8173, lng: 122.1712 }, hasQr: false, hasPanorama: false },
-  { id: 'N014', label: 'South Gate', name: 'South Gate', type: 'outdoor', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8167, lng: 122.1708 }, hasQr: true, hasPanorama: false },
-  { id: 'N015', label: 'West Entry', name: 'West Entry', type: 'outdoor', buildingId: '', campusId: 'asu-ibajay', floor: 0, position: { lat: 11.8180, lng: 122.1700 }, hasQr: false, hasPanorama: false },
-  { id: 'N016', label: 'Tourism Building Entrance', name: 'Tourism Building Entrance', type: 'building_entrance', buildingId: 'tourism', campusId: 'asu-ibajay', floor: 1, position: { lat: 11.818639, lng: 122.172651 }, hasQr: true, hasPanorama: false },
-]
-
-function calcDistance(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371000
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const aVal = sinDLat * sinDLat + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinDLng * sinDLng
-  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
-}
-
-export function findNearestNode(
-  pos: { lat: number; lng: number },
-  nodes: NavNode[],
-  maxSnapMeters?: number,
-): NavNode | null {
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const R = 6371000
-  let best: NavNode | null = null
-  let bestDist = Infinity
-  for (const n of nodes) {
-    const dLat = toRad(n.position.lat - pos.lat)
-    const dLng = toRad(n.position.lng - pos.lng)
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(pos.lat)) * Math.cos(toRad(n.position.lat)) * Math.sin(dLng / 2) ** 2
-    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    if (dist < bestDist) { bestDist = dist; best = n }
-  }
-  if (!best || (maxSnapMeters !== undefined && bestDist > maxSnapMeters)) return null
-  return best
-}
-
-const MOCK_EDGES: NavEdge[] = [
-  { id: 'E001', from: 'N001', to: 'N010', type: 'walkway', distance: calcDistance(MOCK_NODES[0].position, MOCK_NODES[9].position) },
-  { id: 'E002', from: 'N002', to: 'N009', type: 'walkway', distance: calcDistance(MOCK_NODES[1].position, MOCK_NODES[8].position) },
-  { id: 'E003', from: 'N002', to: 'N010', type: 'walkway', distance: calcDistance(MOCK_NODES[1].position, MOCK_NODES[9].position) },
-  { id: 'E004', from: 'N003', to: 'N009', type: 'walkway', distance: calcDistance(MOCK_NODES[2].position, MOCK_NODES[8].position) },
-  { id: 'E005', from: 'N009', to: 'N010', type: 'walkway', distance: calcDistance(MOCK_NODES[8].position, MOCK_NODES[9].position) },
-  { id: 'E006', from: 'N009', to: 'N011', type: 'walkway', distance: calcDistance(MOCK_NODES[8].position, MOCK_NODES[10].position) },
-  { id: 'E007', from: 'N010', to: 'N011', type: 'walkway', distance: calcDistance(MOCK_NODES[9].position, MOCK_NODES[10].position) },
-  { id: 'E008', from: 'N011', to: 'N008', type: 'walkway', distance: calcDistance(MOCK_NODES[10].position, MOCK_NODES[7].position) },
-  { id: 'E009', from: 'N004', to: 'N012', type: 'walkway', distance: calcDistance(MOCK_NODES[3].position, MOCK_NODES[11].position) },
-  { id: 'E010', from: 'N012', to: 'N011', type: 'walkway', distance: calcDistance(MOCK_NODES[11].position, MOCK_NODES[10].position) },
-  { id: 'E011', from: 'N013', to: 'N011', type: 'walkway', distance: calcDistance(MOCK_NODES[12].position, MOCK_NODES[10].position) },
-  { id: 'E012', from: 'N005', to: 'N012', type: 'walkway', distance: calcDistance(MOCK_NODES[4].position, MOCK_NODES[11].position) },
-  { id: 'E013', from: 'N006', to: 'N013', type: 'walkway', distance: calcDistance(MOCK_NODES[5].position, MOCK_NODES[12].position) },
-  { id: 'E014', from: 'N007', to: 'N013', type: 'walkway', distance: calcDistance(MOCK_NODES[6].position, MOCK_NODES[12].position) },
-  { id: 'E015', from: 'N012', to: 'N013', type: 'walkway', distance: calcDistance(MOCK_NODES[11].position, MOCK_NODES[12].position) },
-  { id: 'E016', from: 'N005', to: 'N006', type: 'walkway', distance: calcDistance(MOCK_NODES[4].position, MOCK_NODES[5].position) },
-  { id: 'E017', from: 'N006', to: 'N007', type: 'walkway', distance: calcDistance(MOCK_NODES[5].position, MOCK_NODES[6].position) },
-  { id: 'E018', from: 'N013', to: 'N014', type: 'walkway', distance: calcDistance(MOCK_NODES[12].position, MOCK_NODES[13].position) },
-  { id: 'E019', from: 'N012', to: 'N014', type: 'walkway', distance: calcDistance(MOCK_NODES[11].position, MOCK_NODES[13].position) },
-  { id: 'E020', from: 'N015', to: 'N004', type: 'walkway', distance: calcDistance(MOCK_NODES[14].position, MOCK_NODES[3].position) },
-  { id: 'E021', from: 'N015', to: 'N012', type: 'walkway', distance: calcDistance(MOCK_NODES[14].position, MOCK_NODES[11].position) },
-  { id: 'E022', from: 'N009', to: 'N004', type: 'walkway', distance: calcDistance(MOCK_NODES[8].position, MOCK_NODES[3].position) },
-  { id: 'E023', from: 'N016', to: 'N010', type: 'walkway', distance: calcDistance(MOCK_NODES[15].position, MOCK_NODES[9].position) },
-  { id: 'E024', from: 'N016', to: 'N002', type: 'walkway', distance: calcDistance(MOCK_NODES[15].position, MOCK_NODES[1].position) },
-]
-
 export interface RouteStepInfo {
   nodeId: string
   nodeLabel: string
   nodeType: string
   edge: NavEdge | null
+  edgeId?: string
   distance: number
   instruction: string
 }
@@ -162,14 +118,20 @@ export function computeRouteSteps(
   path: string[],
   nodes: NavNode[],
   edges: NavEdge[],
+  selectedEdgeIds?: Array<string | undefined>,
 ): RouteStepInfo[] {
   return path.map((nodeId, i) => {
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return null
     const prevId = i > 0 ? path[i - 1] : null
-    const edge = prevId ? edges.find(e =>
-      (e.from === prevId && e.to === nodeId) || (e.from === nodeId && e.to === prevId)
-    ) ?? null : null
+    const selectedEdgeId = selectedEdgeIds?.[i]
+    const edge = prevId
+      ? selectedEdgeId
+        ? edges.find((candidate) => candidate.id === selectedEdgeId) ?? null
+        : edges.find(e =>
+          (e.from === prevId && e.to === nodeId) || (e.from === nodeId && e.to === prevId)
+        ) ?? null
+      : null
     const distance = edge?.distance ?? 0
 
     let instruction = ''
@@ -180,26 +142,193 @@ export function computeRouteSteps(
     else if (node.type === 'elevator') instruction = 'Use elevator'
     else instruction = `Walk ${distance}m`
 
-    return { nodeId, nodeLabel: node.name || node.label || node.id, nodeType: node.type, edge, distance, instruction }
+    return {
+      nodeId,
+      nodeLabel: node.name || node.label || node.id,
+      nodeType: node.type,
+      edge,
+      ...(edge?.id ? { edgeId: edge.id } : {}),
+      distance,
+      instruction,
+    }
   }).filter(Boolean) as RouteStepInfo[]
 }
 
+interface CampusListItem {
+  id: string
+  campus_id: string
+  building_count: number
+}
+
+function metric(value: number | undefined, suffix = ''): string {
+  return value === undefined ? '—' : `${Number.isInteger(value) ? value : value.toFixed(2)}${suffix}`
+}
+
+interface TerrainValidationDiagnosticsProps {
+  fixture: TerrainValidationFixture
+  fixtureCase: TerrainValidationCase
+  result: PathResult | null
+  edges: NavEdge[]
+}
+
+function TerrainValidationDiagnostics({ fixture, fixtureCase, result, edges }: TerrainValidationDiagnosticsProps) {
+  const actual = summarizeTerrainRoute(result)
+  const passed = matchesTerrainExpectation(fixtureCase.expected, actual)
+  const selectedEdges = actual.selectedEdgeIds
+    .map((edgeId) => edges.find((edge) => edge.id === edgeId))
+    .filter((edge): edge is NavEdge => Boolean(edge?.routing))
+
+  return (
+    <div
+      data-testid="terrain-validation-diagnostics"
+      style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 7, padding: 10, margin: '0 14px 10px' }}
+    >
+      <div style={{ color: '#1D4ED8', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 6 }}>TERRAIN VALIDATION</div>
+      <div style={{ color: 'var(--navi-text)', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>{fixture.name}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 9 }}>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Profile</span>
+        <span style={{ color: 'var(--navi-text)', fontFamily: 'monospace' }}>{TERRAIN_VALIDATION_PROFILE}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Origin</span>
+        <span style={{ color: 'var(--navi-text)', fontFamily: 'monospace' }}>{fixtureCase.origin}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Destination</span>
+        <span style={{ color: 'var(--navi-text)', fontFamily: 'monospace' }}>{fixtureCase.destination}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Route found</span>
+        <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{actual.routeFound ? 'yes' : 'no'}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Selected edge IDs</span>
+        <span style={{ color: 'var(--navi-text)', fontFamily: 'monospace', wordBreak: 'break-word' }}>{actual.selectedEdgeIds.join(', ') || '—'}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Physical distance</span>
+        <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{metric(actual.physicalDistance, ' m')}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Generalized cost</span>
+        <span style={{ color: 'var(--navi-text)', fontWeight: 700 }}>{metric(actual.generalizedCost)}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Expected edge IDs</span>
+        <span style={{ color: 'var(--navi-text)', fontFamily: 'monospace', wordBreak: 'break-word' }}>{fixtureCase.expected.selectedEdgeIds.join(', ') || '—'}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Expected result</span>
+        <span style={{ color: 'var(--navi-text)' }}>{fixtureCase.expected.routeFound ? 'route found' : 'no route'}</span>
+        <span style={{ color: 'var(--navi-text-secondary)' }}>Actual result</span>
+        <span style={{ color: 'var(--navi-text)' }}>{actual.routeFound ? 'route found' : 'no route'}</span>
+      </div>
+      <div style={{ marginTop: 8, color: passed ? '#047857' : '#B91C1C', fontSize: 11, fontWeight: 800 }}>{passed ? 'PASS' : 'FAIL'}</div>
+      {selectedEdges.length > 0 && (
+        <details style={{ marginTop: 6, color: 'var(--navi-text-secondary)', fontSize: 9 }}>
+          <summary style={{ cursor: 'pointer' }}>Selected Road metadata</summary>
+          {selectedEdges.map((edge) => (
+            <div key={edge.id} style={{ marginTop: 4, fontFamily: 'monospace' }}>
+              {edge.id}: {edge.routing?.authored.feature ?? 'normal'} · {edge.routing?.authored.slope ?? 'level'} · {edge.routing?.authored.direction ?? 'both'} · walkable {edge.routing?.authored.walkable === undefined ? 'unknown' : String(edge.routing.authored.walkable)} · {edge.routing.sourceRoadId}
+            </div>
+          ))}
+        </details>
+      )}
+    </div>
+  )
+}
+
 export function NavigationInspector() {
-  const { nodes: compiledNodes, edges: compiledEdges, hasRealData, loadFromStorage, result } = useCompiledGraphStore()
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const [, forceRender] = useState(0) // Force re-render when map is created
 
-  useEffect(() => { loadFromStorage() }, [loadFromStorage])
+  // Campus selector state
+  const [campuses, setCampuses] = useState<CampusListItem[]>([])
+  const [selectedCampusId, setSelectedCampusId] = useState<string | null>(null)
+  const [dataSource, setDataSource] = useState<'campus' | 'terrain-fixture'>('campus')
+  const [selectedFixtureId, setSelectedFixtureId] = useState(terrainValidationFixtures[0]?.id ?? '')
+  const [selectedFixtureCaseId, setSelectedFixtureCaseId] = useState('')
+  const localFixtureEnabled = process.env.NODE_ENV !== 'production'
+  const activeFixture = localFixtureEnabled && dataSource === 'terrain-fixture'
+    ? getTerrainValidationFixture(selectedFixtureId) ?? null
+    : null
+  const activeFixtureCase = activeFixture
+    ? getTerrainValidationCase(activeFixture, selectedFixtureCaseId || undefined) ?? null
+    : null
 
-  const activeNodes = hasRealData && compiledNodes.length > 0 ? compiledNodes : MOCK_NODES
-  const activeEdges = hasRealData && compiledEdges.length > 0 ? compiledEdges : MOCK_EDGES
+  // Load campus data from public-store (same source as navigate page)
+  const campus = usePublicStore((s) => s.campus)
+  const campusLoading = usePublicStore((s) => s.campusLoading)
+  const campusError = usePublicStore((s) => s.campusError)
+  const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
+
+  // Fetch available campuses on mount
+  useEffect(() => {
+    let cancelled = false
+    async function loadCampuses() {
+      try {
+        const res = await fetch('/api/campuses')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setCampuses(data)
+          // Auto-select the first campus that has data (skip empty drafts)
+          if (!selectedCampusId) {
+            const firstWithData = data.find((c) => (c.building_count ?? 0) > 0) ?? data[0]
+            setSelectedCampusId(firstWithData.campus_id)
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    void loadCampuses()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch campus data when selected campus changes
+  useEffect(() => {
+    if (dataSource !== 'campus') return
+    if (!selectedCampusId) return
+    if (campus && campus.nodes.length > 0) return // already loaded
+    if (campusLoading) return
+
+    // Clear old campus data before fetching new
+    usePublicStore.setState({
+      campus: null,
+      campusLoading: false,
+      campusStatus: 'idle',
+      campusError: null,
+      campusData: null,
+    })
+    void fetchCampusData(selectedCampusId)
+  }, [dataSource, selectedCampusId, campus, campusLoading, fetchCampusData])
+
+  // Handle campus switch
+  const handleCampusChange = (newCampusId: string) => {
+    if (newCampusId === selectedCampusId) return
+    setSelectedCampusId(newCampusId)
+    // Clear campus cache so fetchCampusData re-fetches
+    usePublicStore.setState({
+      campus: null,
+      campusLoading: false,
+      campusStatus: 'idle',
+      campusError: null,
+      campusData: null,
+      selectedBuilding: null,
+      selectedNode: null,
+      fromNode: null,
+      toNode: null,
+    })
+    void fetchCampusData(newCampusId)
+  }
+
+  // Use campus data from public-store as the sole runtime source
+  // No compiled graph fallback, no mock data fallback
+  const activeNodes = useMemo(() => {
+    if (activeFixture) return activeFixture.nodes
+    if (campus && campus.nodes.length > 0) return campus.nodes
+    return []
+  }, [activeFixture, campus])
+
+  const activeEdges = useMemo(() => {
+    if (activeFixture) return activeFixture.edges
+    if (campus && campus.edges.length > 0) return campus.edges
+    return []
+  }, [activeFixture, campus])
+
+  // Campus buildings for rendering building polygons
+  const campusBuildings = activeFixture ? [] : campus?.buildings ?? []
 
   const graphHealth = activeNodes.length > 0 ? computeGraphHealth(activeNodes, activeEdges) : null
   const isHealthy = graphHealth && graphHealth.disconnected === 0 && graphHealth.isolated === 0
 
   const [startId, setStartId] = useState<string>('N014')
   const [endId, setEndId] = useState<string>('N001')
-  const [routeResult, setRouteResult] = useState<{ path: string[]; cost: number } | null>(null)
+  const [routeResult, setRouteResult] = useState<PathResult | null>(null)
   const [animStep, setAnimStep] = useState(-1)
   const [disconnectedNodes, setDisconnectedNodes] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'routing' | 'diagnostics'>('routing')
@@ -242,7 +371,7 @@ export function NavigationInspector() {
     }
     if (activeNodes.length === 0 || activeEdges.length === 0) return
 
-    const result = engineAStar(activeNodes, activeEdges, startNode.id, endNode.id)
+    const result = findCanonicalRoutePath(activeNodes, activeEdges, startNode.id, endNode.id)
     setRouteResult(result)
     setAnimStep(-1)
 
@@ -299,10 +428,24 @@ export function NavigationInspector() {
   }, [startPin, nearestStart, endPin, nearestEnd])
 
   // ── Render model for building layers ──
+  // Build directly from campus data — no conversion to compiler format
   const renderModel = useMemo<NavigationRenderModel | null>(() => {
-    if (!result) return null
-    return buildFromNavigationGraph(result as any)
-  }, [result])
+    if (campusBuildings.length === 0 || activeNodes.length === 0) return null
+
+    const model = buildFromCampusBundle({
+      buildings: campusBuildings,
+      nodes: activeNodes,
+      edges: activeEdges,
+      boundingBox: campus?.boundingBox ?? null,
+      components: campus?.components,
+    })
+
+    console.log(`[RouteTesting] renderModel: ${model.buildings.length} buildings from ${campusBuildings.length} campus buildings, ${activeNodes.length} nodes`)
+    for (const b of model.buildings) {
+      console.log(`  building ${b.id}: footprint=${b.footprint.length} points, color=${b.color}, height=${b.height}`)
+    }
+    return model
+  }, [campusBuildings, activeNodes, activeEdges, campus?.boundingBox, campus?.components])
 
   // ── Preview search results ──
   const previewSearchResults = useMemo(() => {
@@ -319,7 +462,7 @@ export function NavigationInspector() {
   // ── Preview route ──
   const previewRoute = useMemo(() => {
     if (!previewFrom || !previewTo || !renderModel) return null
-    return engineAStar(renderModel.nodes, renderModel.edges, previewFrom, previewTo)
+    return findCanonicalRoutePath(renderModel.nodes, renderModel.edges, previewFrom, previewTo)
   }, [previewFrom, previewTo, renderModel])
 
   const flashNode = useCallback((nodeId: string) => {
@@ -378,9 +521,10 @@ export function NavigationInspector() {
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
     mapRef.current = map
+    forceRender(n => n + 1) // Trigger re-render so BuildingLayer receives the map
 
     return () => {
-      map.remove()
+      try { map.remove() } catch {}
       mapRef.current = null
     }
   }, [])
@@ -412,7 +556,7 @@ export function NavigationInspector() {
       }
     }
     map.on('click', handler)
-    return () => { map.off('click', handler) }
+    return () => { try { map.off('click', handler) } catch {} }
   }, [mapRef.current, startPin, endPin, dragging])
 
   // ── Draggable pin markers ──
@@ -468,8 +612,10 @@ export function NavigationInspector() {
     }
 
     return () => {
-      if (startMarkerRef.current) { startMarkerRef.current.remove(); startMarkerRef.current = null }
-      if (endMarkerRef.current) { endMarkerRef.current.remove(); endMarkerRef.current = null }
+      try { startMarkerRef.current?.remove() } catch {}
+      startMarkerRef.current = null
+      try { endMarkerRef.current?.remove() } catch {}
+      endMarkerRef.current = null
     }
   }, [mapRef.current, startNode, endNode, startPin, endPin])
 
@@ -499,6 +645,42 @@ export function NavigationInspector() {
       mapRef.current.fitBounds(bounds, { padding: 40 })
     }
   }, [activeNodes])
+
+  const handleDataSourceChange = (nextSource: 'campus' | 'terrain-fixture') => {
+    setDataSource(nextSource)
+    setStartPin(null)
+    setEndPin(null)
+    setPreviewFrom(null)
+    setPreviewTo(null)
+    setPreviewPicker(null)
+    setPreviewQuery('')
+    setDisconnectedNodes([])
+    if (nextSource === 'campus') {
+      setStartId('N014')
+      setEndId('N001')
+    } else {
+      const fixture = getTerrainValidationFixture(selectedFixtureId)
+      const fixtureCase = fixture ? getTerrainValidationCase(fixture) : null
+      if (fixtureCase) {
+        setStartId(fixtureCase.origin)
+        setEndId(fixtureCase.destination)
+      }
+      setSelectedFixtureCaseId(fixture?.defaultCaseId ?? '')
+    }
+  }
+
+  const resetForFixtureCase = (fixtureCase: TerrainValidationCase | null) => {
+    if (!fixtureCase) return
+    setStartId(fixtureCase.origin)
+    setEndId(fixtureCase.destination)
+    setStartPin(null)
+    setEndPin(null)
+    setPreviewFrom(null)
+    setPreviewTo(null)
+    setPreviewPicker(null)
+    setPreviewQuery('')
+    setDisconnectedNodes([])
+  }
 
 
 
@@ -574,18 +756,88 @@ export function NavigationInspector() {
             </>
           )}
 
-          {/* Building layers (always visible) */}
-          {mapRef.current && renderModel && (
-            <>
-              <BuildingLayer map={mapRef.current} buildings={renderModel.buildings} />
-              <BoundaryLayer map={mapRef.current} boundary={renderModel.boundary} />
-              <EntranceLayer map={mapRef.current} entrances={renderModel.entrances} />
-            </>
-          )}
+          {/* Building layers — always mounted; each layer guards on map !== null */}
+          <BuildingLayer map={mapRef.current} buildings={renderModel?.buildings ?? []} />
+          <BoundaryLayer map={mapRef.current} boundary={renderModel?.boundary ?? null} />
+          <EntranceLayer map={mapRef.current} entrances={renderModel?.entrances ?? []} />
         </div>
 
         {/* Right panel */}
         <div style={{ width: 280, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Development-only source/fixture selector; it never writes store or API state. */}
+          {localFixtureEnabled && (
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--navi-border)', background: 'var(--navi-content)' }}>
+              <label htmlFor="route-data-source" style={{ fontSize: 9, fontWeight: 600, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 3 }}>DATA SOURCE</label>
+              <select
+                id="route-data-source"
+                aria-label="Route data source"
+                value={dataSource}
+                onChange={(event) => handleDataSourceChange(event.target.value as 'campus' | 'terrain-fixture')}
+                style={{ width: '100%', background: 'var(--navi-sidebar)', border: '1px solid var(--navi-border)', borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11, outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="campus">Current campus</option>
+                <option value="terrain-fixture">Terrain validation fixtures</option>
+              </select>
+              {activeFixture && (
+                <>
+                  <label htmlFor="terrain-validation-fixture" style={{ fontSize: 9, fontWeight: 600, color: 'var(--navi-text-secondary)', display: 'block', margin: '7px 0 3px' }}>FIXTURE</label>
+                  <select
+                    id="terrain-validation-fixture"
+                    aria-label="Terrain validation fixture"
+                    value={activeFixture.id}
+                    onChange={(event) => {
+                      const fixture = getTerrainValidationFixture(event.target.value)
+                      setSelectedFixtureId(event.target.value)
+                      setSelectedFixtureCaseId(fixture?.defaultCaseId ?? '')
+                      resetForFixtureCase(fixture ? getTerrainValidationCase(fixture) : null)
+                    }}
+                    style={{ width: '100%', background: 'var(--navi-sidebar)', border: '1px solid var(--navi-border)', borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 10, outline: 'none', cursor: 'pointer' }}
+                  >
+                    {terrainValidationFixtures.map((fixture) => <option key={fixture.id} value={fixture.id}>{fixture.name}</option>)}
+                  </select>
+                  {activeFixture.cases.length > 1 && (
+                    <>
+                      <label htmlFor="terrain-validation-case" style={{ fontSize: 9, fontWeight: 600, color: 'var(--navi-text-secondary)', display: 'block', margin: '7px 0 3px' }}>CASE</label>
+                      <select
+                        id="terrain-validation-case"
+                        aria-label="Terrain validation case"
+                        value={activeFixtureCase?.id ?? activeFixture.defaultCaseId}
+                        onChange={(event) => {
+                          setSelectedFixtureCaseId(event.target.value)
+                          resetForFixtureCase(getTerrainValidationCase(activeFixture, event.target.value))
+                        }}
+                        style={{ width: '100%', background: 'var(--navi-sidebar)', border: '1px solid var(--navi-border)', borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 10, outline: 'none', cursor: 'pointer' }}
+                      >
+                        {activeFixture.cases.map((fixtureCase) => <option key={fixtureCase.id} value={fixtureCase.id}>{fixtureCase.label}</option>)}
+                      </select>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Current campus selector */}
+          {dataSource === 'campus' && campuses.length > 0 && (
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--navi-border)', background: 'var(--navi-content)' }}>
+              <label style={{ fontSize: 9, fontWeight: 600, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 3 }}>CAMPUS</label>
+              <select
+                value={selectedCampusId ?? ''}
+                onChange={(e) => handleCampusChange(e.target.value)}
+                style={{
+                  width: '100%', background: 'var(--navi-sidebar)', border: '1px solid var(--navi-border)',
+                  borderRadius: 5, padding: '5px 8px', color: 'var(--navi-text)', fontSize: 11, outline: 'none', cursor: 'pointer',
+                }}
+              >
+                {campuses.map((c) => (
+                  <option key={c.campus_id} value={c.campus_id}>
+                    {c.campus_id} ({c.building_count} buildings)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Tab bar */}
           <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--navi-border)' }}>
               {([
@@ -606,15 +858,20 @@ export function NavigationInspector() {
               </button>
             ))}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
-              {hasRealData ? (
+              {activeFixture ? (
+                <span style={{ fontSize: 9, color: '#2563EB', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB' }} />
+                  Terrain fixture
+                </span>
+              ) : campus && campus.nodes.length > 0 ? (
                 <span style={{ fontSize: 9, color: '#059669', display: 'flex', alignItems: 'center', gap: 3 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
-                  Live
+                  Campus
                 </span>
               ) : (
                 <span style={{ fontSize: 9, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 3 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F59E0B' }} />
-                  Mock
+                  No Data
                 </span>
               )}
             </div>
@@ -623,12 +880,12 @@ export function NavigationInspector() {
           {/* ═══════ ROUTING TAB ═══════ */}
           {activeTab === 'routing' && (
             <>
-              {!hasRealData ? (
+              {!activeNodes.length ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                   <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
                     <Route size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
                     <div style={{ fontSize: 11 }}>No published graph available.</div>
-                    <div style={{ fontSize: 10, marginTop: 4 }}>Publish the campus from the Studio to inspect routing.</div>
+                    <div style={{ fontSize: 10, marginTop: 4 }}>Select a campus above, or publish from Studio.</div>
                   </div>
                 </div>
               ) : (
@@ -743,6 +1000,15 @@ export function NavigationInspector() {
                     ))}
                   </div>
 
+                  {activeFixture && activeFixtureCase && (
+                    <TerrainValidationDiagnostics
+                      fixture={activeFixture}
+                      fixtureCase={activeFixtureCase}
+                      result={routeResult}
+                      edges={activeEdges}
+                    />
+                  )}
+
                   <div style={{ flex: 1, overflowY: 'auto' }}>
                     {routeResult ? (
                       <div style={{ padding: '0 14px 14px' }}>
@@ -766,7 +1032,7 @@ export function NavigationInspector() {
                         </div>
 
                         <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, marginBottom: 4 }}>COMPUTED PATH</div>
-                        {computeRouteSteps(routeResult.path, activeNodes, activeEdges).map((step, i, steps) => {
+                        {computeRouteSteps(routeResult.path, activeNodes, activeEdges, routeResult.steps.map((routeStep) => routeStep.edgeId)).map((step, i, steps) => {
                           const isStart = i === 0
                           const isEnd = i === steps.length - 1
                           const isAnimated = i <= animStep
@@ -793,6 +1059,7 @@ export function NavigationInspector() {
                                   <div style={{ fontSize: 9, color: 'var(--navi-text-secondary)' }}>
                                     {step.nodeId} · {step.nodeType}
                                     {step.distance > 0 && ` · ${step.distance}m`}
+                                    {activeFixture && step.edgeId && ` · ${step.edgeId}`}
                                   </div>
                                 </div>
                               </div>
@@ -926,7 +1193,7 @@ export function NavigationInspector() {
           {/* ═══════ DIAGNOSTICS TAB ═══════ */}
           {activeTab === 'diagnostics' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-              {!hasRealData ? (
+              {!activeNodes.length ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                   <div style={{ textAlign: 'center', color: 'var(--navi-text-secondary)' }}>
                     <Activity size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
@@ -940,11 +1207,12 @@ export function NavigationInspector() {
                   <div style={{ background: 'var(--navi-content)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
                     <div style={{ color: 'var(--navi-text-secondary)', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>SNAPSHOT</div>
                     {[
-                      { label: 'Version', value: (result as any)?.metadata?.version ?? (result as any)?.version ?? '—' },
-                      { label: 'Timestamp', value: (result as any)?.createdAt ?? '—' },
-                      { label: 'Campus', value: (result as any)?.campusId ?? '—' },
+                      { label: 'Version', value: campus?.boundingBox ? 'Campus Data' : '—' },
+                      { label: 'Timestamp', value: campus?.boundingBox ? 'From public-store' : '—' },
+                      { label: 'Campus', value: campus?.boundingBox ? (usePublicStore.getState().campusData?.campusId ?? '—') : '—' },
                       { label: 'Nodes', value: activeNodes.length },
                       { label: 'Edges', value: activeEdges.length },
+                      { label: 'Buildings', value: campusBuildings.length },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--navi-border)' }}>
                         <span style={{ fontSize: 10, color: 'var(--navi-text-secondary)', fontWeight: 600 }}>{label}</span>

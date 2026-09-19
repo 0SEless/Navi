@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { usePublicStore } from '@/store/public-store'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import { RouteLine } from '@/components/map/RouteLine'
+import { useOptionalNavigationContext } from '@/components/map/NavigationContext'
 import type { Building, LatLng, CampusBundle } from '@/types/nav-types'
 
 const OSM_STYLE = {
@@ -25,6 +26,7 @@ const SRC = {
   BUILDINGS: 'campus-buildings',
   BOUNDARY: 'campus-boundary',
   ENTRANCES: 'campus-entrances',
+  EDGES: 'campus-edges',
 } as const
 
 const LYR = {
@@ -35,6 +37,7 @@ const LYR = {
   BOUNDARY_FILL: 'campus-boundary-fill',
   BOUNDARY_OUTLINE: 'campus-boundary-outline',
   ENTRANCES: 'campus-entrances',
+  EDGES_LINE: 'campus-edges-line',
 } as const
 
 interface CampusMapProps {
@@ -102,12 +105,27 @@ function addMapSources(map: maplibregl.Map, showLabels: boolean) {
 
   map.addSource(SRC.ENTRANCES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({ id: LYR.ENTRANCES, type: 'circle', source: SRC.ENTRANCES, paint: { 'circle-radius': 5, 'circle-color': '#8B5CF6', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' } })
+
+  map.addSource(SRC.EDGES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+  map.addLayer({
+    id: LYR.EDGES_LINE,
+    type: 'line',
+    source: SRC.EDGES,
+    paint: {
+      'line-color': '#64748B',
+      'line-width': 2,
+      'line-opacity': 0.7,
+    },
+  })
 }
 
 function syncBuildings(map: maplibregl.Map, buildings: Building[]) {
   const src = map.getSource(SRC.BUILDINGS) as maplibregl.GeoJSONSource | undefined
   if (!src) return
   const features = buildings
+    // Skip virtual/container buildings (e.g., __outdoor__ is a catch-all for
+    // outdoor waypoints, not an actual building to render on the map).
+    .filter((b) => b.id !== '__outdoor__' && b.name !== '__outdoor__')
     .filter((b) => footprintCoords(b).length >= 3)
     .map((b) => ({
       type: 'Feature' as const,
@@ -168,6 +186,39 @@ function syncEntrances(map: maplibregl.Map, buildings: Building[]) {
   src.setData({ type: 'FeatureCollection', features })
 }
 
+function syncEdges(map: maplibregl.Map, campus: CampusBundle | null | undefined) {
+  const src = map.getSource(SRC.EDGES) as maplibregl.GeoJSONSource | undefined
+  if (!src) return
+  const edges = campus?.edges ?? []
+  const nodes = campus?.nodes ?? []
+  if (edges.length === 0 || nodes.length === 0) {
+    src.setData({ type: 'FeatureCollection', features: [] })
+    return
+  }
+  const nodePos = new Map<string, { lat: number; lng: number }>()
+  for (const n of nodes) {
+    nodePos.set(n.id, n.position)
+  }
+  const features: GeoJSON.Feature<GeoJSON.LineString>[] = []
+  for (const edge of edges) {
+    const from = nodePos.get(edge.from)
+    const to = nodePos.get(edge.to)
+    if (!from || !to) continue
+    features.push({
+      type: 'Feature',
+      properties: { type: edge.type, id: edge.id },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [from.lng, from.lat],
+          [to.lng, to.lat],
+        ],
+      },
+    })
+  }
+  src.setData({ type: 'FeatureCollection', features })
+}
+
 export default function CampusMap({
   route = null,
   onMapReady,
@@ -186,6 +237,8 @@ export default function CampusMap({
   const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
+  const navCtx = useOptionalNavigationContext()
+  const navigationSegment = navCtx?.navigationSegment ?? null
 
   const buildings = campus?.buildings ?? []
   const boundary = useMemo(() => boundaryFromBundle(campus), [campus])
@@ -200,6 +253,11 @@ export default function CampusMap({
       zoom,
       pitch: 40,
     })
+    // Suppress tile fetch errors (e.g., zoom beyond OSM tile coverage)
+    map.on('error', (e) => {
+      if (e.error?.status === 0 || `${e.error}`.includes('Failed to fetch') || `${e.error}`.includes('CORS')) return
+      console.error(e.error)
+    })
     map.on('load', () => {
       addMapSources(map, showLabels)
       // Read the CURRENT store state — the closure `buildings` may be stale
@@ -208,6 +266,7 @@ export default function CampusMap({
       syncBuildings(map, current?.buildings ?? [])
       syncBoundary(map, boundaryFromBundle(current))
       syncEntrances(map, current?.buildings ?? [])
+      syncEdges(map, current)
       setMapInstance(map)
       onMapReady?.(map)
     })
@@ -222,7 +281,7 @@ export default function CampusMap({
 
     return () => {
       resizeObserver.disconnect()
-      map.remove()
+      try { map.remove() } catch {}
       mapRef.current = null
       setMapInstance(null)
       fitDoneRef.current = false
@@ -238,6 +297,7 @@ export default function CampusMap({
     syncBuildings(map, buildings)
     syncBoundary(map, boundary)
     syncEntrances(map, buildings)
+    syncEdges(map, campus)
 
     if (autoFit && !fitDoneRef.current && campus && buildings.length > 0) {
       fitDoneRef.current = true
@@ -269,7 +329,7 @@ export default function CampusMap({
       }
     }
     map.on('click', LYR.BUILDINGS_FILL, handler)
-    return () => { map.off('click', LYR.BUILDINGS_FILL, handler) }
+    return () => { try { map.off('click', LYR.BUILDINGS_FILL, handler) } catch {} }
   }, [buildings, activeFloor, selectBuilding, setActiveFloor])
 
   const getNodePosition = useCallback((nodeId: string) => {
@@ -294,6 +354,7 @@ export default function CampusMap({
         getNodePosition={getNodePosition}
         getNodeFloor={getNodeFloor}
         activeFloor={activeFloor}
+        navigationSegment={navigationSegment}
       />
     </div>
   )

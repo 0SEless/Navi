@@ -1,18 +1,5 @@
 import type { NavNode, NavEdge, LatLng, PathResult, PathStep, Building, Component } from '../types/nav-types'
-
-function haversine(a: LatLng, b: LatLng): number {
-  const R = 6371000
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const aVal =
-    sinDLat * sinDLat +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      sinDLng * sinDLng
-  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal))
-}
+import { haversine } from './geo-utils'
 
 function buildAdjacencyList(edges: NavEdge[]): Record<string, { nodeId: string; weight: number }[]> {
   const adj: Record<string, { nodeId: string; weight: number }[]> = {}
@@ -49,7 +36,7 @@ function nodeDisplayName(node: NavNode, buildings: Map<string, Building>, compon
     return `${base} Entrance`
   }
 
-  if (node.type === 'room') return `Room ${node.label}`
+  if (node.type === 'room' || node.type === 'room_door') return `Room ${node.label}`
   if (node.type === 'stair' || node.type === 'staircase') return `Stairs to ${floorLabel(node.floor)}`
   if (node.type === 'elevator') return `Elevator to ${floorLabel(node.floor)}`
   if (node.type === 'hallway') return `Hallway`
@@ -145,7 +132,7 @@ function generateInstructions(
         instruction = getTurnInstruction(prev, node, next)
       }
       // Room arrival
-      else if (node.type === 'room' || node.type === 'hallway') {
+      else if (node.type === 'room' || node.type === 'room_door' || node.type === 'hallway') {
         instruction = `Continue to ${display}`
       }
       // Default
@@ -221,4 +208,4 @@ export function getAdjacencyList(edges: NavEdge[]): Record<string, { nodeId: str
   return buildAdjacencyList(edges)
 }
 
-export { haversine }
+export { haversine } from './geo-utils'
