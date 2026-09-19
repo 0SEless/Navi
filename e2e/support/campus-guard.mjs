@@ -54,7 +54,12 @@ export function readEnvFile(filePath) {
 export function detectEffectiveProjectRef(env = process.env, cwd = process.cwd()) {
   const direct = detectSupabaseProjectRef(env)
   if (direct) return direct
-  for (const candidate of [path.join(cwd, '.env.local'), path.join(cwd, 'navi-next', '.env.local')]) {
+  for (const candidate of [
+    path.join(cwd, '.env.development.local'),
+    path.join(cwd, 'navi-next', '.env.development.local'),
+    path.join(cwd, '.env.local'),
+    path.join(cwd, 'navi-next', '.env.local'),
+  ]) {
     const ref = detectSupabaseProjectRef(readEnvFile(candidate))
     if (ref) return ref
   }

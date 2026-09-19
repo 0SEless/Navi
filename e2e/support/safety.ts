@@ -42,7 +42,12 @@ export function readEnvFile(filePath: string): EnvLike {
 export function detectEffectiveProjectRef(env: EnvLike = process.env, cwd: string = process.cwd()): string | null {
   const direct = detectSupabaseProjectRef(env)
   if (direct) return direct
-  const candidates = [path.join(cwd, '.env.local'), path.join(cwd, 'navi-next', '.env.local')]
+  const candidates = [
+    path.join(cwd, '.env.development.local'),
+    path.join(cwd, 'navi-next', '.env.development.local'),
+    path.join(cwd, '.env.local'),
+    path.join(cwd, 'navi-next', '.env.local'),
+  ]
   for (const candidate of candidates) {
     const ref = detectSupabaseProjectRef(readEnvFile(candidate))
     if (ref) return ref

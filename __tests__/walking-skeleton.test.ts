@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { CampusCompiler, buildSearchIndex, buildPOIData, buildBuildingIndex } from '@navi/compiler'
 import { RuntimeEngine } from '@navi/runtime'
 import type { LoadedPackage } from '@navi/runtime'
@@ -14,16 +14,17 @@ function createRuntimeEngine(): RuntimeEngine {
   const pkg: LoadedPackage = {
     manifest: {
       schemaVersion: '1.0',
+  formatVersion: '0',
       campusId: campus.metadata.name,
       campusName: campus.metadata.name,
       publishedAt: new Date().toISOString(),
       compilerVersion: '0.1.0',
       revision: '1',
       artifacts: {
-        graph: { path: 'navigation.graph.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0' },
-        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0' },
+        graph: { path: 'navigation.graph.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        search: { path: 'search.index.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        buildings: { path: 'building-index.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
+        poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0', formatVersion: '0' },
       },
       metadata: {
         nodeCount: graph.nodes.length,
@@ -38,12 +39,12 @@ function createRuntimeEngine(): RuntimeEngine {
     searchIndex: buildSearchIndex(campus, graph),
     buildingIndex: buildBuildingIndex(campus, graph),
     poiIndex: buildPOIData(graph) as unknown as POIIndex,
-    reports: [],
+    reports: [], warnings: [],
   }
   return new RuntimeEngine(pkg)
 }
 
-describe('Walking Skeleton — End-to-End Pipeline', () => {
+describe('Walking Skeleton â€” End-to-End Pipeline', () => {
   describe('CampusDocument', () => {
     it('is valid', () => {
       const campus = createGoldenCampus()

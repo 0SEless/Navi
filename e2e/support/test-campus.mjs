@@ -46,10 +46,16 @@ function loadEnvFile(filePath) {
 }
 
 export function resolveSupabaseAdmin(env = process.env, cwd = process.cwd()) {
-  const fileEnv = {
+  const localFileEnv = {
     ...loadEnvFile(path.join(cwd, '.env.local')),
     ...loadEnvFile(path.join(cwd, 'navi-next', '.env.local')),
   }
+  const devFileEnv = {
+    ...loadEnvFile(path.join(cwd, '.env.development.local')),
+    ...loadEnvFile(path.join(cwd, 'navi-next', '.env.development.local')),
+  }
+  // DEV wins over production when both exist (fail-safe local/test selection).
+  const fileEnv = { ...localFileEnv, ...devFileEnv }
   const url = (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || fileEnv.SUPABASE_URL || fileEnv.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')
   const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SECRET_KEY
   if (!url || !key) {
