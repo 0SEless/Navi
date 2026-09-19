@@ -15,7 +15,8 @@ import {
 function makeDoc(overrides?: Partial<CampusDocument>): CampusDocument {
   return {
     schemaVersion: 1,
-    metadata: { name: 'Test', description: '', lastModified: '2024-01-01', editorVersion: '1.0.0' },
+    version: 1,
+    metadata: { campusId: 'Test', name: 'Test', description: '', lastModified: '2024-01-01', editorVersion: '1.0.0' },
     buildings: [
       {
         id: 'bld-1',
@@ -62,7 +63,7 @@ function makeDoc(overrides?: Partial<CampusDocument>): CampusDocument {
               { id: 'elev-1', name: 'Elevator A', position: { x: 15, y: 15 }, fromLevel: 0, toLevel: 2 },
             ],
             entrances: [
-              { id: 'ent-1', label: 'Main Entrance', position: { lat: 0.5, lng: 0.5 }, level: 1, type: 'main', hasQR: false, hasPanorama: false },
+              { id: 'ent-1', label: 'Main Entrance', position: { lat: 0.5, lng: 0.5 } as any, level: 1, type: 'main', hasQR: false, hasPanorama: false },
             ],
             metadata: {},
           },
@@ -70,8 +71,8 @@ function makeDoc(overrides?: Partial<CampusDocument>): CampusDocument {
       },
     ],
     roads: [{ id: 'road-1', name: 'Main Road', polyline: { points: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }] }, width: 5, surface: 'paved', type: 'arterial', metadata: {} }],
-    panoramas: [{ id: 'pano-1', label: 'Entrance View', position: { lat: 0.5, lng: 0.5 }, heading: 0, imageAssetId: 'img-1', hotspots: [] }],
-    qrCheckpoints: [{ id: 'qr-1', label: 'Checkpoint A', position: { lat: 0.5, lng: 0.5 }, floor: 0, buildingId: 'bld-1', code: 'QR001', metadata: {} }],
+    panoramas: [{ id: 'pano-1', label: 'Entrance View', position: { lat: 0.5, lng: 0.5 } as any, heading: 0, imageAssetId: 'img-1', hotspots: [] }],
+    qrCheckpoints: [{ id: 'qr-1', label: 'Checkpoint A', position: { lat: 0.5, lng: 0.5 } as any, floor: 0, buildingId: 'bld-1', code: 'QR001', metadata: {} }],
     ...overrides,
   }
 }

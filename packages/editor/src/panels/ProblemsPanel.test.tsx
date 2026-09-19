@@ -40,14 +40,18 @@ function createContext(overrides?: {
   issues?: any[]
   staleSnapshot?: boolean
   fixCanFix?: boolean
+  liveDocumentVersion?: number
+  documentVersion?: number
+  snapshotDocumentVersion?: number
 }): { ctx: EditorContext; engine: ReturnType<typeof mockEngine>; fixReg: ReturnType<typeof mockFixRegistry> } {
   const engine = mockEngine()
+  const liveDocumentVersion = overrides?.liveDocumentVersion ?? 1
   const snapshot: ValidationSnapshot | undefined = overrides?.staleSnapshot
     ? undefined
     : {
         epoch: 1,
         documentId: 'doc-1',
-        documentVersion: 1,
+        documentVersion: overrides?.snapshotDocumentVersion ?? 1,
         profile: 'draft',
         validatedAt: performance.now(),
         state: overrides?.issues && overrides.issues.length > 0 ? 'errors' : 'valid',
@@ -60,12 +64,18 @@ function createContext(overrides?: {
   const fixReg = mockFixRegistry(overrides?.fixCanFix)
   return {
     ctx: {
-      document: {} as any,
+      document: { version: overrides?.documentVersion ?? liveDocumentVersion } as any,
       services: {
         get(name: string) {
           if (name === 'validationEngine') return engine
           if (name === 'selection') return sel
           if (name === 'autoFixRegistry') return fixReg
+          if (name === 'documentStore') {
+            return {
+              getVersion: () => liveDocumentVersion,
+              subscribe: () => () => undefined,
+            }
+          }
         },
       } as any,
     },
@@ -105,7 +115,7 @@ describe('ProblemsPanel', () => {
     )
     expect(screen.getByText('Footprint not closed')).toBeDefined()
     expect(screen.getByText('Room has no name')).toBeDefined()
-    expect(screen.getByText(/error/i)).toBeDefined()
+    expect(screen.getAllByText(/error/i).length).toBeGreaterThan(0)
   })
 
   it('shows issue count in header', () => {
@@ -123,6 +133,119 @@ describe('ProblemsPanel', () => {
       </EditorProvider>,
     )
     expect(screen.getByText(/Problems \(1\)/)).toBeDefined()
+  })
+
+  it('asks the administrator to run validation when no snapshot exists', () => {
+    const { ctx } = createContext({ staleSnapshot: true })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel />
+      </EditorProvider>,
+    )
+    expect(screen.getByText('Run Validate to check this campus')).toBeDefined()
+  })
+
+  it('shows error, warning, and info counts together', () => {
+    const { ctx } = createContext({
+      issues: [
+        { issueId: 'err-1', ruleId: 'polygon-closure', severity: 'error', message: 'Error', targets: [] },
+        { issueId: 'warn-1', ruleId: 'missing-name', severity: 'warning', message: 'Warning', targets: [] },
+        { issueId: 'info-1', ruleId: 'campus-note', severity: 'info', message: 'Info', targets: [] },
+      ],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel />
+      </EditorProvider>,
+    )
+    expect(screen.getByText(/1 error/i)).toBeDefined()
+    expect(screen.getByText(/1 warning/i)).toBeDefined()
+    expect(screen.getByText(/1 info/i)).toBeDefined()
+  })
+
+  it('shows a readable route title, scope, layer, and target identity', () => {
+    const { ctx } = createContext({
+      issues: [{
+        issueId: 'route-1',
+        ruleId: 'route-entrance-access',
+        severity: 'error',
+        message: 'Entrance is not connected',
+        targets: [{ entityId: 'entrance-7', entityType: 'entrance' }],
+        buildingId: 'building-2',
+        floorId: 'floor-0',
+        layer: 'navigation',
+      }],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel />
+      </EditorProvider>,
+    )
+    expect(screen.getByText('Entrance route access is invalid')).toBeDefined()
+    expect(screen.getByText(/navigation/i)).toBeDefined()
+    expect(screen.getByText(/building-2/i)).toBeDefined()
+    expect(screen.getByText(/floor-0/i)).toBeDefined()
+    expect(screen.getByText(/entrance-7/i)).toBeDefined()
+  })
+
+  it('delegates issue focus to the map-aware callback', () => {
+    const onIssueFocus = vi.fn()
+    const { ctx } = createContext({
+      issues: [{
+        issueId: 'route-1', ruleId: 'route-network-disconnected', severity: 'error',
+        message: 'Disconnected', targets: [{ entityId: 'route-node-1', entityType: 'route-node' }],
+      }],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel onIssueFocus={onIssueFocus} canIssueFocus={() => true} />
+      </EditorProvider>,
+    )
+    fireEvent.click(screen.getByText('Disconnected'))
+    expect(onIssueFocus).toHaveBeenCalledWith(expect.objectContaining({ issueId: 'route-1' }))
+    expect(screen.getByRole('button', { name: 'Show on map' })).toBeDefined()
+  })
+
+  it('marks a report stale when the live document version has changed', () => {
+    const { ctx } = createContext({
+      liveDocumentVersion: 2,
+      snapshotDocumentVersion: 1,
+      issues: [{ issueId: 'err-1', ruleId: 'polygon-closure', severity: 'error', message: 'Stale error', targets: [] }],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel />
+      </EditorProvider>,
+    )
+    expect(screen.getByText('● stale')).toBeDefined()
+  })
+
+  it('does not mark a matching engine snapshot stale when store revision differs', () => {
+    const { ctx } = createContext({
+      documentVersion: 1,
+      liveDocumentVersion: 0,
+      snapshotDocumentVersion: 1,
+      issues: [{ issueId: 'err-1', ruleId: 'polygon-closure', severity: 'error', message: 'Current error', targets: [] }],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel />
+      </EditorProvider>,
+    )
+    expect(screen.queryByText('● stale')).toBeNull()
+  })
+
+  it('does not render Show on map for a targetless or unresolved issue', () => {
+    const onIssueFocus = vi.fn()
+    const { ctx } = createContext({
+      issues: [{ issueId: 'global-1', ruleId: 'route-network-disconnected', severity: 'error', message: 'Global graph issue', targets: [] }],
+    })
+    render(
+      <EditorProvider context={ctx}>
+        <ProblemsPanel onIssueFocus={onIssueFocus} canIssueFocus={() => false} />
+      </EditorProvider>,
+    )
+    expect(screen.queryByRole('button', { name: 'Show on map' })).toBeNull()
   })
 
   it('calls selection.select on issue click', () => {

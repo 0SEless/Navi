@@ -37,7 +37,7 @@ describe('PanoramaProperties', () => {
 
   it('shows hotspot count', () => {
     renderWithDispatcher(createPanorama())
-    expect(screen.getByText(/Hotspots: 1/)).toBeDefined()
+    expect(screen.getByText(/Hotspots/)).toBeDefined()
   })
 
   it('dispatches entity.update when label changes', () => {

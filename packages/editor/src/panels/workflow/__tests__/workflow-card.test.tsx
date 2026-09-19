@@ -18,7 +18,8 @@ function createWorkflowContext(): EditorContext {
   const eventBus = new DocumentEventBus()
   const document: CampusDocument = {
     schemaVersion: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    version: 1,
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [],
     roads: [],
     panoramas: [],

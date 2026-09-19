@@ -15,7 +15,7 @@ function createDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 0,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1', name: 'Test', code: 'T', category: 'academic', description: '',
       footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },
@@ -165,7 +165,7 @@ describe('floor edge cases', () => {
 
   it('duplicates a floor with entrances', () => {
     const doc = createDoc()
-    doc.buildings[0].floors[0].entrances.push({ id: 'ent-1', label: 'Door', position: { lat: 0, lng: 0 }, level: 0, type: 'side', hasQR: true, hasPanorama: false })
+    doc.buildings[0].floors[0].entrances.push({ id: 'ent-1', label: 'Door', position: { lat: 0, lng: 0 } as any, level: 0, type: 'side', hasQR: true, hasPanorama: false })
     const result = floorDuplicateHandler.execute(doc, { floorId: 'flr-1' })
     expect(result.success).toBe(true)
     expect(doc.buildings[0].floors[1].entrances).toHaveLength(1)
@@ -179,7 +179,7 @@ describe('floor edge cases', () => {
     flr.hallways.push({ id: 'hw-a', name: 'A', polyline: { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }, width: 3 })
     flr.staircases.push({ id: 'st-a', name: 'A', position: { x: 0, y: 0 }, fromLevel: 0, toLevel: 1, type: 'enclosed' })
     flr.elevators.push({ id: 'el-a', name: 'A', position: { x: 0, y: 0 }, fromLevel: 0, toLevel: 1 })
-    flr.entrances.push({ id: 'ent-a', label: 'A', position: { lat: 0, lng: 0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false })
+    flr.entrances.push({ id: 'ent-a', label: 'A', position: { lat: 0, lng: 0 } as any, level: 0, type: 'main', hasQR: false, hasPanorama: false })
     const result = floorDuplicateHandler.execute(doc, { floorId: 'flr-1' })
     expect(result.success).toBe(true)
     const dup = doc.buildings[0].floors[1]
@@ -361,7 +361,7 @@ describe('elevator edge cases', () => {
 describe('entrance edge cases', () => {
   it('fails with invalid building/floor', () => {
     const doc = createDoc()
-    const result = entranceCreateHandler.execute(doc, { buildingId: 'nope', floorId: 'flr-1', label: 'X', position: { lat: 0, lng: 0 } })
+    const result = entranceCreateHandler.execute(doc, { buildingId: 'nope', floorId: 'flr-1', label: 'X', position: { lat: 0, lng: 0 } as any })
     expect(result.success).toBe(false)
     expect(result.error).toContain('not found')
   })
@@ -382,7 +382,7 @@ describe('entrance edge cases', () => {
 
   it('creates with custom type, hasQR and hasPanorama', () => {
     const doc = createDoc()
-    const result = entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'Main', position: { lat: 0, lng: 0 }, type: 'main', hasQR: false, hasPanorama: true })
+    const result = entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'Main', position: { lat: 0, lng: 0 } as any, type: 'main', hasQR: false, hasPanorama: true })
     expect(result.success).toBe(true)
     expect(doc.buildings[0].floors[0].entrances[0].type).toBe('main')
     expect(doc.buildings[0].floors[0].entrances[0].hasQR).toBe(false)
@@ -425,7 +425,7 @@ describe('road edge cases', () => {
 describe('panorama edge cases', () => {
   it('creates with buildingId and floor', () => {
     const doc = createDoc()
-    const result = panoramaCreateHandler.execute(doc, { label: 'View', position: { lat: 0, lng: 0 }, imageAssetId: 'img-1', buildingId: 'bld-1', floor: 1 })
+    const result = panoramaCreateHandler.execute(doc, { label: 'View', position: { x: 0, y: 0 }, imageAssetId: 'img-1', buildingId: 'bld-1', floor: 1 })
     expect(result.success).toBe(true)
     expect(doc.panoramas[0].buildingId).toBe('bld-1')
     expect(doc.panoramas[0].floor).toBe(1)
@@ -433,7 +433,7 @@ describe('panorama edge cases', () => {
 
   it('creates without buildingId and floor defaults', () => {
     const doc = createDoc()
-    const result = panoramaCreateHandler.execute(doc, { label: 'NoBld', position: { lat: 0, lng: 0 }, imageAssetId: 'img-2' })
+    const result = panoramaCreateHandler.execute(doc, { label: 'NoBld', position: { lat: 0, lng: 0 } as any, imageAssetId: 'img-2' })
     expect(result.success).toBe(true)
     expect(doc.panoramas[0].buildingId).toBeUndefined()
     expect(doc.panoramas[0].floor).toBe(0)
@@ -441,14 +441,14 @@ describe('panorama edge cases', () => {
 
   it('creates with empty label', () => {
     const doc = createDoc()
-    const result = panoramaCreateHandler.execute(doc, { label: '', position: { lat: 0, lng: 0 }, imageAssetId: 'img-3' })
+    const result = panoramaCreateHandler.execute(doc, { label: '', position: { lat: 0, lng: 0 } as any, imageAssetId: 'img-3' })
     expect(result.success).toBe(true)
     expect(doc.panoramas[0].label).toBe('')
   })
 
   it('creates with custom heading', () => {
     const doc = createDoc()
-    const result = panoramaCreateHandler.execute(doc, { label: 'North', position: { lat: 0, lng: 0 }, imageAssetId: 'img-4', heading: 180 })
+    const result = panoramaCreateHandler.execute(doc, { label: 'North', position: { lat: 0, lng: 0 } as any, imageAssetId: 'img-4', heading: 180 })
     expect(result.success).toBe(true)
     expect(doc.panoramas[0].heading).toBe(180)
   })
@@ -462,24 +462,25 @@ describe('panorama edge cases', () => {
 })
 
 describe('qr checkpoint edge cases', () => {
+  // P1-T13 (R10.1/D16/Q5): opaque payloads — code derived from id.
   it('creates with buildingId', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'Entrance', position: { lat: 0, lng: 0 }, code: 'navi://entrance', buildingId: 'bld-1' })
+    const result = qrCreateHandler.execute(doc, { label: 'Entrance', position: { lat: 0, lng: 0 } as any, buildingId: 'bld-1' })
     expect(result.success).toBe(true)
     expect(doc.qrCheckpoints[0].buildingId).toBe('bld-1')
-    expect(doc.qrCheckpoints[0].code).toBe('navi://entrance')
+    expect(doc.qrCheckpoints[0].code).toMatch(/^navi\.app\/q\//)
   })
 
   it('creates without buildingId (empty string)', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'Generic', position: { lat: 0, lng: 0 }, code: 'navi://generic' })
+    const result = qrCreateHandler.execute(doc, { label: 'Generic', position: { lat: 0, lng: 0 } as any })
     expect(result.success).toBe(true)
     expect(doc.qrCheckpoints[0].buildingId).toBe('')
   })
 
   it('creates with custom floor', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'L1', position: { lat: 0, lng: 0 }, code: 'navi://l1', floor: 1 })
+    const result = qrCreateHandler.execute(doc, { label: 'L1', position: { lat: 0, lng: 0 } as any, floor: 1 })
     expect(result.success).toBe(true)
     expect(doc.qrCheckpoints[0].floor).toBe(1)
   })
@@ -493,16 +494,16 @@ describe('qr checkpoint edge cases', () => {
 
   it('fails without position', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'X', code: 'navi://x' })
+    const result = qrCreateHandler.execute(doc, { label: 'X' })
     expect(result.success).toBe(false)
     expect(result.error).toContain('QR checkpoint position')
   })
 
-  it('fails without code', () => {
+  it('rejects non-opaque supplied codes (coordinates/legacy)', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 } })
+    const result = qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 } as any, code: 'navi://x' })
     expect(result.success).toBe(false)
-    expect(result.error).toContain('QR code content')
+    expect(result.error).toContain('opaque')
   })
 })
 

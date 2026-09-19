@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { EntityRenderer } from './entity-renderer'
 import { DocumentEventBus } from '../eventbus'
 import { documentToGeoJSON } from './geojson'
+import { SOURCE_IDS } from './layers'
 
 vi.mock('./geojson', () => ({
   documentToGeoJSON: vi.fn().mockReturnValue({
@@ -14,6 +15,7 @@ vi.mock('./geojson', () => ({
     elevators: { type: 'FeatureCollection', features: [] },
     panoramas: { type: 'FeatureCollection', features: [] },
     qr: { type: 'FeatureCollection', features: [] },
+    pois: { type: 'FeatureCollection', features: [] },
   }),
   toPreviewFeature: vi.fn((geom: any) => ({ type: 'Feature', geometry: geom })),
 }))
@@ -22,6 +24,7 @@ function createMockMap() {
   const sourceData = new Map<string, { setData: ReturnType<typeof vi.fn> }>()
   return {
     on: vi.fn(),
+    once: vi.fn(),
     off: vi.fn(),
     loaded: vi.fn().mockReturnValue(true),
     getSource: vi.fn((id: string) => sourceData.get(id)),
@@ -32,6 +35,7 @@ function createMockMap() {
     addLayer: vi.fn(),
     removeLayer: vi.fn(),
     getLayer: vi.fn().mockReturnValue(undefined),
+    setLayoutProperty: vi.fn(),
   }
 }
 
@@ -39,7 +43,7 @@ function createOptions(map: ReturnType<typeof createMockMap>) {
   const eventBus = new DocumentEventBus()
   return {
     map: map as any,
-    document: { metadata: { name: 'test' } } as any,
+    document: { metadata: { campusId: 'test', name: 'test' } } as any,
     eventBus,
     selection: { on: vi.fn() } as any,
     viewport: { on: vi.fn() } as any,
@@ -68,10 +72,87 @@ describe('EntityRenderer', () => {
     expect(map.addLayer).toHaveBeenCalled()
   })
 
+  it('adds a hidden diagnostic layer for navigation-only roads', () => {
+    renderer.init()
+    const diagnosticLayer = map.addLayer.mock.calls
+      .map(([layer]) => layer)
+      .find((layer: any) => layer.id === 'navi-navigation-only-road')
+    expect(diagnosticLayer).toMatchObject({
+      filter: ['==', ['get', 'displayMode'], 'navigation-only'],
+      layout: { visibility: 'none' },
+    })
+  })
+
+  it('adds point and polygon layers for the shared POI source', () => {
+    renderer.init()
+    const poiLayers = map.addLayer.mock.calls
+      .map(([layer]) => layer)
+      .filter((layer: any) => ['navi-poi-icon', 'navi-poi-fill', 'navi-poi-extrusion', 'navi-poi-outline'].includes(layer.id))
+
+    expect(poiLayers).toHaveLength(4)
+    expect(poiLayers.every((layer: any) => layer.source === 'navi-pois')).toBe(true)
+    expect(poiLayers.find((layer: any) => layer.id === 'navi-poi-fill')?.type).toBe('fill')
+    expect(poiLayers.find((layer: any) => layer.id === 'navi-poi-extrusion')?.type).toBe('fill-extrusion')
+    expect(poiLayers.find((layer: any) => layer.id === 'navi-poi-outline')?.type).toBe('line')
+  })
+
+  it('keeps the shared POI source scoped to the active floor', () => {
+    const activeFloorFeature = {
+      type: 'Feature', id: 'poi-ground', properties: { id: 'poi-ground', floor: 0 },
+      geometry: { type: 'Point', coordinates: [0, 0] },
+    }
+    const otherFloorFeature = {
+      type: 'Feature', id: 'poi-upper', properties: { id: 'poi-upper', floor: 1 },
+      geometry: { type: 'Point', coordinates: [1, 1] },
+    }
+    vi.mocked(documentToGeoJSON).mockReturnValueOnce({
+      pois: { type: 'FeatureCollection', features: [activeFloorFeature, otherFloorFeature] },
+    } as any)
+
+    renderer.init()
+
+    expect(map.getSource(SOURCE_IDS.POIS)?.setData).toHaveBeenCalledWith({
+      type: 'FeatureCollection',
+      features: [activeFloorFeature],
+    })
+  })
+
+  it('keeps outdoor/campus POIs visible on every active floor without unfiltering indoor POIs', () => {
+    const outdoorFeature = {
+      type: 'Feature', id: 'poi-guard-post',
+      properties: { id: 'poi-guard-post', scope: 'outdoor' },
+      geometry: { type: 'Point', coordinates: [2, 2] },
+    }
+    const upperFloorFeature = {
+      type: 'Feature', id: 'poi-upper', properties: { id: 'poi-upper', floor: 1 },
+      geometry: { type: 'Point', coordinates: [1, 1] },
+    }
+    vi.mocked(documentToGeoJSON).mockReturnValueOnce({
+      pois: { type: 'FeatureCollection', features: [outdoorFeature, upperFloorFeature] },
+    } as any)
+
+    renderer.init()
+
+    expect(map.getSource(SOURCE_IDS.POIS)?.setData).toHaveBeenCalledWith({
+      type: 'FeatureCollection',
+      features: [outdoorFeature],
+    })
+  })
+
+  it('can reveal the navigation-only diagnostic layer without changing its data', () => {
+    renderer.init()
+    map.getLayer.mockImplementation((id: string) => id === 'navi-navigation-only-road' ? ({ id } as any) : undefined)
+    ;(renderer as any).setShowNavigationOnlyRoutes(true)
+    expect(map.setLayoutProperty).toHaveBeenCalledWith('navi-navigation-only-road', 'visibility', 'visible')
+  })
+
   it('init() registers load listener when map is not loaded', () => {
     map.loaded.mockReturnValue(false)
     renderer.init()
-    expect(map.on).toHaveBeenCalledWith('load', expect.any(Function))
+    // Code uses map.once('load', bootstrap) for the one-shot load handler
+    expect(map.once).toHaveBeenCalledWith('load', expect.any(Function))
+    // Also registers map.on('style.load', ...) for style reloads
+    expect(map.on).toHaveBeenCalledWith('style.load', expect.any(Function))
   })
 
   it('init() does not run twice', () => {
@@ -87,6 +168,8 @@ describe('EntityRenderer', () => {
   })
 
   it('destroy() removes all layers and sources', () => {
+    // Mock getLayer/getSource to return truthy so destroy() calls removeLayer/removeSource
+    map.getLayer.mockReturnValue({ id: 'layer' } as any)
     renderer.init()
     map.removeLayer.mockClear()
     map.removeSource.mockClear()
@@ -125,6 +208,14 @@ describe('EntityRenderer', () => {
     renderer.init()
     spy.mockClear()
     options.eventBus.emit('entity.created', { entityId: 'bld-1', entityType: 'building' })
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('document.changed event triggers syncAll for history undo/redo', () => {
+    const spy = vi.spyOn(renderer, 'syncAll' as any)
+    renderer.init()
+    spy.mockClear()
+    options.eventBus.emit('document.changed', { version: 2 })
     expect(spy).toHaveBeenCalled()
   })
 })

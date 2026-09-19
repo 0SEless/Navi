@@ -668,6 +668,76 @@ describe('GraphAdapter — P1-T7 route network projection', () => {
 })
 
 describe('GraphAdapter — spatial Door persistence', () => {
+  it('rebuilds the derived door projection without accumulating across repeated syncs', () => {
+    const document = createTestDocument()
+    const door: RoomDoor = {
+      id: 'door-idempotent-1',
+      roomId: 'room-1',
+      name: 'Idempotent Door',
+      doorType: 'standard',
+      position: { x: 4, y: 3 },
+      width: 1.8,
+      depth: 0.45,
+      rotation: 0,
+      geometry: {
+        type: 'rectangle' as const,
+        min: { x: 3.1, y: 2.775 },
+        max: { x: 4.9, y: 3.225 },
+        rotation: 0,
+      },
+      ownership: { status: 'assigned' },
+      metadata: {},
+    }
+    document.buildings[0].floors[0].doors = [door]
+    const canonicalBefore = structuredClone(document.buildings[0].floors[0].doors)
+
+    const graph = new Graph()
+    const adapter = new GraphAdapter(graph)
+    adapter.sync(document)
+    const firstProjection = structuredClone(graph.doors)
+
+    adapter.sync(document)
+
+    expect(graph.doors).toEqual(firstProjection)
+    expect(graph.doors).toHaveLength(canonicalBefore!.length)
+    expect(document.buildings[0].floors[0].doors).toEqual(canonicalBefore)
+  })
+
+  it('rebuilds exactly one derived door projection after serialize and reload', () => {
+    const document = createTestDocument()
+    const door: RoomDoor = {
+      id: 'door-roundtrip-1',
+      roomId: 'room-1',
+      name: 'Roundtrip Door',
+      doorType: 'standard',
+      position: { x: 4, y: 3 },
+      width: 1.8,
+      depth: 0.45,
+      rotation: 0,
+      geometry: {
+        type: 'rectangle' as const,
+        min: { x: 3.1, y: 2.775 },
+        max: { x: 4.9, y: 3.225 },
+        rotation: 0,
+      },
+      ownership: { status: 'assigned' },
+      metadata: {},
+    }
+    document.buildings[0].floors[0].doors = [door]
+
+    const graph = new Graph()
+    new GraphAdapter(graph).sync(document)
+    const snapshot = graph.toJSON()
+    const reloadedGraph = Graph.fromJSON(snapshot)
+    const reloadedDocument = createDocument(snapshot)
+
+    new GraphAdapter(reloadedGraph).sync(reloadedDocument)
+
+    expect(reloadedGraph.doors).toHaveLength(1)
+    expect(reloadedGraph.doors[0]?.id).toBe(door.id)
+    expect(reloadedDocument.buildings[0].floors[0].doors).toEqual([door])
+  })
+
   it('keeps the canonical Floor.doors record intact across graph save/reload', () => {
     const document = createTestDocument()
     const door: RoomDoor = {

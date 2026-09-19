@@ -38,4 +38,20 @@ export class DocumentStore {
     this.listeners.forEach((l) => l())
     this.eventBus?.emit('revision.committed', { version: this.version })
   }
+
+  /**
+   * Restore an editor-owned snapshot without creating a new revision.
+   *
+   * This is intentionally limited to transaction rollback. Callers must not
+   * use it as a normal mutation path; successful changes still go through a
+   * registered command and commit().
+  */
+  restore(snapshot: CampusDocument, version: number, revision = ''): void {
+    for (const key of Object.keys(this.document)) {
+      Reflect.deleteProperty(this.document, key)
+    }
+    Object.assign(this.document, structuredClone(snapshot))
+    this.version = version
+    this.revision = revision
+  }
 }

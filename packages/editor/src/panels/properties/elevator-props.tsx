@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { LegacyElevator } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
-import { Field } from './field'
+import { tokens, Field, inputStyle, SectionHeader } from './field'
 
 interface Props { elevator: LegacyElevator }
 
@@ -19,11 +19,21 @@ export function ElevatorProperties({ elevator }: Props) {
   }, [editEngine, dispatcher, elevator.id])
 
   return (
-    <div style={{ padding: 8, fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ fontWeight: 600, marginBottom: 8, color: '#fff', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Elevator</div>
-      <Field label="Name"><input value={elevator.name} onChange={e => update({ name: e.target.value })} /></Field>
-      <Field label="From Level"><input type="number" value={elevator.fromLevel} onChange={e => update({ fromLevel: parseInt(e.target.value) || 0 })} /></Field>
-      <Field label="To Level"><input type="number" value={elevator.toLevel} onChange={e => update({ toLevel: parseInt(e.target.value) || 0 })} /></Field>
+    <div style={{ padding: '6px 12px 14px', fontSize: tokens.fontSize.md, fontFamily: 'system-ui, sans-serif' }}>
+      <SectionHeader>Details</SectionHeader>
+      <Field label="Name">
+        <input value={elevator.name} onChange={e => update({ name: e.target.value })} style={inputStyle} />
+      </Field>
+      <Field label="From Level">
+        <input type="number" value={elevator.fromLevel}
+          onChange={e => update({ fromLevel: parseInt(e.target.value) || 0 })}
+          style={inputStyle} />
+      </Field>
+      <Field label="To Level">
+        <input type="number" value={elevator.toLevel}
+          onChange={e => update({ toLevel: parseInt(e.target.value) || 0 })}
+          style={inputStyle} />
+      </Field>
     </div>
   )
 }

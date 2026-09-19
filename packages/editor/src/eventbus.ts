@@ -17,13 +17,6 @@ export type EditorEventType =
   | 'transaction.begin'
   | 'transaction.end'
   | 'transaction.flush'
-  // Calibration events
-  | 'calibration.activated'
-  | 'calibration.deactivated'
-  | 'calibration.addPoint'
-  | 'calibration.removeLastPoint'
-  | 'calibration.compute'
-  | 'calibration.cancel'
   // Workflow events
   | 'workflow.saved'
   | 'publish.completed'

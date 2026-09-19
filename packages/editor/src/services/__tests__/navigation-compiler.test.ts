@@ -18,7 +18,7 @@ describe('NavigationCompiler', () => {
     }
 
     const compiler = new NavigationCompiler(adapter)
-    const doc = { metadata: { name: 'test' } } as any
+    const doc = { metadata: { campusId: 'test', name: 'test' } } as any
     const result = await compiler.compile(doc)
 
     expect(result.status).toBe('success')
@@ -36,7 +36,7 @@ describe('NavigationCompiler', () => {
     }
 
     const compiler = new NavigationCompiler(adapter)
-    const doc = { metadata: { name: 'test' } } as any
+    const doc = { metadata: { campusId: 'test', name: 'test' } } as any
 
     const [r1, r2] = await Promise.all([compiler.compile(doc), compiler.compile(doc)])
     expect(r1.status).toBe('success')
@@ -50,7 +50,7 @@ describe('NavigationCompiler', () => {
     }
 
     const compiler = new NavigationCompiler(adapter)
-    const doc = { metadata: { name: 'test' } } as any
+    const doc = { metadata: { campusId: 'test', name: 'test' } } as any
 
     await compiler.compile(doc)
     await compiler.compile(doc)  // second call should work
@@ -65,7 +65,7 @@ describe('NavigationCompiler', () => {
     }
 
     const compiler = new NavigationCompiler(adapter)
-    const doc = { metadata: { name: 'test' } } as any
+    const doc = { metadata: { campusId: 'test', name: 'test' } } as any
 
     await expect(compiler.compile(doc)).rejects.toThrow('fail')
     const result = await compiler.compile(doc)

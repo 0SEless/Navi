@@ -20,7 +20,8 @@ function createMockContext(): EditorContext {
   registry.register(floorDuplicateHandler)
   const document: CampusDocument = {
     schemaVersion: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    version: 1,
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1', name: 'Main', code: 'M', category: 'academic', description: '',
       footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },

@@ -18,7 +18,7 @@ describe('Publish integration', () => {
 
   it('full publish pipeline succeeds end-to-end', async () => {
     const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
-    const documentStore = { version: 1, document: { metadata: { name: 'integration-test' } } }
+    const documentStore = { version: 1, document: { metadata: { campusId: 'integration-test', name: 'integration-test' } } }
 
     const context = {
       get: (id: string) => {
@@ -79,7 +79,7 @@ describe('Publish integration', () => {
 
   it('can publish again after success', async () => {
     const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
-    const documentStore = { version: 2, document: { metadata: { name: 'test' } } }
+    const documentStore = { version: 2, document: { metadata: { campusId: 'test', name: 'test' } } }
 
     const compileMock = vi.fn().mockResolvedValue({
       status: 'success',
@@ -137,7 +137,7 @@ describe('Publish integration', () => {
 
   it('fails publish when validation errors exist', async () => {
     const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
-    const documentStore = { version: 1, document: { metadata: { name: 'test' } } }
+    const documentStore = { version: 1, document: { metadata: { campusId: 'test', name: 'test' } } }
     const validate = vi.fn().mockReturnValue({
       issues: [{ severity: 'error', message: 'Test error', ruleId: 'test' }],
       statistics: { totalIssues: 1, errors: 1, warnings: 0, infos: 0, duration: 0, rulesExecuted: 0, rulesPassed: 0, rulesFailed: 0 },

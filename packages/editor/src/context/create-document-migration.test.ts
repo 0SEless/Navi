@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createDocument } from './create-editor-context'
-import { CoordinateTransformer } from '@navi/core'
+import { CoordinateTransformer, serializeDocument, deserializeDocument } from '@navi/core'
 
 // ── P0 T0.3 migration tests ──
 // Legacy per-floor records (floor.staircases / floor.elevators /
@@ -36,6 +36,12 @@ interface RawFloorRecord {
   rooms?: Array<{ id: string; name?: string; number?: string; polygon?: { points: Array<{ x: number; y: number }> } }>
   hallways?: Array<{ id: string; name?: string; polyline?: { points: Array<{ x: number; y: number }> }; width?: number; color?: string }>
   entrances?: Array<{ id: string; name?: string; position?: { lat: number; lng: number }; type?: string }>
+  pois?: Array<{ id: string; name?: string; category?: string; position?: { x: number; y: number }; metadata?: Record<string, unknown> }>
+  doors?: Array<{ id: string; roomId: string; connectedToId?: string; connectedToType?: 'room' | 'hallway'; doorType?: string; position?: { x: number; y: number }; width?: number; metadata?: Record<string, unknown> }>
+  routeNetwork?: {
+    nodes: Array<{ id: string; type: string; position: { x: number; y: number }; floor: number }>
+    edges: Array<{ id: string; from: string; to: string; type: string; distance: number }>
+  }
 }
 
 function makeGraph(floors: RawFloorRecord[], buildingExtras: Record<string, unknown> = {}): {
@@ -382,5 +388,279 @@ describe('createDocument — T0.3 migration: zero data loss', () => {
     const b = createDocument(graph)
     expect(JSON.parse(JSON.stringify(a.buildings[0].staircases))).toEqual(JSON.parse(JSON.stringify(b.buildings[0].staircases)))
     expect(JSON.parse(JSON.stringify(a.buildings[0].elevators))).toEqual(JSON.parse(JSON.stringify(b.buildings[0].elevators)))
+  })
+})
+
+describe('createDocument — P1-T4: world-stored entrances/QRs/panoramas → building-local', () => {
+  // Centroid of the makeGraph footprint (33.42/-111.93 → 33.4201/-111.9299)
+  const ORIGIN = { lat: 33.42005, lng: -111.92995 }
+
+  function makeTransformer(): CoordinateTransformer {
+    const transformer = new CoordinateTransformer()
+    transformer.registerBuilding({ buildingId: 'b1', origin: ORIGIN, rotation: 0 })
+    return transformer
+  }
+
+  it('converts floor-record entrances from world LatLng to building-local LocalCoord (D9)', () => {
+    const transformer = makeTransformer()
+    const graph = makeGraph([
+      { level: 0, entrances: [{ id: 'ent-1', name: 'Main Entrance', position: { lat: 33.42, lng: -111.93 }, type: 'main' }] },
+    ])
+    const doc = createDocument(graph, transformer)
+    const entrance = doc.buildings[0].floors[0].entrances[0]
+    expect(entrance.id).toBe('ent-1')
+    expect(entrance.label).toBe('Main Entrance')
+    expect(entrance.type).toBe('main')
+    expect(entrance.level).toBe(0)
+    expect(entrance.position).toEqual(transformer.worldToBuildingLocal({ lat: 33.42, lng: -111.93 }, 'b1'))
+    expect(entrance.position).not.toHaveProperty('lat')
+    expect(entrance.position).not.toHaveProperty('lng')
+  })
+
+  it('falls back to centroid-based equirect conversion when no transformer is given (R15.8)', () => {
+    const graph = makeGraph([
+      { level: 0, entrances: [{ id: 'ent-2', name: 'Side Entrance', position: { lat: 33.42, lng: -111.93 }, type: 'side' }] },
+    ])
+    const doc = createDocument(graph)
+    const entrance = doc.buildings[0].floors[0].entrances[0]
+    // equirect inverse about the footprint centroid (matches compiler math)
+    const METER_PER_DEG = 111320
+    const expectedX = (-111.93 - ORIGIN.lng) * METER_PER_DEG * Math.cos((ORIGIN.lat * Math.PI) / 180)
+    const expectedY = (33.42 - ORIGIN.lat) * METER_PER_DEG
+    expect(entrance.position.x).toBeCloseTo(expectedX, 6)
+    expect(entrance.position.y).toBeCloseTo(expectedY, 6)
+    expect(entrance.position).not.toHaveProperty('lat')
+    // fields carried verbatim
+    expect(entrance.label).toBe('Side Entrance')
+    expect(entrance.type).toBe('side')
+  })
+
+  it('converts world-stored QR checkpoint nodes to building-local positions', () => {
+    const transformer = makeTransformer()
+    const graph = makeGraph([{ level: 0 }])
+    graph.nodes = [
+      { id: 'n-qr-1', type: 'qr_marker', hasQr: true, buildingId: 'b1', floor: 0, position: { lat: 33.4201, lng: -111.9299 }, metadata: { qrId: 'qr-1', qrCode: 'QR-1' } },
+    ]
+    const doc = createDocument(graph, transformer)
+    expect(doc.qrCheckpoints).toHaveLength(1)
+    const qr = doc.qrCheckpoints[0]
+    expect(qr.id).toBe('qr-1')
+    expect(qr.code).toBe('QR-1')
+    expect(qr.buildingId).toBe('b1')
+    expect(qr.floor).toBe(0)
+    expect(qr.position).toEqual(transformer.worldToBuildingLocal({ lat: 33.4201, lng: -111.9299 }, 'b1'))
+    expect(qr.position).not.toHaveProperty('lat')
+  })
+
+  it('converts world-stored panorama nodes to building-local positions', () => {
+    const transformer = makeTransformer()
+    const graph = makeGraph([{ level: 0 }])
+    graph.nodes = [
+      { id: 'n-pano-1', hasPanorama: true, buildingId: 'b1', floor: 0, position: { lat: 33.42, lng: -111.93 }, label: 'Panorama: Main Lobby', metadata: { panoramaId: 'pano-1' } },
+    ]
+    const doc = createDocument(graph, transformer)
+    expect(doc.panoramas).toHaveLength(1)
+    const pano = doc.panoramas[0]
+    expect(pano.id).toBe('pano-1')
+    expect(pano.label).toBe('Main Lobby')
+    expect(pano.buildingId).toBe('b1')
+    expect(pano.position).toEqual(transformer.worldToBuildingLocal({ lat: 33.42, lng: -111.93 }, 'b1'))
+    expect(pano.position).not.toHaveProperty('lat')
+  })
+
+  it('re-serializes the migrated document building-local without data loss (R15.8)', () => {
+    const transformer = makeTransformer()
+    const graph = makeGraph([
+      { level: 0, entrances: [{ id: 'ent-1', name: 'Main Entrance', position: { lat: 33.42, lng: -111.93 }, type: 'main' }] },
+    ])
+    graph.nodes = [
+      { id: 'n-qr-1', type: 'qr_marker', hasQr: true, buildingId: 'b1', floor: 0, position: { lat: 33.4201, lng: -111.9299 }, metadata: { qrId: 'qr-1', qrCode: 'QR-1' } },
+    ]
+    const doc = createDocument(graph, transformer)
+    const parsed = deserializeDocument(serializeDocument(doc))
+    const entrance = parsed.buildings[0].floors[0].entrances[0]
+    expect(entrance.position).toEqual(transformer.worldToBuildingLocal({ lat: 33.42, lng: -111.93 }, 'b1'))
+    expect(entrance.position).not.toHaveProperty('lat')
+    expect(entrance.label).toBe('Main Entrance')
+    expect(parsed.qrCheckpoints[0].position).not.toHaveProperty('lat')
+    expect(parsed.qrCheckpoints[0].code).toBe('QR-1')
+    expect(parsed.qrCheckpoints).toHaveLength(1)
+    expect(parsed.buildings[0].floors[0].entrances).toHaveLength(1)
+  })
+})
+
+// ── P1-T5 (R2.2): POIs pass through the forward adapter verbatim ──
+
+describe('createDocument — P1-T5 migration: Floor.pois pass-through', () => {
+  it('carries pois verbatim (building-local positions preserved, metadata intact)', () => {
+    const graph = makeGraph([
+      {
+        level: 0,
+        pois: [
+          { id: 'poi-vm-1', name: 'Vending Machine', category: 'vending_machine', position: { x: 3.5, y: 7.25 }, metadata: { vendor: 'acme' } },
+        ],
+      },
+    ])
+    const doc = createDocument(graph)
+    const pois = doc.buildings[0].floors[0].pois
+    expect(pois).toHaveLength(1)
+    // R15.9: every field survives the adapter
+    expect(pois![0]).toEqual({
+      id: 'poi-vm-1', name: 'Vending Machine', category: 'vending_machine',
+      position: { x: 3.5, y: 7.25 }, metadata: { vendor: 'acme' },
+    })
+    // building-local in → building-local out (no world conversion applied)
+    expect(pois![0].position).not.toHaveProperty('lat')
+  })
+
+  it('keeps pois absent when the source floor has none (D12 additive-absent)', () => {
+    const graph = makeGraph([{ level: 0 }])
+    const doc = createDocument(graph)
+    expect(doc.buildings[0].floors[0]).not.toHaveProperty('pois')
+  })
+})
+
+// ── P1-T6 (R2.4/D7): nested RoomDoor data is extracted to Floor.doors ──
+
+describe('createDocument — P1-T6 migration: nested RoomDoor hoisting', () => {
+  it('hoists room.roomDoors to floor.doors verbatim and empties the nested arrays (no dual source, R15.2/R15.9)', () => {
+    const door = {
+      id: 'door-legacy-1',
+      roomId: 'room-1',
+      connectedToId: 'hall-1',
+      connectedToType: 'hallway' as const,
+      doorType: 'fire',
+      position: { x: 5.5, y: 0.25 },
+      width: 1.1,
+      metadata: { label: 'Fire exit' },
+    }
+    const graph = makeGraph([
+      {
+        level: 0,
+        rooms: [
+          { id: 'room-1', name: 'Room One', number: '101' },
+          { id: 'room-2', name: 'Room Two', number: '102' },
+        ],
+      },
+    ])
+    // Attach nested legacy doors to the raw rooms (raw records pass through
+    // untyped in the adapter, so we graft them onto the first room).
+    const rawFloor = (graph.buildings[0].floors as Array<Record<string, unknown>>)[0]
+    const rawRooms = rawFloor.rooms as Array<Record<string, unknown>>
+    rawRooms[0].roomDoors = [door]
+    rawRooms[1].roomDoors = [
+      { id: 'door-legacy-2', roomId: 'room-2', doorType: 'opening', position: { x: 0, y: 4 }, width: 1.4, metadata: {} },
+    ]
+
+    const doc = createDocument(graph)
+    const floor = doc.buildings[0].floors[0]
+
+    // Extracted: every nested door now lives at floor.doors with ALL fields intact
+    expect(floor.doors).toHaveLength(2)
+    expect(floor.doors![0]).toEqual(door)
+    expect(floor.doors![1]).toEqual({
+      id: 'door-legacy-2', roomId: 'room-2', doorType: 'opening',
+      position: { x: 0, y: 4 }, width: 1.4, metadata: {},
+    })
+    // Moved, not copied: nested arrays are emptied (single geometry source)
+    for (const room of floor.rooms) {
+      expect(room.roomDoors).toHaveLength(0)
+    }
+  })
+
+  it('keeps doors absent when the source has none anywhere (D12 additive-absent)', () => {
+    const graph = makeGraph([
+      { level: 0, rooms: [{ id: 'room-1' }] },
+    ])
+    const doc = createDocument(graph)
+    expect(doc.buildings[0].floors[0]).not.toHaveProperty('doors')
+  })
+
+  it('passes new-shape floor.doors through verbatim; flat wins on id conflicts with nested leftovers', () => {
+    const graph = makeGraph([
+      {
+        level: 0,
+        doors: [
+          { id: 'door-flat-1', roomId: 'room-1', doorType: 'sliding', position: { x: 2, y: 0 }, width: 1.6, metadata: {} },
+        ],
+        rooms: [{ id: 'room-1' }],
+      },
+    ])
+    const rawFloor = (graph.buildings[0].floors as Array<Record<string, unknown>>)[0]
+    ;(rawFloor.rooms as Array<Record<string, unknown>>)[0].roomDoors = [
+      // Same id as the flat one → flat (new shape) must win; different id → kept
+      { id: 'door-flat-1', roomId: 'room-1', doorType: 'standard', position: { x: 9, y: 9 }, width: 9, metadata: {} },
+      { id: 'door-nested-2', roomId: 'room-1', doorType: 'double', position: { x: 3, y: 0 }, width: 1.8, metadata: {} },
+    ]
+
+    const doc = createDocument(graph)
+    const doors = doc.buildings[0].floors[0].doors!
+    expect(doors).toHaveLength(2)
+    expect(doors.find(d => d.id === 'door-flat-1')!.doorType).toBe('sliding')
+    expect(doors.find(d => d.id === 'door-flat-1')!.width).toBe(1.6)
+    expect(doors.find(d => d.id === 'door-nested-2')).toBeDefined()
+  })
+})
+
+describe('createDocument - P1-T7 migration: route network passthrough', () => {
+  it('passes floor.routeNetwork through verbatim (D3/D12 — first-class persisted entity)', () => {
+    const network = {
+      nodes: [
+        { id: 'route-node-a', type: 'waypoint', position: { x: 0, y: 0 }, floor: 0 },
+        { id: 'route-node-b', type: 'poi', position: { x: 4, y: 2 }, floor: 0 },
+        { id: 'route-node-c', type: 'portal', position: { x: 9, y: 2 }, floor: 0 },
+      ],
+      edges: [
+        { id: 'route-edge-1', from: 'route-node-a', to: 'route-node-b', type: 'walk', distance: 4.47213595499958 },
+        { id: 'route-edge-2', from: 'route-node-b', to: 'route-node-c', type: 'portal', distance: 5 },
+      ],
+    }
+    const graph = makeGraph([{ level: 0, routeNetwork: network }])
+    const doc = createDocument(graph)
+    const floor = doc.buildings[0].floors[0] as unknown as Record<string, unknown>
+    expect(floor.routeNetwork).toEqual(network)
+  })
+
+  it('keeps routeNetwork absent when the source has none (D12 additive-absent)', () => {
+    const graph = makeGraph([{ level: 0, rooms: [{ id: 'room-1' }] }])
+    const doc = createDocument(graph)
+    const floor = doc.buildings[0].floors[0] as unknown as Record<string, unknown>
+    expect(floor).not.toHaveProperty('routeNetwork')
+  })
+})
+
+describe('createDocument - P1-T9 migration: levels-based stair/elevator features', () => {
+  it('building-level staircases (levels-based) pass through verbatim (new-shape wins, R2.6)', () => {
+    const feature = {
+      id: 'stair-a', buildingId: 'b1', name: 'Stair A', type: 'open', accessible: true,
+      fromLevel: 0, toLevel: 2,
+      levels: {
+        0: { position: { x: 10, y: 20 }, rotation: 0 },
+        2: { position: { x: 12, y: 22 }, rotation: 90 },
+      },
+    }
+    const graph = makeGraph(
+      [{ level: 0, staircases: [] }, { level: 1, staircases: [] }, { level: 2, staircases: [] }],
+      { staircases: [feature] },
+    )
+    const doc = createDocument(graph)
+    expect(doc.buildings[0].staircases).toEqual([feature])
+  })
+
+  it('building-level elevators with levels pass through verbatim (absent floors absent)', () => {
+    const feature = {
+      id: 'elev-a', buildingId: 'b1', name: 'Elev A', type: 'passenger', accessible: true,
+      fromLevel: 0, toLevel: 1,
+      levels: {
+        0: { position: { x: 30, y: 20 }, rotation: 0 },
+        1: { position: { x: 30, y: 21 }, rotation: 0 },
+      },
+    }
+    const graph = makeGraph(
+      [{ level: 0, elevators: [] }, { level: 1, elevators: [] }],
+      { elevators: [feature] },
+    )
+    const doc = createDocument(graph)
+    expect(doc.buildings[0].elevators).toEqual([feature])
   })
 })

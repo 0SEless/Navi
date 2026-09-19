@@ -14,16 +14,22 @@ function makeSnapshot(overrides?: { errors?: number }) {
 function createMockContext(overrides?: {
   isSaving?: boolean
   hasUnsavedChanges?: boolean
+  canPublish?: boolean
   hasErrors?: boolean
+  document?: any
   compileResult?: any
   publishResult?: any
 }): { context: EditorServiceContext } {
   const eventBus = { on: vi.fn(), off: vi.fn(), emit: vi.fn() }
-  const documentStore = { version: 1, document: { metadata: { name: 'test-campus' } } }
+  const documentStore = {
+    version: 1,
+    document: overrides?.document ?? { metadata: { campusId: 'test-campus', name: 'test-campus' } },
+  }
 
   const workflowService = {
     isSaving: vi.fn().mockReturnValue(overrides?.isSaving ?? false),
     hasUnsavedChanges: vi.fn().mockReturnValue(overrides?.hasUnsavedChanges ?? false),
+    canPublish: vi.fn().mockReturnValue(overrides?.canPublish ?? true),
   }
 
   const validationEngine = {
@@ -103,6 +109,12 @@ describe('PublishService', () => {
     await expect(service.publish()).rejects.toThrow('Save in progress')
   })
 
+  it('rejects publish when graph synchronization is incomplete', async () => {
+    const { context } = createMockContext({ canPublish: false })
+    await service.init(context)
+    await expect(service.publish()).rejects.toThrow('Graph synchronization is not complete')
+  })
+
   it('runs validation during publish', async () => {
     const { context } = createMockContext()
     await service.init(context)
@@ -110,6 +122,61 @@ describe('PublishService', () => {
     const engine = context.get('validationEngine') as any
     expect(engine.validate).toHaveBeenCalled()
     expect(service.getSnapshot().publishState).toBe('success')
+  })
+
+  it('cannot force-publish a disconnected authored route network', async () => {
+    const { context } = createMockContext({
+      document: {
+        schemaVersion: 2,
+        version: 1,
+        metadata: { campusId: 'test-campus', name: 'test-campus', description: '', lastModified: '', editorVersion: 'test' },
+        buildings: [{
+          id: 'building-1',
+          name: 'Building',
+          footprint: { points: [] },
+          baseElevation: 0,
+          height: 10,
+          floors: [{
+            id: 'floor-0',
+            level: 0,
+            label: 'Ground',
+            elevation: 0,
+            height: 4,
+            rooms: [],
+            hallways: [],
+            staircases: [],
+            elevators: [],
+            entrances: [],
+            connectorStops: [],
+            parametricComponents: [],
+            metadata: {},
+            routeNetwork: {
+              nodes: [
+                { id: 'route-node-1', type: 'waypoint', position: { x: 0, y: 0 }, floor: 0 },
+                { id: 'route-node-isolated', type: 'waypoint', position: { x: 20, y: 20 }, floor: 0 },
+              ],
+              edges: [],
+            },
+          }],
+          verticalConnectors: [],
+          aliases: [],
+          metadata: {},
+        }],
+        roads: [],
+        panoramas: [],
+        qrCheckpoints: [],
+      },
+    })
+    await service.init(context)
+
+    await service.publish(true)
+
+    const compiler = context.get('navigationCompiler') as any
+    const persistence = context.get('persistence') as any
+    expect(compiler.compile).not.toHaveBeenCalled()
+    expect(persistence.publish).not.toHaveBeenCalled()
+    expect(service.getSnapshot().publishState).toBe('error')
+    expect(service.getSnapshot().publishError).toContain('Route validation failed')
   })
 
   it('sets error state on compile failure', async () => {

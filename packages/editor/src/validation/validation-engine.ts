@@ -153,7 +153,7 @@ export class ValidationEngine extends BaseEditorService {
 
     this._snapshot = buildSnapshot({
       epoch: this._epoch,
-      documentId: '',
+      documentId: document.metadata.campusId,
       documentVersion,
       profile,
       validatedAt: performance.now(),
@@ -233,7 +233,7 @@ export class ValidationEngine extends BaseEditorService {
 
     this._snapshot = buildSnapshot({
       epoch: this._epoch,
-      documentId: '',
+      documentId: document.metadata.campusId,
       documentVersion: currentVersion,
       profile,
       validatedAt: performance.now(),

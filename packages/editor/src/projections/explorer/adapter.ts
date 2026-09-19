@@ -17,6 +17,7 @@ export type ExplorerNodeType =
   | 'road'
   | 'panorama'
   | 'qr'
+  | 'area'
 
 export interface ExplorerNode {
   id: EntityId
@@ -121,7 +122,7 @@ export function toExplorerNodes(document: CampusDocument): ExplorerNode[] {
         entitySelector: { type: 'floor', id: flId, buildingId: bldId },
         subtitle: fl.level === 0 ? 'Ground' : fl.level > 0 ? `Level ${fl.level}` : `Basement ${Math.abs(fl.level)}`,
         children: children.length > 0 ? children : undefined,
-        meta: { icon: 'floor' },
+        meta: { icon: 'floor', hasPlan: !!fl.planImageId },
       })
     }
 
@@ -172,6 +173,21 @@ export function toExplorerNodes(document: CampusDocument): ExplorerNode[] {
       subtitle: qr.code,
       meta: { icon: 'qr' },
     })
+  }
+
+  // ── Areas (top-level) ────────────────────────────────────────
+
+  if (document.areas) {
+    for (const area of document.areas) {
+      result.push({
+        id: asEntityId(area.id),
+        label: area.name || area.id,
+        type: 'area',
+        entitySelector: { type: 'area', id: asEntityId(area.id) },
+        subtitle: area.color ? `Color: ${area.color}` : undefined,
+        meta: { icon: 'area', color: area.color },
+      })
+    }
   }
 
   return result

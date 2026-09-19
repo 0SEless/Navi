@@ -2,6 +2,7 @@ import { recordChange } from '@navi/core'
 import type { CampusDocument, Building } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+import { cleanupFloorRoutingReferences } from './routing-relationship-cleanup'
 
 const DEFAULT_FLOOR_HEIGHT = 3.5
 
@@ -71,6 +72,7 @@ export const floorDeleteHandler: CommandHandler = {
       const index = bld.floors.findIndex(f => f.id === floorId)
       if (index !== -1) {
         const floor = bld.floors[index]
+        cleanupFloorRoutingReferences(document, bld, floor)
         bld.floors.splice(index, 1)
         // Cascade: remove panoramas and QR checkpoints on this floor
         document.panoramas = document.panoramas.filter(

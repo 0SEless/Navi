@@ -25,7 +25,7 @@ describe('AutosaveService', () => {
     }
     saveSpy = vi.spyOn(workflow, 'save')
 
-    documentStore = { version: 1, document: { metadata: { name: 'test' } } }
+    documentStore = { version: 1, document: { metadata: { campusId: 'test', name: 'test' } } }
 
     const store = new Map<string, any>()
     store.set('workflow', workflow)

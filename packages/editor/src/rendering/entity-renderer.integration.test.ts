@@ -36,7 +36,7 @@ function makeDocument(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '1.0.0' },
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '1.0.0' },
     buildings: [],
     roads: [],
     panoramas: [],

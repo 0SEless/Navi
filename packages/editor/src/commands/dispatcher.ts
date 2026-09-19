@@ -1,5 +1,5 @@
 import type { CampusDocument } from '@navi/core'
-import type { Command, PreHook, PostHook } from './types'
+import type { BatchMutationResult, Command, MutationResult, PreHook, PostHook } from './types'
 import { CommandRegistry } from './registry'
 import { BaseEditorService } from '../context'
 import type { EditorServiceContext } from '../context/service-registry'
@@ -90,5 +90,79 @@ export class CommandDispatcher extends BaseEditorService {
     }
 
     return result
+  }
+
+  /**
+   * Execute existing commands as one document transaction.
+   *
+   * Batch execution intentionally does not invoke per-command hooks. The
+   * Capture importer uses this boundary after its own preflight validation so
+   * a HistoryStack pre-hook cannot record entries for a batch that later
+   * rolls back. Successful batches may notify an optional batch hook exactly
+   * once after the document transaction commits. Normal single-command
+   * execute() semantics are unchanged.
+   */
+  executeBatch(commands: Command[], options?: ExecuteOptions): BatchMutationResult {
+    if (commands.length === 0) return { success: true, results: [] }
+
+    for (const [index, command] of commands.entries()) {
+      if (!this.registry.get(command.id)) {
+        return {
+          success: false,
+          results: [],
+          failedCommandIndex: index,
+          error: `Unknown command: ${command.id}`,
+        }
+      }
+    }
+
+    const snapshot = structuredClone(this.document)
+    const startingStoreVersion = this.documentStore?.version ?? 0
+    const startingRevision = this.documentStore?.revision ?? ''
+    const results: MutationResult[] = []
+    let failedCommandIndex: number | undefined
+
+    try {
+      this.eventBus.transaction(() => {
+        for (const [index, command] of commands.entries()) {
+          const handler = this.registry.get(command.id)!
+          const result = handler.execute(this.document, command.payload)
+          results.push(result)
+          if (!result.success) {
+            failedCommandIndex = index
+            throw new Error(result.error ?? `Command failed: ${command.id}`)
+          }
+
+          this.eventBus.emit('entity.' + (command.id.includes('create') ? 'created' : command.id.includes('delete') ? 'deleted' : 'updated'), {
+            entityId: result.entityId,
+            entityType: command.id.split('.')[0],
+          })
+        }
+
+        this.documentStore?.commit()
+        this.eventBus.emit('document.changed', {
+          version: this.documentStore?.version,
+          entityId: results.at(-1)?.entityId,
+          entityType: 'batch',
+        })
+      })
+
+      if (!options?.skipHooks) {
+        for (const hook of this.postHooks) {
+          hook.afterBatch?.(commands, results, this.document, snapshot)
+        }
+      }
+
+      return { success: true, results }
+    } catch (error) {
+      this.documentStore?.restore(snapshot, startingStoreVersion, startingRevision)
+      if (this.documentStore === undefined) Object.assign(this.document, snapshot)
+      return {
+        success: false,
+        results,
+        failedCommandIndex,
+        error: error instanceof Error ? error.message : 'Command batch failed',
+      }
+    }
   }
 }

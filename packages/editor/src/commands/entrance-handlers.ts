@@ -1,7 +1,8 @@
 import { recordChange } from '@navi/core'
-import type { CampusDocument, LatLng, EntranceType } from '@navi/core'
+import type { CampusDocument, LocalCoord, EntranceType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+import { cleanupEntranceRoutingReferences } from './routing-relationship-cleanup'
 
 function findFloor(document: CampusDocument, buildingId: string, floorId: string) {
   const building = document.buildings.find(b => b.id === buildingId)
@@ -20,15 +21,18 @@ export const entranceCreateHandler: CommandHandler = {
 
     const id = (payload.id as string) || genId('ent')
     const label = (payload.label as string) || ''
-    const position = payload.position as LatLng | undefined
+    // P1-T4 (D9): entrance positions are building-local — the caller converts
+    // world clicks via CoordinateTransformer before dispatching (useEntrancePlacer).
+    const position = payload.position as LocalCoord | undefined
     const level = (payload.level as number) ?? ctx.floor.level
     const type = (payload.type as EntranceType) || 'side'
     const hasQR = (payload.hasQR as boolean) ?? true
     const hasPanorama = (payload.hasPanorama as boolean) ?? false
+    const connectorRoadId = payload.connectorRoadId as string | undefined
 
     if (!position) return { success: false, error: 'Entrance position is required' }
 
-    ctx.floor.entrances.push({ id, label, position, level, type, hasQR, hasPanorama })
+    ctx.floor.entrances.push({ id, label, position, level, type, hasQR, hasPanorama, connectorRoadId })
 
     recordChange(document, { entityId: id, entityType: 'entrance', operation: 'created' })
     return { success: true, entityId: id, data: { id, buildingId, floorId } }
@@ -52,6 +56,7 @@ export const entranceDeleteHandler: CommandHandler = {
         const index = flr.entrances.findIndex(e => e.id === entranceId)
         if (index !== -1) {
           flr.entrances.splice(index, 1)
+          cleanupEntranceRoutingReferences(document, entranceId)
           recordChange(document, { entityId: entranceId, entityType: 'entrance', operation: 'deleted' })
           return { success: true, entityId: entranceId }
         }

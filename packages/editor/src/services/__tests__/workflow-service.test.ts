@@ -13,9 +13,21 @@ describe('WorkflowService', () => {
   let workflowStore: WorkflowStore
   let documentStore: { version: number; document: any }
   let context: EditorServiceContext
+  type TestSyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
+  let emitPersistenceSyncState: (status: TestSyncStatus, error?: string | null) => void = () => {}
 
   function buildContext(options?: { compileSuccess?: boolean }): EditorServiceContext {
     const eventBus = new DocumentEventBus()
+
+    let syncState: { status: TestSyncStatus; error: string | null } = {
+      status: 'synced',
+      error: null,
+    }
+    const syncListeners = new Set<(state: typeof syncState) => void>()
+    emitPersistenceSyncState = (status, error = null) => {
+      syncState = { status, error }
+      syncListeners.forEach((listener) => listener(syncState))
+    }
 
     const compileAdapter: CompilerAdapter = {
       compile: vi.fn().mockResolvedValue(
@@ -25,13 +37,18 @@ describe('WorkflowService', () => {
       ),
     }
 
-    const persistAdapter: PersistenceAdapter = {
+    const persistAdapter = {
       save: vi.fn().mockResolvedValue(undefined),
       syncToSupabase: vi.fn().mockResolvedValue(undefined),
       publish: vi.fn().mockResolvedValue({ success: true, version: '1.0.0' }),
-    }
+      getSyncState: () => syncState,
+      subscribeSyncState: (listener: (state: typeof syncState) => void) => {
+        syncListeners.add(listener)
+        return () => syncListeners.delete(listener)
+      },
+    } as unknown as PersistenceAdapter
 
-    documentStore = { version: 0, document: { metadata: { name: 'test' } } }
+    documentStore = { version: 0, document: { metadata: { campusId: 'test', name: 'test' } } }
     workflowStore = new WorkflowStore()
 
     const navCompiler = new NavigationCompiler(compileAdapter)
@@ -156,7 +173,7 @@ describe('WorkflowService', () => {
 
     it('returns to dirty state on failed save', async () => {
       // Spy on persistence to make save fail
-      const persistence = context.get('persistence') as any
+      const persistence = context.get('persistence')
       vi.spyOn(persistence, 'save').mockRejectedValueOnce(new Error('Network error'))
 
       service.mutate()
@@ -190,6 +207,115 @@ describe('WorkflowService', () => {
       expect(emitSpy).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'manual', timestamp: expect.any(Number) })
       )
+    })
+
+    it('does not report saved while graph-store sync is pending', () => {
+      emitPersistenceSyncState('syncing')
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.syncStatus).toBe('syncing')
+      expect(snapshot.saveState).not.toBe('saved')
+    })
+
+    it('treats a load-time checking state as unresolved without marking saved or dirty', () => {
+      expect(workflowStore.getSnapshot().saveState).toBe('saved')
+      emitPersistenceSyncState('checking')
+      let snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('saved')
+      expect(snapshot.saveError).toBeNull()
+
+      service.mutate()
+      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
+      emitPersistenceSyncState('checking')
+      snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('dirty')
+      expect(snapshot.saveError).toBeNull()
+    })
+
+    it('a committed revision immediately leaves the saved state (no debounce gap)', () => {
+      expect(workflowStore.getSnapshot().saveState).toBe('saved')
+
+      context.get('eventBus').emit('revision.committed', { version: 1 })
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('dirty')
+      expect(snapshot.saveState).not.toBe('saved')
+    })
+
+    it('reports saving (never saved) while a save is in flight, then saved after an acknowledged save', async () => {
+      const persistence = context.get('persistence')
+      let releaseSave: (() => void) | undefined
+      vi.spyOn(persistence, 'save').mockImplementationOnce(
+        () => new Promise<void>((resolve) => {
+          releaseSave = resolve
+        }),
+      )
+
+      service.mutate()
+      const savePromise = service.save('manual')
+      expect(workflowStore.getSnapshot().saveState).toBe('saving')
+      expect(workflowStore.getSnapshot().saveState).not.toBe('saved')
+
+      releaseSave?.()
+      await savePromise
+      expect(workflowStore.getSnapshot().saveState).toBe('saved')
+    })
+
+    it('a concurrent edit during a save cannot end in saved', async () => {
+      const persistence = context.get('persistence')
+      let releaseSave: (() => void) | undefined
+      vi.spyOn(persistence, 'save').mockImplementationOnce(
+        () => new Promise<void>((resolve) => {
+          releaseSave = resolve
+        }),
+      )
+
+      service.mutate()
+      const savePromise = service.save('autosave')
+      expect(workflowStore.getSnapshot().saveState).toBe('saving')
+
+      service.mutate()
+      expect(workflowStore.getSnapshot().saveState).toBe('dirty-while-saving')
+
+      releaseSave?.()
+      await savePromise
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('dirty')
+      expect(snapshot.saveState).not.toBe('saved')
+    })
+
+    it('surfaces graph-store conflicts as dirty and preserves the local document', () => {
+      const localDocument = documentStore.document
+
+      emitPersistenceSyncState('conflict', 'The server has a different version of this map')
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.syncStatus).toBe('conflict')
+      expect(snapshot.saveState).toBe('dirty')
+      expect(snapshot.saveError).toBe('The server has a different version of this map')
+      expect(documentStore.document).toBe(localDocument)
+    })
+
+    it('blocks publish until graph-store sync succeeds', () => {
+      emitPersistenceSyncState('syncing')
+      expect(service.canPublish()).toBe(false)
+
+      emitPersistenceSyncState('conflict', 'conflict')
+      expect(service.canPublish()).toBe(false)
+
+      emitPersistenceSyncState('synced')
+      expect(service.canPublish()).toBe(true)
+    })
+
+    it('keeps dirty local edits dirty when a newer server snapshot conflicts', () => {
+      service.mutate()
+      emitPersistenceSyncState('conflict', 'The server has a newer revision')
+
+      const snapshot = workflowStore.getSnapshot()
+      expect(snapshot.saveState).toBe('dirty')
+      expect(snapshot.syncStatus).toBe('conflict')
+      expect(snapshot.saveError).toBe('The server has a newer revision')
     })
   })
 })

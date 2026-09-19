@@ -16,7 +16,7 @@ function createDoc(): CampusDocument {
   return {
     schemaVersion: 1,
     version: 0,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1', name: 'Test', code: 'T', category: 'academic', description: '',
       footprint: { points: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.001 }, { lat: 0.001, lng: 0.001 }, { lat: 0.001, lng: 0 }, { lat: 0, lng: 0 }] },
@@ -155,7 +155,7 @@ describe('elevator handlers', () => {
 describe('entrance handlers', () => {
   it('creates an entrance', () => {
     const doc = createDoc()
-    const result = entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'Main Door', position: { lat: 0.001, lng: 0.001 } })
+    const result = entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'Main Door', position: { lat: 0.001, lng: 0.001 } as any })
     expect(result.success).toBe(true)
     expect(doc.buildings[0].floors[0].entrances).toHaveLength(1)
     expect(doc.buildings[0].floors[0].entrances[0].type).toBe('side')
@@ -163,7 +163,7 @@ describe('entrance handlers', () => {
 
   it('deletes an entrance', () => {
     const doc = createDoc()
-    entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'X', position: { lat: 0.001, lng: 0.001 } })
+    entranceCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', label: 'X', position: { lat: 0.001, lng: 0.001 } as any })
     const entId = doc.buildings[0].floors[0].entrances[0].id
     const result = entranceDeleteHandler.execute(doc, { entranceId: entId })
     expect(result.success).toBe(true)
@@ -179,6 +179,42 @@ describe('road handlers', () => {
     expect(doc.roads).toHaveLength(1)
     expect(doc.roads[0].name).toBe('Main Road')
     expect(doc.roads[0].surface).toBe('paved')
+  })
+
+  it('persists an explicit navigation-only display mode', () => {
+    const doc = createDoc()
+    const result = roadCreateHandler.execute(doc, {
+      name: 'Invisible Connector',
+      points: [{ lat: 0, lng: 0 }, { lat: 0.001, lng: 0.001 }],
+      displayMode: 'navigation-only',
+    })
+    expect(result.success).toBe(true)
+    expect((doc.roads[0] as any).displayMode).toBe('navigation-only')
+  })
+
+  it('does not move a new road endpoint or create topology from 10 cm proximity', () => {
+    const doc = createDoc()
+    doc.roads.push({
+      id: 'existing-road',
+      name: 'Existing',
+      polyline: { points: [{ lat: 0, lng: -0.001 }, { lat: 0, lng: 0.001 }] },
+      width: 8,
+      surface: 'paved',
+      type: 'arterial',
+      metadata: {},
+    })
+    const authoredStart = { lat: 0.0000009, lng: 0 }
+
+    const result = roadCreateHandler.execute(doc, {
+      id: 'nearby-road',
+      name: 'Nearby',
+      points: [authoredStart, { lat: 0.001, lng: 0 }],
+    })
+
+    expect(result.success).toBe(true)
+    expect(doc.roads.find(road => road.id === 'nearby-road')?.polyline.points[0]).toEqual(authoredStart)
+    expect(doc.roadJunctions).toBeUndefined()
+    expect(result.data?.snapCount).toBe(0)
   })
 
   it('fails with fewer than 2 points', () => {
@@ -209,7 +245,7 @@ describe('road handlers', () => {
 describe('panorama handlers', () => {
   it('creates a panorama', () => {
     const doc = createDoc()
-    const result = panoramaCreateHandler.execute(doc, { label: 'Entrance View', position: { lat: 0, lng: 0 }, imageAssetId: 'img-1' })
+    const result = panoramaCreateHandler.execute(doc, { label: 'Entrance View', position: { lat: 0, lng: 0 } as any, imageAssetId: 'img-1' })
     expect(result.success).toBe(true)
     expect(doc.panoramas).toHaveLength(1)
     expect(doc.panoramas[0].label).toBe('Entrance View')
@@ -229,7 +265,7 @@ describe('panorama handlers', () => {
 
   it('deletes a panorama', () => {
     const doc = createDoc()
-    panoramaCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 }, imageAssetId: 'img-1' })
+    panoramaCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 } as any, imageAssetId: 'img-1' })
     const panId = doc.panoramas[0].id
     const result = panoramaDeleteHandler.execute(doc, { panoramaId: panId })
     expect(result.success).toBe(true)
@@ -238,29 +274,31 @@ describe('panorama handlers', () => {
 })
 
 describe('qr checkpoint handlers', () => {
-  it('creates a QR checkpoint', () => {
+  // P1-T13 (R10.1/D16/Q5): QR payloads are opaque — code is derived from the
+  // id (navi.app/q/{id}); coordinates/legacy schemes are rejected.
+  it('creates a QR checkpoint with a derived opaque code', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'QR-1', position: { lat: 0, lng: 0 }, code: 'navi://test' })
+    const result = qrCreateHandler.execute(doc, { label: 'QR-1', position: { lat: 0, lng: 0 } as any })
     expect(result.success).toBe(true)
     expect(doc.qrCheckpoints).toHaveLength(1)
-    expect(doc.qrCheckpoints[0].code).toBe('navi://test')
+    expect(doc.qrCheckpoints[0].code).toMatch(/^navi\.app\/q\//)
   })
 
   it('fails without position', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'X', code: 'navi://x' })
+    const result = qrCreateHandler.execute(doc, { label: 'X' })
     expect(result.success).toBe(false)
   })
 
-  it('fails without code', () => {
+  it('rejects a supplied code that is not the opaque form of the id', () => {
     const doc = createDoc()
-    const result = qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 } })
+    const result = qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 }, code: 'navi://x' })
     expect(result.success).toBe(false)
   })
 
   it('deletes a QR checkpoint', () => {
     const doc = createDoc()
-    qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 }, code: 'navi://x' })
+    qrCreateHandler.execute(doc, { label: 'X', position: { lat: 0, lng: 0 } as any })
     const qrId = doc.qrCheckpoints[0].id
     const result = qrDeleteHandler.execute(doc, { qrId })
     expect(result.success).toBe(true)

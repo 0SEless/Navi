@@ -6,6 +6,7 @@ import type { PreHook, PostHook } from './commands/types'
 import { BaseEditorService } from './context'
 import type { EditorServiceContext } from './context/service-registry'
 import type { DocumentStore } from './context/document-store'
+import type { DocumentEventBus } from './eventbus'
 
 export interface HistoryEntry {
   command: Command
@@ -46,6 +47,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   private document!: CampusDocument
   private registry: CommandRegistry
   private documentStore?: DocumentStore
+  private eventBus?: DocumentEventBus
 
   constructor(dispatcher?: CommandDispatcher, document?: CampusDocument, registry?: CommandRegistry, maxMemoryMB = 200, documentStore?: DocumentStore) {
     super()
@@ -60,6 +62,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     await super.init(context)
     this.dispatcher = context.get('dispatcher')
     this.documentStore = context.get('documentStore')
+    this.eventBus = context.get('eventBus')
     this.document = context.document
   }
 
@@ -73,6 +76,32 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     this.push(command, result)
     this.pendingBeforeHash = null
     this.pendingSnapshot = null
+  }
+
+  afterBatch(commands: Command[], results: Array<{ success: boolean }>, document: CampusDocument, snapshotBefore: CampusDocument): void {
+    if (commands.length === 0 || results.some((result) => !result.success)) return
+
+    const snapshotAfter = structuredClone(document)
+    const command: Command = {
+      id: 'command.batch',
+      label: commands.length === 1 ? commands[0].label : `${commands[0].label} (${commands.length} commands)`,
+      payload: { commands: structuredClone(commands) },
+    }
+    const entry: HistoryEntry = {
+      command,
+      handlerId: command.id,
+      inverse: null,
+      beforeHash: hash(snapshotBefore),
+      afterHash: hash(snapshotAfter),
+      snapshotBefore: structuredClone(snapshotBefore),
+      snapshotAfter,
+      estimatedSize: estimateSize({ command, snapshotBefore, snapshotAfter }),
+    }
+
+    this.past.push(entry)
+    this.currentMemory += entry.estimatedSize
+    this.future = []
+    this.evictIfNeeded()
   }
 
   push(command: Command, result: { entityId?: string; data?: Record<string, unknown> }): void {
@@ -121,8 +150,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
       }
       this.dispatcher.execute(inverseCmd, { skipHooks: true })
     } else if (entry.snapshotBefore) {
-      Object.assign(this.document, entry.snapshotBefore)
-      this.documentStore?.commit()
+      this.restoreSnapshot(entry.snapshotBefore)
     } else {
       return false
     }
@@ -136,8 +164,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     if (!entry) return false
 
     if (entry.snapshotAfter) {
-      Object.assign(this.document, entry.snapshotAfter)
-      this.documentStore?.commit()
+      this.restoreSnapshot(entry.snapshotAfter)
     } else {
       this.dispatcher.execute(entry.command, { skipHooks: true })
     }
@@ -158,6 +185,18 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   get undoCount(): number { return this.past.length }
   get redoCount(): number { return this.future.length }
   get memoryUsage(): number { return this.currentMemory }
+
+  private restoreSnapshot(snapshot: CampusDocument): void {
+    for (const key of Object.keys(this.document)) {
+      Reflect.deleteProperty(this.document, key)
+    }
+    Object.assign(this.document, structuredClone(snapshot))
+    this.documentStore?.commit()
+    this.eventBus?.emit('document.changed', {
+      version: this.documentStore?.version,
+      entityType: 'batch',
+    })
+  }
 
   private evictIfNeeded(): void {
     while (this.currentMemory > this.maxMemory && this.past.length > 1) {

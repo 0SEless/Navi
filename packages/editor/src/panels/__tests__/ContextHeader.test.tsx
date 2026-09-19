@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { ContextHeader, type ContextHeaderProps } from '../ContextHeader'
 
 function renderHeader(props?: Partial<ContextHeaderProps>) {
@@ -37,11 +37,36 @@ describe('ContextHeader', () => {
     expect(screen.getByText((c) => c.includes('Saving'))).toBeDefined()
   })
 
+  it('shows checking status while freshness is unconfirmed and never claims Saved', () => {
+    renderHeader({ status: 'checking' })
+    expect(screen.getByText((c) => c.includes('Checking'))).toBeDefined()
+    expect(screen.queryByText((c) => c.includes('Saved'))).toBeNull()
+  })
+
   it('shows error status with message', () => {
     renderHeader({ status: 'error', statusMessage: 'network error' })
     const el = screen.getByText((c) => c.includes('Sync failed'))
     expect(el).toBeDefined()
     expect(el.getAttribute('title')).toBe('network error')
+  })
+
+  it('shows conflict status and resolves through the action', () => {
+    const onResolveConflict = vi.fn()
+    renderHeader({
+      status: 'conflict',
+      statusMessage: 'server has a different version',
+      onResolveConflict,
+    })
+    const el = screen.getByText((c) => c.includes('Outdated'))
+    expect(el).toBeDefined()
+    expect(el.getAttribute('title')).toBe('server has a different version')
+    fireEvent.click(screen.getByText('Load server version'))
+    expect(onResolveConflict).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render a resolve action when no conflict handler is provided', () => {
+    renderHeader({ status: 'conflict' })
+    expect(screen.queryByText('Load server version')).toBeNull()
   })
 
   it('shows selection count when > 1', () => {

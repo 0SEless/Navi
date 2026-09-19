@@ -5,6 +5,8 @@ import type { DocumentStore } from '../context/document-store'
 import type { WorkflowService } from './workflow-service'
 import type { NavigationCompiler, CompileResult } from './navigation-compiler'
 import type { ValidationEngine } from '../validation/validation-engine'
+import type { CampusDocument } from '@navi/core'
+import { validateRouteNetwork } from '../validation/rules/modules/route-network'
 import type { PersistenceService } from './persistence-service'
 import type { PublishStore, PublishSnapshot, PublishState, PublishResult } from './publish-store'
 
@@ -67,7 +69,7 @@ export class PublishService extends BaseEditorService {
   private async runPublish(force = false): Promise<void> {
     this.assertCanPublish(force)
 
-    const document = this.documentStore.document as any
+    const document = this.documentStore.document as CampusDocument
     const revision = this.documentStore.version
 
     this.transition('preparing')
@@ -75,6 +77,16 @@ export class PublishService extends BaseEditorService {
     const startedAt = Date.now()
 
     this.transition('validating')
+
+    // Route connectivity is a publish invariant. Keep this check independent
+    // of `force`: force may bypass legacy cached diagnostics, but it must never
+    // publish a graph whose authored indoor network cannot be traversed.
+    const routeErrors = validateRouteNetwork(document, 'publish')
+      .filter((issue) => issue.severity === 'error')
+    if (routeErrors.length > 0) {
+      this.fail(`Route validation failed: ${routeErrors[0].message}`)
+      return
+    }
 
     if (!force) {
       const snapshot = this.validationEngine.validate(this.documentStore.document as any, 'publish')
@@ -108,7 +120,7 @@ export class PublishService extends BaseEditorService {
       publishResult: {
         revision,
         compiledGraphVersion: navGraph?.version ?? '0.0.0',
-        campusId: document?.metadata?.name ?? 'unknown',
+        campusId: document?.metadata?.campusId ?? 'unknown',
         artifactCount: Object.keys(compileResult.artifacts).length,
         nodeCount: navGraph?.nodes?.length ?? 0,
         edgeCount: navGraph?.edges?.length ?? 0,
@@ -120,7 +132,7 @@ export class PublishService extends BaseEditorService {
       lastPublishedAt: finishedAt,
     })
 
-    this.eventBus.emit('publish.completed', { revision, finishedAt })
+    this.eventBus.emit('publish.completed', { revision, finishedAt, navigationGraph: compileResult.artifacts.navigationGraph })
   }
 
   private assertCanPublish(force = false): void {
@@ -131,6 +143,9 @@ export class PublishService extends BaseEditorService {
     }
     if (this.workflowService.isSaving()) throw new Error('Save in progress')
     if (this.workflowService.hasUnsavedChanges()) throw new Error('Document has unsaved changes')
+    if (typeof this.workflowService.canPublish === 'function' && !this.workflowService.canPublish()) {
+      throw new Error('Graph synchronization is not complete')
+    }
   }
 
   private transition(state: PublishState): void {

@@ -2,7 +2,7 @@ import type { CompileResult } from './navigation-compiler'
 
 // ── Types ─────────────────────────────────────────────────────
 
-export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success'
+export type SyncStatus = 'idle' | 'syncing' | 'error' | 'conflict' | 'success'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'dirty' | 'dirty-while-saving'
 

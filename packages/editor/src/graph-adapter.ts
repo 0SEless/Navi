@@ -241,6 +241,7 @@ export class GraphAdapter {
     this.graph.setTraces([])
     const allCompiledNodes: NavNode[] = []
     const allCompiledEdges: NavEdge[] = []
+    const allProjectedDoors: DoorData[] = []
 
     // 1. Buildings
     for (const docBuilding of document.buildings) {
@@ -752,11 +753,14 @@ export class GraphAdapter {
           })
         }
       }
-      if (allDoors.length > 0) {
-        const existing = this.graph.doors
-        this.graph.setDoors([...existing, ...allDoors])
-      }
+      allProjectedDoors.push(...allDoors)
     }
+
+    // Door data is a derived runtime projection. Replace it once per sync
+    // from the canonical floorData.doors records collected above; never append
+    // to the previous projection across repeated document.changed events or
+    // graph save/reload cycles.
+    this.graph.setDoors(allProjectedDoors)
 
     // 9. Roads → Traces
     // Traces compile independently from buildings. They deliberately do NOT

@@ -2,7 +2,7 @@ import { BaseEditorService } from '../context'
 import type { EditorServiceContext } from '../context/service-registry'
 import type { CampusDocument } from '@navi/core'
 import type { NavigationCompiler, CompileResult } from './navigation-compiler'
-import type { PersistenceService } from './persistence-service'
+import type { PersistenceService, PersistenceSyncState } from './persistence-service'
 import type { WorkflowStore, ValidationResult, SyncStatus } from './workflow-store'
 import type { DocumentStore } from '../context/document-store'
 import type { DocumentEventBus } from '../eventbus'
@@ -36,6 +36,10 @@ export class WorkflowService extends BaseEditorService {
   private eventBus!: DocumentEventBus
   private document!: CampusDocument
   private revisionUnsub: (() => void) | null = null
+  private syncUnsub: (() => void) | null = null
+  private saveInFlight = 0
+  private graphSyncStartedClean = false
+  private blockedSyncDocumentVersion: number | null = null
 
   async init(context: EditorServiceContext): Promise<void> {
     await super.init(context)
@@ -55,10 +59,24 @@ export class WorkflowService extends BaseEditorService {
 
     // React to every committed revision
     this.revisionUnsub = this.eventBus.on('revision.committed', () => this.mutate())
+
+    // A persistence adapter may be backed by a remote graph store whose
+    // result settles after the editor-level save call begins. Keep workflow
+    // state subscribed to that source so a conflict can never look saved.
+    if (this.persistence.hasSyncState()) {
+      this.syncUnsub = this.persistence.subscribeSyncState((state) => {
+        this.handlePersistenceSyncState(state)
+      })
+      const initialSyncState = this.persistence.getSyncState()
+      if (initialSyncState) this.handlePersistenceSyncState(initialSyncState)
+    }
   }
 
   async destroy(): Promise<void> {
     this.revisionUnsub?.()
+    this.syncUnsub?.()
+    this.revisionUnsub = null
+    this.syncUnsub = null
     await super.destroy()
   }
 
@@ -69,6 +87,7 @@ export class WorkflowService extends BaseEditorService {
    * Transitions state based on current state.
    */
   mutate(): void {
+    this.blockedSyncDocumentVersion = null
     const snap = this.workflowStore.getSnapshot()
     if (snap.saveState === 'saving') {
       this.workflowStore.updateLifecycle({ saveState: 'dirty-while-saving' })
@@ -100,23 +119,31 @@ export class WorkflowService extends BaseEditorService {
   }
 
   canPublish(): boolean {
-    return !this.isSaving() && !this.isDirty()
+    const syncState = this.persistence?.getSyncState() ?? null
+    return !this.isSaving()
+      && !this.isDirty()
+      && (syncState === null || syncState.status === 'synced')
   }
 
   // ── Actions ─────────────────────────────────────────────────
 
   async validate(): Promise<ValidationResult> {
     const validationEngine = this._context?.get('validationEngine')
+    let result: ValidationResult
     if (validationEngine) {
       const snapshot = validationEngine.validate(this.document, 'publish')
-      return {
+      result = {
         passed: snapshot.statistics.totalIssues - snapshot.statistics.errors - snapshot.statistics.warnings,
         failed: snapshot.statistics.errors + snapshot.statistics.warnings,
         errors: snapshot.issues.filter(i => i.severity === 'error').map(i => i.message),
         timestamp: Date.now(),
       }
+    } else {
+      result = { passed: 0, failed: 0, errors: [], timestamp: Date.now() }
     }
-    return { passed: 0, failed: 0, errors: [], timestamp: Date.now() }
+    // Store the result so WorkflowStore subscribers (BuildStatus UI) see the update
+    this.workflowStore.setValidation(result)
+    return result
   }
 
   async compile(): Promise<CompileResult> {
@@ -136,26 +163,33 @@ export class WorkflowService extends BaseEditorService {
    */
   async save(reason: 'manual' | 'autosave'): Promise<void> {
     this.workflowStore.updateLifecycle({ saveState: 'saving' })
+    this.saveInFlight += 1
     try {
       await this.persistence.save()
       this.saveComplete(reason)
     } catch (err: any) {
       this.saveFailed(err)
       throw err
+    } finally {
+      this.saveInFlight -= 1
     }
   }
 
   private saveComplete(reason: 'manual' | 'autosave'): void {
     const snap = this.workflowStore.getSnapshot()
     const wasDirtyWhileSaving = snap.saveState === 'dirty-while-saving'
+    const syncState = this.persistence.getSyncState()
+    const syncComplete = syncState === null || syncState.status === 'synced'
 
     this.workflowStore.setSave(Date.now(), reason)
     this.workflowStore.setLastSaveVersion(this.documentStore.version)
 
-    if (wasDirtyWhileSaving) {
+    if (wasDirtyWhileSaving || !syncComplete) {
       this.workflowStore.updateLifecycle({
         saveState: 'dirty',
-        saveError: null,
+        saveError: syncComplete
+          ? null
+          : syncState?.error ?? 'Graph synchronization has not completed',
       })
     } else {
       this.workflowStore.updateLifecycle({
@@ -164,6 +198,7 @@ export class WorkflowService extends BaseEditorService {
         lastSaveReason: reason,
         lastSavedAt: Date.now(),
       })
+      this.blockedSyncDocumentVersion = null
     }
 
     if (reason === 'manual') {
@@ -176,5 +211,76 @@ export class WorkflowService extends BaseEditorService {
       saveState: 'dirty',
       saveError: err?.message ?? 'Save failed',
     })
+  }
+
+  private handlePersistenceSyncState(state: PersistenceSyncState): void {
+    if (state.status === 'checking') {
+      // Freshness verification is still unresolved. Neither mark the document
+      // saved nor dirty: the previous state stands until the check settles.
+      return
+    }
+
+    const workflowSyncStatus: SyncStatus = state.status === 'synced' ? 'success' : state.status
+    this.workflowStore.setSyncStatus(workflowSyncStatus)
+
+    const snapshot = this.workflowStore.getSnapshot()
+
+    if (state.status === 'syncing') {
+      this.graphSyncStartedClean = snapshot.saveState === 'saved' || snapshot.saveState === 'idle'
+      if (this.saveInFlight > 0) {
+        this.workflowStore.updateLifecycle({ saveState: 'saving', saveError: null })
+      } else if (this.graphSyncStartedClean) {
+        // Do not let a background graph sync leave a clean-looking badge.
+        this.workflowStore.updateLifecycle({
+          saveState: 'dirty',
+          saveError: 'Graph synchronization pending',
+        })
+      }
+      return
+    }
+
+    if (state.status === 'conflict' || state.status === 'error') {
+      this.graphSyncStartedClean = false
+      this.blockedSyncDocumentVersion = this.documentStore.version
+      this.workflowStore.updateLifecycle({
+        saveState: 'dirty',
+        saveError: state.error ?? (state.status === 'conflict'
+          ? 'Graph synchronization conflict'
+          : 'Graph synchronization failed'),
+      })
+      return
+    }
+
+    if (state.status === 'idle') {
+      if (snapshot.saveState === 'saved' || snapshot.saveState === 'idle') {
+        this.graphSyncStartedClean = true
+        this.workflowStore.updateLifecycle({
+          saveState: 'dirty',
+          saveError: 'Graph synchronization pending',
+        })
+      }
+      return
+    }
+
+    // A successful graph sync can finish an explicit recovery action as well
+    // as a normal save. Only clear dirty state when no new document revision
+    // appeared after the conflict/pending state was observed.
+    if (state.status === 'synced' && this.saveInFlight === 0) {
+      const expectedVersion = this.blockedSyncDocumentVersion ?? snapshot.lastSaveVersion
+      const canMarkSaved = (this.graphSyncStartedClean || this.blockedSyncDocumentVersion !== null)
+        && this.documentStore.version === expectedVersion
+        && snapshot.saveState !== 'dirty-while-saving'
+
+      if (canMarkSaved) {
+        this.workflowStore.updateLifecycle({
+          saveState: 'saved',
+          saveError: null,
+          lastSavedAt: Date.now(),
+        })
+      }
+
+      this.graphSyncStartedClean = false
+      this.blockedSyncDocumentVersion = null
+    }
   }
 }

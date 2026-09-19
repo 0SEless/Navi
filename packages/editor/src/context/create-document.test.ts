@@ -85,7 +85,15 @@ describe('createDocument (Graph -> CampusDocument) conversion', () => {
     const qr = doc.qrCheckpoints[0]
     expect(qr.id).toBe('qr1')
     expect(qr.label).toBe('QR One')
-    expect(qr.position).toEqual({ lat: 9, lng: 9 })
+    // P1-T4 (D9): qr_marker nodes are world — the forward adapter migrates them
+    // to building-local (equirect fallback about the footprint centroid (2,3)).
+    const METER_PER_DEG = 111320
+    expect(qr.position).toEqual({
+      x: (9 - 3) * METER_PER_DEG * Math.cos((2 * Math.PI) / 180),
+      y: (9 - 2) * METER_PER_DEG,
+    })
+    expect(qr.position).not.toHaveProperty('lat')
+    expect(qr.position).not.toHaveProperty('lng')
     expect(qr.floor).toBe(0)
     expect(qr.buildingId).toBe('b1')
     expect(qr.code).toBe('CODE1')

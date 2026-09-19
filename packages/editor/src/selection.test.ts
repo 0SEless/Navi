@@ -8,7 +8,7 @@ import type { EntitySelector, SelectionMode } from './context/entity-id'
 function createDoc(): CampusDocument {
   return {
     schemaVersion: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [
       { id: 'bld-1', name: 'A', code: 'A', category: 'academic', description: '', footprint: { points: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }] }, baseElevation: 0, height: 10, floors: [], color: '#000', aliases: [], metadata: {} },
       { id: 'bld-2', name: 'B', code: 'B', category: 'library', description: '', footprint: { points: [{ lat: 2, lng: 2 }] }, baseElevation: 0, height: 10, floors: [], color: '#fff', aliases: [], metadata: {} },
@@ -224,5 +224,36 @@ describe('SelectionManager — M2.1 extensions', () => {
       expect(selection.hoveredEntityId).toBeNull()
       expect(selection.hoveredSelector).toBeNull()
     })
+  })
+})
+
+describe('SelectionManager — P1-T6 door selection (R15.1 provenance)', () => {
+  let selection: SelectionManager
+  let eventBus: DocumentEventBus
+
+  beforeEach(() => {
+    eventBus = new DocumentEventBus()
+    selection = new SelectionManager(createDoc(), eventBus)
+  })
+
+  it('selecting a DoorSelector preserves type "door" — never coerced to the owning room or building', () => {
+    const doorSelector: EntitySelector = {
+      type: 'door',
+      id: 'door-1' as never,
+      buildingId: 'bld-1' as never,
+      floorId: 'flr-0' as never,
+      roomId: 'room-1' as never,
+    }
+    selection.select(doorSelector)
+    const state = selection.selectionState
+    expect(state.selected).toHaveLength(1)
+    expect(state.selected[0].type).toBe('door')
+    expect((state.selected[0] as { roomId?: string }).roomId).toBe('room-1')
+    expect(state.lastSelected?.type).toBe('door')
+  })
+
+  it('a raw string id still resolves to a building selector (existing behavior unchanged)', () => {
+    selection.select('door-2')
+    expect(selection.selectionState.selected[0].type).toBe('building')
   })
 })

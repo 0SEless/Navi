@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { Hallway } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
-import { Field } from './field'
+import { tokens, Field, inputStyle, SectionHeader } from './field'
 
 interface Props { hallway: Hallway }
 
@@ -19,14 +19,30 @@ export function HallwayProperties({ hallway }: Props) {
   }, [editEngine, dispatcher, hallway.id])
 
   return (
-    <div style={{ padding: 8, fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ fontWeight: 600, marginBottom: 8, color: '#fff', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Hallway</div>
-      <Field label="Name"><input value={hallway.name} onChange={e => update({ name: e.target.value })} /></Field>
-      <Field label="Width (m)">
-        <input type="range" min={1} max={10} step={0.5} value={hallway.width} onChange={e => update({ width: parseFloat(e.target.value) })} />
-        <span style={{ marginLeft: 4, color: '#888' }}>{hallway.width}m</span>
+    <div style={{ padding: '6px 12px 14px', fontSize: tokens.fontSize.md, fontFamily: 'system-ui, sans-serif' }}>
+      <SectionHeader>Details</SectionHeader>
+      <Field label="Name">
+        <input value={hallway.name} onChange={e => update({ name: e.target.value })} style={inputStyle} />
       </Field>
-      <Field label="Color"><input type="color" value={hallway.color || '#B0C4DE'} onChange={e => update({ color: e.target.value })} /></Field>
+      <Field label="Width (m)">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="range" min={1} max={10} step={0.5}
+            value={hallway.width}
+            onChange={e => update({ width: parseFloat(e.target.value) })}
+            style={{ width: 120, accentColor: tokens.accent }} />
+          <span style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm }}>{hallway.width}m</span>
+        </div>
+      </Field>
+      <Field label="Color">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="color" value={hallway.color || '#B0C4DE'}
+            onChange={e => update({ color: e.target.value })}
+            style={{
+              width: 36, height: 28, padding: 1, border: `1px solid ${tokens.border}`,
+              borderRadius: tokens.radius.sm, cursor: 'pointer', background: 'transparent',
+            }} />
+        </div>
+      </Field>
     </div>
   )
 }

@@ -10,7 +10,8 @@ import { buildingCreateHandler, buildingRenameHandler, buildingDeleteHandler } f
 function createDoc(): CampusDocument {
   return {
     schemaVersion: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    version: 1,
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [],
     roads: [],
     panoramas: [],

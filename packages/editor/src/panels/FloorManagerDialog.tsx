@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import type { Floor } from '@navi/core'
 import { useEditor } from '../context'
-import { FloorPlanUpload } from '../ui/FloorPlanUpload'
+import { FloorPlanUpload, type FloorPlanImageDimensions } from '../ui/FloorPlanUpload'
+import { buildFloorPlanReplaceAlignment, readFloorPlanImageDimensions } from '@/services/floor-plan-lifecycle'
 
 interface FloorManagerDialogProps {
   open: boolean
@@ -173,17 +174,21 @@ function FloorRow({
   const isVisible = floor.visible !== false
   const isLocked = !!floor.locked
   const shortLabel = floor.shortLabel || autoLabel(floor.level)
-  const handleFloorPlanUpload = useCallback((dataUrl: string) => {
+  const handleFloorPlanUpload = useCallback(async (dataUrl: string, dimensions?: FloorPlanImageDimensions) => {
+    const previousDimensions = await readFloorPlanImageDimensions(floor.planImageId)
+    const nextAlignment = buildFloorPlanReplaceAlignment(floor.planAlignment, previousDimensions, dimensions)
     onUpdateMeta({
       planImageId: dataUrl,
       floorPlanState: 'active',
+      planAlignment: nextAlignment,
     })
-  }, [onUpdateMeta])
+  }, [floor.planAlignment, floor.planImageId, onUpdateMeta])
 
   const handleFloorPlanRemove = useCallback(() => {
     onUpdateMeta({
       planImageId: null,
       floorPlanState: 'none',
+      planAlignment: null,
     })
   }, [onUpdateMeta])
 
@@ -266,7 +271,7 @@ function FloorRow({
             <div style={{ width: 140 }}>
               <FloorPlanUpload
                 imageUrl={floor.planImageId}
-                state={floor.floorPlanState}
+                state={floor.floorPlanState ?? (floor.planImageId ? 'active' : 'none')}
                 onUpload={handleFloorPlanUpload}
                 onRemove={handleFloorPlanRemove}
                 locked={isLocked}

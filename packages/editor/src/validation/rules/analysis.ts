@@ -1,4 +1,5 @@
 import type { CampusDocument } from '@navi/core'
+import { collectFloorDoors } from '@navi/core'
 import type { ValidationAffinity } from './types'
 import type { GraphAnalysis, GeometryAnalysis, MetadataIndex, SpatialIndex, AnalysisCache } from '../snapshot'
 
@@ -16,10 +17,93 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
 
   execute(document: CampusDocument): GraphAnalysis {
     return {
-      connectedComponentCount: 1,
+      connectedComponentCount: this.computeConnectedComponents(document),
       nodeCount: this.countNodes(document),
       edgeCount: this.countEdges(document),
     }
+  }
+
+  private computeConnectedComponents(document: CampusDocument): number {
+    // Build entity adjacency graph from document structure
+    // Entities are connected if they share a building/floor relationship
+    const adj = new Map<string, Set<string>>()
+    const addEdge = (a: string, b: string) => {
+      if (!adj.has(a)) adj.set(a, new Set())
+      if (!adj.has(b)) adj.set(b, new Set())
+      adj.get(a)!.add(b)
+      adj.get(b)!.add(a)
+    }
+
+    for (const bld of document.buildings) {
+      // Building connects to all its floors
+      for (const floor of bld.floors) {
+        addEdge(bld.id, `${bld.id}-floor-${floor.level}`)
+
+        // Rooms connect to their floor
+        for (const room of floor.rooms) {
+          addEdge(`${bld.id}-floor-${floor.level}`, room.id)
+        }
+        // RoomDoors connect rooms to hallways/rooms (P1-T6: single-source
+        // door access — extracted Floor.doors first, nested legacy fallback).
+        // Doors without connectedToId (unlinked/exterior) contribute no edge.
+        for (const door of collectFloorDoors(floor)) {
+          if (!door.connectedToId) continue
+          addEdge(door.roomId, door.connectedToId)
+        }
+
+        // Hallways connect to their floor
+        for (const hw of floor.hallways) {
+          addEdge(`${bld.id}-floor-${floor.level}`, hw.id)
+        }
+
+        // Staircases/elevators connect floors
+        for (const st of floor.staircases) {
+          addEdge(`${bld.id}-floor-${floor.level}`, `${bld.id}-floor-${st.fromLevel}`)
+          addEdge(`${bld.id}-floor-${floor.level}`, `${bld.id}-floor-${st.toLevel}`)
+        }
+        for (const el of floor.elevators) {
+          addEdge(`${bld.id}-floor-${floor.level}`, `${bld.id}-floor-${el.fromLevel}`)
+          addEdge(`${bld.id}-floor-${floor.level}`, `${bld.id}-floor-${el.toLevel}`)
+        }
+
+        // Entrances connect to building
+        for (const ent of floor.entrances) {
+          addEdge(`${bld.id}-floor-${floor.level}`, ent.id)
+        }
+      }
+
+      // VerticalConnectors connect floors
+      for (const vc of bld.verticalConnectors) {
+        for (const stopId of vc.stopIds) {
+          addEdge(bld.id, stopId)
+        }
+      }
+    }
+
+    // Roads are standalone
+    for (const road of document.roads) {
+      if (!adj.has(road.id)) adj.set(road.id, new Set())
+    }
+
+    // Count connected components via BFS
+    const allIds = new Set(adj.keys())
+    const visited = new Set<string>()
+    let components = 0
+    for (const id of allIds) {
+      if (visited.has(id)) continue
+      components++
+      const queue = [id]
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (visited.has(current)) continue
+        visited.add(current)
+        for (const neighbor of adj.get(current) ?? []) {
+          if (!visited.has(neighbor)) queue.push(neighbor)
+        }
+      }
+    }
+
+    return components
   }
 
   private countNodes(document: CampusDocument): number {

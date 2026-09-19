@@ -3,7 +3,7 @@ import { BaseEditorService } from './context'
 import type { EditorServiceContext } from './context/service-registry'
 import type { DocumentEventBus } from './eventbus'
 
-export type EditorMode = 'campus' | 'building' | 'floor'
+export type EditorMode = 'campus' | 'building' | 'floor' | '360-tour'
 
 /**
  * EditingContextService owns the *current editing context* — which of the

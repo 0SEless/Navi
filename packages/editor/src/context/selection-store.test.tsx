@@ -11,7 +11,7 @@ import type { CampusDocument } from '@navi/core'
 function createDoc(): CampusDocument {
   return {
     schemaVersion: 1,
-    metadata: { name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [
       { id: 'bld-1', name: 'A', code: 'A', category: 'academic', description: '', footprint: { points: [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }] }, baseElevation: 0, height: 10, floors: [], color: '#000', aliases: [], metadata: {} },
     ],

@@ -2,6 +2,7 @@ import { recordChange } from '@navi/core'
 import type { CampusDocument, BuildingCategory, Floor } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+import { cleanupBuildingRoutingReferences } from './routing-relationship-cleanup'
 
 const defaultBuilding = (id: string, name: string, code: string) => ({
   id,
@@ -81,7 +82,9 @@ export const buildingDeleteHandler: CommandHandler = {
     const index = document.buildings.findIndex(b => b.id === buildingId)
     if (index === -1) return { success: false, error: `Building not found: ${buildingId}` }
 
-    const removed = document.buildings.splice(index, 1)[0]
+    const removed = document.buildings[index]
+    cleanupBuildingRoutingReferences(document, removed)
+    document.buildings.splice(index, 1)
 
     // Cascade: remove panoramas and QR checkpoints referencing this building
     document.panoramas = document.panoramas.filter(p => p.buildingId !== removed.id)

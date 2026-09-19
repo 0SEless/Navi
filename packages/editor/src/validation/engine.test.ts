@@ -27,6 +27,7 @@ describe('ValidationEngine', () => {
 
       expect(snapshot.state).toBe('valid')
       expect(snapshot.issues.length).toBe(0)
+      expect(snapshot.documentId).toBe(doc.metadata.campusId)
       expect(snapshot.profile).toBe('draft')
       expect(typeof snapshot.epoch).toBe('number')
       expect(typeof snapshot.validatedAt).toBe('number')
@@ -162,6 +163,17 @@ describe('incremental validation', () => {
     expect(s1).toBe(s2)
   })
 
+  it('keeps the campus document id on incremental snapshots', () => {
+    const engine = createEngine()
+    const doc = createDocument()
+
+    engine.validate(doc)
+    recordChange(doc, { entityId: 'rm-1', entityType: 'room', operation: 'updated' })
+    const incremental = engine.validate(doc)
+
+    expect(incremental.documentId).toBe(doc.metadata.campusId)
+  })
+
   it('runs full validation on first call (no previous snapshot)', () => {
     const engine = createEngine()
     const doc = createDocument()
@@ -279,5 +291,4 @@ describe('incremental validation', () => {
     expect(s2.issues.filter(i => i.ruleId === 'intermittent').length).toBe(1)
   })
 })
-
 

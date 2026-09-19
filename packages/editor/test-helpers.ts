@@ -5,6 +5,7 @@ export function createDocument(overrides?: Partial<CampusDocument>): CampusDocum
     schemaVersion: 1,
     version: 0,
     metadata: {
+      campusId: 'Test Campus',
       name: 'Test Campus',
       description: '',
       lastModified: new Date().toISOString(),

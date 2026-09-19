@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { planFileToRasterDataUrl, SUPPORTED_PLAN_ACCEPT } from './plan-upload'
 
 const INPUT_ID = 'fpu-input'
 
@@ -6,13 +7,32 @@ interface FloorPlanUploadProps {
   /** Current floor plan image URL (from floor.planImageId) */
   imageUrl?: string | null
   /** Current floor plan state */
-  state?: 'none' | 'calibrating' | 'active' | 'locked' | null
+  state?: 'none' | 'active' | 'locked' | null
   /** Called when a new floor plan image is uploaded */
-  onUpload: (dataUrl: string) => void
+  onUpload: (dataUrl: string, dimensions?: FloorPlanImageDimensions) => void
   /** Called to remove the floor plan */
   onRemove: () => void
   /** Whether the floor plan is locked (geometry depends on it) */
   locked?: boolean
+}
+
+export interface FloorPlanImageDimensions {
+  width: number
+  height: number
+}
+
+function readImageDimensions(dataUrl: string): Promise<FloorPlanImageDimensions | undefined> {
+  if (typeof Image === 'undefined') return Promise.resolve(undefined)
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      const width = image.naturalWidth || image.width
+      const height = image.naturalHeight || image.height
+      resolve(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0 ? { width, height } : undefined)
+    }
+    image.onerror = () => resolve(undefined)
+    image.src = dataUrl
+  })
 }
 
 const btnStyle: React.CSSProperties = {
@@ -61,20 +81,17 @@ const linkStyle: React.CSSProperties = {
  * ```
  */
 export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }: FloorPlanUploadProps) {
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const url = ev.target?.result
-      if (typeof url === 'string') {
-        onUpload(url)
-      }
+    try {
+      // P1-T14 (R4.3): PDFs are rasterized (lazy PDF.js) into the same PNG
+      // pipeline; raster uploads pass through unchanged.
+      const url = await planFileToRasterDataUrl(file)
+      onUpload(url, await readImageDimensions(url))
+    } catch (err) {
+      console.error('FloorPlanUpload: failed to process file', err)
     }
-    reader.onerror = () => {
-      console.error('FloorPlanUpload: failed to read file', reader.error)
-    }
-    reader.readAsDataURL(file)
     e.target.value = ''
   }, [onUpload])
 
@@ -83,7 +100,7 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
   return (
     <div>
       <div style={{ fontSize: 10, color: '#64748B', marginBottom: 4 }}>FLOOR PLAN</div>
-      <input id={INPUT_ID} type="file" accept="image/*"
+      <input id={INPUT_ID} type="file" accept={SUPPORTED_PLAN_ACCEPT}
         onChange={handleFileChange} style={{ display: 'none' }} />
 
       {stateLabel === 'active' && imageUrl ? (
@@ -100,21 +117,6 @@ export function FloorPlanUpload({ imageUrl, state, onUpload, onRemove, locked }:
                 Remove
               </button>
             )}
-          </div>
-        </div>
-      ) : stateLabel === 'calibrating' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 48, height: 36, borderRadius: 4, background: '#1E293B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 16, color: '#FACC15' }}>⚙</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontSize: 10, color: '#FACC15' }}>Calibrating</span>
-            <label htmlFor={INPUT_ID} style={{ ...linkStyle, color: '#94A3B8' }}>
-              Change Image
-            </label>
-            <button onClick={onRemove} style={{ ...linkStyle, color: '#EF4444' }}>
-              Cancel
-            </button>
           </div>
         </div>
       ) : stateLabel === 'locked' ? (

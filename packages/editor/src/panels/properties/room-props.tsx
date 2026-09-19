@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { Room } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
-import { Field, selectStyle } from './field'
+import { tokens, Field, inputStyle, selectStyle, SectionHeader } from './field'
 
 interface Props { room: Room }
 
@@ -19,10 +19,14 @@ export function RoomProperties({ room }: Props) {
   }, [editEngine, dispatcher, room.id])
 
   return (
-    <div style={{ padding: 8, fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ fontWeight: 600, marginBottom: 8, color: '#fff', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Room</div>
-      <Field label="Name"><input value={room.name} onChange={e => update({ name: e.target.value })} /></Field>
-      <Field label="Number"><input value={room.number} onChange={e => update({ number: e.target.value })} /></Field>
+    <div style={{ padding: '6px 12px 14px', fontSize: tokens.fontSize.md, fontFamily: 'system-ui, sans-serif' }}>
+      <SectionHeader>Details</SectionHeader>
+      <Field label="Name">
+        <input value={room.name} onChange={e => update({ name: e.target.value })} style={inputStyle} />
+      </Field>
+      <Field label="Number">
+        <input value={room.number} onChange={e => update({ number: e.target.value })} style={inputStyle} />
+      </Field>
       <Field label="Category">
         <select value={room.category} onChange={e => update({ category: e.target.value })} style={selectStyle}>
           {['classroom','office','lab','restroom','stairwell','elevator_lobby','lobby','storage','meeting','auditorium','server','utility','other'].map(c => (
@@ -30,8 +34,12 @@ export function RoomProperties({ room }: Props) {
           ))}
         </select>
       </Field>
-      <Field label="Capacity"><input type="number" value={room.capacity ?? ''} onChange={e => update({ capacity: e.target.value ? parseInt(e.target.value) : undefined })} /></Field>
-      <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+      <Field label="Capacity">
+        <input type="number" value={room.capacity ?? ''}
+          onChange={e => update({ capacity: e.target.value ? parseInt(e.target.value) : undefined })}
+          style={inputStyle} />
+      </Field>
+      <div style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm, marginTop: 6 }}>
         Polygon: {room.polygon.points.length} vertices
       </div>
     </div>

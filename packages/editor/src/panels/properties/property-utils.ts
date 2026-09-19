@@ -25,16 +25,33 @@ export function findEntityById(doc: CampusDocument, id: string): EntityLookupRes
       for (const ent of flr.entrances) {
         if (ent.id === id) return { entity: ent as any, path: 'entrance' }
       }
+      for (const poi of flr.pois ?? []) {
+        if (poi.id === id) return { entity: poi as any, path: 'poi' }
+      }
+      if (flr.routeNetwork) {
+        const routeNode = flr.routeNetwork.nodes.find((node) => node.id === id)
+        if (routeNode) return { entity: routeNode as any, path: 'route-node' }
+        const routeEdge = flr.routeNetwork.edges.find((edge) => edge.id === id)
+        if (routeEdge) return { entity: routeEdge as any, path: 'route-edge' }
+      }
     }
   }
   for (const rd of doc.roads) {
     if (rd.id === id) return { entity: rd as any, path: 'road' }
+  }
+  for (const poi of doc.pois ?? []) {
+    if (poi.id === id) return { entity: poi as any, path: 'poi' }
   }
   for (const pan of doc.panoramas) {
     if (pan.id === id) return { entity: pan as any, path: 'panorama' }
   }
   for (const qr of doc.qrCheckpoints) {
     if (qr.id === id) return { entity: qr as any, path: 'qr' }
+  }
+  if (doc.areas) {
+    for (const area of doc.areas) {
+      if (area.id === id) return { entity: area as any, path: 'area' }
+    }
   }
   return null
 }

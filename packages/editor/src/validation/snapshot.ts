@@ -11,6 +11,10 @@ export interface ValidationIssue {
   readonly severity: 'error' | 'warning' | 'info'
   readonly message: string
   readonly targets: ReadonlyArray<ValidationIssueTarget>
+  /** Optional authored-layer scope for cross-cutting rules. */
+  readonly buildingId?: string
+  readonly floorId?: string
+  readonly layer?: 'base' | 'architecture' | 'access' | 'navigation' | 'preview'
   readonly location?: { readonly x: number; readonly y: number }
   readonly fixId?: string
 }

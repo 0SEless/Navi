@@ -5,7 +5,7 @@ import type { CampusDocument } from '@navi/core'
 function createMinimalDoc(): CampusDocument {
   return {
     schemaVersion: 1,
-    metadata: { name: 'Test Campus', description: '', lastModified: '', editorVersion: '0.1.0' },
+    metadata: { campusId: 'Test Campus', name: 'Test Campus', description: '', lastModified: '', editorVersion: '0.1.0' },
     buildings: [{
       id: 'bld-1',
       name: 'Science Building',
@@ -141,7 +141,8 @@ describe('ExplorerAdapter', () => {
     it('handles empty document', () => {
       const empty: CampusDocument = {
         schemaVersion: 1,
-        metadata: { name: '', description: '', lastModified: '', editorVersion: '0' },
+        version: 1,
+        metadata: { campusId: '', name: '', description: '', lastModified: '', editorVersion: '0' },
         buildings: [],
         roads: [],
         panoramas: [],

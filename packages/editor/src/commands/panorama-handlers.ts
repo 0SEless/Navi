@@ -1,5 +1,5 @@
 import { recordChange } from '@navi/core'
-import type { CampusDocument, LatLng } from '@navi/core'
+import type { CampusDocument, LocalCoord, LatLng } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 
@@ -8,7 +8,10 @@ export const panoramaCreateHandler: CommandHandler = {
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const id = (payload.id as string) || genId('pan')
     const label = (payload.label as string) || ''
-    const position = payload.position as LatLng | undefined
+    // D9 coordinate semantics:
+    // - When buildingId is present: position is LocalCoord (building-local meters)
+    // - When buildingId is absent: position is LatLng (world coordinates)
+    const position = payload.position as LocalCoord | LatLng | undefined
     const heading = (payload.heading as number) ?? 0
     const imageAssetId = (payload.imageAssetId as string) || ''
     const buildingId = payload.buildingId as string | undefined
@@ -16,6 +19,15 @@ export const panoramaCreateHandler: CommandHandler = {
 
     if (!position) return { success: false, error: 'Panorama position is required' }
     if (!imageAssetId) return { success: false, error: 'Panorama imageAssetId is required' }
+
+    // Validate coordinate system matches buildingId
+    const isLatLng = (position as unknown as { lat?: number }).lat !== undefined
+    if (buildingId && isLatLng) {
+      return { success: false, error: 'Building-associated panorama must use LocalCoord (building-local meters), not LatLng' }
+    }
+    if (!buildingId && !isLatLng) {
+      return { success: false, error: 'Outdoor panorama (no buildingId) must use LatLng (world coordinates), not LocalCoord' }
+    }
 
     document.panoramas.push({ id, label, position, heading, imageAssetId, buildingId, floor, hotspots: [] })
 

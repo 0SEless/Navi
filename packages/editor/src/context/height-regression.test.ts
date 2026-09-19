@@ -9,7 +9,7 @@ import { serializeDocument, type CampusDocument } from '@navi/core'
 const doc: CampusDocument = {
   schemaVersion: 1,
   version: 1,
-  metadata: { name: 'T', description: '', lastModified: new Date().toISOString(), editorVersion: '1.0.0' },
+  metadata: { campusId: 'T', name: 'T', description: '', lastModified: new Date().toISOString(), editorVersion: '1.0.0' },
   buildings: [{
     id: 'b1', name: 'Main', code: 'M', category: 'academic', description: '',
     baseElevation: 0, height: 42, color: '#1C6BEB', aliases: [], metadata: {},

@@ -1,43 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { Building, Floor } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
-import { Field, inputStyle, selectStyle } from './field'
+import { tokens, Field, inputStyle, selectStyle, SectionHeader, ActionButton } from './field'
 import { usePublish } from '../workflow/use-publish'
 import { FloorManagerDialog } from '../FloorManagerDialog'
+import { useStudioStore } from '@/store/studio-store'
 
 interface Props { building: Building }
-
-const sectionHeader: React.CSSProperties = {
-  color: '#888',
-  fontSize: 10,
-  textTransform: 'uppercase',
-  letterSpacing: 1.5,
-  borderTop: '1px solid #333',
-  paddingTop: 12,
-  marginTop: 12,
-  marginBottom: 8,
-}
-
-const actionBtn: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  background: '#1e1e3a',
-  color: '#ccc',
-  border: '1px solid #444',
-  borderRadius: 4,
-  padding: '6px 10px',
-  fontSize: 12,
-  cursor: 'pointer',
-  textAlign: 'left',
-  marginBottom: 4,
-}
-
-const dangerBtn: React.CSSProperties = {
-  ...actionBtn,
-  color: '#f14c4c',
-  borderColor: '#5c1a1a',
-  background: '#2a1010',
-}
 
 function floorPlanStatus(floors: Floor[]) {
   return floors.map(f => ({
@@ -49,13 +18,9 @@ function floorPlanStatus(floors: Floor[]) {
 }
 
 const BUILD_STATUS_LABELS: Record<string, string> = {
-  idle: '',
-  preparing: 'Preparing...',
-  validating: 'Validating...',
-  compiling: 'Compiling...',
-  uploading: 'Uploading...',
-  success: '',
-  error: 'Publish failed',
+  idle: '', preparing: 'Preparing...', validating: 'Validating...',
+  compiling: 'Compiling...', uploading: 'Uploading...',
+  success: '', error: 'Publish failed',
 }
 
 function formatTimestamp(ts: number): string {
@@ -66,8 +31,13 @@ function formatTimestamp(ts: number): string {
   })
 }
 
+function getFootprintPoints(building: Building): { lat: number; lng: number }[] {
+  const fp = building.footprint as any
+  return Array.isArray(fp) ? fp : (fp?.points ?? [])
+}
+
 function footprintCentroid(points: { lat: number; lng: number }[]): { lat: number; lng: number } | null {
-  if (points.length === 0) return null
+  if (!points || points.length === 0) return null
   const pts = points[0].lat === points[points.length - 1].lat && points[0].lng === points[points.length - 1].lng
     ? points.slice(0, -1) : points
   if (pts.length === 0) return null
@@ -80,12 +50,11 @@ export function BuildingProperties({ building }: Props) {
   const dispatcher = services.get<any>('dispatcher')
   const { snapshot } = usePublish()
   const [showFloorManager, setShowFloorManager] = useState(false)
-  const [showPositionEditor, setShowPositionEditor] = useState(false)
-  const [positionLat, setPositionLat] = useState('')
-  const [positionLng, setPositionLng] = useState('')
-  const [positionElevation, setPositionElevation] = useState('')
+  const positionEditTarget = useStudioStore((s) => s.positionEditTarget)
+  const setPositionEditTarget = useStudioStore((s) => s.setPositionEditTarget)
+  const isAdjusting = positionEditTarget?.type === 'building' && positionEditTarget?.id === building.id
 
-  const centroid = useMemo(() => footprintCentroid(building.footprint.points), [building.footprint.points])
+  const centroid = useMemo(() => footprintCentroid(getFootprintPoints(building)), [building.footprint])
 
   const update = useCallback((changes: Record<string, unknown>) => {
     for (const [property, value] of Object.entries(changes)) {
@@ -97,25 +66,12 @@ export function BuildingProperties({ building }: Props) {
 
   const openPositionEditor = useCallback(() => {
     dispatcher.execute({ id: 'building.adjustPosition', label: 'Adjust Position', payload: { buildingId: building.id } })
-    if (centroid) {
-      setPositionLat(centroid.lat.toFixed(6))
-      setPositionLng(centroid.lng.toFixed(6))
-    }
-    setPositionElevation(building.baseElevation.toFixed(1))
-    setShowPositionEditor(prev => !prev)
-  }, [dispatcher, building.id, building.baseElevation, centroid])
+    setPositionEditTarget({ type: 'building', id: building.id })
+  }, [dispatcher, building.id, setPositionEditTarget])
 
-  const savePosition = useCallback(() => {
-    const lat = parseFloat(positionLat)
-    const lng = parseFloat(positionLng)
-    const elevation = parseFloat(positionElevation)
-    if (isNaN(lat) || isNaN(lng) || isNaN(elevation)) return
-    const center = centroid
-    if (!center) return
-    const newPoints = building.footprint.points.map(p => ({ lat: p.lat + (lat - center.lat), lng: p.lng + (lng - center.lng) }))
-    update({ footprint: { points: newPoints }, baseElevation: elevation })
-    setShowPositionEditor(false)
-  }, [positionLat, positionLng, positionElevation, building.footprint.points, centroid, update])
+  const closePositionEditor = useCallback(() => {
+    setPositionEditTarget(null)
+  }, [setPositionEditTarget])
 
   const openFloorManager = useCallback(() => {
     dispatcher.execute({ id: 'floor.manage', label: 'Manage Floors', payload: { buildingId: building.id } })
@@ -143,13 +99,15 @@ export function BuildingProperties({ building }: Props) {
   }, [snapshot])
 
   return (
-    <>
-    <div style={{ padding: '8px 10px', fontSize: 13, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: '#ccc' }}>Building</div>
+    <div style={{ padding: '6px 12px 14px' }}>
       {/* ── 1. Information ── */}
-      <div style={sectionHeader}>Information</div>
-      <Field label="Name"><input value={building.name} onChange={e => update({ name: e.target.value })} /></Field>
-      <Field label="Code"><input value={building.code} onChange={e => update({ code: e.target.value })} /></Field>
+      <SectionHeader>Information</SectionHeader>
+      <Field label="Name">
+        <input value={building.name} onChange={e => update({ name: e.target.value })} style={inputStyle} />
+      </Field>
+      <Field label="Code">
+        <input value={building.code} onChange={e => update({ code: e.target.value })} style={inputStyle} />
+      </Field>
       <Field label="Category">
         <select value={building.category} onChange={e => update({ category: e.target.value })} style={selectStyle}>
           {['academic','residential','administrative','facility','library','dining','sports','parking','health','other'].map(c => (
@@ -157,102 +115,168 @@ export function BuildingProperties({ building }: Props) {
           ))}
         </select>
       </Field>
-      <Field label="Description"><textarea value={building.description} onChange={e => update({ description: e.target.value })} rows={2} style={inputStyle} /></Field>
+      <Field label="Description">
+        <textarea value={building.description} onChange={e => update({ description: e.target.value })} rows={2} style={{
+          ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5,
+        }} />
+      </Field>
 
       {/* ── 2. Physical ── */}
-      <div style={sectionHeader}>Physical</div>
+      <SectionHeader>Physical</SectionHeader>
       <Field label="Building Height">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="number" step="0.5" value={building.height}
             onChange={e => update({ height: parseFloat(e.target.value) || 0 })}
             style={{ ...inputStyle, width: 80 }} />
-          <span style={{ color: '#64748B', fontSize: 11 }}>m</span>
+          <span style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm }}>m</span>
         </div>
       </Field>
       <Field label="Elevation">
-        <div style={{ color: '#ccc', fontSize: 13 }}>{building.baseElevation.toFixed(1)} m</div>
+        <div style={{ color: tokens.textPrimary, fontSize: tokens.fontSize.md }}>
+          {building.baseElevation.toFixed(1)} m
+        </div>
       </Field>
       <Field label="Color">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="color" value={building.color} onChange={e => update({ color: e.target.value })} style={{ width: 32, height: 24, padding: 0, border: 'none', cursor: 'pointer' }} />
-          <span style={{ color: '#888', fontSize: 11 }}>{building.color}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="color" value={building.color}
+            onChange={e => update({ color: e.target.value })}
+            style={{
+              width: 36, height: 28, padding: 1, border: `1px solid ${tokens.border}`,
+              borderRadius: tokens.radius.sm, cursor: 'pointer', background: 'transparent',
+            }} />
+          <span style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm, fontFamily: 'monospace' }}>
+            {building.color}
+          </span>
         </div>
       </Field>
       <Field label="Floors">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ color: '#ccc', fontSize: 13 }}>{building.floors.length} Floors</span>
-          <button style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 3, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }} onClick={openFloorManager}>
+          <span style={{ color: tokens.textPrimary, fontSize: tokens.fontSize.md }}>
+            {building.floors.length} Floor{building.floors.length !== 1 ? 's' : ''}
+          </span>
+          <button style={{
+            background: tokens.accent, color: '#fff', border: 'none',
+            borderRadius: tokens.radius.sm, padding: '5px 12px',
+            fontSize: tokens.fontSize.sm, fontWeight: 600, cursor: 'pointer',
+          }} onClick={openFloorManager}>
             Manage Floors
           </button>
         </div>
       </Field>
 
       {/* ── 3. Status ── */}
-      <div style={sectionHeader}>Status</div>
-      <div style={{ fontSize: 12, color: buildStatus.ok ? '#4ade80' : '#facc15', marginBottom: 3 }}>
-        {buildStatus.ok ? '✓' : '⚠'} Build Status: {buildStatus.label}
+      <SectionHeader>Status</SectionHeader>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        fontSize: tokens.fontSize.base, color: buildStatus.ok ? tokens.success : tokens.warning,
+        marginBottom: 4,
+      }}>
+        <span style={{ fontSize: 14 }}>{buildStatus.ok ? '✓' : '⚠'}</span>
+        <span>Build Status: {buildStatus.label}</span>
       </div>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>
+      <div style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm, marginBottom: 2 }}>
         Last Published: {formatTimestamp(snapshot.lastPublishedAt)}
       </div>
 
       {/* ── 4. Actions ── */}
-      <div style={sectionHeader}>Actions</div>
-      <button style={{...actionBtn, opacity: building.floors.length === 0 ? 0.5 : 1}} disabled={building.floors.length === 0} onClick={() => dispatcher.execute({ id: 'building.editInterior', label: 'Edit Interior', payload: { buildingId: building.id } })}>
+      <SectionHeader>Actions</SectionHeader>
+      <ActionButton
+        disabled={building.floors.length === 0}
+        style={{ opacity: building.floors.length === 0 ? 0.5 : 1 }}
+        onClick={() => dispatcher.execute({
+          id: 'building.editInterior', label: 'Edit Interior',
+          payload: { buildingId: building.id },
+        })}
+      >
         Edit Interior
-      </button>
-      <button style={{...actionBtn, background: showPositionEditor ? '#2a2a4a' : '#1e1e3a'}} onClick={openPositionEditor}>
-        {showPositionEditor ? '▼ Adjust Position' : 'Adjust Position'}
-      </button>
-      {showPositionEditor && (
-        <div style={{ background: '#16162a', border: '1px solid #333', borderRadius: 6, padding: 12, marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Position Controls</div>
-          <Field label="Latitude">
-            <input type="number" step="0.000001" value={positionLat} onChange={e => setPositionLat(e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="Longitude">
-            <input type="number" step="0.000001" value={positionLng} onChange={e => setPositionLng(e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="Elevation (m)">
-            <input type="number" step="0.1" value={positionElevation} onChange={e => setPositionElevation(e.target.value)} style={inputStyle} />
-          </Field>
-          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button onClick={() => setShowPositionEditor(false)} style={{ padding: '4px 12px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: '#888', cursor: 'pointer', fontSize: 11 }}>Cancel</button>
-            <button onClick={savePosition} style={{ padding: '4px 12px', borderRadius: 4, border: 'none', background: '#1C6BEB', color: '#fff', cursor: 'pointer', fontSize: 11 }}>Apply</button>
-          </div>
-        </div>
-      )}
+      </ActionButton>
+
+      <div style={{
+        background: isAdjusting ? '#1A1A3A' : 'transparent',
+        border: isAdjusting ? `1px solid #3A3A6A` : 'none',
+        borderRadius: tokens.radius.md, padding: isAdjusting ? 10 : 0,
+        marginBottom: 8,
+      }}>
+        {!isAdjusting ? (
+          <>
+            <div style={{
+              color: tokens.textMuted, fontSize: tokens.fontSize.xs,
+              fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+              marginBottom: 6,
+            }}>
+              Position
+            </div>
+            <div style={{ color: tokens.textSecondary, fontSize: tokens.fontSize.base, marginBottom: 8, lineHeight: 1.6 }}>
+              <div>Lat: {centroid?.lat.toFixed(6) ?? '—'}</div>
+              <div>Lng: {centroid?.lng.toFixed(6) ?? '—'}</div>
+              <div>Elev: {building.baseElevation.toFixed(1)} m</div>
+            </div>
+            <ActionButton onClick={openPositionEditor}>
+              Adjust on Map
+            </ActionButton>
+          </>
+        ) : (
+          <>
+            <div style={{ color: tokens.textSecondary, fontSize: tokens.fontSize.base, marginBottom: 10 }}>
+              Drag the building on the map to adjust its position.
+            </div>
+            <ActionButton variant="success" style={{ textAlign: 'center' }} onClick={closePositionEditor}>
+              ✓ Done
+            </ActionButton>
+          </>
+        )}
+      </div>
 
       {/* ── 5. Assets ── */}
-      <div style={sectionHeader}>Assets</div>
+      <SectionHeader>Assets</SectionHeader>
       <Field label="Floor Plans">
         {plans.length === 0 ? (
-          <div style={{ color: '#666', fontSize: 11 }}>No floors yet</div>
+          <div style={{ color: tokens.textMuted, fontSize: tokens.fontSize.sm }}>No floors yet</div>
         ) : (
           plans.map(p => (
-            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#ccc', marginBottom: 2 }}>
+            <div key={p.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              fontSize: tokens.fontSize.base, color: tokens.textPrimary,
+              padding: '4px 0', borderBottom: `1px solid transparent`,
+            }}>
               <span>{p.label}</span>
-              <span style={{ color: p.state === 'none' ? '#facc15' : p.state === 'calibrating' ? '#60A5FA' : p.state === 'locked' ? '#94A3B8' : '#4ade80', fontSize: 11 }}>
-                {p.state === 'none' ? '⚠ Missing' : p.state === 'calibrating' ? '⚙ Calibrating' : p.state === 'locked' ? '🔒 Locked' : '✓ Uploaded'}
+              <span style={{
+                color: p.state === 'none' ? tokens.warning
+                  : p.state === 'locked' ? tokens.textMuted
+                  : tokens.success,
+                fontSize: tokens.fontSize.sm,
+              }}>
+                {p.state === 'none' ? '⚠ Missing'
+                  : p.state === 'locked' ? '🔒 Locked'
+                  : '✓ Uploaded'}
               </span>
             </div>
           ))
         )}
       </Field>
       <Field label="Panoramas">
-        <div style={{ fontSize: 12, color: hasPanoramas ? '#4ade80' : '#666' }}>
+        <div style={{
+          fontSize: tokens.fontSize.base,
+          color: hasPanoramas ? tokens.success : tokens.textMuted,
+        }}>
           {hasPanoramas ? '✓ Panorama hotspots exist' : 'No panoramas'}
         </div>
       </Field>
 
       {/* ── 6. Danger Zone ── */}
-      <div style={sectionHeader}>Danger Zone</div>
-      <button style={dangerBtn} onClick={() => { editEngine.begin({ kind: 'delete', entityIds: [building.id] }); editEngine.doCommit(); dispatcher.execute({ id: 'building.delete', label: 'Delete Building', payload: { buildingId: building.id } }) }}>
+      <SectionHeader>Danger Zone</SectionHeader>
+      <ActionButton variant="danger" onClick={() => {
+        editEngine.begin({ kind: 'delete', entityIds: [building.id] })
+        editEngine.doCommit()
+        dispatcher.execute({
+          id: 'building.delete', label: 'Delete Building',
+          payload: { buildingId: building.id },
+        })
+      }}>
         Delete Building
-      </button>
-    </div>
+      </ActionButton>
 
       <FloorManagerDialog open={showFloorManager} onClose={() => setShowFloorManager(false)} buildingId={building.id} />
-    </>
+    </div>
   )
 }

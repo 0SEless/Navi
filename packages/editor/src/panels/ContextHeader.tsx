@@ -6,9 +6,11 @@ export interface ContextHeaderProps {
   mapId: string
   buildingName: string
   floorLabel: string
-  status: 'saved' | 'saving' | 'unsaved' | 'error'
+  status: 'saved' | 'saving' | 'unsaved' | 'error' | 'conflict' | 'checking'
   statusMessage?: string
   selectedCount?: number
+  /** Resolve an unresolved server conflict by loading the server snapshot. */
+  onResolveConflict?: () => void
 }
 
 const STATUS_CONFIG: Record<ContextHeaderProps['status'], { color: string; label: string }> = {
@@ -16,9 +18,11 @@ const STATUS_CONFIG: Record<ContextHeaderProps['status'], { color: string; label
   saving: { color: '#F59E0B', label: 'Saving\u2026' },
   unsaved: { color: '#6B7280', label: 'Unsaved' },
   error: { color: '#EF4444', label: 'Sync failed' },
+  conflict: { color: '#F59E0B', label: 'Outdated' },
+  checking: { color: '#64748B', label: 'Checking\u2026' },
 }
 
-export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, selectedCount }: ContextHeaderProps) {
+export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, selectedCount, onResolveConflict }: ContextHeaderProps) {
   const cfg = STATUS_CONFIG[status]
 
   return (
@@ -57,6 +61,20 @@ export function ContextHeader({ mapId, buildingName, floorLabel, status, statusM
       <span style={{ fontSize: 10, color: cfg.color }} title={statusMessage ?? ''}>
         {'\u25CF'} {cfg.label}
       </span>
+
+      {status === 'conflict' && onResolveConflict ? (
+        <button
+          type="button"
+          onClick={onResolveConflict}
+          style={{
+            fontSize: 10, color: 'var(--navi-text-secondary, #64748B)',
+            background: 'var(--navi-content, #F1F5F9)', border: '1px solid var(--navi-border, #E2E8F0)',
+            borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
+          }}
+        >
+          Load server version
+        </button>
+      ) : null}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { CampusDocument, Building, Road } from '@navi/core'
+import type { CampusDocument, Building, Road, Area } from '@navi/core'
 import { roadTypeColor } from '@navi/core'
 
 export function buildingsToGeoJSON(buildings: Building[]): GeoJSON.FeatureCollection {
@@ -28,6 +28,7 @@ export function roadsToTracesGeoJSON(roads: Road[]): GeoJSON.FeatureCollection {
         id: r.id,
         name: r.name,
         type: 'road',
+        displayMode: r.displayMode ?? 'visible',
         color: (r.metadata?.color as string) || roadTypeColor(r.type),
         width: r.width ?? 8,
       },
@@ -37,6 +38,25 @@ export function roadsToTracesGeoJSON(roads: Road[]): GeoJSON.FeatureCollection {
       },
     })),
   }
+}
+
+export function areasToGeoJSON(areas: Area[] | undefined): GeoJSON.FeatureCollection {
+  if (!areas) return { type: 'FeatureCollection', features: [] }
+  const features = areas
+    .filter((a) => a.points.length >= 3)
+    .map((a) => ({
+      type: 'Feature' as const,
+      properties: { id: a.id, name: a.name, color: a.color || '#8B5CF6' },
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [
+          a.points
+            .map((p) => [p.lng, p.lat] as [number, number])
+            .concat([[a.points[0].lng, a.points[0].lat]] as [number, number][]),
+        ],
+      },
+    }))
+  return { type: 'FeatureCollection', features }
 }
 
 export function documentToRenderingGeo(document: CampusDocument): {

@@ -4,10 +4,20 @@ import type { CompiledArtifacts } from './navigation-compiler'
 
 // ── Types ─────────────────────────────────────────────────────
 
+export type PersistenceSyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
+
+export interface PersistenceSyncState {
+  status: PersistenceSyncStatus
+  error: string | null
+}
+
 export interface PersistenceAdapter {
   save(): Promise<void>
   syncToSupabase(): Promise<void>
   publish(artifacts: CompiledArtifacts): Promise<PublishResult>
+  /** Optional reactive bridge for adapters backed by a remote sync store. */
+  getSyncState?(): PersistenceSyncState
+  subscribeSyncState?(listener: (state: PersistenceSyncState) => void): () => void
 }
 
 export interface PublishResult {
@@ -41,6 +51,18 @@ export class PersistenceService extends BaseEditorService {
 
   async init(context: EditorServiceContext): Promise<void> {
     await super.init(context)
+  }
+
+  hasSyncState(): boolean {
+    return Boolean(this._adapter.getSyncState || this._adapter.subscribeSyncState)
+  }
+
+  getSyncState(): PersistenceSyncState | null {
+    return this._adapter.getSyncState?.() ?? null
+  }
+
+  subscribeSyncState(listener: (state: PersistenceSyncState) => void): () => void {
+    return this._adapter.subscribeSyncState?.(listener) ?? (() => {})
   }
 
   /**
