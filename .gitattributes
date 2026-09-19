@@ -1,1 +1,2 @@
 packages/runtime/test/fixtures/*.json text eol=lf
+packages/runtime/test/fixtures/* -text
