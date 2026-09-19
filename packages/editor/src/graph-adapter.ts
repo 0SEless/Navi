@@ -217,7 +217,122 @@ export class GraphAdapter {
     this.transformer = transformer
   }
 
+  /**
+   * P0.5 — Scope-aware canonical reconciliation wrapper.
+   *
+   * The legacy sync rebuilds collections from the incoming CampusDocument only.
+   * Before running it we snapshot the canonical collections; afterwards we merge
+   * out-of-scope canonical entities back in so a scoped/partial document can
+   * never delete or duplicate unrelated canonical content.
+   */
   sync(document: CampusDocument): void {
+    const previous = {
+      buildings: (this.graph.buildings ?? []).slice(),
+      components: (this.graph.components ?? []).slice(),
+      nodes: (this.graph.nodes ?? []).slice(),
+      edges: (this.graph.edges ?? []).slice(),
+      traces: (this.graph.traces ?? []).slice(),
+    }
+    this.syncLegacy(document)
+    this.reconcileCanonicalCollections(previous, document)
+  }
+
+  private reconcileCanonicalCollections(
+    previous: {
+      buildings: Building[]
+      components: Component[]
+      nodes: NavNode[]
+      edges: NavEdge[]
+      traces: TracePath[]
+    },
+    document: CampusDocument,
+  ): void {
+    const doc = document as unknown as {
+      buildings: Array<{ id: string; floors: Array<{ level: number }> }>
+      roads?: unknown
+    }
+    const coveredBuildings = new Set(doc.buildings.map((b) => b.id))
+    const coveredFloors = new Map<string, Set<number>>()
+    for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
+    // Outdoor scope is covered only when the document actually carries the
+    // outdoor road collection (a floor/building-scoped view does not).
+    const outdoorCovered = Array.isArray(doc.roads)
+
+    const nodeCovered = (n: NavNode): boolean => {
+      const bid = (n as { buildingId?: string | null }).buildingId
+      if (!bid || bid === '__outdoor__') return outdoorCovered
+      if (!coveredBuildings.has(bid)) return false
+      const fl = (n as { floor?: number | null }).floor
+      if (fl === null || fl === undefined) return true
+      return coveredFloors.get(bid)?.has(fl) ?? false
+    }
+
+    const dedupe = <T extends { id: string }>(items: T[]): T[] => {
+      const seen = new Set<string>()
+      const out: T[] = []
+      for (const item of items) {
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        out.push(item)
+      }
+      return out
+    }
+
+    const rebuiltBuildings = (this.graph.buildings ?? []).slice()
+    const rebuiltComponents = (this.graph.components ?? []).slice()
+    const rebuiltNodes = (this.graph.nodes ?? []).slice()
+    const rebuiltEdges = (this.graph.edges ?? []).slice()
+    const rebuiltTraces = (this.graph.traces ?? []).slice()
+
+    const mergedBuildings = dedupe([
+      ...rebuiltBuildings,
+      ...previous.buildings.filter((b) => !coveredBuildings.has(b.id) && !rebuiltBuildings.some((r) => r.id === b.id)),
+    ])
+    const mergedComponents = dedupe([
+      ...rebuiltComponents,
+      ...previous.components.filter(
+        (c) => !rebuiltComponents.some((r) => r.id === c.id) && !(coveredBuildings.has((c as { buildingId?: string }).buildingId ?? '')),
+      ),
+    ])
+    const mergedNodes = dedupe([
+      ...rebuiltNodes,
+      ...previous.nodes.filter((n) => !nodeCovered(n) && !rebuiltNodes.some((r) => r.id === n.id)),
+    ])
+    const rebuiltNodeIds = new Set(mergedNodes.map((n) => n.id))
+    const mergedEdges = dedupe([
+      ...rebuiltEdges,
+      ...previous.edges.filter(
+        (e) =>
+          !rebuiltEdges.some((r) => r.id === e.id) &&
+          !(nodeCovered({ id: e.from } as NavNode) && nodeCovered({ id: e.to } as NavNode)) &&
+          rebuiltNodeIds.has(e.from) &&
+          rebuiltNodeIds.has(e.to),
+      ),
+    ])
+    const mergedTraces = dedupe([
+      ...rebuiltTraces,
+      ...previous.traces.filter((t) => !outdoorCovered && !rebuiltTraces.some((r) => r.id === t.id)),
+    ])
+
+    this.graph.setBuildings(mergedBuildings)
+    this.graph.setComponents(mergedComponents)
+    this.graph.setNodes(mergedNodes)
+    this.graph.setEdges(mergedEdges)
+    if (mergedTraces.length > 0 || (this.graph.traces ?? []).length > 0) {
+      this.graph.setTraces(mergedTraces)
+    }
+
+    // Reference integrity: every edge must resolve to a node; drop nothing,
+    // report loudly if the rebuild produced a dangling edge.
+    const finalNodeIds = new Set((this.graph.nodes ?? []).map((n) => n.id))
+    for (const e of this.graph.edges ?? []) {
+      if (!finalNodeIds.has(e.from) || !finalNodeIds.has(e.to)) {
+        console.warn(`[graph-adapter] dangling edge after reconciliation: ${e.id} (${e.from} -> ${e.to})`)
+      }
+    }
+  }
+
+  private syncLegacy(document: CampusDocument): void {
     // Ordinary editor sync is explicit-only. Existing RoadJunction records are
     // pre-seeded below and reconstructed, but geometry alone never authors new
     // cross-road topology (including for unversioned/legacy documents).
