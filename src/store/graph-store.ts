@@ -139,6 +139,29 @@ const bumpCampusEpoch = (mapId: string): void => {
   campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
 }
 
+/**
+ * Phase 3C — single-shot safe local-ahead resume. Set when freshness proves
+ * server == acknowledged && local newer (server unchanged); drained exactly once
+ * after campus readiness through the existing guarded save pipeline.
+ */
+let pendingLocalAheadResumeMapId: string | null = null
+
+/**
+ * Drain the single-shot local-ahead resume exactly once, only when both the
+ * detection happened AND the campus is ready. Order-independent: called from
+ * both checkServerFreshness (detection) and completeCampusHydration (readiness).
+ */
+function maybeDrainLocalAheadResume(mapId: string): void {
+  if (pendingLocalAheadResumeMapId !== mapId) return
+  if (!useGraphStore.getState().campusReady) return
+  pendingLocalAheadResumeMapId = null
+  // Same trigger semantics as syncLocalChanges CASE B: this is a deliberate,
+  // guarded recovery write of preserved local work — not a blind autosave.
+  void enqueueCampusSave(mapId, false, 'manual').catch((error: unknown) => {
+    console.warn('[graph-store] local-ahead auto-resume failed:', error)
+  })
+}
+
 let onlineResyncBound = false
 
 /** Monotonic identity for one mounted campus editing session, including A → B → A. */
@@ -393,6 +416,18 @@ async function checkServerFreshness(mapId: string): Promise<void> {
   const localDirty = !marker || marker.snapshotFingerprint !== localFingerprint
   const storeAhead = storeFingerprint !== localFingerprint
 
+  // Phase 3C — SAFE LOCAL-AHEAD (not divergence): the server has not changed
+  // since our last acknowledgement; this device holds newer committed work
+  // (Phase 3B local draft). Retain it and auto-resume after readiness.
+  const acknowledgedFingerprint = marker?.snapshotFingerprint ?? null
+  const serverAtAcknowledgedBase = acknowledgedFingerprint !== null && serverFingerprint === acknowledgedFingerprint
+  if (serverAtAcknowledgedBase && localFingerprint !== acknowledgedFingerprint && !storeAhead) {
+    pendingLocalAheadResumeMapId = mapId
+    useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+    maybeDrainLocalAheadResume(mapId)
+    return
+  }
+
   if (!localDirty && !storeAhead) {
     const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
     const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
@@ -445,7 +480,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   beginCampusHydration: () => set({ campusReady: false }),
-  completeCampusHydration: () => set({ campusReady: true }),
+  completeCampusHydration: () => {
+    set({ campusReady: true })
+    const mapId = get().currentMapId
+    if (mapId) maybeDrainLocalAheadResume(mapId)
+  },
 
   addNode: (node) => {
     const n = node as { buildingId?: string | null; floor?: number | null; type?: string }
@@ -661,6 +700,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
     authoredIntentSeq = 0
+    pendingLocalAheadResumeMapId = null
     // P0.14: not ready while an authoritative campus load is in flight.
     get().beginCampusHydration()
     const key = storageKey(mapId)
@@ -711,6 +751,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
       campusSessionGeneration += 1
+      pendingLocalAheadResumeMapId = null
       set({ currentMapId: mapId, pendingAuthoredMutations: [], campusReady: false })
     } else {
       set({ currentMapId: mapId })
@@ -1009,6 +1050,7 @@ export function __resetGraphSaveQueuesForTests(): void {
   authoredIntentSeq = 0
   campusSessionGeneration = 0
   campusEpoch.clear()
+  pendingLocalAheadResumeMapId = null
   campusEpoch.clear()
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.

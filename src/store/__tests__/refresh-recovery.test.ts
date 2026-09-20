@@ -126,21 +126,22 @@ describe('refresh-during-save recovery', () => {
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
   })
 
-  it('CASE B — local work ahead of acknowledged base: Re-sync retries and succeeds', async () => {
+  it('CASE B — safe local-ahead (server == acknowledged, local newer) auto-resumes through the guarded pipeline', async () => {
     const h = harness()
     await seedAcknowledged()
     // Server is still at the acknowledged base (save never landed).
     h.setServer('Base Hall', 'R7')
     refreshWithEditedCache()
-    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
-    useGraphStore.getState().completeCampusHydration()
+    // Approved Phase 3C contract: this is NOT genuine divergence.
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('idle'))
+    expect(h.posted).toHaveLength(1) // nothing posted during hydration
 
-    await useGraphStore.getState().syncLocalChanges()
-    expect(h.posted).toHaveLength(2)
-    const retryBody = JSON.parse(h.posted[1])
-    expect(retryBody.expectedServerUpdatedAt).toBe('R7')
-    expect(useGraphStore.getState().syncStatus).toBe('synced')
-    expect(readMarker().serverTimestamp).toBe('R2')
+    useGraphStore.getState().completeCampusHydration()
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
+
+    expect(h.posted).toHaveLength(2) // exactly one guarded resume
+    const resumeBody = JSON.parse(h.posted[1])
+    expect(typeof resumeBody.expectedServerUpdatedAt).toBe('string')
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
   })
 
@@ -161,9 +162,15 @@ describe('refresh-during-save recovery', () => {
   it('failed retry preserves local work and restores the conflict state', async () => {
     const h = harness()
     await seedAcknowledged()
-    refreshWithEditedCache()
-    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
-    useGraphStore.getState().completeCampusHydration()
+    h.setServer('Base Hall', 'R7')
+    // Manual conflict (e.g. after a failed auto-resume): server still at the
+    // acknowledged base, local work ahead. Re-sync CASE B must fail cleanly.
+    useGraphStore.setState({
+      graph: makeGraph('Edited Hall'),
+      currentMapId: MAP_ID,
+      syncStatus: 'conflict',
+      syncError: 'stale acknowledgement',
+    })
     h.setPostFailure(500)
 
     await expect(useGraphStore.getState().syncLocalChanges()).rejects.toThrow(/exploded/i)
@@ -221,9 +228,14 @@ describe('refresh-during-save recovery', () => {
   it('authentication failure is labeled specifically and is not restored as a revision conflict', async () => {
     const h = harness()
     await seedAcknowledged()
-    refreshWithEditedCache()
-    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
-    useGraphStore.getState().completeCampusHydration()
+    // Manual conflict after a failed auto-resume: server at the acknowledged
+    // base, local work ahead; auth failures must stay labeled specifically.
+    useGraphStore.setState({
+      graph: makeGraph('Edited Hall'),
+      currentMapId: MAP_ID,
+      syncStatus: 'conflict',
+      syncError: 'stale acknowledgement',
+    })
     h.setPostFailure(401, 'Unauthorized')
 
     await expect(useGraphStore.getState().syncLocalChanges()).rejects.toThrow(

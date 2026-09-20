@@ -142,12 +142,10 @@ describe('Phase 3A recovery supersession', () => {
     const h = harness()
     await seedAcknowledged(h)
     refreshWithEditedCache()
-    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
+    // F — safe local-ahead now auto-resumes after readiness (Phase 3C contract).
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('idle'))
     useGraphStore.getState().completeCampusHydration()
-
-    // F — local ahead of acknowledged base: guarded retry converges.
-    await useGraphStore.getState().syncLocalChanges()
-    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
 
     // H — genuine divergence after independent server change.
