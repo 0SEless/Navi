@@ -71,7 +71,7 @@ interface GraphState {
   loadMapData: (mapId: string) => void
   setCurrentMapId: (mapId: string | null) => void
   load: () => void
-  save: () => Promise<void>
+  save: (options?: { trigger?: SaveTrigger }) => Promise<void>
   reset: () => void
 
   syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
@@ -638,7 +638,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
 
-  save: async () => {
+  save: async (options?: { trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
     // Keep graph identity in sync with the active map
@@ -646,7 +646,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     const json = get().graph.toJSON()
     localStorage.setItem(key, JSON.stringify(json))
-    await get().syncToSupabase()
+    await get().syncToSupabase({ trigger: options?.trigger })
   },
 
   reset: () => {
