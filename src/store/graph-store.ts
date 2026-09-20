@@ -78,6 +78,12 @@ interface GraphState {
   reset: () => void
 
   syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
+  /**
+   * Refresh-recovery: safe retry when local authored work is ahead of the last
+   * acknowledged revision but the server is still at that acknowledged base.
+   * Reuses the existing guarded save path; never force-overwrites.
+   */
+  syncLocalChanges: () => Promise<void>
   reSync: (options?: { force?: boolean }) => Promise<void>
   fetchFromSupabase: (mapId?: string) => Promise<void>
   adoptServerSnapshot: () => Promise<void>
@@ -768,6 +774,41 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       throw new Error(message)
     }
     adoptServerSnapshotData(mapId, data)
+  },
+
+  syncLocalChanges: async () => {
+    if (typeof window === 'undefined') return
+    const mapId = get().currentMapId
+    if (!mapId) return
+    if (get().syncStatus !== 'conflict') return
+
+    const acknowledged = readSyncMarker(mapId)?.snapshotFingerprint ?? null
+    const data = await fetchServerSnapshot(mapId)
+    if (!data) {
+      const message = 'Could not reach the server. Your local work is preserved; try again.'
+      set({ syncStatus: 'error', syncError: message })
+      throw new Error(message)
+    }
+
+    // Genuine divergence (CASE C): the server moved beyond the acknowledged
+    // base. Never overwrite; keep the local work and the conflict state.
+    if (acknowledged !== null && graphFingerprint(data) !== acknowledged) {
+      const message = 'Server and local changes differ. Your local work is preserved.'
+      set({ syncStatus: 'conflict', syncError: message })
+      throw new Error(message)
+    }
+
+    // Server is still at the acknowledged base (CASE B): retry the preserved
+    // local work through the normal guarded save queue with the latest
+    // expected revision. Clear conflict only after an authoritative ack.
+    set({ syncStatus: 'idle', syncError: null })
+    try {
+      await enqueueCampusSave(mapId, false, 'manual')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Sync failed'
+      set({ syncStatus: 'conflict', syncError: message })
+      throw error
+    }
   },
 
   fetchFromSupabase: async (mapId?: string) => {

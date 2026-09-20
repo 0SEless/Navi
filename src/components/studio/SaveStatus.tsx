@@ -11,6 +11,7 @@ export function SaveStatus() {
   const syncError = useGraphStore((state) => state.syncError)
   const adoptServerSnapshot = useGraphStore((state) => state.adoptServerSnapshot)
   const reSync = useGraphStore((state) => state.reSync)
+  const syncLocalChanges = useGraphStore((state) => state.syncLocalChanges)
   const [showConflictReview, setShowConflictReview] = useState(false)
   const [showAdvancedRecovery, setShowAdvancedRecovery] = useState(false)
   const [showForceConfirmation, setShowForceConfirmation] = useState(false)
@@ -64,6 +65,13 @@ export function SaveStatus() {
             onClick={() => setShowConflictReview((visible) => !visible)}
           >
             Review conflict
+          </button>
+          <button
+            type="button"
+            onClick={() => runRecoveryAction(syncLocalChanges)}
+            title="Retry syncing your preserved local changes using the latest server revision"
+          >
+            Sync Changes
           </button>
           <button
             type="button"
