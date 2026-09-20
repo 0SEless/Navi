@@ -69,4 +69,12 @@ describe('StudioWorkspace', () => {
     expect(container.textContent).toContain('ConfirmOverlay')
     expect(container.textContent).toContain('Road Recovery')
   })
+
+  it('lets the status header grow to contain multi-row conflict recovery controls', () => {
+    const { getByText } = render(<StudioWorkspace mapId="test-campus" />)
+    const header = getByText('NAVI STUDIO').parentElement
+
+    expect(header).toHaveStyle({ minHeight: '32px' })
+    expect(header).not.toHaveStyle({ height: '32px' })
+  })
 })

@@ -39,10 +39,12 @@ must be labeled as authentication failures.
 3. Server-equals-local with a stale marker adopts the server revision without POSTing.
 4. Genuine divergence and retry failure leave local data preserved and conflict visible.
 5. HTTP authentication failures show the sign-in-again message, while Road Recovery remains unchanged.
+6. Multi-row conflict recovery controls remain visually contained in the Studio header at the reported production viewport; the map pane must begin below them instead of painting over them.
 
 ## Known Pitfalls
 
 - Do not remove the conflict gate from normal autosave.
 - Do not force overwrite or add a new endpoint.
 - Preserve the existing server fingerprint and CAS revision boundaries.
+- A control being present in the accessibility tree is insufficient: verify its bounding box is inside the header and visually unobscured.
 - Focused Vitest workers and Graphify may require the documented Windows elevated path.

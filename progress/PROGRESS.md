@@ -2766,3 +2766,11 @@
 - **Verification:** Focused sync/store/UI matrix passed 9 files / 58 tests; focused ESLint returned zero findings; `git diff --check` exited 0. The normal production build completed all 41 pages with the existing `.env.production.local` loaded process-only. No Vercel setting or environment value was changed.
 - **Graph:** Required elevated `graphify update .` completed: 11,916 nodes / 26,272 edges / 565 communities; visualization was skipped automatically because the graph exceeds the 5,000-node limit.
 - **Next:** Commit only the scoped recovery files and workflow records, push `release/navi-auth-fix-2026-09-19`, verify the exact commit reaches a READY production deployment and alias, then perform the non-destructive live visibility check.
+
+## 2026-09-20 15:01 +08:00 — Conflict recovery responsive follow-up
+
+- **Production reproduction:** On the owner's authenticated `/studio/map-map-1-repe/edit` tab, all four recovery buttons were present in the DOM, but their live boxes occupied y=84.8–101.3 while the fixed header ended at y=80 and the map pane began at y=80. The map visually covered the controls exactly as shown in the supplied screenshot.
+- **T5 RED:** The growable-header regression failed because the Studio header had a fixed `height: 32px` and no `minHeight` contract.
+- **T5 fix:** The header now uses `minHeight: 32px`, `boxSizing: border-box`, and contained 6px vertical padding. Normal status keeps the compact minimum; conflict status grows the header and moves the map pane below the complete recovery action group. Road Recovery and all sync/store behavior are unchanged.
+- **Verification:** Focused recovery/UI matrix passed 9 files / 59 tests; the new regression file is ESLint-clean; `git diff --check` passed; the production build compiled and generated all 41 pages. Whole-file StudioWorkspace lint still reports the documented pre-existing publish-effect finding at line 196.
+- **Next:** Update Graphify, commit and push the bounded follow-up, deploy the exact commit, then remeasure live header/action/map containment at the reported viewport before claiming the blocker fixed.

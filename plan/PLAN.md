@@ -322,3 +322,11 @@ Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
 - **Error risk:** Including unrelated files, claiming an unproven deployment, or mutating production map data during smoke.
 - **Preventing:** Use the isolated clean worktree, inspect the staged diff/tree, verify deployment commit, and keep live checks read-only unless the safe owner smoke is explicitly executable.
 - **Acceptance check:** Focused tests and build exit 0; commit/tree recorded; release push succeeds; deployment is READY; live `Re-sync` visibility is verified.
+
+## T5 — Keep recovery controls inside the responsive Studio header
+
+- **Description:** Reproduce the owner's screenshot dimensions, prove the recovery controls are painted below the fixed header, and let the header grow to contain the complete multi-row status block.
+- **Files to touch:** `src/components/studio/StudioWorkspace.tsx`, `src/components/studio/__tests__/StudioWorkspace.test.tsx`, `spec/SPEC.md`, `plan/PLAN.md`, `progress/PROGRESS.md`, `errors/ERRORS.md`.
+- **Error risk:** Moving or hiding Road Recovery, shrinking the map without need, or asserting only DOM presence while the actions remain visually covered.
+- **Preventing:** Add a failing growable-header regression, keep the 32px normal state as a minimum, then measure the deployed header/action/map bounding boxes at the reported viewport.
+- **Acceptance check:** The focused test fails against the fixed-height header, passes after the minimal style change, and production shows every recovery action within the header above the map pane.

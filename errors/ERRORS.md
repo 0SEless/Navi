@@ -2433,3 +2433,17 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Re-run the exact incremental update with the established elevated execution boundary.
 - **Prevention**: Use the approved elevated Graphify path after source changes when the first sandboxed update reports access denied.
 - **Related tasks**: Production Studio conflict recovery T4
+
+## 2026-09-20: Recovery controls were painted underneath the Studio map pane
+- **Error**: The deployed conflict banner exposed `Re-sync` in the DOM/accessibility tree, but the owner's screenshot showed only the warning text; all four recovery controls were visually absent.
+- **Cause**: `SaveStatus` becomes a 76px multi-row block during conflict, while `StudioWorkspace` hard-fixed its header to 32px. Live measurements placed the buttons at y=84.8–101.3, below the header bottom at y=80, where the following overflow-hidden map pane painted over them.
+- **Fix**: Replace the header's fixed height with a 32px minimum and contained vertical padding so flex layout expands the header and moves the map pane below the complete recovery block.
+- **Prevention**: For responsive controls, verify visual bounding-box containment at the reported viewport; DOM presence and accessibility visibility alone do not prove a control can be seen or clicked.
+- **Related tasks**: Production Studio conflict recovery T5
+
+## 2026-09-20: StudioWorkspace whole-file lint has a pre-existing effect finding
+- **Error**: Scoped ESLint on `StudioWorkspace.tsx` reports `react-hooks/set-state-in-effect` at line 196.
+- **Cause**: An existing publish-state effect synchronously opens validation dialogs; the finding predates and is unrelated to the header height change.
+- **Fix**: Keep this blocker scoped: lint the new regression file, run the focused test matrix and production build, and do not refactor publish behavior as part of the recovery-visibility fix.
+- **Prevention**: Distinguish changed-line regressions from legacy whole-file findings and record the baseline instead of expanding a one-blocker production patch.
+- **Related tasks**: Production Studio conflict recovery T5
