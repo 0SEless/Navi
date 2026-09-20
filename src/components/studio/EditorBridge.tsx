@@ -167,6 +167,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       const graph = useGraphStore.getState().graph
       new GraphAdapter(graph, context.transformer).sync(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
+      // Phase 3B: every committed document change is made durable locally right
+      // away — no network, no marker advance. Server autosave remains separate.
+      useGraphStore.getState().persistLocalDraft()
 
       // Undo can remove the currently selected Building through an inverse
       // command without going through the normal canvas selection path. Clear
@@ -189,9 +192,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     return () => unsubscribe()
   }, [context])
 
-  // Save on tab close / navigation away — fires even if autosave debounce hasn't
-  // elapsed. Uses synchronous localStorage write (via graphStore.save()) so data
-  // survives browser close. The async Supabase sync runs in the background.
+  // Phase 3B — unload/visibility now ensure ONLY the committed LOCAL draft is
+  // durable. No normal server synchronization is started from teardown paths.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
@@ -200,9 +202,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
           const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
           ga.sync(ctx.document)
         }
-        void useGraphStore.getState().save().catch((error: unknown) => {
-          console.warn('EditorBridge visibility persistence failed:', error)
-        })
+        useGraphStore.getState().persistLocalDraft()
       }
     }
     const handleBeforeUnload = () => {
@@ -211,9 +211,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
         ga.sync(ctx.document)
       }
-      void useGraphStore.getState().save().catch((error: unknown) => {
-        console.warn('EditorBridge unload persistence failed:', error)
-      })
+      useGraphStore.getState().persistLocalDraft()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('beforeunload', handleBeforeUnload)

@@ -75,6 +75,12 @@ interface GraphState {
   setCurrentMapId: (mapId: string | null) => void
   load: () => void
   save: (options?: { trigger?: SaveTrigger }) => Promise<void>
+  /**
+   * Phase 3B — local draft persistence: make the latest committed graph durable
+   * on this device WITHOUT any server interaction. Never writes the sync
+   * marker, never enqueues a save, never contacts /api/graph.
+   */
+  persistLocalDraft: () => void
   reset: () => void
 
   syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
@@ -720,6 +726,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const json = get().graph.toJSON()
     localStorage.setItem(key, JSON.stringify(json))
     await get().syncToSupabase({ trigger: options?.trigger })
+  },
+
+  persistLocalDraft: () => {
+    if (typeof window === 'undefined') return
+    const mapId = get().currentMapId
+    const key = mapId ? storageKey(mapId) : STORAGE_KEY
+    try {
+      // Local-only: the sync marker is intentionally NOT advanced here; the
+      // cache may legitimately be newer than the acknowledged server state.
+      localStorage.setItem(key, JSON.stringify(get().graph.toJSON()))
+    } catch {
+      // Best effort: draft persistence must never throw into lifecycle handlers.
+    }
   },
 
   reset: () => {
