@@ -58,6 +58,8 @@ async function loadFresh(): Promise<void> {
   await vi.waitFor(() => {
     expect(useGraphStore.getState().currentMapId).toBe(MAP_ID)
   })
+  // P0.14: model the real lifecycle — the fixture's campus is fully hydrated.
+  useGraphStore.getState().completeCampusHydration()
 }
 
 describe('graph store stale-local conflict handling', () => {

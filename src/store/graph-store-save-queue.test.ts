@@ -250,6 +250,8 @@ describe('graph store per-campus save serialization and revision contract', () =
 
     await useGraphStore.getState().fetchFromSupabase(MAP_ID)
     expect(readMarker().serverTimestamp).toBe('R0')
+    // P0.14: model the real lifecycle — the fixture's campus is fully hydrated.
+    useGraphStore.getState().completeCampusHydration()
 
     setClientGraph('First real edit')
     await useGraphStore.getState().save()

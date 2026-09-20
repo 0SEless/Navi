@@ -41,6 +41,9 @@ interface GraphState {
   pendingAuthoredMutations: AuthoredMutationIntent[]
   recordAuthoredMutation: (kind: AuthoredMutationIntent['kind'], buildingId?: string | null, floor?: number | null) => void
   clearAuthoredMutations: (ackedSeq: number) => void
+  /** P0.14 — real runtime readiness lifecycle (shared by runtime and fixtures). */
+  beginCampusHydration: () => void
+  completeCampusHydration: () => void
 
   addNode: (node: NavNode) => void
   removeNode: (id: string) => void
@@ -372,6 +375,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set((state) => ({ pendingAuthoredMutations: intentsIncludedInSave(state.pendingAuthoredMutations, ackedSeq) }))
   },
 
+  beginCampusHydration: () => set({ campusReady: false }),
+  completeCampusHydration: () => set({ campusReady: true }),
+
   addNode: (node) => {
     const n = node as { buildingId?: string | null; floor?: number | null; type?: string }
     get().recordAuthoredMutation(n.type === 'room_door' ? 'door' : n.buildingId ? 'route' : 'outdoor', n.buildingId ?? null, n.floor ?? null)
@@ -585,6 +591,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
     authoredIntentSeq = 0
+    // P0.14: not ready while an authoritative campus load is in flight.
+    get().beginCampusHydration()
     const key = storageKey(mapId)
     const raw = localStorage.getItem(key)
     let graph = new Graph()
@@ -632,7 +640,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
-      set({ currentMapId: mapId, pendingAuthoredMutations: [] })
+      set({ currentMapId: mapId, pendingAuthoredMutations: [], campusReady: false })
     } else {
       set({ currentMapId: mapId })
     }
@@ -768,6 +776,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // P0.12: baseline unknown while an authoritative fetch is in flight.
     lastAcknowledgedCollections = null
     authoredIntentSeq = 0
+    // P0.14: not ready until the fetched graph is reconciled by the editor.
+    get().beginCampusHydration()
     set({ syncStatus: 'syncing' })
     try {
       const url = effectiveMapId ? `/api/graph?campus_id=${encodeURIComponent(effectiveMapId)}` : `/api/graph`
@@ -843,7 +853,9 @@ export function __resetGraphSaveQueuesForTests(): void {
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
-  useGraphStore.setState({ pendingAuthoredMutations: [] })
+  // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
+  // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
+  useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
 }
 
 function getCampusSaveQueue(mapId: string): CampusSaveQueue {

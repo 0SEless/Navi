@@ -145,8 +145,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored
-    // persistence may proceed.
-    useGraphStore.setState({ campusReady: true })
+    // persistence may proceed (P0.14: shared lifecycle action).
+    useGraphStore.getState().completeCampusHydration()
   }, [context])
 
   // The editor document is authoritative, but the Studio map still has a

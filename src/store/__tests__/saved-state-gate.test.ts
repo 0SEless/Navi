@@ -56,6 +56,8 @@ async function seedAcknowledgedSync(): Promise<void> {
 function reloadFromMarker(): void {
   useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
   useGraphStore.getState().loadMapData(MAP_ID)
+  // P0.14: model the real lifecycle — the fixture's campus is fully hydrated.
+  useGraphStore.getState().completeCampusHydration()
 }
 
 describe('graph store false-saved gate', () => {
