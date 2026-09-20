@@ -110,10 +110,27 @@ function newMutationId(): string {
  */
 const SYNC_RETRY_DELAYS = [1000, 3000]
 
+const AUTH_REQUIRED_MESSAGE = 'Saving failed: authentication required. Sign in again to continue.'
+
+function isAuthenticationFailureStatus(status: number): boolean {
+  return status === 401 || status === 403
+}
+
+function isAuthenticationFailureMessage(message: string): boolean {
+  return message === AUTH_REQUIRED_MESSAGE
+}
+
 let onlineResyncBound = false
+
+/** Monotonic identity for one mounted campus editing session, including A → B → A. */
+let campusSessionGeneration = 0
 
 /** P0.11 — monotonic sequence for authored mutation intents. */
 let authoredIntentSeq = 0
+
+function isActiveCampusSession(mapId: string, generation: number): boolean {
+  return campusSessionGeneration === generation && useGraphStore.getState().currentMapId === mapId
+}
 
 /**
  * P0.11 — last server-acknowledged canonical collections (guard baseline).
@@ -239,14 +256,21 @@ function graphFingerprint(snapshot: unknown): string {
   return snapshotFingerprint(stableStringify(json))
 }
 
-async function fetchServerSnapshot(mapId: string): Promise<(GraphSnapshot & { updatedAt?: string }) | null> {
+async function fetchServerSnapshot(
+  mapId: string,
+  options?: { surfaceAuthenticationFailure?: boolean },
+): Promise<(GraphSnapshot & { updatedAt?: string }) | null> {
   try {
     const res = await fetch(`/api/graph?campus_id=${encodeURIComponent(mapId)}`, { credentials: 'include' })
+    if (options?.surfaceAuthenticationFailure && isAuthenticationFailureStatus(res.status)) {
+      throw new Error(AUTH_REQUIRED_MESSAGE)
+    }
     if (!res.ok) return null
     const data = (await res.json()) as GraphSnapshot & { updatedAt?: string }
     if (!data || !Array.isArray(data.nodes)) return null
     return data
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && isAuthenticationFailureMessage(error.message)) throw error
     return null
   }
 }
@@ -593,6 +617,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   loadMapData: (mapId: string) => {
     if (typeof window === 'undefined') return
+    campusSessionGeneration += 1
     // P0.12: a campus load begins — the acknowledged baseline is unknown until
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
@@ -646,6 +671,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
+      campusSessionGeneration += 1
       set({ currentMapId: mapId, pendingAuthoredMutations: [], campusReady: false })
     } else {
       set({ currentMapId: mapId })
@@ -668,6 +694,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const mapId = get().currentMapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     localStorage.removeItem(key)
+    campusSessionGeneration += 1
     set({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
   },
 
@@ -780,19 +807,46 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
     if (!mapId) return
-    if (get().syncStatus !== 'conflict') return
+    if (get().syncStatus !== 'conflict' && get().syncStatus !== 'error') return
+    const sessionGeneration = campusSessionGeneration
 
-    const acknowledged = readSyncMarker(mapId)?.snapshotFingerprint ?? null
-    const data = await fetchServerSnapshot(mapId)
+    const marker = readSyncMarker(mapId)
+    const acknowledged = marker?.snapshotFingerprint ?? null
+    let data: (GraphSnapshot & { updatedAt?: string }) | null
+    try {
+      data = await fetchServerSnapshot(mapId, { surfaceAuthenticationFailure: true })
+    } catch (error) {
+      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      const message = error instanceof Error ? error.message : AUTH_REQUIRED_MESSAGE
+      set({ syncStatus: 'error', syncError: message })
+      throw error
+    }
+    if (!isActiveCampusSession(mapId, sessionGeneration)) return
     if (!data) {
       const message = 'Could not reach the server. Your local work is preserved; try again.'
       set({ syncStatus: 'error', syncError: message })
       throw new Error(message)
     }
 
+    const serverFingerprint = graphFingerprint(data)
+    const localFingerprint = graphFingerprint(get().graph.toJSON())
+
+    // Missed acknowledgement (CASE A): the server already contains exactly
+    // the preserved local graph. Adopt only its authoritative revision; a
+    // second POST would be redundant and could create a false conflict.
+    if (serverFingerprint === localFingerprint) {
+      writeSyncMarker(mapId, localFingerprint, new Date().toISOString(), data.updatedAt ?? null)
+      lastAcknowledgedCollections = collectionsOf(data)
+      const pending = get().pendingAuthoredMutations
+      const acknowledgedSeq = pending.length > 0 ? Math.max(...pending.map((intent) => intent.seq)) : 0
+      if (acknowledgedSeq > 0) get().clearAuthoredMutations(acknowledgedSeq)
+      set({ syncStatus: 'synced', syncError: null })
+      return
+    }
+
     // Genuine divergence (CASE C): the server moved beyond the acknowledged
     // base. Never overwrite; keep the local work and the conflict state.
-    if (acknowledged !== null && graphFingerprint(data) !== acknowledged) {
+    if (acknowledged === null || serverFingerprint !== acknowledged) {
       const message = 'Server and local changes differ. Your local work is preserved.'
       set({ syncStatus: 'conflict', syncError: message })
       throw new Error(message)
@@ -801,12 +855,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // Server is still at the acknowledged base (CASE B): retry the preserved
     // local work through the normal guarded save queue with the latest
     // expected revision. Clear conflict only after an authoritative ack.
+    writeSyncMarker(
+      mapId,
+      acknowledged,
+      marker?.syncedAt ?? new Date().toISOString(),
+      data.updatedAt ?? marker?.serverTimestamp ?? null,
+    )
     set({ syncStatus: 'idle', syncError: null })
     try {
       await enqueueCampusSave(mapId, false, 'manual')
     } catch (error) {
+      if (!isActiveCampusSession(mapId, sessionGeneration)) return
       const message = error instanceof Error ? error.message : 'Sync failed'
-      set({ syncStatus: 'conflict', syncError: message })
+      set({ syncStatus: isAuthenticationFailureMessage(message) ? 'error' : 'conflict', syncError: message })
       throw error
     }
   },
@@ -894,6 +955,7 @@ export function __resetGraphSaveQueuesForTests(): void {
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
+  campusSessionGeneration = 0
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
   useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
@@ -968,13 +1030,14 @@ function rejectQueuedSaves(
 }
 
 async function performSyncToSupabase(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
+  const sessionGeneration = campusSessionGeneration
   const unresolvedConflict =
     useGraphStore.getState().syncStatus === 'conflict' ? useGraphStore.getState().syncError : null
   if (unresolvedConflict) {
     console.warn('[graph-store] syncToSupabase blocked while a server conflict is unresolved:', unresolvedConflict)
     throw new Error(unresolvedConflict)
   }
-  if (useGraphStore.getState().currentMapId !== mapId) {
+  if (!isActiveCampusSession(mapId, sessionGeneration)) {
     // The editor moved to another map while this save was queued; the graph
     // for `mapId` is no longer the active one. Its local cache is intact.
     console.warn(`[graph-store] syncToSupabase skipped: map "${mapId}" is no longer active`)
@@ -1039,6 +1102,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
 
   for (let attempt = 0; ; attempt++) {
+    if (!isActiveCampusSession(mapId, sessionGeneration)) return
     try {
       const res = await fetch('/api/graph', {
         method: 'POST',
@@ -1046,7 +1110,9 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         credentials: 'include',
         body,
       })
+      if (!isActiveCampusSession(mapId, sessionGeneration)) return
       if (!res.ok) {
+        if (isAuthenticationFailureStatus(res.status)) throw new Error(AUTH_REQUIRED_MESSAGE)
         const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
         const msg = errBody.error ?? `HTTP ${res.status}`
         if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
@@ -1057,6 +1123,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       }
       const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
       const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult.updatedAt ?? null)
+      if (!isActiveCampusSession(mapId, sessionGeneration)) return
       if (!acknowledgedRevision) {
         // No authoritative revision means the next save would claim a stale
         // expectedServerUpdatedAt. Never report synchronized in that state.
@@ -1078,6 +1145,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       useGraphStore.setState({ syncStatus: 'synced', syncError: null })
       return
     } catch (e) {
+      if (!isActiveCampusSession(mapId, sessionGeneration)) return
       const msg = e instanceof Error ? e.message : 'Sync failed'
       if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
         await sleep(SYNC_RETRY_DELAYS[attempt])

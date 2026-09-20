@@ -67,5 +67,6 @@ describe('StudioWorkspace', () => {
     expect(container.textContent).toContain('ExplorerPanel')
     expect(container.textContent).not.toContain('PropertiesPanel')
     expect(container.textContent).toContain('ConfirmOverlay')
+    expect(container.textContent).toContain('Road Recovery')
   })
 })

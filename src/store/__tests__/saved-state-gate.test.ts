@@ -124,6 +124,40 @@ describe('graph store false-saved gate', () => {
     expect(deriveFloorHeaderStatus('error', 'saved')).toBe('error')
   })
 
+  it('an A → B → A switch during legacy revision readback cannot relabel or clear the new A session', async () => {
+    let releaseReadback!: (response: Response) => void
+    const readback = new Promise<Response>((resolve) => { releaseReadback = resolve })
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (isPost(init)) return jsonResponse({ success: true })
+      return readback
+    }))
+
+    setClientGraph('Old A edit')
+    const oldSave = useGraphStore.getState().save()
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+
+    useGraphStore.getState().setCurrentMapId('map-b')
+    useGraphStore.setState({ graph: makeGraph('Map B'), syncStatus: 'idle', syncError: null })
+    useGraphStore.getState().setCurrentMapId(MAP_ID)
+    useGraphStore.setState({
+      graph: makeGraph('Reopened A edit'),
+      syncStatus: 'idle',
+      syncError: null,
+      pendingAuthoredMutations: [],
+      campusReady: true,
+    })
+    useGraphStore.getState().recordAuthoredMutation('building', 'reopened-building', null)
+    releaseReadback(jsonResponse({ error: 'read failed' }, 500))
+
+    await oldSave
+
+    expect(useGraphStore.getState().currentMapId).toBe(MAP_ID)
+    expect(useGraphStore.getState().syncStatus).toBe('idle')
+    expect(useGraphStore.getState().syncError).toBeNull()
+    expect(useGraphStore.getState().pendingAuthoredMutations).toHaveLength(1)
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Reopened A edit')
+  })
+
   it('case 7: a transport failure can never show Saved', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.useFakeTimers()

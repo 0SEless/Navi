@@ -6,7 +6,7 @@ import { useGraphStore, __resetGraphSaveQueuesForTests } from '../graph-store'
 /**
  * Refresh-during-save recovery (focused).
  * CASE A: server committed but ack missed -> auto-heal on reload.
- * CASE B: local work ahead of acknowledged base, server unchanged -> "Sync Changes" retry succeeds.
+ * CASE B: local work ahead of acknowledged base, server unchanged -> "Re-sync" retry succeeds.
  * CASE C: genuine divergence -> never overwrite; local work preserved.
  * No-edit reload -> no POST.
  */
@@ -34,17 +34,23 @@ interface Harness {
   fetchMock: ReturnType<typeof vi.fn>
   posted: string[]
   setServer: (name: string, updatedAt: string) => void
-  setPostStatus: (status: number) => void
+  setPostFailure: (status: number, error?: string) => void
+  setPostSuccess: () => void
 }
 
 function harness(): Harness {
-  const state = { server: makeGraph('Base Hall').toJSON() as unknown as Record<string, unknown>, updatedAt: 'R1', postStatus: 200 }
+  const state = {
+    server: makeGraph('Base Hall').toJSON() as unknown as Record<string, unknown>,
+    updatedAt: 'R1',
+    postStatus: 200,
+    postError: 'server exploded',
+  }
   const posted: string[] = []
   let postCount = 0
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     if ((init?.method ?? 'GET') === 'POST') {
       posted.push(String(init?.body ?? ''))
-      if (state.postStatus !== 200) return jsonResponse({ error: 'server exploded' }, state.postStatus)
+      if (state.postStatus !== 200) return jsonResponse({ error: state.postError }, state.postStatus)
       postCount += 1
       return jsonResponse({ success: true, updatedAt: 'R' + postCount })
     }
@@ -55,12 +61,16 @@ function harness(): Harness {
     fetchMock,
     posted,
     setServer: (name, updatedAt) => { state.server = makeGraph(name).toJSON() as unknown as Record<string, unknown>; state.updatedAt = updatedAt },
-    setPostStatus: (status) => { state.postStatus = status },
+    setPostFailure: (status, error = 'server exploded') => {
+      state.postStatus = status
+      state.postError = error
+    },
+    setPostSuccess: () => { state.postStatus = 200 },
   }
 }
 
 /** Seed an acknowledged base via a real save (marker = base fingerprint @ R1). */
-async function seedAcknowledged(h: Harness): Promise<void> {
+async function seedAcknowledged(): Promise<void> {
   useGraphStore.setState({ graph: makeGraph('Base Hall'), currentMapId: MAP_ID, syncStatus: 'idle', syncError: null })
   await useGraphStore.getState().save()
   expect(useGraphStore.getState().syncStatus).toBe('synced')
@@ -84,7 +94,7 @@ describe('refresh-during-save recovery', () => {
 
   it('CASE A — server committed but ack was missed: reload auto-heals to synced', async () => {
     const h = harness()
-    await seedAcknowledged(h)
+    await seedAcknowledged()
     h.setServer('Edited Hall', 'R2') // server DID receive the edit
     refreshWithEditedCache()
 
@@ -93,10 +103,34 @@ describe('refresh-during-save recovery', () => {
     expect(h.posted).toHaveLength(1) // only the seed save; auto-heal performs no new POST
   })
 
-  it('CASE B — local work ahead of acknowledged base: Sync Changes retries and succeeds', async () => {
+  it('CASE A2 — Re-sync auto-heals a stale marker when server and local graphs already match', async () => {
     const h = harness()
-    await seedAcknowledged(h)
+    await seedAcknowledged()
+    h.setServer('Edited Hall', 'R2')
+    localStorage.setItem(CACHE_KEY, JSON.stringify(makeGraph('Edited Hall').toJSON()))
+    useGraphStore.setState({
+      graph: makeGraph('Edited Hall'),
+      currentMapId: MAP_ID,
+      syncStatus: 'conflict',
+      syncError: 'stale acknowledgement',
+    })
+    useGraphStore.getState().recordAuthoredMutation('building', 'building-1', null)
+    expect(useGraphStore.getState().pendingAuthoredMutations).toHaveLength(1)
+
+    await useGraphStore.getState().syncLocalChanges()
+
+    expect(h.posted).toHaveLength(1)
+    expect(readMarker().serverTimestamp).toBe('R2')
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().pendingAuthoredMutations).toHaveLength(0)
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
+  })
+
+  it('CASE B — local work ahead of acknowledged base: Re-sync retries and succeeds', async () => {
+    const h = harness()
+    await seedAcknowledged()
     // Server is still at the acknowledged base (save never landed).
+    h.setServer('Base Hall', 'R7')
     refreshWithEditedCache()
     await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
     useGraphStore.getState().completeCampusHydration()
@@ -104,7 +138,7 @@ describe('refresh-during-save recovery', () => {
     await useGraphStore.getState().syncLocalChanges()
     expect(h.posted).toHaveLength(2)
     const retryBody = JSON.parse(h.posted[1])
-    expect(retryBody.expectedServerUpdatedAt).toBe('R1')
+    expect(retryBody.expectedServerUpdatedAt).toBe('R7')
     expect(useGraphStore.getState().syncStatus).toBe('synced')
     expect(readMarker().serverTimestamp).toBe('R2')
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
@@ -112,7 +146,7 @@ describe('refresh-during-save recovery', () => {
 
   it('CASE C — genuine divergence: no overwrite, local work preserved, conflict kept', async () => {
     const h = harness()
-    await seedAcknowledged(h)
+    await seedAcknowledged()
     h.setServer('Other Writer Hall', 'R9') // third-party divergence
     refreshWithEditedCache()
     await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
@@ -126,20 +160,91 @@ describe('refresh-during-save recovery', () => {
 
   it('failed retry preserves local work and restores the conflict state', async () => {
     const h = harness()
-    await seedAcknowledged(h)
+    await seedAcknowledged()
     refreshWithEditedCache()
     await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
     useGraphStore.getState().completeCampusHydration()
-    h.setPostStatus(500)
+    h.setPostFailure(500)
 
     await expect(useGraphStore.getState().syncLocalChanges()).rejects.toThrow(/exploded/i)
     expect(useGraphStore.getState().syncStatus).toBe('conflict')
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
   })
 
+  it('an A → B → A switch during authentication preflight cannot change the new A session or clear its intents', async () => {
+    const h = harness()
+    await seedAcknowledged()
+    useGraphStore.setState({
+      graph: makeGraph('Edited Hall'),
+      currentMapId: MAP_ID,
+      syncStatus: 'conflict',
+      syncError: 'stale acknowledgement',
+    })
+
+    let resolveGet!: (response: Response) => void
+    const deferredGet = new Promise<Response>((resolve) => { resolveGet = resolve })
+    vi.stubGlobal('fetch', vi.fn(() => deferredGet))
+    const recovery = useGraphStore.getState().syncLocalChanges()
+
+    useGraphStore.getState().setCurrentMapId('next-map')
+    const nextMap = makeGraph('Next Map Hall')
+    nextMap.campusId = 'next-map'
+    useGraphStore.setState({
+      graph: nextMap,
+      currentMapId: 'next-map',
+      syncStatus: 'idle',
+      syncError: null,
+      pendingAuthoredMutations: [],
+    })
+    useGraphStore.getState().setCurrentMapId(MAP_ID)
+    const reopenedMap = makeGraph('Reopened A Hall')
+    useGraphStore.setState({
+      graph: reopenedMap,
+      syncStatus: 'idle',
+      syncError: null,
+      pendingAuthoredMutations: [],
+      campusReady: true,
+    })
+    useGraphStore.getState().recordAuthoredMutation('building', 'reopened-building', null)
+    resolveGet(jsonResponse({ error: 'Unauthorized' }, 401))
+
+    await recovery
+
+    expect(useGraphStore.getState().currentMapId).toBe(MAP_ID)
+    expect(useGraphStore.getState().syncStatus).toBe('idle')
+    expect(useGraphStore.getState().syncError).toBeNull()
+    expect(useGraphStore.getState().pendingAuthoredMutations).toHaveLength(1)
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Reopened A Hall')
+    expect(h.posted).toHaveLength(1)
+  })
+
+  it('authentication failure is labeled specifically and is not restored as a revision conflict', async () => {
+    const h = harness()
+    await seedAcknowledged()
+    refreshWithEditedCache()
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
+    useGraphStore.getState().completeCampusHydration()
+    h.setPostFailure(401, 'Unauthorized')
+
+    await expect(useGraphStore.getState().syncLocalChanges()).rejects.toThrow(
+      'Saving failed: authentication required. Sign in again to continue.'
+    )
+    expect(useGraphStore.getState().syncStatus).toBe('error')
+    expect(useGraphStore.getState().syncError).toBe(
+      'Saving failed: authentication required. Sign in again to continue.'
+    )
+    expect(useGraphStore.getState().syncError).not.toMatch(/server unreachable|server changed/i)
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
+
+    h.setPostSuccess()
+    await useGraphStore.getState().syncLocalChanges()
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(h.posted).toHaveLength(3)
+  })
+
   it('no-edit reload performs no POST and stays synced', async () => {
     const h = harness()
-    await seedAcknowledged(h)
+    await seedAcknowledged()
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
     useGraphStore.getState().loadMapData(MAP_ID)
 

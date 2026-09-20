@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
     syncError: '',
     adoptServerSnapshot: vi.fn().mockResolvedValue(undefined),
     reSync: vi.fn().mockResolvedValue(undefined),
+    syncLocalChanges: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -52,10 +53,20 @@ describe('SaveStatus conflict recovery', () => {
       )
     ).toBeInTheDocument()
     expect(getByRole('button', { name: 'Review conflict' })).toBeInTheDocument()
+    expect(getByRole('button', { name: 'Re-sync' })).toBeInTheDocument()
     expect(getByRole('button', { name: 'Load server version' })).toBeInTheDocument()
     expect(getByRole('button', { name: 'Advanced recovery' })).toBeInTheDocument()
     expect(queryByText(RAW_SYNC_ERROR)).not.toBeInTheDocument()
     expect(queryByRole('button', { name: 'Force overwrite' })).not.toBeInTheDocument()
+  })
+
+  it('routes the visible Re-sync action to the safe local-change recovery path', () => {
+    const { getByRole } = render(<SaveStatus />)
+
+    fireEvent.click(getByRole('button', { name: 'Re-sync' }))
+
+    expect(state.graph.syncLocalChanges).toHaveBeenCalledTimes(1)
+    expect(state.graph.reSync).not.toHaveBeenCalled()
   })
 
   it('reveals the raw diagnostic and force overwrite only inside advanced recovery', () => {

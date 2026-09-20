@@ -71,7 +71,7 @@ export function SaveStatus() {
             onClick={() => runRecoveryAction(syncLocalChanges)}
             title="Retry syncing your preserved local changes using the latest server revision"
           >
-            Sync Changes
+            Re-sync
           </button>
           <button
             type="button"

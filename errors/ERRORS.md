@@ -2397,3 +2397,39 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: No live data was changed. Validate the completed patch locally against a disposable authenticated fixture; leave deployment, migration application, and live data repair as explicit rollout work.
 - **Prevention**: Inspect production read-only before rollout, deploy code and migration deliberately, and diagnose/repair live referential data without overwriting an unsynced browser snapshot.
 - **Related tasks**: Floor Editor Stabilization T7, production verification
+
+## 2026-09-20: Focused sync baseline Vitest worker blocked by sandbox
+- **Error**: The first focused conflict/recovery baseline run failed while loading `vitest.config.ts` with `Error: spawn EPERM`.
+- **Cause**: The managed Windows sandbox blocked Vite/Vitest child-process startup before any test was collected.
+- **Fix**: Re-run the identical focused command with the approved elevated process permission; do not change application code or test expectations for this environment error.
+- **Prevention**: Classify config-load `spawn EPERM` separately from test failures and use the established elevated Vitest runner on Windows.
+- **Recurrence**: The final post-review sandbox run hit the same config-load error; the unchanged elevated matrix then passed 58/58.
+- **Related tasks**: Production Studio conflict recovery T1, T2, T4
+
+## 2026-09-20: Nested worktree confused Next/Turbopack project-root inference
+- **Error**: The first `npm run build` selected the parent checkout's `package-lock.json` and Turbopack panicked with `Expected process result to be a module` while processing middleware.
+- **Cause**: The isolated worktree was placed under the parent checkout's ignored `node_modules`, so Next detected nested lockfiles and inferred the wrong workspace root.
+- **Fix**: Move the same Git worktree to the system temporary directory, link the existing dependency directory there, and rerun the unchanged normal production build.
+- **Prevention**: Do not place a Next.js worktree beneath another checkout's `node_modules`; isolate it outside every project root before running Turbopack.
+- **Related tasks**: Production Studio conflict recovery T4
+
+## 2026-09-20: Turbopack rejected an external dependency junction
+- **Error**: The second `npm run build` used the correct project root but Turbopack stopped with `Symlink [project]/node_modules is invalid, it points out of the filesystem root`.
+- **Cause**: The temporary worktree reused the primary checkout's dependencies through a Windows junction outside the Turbopack filesystem root.
+- **Fix**: Remove only the verified junction (leaving its target untouched), install the exact lockfile dependencies inside the isolated worktree, and rerun the normal build.
+- **Prevention**: Use a worktree-local dependency installation for Turbopack production builds; shared external junctions are acceptable for Vitest but not for this build pipeline.
+- **Related tasks**: Production Studio conflict recovery T4
+
+## 2026-09-20: Clean production build lacked the existing local Supabase env file
+- **Error**: The third `npm run build` compiled successfully but failed prerendering `/demo/navigate` because `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` were unset.
+- **Cause**: The clean temp worktree intentionally excludes ignored `.env.production.local`; the primary checkout already has the normal local production env file.
+- **Fix**: Load the existing file into the single build process without printing, copying, committing, or persistently changing any environment value, then rerun the unchanged build.
+- **Prevention**: Clean worktree builds must explicitly inherit the checkout's existing ignored build environment without persisting secrets or modifying Vercel settings.
+- **Related tasks**: Production Studio conflict recovery T4
+
+## 2026-09-20: Sync-fix Graphify incremental rebuild denied in sandbox
+- **Error**: `graphify update .` detected code-only changes but its rebuild worker failed with `[WinError 5] Access is denied`.
+- **Cause**: The managed Windows sandbox denied the child-process/file access Graphify needs for incremental extraction.
+- **Fix**: Re-run the exact incremental update with the established elevated execution boundary.
+- **Prevention**: Use the approved elevated Graphify path after source changes when the first sandboxed update reports access denied.
+- **Related tasks**: Production Studio conflict recovery T4

@@ -286,3 +286,39 @@ T1 ──► T2 ──► T3 ──► T5 ──► RC1 Manual Test ──► T4
 ```
 
 Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
+
+---
+
+# 2026-09-20 — Production Studio conflict recovery action
+
+## T1 — Trace the production-rendered banner and recovery path
+
+- **Description:** Prove the exact banner owner, Studio render path, action wiring, autosave conflict gate, and live production state.
+- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md` only.
+- **Error risk:** Stale deployment evidence or an alternate banner assumption.
+- **Preventing:** Use the exact warning text, release commit, authenticated live DOM, and store call chain as evidence.
+- **Acceptance check:** One root-cause hypothesis is supported end to end before implementation.
+
+## T2 — Add failing focused tests
+
+- **Description:** Cover the visible `Re-sync` action plus missed-ack and auth-specific recovery behavior.
+- **Files to touch:** `src/components/studio/__tests__/SaveStatus.test.tsx`, `src/components/studio/__tests__/StudioWorkspace.test.tsx`, `src/store/__tests__/refresh-recovery.test.ts`, `src/store/__tests__/saved-state-gate.test.ts`.
+- **Error risk:** Tests that assert mocks instead of user-visible/store outcomes.
+- **Preventing:** Render the real `SaveStatus`, exercise the real store, and mock only `/api/graph`.
+- **Acceptance check:** New assertions fail against commit `567ef2b` for the intended missing behavior.
+
+## T3 — Implement the minimal recovery correction
+
+- **Description:** Rename the exact banner action to `Re-sync`; auto-heal server-equals-local; preserve conflict on divergence/failure; propagate auth-specific errors.
+- **Files to touch:** `src/components/studio/SaveStatus.tsx`, `src/store/graph-store.ts`.
+- **Error risk:** Unsafe overwrite, duplicate POST, lost local graph, or bypassed queue/CAS.
+- **Preventing:** Reuse `fetchServerSnapshot`, `enqueueCampusSave`, fingerprint checks, marker writes, and the existing conflict gate.
+- **Acceptance check:** Focused tests A–G pass and Road Recovery source is untouched.
+
+## T4 — Verify, log, commit, push, deploy
+
+- **Description:** Run focused suites and production build; update graph/logs; commit only scoped files; push the release branch; verify READY deployment and live banner.
+- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, graph outputs required by `graphify update .`, plus T2/T3 files.
+- **Error risk:** Including unrelated files, claiming an unproven deployment, or mutating production map data during smoke.
+- **Preventing:** Use the isolated clean worktree, inspect the staged diff/tree, verify deployment commit, and keep live checks read-only unless the safe owner smoke is explicitly executable.
+- **Acceptance check:** Focused tests and build exit 0; commit/tree recorded; release push succeeds; deployment is READY; live `Re-sync` visibility is verified.
