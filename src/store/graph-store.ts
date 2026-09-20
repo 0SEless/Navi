@@ -255,6 +255,31 @@ function isServerSnapshotEmpty(data: GraphSnapshot): boolean {
   return (data.buildings?.length ?? 0) === 0 && (data.nodes?.length ?? 0) === 0
 }
 
+/**
+ * Per-campus supersession epoch: bumped whenever the authoritative base is
+ * replaced (server adoption/load). In-flight saves that started under an older
+ * epoch must not stamp their acknowledgement onto the new base.
+ */
+const campusEpoch = new Map<string, number>()
+const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
+const bumpCampusEpoch = (mapId: string): void => {
+  campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
+}
+
+/**
+ * Drop queued (not yet running) saves for a campus whose authoritative base has
+ * been replaced. Waiters are rejected with a descriptive reason so callers can
+ * surface the truth instead of silently re-persisting a discarded graph.
+ */
+function invalidateQueuedCampusSaves(mapId: string, reason: string): void {
+  const queue = campusSaveQueues.get(mapId)
+  if (!queue) return
+  const pending = queue.waiters.splice(0)
+  queue.hasPending = false
+  queue.pendingForce = false
+  for (const waiter of pending) waiter.reject(new Error(reason))
+}
+
 /** Replace the active graph with a server snapshot and record the synced marker. */
 function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedAt?: string }): void {
   const graph = Graph.fromJSON(data)
@@ -267,7 +292,12 @@ function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedA
   }
   writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
   lastAcknowledgedCollections = collectionsOf(snapshot)
-  useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null })
+  // Adopting the authoritative snapshot DISCARDS local edits: their pending
+  // intents and any queued saves must not resurrect the discarded graph.
+  authoredIntentSeq = 0
+  bumpCampusEpoch(mapId)
+  invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
+  useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null, pendingAuthoredMutations: [] })
 }
 
 /**
@@ -852,6 +882,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         writeSyncMarker(effectiveMapId, graphFingerprint(data), data.updatedAt, data.updatedAt)
       }
       lastAcknowledgedCollections = collectionsOf(data)
+      // A fresh authoritative load replaces any retained local edits: discard
+      // their intents and queued saves so they cannot resurrect after load.
+      if (effectiveMapId) {
+        authoredIntentSeq = 0
+        bumpCampusEpoch(effectiveMapId)
+        invalidateQueuedCampusSaves(effectiveMapId, 'Superseded by authoritative server load')
+      }
+      useGraphStore.setState({ pendingAuthoredMutations: [] })
       set({ graph, currentMapId: effectiveMapId, syncStatus: 'synced' })
     } catch (e) {
       console.warn('[graph-store] fetchFromSupabase failed:', e)
@@ -894,6 +932,7 @@ export function __resetGraphSaveQueuesForTests(): void {
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
+  campusEpoch.clear()
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
   useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
@@ -1037,6 +1076,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   // One logical save attempt keeps one mutation id for every transport retry.
   const mutationId = newMutationId()
   const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
+  const epochAtStart = getCampusEpoch(mapId)
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -1057,6 +1097,12 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       }
       const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
       const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult.updatedAt ?? null)
+      if (getCampusEpoch(mapId) !== epochAtStart) {
+        // The authoritative base was replaced while this save was in flight;
+        // its acknowledgement must not be stamped onto the new base.
+        console.warn('[graph-store] save superseded by authoritative adoption — ack discarded')
+        return
+      }
       if (!acknowledgedRevision) {
         // No authoritative revision means the next save would claim a stale
         // expectedServerUpdatedAt. Never report synchronized in that state.
