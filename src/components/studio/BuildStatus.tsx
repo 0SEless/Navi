@@ -55,10 +55,13 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
         <button onClick={onOpenProblems}
           style={{
             padding: '2px 10px', fontSize: 11, fontWeight: 600,
-            border: '1px solid var(--navi-border)', borderRadius: 4,
-            background: 'transparent', color: 'var(--navi-text)', cursor: 'pointer',
+            border: `1px solid ${problemCount > 0 ? '#d97706' : 'var(--navi-border)'}`,
+            borderRadius: 4,
+            background: 'transparent',
+            color: problemCount > 0 ? '#d97706' : 'var(--navi-text)',
+            cursor: 'pointer',
           }}
-        >View issues{problemCount > 0 ? ` (${problemCount})` : ''}</button>
+        >{problemCount > 0 ? `⚠ View issues (${problemCount})` : 'View issues'}</button>
       )}
       <button onClick={() => publishService?.publish()}
         disabled={!isReady || publishState === 'compiling' || publishState === 'uploading'}

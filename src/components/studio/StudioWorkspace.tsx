@@ -15,6 +15,7 @@ import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 import { resolveValidationFocus } from './validation-focus'
+import { SyncIssueCard, deriveSyncIssue } from './SyncIssueCard'
 import type { ValidationFocus } from '@/types/studio-types'
 
 interface ValidationViewport {
@@ -151,6 +152,10 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
   const [showBypassDialog, setShowBypassDialog] = useState(false)
   const [publishSnap, setPublishSnap] = useState(() => publishStore?.getSnapshot())
   const [validationSnapshot, setValidationSnapshot] = useState(() => validationEngine?.getLastSnapshot())
+  // Sync/conflict issue for the existing View Issues surface (counts alongside validation issues).
+  const syncStatus = useGraphStore((state) => state.syncStatus)
+  const syncError = useGraphStore((state) => state.syncError)
+  const syncIssue = deriveSyncIssue(syncStatus, syncError)
 
   const prevStateRef = useRef<string | undefined>(undefined)
   const previousSelectionIdRef = useRef<string | null>(selection.lastSelected?.id ?? null)
@@ -290,7 +295,7 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
           </button>
           <BuildStatus
             onOpenProblems={() => setShowProblemsPanel((visible) => !visible)}
-            problemCount={validationSnapshot?.statistics.totalIssues ?? 0}
+            problemCount={(validationSnapshot?.statistics.totalIssues ?? 0) + (syncIssue.active ? 1 : 0)}
           />
         </div>
       </div>
@@ -315,6 +320,7 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
             )}
             {showProblemsPanel && (
               <div style={{ height: hasSelection ? '40%' : '100%', borderTop: hasSelection ? '1px solid var(--navi-border)' : undefined, overflow: 'auto', background: '#1e1e1e' }}>
+                <SyncIssueCard />
                 <ProblemsPanel onIssueFocus={handleIssueFocus} canIssueFocus={canIssueFocus} />
               </div>
             )}
