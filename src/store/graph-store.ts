@@ -581,6 +581,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   loadMapData: (mapId: string) => {
     if (typeof window === 'undefined') return
+    // P0.12: a campus load begins — the acknowledged baseline is unknown until
+    // the load settles, so it must not authorize or block saves meanwhile.
+    lastAcknowledgedCollections = null
+    authoredIntentSeq = 0
     const key = storageKey(mapId)
     const raw = localStorage.getItem(key)
     let graph = new Graph()
@@ -623,7 +627,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setCurrentMapId: (mapId: string | null) => {
     const graph = get().graph
     if (mapId) graph.campusId = mapId
-    set({ currentMapId: mapId })
+    if (mapId !== get().currentMapId) {
+      // P0.12 campus isolation: per-campus authored intents and the
+      // acknowledged baseline must never carry across campuses.
+      lastAcknowledgedCollections = null
+      authoredIntentSeq = 0
+      set({ currentMapId: mapId, pendingAuthoredMutations: [] })
+    } else {
+      set({ currentMapId: mapId })
+    }
   },
 
   save: async () => {
@@ -753,6 +765,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   fetchFromSupabase: async (mapId?: string) => {
     if (typeof window === 'undefined') return
     const effectiveMapId = mapId || get().currentMapId
+    // P0.12: baseline unknown while an authoritative fetch is in flight.
+    lastAcknowledgedCollections = null
+    authoredIntentSeq = 0
     set({ syncStatus: 'syncing' })
     try {
       const url = effectiveMapId ? `/api/graph?campus_id=${encodeURIComponent(effectiveMapId)}` : `/api/graph`
@@ -824,6 +839,11 @@ const campusSaveQueues = new Map<string, CampusSaveQueue>()
 /** Test-only: clears queued/running save state between test cases. */
 export function __resetGraphSaveQueuesForTests(): void {
   campusSaveQueues.clear()
+  // P0.12: module-level safety state must not leak across test cases (the
+  // acknowledged baseline and authored sequence are per-campus runtime state).
+  lastAcknowledgedCollections = null
+  authoredIntentSeq = 0
+  useGraphStore.setState({ pendingAuthoredMutations: [] })
 }
 
 function getCampusSaveQueue(mapId: string): CampusSaveQueue {
@@ -929,13 +949,16 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
 
   if (pending.length === 0) {
     // CASE D/E: clean manual save = explicit revision refresh (POST).
-    // CASE E enforcement (block unattributed deltas) is suspended: the frozen
-    // revision-contract suites author graphs through hydration-style helpers
-    // (correctly non-authored boundaries per P0.11 §7) and require those saves
-    // to POST; blocking them here contradicts the frozen contract. Diagnostic
-    // only until the harness decision is made (see P0.11 artifact).
+    // CASE E: a changed candidate with no authored intent is an unattributed
+    // persistent mutation and fails closed — but only once this session has an
+    // acknowledged baseline AND has performed at least one authored edit.
+    // Hydration-only sessions (fixtures, programmatic document writes) keep the
+    // legacy save behavior; their state never claims authored authority.
     if (!candidateUnchanged && lastAcknowledgedCollections !== null && authoredIntentSeq > 0) {
-      console.warn('[graph-store] Unattributed persistent graph delta observed during manual save (P0.11 CASE E enforcement suspended — see artifact)')
+      const message = 'Unattributed persistent graph mutation blocked during manual save'
+      console.warn(`[graph-store] ${message}`)
+      useGraphStore.setState({ syncStatus: 'error', syncError: message })
+      return
     }
   } else {
     // CASE B/C: evaluate every pending intent against the last acknowledged
