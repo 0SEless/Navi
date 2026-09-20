@@ -328,7 +328,7 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
                     fontSize: 11, fontWeight: 600, color: 'var(--navi-primary)', flex: 1,
                   }}>{floorLabel(f)}</span>
                 ) : (
-                  <Link href={`/studio/${mapId}/edit/building/${building.id}/floor/${f}`}
+                  <Link href={`/studio/${encodeURIComponent(mapId)}/edit/building/${encodeURIComponent(building.id)}/floor/${f}`}
                     style={{ fontSize: 11, fontWeight: 500, color: 'var(--navi-text)', flex: 1, textDecoration: 'none' }}>
                     {floorLabel(f)}
                   </Link>
