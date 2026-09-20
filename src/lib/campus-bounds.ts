@@ -19,6 +19,12 @@ const isValidLatLng = (lat: unknown, lng: unknown): boolean =>
   lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
 
 function collectFrom(value: unknown, sink: Array<[number, number]>): void {
+  // Campus boundary (and other collections) may be a top-level array of points
+  // or nested coordinate arrays — traverse them generically.
+  if (Array.isArray(value)) {
+    for (const item of value) collectFrom(item, sink)
+    return
+  }
   if (!isRecord(value)) return
   const lat = value.lat; const lng = value.lng
   if (isValidLatLng(lat, lng)) { sink.push([lat as number, lng as number]); return }
