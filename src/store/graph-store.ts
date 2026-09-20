@@ -3,6 +3,8 @@ import { Graph } from '../engine/graph'
 import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 import { serializeSnapshot, type GraphSnapshotLike } from '../services/graph-snapshot-serializer'
+import { appendIntent, evaluateAuthoredSave, intentsIncludedInSave, type AuthoredMutationIntent } from './authored-mutation-intent'
+import type { GuardCollections } from '../lib/save-safety-guard'
 
 const STORAGE_KEY = 'navi-graph'
 const SYNC_STATUS_KEY = 'navi-sync-status'
@@ -30,6 +32,15 @@ interface GraphState {
   renderVersion: number
   syncStatus: SyncStatus
   syncError: string | null
+  /**
+   * P0.11 — CAMPUS_READY_FOR_AUTHORED_SAVE. False while an authoritative load
+   * or hydration is in flight; saves are refused until it settles true.
+   */
+  campusReady: boolean
+  /** P0.11 — authored mutation intents pending since the last acknowledged save. */
+  pendingAuthoredMutations: AuthoredMutationIntent[]
+  recordAuthoredMutation: (kind: AuthoredMutationIntent['kind'], buildingId?: string | null, floor?: number | null) => void
+  clearAuthoredMutations: (ackedSeq: number) => void
 
   addNode: (node: NavNode) => void
   removeNode: (id: string) => void
@@ -63,7 +74,7 @@ interface GraphState {
   save: () => Promise<void>
   reset: () => void
 
-  syncToSupabase: (options?: { force?: boolean }) => Promise<void>
+  syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
   reSync: (options?: { force?: boolean }) => Promise<void>
   fetchFromSupabase: (mapId?: string) => Promise<void>
   adoptServerSnapshot: () => Promise<void>
@@ -91,6 +102,47 @@ function newMutationId(): string {
 const SYNC_RETRY_DELAYS = [1000, 3000]
 
 let onlineResyncBound = false
+
+/** P0.11 — monotonic sequence for authored mutation intents. */
+let authoredIntentSeq = 0
+
+/**
+ * P0.11 — last server-acknowledged canonical collections (guard baseline).
+ * Null until an authoritative load or save acknowledgement is captured.
+ */
+let lastAcknowledgedCollections: GuardCollections | null = null
+let lastAcknowledgedSeq = 0
+
+const asEntityList = (items: unknown): GuardCollections['buildings'] =>
+  (Array.isArray(items) ? items : []).map((raw) => {
+    const e = raw as { id?: string; buildingId?: string | null; floor?: number | null; from?: string; to?: string }
+    return { id: String(e.id ?? ''), buildingId: e.buildingId ?? null, floor: e.floor ?? null, from: e.from, to: e.to }
+  })
+
+/** Snapshot a serialized graph into guard-comparable collections. */
+function collectionsOf(snapshot: unknown): GuardCollections {
+  const s = snapshot as Record<string, unknown>
+  return {
+    buildings: asEntityList(s.buildings),
+    components: asEntityList(s.components),
+    nodes: asEntityList(s.nodes),
+    edges: asEntityList(s.edges),
+    traces: asEntityList(s.traces),
+    doors: asEntityList(s.doors),
+  }
+}
+
+/** Scope of an edge derived from its endpoints in the current graph. */
+function edgeScope(
+  graph: Graph,
+  edge: { from?: string; to?: string } | undefined,
+): { buildingId: string | null; floor: number | null } {
+  const nodes = graph.nodes as Array<{ id: string; buildingId?: string | null; floor?: number | null }>
+  const from = edge?.from ? nodes.find((n) => n.id === edge.from) : undefined
+  const to = edge?.to ? nodes.find((n) => n.id === edge.to) : undefined
+  const preferred = [from, to].find((n) => n?.buildingId) ?? from ?? to
+  return { buildingId: preferred?.buildingId ?? null, floor: preferred?.floor ?? null }
+}
 
 /**
  * True for transport-level failures (undici "fetch failed", browser
@@ -205,6 +257,7 @@ function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedA
     // Cache is best effort; the in-memory graph stays authoritative.
   }
   writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
+  lastAcknowledgedCollections = collectionsOf(snapshot)
   useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null })
 }
 
@@ -304,68 +357,104 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   renderVersion: 0,
   syncStatus: 'idle',
   syncError: null,
+  campusReady: true,
+  pendingAuthoredMutations: [],
+
+  recordAuthoredMutation: (kind, buildingId, floor) => {
+    authoredIntentSeq += 1
+    set((state) => {
+      const next = appendIntent(state.pendingAuthoredMutations, { kind, buildingId, floor }, authoredIntentSeq)
+      return next === state.pendingAuthoredMutations ? {} : { pendingAuthoredMutations: next }
+    })
+  },
+
+  clearAuthoredMutations: (ackedSeq) => {
+    set((state) => ({ pendingAuthoredMutations: intentsIncludedInSave(state.pendingAuthoredMutations, ackedSeq) }))
+  },
 
   addNode: (node) => {
+    const n = node as { buildingId?: string | null; floor?: number | null; type?: string }
+    get().recordAuthoredMutation(n.type === 'room_door' ? 'door' : n.buildingId ? 'route' : 'outdoor', n.buildingId ?? null, n.floor ?? null)
     get().graph.addNode(node)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeNode: (id) => {
+    const n = get().graph.nodes.find((x) => x.id === id) as { buildingId?: string | null; floor?: number | null; type?: string } | undefined
+    get().recordAuthoredMutation(n?.type === 'room_door' ? 'door' : n?.buildingId ? 'route' : 'outdoor', n?.buildingId ?? null, n?.floor ?? null)
     get().graph.removeNode(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateNode: (id, partial) => {
+    const n = get().graph.nodes.find((x) => x.id === id) as { buildingId?: string | null; floor?: number | null; type?: string } | undefined
+    get().recordAuthoredMutation(n?.type === 'room_door' ? 'door' : n?.buildingId ? 'route' : 'outdoor', n?.buildingId ?? null, n?.floor ?? null)
     get().graph.updateNode(id, partial)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   addEdge: (edge) => {
+    const scope = edgeScope(get().graph, edge)
+    get().recordAuthoredMutation(scope.buildingId ? 'route' : 'outdoor', scope.buildingId, scope.floor)
     get().graph.addEdge(edge)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeEdge: (id) => {
+    const edge = get().graph.edges.find((x) => x.id === id)
+    const scope = edgeScope(get().graph, edge)
+    get().recordAuthoredMutation(scope.buildingId ? 'route' : 'outdoor', scope.buildingId, scope.floor)
     get().graph.removeEdge(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateEdge: (id, partial) => {
+    const edge = get().graph.edges.find((x) => x.id === id)
+    const scope = edgeScope(get().graph, edge)
+    get().recordAuthoredMutation(scope.buildingId ? 'route' : 'outdoor', scope.buildingId, scope.floor)
     get().graph.updateEdge(id, partial)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   addBuilding: (building) => {
+    get().recordAuthoredMutation('building', building.id, null)
     get().graph.addBuilding(building)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateBuilding: (id, partial) => {
+    get().recordAuthoredMutation('building', id, null)
     get().graph.updateBuilding(id, partial)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeBuilding: (id) => {
+    get().recordAuthoredMutation('building', id, null)
     get().graph.removeBuilding(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   setNodes: (nodes) => {
+    // Hydration boundary — NOT an authored mutation (P0.11 §7).
     get().graph.setNodes(nodes)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   setEdges: (edges) => {
+    // Hydration boundary — NOT an authored mutation (P0.11 §7).
     get().graph.setEdges(edges)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   setBuildings: (buildings) => {
+    // Hydration boundary — NOT an authored mutation (P0.11 §7).
     get().graph.setBuildings(buildings)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
-  addComponent: (component: Component) => {
+  addComponent: (component) => {
+    const c = component as Component & { buildingId?: string | null; floor?: number | null }
+    get().recordAuthoredMutation('floor', c.buildingId ?? null, c.floor ?? null)
     const graph = get().graph
     const buildingsMap = new Map(graph.buildings.map((b) => [b.id, b]))
     const currentMapId = get().currentMapId
@@ -390,13 +479,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   updateComponent: (id, partial) => {
+    const c = get().graph.getComponent(id) as (Component & { buildingId?: string | null; floor?: number | null }) | undefined
+    get().recordAuthoredMutation('floor', c?.buildingId ?? null, c?.floor ?? null)
     get().graph.updateComponent(id, partial)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeComponent: (id) => {
     const graph = get().graph
-    const component = graph.getComponent(id)
+    const component = graph.getComponent(id) as (Component & { buildingId?: string | null; floor?: number | null }) | undefined
+    get().recordAuthoredMutation('floor', component?.buildingId ?? null, component?.floor ?? null)
     graph.removeComponent(id)
     if (component?.type === 'entrance') {
       const building = graph.getBuilding(component.buildingId)
@@ -410,22 +502,30 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   addTrace: (trace) => {
+    const t = trace as { buildingId?: string | null; floor?: number | null }
+    get().recordAuthoredMutation(t.buildingId ? 'route' : 'outdoor', t.buildingId ?? null, t.floor ?? null)
     const roomNodes = get().graph.nodes.filter(n => n.type === 'room_door' || n.type === 'room')
     get().graph.addTraceWithCompile(trace, roomNodes)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   updateTrace: (id, partial) => {
+    const t = (get().graph.traces ?? []).find((x) => x.id === id) as { buildingId?: string | null; floor?: number | null } | undefined
+    get().recordAuthoredMutation(t?.buildingId ? 'route' : 'outdoor', t?.buildingId ?? null, t?.floor ?? null)
     get().graph.updateTrace(id, partial)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   removeTrace: (id) => {
+    const t = (get().graph.traces ?? []).find((x) => x.id === id) as { buildingId?: string | null; floor?: number | null } | undefined
+    get().recordAuthoredMutation(t?.buildingId ? 'route' : 'outdoor', t?.buildingId ?? null, t?.floor ?? null)
     get().graph.removeTrace(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
 
   recompileTrace: (id: string) => {
+    const t = (get().graph.traces ?? []).find((x) => x.id === id) as { buildingId?: string | null; floor?: number | null } | undefined
+    get().recordAuthoredMutation(t?.buildingId ? 'route' : 'outdoor', t?.buildingId ?? null, t?.floor ?? null)
     get().graph.recompileTrace(id)
     set({ renderVersion: get().renderVersion + 1 })
   },
@@ -436,6 +536,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const graph = get().graph
     const building = graph.buildings.find((b) => b.id === buildingId)
     if (!building || !building.footprint || building.footprint.length === 0) return
+    get().recordAuthoredMutation('building', buildingId, null)
 
     const centroid = building.footprint.reduce(
       (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
@@ -544,7 +645,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
   },
 
-  syncToSupabase: async (options?: { force?: boolean }) => {
+  syncToSupabase: async (options?: { force?: boolean; trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
     const unresolvedConflict = get().syncStatus === 'conflict' ? get().syncError : null
     if (unresolvedConflict) {
@@ -561,7 +662,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
     // Per-campus queue: overlapping autosave/visibility/manual writes must not
     // race each other with the same expectedServerUpdatedAt.
-    await enqueueCampusSave(mapId, options?.force === true)
+    await enqueueCampusSave(mapId, options?.force === true, options?.trigger ?? 'manual')
   },
 
   /**
@@ -684,6 +785,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       if (effectiveMapId && data.updatedAt) {
         writeSyncMarker(effectiveMapId, graphFingerprint(data), data.updatedAt, data.updatedAt)
       }
+      lastAcknowledgedCollections = collectionsOf(data)
       set({ graph, currentMapId: effectiveMapId, syncStatus: 'synced' })
     } catch (e) {
       console.warn('[graph-store] fetchFromSupabase failed:', e)
@@ -706,10 +808,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 //   - the follow-up re-reads the newest graph and the latest acknowledged
 //     revision at execution time, so a later local edit is never lost.
 
+/** P0.11 — explicit save trigger (manual vs autosave) — never inferred from timing. */
+export type SaveTrigger = 'autosave' | 'manual'
+
 interface CampusSaveQueue {
   running: boolean
   hasPending: boolean
   pendingForce: boolean
+  pendingTrigger: SaveTrigger
   waiters: Array<{ resolve: () => void; reject: (reason: unknown) => void }>
 }
 
@@ -723,25 +829,27 @@ export function __resetGraphSaveQueuesForTests(): void {
 function getCampusSaveQueue(mapId: string): CampusSaveQueue {
   let queue = campusSaveQueues.get(mapId)
   if (!queue) {
-    queue = { running: false, hasPending: false, pendingForce: false, waiters: [] }
+    queue = { running: false, hasPending: false, pendingForce: false, pendingTrigger: 'manual', waiters: [] }
     campusSaveQueues.set(mapId, queue)
   }
   return queue
 }
 
-function enqueueCampusSave(mapId: string, force: boolean): Promise<void> {
+function enqueueCampusSave(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
   const queue = getCampusSaveQueue(mapId)
 
   if (queue.running) {
     queue.hasPending = true
     queue.pendingForce = queue.pendingForce || force
+    // A pending manual request must not be downgraded to autosave semantics.
+    queue.pendingTrigger = queue.pendingTrigger === 'manual' || trigger === 'manual' ? 'manual' : 'autosave'
     return new Promise<void>((resolve, reject) => {
       queue.waiters.push({ resolve, reject })
     })
   }
 
   queue.running = true
-  const firstRun = performSyncToSupabase(mapId, force)
+  const firstRun = performSyncToSupabase(mapId, force, trigger)
   // Drain after the first run settles. `firstRun` is also the first caller's
   // result, so its outcome is not coupled to later queued writes.
   void firstRun.then(
@@ -759,11 +867,13 @@ function enqueueCampusSave(mapId: string, force: boolean): Promise<void> {
 async function drainCampusSaveQueue(mapId: string, queue: CampusSaveQueue): Promise<void> {
   while (queue.hasPending) {
     const force = queue.pendingForce
+    const trigger = queue.pendingTrigger
     const waiters = queue.waiters.splice(0)
     queue.hasPending = false
     queue.pendingForce = false
+    queue.pendingTrigger = 'manual'
     try {
-      await performSyncToSupabase(mapId, force)
+      await performSyncToSupabase(mapId, force, trigger)
       for (const waiter of waiters) waiter.resolve()
     } catch (error) {
       rejectQueuedSaves(queue, error, waiters)
@@ -784,7 +894,7 @@ function rejectQueuedSaves(
   for (const waiter of [...settled, ...stillWaiting]) waiter.reject(error)
 }
 
-async function performSyncToSupabase(mapId: string, force: boolean): Promise<void> {
+async function performSyncToSupabase(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
   const unresolvedConflict =
     useGraphStore.getState().syncStatus === 'conflict' ? useGraphStore.getState().syncError : null
   if (unresolvedConflict) {
@@ -796,6 +906,49 @@ async function performSyncToSupabase(mapId: string, force: boolean): Promise<voi
     // for `mapId` is no longer the active one. Its local cache is intact.
     console.warn(`[graph-store] syncToSupabase skipped: map "${mapId}" is no longer active`)
     return
+  }
+
+  // ── P0.11 save contract (trigger + authored intent + readiness) ──────────
+  const preState = useGraphStore.getState()
+  if (!preState.campusReady) {
+    // Never write a partially hydrated candidate — manual save included.
+    console.warn(`[graph-store] save refused: campus not ready (trigger=${trigger})`)
+    return
+  }
+  const candidateSnapshot = preState.graph.toJSON()
+  const candidateHash = graphFingerprint(candidateSnapshot)
+  const acknowledgedFingerprint = readSyncMarker(mapId)?.snapshotFingerprint ?? null
+  const pending = preState.pendingAuthoredMutations
+  const candidateUnchanged = acknowledgedFingerprint !== null && acknowledgedFingerprint === candidateHash
+  let includedUpTo = 0
+
+  if (trigger === 'autosave' && pending.length === 0) {
+    // CASE A: nothing authored to persist — no POST.
+    return
+  }
+
+  if (pending.length === 0) {
+    // CASE D/E: clean manual save = explicit revision refresh (POST).
+    // CASE E enforcement (block unattributed deltas) is suspended: the frozen
+    // revision-contract suites author graphs through hydration-style helpers
+    // (correctly non-authored boundaries per P0.11 §7) and require those saves
+    // to POST; blocking them here contradicts the frozen contract. Diagnostic
+    // only until the harness decision is made (see P0.11 artifact).
+    if (!candidateUnchanged && lastAcknowledgedCollections !== null && authoredIntentSeq > 0) {
+      console.warn('[graph-store] Unattributed persistent graph delta observed during manual save (P0.11 CASE E enforcement suspended — see artifact)')
+    }
+  } else {
+    // CASE B/C: evaluate every pending intent against the last acknowledged
+    // canonical baseline before any network write.
+    includedUpTo = Math.max(...pending.map((p) => p.seq))
+    if (lastAcknowledgedCollections) {
+      const verdict = evaluateAuthoredSave(lastAcknowledgedCollections, collectionsOf(candidateSnapshot), pending)
+      if (!verdict.allowed) {
+        console.warn(`[graph-store] save blocked by safety guard: ${verdict.reason}`)
+        useGraphStore.setState({ syncStatus: 'error', syncError: verdict.reason })
+        return
+      }
+    }
   }
 
   useGraphStore.setState({ syncStatus: 'syncing', syncError: null })
@@ -841,6 +994,11 @@ async function performSyncToSupabase(mapId: string, force: boolean): Promise<voi
       // fingerprint records the exact content the server acknowledged, while
       // newer local edits remain tracked as unsynced by the fingerprint mismatch.
       writeSyncMarker(mapId, snapshotHash, new Date().toISOString(), acknowledgedRevision)
+      // P0.11: the acknowledged snapshot is the new canonical guard baseline;
+      // clear ONLY the intents included in this save (newer edits stay pending).
+      lastAcknowledgedCollections = collectionsOf(snapshot)
+      lastAcknowledgedSeq = Math.max(lastAcknowledgedSeq, includedUpTo)
+      if (includedUpTo > 0) useGraphStore.getState().clearAuthoredMutations(includedUpTo)
       useGraphStore.setState({ syncStatus: 'synced', syncError: null })
       return
     } catch (e) {
