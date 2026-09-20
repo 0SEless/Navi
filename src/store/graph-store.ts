@@ -120,6 +120,19 @@ function isAuthenticationFailureMessage(message: string): boolean {
   return message === AUTH_REQUIRED_MESSAGE
 }
 
+/**
+ * Per-campus supersession epoch (Phase 3A). Bumped whenever the authoritative
+ * base is replaced (server adoption/load) INSIDE the same campus session.
+ * Session generation protects across sessions; this protects stale work within
+ * the active session. In-flight saves must not stamp an acknowledgement after
+ * their base was superseded.
+ */
+const campusEpoch = new Map<string, number>()
+const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
+const bumpCampusEpoch = (mapId: string): void => {
+  campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
+}
+
 let onlineResyncBound = false
 
 /** Monotonic identity for one mounted campus editing session, including A → B → A. */
@@ -279,6 +292,20 @@ function isServerSnapshotEmpty(data: GraphSnapshot): boolean {
   return (data.buildings?.length ?? 0) === 0 && (data.nodes?.length ?? 0) === 0
 }
 
+/**
+ * Drop queued (not yet running) saves for a campus whose authoritative base has
+ * been replaced. Waiters are rejected with a descriptive reason so callers see
+ * the truth instead of silently re-persisting a discarded graph.
+ */
+function invalidateQueuedCampusSaves(mapId: string, reason: string): void {
+  const queue = campusSaveQueues.get(mapId)
+  if (!queue) return
+  const pending = queue.waiters.splice(0)
+  queue.hasPending = false
+  queue.pendingForce = false
+  for (const waiter of pending) waiter.reject(new Error(reason))
+}
+
 /** Replace the active graph with a server snapshot and record the synced marker. */
 function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedAt?: string }): void {
   const graph = Graph.fromJSON(data)
@@ -291,7 +318,13 @@ function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedA
   }
   writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
   lastAcknowledgedCollections = collectionsOf(snapshot)
-  useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null })
+  // Phase 3A — adopting the authoritative snapshot DISCARDS local edits: their
+  // intents, queued saves, and stale in-flight acknowledgements must not
+  // resurrect the discarded graph.
+  authoredIntentSeq = 0
+  bumpCampusEpoch(mapId)
+  invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
+  useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null, pendingAuthoredMutations: [] })
 }
 
 /**
@@ -956,6 +989,8 @@ export function __resetGraphSaveQueuesForTests(): void {
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
   campusSessionGeneration = 0
+  campusEpoch.clear()
+  campusEpoch.clear()
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
   useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
@@ -1100,6 +1135,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   // One logical save attempt keeps one mutation id for every transport retry.
   const mutationId = newMutationId()
   const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
+  const epochAtStart = getCampusEpoch(mapId)
 
   for (let attempt = 0; ; attempt++) {
     if (!isActiveCampusSession(mapId, sessionGeneration)) return
@@ -1123,6 +1159,12 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       }
       const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
       const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult.updatedAt ?? null)
+      if (getCampusEpoch(mapId) !== epochAtStart) {
+        // Phase 3A: the authoritative base was replaced while this save was in
+        // flight; its acknowledgement must not be stamped onto the new base.
+        console.warn('[graph-store] save superseded by authoritative adoption — ack discarded')
+        return
+      }
       if (!isActiveCampusSession(mapId, sessionGeneration)) return
       if (!acknowledgedRevision) {
         // No authoritative revision means the next save would claim a stale
