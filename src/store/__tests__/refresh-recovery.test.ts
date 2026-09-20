@@ -263,4 +263,66 @@ describe('refresh-during-save recovery', () => {
     await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
     expect(h.posted).toHaveLength(1)
   })
+
+  it('TEST 1/2 — Load server version converges: graph/cache/marker all server, intents cleared, reload stays clean', async () => {
+    const h = harness()
+    await seedAcknowledged(h)
+    h.setServer('Other Writer Hall', 'R9')
+    refreshWithEditedCache()
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
+    useGraphStore.getState().completeCampusHydration()
+    useGraphStore.getState().recordAuthoredMutation('building', 'building-1')
+
+    // Adopt the authoritative server version (Load server version).
+    await useGraphStore.getState().adoptServerSnapshot()
+
+    const state = useGraphStore.getState()
+    expect(state.syncStatus).toBe('synced')
+    expect(state.graph.buildings[0]?.name).toBe('Other Writer Hall')
+    expect(state.pendingAuthoredMutations).toHaveLength(0)
+    // Persisted cache must be the server graph, not the discarded local edit.
+    expect(localStorage.getItem(CACHE_KEY)).toContain('Other Writer Hall')
+    expect(localStorage.getItem(CACHE_KEY)).not.toContain('Edited Hall')
+    // Marker must be the authoritative server revision.
+    expect(readMarker().serverTimestamp).toBe('R9')
+    const postsAfterAdopt = h.posted.length
+
+    // TEST 2 — full reload rehydrates the server graph with no conflict.
+    useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
+    useGraphStore.getState().loadMapData(MAP_ID)
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Other Writer Hall')
+    expect(h.posted).toHaveLength(postsAfterAdopt) // no new POST from reload
+  })
+
+  it('TEST 3 — a queued stale save cannot resurrect the discarded local graph', async () => {
+    const h = harness()
+    await seedAcknowledged(h)
+    h.setServer('Other Writer Hall', 'R9')
+    refreshWithEditedCache()
+    await vi.waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('conflict'))
+    useGraphStore.getState().completeCampusHydration()
+
+    // Hold the first save in flight so a second one is QUEUED, then adopt.
+    let releaseGate: (() => void) | null = null
+    const gate = new Promise<void>((resolve) => { releaseGate = resolve })
+    const originalFetch = globalThis.fetch as ReturnType<typeof vi.fn>
+    originalFetch.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'POST') { await gate; return jsonResponse({ success: true, updatedAt: 'R10' }) }
+      return originalFetch(input as RequestInfo, init)
+    })
+
+    // Clear conflict so saves are allowed, then start save A (gated) + save B (queued).
+    useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+    const saveA = useGraphStore.getState().save()
+    const saveB = useGraphStore.getState().save()
+
+    await useGraphStore.getState().adoptServerSnapshot()
+    releaseGate?.()
+
+    await expect(saveB).rejects.toThrow(/Superseded by authoritative server adoption/i)
+    await saveA.catch(() => {})
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Other Writer Hall')
+    expect(readMarker().serverTimestamp).toBe('R9')
+  })
 })
