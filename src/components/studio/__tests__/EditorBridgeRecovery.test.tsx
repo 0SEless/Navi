@@ -84,7 +84,7 @@ describe('post-recovery reload convergence', () => {
 
   it('updates a mounted EditorBridge document when recovery replaces the graph object', async () => {
     const initialGraph = makeGraph('Before recovery')
-    useGraphStore.setState({ graph: initialGraph, currentMapId: MAP_ID, syncStatus: 'synced', syncError: null })
+    useGraphStore.setState({ graph: initialGraph, currentMapId: MAP_ID, syncStatus: 'checking', syncError: null })
 
     render(
       <EditorBridge>
@@ -108,7 +108,7 @@ describe('post-recovery reload convergence', () => {
 
   it('does not project hydration during teardown, while authored commits still project', async () => {
     const initialGraph = makeGraph('Before recovery')
-    useGraphStore.setState({ graph: initialGraph, currentMapId: MAP_ID, syncStatus: 'synced', syncError: null })
+    useGraphStore.setState({ graph: initialGraph, currentMapId: MAP_ID, syncStatus: 'checking', syncError: null })
     const syncSpy = vi.spyOn(GraphAdapter.prototype, 'sync')
 
     render(
@@ -116,6 +116,7 @@ describe('post-recovery reload convergence', () => {
         <div />
       </EditorBridge>,
     )
+    expect(syncSpy).not.toHaveBeenCalled()
 
     const editorContext = (window as unknown as { __naviContext: EditorContext }).__naviContext
     const authoritativeGraph = makeGraph('After recovery')

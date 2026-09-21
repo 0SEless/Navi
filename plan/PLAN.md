@@ -457,3 +457,11 @@ Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
 - **Errors from ERRORS.md:** The mounted-document stale write-back (T9–T12) and the newly observed hydration-only teardown projection that recreated divergence after `Load server version`.
 - **Preventing:** Track the document version last projected into the graph; treat authoritative replacement as hydration, not an authored revision.
 - **Acceptance check:** A server-adopted graph remains fingerprint-equivalent across no-edit teardown and reload; an authored document commit still projects before teardown; focused regression and build pass.
+
+### T14 — Preserve the authoritative graph during route mount hydration
+
+- **Description:** Do not run the legacy document→graph rebuild on an already authoritative `checking`/`synced` graph before freshness comparison; keep the existing rebuild for `idle` local-ahead or legacy drafts.
+- **Files to touch:** `src/components/studio/EditorBridge.tsx`, `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`, and required progress/error logs.
+- **Errors from ERRORS.md:** Hydration-only teardown projection (T13) and the newly observed authoritative route-mount rebuild that changed the in-memory fingerprint before freshness settled.
+- **Preventing:** Gate only the initial mount rebuild by the existing sync status; do not change autosave timing, conflict policy, or authored commit projection.
+- **Acceptance check:** A canonical cache/server pair stays `synced` through route mount and no-edit reload; draft/legacy `idle` mounts retain their existing rebuild; focused regression and build pass.

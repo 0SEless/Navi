@@ -188,7 +188,15 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   useEffect(() => {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
-    new GraphAdapter(graph, context.transformer).sync(context.document)
+    const syncState = useGraphStore.getState().syncStatus
+    // A `checking`/`synced` graph came from an authoritative cache/server
+    // hydration. Rebuilding it through the document→legacy adapter here can
+    // apply lossy migrations before freshness settles and manufacture a
+    // store-ahead fingerprint on an otherwise clean reload. Local-ahead and
+    // legacy drafts still use the existing rebuild path.
+    if (syncState !== 'checking' && syncState !== 'synced') {
+      new GraphAdapter(graph, context.transformer).sync(context.document)
+    }
     const documentStore = context.services.get('documentStore') as { version?: number } | undefined
     lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))

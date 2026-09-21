@@ -5,3 +5,4 @@
 - [x] T11 Run the convergence matrix and round-trip checks
 - [ ] T12 Verify, log, commit, push, and deploy the convergence fix (in progress)
 - [ ] T13 Guard hydration-only teardown projection (in progress)
+- [ ] T14 Preserve authoritative graph during route mount hydration (in progress)

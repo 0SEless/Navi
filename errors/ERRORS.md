@@ -2495,3 +2495,10 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Track the last document version projected into the legacy graph. Teardown persists the current graph but only runs document→graph projection when the document version advanced through an authored commit.
 - **Prevention**: Test recovery, no-edit unload/reload, and authored-edit unload separately; hydration replacement must never be treated as an authored projection.
 - **Related tasks**: Production Studio post-recovery reload convergence T13
+
+## 2026-09-21: Authoritative route mount rebuilt the graph before freshness settled
+- **Error**: After the teardown guard, a clean production reload still recreated the warning even though the cache and server had been reconciled. The initial route mount had no user edit and no POST.
+- **Cause**: `EditorBridge` unconditionally ran its initial `GraphAdapter.sync(document)` while `loadMapData` had already marked a cached/server snapshot as `checking` (or `synced`). The document→legacy rebuild changed the in-memory graph fingerprint before `checkServerFreshness` compared it with the canonical cache.
+- **Fix**: Skip the initial legacy rebuild for authoritative `checking`/`synced` hydration; retain the rebuild for `idle` local-ahead/legacy drafts.
+- **Prevention**: Treat authoritative graph hydration as a read boundary and test route mount plus freshness settlement, not only teardown and unload.
+- **Related tasks**: Production Studio post-recovery reload convergence T14

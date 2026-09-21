@@ -2842,3 +2842,17 @@
   `git diff --check` passed.
 - **Next:** Update Graphify, commit/push the corrected convergence patch,
   deploy the exact SHA, and repeat the live no-edit reload check.
+
+## 2026-09-21 — Authoritative route-mount hydration guard
+
+- **Second production repro:** After the teardown guard, the clean server-loaded
+  page still diverged on reload with no POST. The first mount rebuilt an already
+  authoritative graph through `GraphAdapter`, changing the in-memory fingerprint
+  before freshness comparison settled.
+- **T14 fix:** Initial `EditorBridge` rebuild now runs only for `idle` local-ahead
+  or legacy drafts; `checking`/`synced` authoritative hydration preserves the
+  graph as loaded. Authored `document.changed` projection remains unchanged.
+- **Verification:** Recovery regression 4/4, focused matrix 18 files / 147
+  tests, and production build (41 pages) all pass.
+- **Next:** Update Graphify, commit/push, deploy the exact SHA, and repeat the
+  production server-load/no-edit-reload check.
