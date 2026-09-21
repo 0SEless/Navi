@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, X, Loader2 } from 'lucide-react'
 import { useEditor, useEditingEngine, genId } from '@navi/editor'
 import type { RoadDisplayMode } from '@navi/core'
@@ -18,6 +18,12 @@ export function ConfirmOverlay() {
   const setActiveBuilding = useStudioStore((s) => s.setActiveBuilding)
   const clearTracePoints = useStudioStore((s) => s.clearTracePoints)
   const [importing, setImporting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const savingRef = useRef(false)
+  const confirmationRef = useRef<typeof pendingConfirm>(null)
+  const buildingIdRef = useRef<string | null>(null)
+  const buildingCommittedRef = useRef(false)
 
   const [traceName, setTraceName] = useState('')
   const [traceType, setTraceType] = useState<'arterial' | 'connector'>('arterial')
@@ -29,75 +35,102 @@ export function ConfirmOverlay() {
   const setRouteWidth = useStudioStore((s) => s.setRouteWidth)
   const clearDrawPoints = useStudioStore((s) => s.clearDrawPoints)
 
+  useEffect(() => {
+    if (confirmationRef.current === pendingConfirm) return
+    confirmationRef.current = pendingConfirm
+    buildingIdRef.current = null
+    buildingCommittedRef.current = false
+    setSaveError(null)
+  }, [pendingConfirm])
+
   if (!pendingConfirm) return null
 
   const handleSave = async () => {
-    if (pendingConfirm.type === 'building' && pendingConfirm.points.length >= 3) {
-      const points = pendingConfirm.points
-      const id = genId('bldg')
-      editEngine.begin({ kind: 'create', entityType: 'building', geometry: points, properties: { name: `Building ${id.slice(-6).toUpperCase()}`, color: '#1C6BEB', height: 15 } })
-      editEngine.doCommit()
-      dispatcher.execute({
-        id: 'building.create',
-        label: 'Create Building',
-        payload: {
-          id,
-          name: `Building ${id.slice(-6).toUpperCase()}`,
-          footprint: { points },
-          floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
-          height: 15,
-          color: '#1C6BEB',
-        },
-      })
-      setActiveBuilding(id)
-      clearDrawPoints()
-      await workflow.save('manual')
-    }
+    if (savingRef.current) return
 
-    if (pendingConfirm.type === 'route' && pendingConfirm.points.length >= 2) {
-      editEngine.begin({ kind: 'create', entityType: 'road', geometry: pendingConfirm.points, properties: { name: traceName, type: traceType, width: routeWidth, color: traceColor, displayMode: traceDisplayMode } })
-      editEngine.doCommit()
-      dispatcher.execute({
-        id: 'road.create',
-        label: 'Create Road',
-        payload: {
-          id: genId('T'),
-          name: traceName || '',
-          points: pendingConfirm.points,
-          type: traceType,
-          width: routeWidth,
-          displayMode: traceDisplayMode,
-          metadata: { color: traceColor },
-          // Fix 1: explicit Connect / Keep Separate decisions are committed
-          // atomically with the road (junction authority + geometry projection).
-          ...(pendingConfirm.connections && pendingConfirm.connections.length > 0
-            ? { connections: pendingConfirm.connections }
-            : {}),
-        },
-      })
-      clearTracePoints()
-      setTraceDisplayMode('visible')
-      await workflow.save('manual')
-    }
+    const confirmation = pendingConfirm
+    savingRef.current = true
+    setSaving(true)
+    setSaveError(null)
 
-    if ((pendingConfirm.type === 'boundary' || pendingConfirm.type === 'set-boundary') && pendingConfirm.points.length >= 3) {
-      dispatcher.execute({
-        id: 'boundary.set',
-        label: 'Set Campus Boundary',
-        payload: { points: pendingConfirm.points },
-      })
-      clearDrawPoints()
-      await workflow.save('manual')
-      showImportToast({ message: 'Campus boundary updated', type: 'success' })
-    }
+    try {
+      if (confirmation.type === 'building' && confirmation.points.length >= 3) {
+        const points = confirmation.points
+        const id = buildingIdRef.current ?? genId('bldg')
+        buildingIdRef.current = id
 
-    if (pendingConfirm.type === 'import-osm' && pendingConfirm.points.length >= 3) {
-      setImporting(true)
-      try {
+        if (!buildingCommittedRef.current) {
+          editEngine.begin({ kind: 'create', entityType: 'building', geometry: points, properties: { name: `Building ${id.slice(-6).toUpperCase()}`, color: '#1C6BEB', height: 15 } })
+          const editResult = editEngine.doCommit()
+          if (editResult && !editResult.committed) {
+            throw new Error('Building footprint validation failed')
+          }
+          const result = dispatcher.execute({
+            id: 'building.create',
+            label: 'Create Building',
+            payload: {
+              id,
+              name: `Building ${id.slice(-6).toUpperCase()}`,
+              footprint: { points },
+              floors: [{ id: genId('flr'), level: 0, label: 'Ground Floor', elevation: 0, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }],
+              height: 15,
+              color: '#1C6BEB',
+            },
+          })
+          if (!result || result.success === false) {
+            throw new Error(result?.error ?? 'Building creation failed')
+          }
+          buildingCommittedRef.current = true
+          setActiveBuilding(id)
+        }
+
+        await workflow.save('manual')
+        clearDrawPoints()
+        clearPendingConfirm()
+      } else if (confirmation.type === 'route' && confirmation.points.length >= 2) {
+        editEngine.begin({ kind: 'create', entityType: 'road', geometry: confirmation.points, properties: { name: traceName, type: traceType, width: routeWidth, color: traceColor, displayMode: traceDisplayMode } })
+        const editResult = editEngine.doCommit()
+        if (editResult && !editResult.committed) throw new Error('Route validation failed')
+        const result = dispatcher.execute({
+          id: 'road.create',
+          label: 'Create Road',
+          payload: {
+            id: genId('T'),
+            name: traceName || '',
+            points: confirmation.points,
+            type: traceType,
+            width: routeWidth,
+            displayMode: traceDisplayMode,
+            metadata: { color: traceColor },
+            // Fix 1: explicit Connect / Keep Separate decisions are committed
+            // atomically with the road (junction authority + geometry projection).
+            ...(confirmation.connections && confirmation.connections.length > 0
+              ? { connections: confirmation.connections }
+              : {}),
+          },
+        })
+        if (!result || result.success === false) throw new Error(result?.error ?? 'Route creation failed')
+        await workflow.save('manual')
+        clearTracePoints()
+        setTraceDisplayMode('visible')
+        clearPendingConfirm()
+      } else if ((confirmation.type === 'boundary' || confirmation.type === 'set-boundary') && confirmation.points.length >= 3) {
+        const result = dispatcher.execute({
+          id: 'boundary.set',
+          label: 'Set Campus Boundary',
+          payload: { points: confirmation.points },
+        })
+        if (!result || result.success === false) throw new Error(result?.error ?? 'Boundary update failed')
+        await workflow.save('manual')
+        clearDrawPoints()
+        clearPendingConfirm()
+        showImportToast({ message: 'Campus boundary updated', type: 'success' })
+      } else if (confirmation.type === 'import-osm' && confirmation.points.length >= 3) {
+        setImporting(true)
         const res = await fetch('/api/osm-buildings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ boundary: pendingConfirm.points }),
+          body: JSON.stringify({ boundary: confirmation.points }),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
@@ -130,43 +163,44 @@ export function ConfirmOverlay() {
           message: created > 0 ? `Imported ${created} buildings from OSM` : 'No buildings found in selected boundary',
           type: 'success',
         })
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error'
-        showImportToast({ message: `Import failed: ${message}`, type: 'error' })
-      } finally {
-        setImporting(false)
+      } else if (confirmation.type === 'area' && confirmation.points.length >= 3) {
+        const id = genId('area')
+        const result = dispatcher.execute({
+          id: 'area.create',
+          label: 'Create Area',
+          payload: {
+            id,
+            name: areaName || `Area ${id.slice(-6).toUpperCase()}`,
+            points: confirmation.points,
+            color: areaColor,
+          },
+        })
+        if (!result || result.success === false) throw new Error(result?.error ?? 'Area creation failed')
+        await workflow.save('manual')
+        clearDrawPoints()
+        clearPendingConfirm()
       }
-      // Keep pending points and the confirmation overlay visible after an
-      // error so the author can retry or cancel without redrawing.
-      return
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setSaveError(message)
+      const prefix = confirmation.type === 'import-osm' ? 'Import failed' : 'Save failed'
+      showImportToast({ message: `${prefix}: ${message}`, type: 'error' })
+    } finally {
+      setImporting(false)
+      savingRef.current = false
+      setSaving(false)
     }
-
-    if (pendingConfirm.type === 'area' && pendingConfirm.points.length >= 3) {
-      const id = genId('area')
-      dispatcher.execute({
-        id: 'area.create',
-        label: 'Create Area',
-        payload: {
-          id,
-          name: areaName || `Area ${id.slice(-6).toUpperCase()}`,
-          points: pendingConfirm.points,
-          color: areaColor,
-        },
-      })
-      clearDrawPoints()
-      await workflow.save('manual')
-    }
-
-    clearPendingConfirm()
   }
 
   const handleCancel = () => {
+    if (savingRef.current) return
     if (pendingConfirm.type === 'route') {
       clearTracePoints()
       setTraceDisplayMode('visible')
     }
     clearDrawPoints()
     clearPendingConfirm()
+    setSaveError(null)
   }
 
   const labels: Record<string, string> = {
@@ -351,16 +385,33 @@ export function ConfirmOverlay() {
         </div>
       )}
 
+      {saveError && (
+        <div
+          role="alert"
+          style={{
+            fontSize: 11,
+            color: '#FCA5A5',
+            background: '#450A0A',
+            padding: '5px 10px',
+            borderRadius: 6,
+            border: '1px solid #991B1B',
+          }}
+        >
+          Save failed: {saveError}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={handleCancel}
+          disabled={saving || importing}
           style={{
             padding: '10px 24px',
             borderRadius: 8,
             border: '1px solid var(--navi-border)',
             background: 'var(--navi-card)',
             color: '#EF4444',
-            cursor: 'pointer',
+            cursor: saving || importing ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
@@ -373,24 +424,24 @@ export function ConfirmOverlay() {
         </button>
         <button
           onClick={handleSave}
-          disabled={importing}
+          disabled={saving || importing}
           style={{
             padding: '10px 24px',
             borderRadius: 8,
             border: 'none',
-            background: importing ? 'var(--navi-border)' : '#10B981',
-            color: importing ? 'var(--navi-text-secondary)' : '#fff',
-            cursor: importing ? 'default' : 'pointer',
+            background: saving || importing ? 'var(--navi-border)' : '#10B981',
+            color: saving || importing ? 'var(--navi-text-secondary)' : '#fff',
+            cursor: saving || importing ? 'default' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             fontSize: 13,
             fontWeight: 600,
-            boxShadow: importing ? 'none' : '0 2px 8px rgba(16,185,129,0.3)',
+            boxShadow: saving || importing ? 'none' : '0 2px 8px rgba(16,185,129,0.3)',
           }}
         >
-          {importing ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
-          {importing ? 'Importing buildings...' : 'Save'}
+          {saving || importing ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={16} />}
+          {importing ? 'Importing buildings...' : saving ? 'Saving...' : 'Save'}
         </button>
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
