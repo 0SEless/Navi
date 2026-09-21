@@ -102,14 +102,26 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   const contextRef = useRef<EditorContext | null>(null)
   const lastProjectedDocumentVersionRef = useRef<number | null>(null)
 
+  // GraphAdapter is a projection step. Capture its document only when the
+  // campus already has a new-format authored snapshot or a real editor change
+  // has advanced the legacy document version; initial legacy hydration remains
+  // Graph-only and therefore cannot trigger an automatic rewrite.
+  const syncDocumentAndCapture = () => {
+    const ctx = contextRef.current
+    if (!ctx) return
+    const state = useGraphStore.getState()
+    const ga = new GraphAdapter(state.graph, ctx.transformer)
+    ga.sync(ctx.document)
+    const nextState = useGraphStore.getState()
+    if (nextState.authoredDocument !== null || ctx.document.version > 0) {
+      nextState.setAuthoredDocument(ctx.document)
+    }
+  }
+
   const persistenceAdapter: PersistenceAdapter = {
     save: () => persistStudioGraph({
       syncDocument: () => {
-        const ctx = contextRef.current
-        if (ctx) {
-          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-          ga.sync(ctx.document)
-        }
+        syncDocumentAndCapture()
       },
       saveGraph: async () => {
         try {
@@ -171,10 +183,16 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
   const [context] = useState(() => {
+    const state = useGraphStore.getState()
+    const authoredDocument = state.authoredDocument
+    const activeCampusId = state.currentMapId ?? state.graph.campusId
     const ctx = createEditorContext(
-      useGraphStore.getState().graph,
+      state.graph,
       persistenceAdapter,
       navCompiler,
+      authoredDocument && authoredDocument.metadata.campusId === activeCampusId
+        ? authoredDocument
+        : undefined,
     )
     return ctx
   })
@@ -199,6 +217,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     }
     const documentStore = context.services.get('documentStore') as { version?: number } | undefined
     lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
+    if (useGraphStore.getState().authoredDocument !== null) {
+      useGraphStore.getState().setAuthoredDocument(context.document)
+    }
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored
@@ -253,6 +274,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       new GraphAdapter(graph, context.transformer).sync(context.document)
       const documentStore = context.services.get('documentStore') as { version?: number } | undefined
       lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
+      useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
       // Phase 3B: every committed document change is made durable locally right
       // away — no network, no marker advance. Server autosave remains separate.

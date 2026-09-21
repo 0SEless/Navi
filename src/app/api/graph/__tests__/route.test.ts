@@ -8,7 +8,7 @@ vi.mock('@supabase/ssr', () => ({
 }))
 
 import { createServerClient } from '@supabase/ssr'
-import { POST } from '../route'
+import { GET, POST } from '../route'
 
 const mockClient = createServerClient as unknown as ReturnType<typeof vi.fn>
 
@@ -79,6 +79,52 @@ describe('POST /api/graph — RPC error handling (regression: empty error object
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
+  })
+
+  it('forwards the authored document companion unchanged to the idempotent RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { success: true, campus_id: 'map-1' }, error: null })
+    mockClient.mockReturnValue({ rpc })
+    const authoredDocument = {
+      schemaVersion: 1,
+      version: 0,
+      metadata: { campusId: 'map-1', name: 'Authored', description: '', lastModified: '', editorVersion: '' },
+      buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
+    }
+    const res = await POST(makePost({ body: { campusId: 'map-1', nodes: [], edges: [], buildings: [], components: [], authoredDocument } }))
+    expect(res.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith('sync_graph_snapshot_idempotent', expect.objectContaining({
+      payload: expect.objectContaining({ authoredDocument }),
+    }))
+  })
+})
+
+describe('GET /api/graph — authored companion compatibility', () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
+    mockClient.mockReset()
+  })
+
+  it('returns raw Graph fields and adds authoredDocument when the column is populated', async () => {
+    const authoredDocument = { metadata: { campusId: 'map-1', name: 'Authored' }, buildings: [], roads: [], panoramas: [], qrCheckpoints: [] }
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        data: { campusId: 'map-1', buildings: [], nodes: [], edges: [], components: [] },
+        authored_document: authoredDocument,
+        updated_at: '2026-09-21T00:00:00.000Z',
+      },
+      error: null,
+    })
+    const eq = vi.fn().mockReturnValue({ maybeSingle })
+    const select = vi.fn().mockReturnValue({ eq })
+    mockClient.mockReturnValue({ from: vi.fn().mockReturnValue({ select }) })
+
+    const res = await GET(new NextRequest('http://localhost:3000/api/graph?campus_id=map-1'))
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual(expect.objectContaining({
+      campusId: 'map-1',
+      authoredDocumentFormatVersion: 1,
+      authoredDocument,
+    }))
   })
 })
 

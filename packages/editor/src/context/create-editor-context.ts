@@ -741,9 +741,15 @@ export function createEditorContext(
   graph: any,
   persistenceAdapter: PersistenceAdapter,
   navCompiler: NavigationCompiler,
+  authoredDocument?: CampusDocument,
 ): EditorContext {
   const transformer = new CoordinateTransformer()
-  for (const b of (graph.buildings ?? [])) {
+  // New-format snapshots hydrate the authored document directly. Register
+  // transforms from that document so GraphAdapter can derive a projection
+  // without ever reconstructing authored state from Graph. Legacy callers keep
+  // the existing Graph-derived registration path.
+  const transformBuildings = authoredDocument?.buildings ?? (graph.buildings ?? [])
+  for (const b of transformBuildings) {
     // Building.footprint may be either LatLng[] (post-sync format) or
     // { points: LatLng[] } (legacy WorldPolygon format). Handle both.
     const rawFootprint: any = b.footprint
@@ -773,7 +779,9 @@ export function createEditorContext(
     }
   }
 
-  const document = createDocument(graph, transformer)
+  const document = authoredDocument
+    ? structuredClone(authoredDocument)
+    : createDocument(graph, transformer)
 
   const registry = new ServiceRegistry()
 

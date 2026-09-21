@@ -39,31 +39,40 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
 function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildingId: string; floor: number }) {
   const contextRef = useRef<EditorContext | null>(null)
 
+  const syncDocumentAndCapture = () => {
+    const ctx = contextRef.current
+    if (!ctx) return
+    const state = useGraphStore.getState()
+    const ga = new GraphAdapter(state.graph, ctx.transformer)
+    ga.sync(ctx.document)
+    const nextState = useGraphStore.getState()
+    if (nextState.authoredDocument !== null || ctx.document.version > 0) {
+      nextState.setAuthoredDocument(ctx.document)
+    }
+  }
+
   const persistenceAdapter: PersistenceAdapter = {
     save: async () => {
-      const ctx = contextRef.current
-      if (ctx) {
-        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-        ga.sync(ctx.document)
-      }
+      syncDocumentAndCapture()
       await useGraphStore.getState().save()
     },
     syncToSupabase: async () => {
-      const ctx = contextRef.current
-      if (ctx) {
-        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-        ga.sync(ctx.document)
-      }
+      syncDocumentAndCapture()
       await useGraphStore.getState().syncToSupabase()
     },
     publish: async () => ({ success: true, version: '1.0.0' }),
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
   const [context] = useState(() => {
+    const state = useGraphStore.getState()
+    const authoredDocument = state.authoredDocument
     const ctx = createEditorContext(
-      useGraphStore.getState().graph,
+      state.graph,
       persistenceAdapter,
       navCompiler,
+      authoredDocument && authoredDocument.metadata.campusId === mapId
+        ? authoredDocument
+        : undefined,
     )
     return ctx
   })
@@ -74,10 +83,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
   // LOCAL draft is made durable here — no server synchronization from teardown.
   useEffect(() => {
     const flushLocalPersistence = () => {
-      const ctx = contextRef.current
-      if (!ctx) return
-      const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-      ga.sync(ctx.document)
+      syncDocumentAndCapture()
       useGraphStore.getState().persistLocalDraft()
     }
     const handleVisibilityChange = () => {
