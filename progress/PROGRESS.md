@@ -2856,3 +2856,14 @@
   tests, and production build (41 pages) all pass.
 - **Next:** Update Graphify, commit/push, deploy the exact SHA, and repeat the
   production server-load/no-edit-reload check.
+
+## 2026-09-21 — Production convergence verification complete
+
+- **Commit/push:** The release branch is clean and local/remote both point to
+  the final convergence commit before this ledger closeout.
+- **Production:** The promoted Vercel deployment serves the final route-mount
+  guard. After explicit server-version recovery, a no-edit reload showed
+  `All changes saved`; the production log window contained GETs only and no
+  stale save POST.
+- **Workflow:** T12, T13, and T14 are complete. No autosave interval, gesture
+  wiring, routing, POI, or Road Recovery behavior changed.
