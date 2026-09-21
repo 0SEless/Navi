@@ -39,6 +39,7 @@ function makeContext(document: ReturnType<typeof createDocument>, documentStore:
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
 })
 
@@ -103,5 +104,36 @@ describe('post-recovery reload convergence', () => {
     const persisted = Graph.fromJSON(authoritativeGraph.toJSON())
     new GraphAdapter(persisted, editorContext.transformer).sync(editorContext.document)
     expect(persisted.buildings[0]?.name).toBe('After recovery')
+  })
+
+  it('does not project hydration during teardown, while authored commits still project', async () => {
+    const initialGraph = makeGraph('Before recovery')
+    useGraphStore.setState({ graph: initialGraph, currentMapId: MAP_ID, syncStatus: 'synced', syncError: null })
+    const syncSpy = vi.spyOn(GraphAdapter.prototype, 'sync')
+
+    render(
+      <EditorBridge>
+        <div />
+      </EditorBridge>,
+    )
+
+    const editorContext = (window as unknown as { __naviContext: EditorContext }).__naviContext
+    const authoritativeGraph = makeGraph('After recovery')
+    act(() => {
+      useGraphStore.setState({ graph: authoritativeGraph, currentMapId: MAP_ID, syncStatus: 'synced', syncError: null })
+    })
+    await waitFor(() => expect(editorContext.document.buildings[0]?.name).toBe('After recovery'))
+
+    syncSpy.mockClear()
+    act(() => window.dispatchEvent(new Event('beforeunload')))
+    expect(syncSpy).not.toHaveBeenCalled()
+
+    const documentStore = editorContext.services.get('documentStore') as DocumentStore
+    const eventBus = editorContext.services.get('eventBus') as DocumentEventBus
+    act(() => {
+      documentStore.commit()
+      eventBus.emit('document.changed', { version: documentStore.version })
+    })
+    expect(syncSpy).toHaveBeenCalledOnce()
   })
 })

@@ -2488,3 +2488,10 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Keep future convergence patches scoped and distinguish
   changed-line findings from the known bridge baseline.
 - **Related tasks**: Production Studio post-recovery reload convergence T10–T12
+
+## 2026-09-21: Hydration-only teardown projection recreated divergence after recovery
+- **Error**: Production `Load server version` changed the banner to `All changes saved`, but the next no-edit reload recreated the red server/local divergence warning. The reload made GET requests only; no stale POST was emitted.
+- **Cause**: The unload/visibility handlers always called `GraphAdapter.sync(document)`. Even after authoritative graph→document replacement, that document had not received an authored commit; projecting it back during teardown could canonicalize or migrate production data before the cache was persisted, so the next server-vs-cache fingerprint comparison diverged.
+- **Fix**: Track the last document version projected into the legacy graph. Teardown persists the current graph but only runs document→graph projection when the document version advanced through an authored commit.
+- **Prevention**: Test recovery, no-edit unload/reload, and authored-edit unload separately; hydration replacement must never be treated as an authored projection.
+- **Related tasks**: Production Studio post-recovery reload convergence T13

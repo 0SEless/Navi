@@ -2825,3 +2825,20 @@
   build compiled successfully and generated all 41 pages.
 - **Next:** Update Graphify, inspect the scoped diff, commit/push the exact
   convergence fix, deploy it to production, and verify READY/alias/HTTP 200/SHA.
+
+## 2026-09-21 — Hydration-only teardown projection guard
+
+- **Production repro:** After `Load server version` visibly changed the banner
+  to `All changes saved`, a no-edit browser reload recreated the red warning.
+  Vercel logs showed only GET `/api/graph` and GET `/api/campus-maps` during
+  that reload, proving the remaining write was local teardown projection.
+- **T13 fix:** `EditorBridge` now tracks the document version last projected
+  into the legacy graph. Visibility/beforeunload still persists the graph
+  cache, but skips document→graph projection when the document was only
+  authoritatively hydrated; authored document commits continue to project.
+- **Verification:** Recovery regression passed 4/4; focused matrix passed 18
+  files / 147 tests; production build compiled and generated all 41 pages;
+  targeted lint retains only the documented pre-existing bridge findings;
+  `git diff --check` passed.
+- **Next:** Update Graphify, commit/push the corrected convergence patch,
+  deploy the exact SHA, and repeat the live no-edit reload check.

@@ -47,6 +47,25 @@ export function reconcileAuthoritativeDocument(context: EditorContext, graph: Gr
 }
 
 /**
+ * Project the document into the legacy graph only after an authored document
+ * version has advanced. Authoritative hydration replaces the document in
+ * place without a revision, so running the lossy document→graph adapter from
+ * visibility/beforeunload would rewrite a clean server snapshot before reload.
+ */
+function projectDocumentIfAuthored(
+  context: EditorContext,
+  lastProjectedVersionRef: { current: number | null },
+): void {
+  const documentStore = context.services.get('documentStore') as { version?: number } | undefined
+  const version = typeof documentStore?.version === 'number' ? documentStore.version : null
+  if (version !== null && lastProjectedVersionRef.current === version) return
+
+  const ga = new GraphAdapter(useGraphStore.getState().graph, context.transformer)
+  ga.sync(context.document)
+  if (version !== null) lastProjectedVersionRef.current = version
+}
+
+/**
  * ── Selection Ownership Invariant ─────────────────────────────────
  *
  * `SelectionManager` (inside the editor package) is the single
@@ -81,6 +100,7 @@ export function reconcileAuthoritativeDocument(context: EditorContext, graph: Gr
 
 export function EditorBridge({ children }: { children: ReactNode }) {
   const contextRef = useRef<EditorContext | null>(null)
+  const lastProjectedDocumentVersionRef = useRef<number | null>(null)
 
   const persistenceAdapter: PersistenceAdapter = {
     save: () => persistStudioGraph({
@@ -169,6 +189,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
     new GraphAdapter(graph, context.transformer).sync(context.document)
+    const documentStore = context.services.get('documentStore') as { version?: number } | undefined
+    lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored
@@ -186,6 +208,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       observedGraph = state.graph
       if (state.currentMapId !== context.document.metadata.campusId) return
       reconcileAuthoritativeDocument(context, state.graph)
+      const documentStore = context.services.get('documentStore') as { version?: number } | undefined
+      lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
     })
     return unsubscribe
   }, [context])
@@ -207,6 +231,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const unsubscribe = eventBus.on('document.changed', () => {
       const graph = useGraphStore.getState().graph
       new GraphAdapter(graph, context.transformer).sync(context.document)
+      const documentStore = context.services.get('documentStore') as { version?: number } | undefined
+      lastProjectedDocumentVersionRef.current = typeof documentStore?.version === 'number' ? documentStore.version : null
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
       // Phase 3B: every committed document change is made durable locally right
       // away — no network, no marker advance. Server autosave remains separate.
@@ -239,19 +265,13 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         const ctx = contextRef.current
-        if (ctx) {
-          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-          ga.sync(ctx.document)
-        }
+        if (ctx) projectDocumentIfAuthored(ctx, lastProjectedDocumentVersionRef)
         useGraphStore.getState().persistLocalDraft()
       }
     }
     const handleBeforeUnload = () => {
       const ctx = contextRef.current
-      if (ctx) {
-        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-        ga.sync(ctx.document)
-      }
+      if (ctx) projectDocumentIfAuthored(ctx, lastProjectedDocumentVersionRef)
       useGraphStore.getState().persistLocalDraft()
     }
     document.addEventListener('visibilitychange', handleVisibility)

@@ -449,3 +449,11 @@ Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
   push or mutate production map data during verification.
 - **Acceptance check:** Exact commit is deployed and the final report uses the
   requested convergence fields.
+
+### T13 — Guard hydration-only teardown projection
+
+- **Description:** Prevent visibility/beforeunload from projecting an authoritative hydration document back into the legacy graph unless the document has advanced through an authored commit.
+- **Files to touch:** `src/components/studio/EditorBridge.tsx`, `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`, and required progress/error logs.
+- **Errors from ERRORS.md:** The mounted-document stale write-back (T9–T12) and the newly observed hydration-only teardown projection that recreated divergence after `Load server version`.
+- **Preventing:** Track the document version last projected into the graph; treat authoritative replacement as hydration, not an authored revision.
+- **Acceptance check:** A server-adopted graph remains fingerprint-equivalent across no-edit teardown and reload; an authored document commit still projects before teardown; focused regression and build pass.
