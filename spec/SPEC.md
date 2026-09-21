@@ -48,3 +48,42 @@ must be labeled as authentication failures.
 - Preserve the existing server fingerprint and CAS revision boundaries.
 - A control being present in the accessibility tree is insufficient: verify its bounding box is inside the header and visually unobscured.
 - Focused Vitest workers and Graphify may require the documented Windows elevated path.
+
+---
+
+# Production Studio harmonious autosave drag lifecycle
+
+## What
+
+Connect the existing transient-interaction autosave gate to the real Studio
+building-drag and authored-vertex-drag lifecycles. Only an actual moved gesture
+may block the existing 5-second and 30-second autosave windows; selection,
+hover, idle edit mode, and click-without-move must leave the gate inactive.
+Every commit, cancel, pointer cancellation, tool-switch cleanup, error cleanup,
+and component teardown must release the gate.
+
+## Success Criteria
+
+1. A genuinely moved building drag sets the existing autosave transient signal
+   active until commit/cancel, while a selected-but-idle building leaves it
+   false.
+2. A genuinely moved authored vertex drag has the same active/inactive
+   lifecycle; click-without-move does not activate it.
+3. Active building/vertex gestures suppress both existing autosave timers, and
+   commit resumes the existing guarded debounce without changing sync timing or
+   recovery behavior.
+4. Escape, pointer cancellation, tool-switch cleanup, thrown cleanup where
+   relevant, and unmount while dragging all release the signal.
+5. Focused handler, autosave, recovery, session/supersession, and road/area
+   regression tests pass; the production build remains green.
+
+## Known Pitfalls
+
+- Do not gate autosave from tool selection alone; only unfinished gestures may
+  set the signal active.
+- Do not alter the autosave service, sync queue, conflict/recovery UI, Road
+  Recovery, routing, POIs, or Floor Editor architecture outside the gesture
+  call sites.
+- Keep the Windows Vitest `spawn EPERM`, nested-worktree root, external
+  dependency junction, and ignored-env build issues classified as environment
+  setup errors rather than changing source behavior.

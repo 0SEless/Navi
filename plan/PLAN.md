@@ -330,3 +330,57 @@ Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
 - **Error risk:** Moving or hiding Road Recovery, shrinking the map without need, or asserting only DOM presence while the actions remain visually covered.
 - **Preventing:** Add a failing growable-header regression, keep the 32px normal state as a minimum, then measure the deployed header/action/map bounding boxes at the reported viewport.
 - **Acceptance check:** The focused test fails against the fixed-height header, passes after the minimal style change, and production shows every recovery action within the header above the map pane.
+
+## 2026-09-21 — Production Studio harmonious autosave drag lifecycle
+
+### T6 — Add failing real-handler gesture lifecycle tests
+
+- **Description:** Extend the existing Studio `InteractionController` harness
+  to capture the real map handlers and prove building/vertex idle, moved,
+  commit, cancel, pointer-cancel, and teardown transitions of the existing
+  transient autosave signal. Keep Road/Area and autosave timing assertions in
+  the focused matrix.
+- **Files to touch:** `src/components/studio/__tests__/InteractionController.test.tsx`,
+  `src/components/studio/__tests__/useVertexEditor.test.tsx`, and
+  `packages/editor/src/services/__tests__/autosave-transient-gate.test.ts` only
+  if a timing assertion needs to be shared.
+- **Errors from ERRORS.md:** Vitest worker `spawn EPERM` can prevent collection;
+  nested-worktree build-root and env issues are verification setup hazards.
+- **Preventing:** Run the exact focused tests through the approved elevated
+  runner when sandbox collection fails, and assert the real registered
+  handlers rather than a synthetic gate helper.
+- **Acceptance check:** New lifecycle assertions fail before production wiring
+  while existing tests remain unchanged.
+
+### T7 — Wire the existing signal to real building/vertex gestures
+
+- **Description:** In `InteractionController`, activate the existing autosave
+  transient signal on the first non-zero move of an armed building or authored
+  vertex gesture; release it on commit, click/pointer cancellation, Escape,
+  tool-switch cleanup, error-safe cleanup, and unmount. Do not change timing or
+  sync architecture.
+- **Files to touch:** `src/components/studio/InteractionController.tsx`,
+  `src/components/studio/useVertexEditor.ts`.
+- **Errors from ERRORS.md:** Avoid broad source edits while handling the known
+  environment-only Vitest/build failures; preserve the existing map listener
+  cleanup contract.
+- **Preventing:** Keep a single release helper, use `try/finally`-style cleanup
+  at every end path, and treat no-move clicks as inactive.
+- **Acceptance check:** T6 passes, active drags suppress 5s/30s autosave, and
+  post-commit debounce behavior is unchanged.
+
+### T8 — Verify, log, commit, push, and deploy the focused patch
+
+- **Description:** Run the required focused matrix and production build,
+  update progress/errors and Graphify, commit only T6/T7 plus required logs,
+  fetch and push the current release branch normally, deploy the exact pushed
+  SHA to Vercel production, and verify READY/alias/HTTP 200/SHA.
+- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, Graphify
+  outputs required by `graphify update .`, and the T6/T7 files.
+- **Errors from ERRORS.md:** Use the documented elevated commands for Vitest,
+  Graphify, and the clean worktree build environment; do not misclassify these
+  setup failures as regressions.
+- **Preventing:** Inspect the staged diff and remote tip before push; never
+  force-push or mutate production data/configuration.
+- **Acceptance check:** Focused tests/build pass, pushed and deployed SHA match,
+  production responds 200, and the final report contains the requested matrix.

@@ -6,6 +6,9 @@ import { useVertexEditor } from '../useVertexEditor'
 
 const mockUseEditor = vi.hoisted(() => vi.fn())
 const mockUseEditingEngine = vi.hoisted(() => vi.fn())
+const mockAutosave = vi.hoisted(() => ({
+  setTransientInteractionActive: vi.fn(),
+}))
 
 vi.mock('@navi/editor', () => ({
   useEditor: mockUseEditor,
@@ -21,14 +24,30 @@ function createMapDouble() {
   const sources = new Map<string, Source>()
   const layers = new Set<string>()
   const listeners = new Map<string, Set<(event?: any) => void>>()
+  const canvasListeners = new Map<string, Set<(event?: any) => void>>()
 
   function listenersFor(event: string) {
     if (!listeners.has(event)) listeners.set(event, new Set())
     return listeners.get(event)!
   }
 
+  function canvasListenersFor(event: string) {
+    if (!canvasListeners.has(event)) canvasListeners.set(event, new Set())
+    return canvasListeners.get(event)!
+  }
+
+  const canvas = {
+    addEventListener: vi.fn((event: string, handler: (event?: any) => void) => {
+      canvasListenersFor(event).add(handler)
+    }),
+    removeEventListener: vi.fn((event: string, handler: (event?: any) => void) => {
+      canvasListeners.get(event)?.delete(handler)
+    }),
+  }
+
   const map = {
     getSource: vi.fn((id: string) => sources.get(id) ?? null),
+    getCanvas: vi.fn(() => canvas),
     addSource: vi.fn((id: string, definition: { data: GeoJSON.FeatureCollection }) => {
       const source: Source = {
         data: definition.data,
@@ -61,6 +80,10 @@ function createMapDouble() {
     emit(event: string, payload?: any) {
       for (const listener of listenersFor(event)) listener(payload)
     },
+    emitCanvas(event: string, payload?: any) {
+      for (const listener of canvasListenersFor(event)) listener(payload)
+    },
+    canvas,
   }
 }
 
@@ -92,6 +115,7 @@ describe('useVertexEditor', () => {
         get: (id: string) => {
           if (id === 'dispatcher') return { execute: dispatcherExecute }
           if (id === 'workflow') return { save: workflowSave }
+          if (id === 'autosave') return mockAutosave
           return undefined
         },
       },
@@ -107,6 +131,7 @@ describe('useVertexEditor', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    mockAutosave.setTransientInteractionActive.mockClear()
     useStudioStore.setState({
       isVertexEditing: false,
       editTargetType: null,
@@ -164,5 +189,51 @@ describe('useVertexEditor', () => {
       },
     }))
     expect(workflowSave).toHaveBeenCalledWith('manual')
+  })
+
+  it('gates autosave only while a route vertex is actually moving', () => {
+    const harness = createMapDouble()
+    renderHook(() => useVertexEditor(harness.map as any))
+
+    act(() => {
+      useStudioStore.getState().setVertexEditing('trace', road.id)
+    })
+
+    const start = road.polyline.points[0]
+    harness.emit('mousedown', {
+      point: { x: 10, y: 10 },
+      lngLat: start,
+      originalEvent: { button: 0 },
+    })
+    expect(mockAutosave.setTransientInteractionActive).not.toHaveBeenCalledWith(true)
+
+    harness.emit('mousemove', {
+      point: { x: 18, y: 10 },
+      lngLat: { lat: start.lat + 0.00005, lng: start.lng },
+      originalEvent: { button: 0 },
+    })
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(true)
+
+    harness.emit('mouseup')
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+  })
+
+  it('releases the autosave gate when vertex editing is cancelled or unmounted', () => {
+    const harness = createMapDouble()
+    const rendered = renderHook(() => useVertexEditor(harness.map as any))
+    act(() => {
+      useStudioStore.getState().setVertexEditing('trace', road.id)
+    })
+
+    const start = road.polyline.points[0]
+    harness.emit('mousedown', { point: { x: 10, y: 10 }, lngLat: start, originalEvent: { button: 0 } })
+    harness.emit('mousemove', { point: { x: 18, y: 10 }, lngLat: { lat: start.lat + 0.00005, lng: start.lng }, originalEvent: { button: 0 } })
+    harness.emitCanvas('pointercancel')
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+
+    harness.emit('mousedown', { point: { x: 10, y: 10 }, lngLat: start, originalEvent: { button: 0 } })
+    harness.emit('mousemove', { point: { x: 18, y: 10 }, lngLat: { lat: start.lat + 0.00005, lng: start.lng }, originalEvent: { button: 0 } })
+    rendered.unmount()
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
   })
 })

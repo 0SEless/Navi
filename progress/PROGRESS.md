@@ -2774,3 +2774,29 @@
 - **T5 fix:** The header now uses `minHeight: 32px`, `boxSizing: border-box`, and contained 6px vertical padding. Normal status keeps the compact minimum; conflict status grows the header and moves the map pane below the complete recovery action group. Road Recovery and all sync/store behavior are unchanged.
 - **Verification:** Focused recovery/UI matrix passed 9 files / 59 tests; the new regression file is ESLint-clean; `git diff --check` passed; the production build compiled and generated all 41 pages. Whole-file StudioWorkspace lint still reports the documented pre-existing publish-effect finding at line 196.
 - **Next:** Update Graphify, commit and push the bounded follow-up, deploy the exact commit, then remeasure live header/action/map containment at the reported viewport before claiming the blocker fixed.
+
+## 2026-09-21 — Harmonious autosave building/vertex drag lifecycle
+
+- **Scope:** Continued only the requested transient-interaction wiring. The
+  existing autosave/sync service, timing, recovery UI, routing, POIs, and
+  Floor Editor architecture were not changed.
+- **Trace:** The real building/draft-vertex handlers are in
+  `src/components/studio/InteractionController.tsx`; the production selected
+  road-vertex editor is `src/components/studio/useVertexEditor.ts`, mounted by
+  `StudioCanvas`.
+- **Implementation:** Both handlers now activate the existing autosave signal
+  only after the first non-zero pointer move, and release it on commit, click
+  cancellation, Escape, pointer cancellation, tool-switch cleanup, thrown
+  cleanup, and unmount. Vertex click-without-move no longer leaves a stale
+  armed drag or saves unchanged geometry.
+- **Focused verification:** 14 files / 114 tests passed, including autosave
+  timing and Road/Area transient regressions, real building/vertex handlers,
+  local draft/reload recovery, local-ahead recovery, session/supersession,
+  save queue, conflict, and UI recovery suites.
+- **Build:** `npm run build` passed; Next compiled successfully and generated
+  all 41 pages with the existing ignored production env loaded process-only.
+- **Graph:** Final elevated incremental `graphify update .` completed (11,970
+  nodes, 26,369 edges, 564 communities; HTML visualization skipped at the
+  configured node limit).
+- **Next:** Inspect the scoped diff, commit the focused patch, fetch/push the
+  current release branch, deploy the exact SHA, and verify READY/alias/HTTP 200.

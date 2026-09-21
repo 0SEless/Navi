@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import { InteractionController } from '../InteractionController'
+import { LAYER_IDS } from '@navi/editor'
 
 const mockHistoryUndo = vi.hoisted(() => vi.fn())
+const mockAutosave = vi.hoisted(() => ({
+  setTransientInteractionActive: vi.fn(),
+}))
+const mockHistory = vi.hoisted(() => ({ undo: mockHistoryUndo }))
+const mockToolRegistry = vi.hoisted(() => ({
+  activeToolId: 'select',
+  subscribe: vi.fn(() => vi.fn()),
+  undo: mockHistoryUndo,
+}))
 
 let currentTool: string | null = 'select'
 
@@ -12,15 +22,12 @@ vi.mock('../useCurrentTool', () => ({
 
 vi.mock('@navi/editor', async (importOriginal) => {
   const orig = await importOriginal() as Record<string, unknown>
-  const mockToolRegistry = {
-    activeToolId: 'select',
-    subscribe: vi.fn(() => vi.fn()),
-    undo: mockHistoryUndo,
-  }
   return {
     ...orig,
     useEditor: () => ({
-      services: { get: () => mockToolRegistry },
+      services: {
+        get: (id: string) => id === 'autosave' ? mockAutosave : id === 'toolRegistry' ? mockToolRegistry : id === 'history' ? mockHistory : undefined,
+      },
     }),
     genId: (prefix: string) => `${prefix}_test_1`,
   }
@@ -65,6 +72,7 @@ const mockGetStudioState = vi.fn(() => ({
   setPendingConfirm: vi.fn(),
   setAdjustBuilding: vi.fn(),
   setVertexEditing: vi.fn(),
+  setPositionEditTarget: vi.fn(),
   clearTracePoints: vi.fn(),
   clearDrawPoints: vi.fn(),
 }))
@@ -77,7 +85,7 @@ const mockGetGraphState = vi.fn(() => ({
 }))
 
 vi.mock('@/store/graph-store', () => ({
-  useGraphStore: Object.assign(vi.fn(), { getState: vi.fn(), subscribe: vi.fn() }),
+  useGraphStore: Object.assign(vi.fn(), { getState: vi.fn(), setState: vi.fn(), subscribe: vi.fn() }),
 }))
 
 vi.mock('@/store/studio-store', () => ({
@@ -90,12 +98,18 @@ import { useStudioStore } from '@/store/studio-store'
 describe('InteractionController', () => {
   const mockOn = vi.fn()
   const mockOff = vi.fn()
+  const mockCanvas = {
+    style: {},
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }
   const mockMap = {
     on: mockOn,
     off: mockOff,
-    getCanvas: () => ({ style: {} }),
+    getCanvas: () => mockCanvas,
     project: vi.fn(() => ({ x: 0, y: 0 })),
     queryRenderedFeatures: vi.fn(() => []),
+    getLayer: vi.fn(() => null),
     getSource: vi.fn(),
     dragPan: { enable: vi.fn(), disable: vi.fn() },
   } as any
@@ -103,7 +117,9 @@ describe('InteractionController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockHistoryUndo.mockClear()
+    mockAutosave.setTransientInteractionActive.mockClear()
     currentTool = 'select'
+    mockToolRegistry.activeToolId = 'select'
     ;(useGraphStore as any).getState.mockReturnValue(mockGetGraphState())
     ;(useGraphStore as any).subscribe.mockImplementation(mockSubscribeFn)
     ;(useStudioStore as any).getState.mockReturnValue(mockGetStudioState())
@@ -165,5 +181,138 @@ describe('InteractionController', () => {
     clickHandler?.({ point: { x: 12, y: 18 }, lngLat: { lat: 10, lng: 20 } })
 
     expect(onEmptyMapClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the transient gate inactive for a selected-but-idle building', () => {
+    const studioState = mockGetStudioState()
+    const graphState = mockGetGraphState()
+    ;(useStudioStore as any).getState.mockReturnValue({
+      ...studioState,
+      positionEditTarget: { type: 'building', id: 'b1' },
+    })
+    ;(useGraphStore as any).getState.mockReturnValue({
+      ...graphState,
+      graph: {
+        ...graphState.graph,
+        buildings: [{ id: 'b1', footprint: [{ lat: 1, lng: 2 }, { lat: 1, lng: 2.001 }] }],
+      },
+    })
+    mockMap.queryRenderedFeatures.mockReturnValue([
+      { layer: { id: LAYER_IDS.BUILDING_FILL }, properties: { id: 'b1' } },
+    ])
+
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+    const mouseDown = mockOn.mock.calls.find(([event]) => event === 'mousedown')?.[1]
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+
+    expect(mockAutosave.setTransientInteractionActive).not.toHaveBeenCalledWith(true)
+  })
+
+  it('activates and releases the transient gate around a real building drag', () => {
+    const studioState = mockGetStudioState()
+    const graphState = mockGetGraphState()
+    const save = vi.fn(() => Promise.resolve())
+    ;(useStudioStore as any).getState.mockReturnValue({
+      ...studioState,
+      positionEditTarget: { type: 'building', id: 'b1' },
+    })
+    ;(useGraphStore as any).getState.mockReturnValue({
+      ...graphState,
+      save,
+      graph: {
+        ...graphState.graph,
+        buildings: [{ id: 'b1', name: 'Building', footprint: [{ lat: 1, lng: 2 }, { lat: 1, lng: 2.001 }] }],
+      },
+    })
+    mockMap.queryRenderedFeatures.mockReturnValue([
+      { layer: { id: LAYER_IDS.BUILDING_FILL }, properties: { id: 'b1' } },
+    ])
+
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+    const mouseDown = mockOn.mock.calls.find(([event]) => event === 'mousedown')?.[1]
+    const mouseMove = mockOn.mock.calls.find(([event]) => event === 'mousemove')?.[1]
+    const mouseUp = mockOn.mock.calls.find(([event]) => event === 'mouseup')?.[1]
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 4, y: 4 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(true)
+
+    mouseUp?.({ point: { x: 4, y: 4 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+  })
+
+  it('releases the transient gate when a building drag is cancelled', () => {
+    const studioState = mockGetStudioState()
+    const graphState = mockGetGraphState()
+    ;(useStudioStore as any).getState.mockReturnValue({
+      ...studioState,
+      positionEditTarget: { type: 'building', id: 'b1' },
+    })
+    ;(useGraphStore as any).getState.mockReturnValue({
+      ...graphState,
+      graph: {
+        ...graphState.graph,
+        buildings: [{ id: 'b1', footprint: [{ lat: 1, lng: 2 }, { lat: 1, lng: 2.001 }] }],
+      },
+    })
+    mockMap.queryRenderedFeatures.mockReturnValue([
+      { layer: { id: LAYER_IDS.BUILDING_FILL }, properties: { id: 'b1' } },
+    ])
+
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+    const mouseDown = mockOn.mock.calls.find(([event]) => event === 'mousedown')?.[1]
+    const mouseMove = mockOn.mock.calls.find(([event]) => event === 'mousemove')?.[1]
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 4, y: 4 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    const pointerCancel = mockCanvas.addEventListener.mock.calls.find(([event]) => event === 'pointercancel')?.[1]
+    pointerCancel?.({})
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 4, y: 4 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+  })
+
+  it('activates and releases the transient gate around a real vertex drag', () => {
+    currentTool = 'route'
+    mockToolRegistry.activeToolId = 'route'
+    const drawing = { ...mockDrawing, tracePoints: [{ lat: 1, lng: 2 }, { lat: 1.001, lng: 2.001 }] }
+    const source = { setData: vi.fn() }
+    mockMap.getSource.mockReturnValue(source)
+    mockMap.project.mockReturnValue({ x: 0, y: 0 })
+
+    render(<InteractionController map={mockMap} drawing={drawing} />)
+    const mouseDown = mockOn.mock.calls.find(([event]) => event === 'mousedown')?.[1]
+    const mouseMove = mockOn.mock.calls.find(([event]) => event === 'mousemove')?.[1]
+    const mouseUp = mockOn.mock.calls.find(([event]) => event === 'mouseup')?.[1]
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 5, y: 5 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(true)
+
+    mouseUp?.({ point: { x: 5, y: 5 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+  })
+
+  it('releases the transient gate on pointer cancellation and teardown', () => {
+    currentTool = 'route'
+    mockToolRegistry.activeToolId = 'route'
+    const drawing = { ...mockDrawing, tracePoints: [{ lat: 1, lng: 2 }, { lat: 1.001, lng: 2.001 }] }
+    mockMap.getSource.mockReturnValue({ setData: vi.fn() })
+    mockMap.project.mockReturnValue({ x: 0, y: 0 })
+
+    const { unmount } = render(<InteractionController map={mockMap} drawing={drawing} />)
+    const mouseDown = mockOn.mock.calls.find(([event]) => event === 'mousedown')?.[1]
+    const mouseMove = mockOn.mock.calls.find(([event]) => event === 'mousemove')?.[1]
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 5, y: 5 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    const pointerCancel = mockCanvas.addEventListener.mock.calls.find(([event]) => event === 'pointercancel')?.[1]
+    pointerCancel?.({})
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
+
+    mouseDown?.({ originalEvent: { button: 0 }, point: { x: 0, y: 0 }, lngLat: { lat: 1, lng: 2 } })
+    mouseMove?.({ point: { x: 5, y: 5 }, lngLat: { lat: 1.01, lng: 2.01 } })
+    unmount()
+    expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
   })
 })

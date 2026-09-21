@@ -2447,3 +2447,14 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Keep this blocker scoped: lint the new regression file, run the focused test matrix and production build, and do not refactor publish behavior as part of the recovery-visibility fix.
 - **Prevention**: Distinguish changed-line regressions from legacy whole-file findings and record the baseline instead of expanding a one-blocker production patch.
 - **Related tasks**: Production Studio conflict recovery T5
+
+## 2026-09-21: Sync-fix Graphify incremental rebuild denied in sandbox (recurrence)
+- **Error**: The required `graphify update .` first attempt again failed with
+  `[WinError 5] Access is denied` before rebuilding the graph.
+- **Cause**: The managed Windows sandbox still blocks the Graphify worker's
+  child-process/file access even though the source worktree is valid.
+- **Fix**: Re-ran the identical update with the documented elevated boundary;
+  it completed with 11,968 nodes, 26,367 edges, and 579 communities.
+- **Prevention**: Treat this known environment failure separately from source
+  regressions and use the approved elevated Graphify command after code edits.
+- **Related tasks**: Harmonious autosave building/vertex drag lifecycle T8
