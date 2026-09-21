@@ -2458,3 +2458,33 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Treat this known environment failure separately from source
   regressions and use the approved elevated Graphify command after code edits.
 - **Related tasks**: Harmonious autosave building/vertex drag lifecycle T8
+
+## 2026-09-21: Recovery left the mounted CampusDocument stale across reload
+- **Error**: After recovery reported `All changes saved`, a no-edit reload
+  recreated a server/local conflict. Production logs showed repeated
+  `EditorBridge adapter save failed` warnings because the graph-store was
+  already in conflict during the post-reload save attempt.
+- **Cause**: Authoritative recovery replaced the graph/cache/marker/server but
+  the long-lived EditorBridge document remained at the pre-recovery snapshot.
+  Its visibility/beforeunload `GraphAdapter.sync(document)` then rewrote the
+  recovered graph and local cache with stale document state.
+- **Fix**: Add an explicit authoritative document replacement that preserves
+  object identity, notifies document subscribers without `revision.committed`,
+  clears stale history/selection, and runs whenever the mounted bridge observes
+  an authoritative graph-object replacement.
+- **Prevention**: Treat graph→document reconciliation as a required recovery
+  boundary; test all five fingerprints before/after reload and assert that
+  hydration/adoption never emits an authored revision or network save.
+- **Related tasks**: Production Studio post-recovery reload convergence T9–T12
+
+## 2026-09-21: EditorBridge lint baseline rechecked during convergence fix
+- **Error**: Targeted ESLint still reports the existing `react-hooks/refs`
+  findings around the bridge's context ref and existing `no-explicit-any`
+  findings; no new finding was introduced by the convergence boundary.
+- **Cause**: Those patterns predate this task and are outside the single
+  post-recovery reload blocker.
+- **Fix**: Left unrelated baseline code unchanged; verified the new regression,
+  focused matrix, build, and diff checks instead.
+- **Prevention**: Keep future convergence patches scoped and distinguish
+  changed-line findings from the known bridge baseline.
+- **Related tasks**: Production Studio post-recovery reload convergence T10–T12

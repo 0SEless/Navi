@@ -2800,3 +2800,28 @@
   configured node limit).
 - **Next:** Inspect the scoped diff, commit the focused patch, fetch/push the
   current release branch, deploy the exact SHA, and verify READY/alias/HTTP 200.
+
+## 2026-09-21 — Production Studio post-recovery reload convergence
+
+- **Root cause proven:** Recovery/server adoption replaced the graph, cache,
+  marker, and server state while the long-lived `EditorBridge` kept the old
+  `CampusDocument`. On visibility/beforeunload, `GraphAdapter.sync(document)`
+  projected that stale document back into the recovered graph and
+  `persistLocalDraft` cached it; the next reload therefore classified a real
+  server/local divergence. Production browser logs showed the resulting
+  blocked `EditorBridge adapter save failed` path after a no-edit reload.
+- **T9 RED:** The focused recovery regression failed before the boundary fix
+  because no authoritative document replacement existed (`reconcile... is not
+  a function`). The browser reproduced the red conflict banner; production
+  Vercel logs showed `/api/graph` requests were 200 with no server exception.
+- **T10 fix:** Added `DocumentStore.replaceAuthoritative`, which updates the
+  existing document identity and subscribers without incrementing the version
+  or emitting `revision.committed`. `EditorBridge` now reconciles graph-object
+  replacements into that document and clears stale history/selection before
+  teardown persistence can run.
+- **Verification:** Focused convergence/autosave/recovery matrix passed 18
+  files / 146 tests. Targeted ESLint reports only the pre-existing
+  `EditorBridge` ref/`any` findings. `git diff --check` passed. Production
+  build compiled successfully and generated all 41 pages.
+- **Next:** Update Graphify, inspect the scoped diff, commit/push the exact
+  convergence fix, deploy it to production, and verify READY/alias/HTTP 200/SHA.

@@ -9,6 +9,7 @@ import {
   findEntityById,
   NavigationCompiler,
   createEditorContext,
+  createDocument,
   GraphAdapter,
 } from '@navi/editor'
 import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
@@ -18,6 +19,32 @@ import { useStudioStore } from '@/store/studio-store'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 import { persistStudioGraph } from './studio-persistence'
+import type { Graph } from '@/engine/graph'
+
+/**
+ * Reconcile a newly authoritative graph into the long-lived editor document.
+ *
+ * GraphAdapter.sync() is intentionally document → legacy graph. Recovery and
+ * server adoption replace the graph in the opposite direction, so leaving the
+ * old CampusDocument mounted would let visibility/beforeunload project stale
+ * data back into localStorage on the next reload. This boundary updates the
+ * existing document identity without emitting an authored revision.
+ */
+export function reconcileAuthoritativeDocument(context: EditorContext, graph: Graph): void {
+  const replacement = createDocument(graph, context.transformer)
+  const documentStore = context.services.get('documentStore')
+  if (documentStore && typeof documentStore.replaceAuthoritative === 'function') {
+    documentStore.replaceAuthoritative(replacement)
+  } else {
+    for (const key of Object.keys(context.document)) {
+      Reflect.deleteProperty(context.document, key)
+    }
+    Object.assign(context.document, structuredClone(replacement))
+  }
+
+  context.services.get('history')?.clear()
+  context.services.get('selection')?.clear(SelectionOrigin.Programmatic)
+}
 
 /**
  * ── Selection Ownership Invariant ─────────────────────────────────
@@ -147,6 +174,20 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     // reconciliation has completed — the campus is now READY_CLEAN and authored
     // persistence may proceed (P0.14: shared lifecycle action).
     useGraphStore.getState().completeCampusHydration()
+  }, [context])
+
+  // Recovery/server adoption replaces the graph object while this bridge stays
+  // mounted. Keep the editor's long-lived CampusDocument aligned before any
+  // visibility or unload persistence can project it back into the graph.
+  useEffect(() => {
+    let observedGraph = useGraphStore.getState().graph
+    const unsubscribe = useGraphStore.subscribe((state) => {
+      if (state.graph === observedGraph) return
+      observedGraph = state.graph
+      if (state.currentMapId !== context.document.metadata.campusId) return
+      reconcileAuthoritativeDocument(context, state.graph)
+    })
+    return unsubscribe
   }, [context])
 
   // The editor document is authoritative, but the Studio map still has a

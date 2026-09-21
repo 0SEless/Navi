@@ -87,3 +87,40 @@ and component teardown must release the gate.
 - Keep the Windows Vitest `spawn EPERM`, nested-worktree root, external
   dependency junction, and ignored-env build issues classified as environment
   setup errors rather than changing source behavior.
+
+---
+
+# Production Studio post-recovery reload convergence
+
+## What
+
+Keep the authoritative graph, local cache, sync marker, and active
+CampusDocument aligned after recovery or server adoption so a no-edit reload
+cannot recreate a conflict. Authoritative graph replacement must update the
+existing editor document without creating an authored revision or triggering a
+network save.
+
+## Success Criteria
+
+1. Force overwrite, server adoption, and local-ahead recovery leave the
+   server, marker, cache, graph store, and CampusDocument projection
+   equivalent before reload.
+2. A full reload with no user mutation preserves the same fingerprint and
+   does not write a new local draft or POST solely because hydration ran.
+3. Normal authored edits still persist locally and autosave after the existing
+   5-second debounce; genuine server/local divergence remains protected.
+4. Graph → CampusDocument → Graph remains fingerprint-stable for the
+   synchronized authored state.
+5. The fix is limited to post-recovery/document reconciliation; autosave
+   timing, gesture wiring, Road Recovery, routing, POIs, auth, and schema are
+   unchanged.
+
+## Known Pitfalls
+
+- `GraphAdapter.sync(document)` is document → legacy graph; never use it to
+  reconcile an authoritative graph into a stale document.
+- Authoritative replacement must not emit `revision.committed`, otherwise
+  hydration is misclassified as an authored edit and autosave can POST.
+- Preserve the local recovery backup and existing conflict/CAS protections.
+- Treat Vitest worker, isolated-build, env, and Graphify access failures as
+  environment boundaries, not product regressions.

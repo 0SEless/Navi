@@ -384,3 +384,68 @@ Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
   force-push or mutate production data/configuration.
 - **Acceptance check:** Focused tests/build pass, pushed and deployed SHA match,
   production responds 200, and the final report contains the requested matrix.
+
+## 2026-09-21 — Production Studio post-recovery reload convergence
+
+### T9 — Prove the first divergent write with a failing regression
+
+- **Description:** Reproduce recovery/server adoption followed by teardown or
+  reload and capture server, marker, cache, graph-store, and CampusDocument
+  fingerprints. Prove whether a stale document is projected back into the
+  graph/cache before the next freshness check.
+- **Files to touch:** `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`,
+  `src/store/__tests__/local-draft.test.ts` only if an existing harness is the
+  smallest fit.
+- **Errors from ERRORS.md:** Vitest `spawn EPERM` can prevent collection;
+  browser storage must remain test-local and no production data may be mutated.
+- **Preventing:** Assert the first write and all five fingerprints rather than
+  inferring the cause from the final red banner.
+- **Acceptance check:** The regression fails before the reconciliation boundary
+  is implemented and identifies the stale document → graph write.
+
+### T10 — Reconcile authoritative graph into the active document
+
+- **Description:** Add the smallest authoritative replacement operation that
+  updates the existing CampusDocument in place, preserves its identity, clears
+  stale editor history/selection as appropriate, notifies document consumers,
+  and does not emit an authored revision or persist a local draft.
+- **Files to touch:** `packages/editor/src/context/document-store.ts`,
+  `src/components/studio/EditorBridge.tsx`, and the focused regression test.
+- **Errors from ERRORS.md:** Avoid broad graph-adapter changes and do not
+  weaken the existing save/conflict gate or 5-second debounce.
+- **Preventing:** Use a named authoritative replacement path, keep
+  `revision.committed` reserved for user-authored commands, and reconcile on
+  graph identity replacement only.
+- **Acceptance check:** Recovery/adoption followed by unload leaves all five
+  fingerprints equal; hydration alone produces no dirty revision or POST.
+
+### T11 — Run the required convergence matrix and round-trip checks
+
+- **Description:** Cover force overwrite + reload, server adoption + reload,
+  normal autosave + reload, hydration-no-edit, interrupted debounce, missed
+  acknowledgement, true divergence, authored local draft, and graph/document
+  round-trip stability. Keep existing gesture/autosave suites in the focused
+  matrix for regression protection.
+- **Files to touch:** Focused convergence tests and required progress/error
+  logs only.
+- **Errors from ERRORS.md:** Classify environment-only Vitest/build failures
+  separately and rerun unchanged commands through the approved elevated path.
+- **Preventing:** Verify POST counts, marker revisions, and fingerprints at
+  each boundary; do not clear storage or auto-force conflicts.
+- **Acceptance check:** Every required scenario passes with no unrelated
+  source changes.
+
+### T12 — Verify, log, commit, push, and deploy the convergence fix
+
+- **Description:** Run focused tests, production build, Graphify update, and
+  diff checks; commit only the convergence implementation/tests/logs; fetch
+  and push normally; deploy the exact pushed SHA; verify READY, alias, HTTP
+  200, and deployment SHA.
+- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, Graphify
+  outputs required by `graphify update .`, and T9–T11 files.
+- **Errors from ERRORS.md:** Use the established elevated path for Graphify,
+  Vercel, and any sandbox-blocked test/build command.
+- **Preventing:** Inspect staged files and remote tip before push; never force
+  push or mutate production map data during verification.
+- **Acceptance check:** Exact commit is deployed and the final report uses the
+  requested convergence fields.
