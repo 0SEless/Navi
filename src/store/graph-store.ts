@@ -719,8 +719,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // Ensure graph identity matches the map being loaded
     graph.campusId = mapId
 
-    // CASE A — No local graph or empty: fetch from Supabase
-    if (!raw || !graph.buildings.length) {
+    // CASE A — No local graph: fetch from Supabase. An existing empty graph is
+    // still a real local draft (for example, deleting the last building during
+    // the autosave debounce), so it must be painted and freshness-checked
+    // rather than replaced by the old server snapshot.
+    if (!raw) {
       set({ graph, currentMapId: null })
       void get().fetchFromSupabase(mapId)
       return

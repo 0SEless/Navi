@@ -236,6 +236,18 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       clear: (origin?: SelectionOrigin) => void
     } | undefined
 
+    // Document commands bypass the legacy Graph mutators, so they do not
+    // reach graph-store's authored-intent boundary on their own. Keep a
+    // building delete first-class for the guarded autosave path; without this
+    // event bridge, autosave sees no intent and correctly refuses to POST.
+    const unsubscribeBuildingDelete = eventBus.on('entity.deleted', (payload: {
+      entityId?: unknown
+      entityType?: unknown
+    }) => {
+      if (payload?.entityType !== 'building' || typeof payload.entityId !== 'string') return
+      useGraphStore.getState().recordAuthoredMutation('building', payload.entityId, null)
+    })
+
     const unsubscribe = eventBus.on('document.changed', () => {
       const graph = useGraphStore.getState().graph
       new GraphAdapter(graph, context.transformer).sync(context.document)
@@ -264,7 +276,10 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      unsubscribeBuildingDelete()
+    }
   }, [context])
 
   // Phase 3B — unload/visibility now ensure ONLY the committed LOCAL draft is

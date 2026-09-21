@@ -218,14 +218,14 @@ export class GraphAdapter {
   }
 
   /**
-   * P0.5 — Scope-aware canonical reconciliation wrapper.
+   * Synchronize a document into the graph.
    *
-   * The legacy sync rebuilds collections from the incoming CampusDocument only.
-   * Before running it we snapshot the canonical collections; afterwards we merge
-   * out-of-scope canonical entities back in so a scoped/partial document can
-   * never delete or duplicate unrelated canonical content.
+   * Studio passes the complete CampusDocument, so the default is authoritative
+   * replacement: an authored deletion must stay deleted. A caller holding an
+   * intentionally partial projection must opt into preserving out-of-scope
+   * canonical entities with `preserveOutOfScope: true`.
    */
-  sync(document: CampusDocument): void {
+  sync(document: CampusDocument, options: { preserveOutOfScope?: boolean } = {}): void {
     const previous = {
       buildings: (this.graph.buildings ?? []).slice(),
       components: (this.graph.components ?? []).slice(),
@@ -233,8 +233,9 @@ export class GraphAdapter {
       edges: (this.graph.edges ?? []).slice(),
       traces: (this.graph.traces ?? []).slice(),
     }
-    this.syncLegacy(document)
-    this.reconcileCanonicalCollections(previous, document)
+    const preserveOutOfScope = options.preserveOutOfScope === true
+    this.syncLegacy(document, { preserveOutOfScope })
+    this.reconcileCanonicalCollections(previous, document, { preserveOutOfScope })
   }
 
   private reconcileCanonicalCollections(
@@ -246,7 +247,9 @@ export class GraphAdapter {
       traces: TracePath[]
     },
     document: CampusDocument,
+    options: { preserveOutOfScope?: boolean } = {},
   ): void {
+    const preserveOutOfScope = options.preserveOutOfScope !== false
     const doc = document as unknown as {
       buildings: Array<{ id: string; floors: Array<{ level: number }> }>
       roads?: unknown
@@ -284,35 +287,45 @@ export class GraphAdapter {
     const rebuiltEdges = (this.graph.edges ?? []).slice()
     const rebuiltTraces = (this.graph.traces ?? []).slice()
 
-    const mergedBuildings = dedupe([
-      ...rebuiltBuildings,
-      ...previous.buildings.filter((b) => !coveredBuildings.has(b.id) && !rebuiltBuildings.some((r) => r.id === b.id)),
-    ])
-    const mergedComponents = dedupe([
-      ...rebuiltComponents,
-      ...previous.components.filter(
-        (c) => !rebuiltComponents.some((r) => r.id === c.id) && !(coveredBuildings.has((c as { buildingId?: string }).buildingId ?? '')),
-      ),
-    ])
-    const mergedNodes = dedupe([
-      ...rebuiltNodes,
-      ...previous.nodes.filter((n) => !nodeCovered(n) && !rebuiltNodes.some((r) => r.id === n.id)),
-    ])
+    const mergedBuildings = preserveOutOfScope
+      ? dedupe([
+        ...rebuiltBuildings,
+        ...previous.buildings.filter((b) => !coveredBuildings.has(b.id) && !rebuiltBuildings.some((r) => r.id === b.id)),
+      ])
+      : rebuiltBuildings
+    const mergedComponents = preserveOutOfScope
+      ? dedupe([
+        ...rebuiltComponents,
+        ...previous.components.filter(
+          (c) => !rebuiltComponents.some((r) => r.id === c.id) && !(coveredBuildings.has((c as { buildingId?: string }).buildingId ?? '')),
+        ),
+      ])
+      : rebuiltComponents
+    const mergedNodes = preserveOutOfScope
+      ? dedupe([
+        ...rebuiltNodes,
+        ...previous.nodes.filter((n) => !nodeCovered(n) && !rebuiltNodes.some((r) => r.id === n.id)),
+      ])
+      : rebuiltNodes
     const rebuiltNodeIds = new Set(mergedNodes.map((n) => n.id))
-    const mergedEdges = dedupe([
-      ...rebuiltEdges,
-      ...previous.edges.filter(
-        (e) =>
-          !rebuiltEdges.some((r) => r.id === e.id) &&
-          !(nodeCovered({ id: e.from } as NavNode) && nodeCovered({ id: e.to } as NavNode)) &&
-          rebuiltNodeIds.has(e.from) &&
-          rebuiltNodeIds.has(e.to),
-      ),
-    ])
-    const mergedTraces = dedupe([
-      ...rebuiltTraces,
-      ...previous.traces.filter((t) => !outdoorCovered && !rebuiltTraces.some((r) => r.id === t.id)),
-    ])
+    const mergedEdges = preserveOutOfScope
+      ? dedupe([
+        ...rebuiltEdges,
+        ...previous.edges.filter(
+          (e) =>
+            !rebuiltEdges.some((r) => r.id === e.id) &&
+            !(nodeCovered({ id: e.from } as NavNode) && nodeCovered({ id: e.to } as NavNode)) &&
+            rebuiltNodeIds.has(e.from) &&
+            rebuiltNodeIds.has(e.to),
+        ),
+      ])
+      : rebuiltEdges
+    const mergedTraces = preserveOutOfScope
+      ? dedupe([
+        ...rebuiltTraces,
+        ...previous.traces.filter((t) => !outdoorCovered && !rebuiltTraces.some((r) => r.id === t.id)),
+      ])
+      : rebuiltTraces
 
     this.graph.setBuildings(mergedBuildings)
     this.graph.setComponents(mergedComponents)
@@ -332,7 +345,7 @@ export class GraphAdapter {
     }
   }
 
-  private syncLegacy(document: CampusDocument): void {
+  private syncLegacy(document: CampusDocument, options: { preserveOutOfScope?: boolean } = {}): void {
     // Ordinary editor sync is explicit-only. Existing RoadJunction records are
     // pre-seeded below and reconstructed, but geometry alone never authors new
     // cross-road topology (including for unversioned/legacy documents).
@@ -878,18 +891,22 @@ export class GraphAdapter {
     //   - canonical doors belonging to scopes NOT covered by this document
     //     projection are PRESERVED verbatim (a partially hydrated or scoped
     //     document can never wipe unrelated doors again).
-    const coveredScopes = new Set<string>()
-    for (const b of document.buildings) {
-      for (const f of b.floors) coveredScopes.add(`${b.id}#${f.level}`)
+    if (options.preserveOutOfScope !== true) {
+      this.graph.setDoors(allProjectedDoors)
+    } else {
+      const coveredScopes = new Set<string>()
+      for (const b of document.buildings) {
+        for (const f of b.floors) coveredScopes.add(`${b.id}#${f.level}`)
+      }
+      const doorKey = (d: DoorData) => `${d.id}|${d.buildingId}|${d.floor}`
+      const projectedKeys = new Set(allProjectedDoors.map(doorKey))
+      const preservedDoors = this.graph.doors.filter(
+        (d) => !coveredScopes.has(`${d.buildingId}#${d.floor}`) && !projectedKeys.has(doorKey(d)),
+      )
+      const mergedByKey = new Map<string, DoorData>()
+      for (const d of [...preservedDoors, ...allProjectedDoors]) mergedByKey.set(doorKey(d), d)
+      this.graph.setDoors([...mergedByKey.values()])
     }
-    const doorKey = (d: DoorData) => `${d.id}|${d.buildingId}|${d.floor}`
-    const projectedKeys = new Set(allProjectedDoors.map(doorKey))
-    const preservedDoors = this.graph.doors.filter(
-      (d) => !coveredScopes.has(`${d.buildingId}#${d.floor}`) && !projectedKeys.has(doorKey(d)),
-    )
-    const mergedByKey = new Map<string, DoorData>()
-    for (const d of [...preservedDoors, ...allProjectedDoors]) mergedByKey.set(doorKey(d), d)
-    this.graph.setDoors([...mergedByKey.values()])
 
     // 9. Roads → Traces
     // Traces compile independently from buildings. They deliberately do NOT

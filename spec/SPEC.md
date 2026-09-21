@@ -124,3 +124,34 @@ network save.
 - Preserve the local recovery backup and existing conflict/CAS protections.
 - Treat Vitest worker, isolated-build, env, and Graphify access failures as
   environment boundaries, not product regressions.
+
+## 2026-09-21 — Building delete persistence
+
+### What
+
+Persist an authored building deletion all the way from the CampusDocument
+command through the graph adapter, local draft, debounced autosave payload,
+server graph snapshot, and a subsequent full reload. A deleted building must
+not be resurrected by reconciliation or by an empty local draft during the
+autosave window.
+
+### Success Criteria
+
+1. The delete command removes the canonical building ID from the document and
+   the graph projection while preserving every other building.
+2. The building-delete intent is recorded, the 5-second autosave payload omits
+   the deleted building, and the server snapshot omits it after the save ack.
+3. A hard reload preserves the deletion; an interrupted debounce still keeps
+   the local delete draft and exposes genuine server/local divergence.
+4. Undo restores the building where the existing HistoryStack supports it.
+5. Existing CAS/conflict handling, autosave timing, auth, routing, POI, and
+   unrelated editor systems remain unchanged.
+
+### Known Pitfalls
+
+- A full Studio document is authoritative; merging old out-of-scope canonical
+  buildings can resurrect an authored delete.
+- Document commands do not automatically create graph-store authored intent;
+  the delete event must bridge that intent before autosave's guard runs.
+- An empty local graph is a valid delete draft, not proof that no local cache
+  exists; never replace it with the stale server graph during reload.

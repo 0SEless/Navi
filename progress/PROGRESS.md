@@ -2867,3 +2867,35 @@
   stale save POST.
 - **Workflow:** T12, T13, and T14 are complete. No autosave interval, gesture
   wiring, routing, POI, or Road Recovery behavior changed.
+
+## 2026-09-21 — Building delete persistence
+
+- **Root cause:** `GraphAdapter.sync` merged the previous canonical building
+  collection back into a full Studio document, resurrecting an authored
+  delete. The document delete event also bypassed `recordAuthoredMutation`, so
+  autosave could exit before sending a delete. Finally, reload treated an empty
+  local graph as missing and repainted the stale server graph.
+- **Fix:** Full-document sync is authoritative; `EditorBridge` records
+  building-delete intent; and `loadMapData` preserves an existing empty local
+  graph as a real draft. Scoped reconciliation remains available to legacy
+  callers.
+- **Production identity:** `bldg-3-f7di` / `Building 3-F7DI` in
+  `map-map-1-repe` was confirmed in both `buildings` and `graph_snapshots` via
+  read-only Supabase REST inspection.
+- **Verification:** Protected matrix 7 files / 63 tests passed; delete
+  integration tests 4/4 passed; `git diff --check` passed. Graphify update
+  completed with 11,933 nodes and 26,315 edges after elevated retry. The
+  release build generated all 41 pages with the required production env.
+- **Next:** Run the final release build after rebase, refresh Graphify, amend
+  the single fix commit, push the branch, deploy the exact SHA, and verify the
+  production alias/HTTP status.
+
+## 2026-09-21 — Local verification handoff
+
+- **Local commit:** `055f0cf90319241310c198acb09caf2231ac661f` is clean and
+  contains the scoped fix, regressions, plan, spec, and ledgers.
+- **Verification:** Protected matrix 63/63, source-resolved integration 4/4,
+  Webpack production build 41/41 pages, Graphify refresh, and `git diff --check`
+  all passed.
+- **Blocked next step:** GitHub push was denied by the external-egress safety
+  review. Await explicit approval for `https://github.com/0SEless/Navi.git`.

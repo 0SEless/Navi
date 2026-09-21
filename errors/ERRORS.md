@@ -2502,3 +2502,91 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Skip the initial legacy rebuild for authoritative `checking`/`synced` hydration; retain the rebuild for `idle` local-ahead/legacy drafts.
 - **Prevention**: Treat authoritative graph hydration as a read boundary and test route mount plus freshness settlement, not only teardown and unload.
 - **Related tasks**: Production Studio post-recovery reload convergence T14
+
+## 2026-09-21: Full-document graph reconciliation resurrected a building delete
+- **Error**: Deleting a building in Studio removed it from the active document,
+  but the next graph projection could restore the old canonical building.
+- **Cause**: `GraphAdapter.sync(document)` merged previous out-of-scope
+  canonical collections even when the document was the complete authoritative
+  Studio state.
+- **Fix**: Full-document sync now rebuilds authoritative collections; scoped
+  preservation is explicit for legacy callers.
+- **Prevention**: Keep a regression that deletes one building, syncs, and
+  round-trips through `Graph.fromJSON`/`createDocument` while asserting all
+  other buildings survive.
+- **Related tasks**: Building delete persistence T1–T2
+
+## 2026-09-21: Building delete lacked authored autosave intent
+- **Error**: The delete remained local because autosave's authored-mutation
+  guard saw no pending mutation even though `entity.deleted` had fired.
+- **Cause**: CampusDocument commands emit the delete event but do not call the
+  graph-store mutation recorder.
+- **Fix**: `EditorBridge` records building-delete intent with the canonical ID
+  and null payload before the existing autosave path evaluates its guard.
+- **Prevention**: Assert the pending intent, save payload, and post-ack marker
+  in the integration regression.
+- **Related tasks**: Building delete persistence T1–T3
+
+## 2026-09-21: Empty local delete draft was treated as missing
+- **Error**: When the last building was deleted during debounce, reload fetched
+  the old server graph and lost the local delete evidence.
+- **Cause**: `loadMapData` used an empty-building-array check as a proxy for
+  missing local cache.
+- **Fix**: Only an absent cache record triggers server fallback; an existing
+  empty graph remains the local draft and is freshness-checked normally.
+- **Prevention**: Test an empty local graph against a non-empty server snapshot
+  and require conflict visibility without clearing the cache.
+- **Related tasks**: Building delete persistence T2–T3
+
+## 2026-09-21: Worktree package junction blocked source-focused test resolution
+- **Error**: Integration tests initially resolved `@navi/editor` through the
+  base checkout's junction instead of this worktree's package source.
+- **Cause**: The shared `node_modules` junction points outside the isolated
+  worktree.
+- **Fix**: Tests were run with a temporary Vitest alias to the worktree source;
+  the alias was removed before commit and is not a product change.
+- **Prevention**: Verify aliases are absent from `vitest.config.ts` and keep the
+  protected no-alias matrix green.
+- **Related tasks**: Building delete persistence T3
+
+## 2026-09-21: Graphify sandbox access required elevated retry
+- **Error**: Initial `graphify update .` returned Windows `WinError 5` access
+  denied while writing graph output.
+- **Cause**: The sandbox could not write the graphify output directory.
+- **Fix**: Retried the same update with approved elevated access; it completed
+  with 11,933 nodes and 26,315 edges.
+- **Prevention**: Treat Graphify access as an environment boundary and record
+  the elevated result rather than changing source to work around it.
+- **Related tasks**: Building delete persistence T4
+
+## 2026-09-21: Release build needed Webpack and production env
+- **Error**: Turbopack could not traverse the external node_modules junction;
+  Webpack prerender initially lacked required production environment values.
+- **Cause**: Isolated worktree dependency layout and absent env injection in the
+  first build invocation.
+- **Fix**: Ran the release build with `--webpack`, the existing production env
+  loaded in-process, and a temporary source alias; all 41 pages generated.
+  Temporary config changes were removed afterward.
+- **Prevention**: Keep build workarounds ephemeral and verify `next.config.ts`
+  and its index state match HEAD before committing.
+- **Related tasks**: Building delete persistence T4
+
+## 2026-09-21: Fetching the release branch required approved network retry
+- **Error**: The sandboxed `git fetch origin` could not reach the remote.
+- **Cause**: Network access is restricted in the default command sandbox.
+- **Fix**: Retried the same fetch with approved elevated network access and
+  rebased onto `origin/release/navi-auth-fix-2026-09-19`.
+- **Prevention**: Record remote provenance and use the minimal elevated retry
+  only when the source-control operation is required.
+- **Related tasks**: Building delete persistence T4
+
+## 2026-09-21: Publishing the verified branch was blocked by egress review
+- **Error**: The sandboxed `git push` could not connect to GitHub; the
+  required elevated retry was rejected by the external-egress safety review.
+- **Cause**: This environment requires explicit approval before sending the
+  repository contents to the configured remote.
+- **Fix**: No workaround was attempted. The clean local commit remains ready
+  for the user-authorized push once that approval is granted.
+- **Prevention**: Request explicit destination authorization before retrying the
+  same push; do not route the payload through an indirect command or remote.
+- **Related tasks**: Building delete persistence T4
