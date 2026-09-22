@@ -12,6 +12,7 @@ import {
   createDocument,
   GraphAdapter,
 } from '@navi/editor'
+import type { CampusDocument } from '@navi/core'
 import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
 import type { PersistenceSyncState } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
@@ -20,6 +21,84 @@ import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 import { persistStudioGraph } from './studio-persistence'
 import type { Graph } from '@/engine/graph'
+
+type AuthoredIntentKind = 'door' | 'route' | 'poi' | 'building' | 'floor' | 'outdoor'
+
+type DocumentEntityScope = {
+  path: string
+  buildingId: string | null
+  floor: number | null
+}
+
+/** Resolve the owning authored scope for an entity after a committed change. */
+function findDocumentEntityScope(document: CampusDocument, entityId: string): DocumentEntityScope | null {
+  for (const building of document.buildings) {
+    if (building.id === entityId) return { path: 'building', buildingId: building.id, floor: null }
+    for (const floor of building.floors) {
+      if (floor.id === entityId) return { path: 'floor', buildingId: building.id, floor: floor.level }
+      const collections: Array<[string, unknown]> = [
+        ['room', floor.rooms], ['hallway', floor.hallways], ['staircase', floor.staircases],
+        ['elevator', floor.elevators], ['entrance', floor.entrances], ['poi', floor.pois],
+        ['door', floor.doors], ['window', floor.windows], ['opening', floor.openings],
+        ['route-node', floor.routeNetwork?.nodes], ['route-edge', floor.routeNetwork?.edges],
+        ['roomAttributes', floor.roomAttributes], ['component', floor.parametricComponents],
+      ]
+      for (const [path, items] of collections) {
+        if (Array.isArray(items) && items.some((item) => (item as { id?: unknown })?.id === entityId)) {
+          return { path, buildingId: building.id, floor: floor.level }
+        }
+      }
+    }
+    const buildingCollections: Array<[string, unknown]> = [
+      ['verticalConnector', building.verticalConnectors],
+      ['staircase', building.staircases], ['elevator', building.elevators],
+    ]
+    for (const [path, items] of buildingCollections) {
+      if (Array.isArray(items) && items.some((item) => (item as { id?: unknown })?.id === entityId)) {
+        return { path, buildingId: building.id, floor: null }
+      }
+    }
+  }
+
+  const topLevel: Array<[string, unknown]> = [
+    ['road', document.roads], ['panorama', document.panoramas],
+    ['qr', document.qrCheckpoints], ['area', document.areas], ['poi', document.pois],
+  ]
+  for (const [path, items] of topLevel) {
+    if (!Array.isArray(items)) continue
+    const entity = items.find((item) => (item as { id?: unknown })?.id === entityId) as {
+      buildingId?: unknown
+      floor?: unknown
+    } | undefined
+    if (entity) {
+      return {
+        path,
+        buildingId: typeof entity.buildingId === 'string' ? entity.buildingId : null,
+        floor: typeof entity.floor === 'number' ? entity.floor : null,
+      }
+    }
+  }
+  return null
+}
+
+function intentForDocumentEntity(
+  document: CampusDocument,
+  entityId: string,
+  entityType: string,
+): { kind: AuthoredIntentKind; buildingId: string | null; floor: number | null } {
+  const scope = findDocumentEntityScope(document, entityId)
+  const path = scope?.path ?? entityType
+  const buildingId = scope?.buildingId ?? null
+  const floor = scope?.floor ?? null
+  if (path === 'building') return { kind: 'building', buildingId: entityId, floor: null }
+  if (path === 'door') return { kind: 'door', buildingId, floor }
+  if (path === 'poi') return { kind: 'poi', buildingId, floor }
+  if (path === 'road' || path === 'route-node' || path === 'route-edge') {
+    return { kind: buildingId ? 'route' : 'outdoor', buildingId, floor }
+  }
+  if (buildingId) return { kind: 'floor', buildingId, floor }
+  return { kind: 'outdoor', buildingId: null, floor: null }
+}
 
 /**
  * Reconcile a newly authoritative graph into the long-lived editor document.
@@ -258,9 +337,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     } | undefined
 
     // Document commands bypass the legacy Graph mutators, so they do not
-    // reach graph-store's authored-intent boundary on their own. Keep a
-    // building delete first-class for the guarded autosave path; without this
-    // event bridge, autosave sees no intent and correctly refuses to POST.
+    // reach graph-store's authored-intent boundary on their own. Record the
+    // committed authored scope for every document change; without this event
+    // bridge, normal autosave sees no intent and correctly refuses to POST.
     const unsubscribeBuildingDelete = eventBus.on('entity.deleted', (payload: {
       entityId?: unknown
       entityType?: unknown
@@ -269,7 +348,18 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       useGraphStore.getState().recordAuthoredMutation('building', payload.entityId, null)
     })
 
-    const unsubscribe = eventBus.on('document.changed', () => {
+    const unsubscribe = eventBus.on('document.changed', (payload: {
+      entityId?: unknown
+      entityType?: unknown
+    }) => {
+      if (typeof payload?.entityId === 'string') {
+        const intent = intentForDocumentEntity(
+          context.document,
+          payload.entityId,
+          typeof payload.entityType === 'string' ? payload.entityType : 'entity',
+        )
+        useGraphStore.getState().recordAuthoredMutation(intent.kind, intent.buildingId, intent.floor)
+      }
       const graph = useGraphStore.getState().graph
       new GraphAdapter(graph, context.transformer).sync(context.document)
       const documentStore = context.services.get('documentStore') as { version?: number } | undefined

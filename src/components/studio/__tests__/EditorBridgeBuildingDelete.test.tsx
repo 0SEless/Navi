@@ -47,6 +47,34 @@ describe('EditorBridge building delete persistence intent', () => {
     ])
   })
 
+  it('records a first-class building edit intent for normal autosave', () => {
+    const graph = new Graph()
+    graph.campusId = 'building-edit-intent'
+    graph.addBuilding({ id: 'bld-1', name: 'Before', campusId: graph.campusId, footprint: [] } as never)
+    useGraphStore.setState({ graph, currentMapId: graph.campusId })
+
+    render(
+      <EditorBridge>
+        <div />
+      </EditorBridge>,
+    )
+
+    const context = (window as unknown as { __naviContext: EditorContext }).__naviContext
+    const dispatcher = context.services.get('dispatcher')!
+
+    act(() => {
+      dispatcher.execute({
+        id: 'entity.update',
+        label: 'Rename Building',
+        payload: { entityId: 'bld-1', changes: { name: 'After' } },
+      })
+    })
+
+    expect(useGraphStore.getState().pendingAuthoredMutations).toEqual([
+      expect.objectContaining({ kind: 'building', buildingId: 'bld-1', floor: null }),
+    ])
+  })
+
   it('keeps delete undo semantics intact while the projection is authoritative', async () => {
     const graph = new Graph()
     graph.campusId = 'building-delete-undo'

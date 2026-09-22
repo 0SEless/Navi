@@ -30,6 +30,7 @@ describe('building delete persistence through Studio autosave', () => {
     useGraphStore.setState({
       graph: new Graph(),
       currentMapId: null,
+      authoredDocument: null,
       pendingAuthoredMutations: [],
       syncStatus: 'idle',
       syncError: null,
@@ -37,7 +38,96 @@ describe('building delete persistence through Studio autosave', () => {
     })
   })
 
-  afterEach(() => cleanup())
+  afterEach(() => {
+    vi.useRealTimers()
+    cleanup()
+  })
+
+  it('sends one guarded normal POST after a committed building edit settles for 5 seconds', async () => {
+    let serverSnapshot: Record<string, unknown> = {}
+    let revision = 0
+    const posted: Array<Record<string, any>> = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'POST') {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, any>
+        posted.push(body)
+        serverSnapshot = structuredClone(body)
+        revision += 1
+        return jsonResponse({ success: true, updatedAt: `R${revision}` })
+      }
+      return jsonResponse({ ...structuredClone(serverSnapshot), updatedAt: `R${revision}` })
+    }))
+
+    const graph = makeGraph()
+    useGraphStore.setState({ graph, currentMapId: MAP_ID })
+    await useGraphStore.getState().save()
+    expect(posted).toHaveLength(1)
+
+    render(
+      <EditorBridge>
+        <div />
+      </EditorBridge>,
+    )
+    const context = (window as unknown as { __naviContext: EditorContext }).__naviContext
+    const dispatcher = context.services.get('dispatcher')!
+    await waitFor(() => expect(context.services.get('autosave')?.status).toBe('ready'))
+    vi.useFakeTimers()
+
+    act(() => {
+      dispatcher.execute({
+        id: 'entity.update',
+        label: 'Rename Building',
+        payload: { entityId: 'bld-1', changes: { name: 'Edited Me' } },
+      })
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4999)
+    })
+    expect(posted).toHaveLength(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(posted).toHaveLength(2)
+    expect(posted[1].forceServerOverwrite).toBe(false)
+    expect(posted[1].buildings.find((building: { id: string }) => building.id === 'bld-1')?.name).toBe('Edited Me')
+  })
+
+  it('sends a normal POST for a committed building create', async () => {
+    vi.useFakeTimers()
+    const posted: Array<Record<string, any>> = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'POST') {
+        posted.push(JSON.parse(String(init?.body ?? '{}')))
+        return jsonResponse({ success: true, updatedAt: `R${posted.length}` })
+      }
+      return jsonResponse({ updatedAt: `R${posted.length}` })
+    }))
+
+    const graph = makeGraph()
+    useGraphStore.setState({ graph, currentMapId: MAP_ID })
+    await useGraphStore.getState().save()
+    render(<EditorBridge><div /></EditorBridge>)
+    const context = (window as unknown as { __naviContext: EditorContext }).__naviContext
+    const dispatcher = context.services.get('dispatcher')!
+    vi.useRealTimers()
+    await waitFor(() => expect(context.services.get('autosave')?.status).toBe('ready'))
+    vi.useFakeTimers()
+
+    act(() => {
+      dispatcher.execute({
+        id: 'building.create',
+        label: 'Create Building',
+        payload: { id: 'bld-3', name: 'Created', code: 'C3' },
+      })
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+
+    expect(posted).toHaveLength(2)
+    expect(posted[1].forceServerOverwrite).toBe(false)
+    expect(posted[1].buildings.some((building: { id: string; name: string }) => building.id === 'bld-3' && building.name === 'Created')).toBe(true)
+  })
 
   it('writes the delete to local draft, save payload, server, marker, and hard reload', async () => {
     let serverSnapshot: Record<string, unknown> = {}
