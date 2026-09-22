@@ -32,6 +32,65 @@ function snapshotFingerprint(snapshotJson: string): string {
 
 type SyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
 
+/**
+ * Test/development-only lifecycle trace.  The reload audit needs the exact
+ * writer that runs last, including writes made through a function-local
+ * Zustand setter.  Keeping the trace here avoids changing sync semantics or
+ * exposing it to the production UI.
+ */
+export interface SyncStatusTraceEntry {
+  source: string
+  from: SyncStatus | null
+  to: SyncStatus
+  error: string | null
+  at: number
+  stack: string | null
+}
+
+const syncStatusTrace: SyncStatusTraceEntry[] = []
+
+function inferSyncStatusSource(stack: string | undefined): string {
+  const frames = (stack ?? '').split('\n').map((frame) => frame.trim())
+  const known = [
+    'checkServerFreshness',
+    'syncLocalChanges',
+    'performSyncToSupabase',
+    'reSync',
+    'adoptServerSnapshot',
+    'fetchFromSupabase',
+    'loadMapData',
+    'reset',
+  ]
+  for (const name of known) {
+    if (frames.some((frame) => frame.includes(name))) return name
+  }
+  return 'GRAPH_STORE_OTHER'
+}
+
+function recordSyncStatusTrace(next: Partial<Pick<SyncStatusTraceEntry, 'to' | 'error'>>, previous: SyncStatus | null): void {
+  if (process.env.NODE_ENV === 'production') return
+  if (!next.to) return
+  const stack = new Error().stack ?? null
+  syncStatusTrace.push({
+    source: inferSyncStatusSource(stack ?? undefined),
+    from: previous,
+    to: next.to,
+    error: next.error ?? null,
+    at: Date.now(),
+    stack,
+  })
+  // Keep repeated reloads bounded in a long-lived development tab.
+  if (syncStatusTrace.length > 250) syncStatusTrace.splice(0, syncStatusTrace.length - 250)
+}
+
+export function __getSyncStatusTraceForTests(): SyncStatusTraceEntry[] {
+  return syncStatusTrace.slice()
+}
+
+export function __resetSyncStatusTraceForTests(): void {
+  syncStatusTrace.length = 0
+}
+
 interface GraphState {
   graph: Graph
   /** Canonical authored state when the active snapshot uses the new format. */
@@ -379,6 +438,19 @@ function storeMatchesCanonical(
   return canonicalIdentityEqual(store, persisted) && store.graphFingerprint === persisted.graphFingerprint
 }
 
+/**
+ * Authored snapshots remain canonical while the legacy Graph projection is
+ * rebuilt by EditorBridge. This weaker match is used only for local-ahead
+ * classification; strict Graph equality still governs authoritative adoption.
+ */
+function storeMatchesAuthoredCanonical(
+  store: CanonicalSnapshotIdentity,
+  persisted: CanonicalSnapshotIdentity,
+): boolean {
+  return persisted.authoredFingerprint !== null
+    && store.authoredFingerprint === persisted.authoredFingerprint
+}
+
 function clearAcknowledgedAuthoredMutations(): void {
   const pending = useGraphStore.getState().pendingAuthoredMutations
   const acknowledgedSeq = pending.length > 0 ? Math.max(...pending.map((intent) => intent.seq)) : 0
@@ -475,11 +547,16 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
  * Network failures keep the local snapshot but surface an explicit unverified
  * state; empty server snapshots settle to idle. `synced` requires server data.
  */
-async function checkServerFreshness(mapId: string): Promise<void> {
+async function checkServerFreshness(mapId: string, sessionGeneration: number): Promise<void> {
   const data = await fetchServerSnapshot(mapId)
 
   const state = useGraphStore.getState()
-  if (state.currentMapId !== mapId) return
+  // A later reload of the same campus can replace both the in-memory graph
+  // and its local draft while this request is still in flight. Only the
+  // freshness check that belongs to the active load may write a status; an
+  // older response must not re-run the divergence classifier against the new
+  // graph and reassert a false conflict.
+  if (!isActiveCampusSession(mapId, sessionGeneration)) return
 
   const localRaw = localStorage.getItem(storageKey(mapId))
 
@@ -553,6 +630,7 @@ async function checkServerFreshness(mapId: string): Promise<void> {
   const localDirty = acknowledged === null || !canonicalIdentityEqual(localIdentity, acknowledged)
   const serverDirty = acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)
   const storeAhead = !storeMatchesCanonical(storeIdentity, localIdentity)
+    && !storeMatchesAuthoredCanonical(storeIdentity, localIdentity)
 
   // Phase 3C — SAFE LOCAL-AHEAD (not divergence): the server has not changed
   // since our last acknowledgement; this device holds newer committed work
@@ -605,7 +683,22 @@ async function checkServerFreshness(mapId: string): Promise<void> {
   })
 }
 
-export const useGraphStore = create<GraphState>((set, get) => ({
+const graphStore = create<GraphState>((rawSet, get) => {
+  // Capture every internal sync-status mutation without requiring each
+  // production branch to carry audit-only bookkeeping. Function updaters that
+  // do not return a status are intentionally left untouched.
+  const set: typeof rawSet = (partial, replace) => {
+    if (typeof partial !== 'function' && partial && 'syncStatus' in partial) {
+      const next = partial as Partial<GraphState>
+      recordSyncStatusTrace(
+        { to: next.syncStatus, error: next.syncError ?? null },
+        get().syncStatus,
+      )
+    }
+    rawSet(partial, replace)
+  }
+
+  return ({
   graph: new Graph(),
   authoredDocument: null,
   setAuthoredDocument: (document) => {
@@ -849,6 +942,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   loadMapData: (mapId: string) => {
     if (typeof window === 'undefined') return
     campusSessionGeneration += 1
+    const sessionGeneration = campusSessionGeneration
     // P0.12: a campus load begins — the acknowledged baseline is unknown until
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
@@ -910,7 +1004,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       locallySynced = false
     }
     set({ graph, authoredDocument, currentMapId: mapId, syncStatus: locallySynced ? 'checking' : 'idle', syncError: null })
-    void checkServerFreshness(mapId)
+    void checkServerFreshness(mapId, sessionGeneration)
   },
 
   setCurrentMapId: (mapId: string | null) => {
@@ -1226,7 +1320,25 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       set({ syncStatus: 'idle' })
     }
   },
-}))
+  })
+})
+
+// A few recovery helpers intentionally use the public Zustand API because
+// they run outside the store initializer. Trace those writes as well so the
+// audit cannot miss a late conflict transition.
+const originalGraphSetState = graphStore.setState
+graphStore.setState = ((partial, replace) => {
+  if (typeof partial !== 'function' && partial && 'syncStatus' in partial) {
+    const next = partial as Partial<GraphState>
+    recordSyncStatusTrace(
+      { to: next.syncStatus, error: next.syncError ?? null },
+      graphStore.getState().syncStatus,
+    )
+  }
+  return originalGraphSetState(partial, replace)
+}) as typeof graphStore.setState
+
+export const useGraphStore = graphStore
 
 // ── Per-campus save serialization ─────────────────────────────────────────
 //

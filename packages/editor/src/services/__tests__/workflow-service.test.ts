@@ -246,6 +246,18 @@ describe('WorkflowService', () => {
       expect(snapshot.lastSaveVersion).toBe(0)
     })
 
+    it('repairs a reused dirty baseline after checking settles to synced', () => {
+      service.mutate()
+      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
+
+      emitPersistenceSyncState('checking')
+      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
+
+      emitPersistenceSyncState('synced')
+      expect(workflowStore.getSnapshot().saveState).toBe('saved')
+      expect(workflowStore.getSnapshot().saveError).toBeNull()
+    })
+
     it('a committed revision immediately leaves the saved state (no debounce gap)', () => {
       expect(workflowStore.getSnapshot().saveState).toBe('saved')
 
