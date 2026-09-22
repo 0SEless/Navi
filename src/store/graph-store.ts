@@ -3,6 +3,7 @@ import { Graph } from '../engine/graph'
 import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 import { serializeSnapshot, type GraphSnapshotLike } from '../services/graph-snapshot-serializer'
+import { authoredFingerprint as authoredDocumentFingerprint } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import {
   parseAuthoredGraphPayload,
@@ -248,8 +249,17 @@ function bindOnlineResync() {
 
 interface SyncMarker {
   snapshotFingerprint?: string
+  /** Phase 3A.1 authored identity; absent means legacy Graph-only marker. */
+  authoredFingerprint?: string | null
   syncedAt?: string
   serverTimestamp?: string | null
+}
+
+interface CanonicalSnapshotIdentity {
+  /** Persistent Graph projection identity (legacy/compatibility fallback). */
+  graphFingerprint: string
+  /** Authored identity when the additive Phase 3A.1 companion is present. */
+  authoredFingerprint: string | null
 }
 
 function readSyncMarker(mapId: string): SyncMarker | null {
@@ -271,13 +281,19 @@ function writeSyncMarker(
   fingerprint: string,
   syncedAt: string,
   serverTimestamp: string | null,
+  authoredFingerprint?: string | null,
 ): void {
   try {
-    localStorage.setItem(syncStatusKey(mapId), JSON.stringify({
+    const marker: SyncMarker = {
       snapshotFingerprint: fingerprint,
       syncedAt,
       serverTimestamp,
-    }))
+    }
+    // Keep the field absent for untouched legacy markers, but make every new
+    // authored-format acknowledgement explicit (including null for Graph-only
+    // payloads). This preserves the old marker contract for compatibility.
+    if (authoredFingerprint !== undefined) marker.authoredFingerprint = authoredFingerprint
+    localStorage.setItem(syncStatusKey(mapId), JSON.stringify(marker))
   } catch {
     // Best effort: a missing marker only costs an extra server check.
   }
@@ -304,6 +320,69 @@ function graphFingerprint(snapshot: unknown): string {
   const json = Graph.fromJSON(snapshot as GraphSnapshot).toJSON() as unknown as Record<string, unknown>
   delete json.updatedAt
   return snapshotFingerprint(stableStringify(json))
+}
+
+/**
+ * Build the identity used by the reload/recovery classifier.
+ *
+ * Authored snapshots are the canonical source whenever both sides carry the
+ * Phase 3A.1 companion. The Graph fingerprint remains the compatibility path
+ * for legacy payloads and for markers written before the companion existed.
+ */
+function canonicalSnapshotIdentity(
+  snapshot: unknown,
+  authoredDocument?: CampusDocument | null,
+): CanonicalSnapshotIdentity {
+  let authored = authoredDocument
+  if (authoredDocument === undefined) {
+    try {
+      authored = parseAuthoredGraphPayload(snapshot).authoredDocument
+    } catch {
+      authored = null
+    }
+  }
+  return {
+    graphFingerprint: graphFingerprint(snapshot),
+    authoredFingerprint: authored ? authoredDocumentFingerprint(authored) : null,
+  }
+}
+
+function markerIdentity(marker: SyncMarker | null): CanonicalSnapshotIdentity | null {
+  if (!marker?.snapshotFingerprint) return null
+  return {
+    graphFingerprint: marker.snapshotFingerprint,
+    authoredFingerprint: marker.authoredFingerprint ?? null,
+  }
+}
+
+/** Authored identity wins when present on both values; otherwise use Graph. */
+function canonicalIdentityEqual(
+  left: CanonicalSnapshotIdentity,
+  right: CanonicalSnapshotIdentity,
+): boolean {
+  if (left.authoredFingerprint !== null && right.authoredFingerprint !== null) {
+    return left.authoredFingerprint === right.authoredFingerprint
+  }
+  return left.graphFingerprint === right.graphFingerprint
+}
+
+function storeMatchesCanonical(
+  store: CanonicalSnapshotIdentity,
+  persisted: CanonicalSnapshotIdentity,
+): boolean {
+  // Authored equality classifies content, but a different persistent Graph
+  // projection still needs reconciliation so the active renderer cannot keep
+  // displaying a stale derived snapshot after a reload race.
+  if (persisted.authoredFingerprint !== null && store.authoredFingerprint !== persisted.authoredFingerprint) {
+    return false
+  }
+  return canonicalIdentityEqual(store, persisted) && store.graphFingerprint === persisted.graphFingerprint
+}
+
+function clearAcknowledgedAuthoredMutations(): void {
+  const pending = useGraphStore.getState().pendingAuthoredMutations
+  const acknowledgedSeq = pending.length > 0 ? Math.max(...pending.map((intent) => intent.seq)) : 0
+  if (acknowledgedSeq > 0) useGraphStore.getState().clearAuthoredMutations(acknowledgedSeq)
 }
 
 type PersistedGraphSnapshot = GraphSnapshot & {
@@ -355,6 +434,7 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
   const graph = Graph.fromJSON(data)
   graph.campusId = mapId
   const snapshot = graph.toJSON()
+  const identity = canonicalSnapshotIdentity(data, persisted.authoredDocument)
   try {
     localStorage.setItem(
       storageKey(mapId),
@@ -363,7 +443,13 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
   } catch {
     // Cache is best effort; the in-memory graph stays authoritative.
   }
-  writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
+  writeSyncMarker(
+    mapId,
+    identity.graphFingerprint,
+    data.updatedAt ?? new Date().toISOString(),
+    data.updatedAt ?? null,
+    identity.authoredFingerprint,
+  )
   lastAcknowledgedCollections = collectionsOf(snapshot)
   // Phase 3A — adopting the authoritative snapshot DISCARDS local edits: their
   // intents, queued saves, and stale in-flight acknowledgements must not
@@ -427,38 +513,78 @@ async function checkServerFreshness(mapId: string): Promise<void> {
     return
   }
 
-  const localFingerprint = graphFingerprint(localSnapshot)
-  const serverFingerprint = graphFingerprint(data)
-  const storeFingerprint = graphFingerprint(state.graph.toJSON())
+  let localAuthoredDocument: CampusDocument | null = null
+  try {
+    localAuthoredDocument = parseAuthoredGraphPayload(localSnapshot).authoredDocument
+  } catch {
+    // A malformed companion falls back to the established Graph-only path.
+  }
+  const localIdentity = canonicalSnapshotIdentity(localSnapshot, localAuthoredDocument)
+  const serverIdentity = canonicalSnapshotIdentity(data)
+  const storeIdentity = canonicalSnapshotIdentity(state.graph.toJSON(), state.authoredDocument)
+  const marker = readSyncMarker(mapId)
+  const acknowledged = markerIdentity(marker)
 
-  if (serverFingerprint === localFingerprint && storeFingerprint === localFingerprint) {
-    writeSyncMarker(mapId, localFingerprint, new Date().toISOString(), data.updatedAt ?? null)
+  // Three-way CASE 1/I: local and server canonical authored content already
+  // converge. Marker age, updatedAt drift, workflow timing, and a stale active
+  // projection are metadata/runtime concerns—not a user conflict.
+  if (canonicalIdentityEqual(localIdentity, serverIdentity)) {
+    pendingLocalAheadResumeMapId = null
+    if (!storeMatchesCanonical(storeIdentity, localIdentity)) {
+      // Rebuild the active projection and authored companion from the
+      // authoritative converged payload. This closes the reload/hydration race
+      // without issuing a redundant network write.
+      adoptServerSnapshotData(mapId, data)
+      return
+    }
+    writeSyncMarker(
+      mapId,
+      serverIdentity.graphFingerprint,
+      new Date().toISOString(),
+      data.updatedAt ?? null,
+      serverIdentity.authoredFingerprint,
+    )
+    lastAcknowledgedCollections = collectionsOf(data)
+    clearAcknowledgedAuthoredMutations()
     useGraphStore.setState({ syncStatus: 'synced', syncError: null })
     return
   }
 
-  const marker = readSyncMarker(mapId)
-  const localDirty = !marker || marker.snapshotFingerprint !== localFingerprint
-  const storeAhead = storeFingerprint !== localFingerprint
+  const localDirty = acknowledged === null || !canonicalIdentityEqual(localIdentity, acknowledged)
+  const serverDirty = acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)
+  const storeAhead = !storeMatchesCanonical(storeIdentity, localIdentity)
 
   // Phase 3C — SAFE LOCAL-AHEAD (not divergence): the server has not changed
   // since our last acknowledgement; this device holds newer committed work
   // (Phase 3B local draft). Retain it and auto-resume after readiness.
-  const acknowledgedFingerprint = marker?.snapshotFingerprint ?? null
-  const serverAtAcknowledgedBase = acknowledgedFingerprint !== null && serverFingerprint === acknowledgedFingerprint
-  if (serverAtAcknowledgedBase && localFingerprint !== acknowledgedFingerprint && !storeAhead) {
+  if (acknowledged !== null && !serverDirty && localDirty && !storeAhead) {
     pendingLocalAheadResumeMapId = mapId
     useGraphStore.setState({ syncStatus: 'idle', syncError: null })
     maybeDrainLocalAheadResume(mapId)
     return
   }
 
-  if (!localDirty && !storeAhead) {
+  // Three-way CASE 3: the local content is still exactly the acknowledged
+  // baseline while the server has advanced. Adopt it; this is not a conflict.
+  if (acknowledged !== null && !localDirty && serverDirty && !storeAhead) {
+    const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
+    const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
+    if (!(Number.isFinite(lastServerTime) && Number.isFinite(incomingServerTime) && incomingServerTime < lastServerTime)) {
+      adoptServerSnapshotData(mapId, data)
+      return
+    }
+    // A stale replica/response must not roll a known-newer clean snapshot back.
+    useGraphStore.setState({ syncStatus: 'synced', syncError: null })
+    return
+  }
+
+  // Preserve the established legacy timestamp behavior for clean markers when
+  // the authored companion is unavailable or internally inconsistent.
+  if (acknowledged !== null && !localDirty && !storeAhead) {
     const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
     const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
     if (Number.isFinite(lastServerTime) && Number.isFinite(incomingServerTime)) {
       if (incomingServerTime < lastServerTime) {
-        // A stale replica/response must not roll a known-newer clean snapshot back.
         useGraphStore.setState({ syncStatus: 'synced', syncError: null })
         return
       }
@@ -466,11 +592,7 @@ async function checkServerFreshness(mapId: string): Promise<void> {
         adoptServerSnapshotData(mapId, data)
         return
       }
-      // Same server revision with different content is internally inconsistent;
-      // preserve local data and surface the normal explicit conflict below.
     } else {
-      // Legacy markers have no server revision. Preserve established behavior
-      // while the next successful response upgrades the marker.
       adoptServerSnapshotData(mapId, data)
       return
     }
@@ -779,7 +901,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     let locallySynced = false
     try {
       const marker = readSyncMarker(mapId)
-      locallySynced = marker?.snapshotFingerprint === graphFingerprint(JSON.parse(raw))
+      const markerCanonical = markerIdentity(marker)
+      locallySynced = markerCanonical !== null && canonicalIdentityEqual(
+        canonicalSnapshotIdentity(JSON.parse(raw), authoredDocument),
+        markerCanonical,
+      )
     } catch {
       locallySynced = false
     }
@@ -891,7 +1017,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             localSnapshot = null
           }
         }
-        if (!localSnapshot || graphFingerprint(localSnapshot) !== graphFingerprint(data)) {
+        const localIdentity = localSnapshot
+          ? canonicalSnapshotIdentity(localSnapshot)
+          : null
+        const serverIdentity = canonicalSnapshotIdentity(data)
+        if (!localIdentity || !canonicalIdentityEqual(localIdentity, serverIdentity)) {
           const stamp = data.updatedAt ? ` (updated ${data.updatedAt})` : ''
           const message = `The server has a different version of this map${stamp}. reSync refused to overwrite it. Use reSync({ force: true }) to overwrite the server, or adoptServerSnapshot() to load the server version.`
           console.warn('[graph-store] reSync blocked by server conflict:', message)
@@ -955,7 +1085,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const sessionGeneration = campusSessionGeneration
 
     const marker = readSyncMarker(mapId)
-    const acknowledged = marker?.snapshotFingerprint ?? null
+    const acknowledged = markerIdentity(marker)
     let data: (GraphSnapshot & { updatedAt?: string }) | null
     try {
       data = await fetchServerSnapshot(mapId, { surfaceAuthenticationFailure: true })
@@ -972,25 +1102,30 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       throw new Error(message)
     }
 
-    const serverFingerprint = graphFingerprint(data)
-    const localFingerprint = graphFingerprint(get().graph.toJSON())
+    const serverIdentity = canonicalSnapshotIdentity(data)
+    const currentState = get()
+    const localIdentity = canonicalSnapshotIdentity(currentState.graph.toJSON(), currentState.authoredDocument)
 
     // Missed acknowledgement (CASE A): the server already contains exactly
     // the preserved local graph. Adopt only its authoritative revision; a
     // second POST would be redundant and could create a false conflict.
-    if (serverFingerprint === localFingerprint) {
-      writeSyncMarker(mapId, localFingerprint, new Date().toISOString(), data.updatedAt ?? null)
+    if (canonicalIdentityEqual(serverIdentity, localIdentity)) {
+      writeSyncMarker(
+        mapId,
+        serverIdentity.graphFingerprint,
+        new Date().toISOString(),
+        data.updatedAt ?? null,
+        serverIdentity.authoredFingerprint,
+      )
       lastAcknowledgedCollections = collectionsOf(data)
-      const pending = get().pendingAuthoredMutations
-      const acknowledgedSeq = pending.length > 0 ? Math.max(...pending.map((intent) => intent.seq)) : 0
-      if (acknowledgedSeq > 0) get().clearAuthoredMutations(acknowledgedSeq)
+      clearAcknowledgedAuthoredMutations()
       set({ syncStatus: 'synced', syncError: null })
       return
     }
 
     // Genuine divergence (CASE C): the server moved beyond the acknowledged
     // base. Never overwrite; keep the local work and the conflict state.
-    if (acknowledged === null || serverFingerprint !== acknowledged) {
+    if (acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)) {
       const message = 'Server and local changes differ. Your local work is preserved.'
       set({ syncStatus: 'conflict', syncError: message })
       throw new Error(message)
@@ -1001,9 +1136,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // expected revision. Clear conflict only after an authoritative ack.
     writeSyncMarker(
       mapId,
-      acknowledged,
+      acknowledged.graphFingerprint,
       marker?.syncedAt ?? new Date().toISOString(),
       data.updatedAt ?? marker?.serverTimestamp ?? null,
+      acknowledged.authoredFingerprint,
     )
     set({ syncStatus: 'idle', syncError: null })
     try {
@@ -1047,7 +1183,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           } catch {
             fingerprint = snapshotFingerprint(stableStringify(data))
           }
-          writeSyncMarker(effectiveMapId, fingerprint, data.updatedAt, data.updatedAt)
+          writeSyncMarker(
+            effectiveMapId,
+            fingerprint,
+            data.updatedAt,
+            data.updatedAt,
+            authoredDocument ? authoredDocumentFingerprint(authoredDocument) : null,
+          )
         }
         const emptyGraph = new Graph()
         if (effectiveMapId) emptyGraph.campusId = effectiveMapId
@@ -1060,7 +1202,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       // Record server freshness for future load comparisons. Only real server
       // timestamps may enter the marker.
       if (effectiveMapId && data.updatedAt) {
-        writeSyncMarker(effectiveMapId, graphFingerprint(data), data.updatedAt, data.updatedAt)
+        const identity = canonicalSnapshotIdentity(data, authoredDocument)
+        writeSyncMarker(
+          effectiveMapId,
+          identity.graphFingerprint,
+          data.updatedAt,
+          data.updatedAt,
+          identity.authoredFingerprint,
+        )
       }
       lastAcknowledgedCollections = collectionsOf(data)
       // A fresh authoritative load replaces any retained local edits: discard
@@ -1304,7 +1453,13 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       // A confirmed server revision always becomes the marker's revision. The
       // fingerprint records the exact content the server acknowledged, while
       // newer local edits remain tracked as unsynced by the fingerprint mismatch.
-      writeSyncMarker(mapId, snapshotHash, new Date().toISOString(), acknowledgedRevision)
+      writeSyncMarker(
+        mapId,
+        snapshotHash,
+        new Date().toISOString(),
+        acknowledgedRevision,
+        preState.authoredDocument ? authoredDocumentFingerprint(preState.authoredDocument) : null,
+      )
       // P0.11: the acknowledged snapshot is the new canonical guard baseline;
       // clear ONLY the intents included in this save (newer edits stay pending).
       lastAcknowledgedCollections = collectionsOf(snapshot)
