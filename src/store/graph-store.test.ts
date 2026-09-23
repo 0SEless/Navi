@@ -197,4 +197,138 @@ describe('graph store persistence', () => {
     expect(persisted.authoredDocument.metadata.name).toBe('Teardown Campus')
     expect(persisted.authoredDocument.qrCheckpoints[0].id).toBe('qr-teardown')
   })
+
+  it('logs a metadata-only safety guard diagnostic after a successful save acknowledgment', async () => {
+    const mapId = 'PRIVATE_CAMPUS_IDENTIFIER'
+    const buildingA = 'PRIVATE_BUILDING_A'
+    const buildingB = 'PRIVATE_BUILDING_B'
+    const graph = new Graph(mapId)
+    graph.addBuilding({
+      id: buildingA,
+      name: 'PRIVATE_BUILDING_NAME_A',
+      campusId: mapId,
+      footprint: [],
+    } as never)
+    graph.addBuilding({
+      id: buildingB,
+      name: 'PRIVATE_BUILDING_NAME_B',
+      campusId: mapId,
+      footprint: [],
+    } as never)
+    graph.addNode({
+      id: 'PRIVATE_NODE_IDENTIFIER',
+      label: 'PRIVATE_NODE_NAME',
+      name: 'PRIVATE_NODE_NAME',
+      type: 'intersection',
+      campusId: mapId,
+      buildingId: buildingA,
+      floor: 0,
+      position: { lat: 121.123456, lng: -118.654321 },
+    } as never)
+    const authoredDocument: CampusDocument = {
+      schemaVersion: 1,
+      version: 7,
+      metadata: {
+        campusId: mapId,
+        name: 'PRIVATE_DOCUMENT_NAME',
+        description: 'PRIVATE_DOCUMENT_PAYLOAD private-token-sentinel fingerprint-deadbeef',
+        lastModified: '2026-09-24T00:00:00.000Z',
+        editorVersion: 'test',
+      },
+      buildings: [],
+      roads: [],
+      panoramas: [],
+      qrCheckpoints: [],
+    }
+    useGraphStore.setState({ graph, authoredDocument, currentMapId: mapId, campusReady: true })
+    const fetchMock = vi.fn(async () => jsonResponse({ success: true, updatedAt: 'ACK-R1' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await useGraphStore.getState().save()
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    useGraphStore.getState().recordAuthoredMutation('building', buildingA, null)
+    graph.setBuildings(graph.buildings.filter((building) => building.id !== buildingB))
+    useGraphStore.setState({ authoredDocument: { ...authoredDocument, version: 8 } })
+    await useGraphStore.getState().save()
+
+    expect(useGraphStore.getState().syncStatus).toBe('error')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const guardWarning = warning.mock.calls.find(([message]) => message === '[graph-store] save blocked by safety guard')
+    expect(guardWarning).toEqual([
+      '[graph-store] save blocked by safety guard',
+      {
+        reason: 'removed-entity-outside-pending-scope',
+        operation: 'performSyncToSupabase',
+        phase: 'pre-network-save-guard',
+        removedEntityCount: 1,
+        removedEntityKinds: { buildings: 1, components: 0, nodes: 0, edges: 0, traces: 0, doors: 0 },
+        coveredRemovalCount: 0,
+        coveredEntityKinds: { buildings: 0, components: 0, nodes: 0, edges: 0, traces: 0, doors: 0 },
+        uncoveredRemovalCount: 1,
+        uncoveredEntityKinds: { buildings: 1, components: 0, nodes: 0, edges: 0, traces: 0, doors: 0 },
+        removedFromAcknowledgedBaselineCount: 1,
+        pendingScopeCount: 1,
+        pendingScopeKinds: { building: 1, floor: 0, door: 0, route: 0, poi: 0, outdoor: 0 },
+        allRemovalsCovered: false,
+        acknowledgedBaselinePresent: true,
+        pendingIntentPresent: true,
+        documentChangedAfterPreviousAck: true,
+        previousSaveSucceeded: true,
+      },
+    ])
+
+    const diagnosticJson = JSON.stringify(guardWarning?.[1])
+    for (const forbiddenValue of [
+      mapId,
+      buildingA,
+      buildingB,
+      'PRIVATE_BUILDING_NAME_A',
+      'PRIVATE_BUILDING_NAME_B',
+      'PRIVATE_NODE_IDENTIFIER',
+      'PRIVATE_NODE_NAME',
+      'PRIVATE_DOCUMENT_NAME',
+      'PRIVATE_DOCUMENT_PAYLOAD',
+      'private-token-sentinel',
+      'fingerprint-deadbeef',
+      '121.123456',
+      '-118.654321',
+    ]) {
+      expect(diagnosticJson).not.toContain(forbiddenValue)
+    }
+  })
+
+  it('does not claim a previous save or document-version change after a read-only baseline load', async () => {
+    const mapId = 'PRIVATE_CAMPUS_IDENTIFIER'
+    const buildingA = 'PRIVATE_BUILDING_A'
+    const buildingB = 'PRIVATE_BUILDING_B'
+    const serverGraph = new Graph(mapId)
+    serverGraph.addBuilding({ id: buildingA, name: 'PRIVATE_BUILDING_NAME_A', campusId: mapId, footprint: [] } as never)
+    serverGraph.addBuilding({ id: buildingB, name: 'PRIVATE_BUILDING_NAME_B', campusId: mapId, footprint: [] } as never)
+    useGraphStore.setState({ graph: new Graph(mapId), currentMapId: mapId, authoredDocument: null })
+    const fetchMock = vi.fn(async () => jsonResponse({ ...serverGraph.toJSON(), updatedAt: 'READ-R1' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await useGraphStore.getState().fetchFromSupabase(mapId)
+    useGraphStore.setState({ campusReady: true })
+    useGraphStore.getState().recordAuthoredMutation('building', buildingA, null)
+    const graph = useGraphStore.getState().graph
+    graph.setBuildings(graph.buildings.filter((building) => building.id !== buildingB))
+    await useGraphStore.getState().save()
+
+    expect(useGraphStore.getState().syncStatus).toBe('error')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const guardWarning = warning.mock.calls.find(([message]) => message === '[graph-store] save blocked by safety guard')
+    expect(guardWarning?.[1]).toMatchObject({
+      acknowledgedBaselinePresent: true,
+      pendingIntentPresent: true,
+      previousSaveSucceeded: false,
+      documentChangedAfterPreviousAck: false,
+    })
+    expect(JSON.stringify(guardWarning?.[1])).not.toContain(mapId)
+    expect(JSON.stringify(guardWarning?.[1])).not.toContain(buildingB)
+  })
 })

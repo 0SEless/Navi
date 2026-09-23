@@ -35,6 +35,31 @@ const SAFE_SAVE_LIFECYCLE_FIELDS = new Set([
   'graphMatch',
   'authoredMatch',
 ])
+const GUARD_COLLECTIONS = ['buildings', 'components', 'nodes', 'edges', 'traces', 'doors'] as const
+type GuardCollectionName = (typeof GUARD_COLLECTIONS)[number]
+type GuardCollectionIdSnapshot = Record<GuardCollectionName, string[]>
+
+function captureGuardCollectionIds(): GuardCollectionIdSnapshot {
+  const graph = useGraphStore.getState().graph.toJSON() as unknown as Record<string, unknown>
+  return Object.fromEntries(GUARD_COLLECTIONS.map((kind) => [
+    kind,
+    (Array.isArray(graph[kind]) ? graph[kind] : []).flatMap((raw) => {
+      if (typeof raw !== 'object' || raw === null || !('id' in raw)) return []
+      const id = (raw as { id?: unknown }).id
+      return typeof id === 'string' ? [id] : []
+    }),
+  ])) as GuardCollectionIdSnapshot
+}
+
+function removedGuardCollectionCounts(
+  previous: GuardCollectionIdSnapshot,
+  candidate: GuardCollectionIdSnapshot,
+): Record<GuardCollectionName, number> {
+  return Object.fromEntries(GUARD_COLLECTIONS.map((kind) => {
+    const candidateIds = new Set(candidate[kind])
+    return [kind, previous[kind].filter((id) => !candidateIds.has(id)).length]
+  })) as Record<GuardCollectionName, number>
+}
 
 function expectSafeSaveLifecycleEntries(entries: Array<Record<string, unknown>>): void {
   expect(entries.length).toBeGreaterThan(0)
@@ -408,6 +433,7 @@ describe('full reload status lifecycle', () => {
     expect(workflowStore.getSnapshot()).toMatchObject({ saveState: 'saved', saveError: null })
     expect((postedBodies[0]?.authoredDocument as { buildings: Array<{ color: string }> }).buildings[0]?.color)
       .toBe('#EF4444')
+    const guardCollectionsAfterB = captureGuardCollectionIds()
     const graphAck = __getSyncStatusTraceForTests().filter((entry) => entry.to === 'synced').at(-1)
     expect(graphAck?.source).toBe('performSyncToSupabase')
     const workflowAck = __getWorkflowStatusTraceForTests()
@@ -452,6 +478,14 @@ describe('full reload status lifecycle', () => {
     const cRevision = documentStore.version
     expect(cRevision).toBeGreaterThan(bRevision)
     expect(useGraphStore.getState().pendingAuthoredMutations.length).toBeGreaterThan(0)
+    expect(removedGuardCollectionCounts(guardCollectionsAfterB, captureGuardCollectionIds())).toEqual({
+      buildings: 0,
+      components: 0,
+      nodes: 0,
+      edges: 0,
+      traces: 0,
+      doors: 0,
+    })
 
     await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
     await vi.waitFor(() => expect(postedBodies).toHaveLength(2))

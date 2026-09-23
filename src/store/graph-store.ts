@@ -340,6 +340,15 @@ function saveWasSuperseded(
 let lastAcknowledgedCollections: GuardCollections | null = null
 let lastAcknowledgedSeq = 0
 
+/** Safe diagnostic context for a guard rejection; never participates in save decisions. */
+let lastConfirmedSaveSucceeded = false
+let lastConfirmedSaveDocumentVersion: number | null = null
+
+function resetSaveAcknowledgmentDiagnostic(): void {
+  lastConfirmedSaveSucceeded = false
+  lastConfirmedSaveDocumentVersion = null
+}
+
 const asEntityList = (items: unknown): GuardCollections['buildings'] =>
   (Array.isArray(items) ? items : []).map((raw) => {
     const e = raw as { id?: string; buildingId?: string | null; floor?: number | null; from?: string; to?: string }
@@ -1131,6 +1140,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
     // P0.12: a campus load begins — the acknowledged baseline is unknown until
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
+    resetSaveAcknowledgmentDiagnostic()
     authoredIntentSeq = 0
     pendingLocalAheadResumeMapId = null
     // P0.14: not ready while an authoritative campus load is in flight.
@@ -1199,6 +1209,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
       // P0.12 campus isolation: per-campus authored intents and the
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
+      resetSaveAcknowledgmentDiagnostic()
       authoredIntentSeq = 0
       campusSessionGeneration += 1
       pendingLocalAheadResumeMapId = null
@@ -1479,6 +1490,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
     const effectiveMapId = mapId || get().currentMapId
     // P0.12: baseline unknown while an authoritative fetch is in flight.
     lastAcknowledgedCollections = null
+    resetSaveAcknowledgmentDiagnostic()
     authoredIntentSeq = 0
     // P0.14: not ready until the fetched graph is reconciled by the editor.
     get().beginCampusHydration()
@@ -1602,6 +1614,7 @@ export function __resetGraphSaveQueuesForTests(): void {
   // P0.12: module-level safety state must not leak across test cases (the
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
+  resetSaveAcknowledgmentDiagnostic()
   authoredIntentSeq = 0
   campusSessionGeneration = 0
   // Invalidate any unresolved async work from the previous test boundary.
@@ -1737,7 +1750,21 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
     if (lastAcknowledgedCollections) {
       const verdict = evaluateAuthoredSave(lastAcknowledgedCollections, collectionsOf(candidateSnapshot), pending)
       if (!verdict.allowed) {
-        console.warn('[graph-store] save blocked by safety guard')
+        const currentDocumentVersion = preState.authoredDocument?.version
+        const documentChangedAfterPreviousAck =
+          lastConfirmedSaveSucceeded &&
+          lastConfirmedSaveDocumentVersion !== null &&
+          typeof currentDocumentVersion === 'number' &&
+          currentDocumentVersion !== lastConfirmedSaveDocumentVersion
+        console.warn('[graph-store] save blocked by safety guard', {
+          ...verdict.diagnostic,
+          operation: 'performSyncToSupabase',
+          phase: 'pre-network-save-guard',
+          acknowledgedBaselinePresent: lastAcknowledgedCollections !== null,
+          pendingIntentPresent: pending.length > 0,
+          documentChangedAfterPreviousAck,
+          previousSaveSucceeded: lastConfirmedSaveSucceeded,
+        })
         useGraphStore.setState({ syncStatus: 'error', syncError: verdict.reason })
         return
       }
@@ -1841,6 +1868,9 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       // P0.11: the acknowledged snapshot is the new canonical guard baseline;
       // clear ONLY the intents included in this save (newer edits stay pending).
       lastAcknowledgedCollections = collectionsOf(snapshot)
+      lastConfirmedSaveSucceeded = true
+      lastConfirmedSaveDocumentVersion =
+        typeof preState.authoredDocument?.version === 'number' ? preState.authoredDocument.version : null
       lastAcknowledgedSeq = Math.max(lastAcknowledgedSeq, includedUpTo)
       if (includedUpTo > 0) useGraphStore.getState().clearAuthoredMutations(includedUpTo)
       useGraphStore.setState({ syncStatus: 'synced', syncError: null })
