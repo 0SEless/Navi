@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BuildingRenderData } from '@/components/map/NavigationRenderModel'
 
@@ -87,6 +87,17 @@ export function BuildingLayer({
   const initializedRef = useRef(false)
   // Track whether we've ever populated data, to handle late-arriving buildings
   const hasPopulatedRef = useRef(false)
+  const selectedBuildingIdRef = useRef(selectedBuildingId ?? null)
+  const selectedFeatureIdRef = useRef<string | null>(null)
+  const onBuildingClickRef = useRef(onBuildingClick)
+
+  useLayoutEffect(() => {
+    selectedBuildingIdRef.current = selectedBuildingId ?? null
+  }, [selectedBuildingId])
+
+  useLayoutEffect(() => {
+    onBuildingClickRef.current = onBuildingClick
+  }, [onBuildingClick])
 
   // Initialize sources and layers — runs ONCE per map instance
   useEffect(() => {
@@ -107,32 +118,36 @@ export function BuildingLayer({
       map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
 
       // Fill layer
-      map.addLayer({
-        id: LYR.FILL,
-        type: 'fill',
-        source: SRC,
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false], 0.45,
-            0.25,
-          ],
-        },
-      })
+      if (!map.getLayer(LYR.FILL)) {
+        map.addLayer({
+          id: LYR.FILL,
+          type: 'fill',
+          source: SRC,
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 0.45,
+              0.25,
+            ],
+          },
+        })
+      }
 
       // Outline layer
-      map.addLayer({
-        id: LYR.OUTLINE,
-        type: 'line',
-        source: SRC,
-        paint: {
-          ...getBuildingOutlinePaint(),
-        },
-      })
+      if (!map.getLayer(LYR.OUTLINE)) {
+        map.addLayer({
+          id: LYR.OUTLINE,
+          type: 'line',
+          source: SRC,
+          paint: {
+            ...getBuildingOutlinePaint(),
+          },
+        })
+      }
 
       // Extrusion layer (3D buildings)
-      if (showExtrusion) {
+      if (showExtrusion && !map.getLayer(LYR.EXTRUSION)) {
         map.addLayer({
           id: LYR.EXTRUSION,
           type: 'fill-extrusion',
@@ -147,7 +162,7 @@ export function BuildingLayer({
       }
 
       // Labels layer
-      if (showLabels) {
+      if (showLabels && !map.getLayer(LYR.LABELS)) {
         map.addLayer({
           id: LYR.LABELS,
           type: 'symbol',
@@ -218,44 +233,48 @@ export function BuildingLayer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, buildings])
 
-  // Sync selection state
-  const selectedBuildingRef = useRef<string | null>(null)
+  // The listener is stable for the lifetime of the map. The desired selection
+  // is read from a ref so route/store changes do not churn styledata handlers.
+  const syncSelection = useCallback(() => {
+    if (!map || !initializedRef.current || !map.isStyleLoaded() || !map.getSource(SRC)) return
+    const previousId = selectedFeatureIdRef.current
+    const nextId = selectedBuildingIdRef.current
+    if (previousId && previousId !== nextId) {
+      try { map.setFeatureState({ source: SRC, id: previousId }, { selected: false }) } catch {}
+    }
+    if (nextId) {
+      try { map.setFeatureState({ source: SRC, id: nextId }, { selected: true }) } catch {}
+    }
+    selectedFeatureIdRef.current = nextId
+  }, [map])
+
   useEffect(() => {
     if (!map) return
-
-    const syncSelection = () => {
-      if (!initializedRef.current || !map.isStyleLoaded() || !map.getSource(SRC)) return
-      const previousId = selectedBuildingRef.current
-      if (previousId && previousId !== selectedBuildingId) {
-        try { map.setFeatureState({ source: SRC, id: previousId }, { selected: false }) } catch {}
-      }
-      if (selectedBuildingId) {
-        try { map.setFeatureState({ source: SRC, id: selectedBuildingId }, { selected: true }) } catch {}
-      }
-      selectedBuildingRef.current = selectedBuildingId ?? null
-    }
-
-    syncSelection()
     map.on('styledata', syncSelection)
     return () => {
       try { map.off('styledata', syncSelection) } catch {}
     }
-  }, [map, selectedBuildingId])
+  }, [map, syncSelection])
 
-  // Click handler
   useEffect(() => {
-    if (!map || !onBuildingClick) return
+    syncSelection()
+  }, [selectedBuildingId, syncSelection])
+
+  // Click handler stays attached even when no callback is currently supplied;
+  // a ref dispatches to the latest route callback without listener churn.
+  useEffect(() => {
+    if (!map) return
 
     const handler = (e: maplibregl.MapLayerMouseEvent) => {
       if (e.features && e.features.length > 0) {
         const id = e.features[0].properties?.id
-        if (id) onBuildingClick(id)
+        if (id) onBuildingClickRef.current?.(id)
       }
     }
 
     map.on('click', LYR.FILL, handler)
     return () => { try { map.off('click', LYR.FILL, handler) } catch {} }
-  }, [map, onBuildingClick])
+  }, [map])
 
   // Hover cursor
   useEffect(() => {

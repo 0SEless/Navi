@@ -5,6 +5,7 @@ import { AdaptiveShell } from '../AdaptiveShell'
 import { useNavigationMap } from '@/components/map/NavigationMap'
 import NavigationMap from '@/components/map/NavigationMap'
 import { usePublicStore } from '@/store/public-store'
+import type { CampusBundle } from '@/types/nav-types'
 
 type FakeListener = (...args: unknown[]) => void
 type FakeSource = { setData: ReturnType<typeof vi.fn> }
@@ -18,6 +19,10 @@ interface FakeMapInstance {
   stop: ReturnType<typeof vi.fn>
   sources: Map<string, FakeSource>
   layers: Map<string, FakeLayer>
+  sourceAdds: string[]
+  sourceRemoves: string[]
+  layerAdds: string[]
+  layerRemoves: string[]
   handlers: Map<string, Set<FakeListener>>
   camera: { center: [number, number]; zoom: number; bearing: number; pitch: number }
   jumpTo(options: { center?: [number, number]; zoom?: number; bearing?: number; pitch?: number }): void
@@ -38,7 +43,23 @@ interface FakeMapInstance {
   isStyleLoaded(): boolean
   triggerRepaint(): void
   getCanvas(): { style: { cursor: string } }
+  emit(event: string): void
+  simulateStyleReload(): void
 }
+
+const COMMON_SOURCE_IDS = [
+  'buildings', 'rooms', 'hallways', 'walls', 'stairs', 'elevators', 'doors', 'openings', 'entrances', 'pois',
+  'navigate-current-direction', 'navigate-current-position',
+]
+const COMMON_LAYER_IDS = [
+  'buildings-fill', 'buildings-outline', 'buildings-extrusion', 'buildings-labels',
+  'rooms-fill', 'rooms-outline', 'rooms-labels',
+  'hallways-fill', 'hallways-outline', 'walls-fill', 'walls-outline',
+  'stairs-fill', 'stairs-outline', 'stairs-treads', 'stairs-arrow', 'stairs-layer',
+  'elevators-shaft-fill', 'elevators-shaft-outline', 'elevators-cabin-outline', 'elevators-door-lines', 'elevators-layer',
+  'doors-layer', 'openings-door-line', 'openings-door-fill', 'openings-door-outline', 'openings-window-fill', 'openings-window-outline',
+  'entrances-layer', 'pois-layer', 'navigate-current-direction-arrow', 'navigate-current-position-point',
+]
 
 const mapInstances = vi.hoisted(() => [] as FakeMapInstance[])
 const routeState = vi.hoisted(() => ({ pathname: '/map/home', push: vi.fn() }))
@@ -61,7 +82,12 @@ vi.mock('maplibre-gl', () => {
     triggerRepaint = vi.fn()
     sources = new Map<string, FakeSource>()
     layers = new Map<string, FakeLayer>()
+    sourceAdds: string[] = []
+    sourceRemoves: string[] = []
+    layerAdds: string[] = []
+    layerRemoves: string[] = []
     handlers = new Map<string, Set<FakeListener>>()
+    images = new Set<string>()
     camera = { center: [122.1677, 11.8197] as [number, number], zoom: 16, bearing: 0, pitch: 0 }
     canvas = { style: { cursor: '' } }
     maxPitch = 60
@@ -93,19 +119,32 @@ vi.mock('maplibre-gl', () => {
 
     addSource(id: string) {
       if (this.sources.has(id)) throw new Error(`Duplicate source: ${id}`)
+      this.sourceAdds.push(id)
       this.sources.set(id, { setData: vi.fn() })
     }
 
     getSource(id: string) { return this.sources.get(id) }
-    removeSource(id: string) { this.sources.delete(id) }
+    removeSource(id: string) {
+      this.sourceRemoves.push(id)
+      this.sources.delete(id)
+    }
 
     addLayer(layer: FakeLayer) {
       if (this.layers.has(layer.id)) throw new Error(`Duplicate layer: ${layer.id}`)
+      this.layerAdds.push(layer.id)
       this.layers.set(layer.id, layer)
     }
 
     getLayer(id: string) { return this.layers.get(id) }
-    removeLayer(id: string) { this.layers.delete(id) }
+    removeLayer(id: string) {
+      this.layerRemoves.push(id)
+      this.layers.delete(id)
+    }
+
+    addImage(id: string) { this.images.add(id) }
+    hasImage(id: string) { return this.images.has(id) }
+    removeImage(id: string) { this.images.delete(id) }
+    setFeatureState() {}
 
     on(event: string, layerOrListener: string | FakeListener, maybeListener?: FakeListener) {
       const layerId = typeof layerOrListener === 'string' ? layerOrListener : ''
@@ -127,6 +166,20 @@ vi.mock('maplibre-gl', () => {
       if (listeners?.size === 0) this.handlers.delete(key)
       return this
     }
+
+    emit(event: string) {
+      for (const [key, listeners] of this.handlers) {
+        if (!key.startsWith(`${event}:`)) continue
+        for (const listener of listeners) listener()
+      }
+    }
+
+    simulateStyleReload() {
+      this.sources.clear()
+      this.layers.clear()
+      this.images.clear()
+      this.emit('style.load')
+    }
   }
 
   return {
@@ -142,6 +195,17 @@ vi.mock('maplibre-gl', () => {
 
 const boundsA = { minLat: 11.8, maxLat: 11.81, minLng: 122.1, maxLng: 122.11 }
 const boundsB = { minLat: 11.81, maxLat: 11.82, minLng: 122.11, maxLng: 122.12 }
+
+const campusBundle = {
+  nodes: [],
+  edges: [],
+  searchEntries: [],
+  buildings: [],
+  components: [],
+  doors: [],
+  poi: [],
+  boundingBox: boundsA,
+} satisfies CampusBundle
 
 function RouteLayer({ screenName }: { screenName: string }) {
   const { map, isReady } = useNavigationMap()
@@ -195,18 +259,39 @@ function updateRoute(
   rerender(<AdaptiveShell><RouteContent pathname={pathname} bounds={bounds} /></AdaptiveShell>)
 }
 
-let originalFetchCampusData: typeof usePublicStore.getState extends () => infer T
-  ? T extends { fetchCampusData: infer F } ? F : never
-  : never
-let fetchCampusData: ReturnType<typeof vi.fn>
+function expectCommonScene(map: FakeMapInstance) {
+  expect([...map.sources.keys()]).toEqual(expect.arrayContaining(COMMON_SOURCE_IDS))
+  expect([...map.layers.keys()]).toEqual(expect.arrayContaining(COMMON_LAYER_IDS))
+}
+
+function commonSourceAdds(map: FakeMapInstance) {
+  return map.sourceAdds.filter(id => COMMON_SOURCE_IDS.includes(id))
+}
+
+function commonLayerAdds(map: FakeMapInstance) {
+  return map.layerAdds.filter(id => COMMON_LAYER_IDS.includes(id))
+}
+
+function persistentHandlerSnapshot(map: FakeMapInstance) {
+  return [...map.handlers]
+    .filter(([key]) => !key.includes('transition-test-layer'))
+    .map(([key, handlers]) => [key, [...handlers]] as const)
+}
+
+function commonDataUpdateCount(map: FakeMapInstance) {
+  return COMMON_SOURCE_IDS.reduce((total, id) => total + (map.sources.get(id)?.setData.mock.calls.length ?? 0), 0)
+}
+
+let originalFetchCampusData: (campusId?: string) => Promise<void>
+let fetchCampusData: ReturnType<typeof vi.fn<(campusId?: string) => Promise<void>>>
 
 beforeEach(() => {
   mapInstances.length = 0
   routeState.pathname = '/map/home'
   routeState.push.mockReset()
   originalFetchCampusData = usePublicStore.getState().fetchCampusData
-  fetchCampusData = vi.fn(async () => undefined)
-  usePublicStore.setState({ activeTab: 'home', fetchCampusData })
+  fetchCampusData = vi.fn<(campusId?: string) => Promise<void>>(async () => undefined)
+  usePublicStore.setState({ activeTab: 'home', fetchCampusData, campus: campusBundle })
 })
 
 afterEach(() => {
@@ -224,33 +309,49 @@ describe('public map runtime persistence', () => {
     updateRoute(view.rerender, '/map/explore')
     await waitFor(() => expect(mapInstances).toHaveLength(1))
     expect(await screen.findByTestId('explore-screen')).toBeInTheDocument()
+    await waitFor(() => expectCommonScene(mapInstances[0]))
+    expect(commonSourceAdds(mapInstances[0])).toHaveLength(12)
+    expect(commonLayerAdds(mapInstances[0])).toHaveLength(31)
   })
 
-  it('reuses the map in both Explore/Navigate directions and cleans scene resources between them', async () => {
+  it('keeps all common sources/layers and handlers across Explore ↔ Navigate without re-adding them', async () => {
     const view = renderRoute('/map/explore')
     await screen.findByTestId('explore-screen')
     const map = mapInstances[0]
+    await waitFor(() => expectCommonScene(map))
 
     expect(map.sources.has('transition-test-source')).toBe(true)
     expect(map.layers.has('transition-test-layer')).toBe(true)
     expect(map.handlers.get('click:transition-test-layer')?.size).toBe(1)
+    const sourceAdds = commonSourceAdds(map)
+    const layerAdds = commonLayerAdds(map)
+    expect(sourceAdds).toHaveLength(12)
+    expect(layerAdds).toHaveLength(31)
+    expect(map.handlers.get('click:buildings-fill')?.size).toBe(1)
+    const persistentHandlers = persistentHandlerSnapshot(map)
 
     updateRoute(view.rerender, '/map/navigate')
     await screen.findByTestId('navigate-screen')
     expect(mapInstances).toHaveLength(1)
     expect(map.remove).not.toHaveBeenCalled()
-    expect(map.sources.size).toBe(1)
-    expect(map.layers.size).toBe(1)
+    expectCommonScene(map)
+    expect(commonSourceAdds(map)).toEqual(sourceAdds)
+    expect(commonLayerAdds(map)).toEqual(layerAdds)
     expect(map.handlers.get('click:transition-test-layer')?.size).toBe(1)
+    expect(map.handlers.get('click:buildings-fill')?.size).toBe(1)
+    expect(persistentHandlerSnapshot(map)).toEqual(persistentHandlers)
     expect(map.getMaxPitch()).toBe(85)
     map.jumpTo({ center: [122.25, 11.9], zoom: 19, bearing: 75, pitch: 75 })
 
     updateRoute(view.rerender, '/map/explore')
     await screen.findByTestId('explore-screen')
     expect(mapInstances).toHaveLength(1)
-    expect(map.sources.size).toBe(1)
-    expect(map.layers.size).toBe(1)
+    expectCommonScene(map)
+    expect(commonSourceAdds(map)).toEqual(sourceAdds)
+    expect(commonLayerAdds(map)).toEqual(layerAdds)
     expect(map.handlers.get('click:transition-test-layer')?.size).toBe(1)
+    expect(map.handlers.get('click:buildings-fill')?.size).toBe(1)
+    expect(persistentHandlerSnapshot(map)).toEqual(persistentHandlers)
     expect(map.fitBounds).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(map.resize).toHaveBeenCalled())
     expect(map.getCenter()).toEqual({ lng: 122.25, lat: 11.9 })
@@ -267,8 +368,9 @@ describe('public map runtime persistence', () => {
 
     updateRoute(view.rerender, '/map/home')
     expect(screen.getByTestId('home-screen')).toBeInTheDocument()
-    expect(map.sources.size).toBe(0)
-    expect(map.layers.size).toBe(0)
+    expectCommonScene(map)
+    expect(map.sources.has('transition-test-source')).toBe(false)
+    expect(map.layers.has('transition-test-layer')).toBe(false)
     expect(map.handlers.get('click:transition-test-layer')).toBeUndefined()
     expect(screen.getByTestId('navigation-map-host')).toHaveAttribute('data-active', 'false')
     expect(map.stop).toHaveBeenCalled()
@@ -277,6 +379,9 @@ describe('public map runtime persistence', () => {
     await screen.findByTestId('explore-screen')
     expect(mapInstances).toHaveLength(1)
     expect(map.remove).not.toHaveBeenCalled()
+    expectCommonScene(map)
+    expect(commonSourceAdds(map)).toHaveLength(12)
+    expect(commonLayerAdds(map)).toHaveLength(31)
     expect(map.fitBounds).toHaveBeenCalledTimes(1)
     expect(map.getCenter()).toEqual({ lng: 122.25, lat: 11.9 })
     expect(map.getZoom()).toBe(19)
@@ -305,10 +410,58 @@ describe('public map runtime persistence', () => {
     updateRoute(view.rerender, '/map/profile')
     expect(screen.getByTestId('profile-screen')).toBeInTheDocument()
     expect(map.stop).toHaveBeenCalled()
-    expect(map.sources.size).toBe(0)
-    expect(map.layers.size).toBe(0)
+    expectCommonScene(map)
 
     view.unmount()
     expect(map.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not update persistent sources in hidden Home while presentation state changes', async () => {
+    const view = renderRoute('/map/explore')
+    await screen.findByTestId('explore-screen')
+    const map = mapInstances[0]
+    await waitFor(() => expectCommonScene(map))
+
+    updateRoute(view.rerender, '/map/home')
+    const updatesWhileHidden = commonDataUpdateCount(map)
+    usePublicStore.setState({
+      preferences: { ...usePublicStore.getState().preferences, mapAppearance: 'uniform' },
+      selectedBuilding: null,
+    })
+
+    expect(commonDataUpdateCount(map)).toBe(updatesWhileHidden)
+  })
+
+  it('updates a replaced campus through existing sources without duplicate resource registration', async () => {
+    renderRoute('/map/explore')
+    await screen.findByTestId('explore-screen')
+    const map = mapInstances[0]
+    await waitFor(() => expectCommonScene(map))
+    const sourceAdds = commonSourceAdds(map)
+    const layerAdds = commonLayerAdds(map)
+    const buildingSource = map.sources.get('buildings')
+
+    usePublicStore.setState({ campus: { ...campusBundle, boundingBox: boundsB } })
+
+    await waitFor(() => expect(buildingSource?.setData).toHaveBeenCalled())
+    expect(map.sources.get('buildings')).toBe(buildingSource)
+    expect(commonSourceAdds(map)).toEqual(sourceAdds)
+    expect(commonLayerAdds(map)).toEqual(layerAdds)
+  })
+
+  it('rehydrates common resources once after a genuine style reload', async () => {
+    const view = renderRoute('/map/explore')
+    await screen.findByTestId('explore-screen')
+    const map = mapInstances[0]
+    await waitFor(() => expectCommonScene(map))
+    const priorSourceAddCount = commonSourceAdds(map).length
+    const priorLayerAddCount = commonLayerAdds(map).length
+
+    map.simulateStyleReload()
+    await waitFor(() => expectCommonScene(map))
+
+    expect(commonSourceAdds(map)).toHaveLength(priorSourceAddCount + 12)
+    expect(commonLayerAdds(map)).toHaveLength(priorLayerAddCount + 31)
+    view.unmount()
   })
 })

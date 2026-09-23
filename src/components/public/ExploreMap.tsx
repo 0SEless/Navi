@@ -1,33 +1,18 @@
 'use client'
 
-import { useMemo, useCallback, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Compass, LocateFixed, Navigation } from 'lucide-react'
-import NavigationMap, { useNavigationMap } from '@/components/map/NavigationMap'
-import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
-import { RoomLayer } from '@/components/map/layers/RoomLayer'
-import { HallwayLayer } from '@/components/map/layers/HallwayLayer'
-import { StaircaseLayer } from '@/components/map/layers/StaircaseLayer'
-import { ElevatorLayer } from '@/components/map/layers/ElevatorLayer'
-import { DoorLayer } from '@/components/map/layers/DoorLayer'
-import { WallLayer } from '@/components/map/layers/WallLayer'
-import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
-import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
-import { POILayer } from '@/components/map/layers/POILayer'
-import { RouteLine } from '@/components/map/RouteLine'
+import NavigationMap, { useNavigationMap, useNavigationMapScene, type NavigationMapSceneState } from '@/components/map/NavigationMap'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import NavigationCamera, { type NavigationCameraConfig } from '@/components/map/NavigationCamera'
-import NavigationPositionMarker from '@/components/map/NavigationPositionMarker'
 import {
   NavigationProvider,
-  useNavigationContext,
   useOptionalNavigationContext,
 } from '@/components/map/NavigationContext'
-import { getCachedNavigationRenderModel, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 import { usePublicStore } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
 import {
   getExploreFloors,
-  resolveExploreBuildingColor,
   resolveExploreContext,
   type ExploreContext,
 } from '@/lib/explore-contracts'
@@ -45,163 +30,36 @@ export interface ExploreMapProps {
   camera?: NavigationCameraConfig
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function authoredPoiPosition(bundle: CampusBundle, id: string): { lat: number; lng: number } | undefined {
-  const poi = bundle.poi.find((value) => isRecord(value) && value.id === id)
-  if (!isRecord(poi)) return undefined
-  const geometry = isRecord(poi.geometry) ? poi.geometry : undefined
-  const candidate = geometry?.type === 'point'
-    ? geometry.position
-    : geometry?.type === 'circle'
-      ? geometry.center
-      : Array.isArray(geometry?.points) ? geometry.points[0] : poi.position
-  if (!isRecord(candidate) || typeof candidate.lat !== 'number' || typeof candidate.lng !== 'number') return undefined
-  return { lat: candidate.lat, lng: candidate.lng }
-}
-
-// ── Inner layer composition ────────────────────────────────────
-
-/**
- * Renders all map layers. Must be inside NavigationMap (uses useNavigationMap).
- * Separated so layers only mount after the map is ready.
- */
-function ExploreLayers({
-  model,
+function ExploreScenePublisher({
   bundle,
   route,
-  indoorContext,
-  activeFloor,
-  selectedBuildingId,
   navigationTargetBuildingId,
   fitCamera,
 }: {
-  model: NavigationRenderModel
   bundle: CampusBundle
   route?: { path: string[]; cost: number } | null
-  indoorContext: { active: boolean; buildingId?: string; floorId?: number }
-  activeFloor: number
-  selectedBuildingId?: string
   navigationTargetBuildingId?: string
   fitCamera: boolean
 }) {
-  const { map } = useNavigationMap()
-  const selectBuilding = usePublicStore((s) => s.selectBuilding)
-  const setSheet = usePublicStore((s) => s.setSheet)
-  const revealedPoiIds = usePublicStore((s) => s.revealedPoiIds)
-  // Phase 2F foundation: consume the navigation segment so layers never decide
-  // navigation state independently. T10: routes emphasize via this segment.
-  const { navigationSegment } = useNavigationContext()
+  const navigationContext = useOptionalNavigationContext()
+  const { publish, clear } = useNavigationMapScene()
+  const ownerRef = useRef(Symbol('explore-scene-owner'))
 
-  const handleBuildingClick = (buildingId: string) => {
-    // Look up the full Building from the bundle (not the render model)
-    const building = bundle.buildings.find((b) => b.id === buildingId)
-    if (building) {
-      selectBuilding(building)
-      setSheet('half')
+  useEffect(() => {
+    const state: NavigationMapSceneState = {
+      bundle,
+      route: route ?? null,
+      navigationTargetBuildingId,
+      navigationContext,
+      fitCamera,
     }
-  }
+    publish(ownerRef.current, state)
+  }, [bundle, fitCamera, navigationContext, navigationTargetBuildingId, publish, route])
 
-  // Node lookup for route rendering (seam for the Navigate phase).
-  const getNodePosition = useCallback(
-    (id: string) => {
-      const n = bundle.nodes.find((x) => x.id === id)
-      return n ? { lat: n.position.lat, lng: n.position.lng } : authoredPoiPosition(bundle, id)
-    },
-    [bundle],
-  )
-  const getNodeFloor = useCallback(
-    (id: string) => {
-      const node = bundle.nodes.find((x) => x.id === id)
-      if (node) return node.floor
-      const poi = bundle.poi.find((value) => isRecord(value) && value.id === id)
-      return isRecord(poi) && typeof poi.floor === 'number' ? poi.floor : undefined
-    },
-    [bundle],
-  )
+  useEffect(() => () => clear(ownerRef.current), [clear])
 
-  return (
-    <div data-nav-segment={navigationSegment}>
-      <BuildingLayer
-        map={map}
-        buildings={model.buildings}
-        selectedBuildingId={navigationTargetBuildingId ?? selectedBuildingId}
-        onBuildingClick={handleBuildingClick}
-      />
-      <RoomLayer
-        map={map}
-        rooms={model.indoor.rooms}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <HallwayLayer
-        map={map}
-        hallways={model.indoor.hallways}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <WallLayer
-        map={map}
-        walls={model.indoor.walls}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <StaircaseLayer
-        map={map}
-        stairs={model.indoor.stairs}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <ElevatorLayer
-        map={map}
-        elevators={model.indoor.elevators}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <DoorLayer
-        map={map}
-        doors={model.indoor.doors}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <OpeningLayer
-        map={map}
-        openings={model.indoor.openings}
-        walls={model.indoor.walls}
-        floor={activeFloor}
-        indoorContext={indoorContext}
-      />
-      <EntranceLayer
-        map={map}
-        entrances={indoorContext.active
-          ? model.entrances.filter(e =>
-              e.floor === activeFloor
-                && (!indoorContext.buildingId || e.buildingId === indoorContext.buildingId)
-            )
-          : []}
-      />
-      <POILayer
-        map={map}
-        pois={indoorContext.active ? model.indoor.pois : []}
-        buildingId={indoorContext.buildingId}
-        floor={activeFloor}
-        revealedIds={revealedPoiIds}
-      />
-      <RouteLine
-        map={map}
-        route={route ?? null}
-        getNodePosition={getNodePosition}
-        getNodeFloor={getNodeFloor}
-        activeFloor={activeFloor}
-        navigationSegment={navigationSegment}
-        fitCamera={fitCamera}
-      />
-    </div>
-  )
+  return null
 }
-
 // ── Floor selector ─────────────────────────────────────────────
 
 function ExploreFloorSelector({
@@ -314,28 +172,8 @@ function ExploreMapControls({
  *  - floor selector → filters indoor layers by floor
  */
 export default function ExploreMap({ bundle, route, navigationTargetBuildingId, camera }: ExploreMapProps) {
-  // Keep expensive campus geometry independent from route remounts and presentation changes.
-  const baseModel = useMemo(() => getCachedNavigationRenderModel(bundle), [bundle])
-  const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
-  const model = useMemo(() => {
-    return {
-      ...baseModel,
-      buildings: baseModel.buildings.map((renderBuilding) => {
-        const sourceBuilding = bundle.buildings.find(building => building.id === renderBuilding.id)
-        return {
-          ...renderBuilding,
-          color: resolveExploreBuildingColor(
-            { color: sourceBuilding?.color ?? renderBuilding.color },
-            mapAppearance,
-          ),
-        }
-      }),
-    }
-  }, [baseModel, bundle, mapAppearance])
-
-  // Navigation surface owns the context (foundation). Explore proves the
-  // state→visualization mechanism; the real Navigate phase supplies live
-  // location + route state.
+  // Route-local UI derives its current context; the shared scene receives only
+  // a snapshot and remains mounted independently of this component.
   const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
   const activeFloor = usePublicStore((s) => s.activeFloor)
   const indoorContext = usePublicStore((s) => s.indoorContext)
@@ -350,13 +188,6 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     [activeFloor, indoorContext, parentNavigationContext, selectedBuilding?.id],
   )
   const effectiveFloor = exploreContext.floor ?? activeFloor
-  const effectiveIndoorContext = exploreContext.surface === 'outdoors'
-    ? { active: false }
-    : {
-        active: exploreContext.indoorActive,
-        buildingId: exploreContext.buildingId,
-        floorId: effectiveFloor,
-      }
 
   const cameraWithContext = camera && parentNavigationContext
     ? {
@@ -380,19 +211,6 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     && Number.isFinite(parentNavigationContext.location.lng),
   )
 
-  const layers = (
-    <ExploreLayers
-      model={model}
-      bundle={bundle}
-      route={route}
-      indoorContext={effectiveIndoorContext}
-      activeFloor={effectiveFloor}
-      selectedBuildingId={exploreContext.buildingId}
-      navigationTargetBuildingId={navigationTargetBuildingId}
-      fitCamera={!camera}
-    />
-  )
-
   const initialPitch = camera?.mode === 'POV'
     ? NAVIGATION_POV_PREFERRED_PITCH
     : camera?.mode === 'FOLLOW' ? 55 : 0
@@ -408,17 +226,26 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         || !camera
         || (camera?.surface === 'active' && !camera.routeBounds && !hasLiveCameraPosition)}
     >
-      {parentNavigationContext ? layers : (
+      {parentNavigationContext ? (
+        <ExploreScenePublisher
+          bundle={bundle}
+          route={route}
+          navigationTargetBuildingId={navigationTargetBuildingId}
+          fitCamera={!camera}
+        />
+      ) : (
         <NavigationProvider buildingId={exploreContext.buildingId} floor={effectiveFloor}>
-          {layers}
+          <ExploreScenePublisher
+            bundle={bundle}
+            route={route}
+            navigationTargetBuildingId={navigationTargetBuildingId}
+            fitCamera={!camera}
+          />
         </NavigationProvider>
       )}
       {cameraWithContext ? (
-        <NavigationCamera
-          {...cameraWithContext}
-        />
+        <NavigationCamera {...cameraWithContext} />
       ) : <ExploreMapControls bounds={bundle.boundingBox} />}
-      <NavigationPositionMarker />
       <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} />
     </NavigationMap>
   )
