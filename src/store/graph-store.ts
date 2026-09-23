@@ -179,10 +179,29 @@ function newMutationId(): string {
 }
 
 /**
- * Backoff delays (ms) between sync retries for transient network failures.
- * Total worst-case added latency before giving up: 1s + 3s = 4s.
+ * Backoff delays (ms) between guarded retries for transient save failures.
+ * The sequence is deliberately bounded so an outage never creates a 5-second
+ * write loop; after the final delay the online listener provides the next
+ * prompt recovery opportunity.
  */
-const SYNC_RETRY_DELAYS = [1000, 3000]
+const SYNC_RETRY_DELAYS = [2000, 5000, 10000, 30000]
+
+class RetryableSyncError extends Error {
+  readonly retryable = true
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'RetryableSyncError'
+  }
+}
+
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599)
+}
+
+function isRetryableSyncFailure(error: unknown): boolean {
+  return error instanceof RetryableSyncError || isNetworkError(error instanceof Error ? error.message : String(error))
+}
 
 const AUTH_REQUIRED_MESSAGE = 'Saving failed: authentication required. Sign in again to continue.'
 
@@ -240,6 +259,31 @@ let authoredIntentSeq = 0
 
 function isActiveCampusSession(mapId: string, generation: number): boolean {
   return campusSessionGeneration === generation && useGraphStore.getState().currentMapId === mapId
+}
+
+/** Test-only lifecycle context for the P0 save trace; never used by the UI. */
+export function __getGraphSaveSessionContextForTests(mapId: string): {
+  sessionGeneration: number
+  campusEpoch: number
+} {
+  return { sessionGeneration: campusSessionGeneration, campusEpoch: getCampusEpoch(mapId) }
+}
+
+function saveWasSuperseded(
+  mapId: string,
+  sessionGeneration: number,
+  epochAtStart: number,
+  snapshotHash: string,
+  authoredHash: string | null,
+  includedUpTo: number,
+): boolean {
+  if (!isActiveCampusSession(mapId, sessionGeneration)) return true
+  if (getCampusEpoch(mapId) !== epochAtStart) return true
+  const state = useGraphStore.getState()
+  if (graphFingerprint(state.graph.toJSON()) !== snapshotHash) return true
+  const currentAuthoredHash = state.authoredDocument ? authoredDocumentFingerprint(state.authoredDocument) : null
+  if (currentAuthoredHash !== authoredHash) return true
+  return state.pendingAuthoredMutations.some((intent) => intent.seq > includedUpTo)
 }
 
 /**
@@ -302,7 +346,11 @@ function bindOnlineResync() {
   onlineResyncBound = true
   window.addEventListener('online', () => {
     const state = useGraphStore.getState()
-    if (state.currentMapId) void state.syncToSupabase().catch(() => {})
+    // Reconcile first so an uncertain acknowledgement that already committed
+    // on the server is adopted without a fresh mutation id/CAS conflict. If
+    // the server still has the acknowledged base, syncLocalChanges funnels the
+    // preserved draft through the guarded save queue.
+    if (state.currentMapId) void state.syncLocalChanges().catch(() => {})
   })
 }
 
@@ -1515,6 +1563,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   useGraphStore.setState({ syncStatus: 'syncing', syncError: null })
   const snapshot = useGraphStore.getState().graph.toJSON()
   const snapshotHash = graphFingerprint(snapshot)
+  const authoredHash = preState.authoredDocument ? authoredDocumentFingerprint(preState.authoredDocument) : null
   // Serialize through the mapping layer to ensure RPC-compatible format
   // and inject the correct campusId from currentMapId
   const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId, preState.authoredDocument)
@@ -1526,6 +1575,12 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
 
   for (let attempt = 0; ; attempt++) {
     if (!isActiveCampusSession(mapId, sessionGeneration)) return
+    if (attempt > 0 && saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
+      // A newer authored revision owns the next queue turn. Never let a
+      // delayed retry write the older snapshot over that newer local state.
+      useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+      return
+    }
     try {
       const res = await fetch('/api/graph', {
         method: 'POST',
@@ -1538,14 +1593,15 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         if (isAuthenticationFailureStatus(res.status)) throw new Error(AUTH_REQUIRED_MESSAGE)
         const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
         const msg = errBody.error ?? `HTTP ${res.status}`
-        if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
-          await sleep(SYNC_RETRY_DELAYS[attempt])
-          continue
-        }
+        if (isRetryableHttpStatus(res.status)) throw new RetryableSyncError(msg)
         throw new Error(msg)
       }
       const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
-      const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult.updatedAt ?? null)
+      const acknowledgedRevision = await resolveAcknowledgedRevision(
+        mapId,
+        serverResult.updatedAt ?? null,
+        () => isActiveCampusSession(mapId, sessionGeneration) && getCampusEpoch(mapId) === epochAtStart,
+      )
       if (getCampusEpoch(mapId) !== epochAtStart) {
         // Phase 3A: the authoritative base was replaced while this save was in
         // flight; its acknowledgement must not be stamped onto the new base.
@@ -1559,7 +1615,11 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         const message =
           'The save reached the server, but the authoritative revision could not be confirmed. Local changes remain cached; retry when the server is reachable.'
         console.warn('[graph-store] syncToSupabase could not confirm the server revision.')
-        useGraphStore.setState({ syncStatus: 'error', syncError: message })
+        // The write itself already returned success. Do not issue another
+        // mutation here: legacy RPC deployments may not have idempotency and
+        // would turn a committed write into a false CAS conflict. The online
+        // recovery path will reconcile the server before attempting anything
+        // new if this final read-back remains unavailable.
         throw new Error(message)
       }
       // A confirmed server revision always becomes the marker's revision. The
@@ -1582,19 +1642,25 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
     } catch (e) {
       if (!isActiveCampusSession(mapId, sessionGeneration)) return
       const msg = e instanceof Error ? e.message : 'Sync failed'
-      if (isNetworkError(msg) && attempt < SYNC_RETRY_DELAYS.length) {
-        await sleep(SYNC_RETRY_DELAYS[attempt])
-        continue
-      }
-      if (isNetworkError(msg)) {
-        // Transient network failure — the graph is already safe in
-        // localStorage, so surface a calm status and resume automatically
-        // when the connection comes back.
+      if (isRetryableSyncFailure(e)) {
+        if (saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
+          useGraphStore.setState({ syncStatus: 'idle', syncError: null })
+          return
+        }
         bindOnlineResync()
+        if (attempt < SYNC_RETRY_DELAYS.length) {
+          // Keep the active request in a single retry chain. The final error
+          // remains truthful if every guarded attempt is exhausted, while the
+          // online listener can recover without a page reload.
+          useGraphStore.setState({ syncStatus: 'syncing', syncError: 'Save failed — retrying automatically' })
+          await sleep(SYNC_RETRY_DELAYS[attempt])
+          continue
+        }
         const offlineMessage = 'Offline — changes saved locally. Will retry when back online.'
-        console.warn('[graph-store] syncToSupabase offline — saved locally, will retry when back online:', msg)
-        useGraphStore.setState({ syncStatus: 'error', syncError: offlineMessage })
-        throw new Error(offlineMessage)
+        const finalMessage = isNetworkError(msg) ? offlineMessage : msg
+        console.warn('[graph-store] syncToSupabase retry chain exhausted:', msg)
+        useGraphStore.setState({ syncStatus: 'error', syncError: finalMessage })
+        throw new Error(finalMessage)
       } else if (/server changed|snapshot conflict/i.test(msg)) {
         useGraphStore.setState({ syncStatus: 'conflict', syncError: msg })
         throw new Error(msg)
@@ -1604,6 +1670,9 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       } else {
+        if (/^The save reached the server, but the authoritative revision could not be confirmed/i.test(msg)) {
+          bindOnlineResync()
+        }
         console.error('[graph-store] syncToSupabase failed:', msg)
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
@@ -1622,10 +1691,20 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
 async function resolveAcknowledgedRevision(
   mapId: string,
   responseUpdatedAt: string | null,
+  isCurrent?: () => boolean,
 ): Promise<string | null> {
   if (typeof responseUpdatedAt === 'string' && responseUpdatedAt.length > 0) {
     return responseUpdatedAt
   }
-  const data = await fetchServerSnapshot(mapId)
-  return data?.updatedAt ?? null
+  // A successful POST without an echoed revision is an acknowledgement
+  // uncertainty, not a second mutation opportunity. Retry only the read-back;
+  // this is safe for both idempotent and legacy RPC deployments.
+  for (let attempt = 0; ; attempt += 1) {
+    if (isCurrent && !isCurrent()) return null
+    const data = await fetchServerSnapshot(mapId, { surfaceAuthenticationFailure: true })
+    if (isCurrent && !isCurrent()) return null
+    if (data?.updatedAt) return data.updatedAt
+    if (attempt >= SYNC_RETRY_DELAYS.length) return null
+    await sleep(SYNC_RETRY_DELAYS[attempt])
+  }
 }

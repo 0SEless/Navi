@@ -160,6 +160,8 @@ describe('refresh-during-save recovery', () => {
   })
 
   it('failed retry preserves local work and restores the conflict state', async () => {
+    vi.useFakeTimers()
+    try {
     const h = harness()
     await seedAcknowledged()
     h.setServer('Base Hall', 'R7')
@@ -173,9 +175,15 @@ describe('refresh-during-save recovery', () => {
     })
     h.setPostFailure(500)
 
-    await expect(useGraphStore.getState().syncLocalChanges()).rejects.toThrow(/exploded/i)
+    const recovery = useGraphStore.getState().syncLocalChanges()
+    const rejection = expect(recovery).rejects.toThrow(/exploded/i)
+    await vi.advanceTimersByTimeAsync(47_000)
+    await rejection
     expect(useGraphStore.getState().syncStatus).toBe('conflict')
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Edited Hall')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('an A → B → A switch during authentication preflight cannot change the new A session or clear its intents', async () => {
