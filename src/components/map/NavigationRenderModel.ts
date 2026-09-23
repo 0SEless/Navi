@@ -1,4 +1,4 @@
-import type { NavNode, NavEdge, Building, LatLng, Component, DoorData } from '@/types/nav-types'
+import type { NavNode, NavEdge, Building, LatLng, Component, DoorData, CampusBundle } from '@/types/nav-types'
 import type { NavigationGraph } from '@navi/core'
 import type { NavNode as CompilerNavNode, NavEdge as CompilerNavEdge } from '@navi/core'
 import type { FloorGeometryArtifact, FloorGeometryBuilding, FloorGeometryFloor, LocalCoord } from '@navi/core'
@@ -715,4 +715,30 @@ export function buildFromCampusBundle(bundle: {
     edges,
     indoor,
   }
+}
+
+/**
+ * Cache pure campus geometry/render data by the published bundle's object identity.
+ * Campus bundles are immutable for their in-memory lifetime; WeakMap lets replaced
+ * bundles be collected once no store, page, or other consumer retains them.
+ */
+export function createNavigationRenderModelCache(
+  builder: (bundle: CampusBundle) => NavigationRenderModel = buildFromCampusBundle,
+): (bundle: CampusBundle) => NavigationRenderModel {
+  const cache = new WeakMap<CampusBundle, NavigationRenderModel>()
+
+  return (bundle) => {
+    const cachedModel = cache.get(bundle)
+    if (cachedModel) return cachedModel
+
+    const model = builder(bundle)
+    cache.set(bundle, model)
+    return model
+  }
+}
+
+const getCachedModelForBundle = createNavigationRenderModelCache()
+
+export function getCachedNavigationRenderModel(bundle: CampusBundle): NavigationRenderModel {
+  return getCachedModelForBundle(bundle)
 }

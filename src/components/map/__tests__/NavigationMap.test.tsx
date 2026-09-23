@@ -1,9 +1,16 @@
 import { render, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import NavigationMap, {
+  NavigationMapHost,
+  NavigationMapProvider,
+  type NavigationMapProps,
+} from '../NavigationMap'
 
 const mapInstances = vi.hoisted(() => [] as Array<{
   fitBounds: ReturnType<typeof vi.fn>
   remove: ReturnType<typeof vi.fn>
+  resize: ReturnType<typeof vi.fn>
+  stop: ReturnType<typeof vi.fn>
   navigationControlOptions?: unknown
   mapOptions?: Record<string, unknown>
 }>)
@@ -12,6 +19,10 @@ vi.mock('maplibre-gl', () => {
   class FakeMap {
     fitBounds = vi.fn()
     remove = vi.fn()
+    resize = vi.fn()
+    stop = vi.fn()
+    navigationControlOptions?: unknown
+    mapOptions: Record<string, unknown>
 
     constructor(options: Record<string, unknown>) {
       this.mapOptions = options
@@ -22,8 +33,13 @@ vi.mock('maplibre-gl', () => {
       if (control.options) this.navigationControlOptions = control.options
     }
 
+    setMaxPitch(value: number) { this.mapOptions.maxPitch = value }
+    getMaxPitch() { return Number(this.mapOptions.maxPitch ?? 60) }
+    off() { return this }
+
     on(type: string, listener: () => void) {
       if (type === 'load') queueMicrotask(listener)
+      return this
     }
   }
 
@@ -38,29 +54,46 @@ vi.mock('maplibre-gl', () => {
   }
 })
 
-import NavigationMap from '../NavigationMap'
-
 const bounds = { minLat: 11.8, maxLat: 11.81, minLng: 122.1, maxLng: 122.11 }
 
-describe('NavigationMap bounds policy', () => {
-  it('keeps existing bounds fitting enabled by default', async () => {
+function renderNavigationMap(props: NavigationMapProps) {
+  return render(
+    <NavigationMapProvider active surfaceKey="/map/explore">
+      <div className="relative h-full w-full">
+        <NavigationMapHost />
+        <NavigationMap {...props} />
+      </div>
+    </NavigationMapProvider>,
+  )
+}
+
+describe('NavigationMap scene adapter', () => {
+  it('keeps a local MapLibre host for standalone consumers outside the map shell', async () => {
     mapInstances.length = 0
     render(<NavigationMap bounds={bounds} />)
 
     await waitFor(() => expect(mapInstances[0]?.fitBounds).toHaveBeenCalledTimes(1))
+    expect(mapInstances).toHaveLength(1)
   })
 
-  it('allows Capture to opt out of bounds refits without changing the default', async () => {
+  it('fits bounds once the shared map is ready', async () => {
     mapInstances.length = 0
-    render(<NavigationMap bounds={bounds} fitBoundsOnChange={false} />)
+    renderNavigationMap({ bounds })
+
+    await waitFor(() => expect(mapInstances[0]?.fitBounds).toHaveBeenCalledTimes(1))
+  })
+
+  it('allows a route scene to opt out of campus bounds fitting', async () => {
+    mapInstances.length = 0
+    renderNavigationMap({ bounds, fitBoundsOnChange: false })
 
     await waitFor(() => expect(mapInstances[0]).toBeDefined())
     expect(mapInstances[0].fitBounds).not.toHaveBeenCalled()
   })
 
-  it('allows Explore to hide permanent zoom controls while keeping compass hidden', async () => {
+  it('configures the shared map with the requested zoom controls', async () => {
     mapInstances.length = 0
-    render(<NavigationMap showZoomControls={false} />)
+    renderNavigationMap({ showZoomControls: false })
 
     await waitFor(() => expect(mapInstances[0]).toBeDefined())
     expect(mapInstances[0].navigationControlOptions).toEqual({
@@ -69,9 +102,9 @@ describe('NavigationMap bounds policy', () => {
     })
   })
 
-  it('passes an explicit maximum pitch to MapLibre', async () => {
+  it('passes an explicit maximum pitch to the first MapLibre construction', async () => {
     mapInstances.length = 0
-    render(<NavigationMap maxPitch={85} />)
+    renderNavigationMap({ maxPitch: 85 })
 
     await waitFor(() => expect(mapInstances[0]).toBeDefined())
     expect(mapInstances[0].mapOptions?.maxPitch).toBe(85)

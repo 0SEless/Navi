@@ -22,7 +22,7 @@ import {
   useNavigationContext,
   useOptionalNavigationContext,
 } from '@/components/map/NavigationContext'
-import { buildFromCampusBundle, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
+import { getCachedNavigationRenderModel, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 import { usePublicStore } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
 import {
@@ -314,18 +314,10 @@ function ExploreMapControls({
  *  - floor selector → filters indoor layers by floor
  */
 export default function ExploreMap({ bundle, route, navigationTargetBuildingId, camera }: ExploreMapProps) {
-  // Build render model from bundle (memoized)
+  // Keep expensive campus geometry independent from route remounts and presentation changes.
+  const baseModel = useMemo(() => getCachedNavigationRenderModel(bundle), [bundle])
   const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
   const model = useMemo(() => {
-    const baseModel = buildFromCampusBundle({
-      buildings: bundle.buildings,
-      nodes: bundle.nodes,
-      edges: bundle.edges,
-      boundingBox: bundle.boundingBox,
-      components: bundle.components,
-      doors: bundle.doors,
-      floorGeometry: bundle.floorGeometry,
-    })
     return {
       ...baseModel,
       buildings: baseModel.buildings.map((renderBuilding) => {
@@ -339,7 +331,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         }
       }),
     }
-  }, [bundle, mapAppearance])
+  }, [baseModel, bundle, mapAppearance])
 
   // Navigation surface owns the context (foundation). Explore proves the
   // state→visualization mechanism; the real Navigate phase supplies live
