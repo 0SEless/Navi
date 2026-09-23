@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { NavigationProvider } from '@/components/map/NavigationContext'
 import { usePublicStore } from '@/store/public-store'
@@ -10,6 +10,54 @@ import ExploreMap from '../ExploreMap'
 
 const navigationCameraProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 const routeLineProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+const renderModelMock = vi.hoisted(() => {
+  const model = {
+    buildings: [{
+      id: 'b1',
+      name: 'Library',
+      footprint: [],
+      color: '#3B82F6',
+      height: 12,
+      floors: 3,
+      entrances: [],
+      nodeIds: [],
+    }],
+    entrances: [],
+    boundary: null,
+    nodes: [],
+    edges: [],
+    indoor: {
+      rooms: [],
+      hallways: [],
+      walls: [],
+      stairs: [],
+      elevators: [],
+      doors: [],
+      openings: [],
+      pois: [],
+    },
+  }
+  let cache = new WeakMap<object, typeof model>()
+  const build = vi.fn((bundle: object) => {
+    void bundle
+    return model
+  })
+  const getCached = vi.fn((bundle: object) => {
+    const cachedModel = cache.get(bundle)
+    if (cachedModel) return cachedModel
+
+    const builtModel = build(bundle)
+    cache.set(bundle, builtModel)
+    return builtModel
+  })
+
+  return {
+    model,
+    build,
+    getCached,
+    resetCache: () => { cache = new WeakMap() },
+  }
+})
 
 vi.mock('@/components/map/NavigationMap', () => ({
   default: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
@@ -43,26 +91,20 @@ vi.mock('@/components/map/FloorSelector', () => ({
 }))
 
 vi.mock('@/components/map/layers/BuildingLayer', () => ({
-  BuildingLayer: ({ selectedBuildingId }: { selectedBuildingId?: string }) => (
-    <output data-testid="building-layer-selection" data-selected-building={selectedBuildingId ?? ''} />
+  BuildingLayer: ({ selectedBuildingId, buildings }: {
+    selectedBuildingId?: string
+    buildings?: Array<{ id: string; color: string }>
+  }) => (
+    <>
+      <output data-testid="building-layer-selection" data-selected-building={selectedBuildingId ?? ''} />
+      <output data-testid="building-layer-color" data-building-color={buildings?.[0]?.color ?? ''} />
+    </>
   ),
 }))
 
 vi.mock('@/components/map/NavigationRenderModel', () => ({
-  buildFromCampusBundle: vi.fn(() => ({
-    buildings: [],
-    entrances: [],
-    indoor: {
-      rooms: [],
-      hallways: [],
-      walls: [],
-      stairs: [],
-      elevators: [],
-      doors: [],
-      openings: [],
-      pois: [],
-    },
-  })),
+  buildFromCampusBundle: renderModelMock.build,
+  getCachedNavigationRenderModel: renderModelMock.getCached,
 }))
 
 vi.mock('@/components/map/layers/RoomLayer', () => ({
@@ -130,6 +172,7 @@ afterEach(() => {
     activeFloor: 0,
   })
   vi.clearAllMocks()
+  renderModelMock.resetCache()
   routeLineProps.current = null
 })
 
@@ -225,6 +268,44 @@ describe('ExploreMap public navigation context boundary', () => {
     expect(vi.mocked(buildFromCampusBundle)).toHaveBeenCalledWith(expect.objectContaining({
       floorGeometry: undefined,
     }))
+  })
+
+  it('reuses the same bundle render model after Explore unmounts and remounts', () => {
+    const firstExplore = render(<ExploreMap bundle={buildingBundle} />)
+    expect(renderModelMock.build).toHaveBeenCalledTimes(1)
+    firstExplore.unmount()
+
+    // Home mounts between these route-level ExploreMap instances.
+    render(<ExploreMap bundle={buildingBundle} />)
+
+    expect(renderModelMock.getCached).toHaveBeenCalledTimes(2)
+    expect(renderModelMock.build).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates appearance colors without rebuilding the campus render model', () => {
+    const appearanceBundle = {
+      ...buildingBundle,
+      buildings: buildingBundle.buildings.map(building => ({ ...building, color: '#123456' })),
+    } satisfies CampusBundle
+    usePublicStore.setState({
+      preferences: { ...usePublicStore.getState().preferences, mapAppearance: 'department' },
+    })
+
+    const { rerender } = render(<ExploreMap bundle={appearanceBundle} />)
+
+    expect(renderModelMock.build).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('building-layer-color')).toHaveAttribute('data-building-color', '#123456')
+
+    act(() => {
+      usePublicStore.setState({
+        preferences: { ...usePublicStore.getState().preferences, mapAppearance: 'uniform' },
+      })
+    })
+
+    rerender(<ExploreMap bundle={appearanceBundle} />)
+
+    expect(screen.getByTestId('building-layer-color')).toHaveAttribute('data-building-color', '#CBD5E1')
+    expect(renderModelMock.build).toHaveBeenCalledTimes(1)
   })
 
   it('exposes only the minimal map controls', () => {
