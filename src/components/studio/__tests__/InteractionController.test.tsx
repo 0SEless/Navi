@@ -166,4 +166,12 @@ describe('InteractionController', () => {
 
     expect(onEmptyMapClick).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps map panning enabled while vertex editing is idle', () => {
+    currentTool = 'vertex'
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+
+    expect(mockMap.dragPan.enable).toHaveBeenCalled()
+    expect(mockMap.dragPan.disable).not.toHaveBeenCalled()
+  })
 })

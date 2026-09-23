@@ -2,6 +2,7 @@ import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, MutationResult } from './types'
 import { recalculateBuilding } from './floor-handlers'
+import { buildRoadJunctionMovePlan, type RoadJunctionMoveRequest } from './road-junction-geometry'
 
 export function detectEntityType(document: CampusDocument, id: string): string {
   for (const bld of document.buildings) {
@@ -53,11 +54,41 @@ export const entityUpdateHandler: CommandHandler = {
     const oldValues: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(changes)) {
       oldValues[key] = entity[key]
+    }
+
+    const junctionMoveRequest = payload.junctionMove as RoadJunctionMoveRequest | undefined
+    let junctionMoveUndo: RoadJunctionMoveRequest | undefined
+    if (junctionMoveRequest) {
+      const plan = buildRoadJunctionMovePlan(document, junctionMoveRequest)
+      if (!plan || !plan.roads.some((road) => road.roadId === entityId)) {
+        return { success: false, error: 'Road junction geometry could not be moved consistently' }
+      }
+
+      for (const movedRoad of plan.roads) {
+        const road = document.roads.find((candidate) => candidate.id === movedRoad.roadId)!
+        road.polyline = { ...road.polyline, points: movedRoad.points.map((point) => ({ ...point })) }
+        recordChange(document, { entityId: road.id, entityType: 'road', operation: 'updated' })
+      }
+      const junction = document.roadJunctions?.find((candidate) => candidate.id === plan.junctionId)
+      if (!junction) return { success: false, error: 'Road junction not found' }
+      junction.position = { ...plan.position }
+      recordChange(document, { entityId: junction.id, entityType: 'roadJunction', operation: 'updated' })
+      junctionMoveUndo = {
+        junctionId: plan.junctionId,
+        position: plan.previousPosition,
+        roadGeometry: plan.roads.map((road) => ({ roadId: road.roadId, points: road.previousPoints })),
+      }
+    }
+
+    for (const [key, value] of Object.entries(changes)) {
+      if (junctionMoveRequest && key === 'polyline') continue
       entity[key] = value
     }
 
     const entityType = detectEntityType(document, entityId)
-    recordChange(document, { entityId, entityType, operation: 'updated' })
+    if (!junctionMoveRequest || Object.keys(changes).some((key) => key !== 'polyline')) {
+      recordChange(document, { entityId, entityType, operation: 'updated' })
+    }
 
     // Recalculate building when floor height or building roofHeight changes
     if (entityType === 'floor' && ('height' in changes)) {
@@ -72,15 +103,16 @@ export const entityUpdateHandler: CommandHandler = {
       if (bld) recalculateBuilding(bld)
     }
 
-    return { success: true, entityId, data: { oldValues } }
+    return { success: true, entityId, data: { oldValues, ...(junctionMoveUndo ? { junctionMoveUndo } : {}) } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): any {
     const entityId = payload.entityId as string
     const oldValues = result.data?.oldValues as Record<string, unknown>
+    const junctionMoveUndo = result.data?.junctionMoveUndo as RoadJunctionMoveRequest | undefined
     return {
       id: 'entity.update',
       label: 'Undo Property Edit',
-      payload: { entityId, changes: oldValues },
+      payload: { entityId, changes: oldValues, ...(junctionMoveUndo ? { junctionMove: junctionMoveUndo } : {}) },
     }
   },
 }
