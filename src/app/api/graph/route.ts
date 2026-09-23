@@ -18,19 +18,8 @@ type MutationOutcome =
   | "UNKNOWN"
 
 function logMutationLifecycle(entry: {
-  requestId: string
-  mutationId: string | null
-  attemptChainId: string | null
+  event: 'save-attempt'
   attemptNumber: number | null
-  sessionGeneration: number | null
-  campusEpoch: number | null
-  graphFingerprint: string | null
-  authoredFingerprint: string | null
-  campusId: string | null
-  expectedRevision: string | null
-  requestHasAuthoredDocument: boolean
-  graphCounts: { edges: number; components: number }
-  responseUpdatedAt: string | null
   durationMs: number
   outcome: MutationOutcome
   status: number
@@ -44,23 +33,6 @@ function requestNumberHeader(request: NextRequest, name: string): number | null 
   if (!raw) return null
   const value = Number(raw)
   return Number.isSafeInteger(value) ? value : null
-}
-
-function requestFingerprintHeader(request: NextRequest, name: string): string | null {
-  const value = request.headers.get(name)
-  return value && value.length <= 128 ? value : null
-}
-
-function responseRevision(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null
-  const result = (Array.isArray(value) ? value[0] : value) as { updatedAt?: unknown; updated_at?: unknown } | undefined
-  if (!result) return null
-  const revision = result.updatedAt ?? result.updated_at
-  return typeof revision === 'string' ? revision : null
-}
-
-function arrayLength(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0
 }
 
 function isAbortLike(error: unknown, controller: AbortController): boolean {
@@ -111,7 +83,7 @@ export async function GET(request: NextRequest) {
     };
 
   if (result.error) {
-    console.error(`[api/graph] graph_snapshots query failed for campus "${campusId}":`, result.error);
+    console.error('[api/graph] graph_snapshots query failed');
     return NextResponse.json({ error: result.error.message }, { status: 500 });
   }
 
@@ -139,23 +111,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = (globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeoutTimer = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
-  let mutationId: string | null = null;
-  const attemptChainHeader = requestFingerprintHeader(request, "x-navi-save-chain-id");
   const attemptNumber = requestNumberHeader(request, "x-navi-save-attempt");
-  const sessionGeneration = requestNumberHeader(request, "x-navi-session-generation");
-  const campusEpoch = requestNumberHeader(request, "x-navi-campus-epoch");
-  const graphFingerprint = requestFingerprintHeader(request, "x-navi-graph-fingerprint");
-  const authoredFingerprint = requestFingerprintHeader(request, "x-navi-authored-fingerprint");
-  let attemptChainId: string | null = attemptChainHeader;
   let campusId: string | null = null;
-  let expectedRevision: string | null = null;
-  let requestHasAuthoredDocument = false;
-  let graphCounts = { edges: 0, components: 0 };
-  let responseUpdatedAt: string | null = null;
   let outcome: MutationOutcome = "UNKNOWN";
   let status = 500;
 
@@ -164,17 +124,7 @@ export async function POST(request: NextRequest) {
     if (unauthorized) return unauthorized;
 
     const body = await request.json();
-    mutationId = typeof body?.mutationId === "string" ? body.mutationId : null;
-    attemptChainId = mutationId ?? attemptChainHeader;
     campusId = getCampusIdFromBody(body) ?? null;
-    expectedRevision = typeof body?.expectedServerUpdatedAt === "string" ? body.expectedServerUpdatedAt : null;
-    requestHasAuthoredDocument = Object.prototype.hasOwnProperty.call(body ?? {}, "authoredDocument")
-      && body.authoredDocument !== null
-      && body.authoredDocument !== undefined;
-    graphCounts = {
-      edges: arrayLength(body?.edges),
-      components: arrayLength(body?.components),
-    };
 
     const blocked = assertCampusMutationAllowed(campusId);
     if (blocked) return blocked;
@@ -201,12 +151,7 @@ export async function POST(request: NextRequest) {
       //     the client's network-error detection actually works; fall back to
       //     a stable generic message otherwise.
       const errMsg = rpcError.message || rpcError.details || "Supabase RPC failed";
-      console.error("[api/graph] sync_graph_snapshot RPC failed:", {
-        message: rpcError.message ?? null,
-        code: rpcError.code ?? null,
-        hint: rpcError.hint ?? null,
-        details: rpcError.details ?? null,
-      });
+      console.error("[api/graph] sync_graph_snapshot RPC failed");
       if (isAbortLike(rpcError, controller)) {
         outcome = "TIMEOUT";
         status = 504;
@@ -233,7 +178,6 @@ export async function POST(request: NextRequest) {
     const replay = Boolean((result as { idempotent_replay?: boolean } | null)?.idempotent_replay);
     outcome = replay ? "REPLAY" : "SUCCESS";
     status = 200;
-    responseUpdatedAt = responseRevision(result);
     return NextResponse.json((result ?? { success: true }) as Record<string, unknown>);
   } catch (e) {
     if (isAbortLike(e, controller)) {
@@ -245,26 +189,15 @@ export async function POST(request: NextRequest) {
       );
     }
     const msg = e instanceof Error ? e.message : "Invalid request";
-    console.error("[api/graph] POST handler error:", e);
+    console.error("[api/graph] POST handler error");
     outcome = "UNKNOWN";
     status = 400;
     return NextResponse.json({ error: msg }, { status: 400 });
   } finally {
     clearTimeout(timeoutTimer);
     logMutationLifecycle({
-      requestId,
-      mutationId,
-      attemptChainId,
+      event: 'save-attempt',
       attemptNumber,
-      sessionGeneration,
-      campusEpoch,
-      graphFingerprint,
-      authoredFingerprint,
-      campusId,
-      expectedRevision,
-      requestHasAuthoredDocument,
-      graphCounts,
-      responseUpdatedAt,
       durationMs: Date.now() - startedAt,
       outcome,
       status,

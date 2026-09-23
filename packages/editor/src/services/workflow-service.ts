@@ -40,6 +40,8 @@ export class WorkflowService extends BaseEditorService {
   private saveInFlight = 0
   private graphSyncStartedClean = false
   private blockedSyncDocumentVersion: number | null = null
+  /** Document version captured when a Graph sync begins, including recovery writes outside workflow.save(). */
+  private syncingDocumentVersion: number | null = null
   /** Document version captured when a reload freshness check begins. */
   private freshnessCheckDocumentVersion: number | null = null
   private lastPersistenceStatus: PersistenceSyncState['status'] | null = null
@@ -179,6 +181,7 @@ export class WorkflowService extends BaseEditorService {
   }
 
   private saveComplete(reason: 'manual' | 'autosave'): void {
+    this.syncingDocumentVersion = null
     const snap = this.workflowStore.getSnapshot()
     const wasDirtyWhileSaving = snap.saveState === 'dirty-while-saving'
     const syncState = this.persistence.getSyncState()
@@ -210,6 +213,7 @@ export class WorkflowService extends BaseEditorService {
   }
 
   private saveFailed(err: any): void {
+    this.syncingDocumentVersion = null
     this.workflowStore.updateLifecycle({
       saveState: 'dirty',
       saveError: err?.message ?? 'Save failed',
@@ -223,6 +227,7 @@ export class WorkflowService extends BaseEditorService {
     if (state.status === 'checking') {
       // Freshness verification is still unresolved. Neither mark the document
       // saved nor dirty: the previous state stands until the check settles.
+      this.syncingDocumentVersion = null
       this.freshnessCheckDocumentVersion = this.documentStore.version
       return
     }
@@ -240,6 +245,7 @@ export class WorkflowService extends BaseEditorService {
     const snapshot = this.workflowStore.getSnapshot()
 
     if (state.status === 'syncing') {
+      this.syncingDocumentVersion = this.documentStore.version
       this.graphSyncStartedClean = snapshot.saveState === 'saved' || snapshot.saveState === 'idle'
       if (this.saveInFlight > 0) {
         this.workflowStore.updateLifecycle({ saveState: 'saving', saveError: null })
@@ -254,6 +260,7 @@ export class WorkflowService extends BaseEditorService {
     }
 
     if (state.status === 'conflict' || state.status === 'error') {
+      this.syncingDocumentVersion = null
       this.graphSyncStartedClean = false
       this.blockedSyncDocumentVersion = this.documentStore.version
       this.workflowStore.updateLifecycle({
@@ -266,6 +273,7 @@ export class WorkflowService extends BaseEditorService {
     }
 
     if (state.status === 'idle') {
+      this.syncingDocumentVersion = null
       if (snapshot.saveState === 'saved' || snapshot.saveState === 'idle') {
         this.graphSyncStartedClean = true
         this.workflowStore.updateLifecycle({
@@ -280,12 +288,20 @@ export class WorkflowService extends BaseEditorService {
     // as a normal save. Only clear dirty state when no new document revision
     // appeared after the conflict/pending state was observed.
     if (state.status === 'synced' && this.saveInFlight === 0) {
+      const completedSyncDocumentVersion = this.syncingDocumentVersion
+      this.syncingDocumentVersion = null
       const expectedVersion = completedFreshnessCheckVersion
         ?? this.blockedSyncDocumentVersion
+        ?? completedSyncDocumentVersion
         ?? snapshot.lastSaveVersion
       const canMarkSaved = (
         this.graphSyncStartedClean
         || this.blockedSyncDocumentVersion !== null
+        // Local-ahead recovery can acknowledge directly through GraphStore,
+        // without passing through WorkflowService.save(). Treat that ACK as a
+        // workflow baseline only if no authored document revision landed
+        // during the sync.
+        || completedSyncDocumentVersion !== null
         // A reused editor context can carry a stale dirty baseline across a
         // client-side reload. A completed freshness check is an authoritative
         // canonical read, so heal that baseline only when no document revision

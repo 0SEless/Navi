@@ -229,17 +229,46 @@ describe('P0 save acknowledgement and guarded automatic retry', () => {
   })
 
   it('never retries a true CAS conflict', async () => {
+    const privateError = 'The server changed since this editor loaded it. PRIVATE_CAMPUS_ID PRIVATE_MUTATION_ID PRIVATE_TOKEN_VALUE'
+    const lifecycleLog = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     let postCount = 0
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') !== 'POST') return json({})
       postCount += 1
-      return json({ error: 'The server changed since this editor loaded it.' }, 409)
+      return json({ error: privateError }, 409)
     }))
 
     setClientGraph('Local B')
-    await expect(useGraphStore.getState().save()).rejects.toThrow(/server changed/i)
+    await expect(useGraphStore.getState().save()).rejects.toThrow(privateError)
     expect(postCount).toBe(1)
     expect(useGraphStore.getState().syncStatus).toBe('conflict')
+    const serializedLogs = JSON.stringify([...lifecycleLog.mock.calls, ...errorLog.mock.calls])
+    for (const value of [privateError, 'PRIVATE_CAMPUS_ID', 'PRIVATE_MUTATION_ID', 'PRIVATE_TOKEN_VALUE']) {
+      expect(serializedLogs).not.toContain(value)
+    }
+  })
+
+  it('keeps entity and credential details out of failed-save logs', async () => {
+    const privateError = 'Invalid save PRIVATE_CAMPUS_ID PRIVATE_BUILDING_ID PRIVATE_NODE_ID PRIVATE_ROAD_ID PRIVATE_TOKEN_VALUE'
+    const lifecycleLog = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let postCount = 0
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') !== 'POST') return json({})
+      postCount += 1
+      return json({ error: privateError }, 400)
+    }))
+
+    setClientGraph('Local B')
+    await expect(useGraphStore.getState().save()).rejects.toThrow(privateError)
+
+    expect(postCount).toBe(1)
+    expect(useGraphStore.getState().syncError).toBe(privateError)
+    const serializedLogs = JSON.stringify([...lifecycleLog.mock.calls, ...errorLog.mock.calls])
+    for (const value of [privateError, 'PRIVATE_CAMPUS_ID', 'PRIVATE_BUILDING_ID', 'PRIVATE_NODE_ID', 'PRIVATE_ROAD_ID', 'PRIVATE_TOKEN_VALUE']) {
+      expect(serializedLogs).not.toContain(value)
+    }
   })
 
   it('does not let an old session response mark the new campus session failed', async () => {

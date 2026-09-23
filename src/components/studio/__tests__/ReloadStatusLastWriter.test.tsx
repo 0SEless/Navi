@@ -19,6 +19,32 @@ import { SaveStatus } from '../SaveStatus'
 const MAP_ID = 'reload-status-last-writer'
 const CACHE_KEY = `navi-graph-${MAP_ID}`
 const MARKER_KEY = `navi-sync-status-${MAP_ID}`
+const SAFE_SAVE_LIFECYCLE_FIELDS = new Set([
+  'event',
+  'attemptNumber',
+  'httpStatus',
+  'retryable',
+  'retryScheduled',
+  'retryDelayMs',
+  'finalClientStatus',
+  'readOutcome',
+  'outcome',
+  'staleDiscarded',
+  'statusWriteApplied',
+  'canonicalMatch',
+  'graphMatch',
+  'authoredMatch',
+])
+
+function expectSafeSaveLifecycleEntries(entries: Array<Record<string, unknown>>): void {
+  expect(entries.length).toBeGreaterThan(0)
+  for (const entry of entries) {
+    expect(Object.keys(entry).every((field) => SAFE_SAVE_LIFECYCLE_FIELDS.has(field))).toBe(true)
+    const serialized = JSON.stringify(entry)
+    expect(serialized).not.toContain(MAP_ID)
+    expect(serialized).not.toMatch(/building-1|Newer Saved Hall|Retry Saved Hall|PRIVATE_AUTHORED/i)
+  }
+}
 
 function makeGraph(name: string): Graph {
   const graph = new Graph()
@@ -410,24 +436,20 @@ describe('full reload status lifecycle', () => {
         .map(([line]) => String(line))
         .filter((line) => line.startsWith('[graph-store] save lifecycle '))
         .map((line) => JSON.parse(line.slice('[graph-store] save lifecycle '.length)) as Record<string, unknown>)
+      expectSafeSaveLifecycleEntries(traceEntries)
       const lateRead = traceEntries.find((entry) => entry.event === 'recovery-read-response' && entry.httpStatus === 503)
       expect(lateRead).toMatchObject({
         readOutcome: 'http-error',
-        localAuthoredFingerprintAtRequest: expect.any(String),
-        chainIdAtResponse: postedBodies[0]?.mutationId,
-        serverAuthoredFingerprint: null,
       })
       const lateDisposition = traceEntries.find((entry) => entry.event === 'recovery-read-disposition')
       expect(lateDisposition).toMatchObject({
         httpStatus: 503,
         readOutcome: 'http-error',
         outcome: 'ignored-stale-failure',
+        staleDiscarded: true,
         statusWriteApplied: false,
         finalClientStatus: 'synced',
-        chainIdAtDisposition: postedBodies[0]?.mutationId,
       })
-      expect(lateDisposition?.currentLocalAuthoredFingerprint)
-        .toBe(lateDisposition?.latestAcknowledgedServerAuthoredFingerprint)
     } finally {
       vi.useRealTimers()
     }
@@ -539,12 +561,13 @@ describe('full reload status lifecycle', () => {
         .map(([line]) => String(line))
         .filter((line) => line.startsWith('[graph-store] save lifecycle '))
         .map((line) => JSON.parse(line.slice('[graph-store] save lifecycle '.length)) as Record<string, unknown>)
+      expectSafeSaveLifecycleEntries(traceEntries)
       expect(traceEntries.filter((entry) => entry.event === 'request').map((entry) => entry.attemptNumber))
         .toEqual([1, 2])
       expect(traceEntries.find((entry) => entry.event === 'response' && entry.attemptNumber === 1))
         .toMatchObject({ httpStatus: 503, retryable: true, retryScheduled: true, retryDelayMs: 2000, finalClientStatus: 'syncing' })
       expect(traceEntries.find((entry) => entry.event === 'response' && entry.attemptNumber === 2))
-        .toMatchObject({ httpStatus: 200, acknowledgedUpdatedAt: 'R2', retryable: false, retryScheduled: false, finalClientStatus: 'synced' })
+        .toMatchObject({ httpStatus: 200, retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'synced' })
       expect(traceEntries.some((entry) => JSON.stringify(entry).includes('Retry Saved Hall'))).toBe(false)
     } finally {
       vi.useRealTimers()

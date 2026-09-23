@@ -17,7 +17,9 @@ const MOCK_SESSION = Buffer.from(
 ).toString('base64')
 
 function mockRpc(result: unknown) {
-  mockClient.mockReturnValue({ rpc: vi.fn().mockResolvedValue(result) })
+  const rpc = vi.fn().mockResolvedValue(result)
+  mockClient.mockReturnValue({ rpc })
+  return rpc
 }
 
 function makePost(options: { headers?: Record<string, string>; body?: unknown } = {}) {
@@ -63,14 +65,24 @@ describe('POST /api/graph — RPC error handling (regression: empty error object
   })
 
   it('normal PostgrestError → 500 with its message', async () => {
+    const privateError = 'SQL statement failed for PRIVATE_CAMPUS_ID and PRIVATE_MUTATION_ID; PRIVATE_TOKEN_VALUE'
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockRpc({
       data: null,
-      error: { message: 'SQL statement execution failed', code: 'P0001', hint: 'x', details: 'boom' },
+      error: { message: privateError, code: 'P0001', hint: 'PRIVATE_HINT', details: 'PRIVATE_DETAILS' },
     })
-    const res = await POST(makePost())
-    expect(res.status).toBe(500)
-    const body = await res.json()
-    expect(body.error).toBe('SQL statement execution failed')
+    try {
+      const res = await POST(makePost())
+      expect(res.status).toBe(500)
+      const body = await res.json()
+      expect(body.error).toBe(privateError)
+      const serializedLogs = JSON.stringify(errorLog.mock.calls)
+      for (const value of [privateError, 'PRIVATE_CAMPUS_ID', 'PRIVATE_MUTATION_ID', 'PRIVATE_TOKEN_VALUE', 'PRIVATE_HINT', 'PRIVATE_DETAILS']) {
+        expect(serializedLogs).not.toContain(value)
+      }
+    } finally {
+      errorLog.mockRestore()
+    }
   })
 
   it('success → 200', async () => {
@@ -104,8 +116,8 @@ describe('POST /api/graph — save attempt correlation', () => {
     mockClient.mockReset()
   })
 
-  it('passes the authoritative revision through and logs only attempt metadata', async () => {
-    mockRpc({
+  it('passes correlation and revision data to the RPC while logging only safe attempt metadata', async () => {
+    const rpc = mockRpc({
       data: { success: true, campus_id: 'map-1', updatedAt: 'R2', idempotent_replay: false },
       error: null,
     })
@@ -138,28 +150,62 @@ describe('POST /api/graph — save attempt correlation', () => {
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toMatchObject({ success: true, updatedAt: 'R2' })
+      expect(rpc).toHaveBeenCalledWith('sync_graph_snapshot_idempotent', {
+        payload: expect.objectContaining({
+          campusId: 'map-1',
+          mutationId: 'save-chain-1',
+          expectedServerUpdatedAt: 'R1',
+        }),
+      })
 
       const line = lifecycleLog.mock.calls
         .map(([message]) => String(message))
         .find((message) => message.startsWith('[api/graph] lifecycle '))
       expect(line).toBeDefined()
       const record = JSON.parse(String(line).slice('[api/graph] lifecycle '.length)) as Record<string, unknown>
-      expect(record).toMatchObject({
-        mutationId: 'save-chain-1',
+      expect(record).toEqual({
+        event: 'save-attempt',
         attemptNumber: 2,
-        sessionGeneration: 17,
-        campusEpoch: 4,
-        graphFingerprint: 'graph-hash',
-        authoredFingerprint: 'authored-hash',
-        expectedRevision: 'R1',
-        responseUpdatedAt: 'R2',
-        requestHasAuthoredDocument: true,
+        durationMs: expect.any(Number),
         outcome: 'SUCCESS',
         status: 200,
       })
+      expect(line).not.toMatch(/requestId|mutationId|attemptChainId|campusId|fingerprint|graphCounts|expectedRevision|responseUpdatedAt|authoredDocument|buildings|nodes|roads|geometry|payload|service_role|secret|token/i)
       expect(line).not.toContain(privateAuthoredName)
+      for (const value of ['map-1', 'save-chain-1', 'graph-hash', 'authored-hash', 'R1', 'R2']) {
+        expect(line).not.toContain(value)
+      }
     } finally {
       lifecycleLog.mockRestore()
+    }
+  })
+})
+
+describe('GET /api/graph — snapshot-read log privacy', () => {
+  it('preserves the query response without logging campus identifiers or error details', async () => {
+    const campusId = 'PRIVATE_CAMPUS_IDENTIFIER'
+    const privateError = 'snapshot read failed for PRIVATE_CAMPUS_IDENTIFIER; PRIVATE_TOKEN_VALUE'
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: privateError } }),
+    }
+    query.select.mockReturnValue(query)
+    query.eq.mockReturnValue(query)
+    mockClient.mockReturnValue({ from: vi.fn().mockReturnValue(query) })
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      const response = await GET(new NextRequest(`http://localhost:3000/api/graph?campus_id=${campusId}`))
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({ error: privateError })
+      expect(query.eq).toHaveBeenCalledWith('campus_id', campusId)
+      const serializedLogs = JSON.stringify(errorLog.mock.calls)
+      expect(serializedLogs).not.toContain(campusId)
+      expect(serializedLogs).not.toContain(privateError)
+      expect(serializedLogs).not.toContain('PRIVATE_TOKEN_VALUE')
+    } finally {
+      errorLog.mockRestore()
     }
   })
 })
