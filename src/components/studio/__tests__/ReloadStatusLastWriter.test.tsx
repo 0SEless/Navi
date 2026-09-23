@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import {
   createDocument,
   __getWorkflowStatusTraceForTests,
@@ -36,8 +36,8 @@ function payload(name: string): Record<string, unknown> {
   )
 }
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
 function clearActiveGraph(): void {
@@ -57,6 +57,7 @@ afterEach(() => {
   localStorage.clear()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  vi.useRealTimers()
   __resetSyncStatusTraceForTests()
   __resetWorkflowStatusTraceForTests()
   useGraphStore.setState({
@@ -305,5 +306,248 @@ describe('full reload status lifecycle', () => {
     expect(trace.at(-1)?.source).toBe('performSyncToSupabase')
     expect(trace.at(-1)?.to).toBe('synced')
     expect(trace.some((entry) => entry.to === 'conflict')).toBe(false)
+  })
+
+  it('keeps a successful five-second editor save saved when an older recovery read fails late', async () => {
+    const baseline = payload('Baseline Hall')
+    localStorage.setItem(CACHE_KEY, JSON.stringify(baseline))
+    const clientTrace = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    let getCount = 0
+    let recoveryReadStarted = false
+    let releaseRecoveryRead!: (response: Response) => void
+    const pendingRecoveryRead = new Promise<Response>((resolve) => {
+      releaseRecoveryRead = resolve
+    })
+    const postedBodies: Array<Record<string, unknown>> = []
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>
+        postedBodies.push(body)
+        return jsonResponse({ success: true, updatedAt: 'R2' })
+      }
+      getCount += 1
+      if (getCount === 2) {
+        recoveryReadStarted = true
+        return pendingRecoveryRead
+      }
+      return jsonResponse({ ...baseline, updatedAt: 'R1' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    useGraphStore.getState().loadMapData(MAP_ID)
+    const view = render(
+      <EditorBridge>
+        <SaveStatus />
+      </EditorBridge>,
+    )
+    await waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
+    await waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+
+    act(() => useGraphStore.setState({ syncStatus: 'error', syncError: 'previous attempt failed' }))
+    await waitFor(() => expect(view.getByText('Save failed — changes preserved')).toBeInTheDocument())
+
+    const olderRecovery = useGraphStore.getState().syncLocalChanges()
+    const olderRecoveryOutcome = olderRecovery.then(
+      () => null,
+      (error: unknown) => error,
+    )
+    await waitFor(() => expect(recoveryReadStarted).toBe(true))
+
+    vi.useFakeTimers()
+    try {
+      const context = (window as unknown as {
+        __naviContext: { services: { get: (name: string) => unknown } }
+      }).__naviContext
+      const dispatcher = context.services.get('dispatcher') as {
+        execute: (command: {
+          id: 'entity.update'
+          label: string
+          payload: { entityId: string; changes: { name: string } }
+        }) => { success: boolean; error?: string }
+      }
+
+      act(() => {
+        const result = dispatcher.execute({
+          id: 'entity.update',
+          label: 'Edit Building',
+          payload: { entityId: 'building-1', changes: { name: 'Newer Saved Hall' } },
+        })
+        expect(result.success).toBe(true)
+      })
+
+      const localDraft = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as {
+        authoredDocument?: { buildings?: Array<{ name?: string }> }
+      }
+      expect(localDraft.authoredDocument?.buildings?.[0]?.name).toBe('Newer Saved Hall')
+      expect(postedBodies).toHaveLength(0)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      await vi.waitFor(() => expect(postedBodies).toHaveLength(1))
+      await vi.waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+
+      expect(postedBodies).toHaveLength(1)
+      expect(postedBodies[0]).toMatchObject({
+        expectedServerUpdatedAt: 'R1',
+        forceServerOverwrite: false,
+        mutationId: expect.any(String),
+      })
+      expect((postedBodies[0].authoredDocument as { buildings: Array<{ name: string }> }).buildings[0]?.name)
+        .toBe('Newer Saved Hall')
+      expect(useGraphStore.getState().syncStatus).toBe('synced')
+
+      releaseRecoveryRead(jsonResponse({ error: 'temporary recovery read failure' }, 503))
+      await olderRecoveryOutcome
+
+      expect(view.getByText('All changes saved')).toBeInTheDocument()
+      expect(view.queryByText('Save failed — changes preserved')).not.toBeInTheDocument()
+      expect(useGraphStore.getState().syncStatus).toBe('synced')
+      expect(useGraphStore.getState().syncError).toBeNull()
+
+      const traceEntries = clientTrace.mock.calls
+        .map(([line]) => String(line))
+        .filter((line) => line.startsWith('[graph-store] save lifecycle '))
+        .map((line) => JSON.parse(line.slice('[graph-store] save lifecycle '.length)) as Record<string, unknown>)
+      const lateRead = traceEntries.find((entry) => entry.event === 'recovery-read-response' && entry.httpStatus === 503)
+      expect(lateRead).toMatchObject({
+        readOutcome: 'http-error',
+        localAuthoredFingerprintAtRequest: expect.any(String),
+        chainIdAtResponse: postedBodies[0]?.mutationId,
+        serverAuthoredFingerprint: null,
+      })
+      const lateDisposition = traceEntries.find((entry) => entry.event === 'recovery-read-disposition')
+      expect(lateDisposition).toMatchObject({
+        httpStatus: 503,
+        readOutcome: 'http-error',
+        outcome: 'ignored-stale-failure',
+        statusWriteApplied: false,
+        finalClientStatus: 'synced',
+        chainIdAtDisposition: postedBodies[0]?.mutationId,
+      })
+      expect(lateDisposition?.currentLocalAuthoredFingerprint)
+        .toBe(lateDisposition?.latestAcknowledgedServerAuthoredFingerprint)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the visible error after the first guarded two-second autosave retry succeeds', async () => {
+    const baseline = payload('Baseline Hall')
+    localStorage.setItem(CACHE_KEY, JSON.stringify(baseline))
+
+    let getCount = 0
+    const postedBodies: Array<Record<string, unknown>> = []
+    const postHeaders: Headers[] = []
+    const postStatuses: number[] = []
+    const postTimes: number[] = []
+    const clientTrace = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        postedBodies.push(JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>)
+        postHeaders.push(new Headers(init.headers))
+        postTimes.push(Date.now())
+        const status = postedBodies.length === 1 ? 503 : 200
+        postStatuses.push(status)
+        return status === 503
+          ? jsonResponse({ error: 'temporary upstream failure' }, status)
+          : jsonResponse({ success: true, updatedAt: 'R2' }, status)
+      }
+      getCount += 1
+      return jsonResponse({ ...baseline, updatedAt: 'R1' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    useGraphStore.getState().loadMapData(MAP_ID)
+    const view = render(
+      <EditorBridge>
+        <SaveStatus />
+      </EditorBridge>,
+    )
+    await waitFor(() => expect(getCount).toBe(1))
+    await waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
+    await waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+
+    vi.useFakeTimers()
+    try {
+      const context = (window as unknown as {
+        __naviContext: { services: { get: (name: string) => unknown } }
+      }).__naviContext
+      const dispatcher = context.services.get('dispatcher') as {
+        execute: (command: {
+          id: 'entity.update'
+          label: string
+          payload: { entityId: string; changes: { name: string } }
+        }) => { success: boolean; error?: string }
+      }
+
+      act(() => {
+        const result = dispatcher.execute({
+          id: 'entity.update',
+          label: 'Edit Building',
+          payload: { entityId: 'building-1', changes: { name: 'Retry Saved Hall' } },
+        })
+        expect(result.success).toBe(true)
+      })
+
+      const localDraft = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') as {
+        authoredDocument?: { buildings?: Array<{ name?: string }> }
+      }
+      expect(localDraft.authoredDocument?.buildings?.[0]?.name).toBe('Retry Saved Hall')
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(4999) })
+      expect(postedBodies).toHaveLength(0)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(postedBodies).toHaveLength(1)
+      expect(useGraphStore.getState().syncStatus).toBe('syncing')
+      expect(useGraphStore.getState().syncError).toBe('Save failed — retrying automatically')
+      expect(view.getByText('Save failed — retrying automatically')).toBeInTheDocument()
+      expect(postStatuses).toEqual([503])
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1999) })
+      expect(postedBodies).toHaveLength(1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      await vi.waitFor(() => expect(postedBodies).toHaveLength(2))
+      await vi.waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+
+      expect(postStatuses).toEqual([503, 200])
+      expect(postTimes[1] - postTimes[0]).toBe(2000)
+      expect(postedBodies[0]?.mutationId).toEqual(expect.any(String))
+      expect(postedBodies[1]?.mutationId).toBe(postedBodies[0]?.mutationId)
+      expect(postHeaders.map((headers) => headers.get('x-navi-save-attempt'))).toEqual(['1', '2'])
+      expect(postHeaders.map((headers) => headers.get('x-navi-save-chain-id'))).toEqual([
+        postedBodies[0]?.mutationId,
+        postedBodies[0]?.mutationId,
+      ])
+      const sessionGenerations = postHeaders.map((headers) => headers.get('x-navi-session-generation'))
+      const campusEpochs = postHeaders.map((headers) => headers.get('x-navi-campus-epoch'))
+      expect(sessionGenerations[0]).toMatch(/^\d+$/)
+      expect(sessionGenerations[1]).toBe(sessionGenerations[0])
+      expect(campusEpochs[0]).toMatch(/^\d+$/)
+      expect(campusEpochs[1]).toBe(campusEpochs[0])
+      expect(postHeaders[0]?.get('x-navi-graph-fingerprint')).toEqual(expect.any(String))
+      expect(postHeaders[0]?.get('x-navi-authored-fingerprint')).toEqual(expect.any(String))
+      expect(postedBodies.map((body) => body.forceServerOverwrite)).toEqual([false, false])
+      expect(postedBodies.map((body) => body.expectedServerUpdatedAt)).toEqual(['R1', 'R1'])
+      expect(useGraphStore.getState().syncStatus).toBe('synced')
+      expect(useGraphStore.getState().syncError).toBeNull()
+      expect(JSON.parse(localStorage.getItem(MARKER_KEY) ?? '{}').serverTimestamp).toBe('R2')
+      expect(view.queryByText('Save failed — changes preserved')).not.toBeInTheDocument()
+
+      const traceEntries = clientTrace.mock.calls
+        .map(([line]) => String(line))
+        .filter((line) => line.startsWith('[graph-store] save lifecycle '))
+        .map((line) => JSON.parse(line.slice('[graph-store] save lifecycle '.length)) as Record<string, unknown>)
+      expect(traceEntries.filter((entry) => entry.event === 'request').map((entry) => entry.attemptNumber))
+        .toEqual([1, 2])
+      expect(traceEntries.find((entry) => entry.event === 'response' && entry.attemptNumber === 1))
+        .toMatchObject({ httpStatus: 503, retryable: true, retryScheduled: true, retryDelayMs: 2000, finalClientStatus: 'syncing' })
+      expect(traceEntries.find((entry) => entry.event === 'response' && entry.attemptNumber === 2))
+        .toMatchObject({ httpStatus: 200, acknowledgedUpdatedAt: 'R2', retryable: false, retryScheduled: false, finalClientStatus: 'synced' })
+      expect(traceEntries.some((entry) => JSON.stringify(entry).includes('Retry Saved Hall'))).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

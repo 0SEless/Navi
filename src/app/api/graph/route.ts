@@ -20,14 +20,47 @@ type MutationOutcome =
 function logMutationLifecycle(entry: {
   requestId: string
   mutationId: string | null
+  attemptChainId: string | null
+  attemptNumber: number | null
+  sessionGeneration: number | null
+  campusEpoch: number | null
+  graphFingerprint: string | null
+  authoredFingerprint: string | null
   campusId: string | null
   expectedRevision: string | null
+  requestHasAuthoredDocument: boolean
+  graphCounts: { edges: number; components: number }
+  responseUpdatedAt: string | null
   durationMs: number
   outcome: MutationOutcome
   status: number
 }): void {
   // Structured lifecycle log. Never includes the graph payload or credentials.
   console.log(`[api/graph] lifecycle ${JSON.stringify(entry)}`)
+}
+
+function requestNumberHeader(request: NextRequest, name: string): number | null {
+  const raw = request.headers.get(name)
+  if (!raw) return null
+  const value = Number(raw)
+  return Number.isSafeInteger(value) ? value : null
+}
+
+function requestFingerprintHeader(request: NextRequest, name: string): string | null {
+  const value = request.headers.get(name)
+  return value && value.length <= 128 ? value : null
+}
+
+function responseRevision(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const result = (Array.isArray(value) ? value[0] : value) as { updatedAt?: unknown; updated_at?: unknown } | undefined
+  if (!result) return null
+  const revision = result.updatedAt ?? result.updated_at
+  return typeof revision === 'string' ? revision : null
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0
 }
 
 function isAbortLike(error: unknown, controller: AbortController): boolean {
@@ -111,8 +144,18 @@ export async function POST(request: NextRequest) {
   const controller = new AbortController();
   const timeoutTimer = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
   let mutationId: string | null = null;
+  const attemptChainHeader = requestFingerprintHeader(request, "x-navi-save-chain-id");
+  const attemptNumber = requestNumberHeader(request, "x-navi-save-attempt");
+  const sessionGeneration = requestNumberHeader(request, "x-navi-session-generation");
+  const campusEpoch = requestNumberHeader(request, "x-navi-campus-epoch");
+  const graphFingerprint = requestFingerprintHeader(request, "x-navi-graph-fingerprint");
+  const authoredFingerprint = requestFingerprintHeader(request, "x-navi-authored-fingerprint");
+  let attemptChainId: string | null = attemptChainHeader;
   let campusId: string | null = null;
   let expectedRevision: string | null = null;
+  let requestHasAuthoredDocument = false;
+  let graphCounts = { edges: 0, components: 0 };
+  let responseUpdatedAt: string | null = null;
   let outcome: MutationOutcome = "UNKNOWN";
   let status = 500;
 
@@ -122,8 +165,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     mutationId = typeof body?.mutationId === "string" ? body.mutationId : null;
+    attemptChainId = mutationId ?? attemptChainHeader;
     campusId = getCampusIdFromBody(body) ?? null;
     expectedRevision = typeof body?.expectedServerUpdatedAt === "string" ? body.expectedServerUpdatedAt : null;
+    requestHasAuthoredDocument = Object.prototype.hasOwnProperty.call(body ?? {}, "authoredDocument")
+      && body.authoredDocument !== null
+      && body.authoredDocument !== undefined;
+    graphCounts = {
+      edges: arrayLength(body?.edges),
+      components: arrayLength(body?.components),
+    };
 
     const blocked = assertCampusMutationAllowed(campusId);
     if (blocked) return blocked;
@@ -182,6 +233,7 @@ export async function POST(request: NextRequest) {
     const replay = Boolean((result as { idempotent_replay?: boolean } | null)?.idempotent_replay);
     outcome = replay ? "REPLAY" : "SUCCESS";
     status = 200;
+    responseUpdatedAt = responseRevision(result);
     return NextResponse.json((result ?? { success: true }) as Record<string, unknown>);
   } catch (e) {
     if (isAbortLike(e, controller)) {
@@ -202,8 +254,17 @@ export async function POST(request: NextRequest) {
     logMutationLifecycle({
       requestId,
       mutationId,
+      attemptChainId,
+      attemptNumber,
+      sessionGeneration,
+      campusEpoch,
+      graphFingerprint,
+      authoredFingerprint,
       campusId,
       expectedRevision,
+      requestHasAuthoredDocument,
+      graphCounts,
+      responseUpdatedAt,
       durationMs: Date.now() - startedAt,
       outcome,
       status,

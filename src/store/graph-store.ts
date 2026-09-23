@@ -254,6 +254,27 @@ let onlineResyncBound = false
 /** Monotonic identity for one mounted campus editing session, including A → B → A. */
 let campusSessionGeneration = 0
 
+/**
+ * Monotonic ordering for async sync/recovery work in the active editor.
+ * Campus/session and epoch checks protect identity; this sequence prevents an
+ * older same-session completion from replacing a newer save's final status.
+ */
+let syncOperationGeneration = 0
+const latestSaveChainByCampus = new Map<string, string>()
+
+function beginSyncOperation(): number {
+  syncOperationGeneration += 1
+  return syncOperationGeneration
+}
+
+function isCurrentSyncOperation(generation: number): boolean {
+  return syncOperationGeneration === generation
+}
+
+function logSaveLifecycle(entry: Record<string, unknown>): void {
+  console.info(`[graph-store] save lifecycle ${JSON.stringify(entry)}`)
+}
+
 /** P0.11 — monotonic sequence for authored mutation intents. */
 let authoredIntentSeq = 0
 
@@ -511,20 +532,110 @@ type PersistedGraphSnapshot = GraphSnapshot & {
   authoredDocumentFormatVersion?: number
 }
 
+type SnapshotReadLifecycleResult = {
+  httpStatus: number | null
+  outcome: 'authentication-required' | 'http-error' | 'success' | 'invalid' | 'response-error' | 'network-error'
+  updatedAt: string | null
+  graphFingerprint: string | null
+  authoredFingerprint: string | null
+  hasAuthoredDocument: boolean
+  error: string | null
+}
+
+function emitSnapshotReadLifecycle(
+  callback: ((entry: SnapshotReadLifecycleResult) => void) | undefined,
+  entry: SnapshotReadLifecycleResult,
+): void {
+  try {
+    callback?.(entry)
+  } catch {
+    // Diagnostic callbacks must never alter snapshot read behavior.
+  }
+}
+
 async function fetchServerSnapshot(
   mapId: string,
-  options?: { surfaceAuthenticationFailure?: boolean },
+  options?: {
+    surfaceAuthenticationFailure?: boolean
+    onLifecycle?: (entry: SnapshotReadLifecycleResult) => void
+  },
 ): Promise<PersistedGraphSnapshot | null> {
+  let responseStatus: number | null = null
+  let lifecycleReported = false
+  const report = (entry: SnapshotReadLifecycleResult) => {
+    lifecycleReported = true
+    emitSnapshotReadLifecycle(options?.onLifecycle, entry)
+  }
   try {
     const res = await fetch(`/api/graph?campus_id=${encodeURIComponent(mapId)}`, { credentials: 'include' })
+    responseStatus = res.status
     if (options?.surfaceAuthenticationFailure && isAuthenticationFailureStatus(res.status)) {
+      report({
+        httpStatus: res.status,
+        outcome: 'authentication-required',
+        updatedAt: null,
+        graphFingerprint: null,
+        authoredFingerprint: null,
+        hasAuthoredDocument: false,
+        error: AUTH_REQUIRED_MESSAGE,
+      })
       throw new Error(AUTH_REQUIRED_MESSAGE)
     }
-    if (!res.ok) return null
+    if (!res.ok) {
+      report({
+        httpStatus: res.status,
+        outcome: 'http-error',
+        updatedAt: null,
+        graphFingerprint: null,
+        authoredFingerprint: null,
+        hasAuthoredDocument: false,
+        error: `HTTP ${res.status}`,
+      })
+      return null
+    }
     const data = (await res.json()) as PersistedGraphSnapshot
-    if (!data || !Array.isArray(data.nodes)) return null
+    if (!data || !Array.isArray(data.nodes)) {
+      report({
+        httpStatus: res.status,
+        outcome: 'invalid',
+        updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : null,
+        graphFingerprint: null,
+        authoredFingerprint: null,
+        hasAuthoredDocument: Boolean(data?.authoredDocument),
+        error: 'Server snapshot did not contain a nodes array',
+      })
+      return null
+    }
+    if (options?.onLifecycle) {
+      let identity: CanonicalSnapshotIdentity | null = null
+      try {
+        identity = canonicalSnapshotIdentity(data)
+      } catch {
+        // The existing caller retains responsibility for validating/adopting data.
+      }
+      report({
+        httpStatus: res.status,
+        outcome: 'success',
+        updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+        graphFingerprint: identity?.graphFingerprint ?? null,
+        authoredFingerprint: identity?.authoredFingerprint ?? null,
+        hasAuthoredDocument: Boolean(data.authoredDocument),
+        error: null,
+      })
+    }
     return data
   } catch (error) {
+    if (!lifecycleReported) {
+      report({
+        httpStatus: responseStatus,
+        outcome: responseStatus === null ? 'network-error' : 'response-error',
+        updatedAt: null,
+        graphFingerprint: null,
+        authoredFingerprint: null,
+        hasAuthoredDocument: false,
+        error: (error instanceof Error ? error.message : 'Snapshot read failed').slice(0, 240),
+      })
+    }
     if (error instanceof Error && isAuthenticationFailureMessage(error.message)) throw error
     return null
   }
@@ -1225,28 +1336,107 @@ const graphStore = create<GraphState>((rawSet, get) => {
     if (!mapId) return
     if (get().syncStatus !== 'conflict' && get().syncStatus !== 'error') return
     const sessionGeneration = campusSessionGeneration
+    const operationGeneration = beginSyncOperation()
 
     const marker = readSyncMarker(mapId)
     const acknowledged = markerIdentity(marker)
+    const localAtRequest = get()
+    const localIdentityAtRequest = canonicalSnapshotIdentity(
+      localAtRequest.graph.toJSON(),
+      localAtRequest.authoredDocument,
+    )
+    const recoveryTrace = {
+      chainIdAtRequest: latestSaveChainByCampus.get(mapId) ?? null,
+      operationGeneration,
+      sessionGeneration,
+      campusEpoch: getCampusEpoch(mapId),
+      expectedServerUpdatedAt: marker?.serverTimestamp ?? null,
+      localGraphFingerprintAtRequest: localIdentityAtRequest.graphFingerprint,
+      localAuthoredFingerprintAtRequest: localIdentityAtRequest.authoredFingerprint,
+      lastAcknowledgedServerGraphFingerprintAtRequest: acknowledged?.graphFingerprint ?? null,
+      lastAcknowledgedServerAuthoredFingerprintAtRequest: acknowledged?.authoredFingerprint ?? null,
+    }
+    logSaveLifecycle({ event: 'recovery-read-request', ...recoveryTrace })
+    let readResult: SnapshotReadLifecycleResult | null = null
+    const logRecoveryDisposition = (outcome: string, statusWriteApplied: boolean) => {
+      const currentState = get()
+      const currentIdentity = canonicalSnapshotIdentity(currentState.graph.toJSON(), currentState.authoredDocument)
+      const latestMarker = readSyncMarker(mapId)
+      logSaveLifecycle({
+        event: 'recovery-read-disposition',
+        ...recoveryTrace,
+        chainIdAtDisposition: latestSaveChainByCampus.get(mapId) ?? null,
+        httpStatus: readResult?.httpStatus ?? null,
+        readOutcome: readResult?.outcome ?? null,
+        outcome,
+        statusWriteApplied,
+        finalClientStatus: currentState.syncStatus,
+        currentLocalGraphFingerprint: currentIdentity.graphFingerprint,
+        currentLocalAuthoredFingerprint: currentIdentity.authoredFingerprint,
+        latestAcknowledgedServerGraphFingerprint: latestMarker?.snapshotFingerprint ?? null,
+        latestAcknowledgedServerAuthoredFingerprint: latestMarker?.authoredFingerprint ?? null,
+        latestAcknowledgedServerUpdatedAt: latestMarker?.serverTimestamp ?? null,
+      })
+    }
     let data: (GraphSnapshot & { updatedAt?: string }) | null
     try {
-      data = await fetchServerSnapshot(mapId, { surfaceAuthenticationFailure: true })
+      data = await fetchServerSnapshot(mapId, {
+        surfaceAuthenticationFailure: true,
+        onLifecycle: (entry) => {
+          readResult = entry
+          logSaveLifecycle({
+            event: 'recovery-read-response',
+            ...recoveryTrace,
+            chainIdAtResponse: latestSaveChainByCampus.get(mapId) ?? null,
+            httpStatus: entry.httpStatus,
+            readOutcome: entry.outcome,
+            serverUpdatedAt: entry.updatedAt,
+            serverGraphFingerprint: entry.graphFingerprint,
+            serverAuthoredFingerprint: entry.authoredFingerprint,
+            serverHasAuthoredDocument: entry.hasAuthoredDocument,
+            error: entry.error,
+          })
+        },
+      })
     } catch (error) {
-      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) {
+        logRecoveryDisposition('ignored-stale-failure', false)
+        return
+      }
       const message = error instanceof Error ? error.message : AUTH_REQUIRED_MESSAGE
       set({ syncStatus: 'error', syncError: message })
+      logRecoveryDisposition('current-read-failure', true)
       throw error
     }
-    if (!isActiveCampusSession(mapId, sessionGeneration)) return
+    if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) {
+      logRecoveryDisposition(data ? 'ignored-stale-response' : 'ignored-stale-failure', false)
+      return
+    }
     if (!data) {
       const message = 'Could not reach the server. Your local work is preserved; try again.'
       set({ syncStatus: 'error', syncError: message })
+      logRecoveryDisposition('current-read-failure', true)
       throw new Error(message)
     }
 
     const serverIdentity = canonicalSnapshotIdentity(data)
     const currentState = get()
     const localIdentity = canonicalSnapshotIdentity(currentState.graph.toJSON(), currentState.authoredDocument)
+    logSaveLifecycle({
+      event: 'recovery-read-comparison',
+      ...recoveryTrace,
+      chainIdAtComparison: latestSaveChainByCampus.get(mapId) ?? null,
+      httpStatus: readResult?.httpStatus ?? null,
+      serverUpdatedAt: data.updatedAt ?? null,
+      serverGraphFingerprint: serverIdentity.graphFingerprint,
+      serverAuthoredFingerprint: serverIdentity.authoredFingerprint,
+      localGraphFingerprint: localIdentity.graphFingerprint,
+      localAuthoredFingerprint: localIdentity.authoredFingerprint,
+      canonicalMatch: canonicalIdentityEqual(serverIdentity, localIdentity),
+      graphMatch: serverIdentity.graphFingerprint === localIdentity.graphFingerprint,
+      authoredMatch: serverIdentity.authoredFingerprint !== null
+        && serverIdentity.authoredFingerprint === localIdentity.authoredFingerprint,
+    })
 
     // Missed acknowledgement (CASE A): the server already contains exactly
     // the preserved local graph. Adopt only its authoritative revision; a
@@ -1262,6 +1452,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
       lastAcknowledgedCollections = collectionsOf(data)
       clearAcknowledgedAuthoredMutations()
       set({ syncStatus: 'synced', syncError: null })
+      logRecoveryDisposition('server-matches-local', true)
       return
     }
 
@@ -1270,6 +1461,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
     if (acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)) {
       const message = 'Server and local changes differ. Your local work is preserved.'
       set({ syncStatus: 'conflict', syncError: message })
+      logRecoveryDisposition('true-divergence', true)
       throw new Error(message)
     }
 
@@ -1287,7 +1479,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
     try {
       await enqueueCampusSave(mapId, false, 'manual')
     } catch (error) {
-      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       const message = error instanceof Error ? error.message : 'Sync failed'
       set({ syncStatus: isAuthenticationFailureMessage(message) ? 'error' : 'conflict', syncError: message })
       throw error
@@ -1418,11 +1610,14 @@ const campusSaveQueues = new Map<string, CampusSaveQueue>()
 /** Test-only: clears queued/running save state between test cases. */
 export function __resetGraphSaveQueuesForTests(): void {
   campusSaveQueues.clear()
+  latestSaveChainByCampus.clear()
   // P0.12: module-level safety state must not leak across test cases (the
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
   campusSessionGeneration = 0
+  // Invalidate any unresolved async work from the previous test boundary.
+  syncOperationGeneration += 1
   campusEpoch.clear()
   pendingLocalAheadResumeMapId = null
   campusEpoch.clear()
@@ -1521,6 +1716,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
     console.warn(`[graph-store] save refused: campus not ready (trigger=${trigger})`)
     return
   }
+  const operationGeneration = beginSyncOperation()
   const candidateSnapshot = preState.graph.toJSON()
   const candidateHash = graphFingerprint(candidateSnapshot)
   const acknowledgedFingerprint = readSyncMarker(mapId)?.snapshotFingerprint ?? null
@@ -1570,45 +1766,86 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
   // One logical save attempt keeps one mutation id for every transport retry.
   const mutationId = newMutationId()
+  latestSaveChainByCampus.set(mapId, mutationId)
   const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
   const epochAtStart = getCampusEpoch(mapId)
+  const traceContext = {
+    chainId: mutationId,
+    mutationId,
+    operationGeneration,
+    sessionGeneration,
+    campusEpoch: epochAtStart,
+    expectedServerUpdatedAt,
+    graphFingerprint: snapshotHash,
+    authoredFingerprint: authoredHash,
+  }
 
   for (let attempt = 0; ; attempt++) {
-    if (!isActiveCampusSession(mapId, sessionGeneration)) return
+    if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
     if (attempt > 0 && saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
       // A newer authored revision owns the next queue turn. Never let a
       // delayed retry write the older snapshot over that newer local state.
       useGraphStore.setState({ syncStatus: 'idle', syncError: null })
       return
     }
+    let responseStatus: number | null = null
+    let responseUpdatedAt: string | null = null
+    let responseSuccess: boolean | null = null
+    let responseReplay: boolean | null = null
+    let responseError: string | null = null
     try {
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-navi-save-chain-id': mutationId,
+        'x-navi-save-attempt': String(attempt + 1),
+        'x-navi-session-generation': String(sessionGeneration),
+        'x-navi-campus-epoch': String(epochAtStart),
+        'x-navi-graph-fingerprint': snapshotHash,
+      }
+      if (authoredHash !== null) requestHeaders['x-navi-authored-fingerprint'] = authoredHash
+      logSaveLifecycle({ event: 'request', ...traceContext, attemptNumber: attempt + 1 })
       const res = await fetch('/api/graph', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: requestHeaders,
         credentials: 'include',
         body,
       })
-      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      responseStatus = res.status
+      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       if (!res.ok) {
-        if (isAuthenticationFailureStatus(res.status)) throw new Error(AUTH_REQUIRED_MESSAGE)
+        if (isAuthenticationFailureStatus(res.status)) {
+          responseError = AUTH_REQUIRED_MESSAGE
+          throw new Error(AUTH_REQUIRED_MESSAGE)
+        }
         const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
         const msg = errBody.error ?? `HTTP ${res.status}`
+        responseError = typeof msg === 'string' ? msg : String(msg)
         if (isRetryableHttpStatus(res.status)) throw new RetryableSyncError(msg)
         throw new Error(msg)
       }
-      const serverResult = (await res.json().catch(() => ({}))) as { updatedAt?: string | null }
+      const serverResult = (await res.json().catch(() => ({}))) as {
+        success?: boolean
+        updatedAt?: string | null
+        idempotent_replay?: boolean
+      }
+      responseUpdatedAt = typeof serverResult.updatedAt === 'string' ? serverResult.updatedAt : null
+      responseSuccess = typeof serverResult.success === 'boolean' ? serverResult.success : null
+      responseReplay = typeof serverResult.idempotent_replay === 'boolean' ? serverResult.idempotent_replay : null
       const acknowledgedRevision = await resolveAcknowledgedRevision(
         mapId,
-        serverResult.updatedAt ?? null,
-        () => isActiveCampusSession(mapId, sessionGeneration) && getCampusEpoch(mapId) === epochAtStart,
+        responseUpdatedAt,
+        () => isActiveCampusSession(mapId, sessionGeneration)
+          && getCampusEpoch(mapId) === epochAtStart
+          && isCurrentSyncOperation(operationGeneration),
       )
+      if (!isCurrentSyncOperation(operationGeneration)) return
       if (getCampusEpoch(mapId) !== epochAtStart) {
         // Phase 3A: the authoritative base was replaced while this save was in
         // flight; its acknowledgement must not be stamped onto the new base.
         console.warn('[graph-store] save superseded by authoritative adoption — ack discarded')
         return
       }
-      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       if (!acknowledgedRevision) {
         // No authoritative revision means the next save would claim a stale
         // expectedServerUpdatedAt. Never report synchronized in that state.
@@ -1638,9 +1875,25 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
       lastAcknowledgedSeq = Math.max(lastAcknowledgedSeq, includedUpTo)
       if (includedUpTo > 0) useGraphStore.getState().clearAuthoredMutations(includedUpTo)
       useGraphStore.setState({ syncStatus: 'synced', syncError: null })
+      logSaveLifecycle({
+        event: 'response',
+        ...traceContext,
+        attemptNumber: attempt + 1,
+        httpStatus: responseStatus,
+        serverResponse: {
+          success: responseSuccess,
+          updatedAt: responseUpdatedAt,
+          idempotentReplay: responseReplay,
+        },
+        acknowledgedUpdatedAt: acknowledgedRevision,
+        retryable: false,
+        retryScheduled: false,
+        retryDelayMs: null,
+        finalClientStatus: 'synced',
+      })
       return
     } catch (e) {
-      if (!isActiveCampusSession(mapId, sessionGeneration)) return
+      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       const msg = e instanceof Error ? e.message : 'Sync failed'
       if (isRetryableSyncFailure(e)) {
         if (saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
@@ -1649,24 +1902,69 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         }
         bindOnlineResync()
         if (attempt < SYNC_RETRY_DELAYS.length) {
+          const retryDelayMs = SYNC_RETRY_DELAYS[attempt]
+          logSaveLifecycle({
+            event: 'response',
+            ...traceContext,
+            attemptNumber: attempt + 1,
+            httpStatus: responseStatus,
+            serverResponse: {
+              success: responseSuccess,
+              updatedAt: responseUpdatedAt,
+              idempotentReplay: responseReplay,
+              error: responseError?.slice(0, 240) ?? null,
+            },
+            retryable: true,
+            retryScheduled: true,
+            retryDelayMs,
+            finalClientStatus: 'syncing',
+          })
           // Keep the active request in a single retry chain. The final error
           // remains truthful if every guarded attempt is exhausted, while the
           // online listener can recover without a page reload.
           useGraphStore.setState({ syncStatus: 'syncing', syncError: 'Save failed — retrying automatically' })
-          await sleep(SYNC_RETRY_DELAYS[attempt])
+          await sleep(retryDelayMs)
           continue
         }
         const offlineMessage = 'Offline — changes saved locally. Will retry when back online.'
         const finalMessage = isNetworkError(msg) ? offlineMessage : msg
         console.warn('[graph-store] syncToSupabase retry chain exhausted:', msg)
+        logSaveLifecycle({
+          event: 'response',
+          ...traceContext,
+          attemptNumber: attempt + 1,
+          httpStatus: responseStatus,
+          serverResponse: {
+            success: responseSuccess,
+            updatedAt: responseUpdatedAt,
+            idempotentReplay: responseReplay,
+            error: responseError?.slice(0, 240) ?? msg.slice(0, 240),
+          },
+          retryable: true,
+          retryScheduled: false,
+          retryDelayMs: null,
+          finalClientStatus: 'error',
+        })
         useGraphStore.setState({ syncStatus: 'error', syncError: finalMessage })
         throw new Error(finalMessage)
       } else if (/server changed|snapshot conflict/i.test(msg)) {
+        logSaveLifecycle({
+          event: 'response', ...traceContext, attemptNumber: attempt + 1,
+          httpStatus: responseStatus,
+          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
+          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'conflict',
+        })
         useGraphStore.setState({ syncStatus: 'conflict', syncError: msg })
         throw new Error(msg)
       } else if (/mutation[_ ]?id[_ ]collision/i.test(msg)) {
         // Same mutation id reused with different content: never silently treat as a retry.
         console.error('[graph-store] syncToSupabase mutation id collision:', msg)
+        logSaveLifecycle({
+          event: 'response', ...traceContext, attemptNumber: attempt + 1,
+          httpStatus: responseStatus,
+          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
+          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'error',
+        })
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       } else {
@@ -1674,6 +1972,12 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
           bindOnlineResync()
         }
         console.error('[graph-store] syncToSupabase failed:', msg)
+        logSaveLifecycle({
+          event: 'response', ...traceContext, attemptNumber: attempt + 1,
+          httpStatus: responseStatus,
+          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
+          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'error',
+        })
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       }
