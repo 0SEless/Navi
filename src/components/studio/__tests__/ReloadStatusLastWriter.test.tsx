@@ -334,6 +334,152 @@ describe('full reload status lifecycle', () => {
     expect(trace.some((entry) => entry.to === 'conflict')).toBe(false)
   })
 
+  it('keeps a normal HTTP-200 save green through duplicate callbacks, idle, C, and one reload', async () => {
+    const baseline = payload('Baseline Hall')
+    localStorage.setItem(CACHE_KEY, JSON.stringify(baseline))
+    let serverSnapshot: Record<string, unknown> = { ...baseline, updatedAt: 'R1' }
+    const postedBodies: Array<Record<string, unknown>> = []
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>
+        postedBodies.push(body)
+        const updatedAt = `R${postedBodies.length + 1}`
+        const snapshot = { ...body }
+        delete snapshot.expectedServerUpdatedAt
+        delete snapshot.forceServerOverwrite
+        delete snapshot.mutationId
+        serverSnapshot = { ...snapshot, updatedAt }
+        return jsonResponse({ success: true, updatedAt })
+      }
+      return jsonResponse(serverSnapshot)
+    }))
+
+    useGraphStore.getState().loadMapData(MAP_ID)
+    await waitFor(() => expect(useGraphStore.getState().syncStatus).toBe('synced'))
+
+    vi.useFakeTimers()
+    const view = render(
+      <EditorBridge>
+        <SaveStatus />
+      </EditorBridge>,
+    )
+    await vi.waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+
+    const context = (window as unknown as {
+      __naviContext: { services: { get: (name: string) => unknown } }
+    }).__naviContext
+    const dispatcher = context.services.get('dispatcher') as {
+      execute: (command: {
+        id: 'entity.update'
+        label: string
+        payload: { entityId: string; changes: Record<string, string> }
+      }) => { success: boolean; error?: string }
+    }
+    const eventBus = context.services.get('eventBus') as {
+      emit: (event: 'revision.committed', payload: { version: number }) => void
+    }
+    const documentStore = context.services.get('documentStore') as { version: number }
+    const workflow = context.services.get('workflow') as { save: (reason: 'autosave') => Promise<void> }
+    const workflowStore = context.services.get('workflowStore') as {
+      getSnapshot: () => { saveState: string; saveError: string | null }
+    }
+    await vi.waitFor(() => expect((dispatcher as unknown as { status: string }).status).toBe('ready'))
+    await vi.waitFor(() => expect(workflowStore.getSnapshot().saveState).toBe('saved'))
+
+    act(() => {
+      const result = dispatcher.execute({
+        id: 'entity.update',
+        label: 'Edit Building Color',
+        payload: { entityId: 'building-1', changes: { color: '#EF4444' } },
+      })
+      expect(result.success).toBe(true)
+    })
+    const bRevision = documentStore.version
+    expect(bRevision).toBeGreaterThan(0)
+    expect(useGraphStore.getState().pendingAuthoredMutations.length).toBeGreaterThan(0)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await vi.waitFor(() => expect(postedBodies).toHaveLength(1))
+    await vi.waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().syncError).toBeNull()
+    expect(useGraphStore.getState().pendingAuthoredMutations).toEqual([])
+    expect(workflowStore.getSnapshot()).toMatchObject({ saveState: 'saved', saveError: null })
+    expect((postedBodies[0]?.authoredDocument as { buildings: Array<{ color: string }> }).buildings[0]?.color)
+      .toBe('#EF4444')
+    const graphAck = __getSyncStatusTraceForTests().filter((entry) => entry.to === 'synced').at(-1)
+    expect(graphAck?.source).toBe('performSyncToSupabase')
+    const workflowAck = __getWorkflowStatusTraceForTests()
+      .filter((entry) => entry.field === 'saveState')
+      .at(-1)
+    expect(workflowAck).toMatchObject({ from: 'saving', to: 'saved', source: 'updateLifecycle' })
+
+    // Duplicate revision notifications can make WorkflowStore briefly dirty,
+    // but they carry no new authored intent and must not reach the POST path.
+    act(() => {
+      eventBus.emit('revision.committed', { version: bRevision })
+      eventBus.emit('revision.committed', { version: bRevision })
+      eventBus.emit('revision.committed', { version: bRevision })
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await vi.waitFor(() => expect(workflowStore.getSnapshot().saveState).toBe('saved'))
+    expect(view.getByText('All changes saved')).toBeInTheDocument()
+    expect(postedBodies).toHaveLength(1)
+    expect(warning.mock.calls.some(([message]) => String(message).includes('save blocked by safety guard'))).toBe(false)
+
+    // Force the real workflow save entry once as an additional redundant
+    // callback. GraphStore must quietly suppress autosave with no pending intent.
+    await act(async () => { await workflow.save('autosave') })
+    expect(postedBodies).toHaveLength(1)
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(view.getByText('All changes saved')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    expect(postedBodies).toHaveLength(1)
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(workflowStore.getSnapshot()).toMatchObject({ saveState: 'saved', saveError: null })
+    expect(view.getByText('All changes saved')).toBeInTheDocument()
+
+    act(() => {
+      const result = dispatcher.execute({
+        id: 'entity.update',
+        label: 'Edit Building Name',
+        payload: { entityId: 'building-1', changes: { name: 'C Saved Hall' } },
+      })
+      expect(result.success).toBe(true)
+    })
+    const cRevision = documentStore.version
+    expect(cRevision).toBeGreaterThan(bRevision)
+    expect(useGraphStore.getState().pendingAuthoredMutations.length).toBeGreaterThan(0)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await vi.waitFor(() => expect(postedBodies).toHaveLength(2))
+    await vi.waitFor(() => expect(view.getByText('All changes saved')).toBeInTheDocument())
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().syncError).toBeNull()
+    expect(useGraphStore.getState().pendingAuthoredMutations).toEqual([])
+    expect(workflowStore.getSnapshot()).toMatchObject({ saveState: 'saved', saveError: null })
+    expect((postedBodies[1]?.authoredDocument as { buildings: Array<{ name: string; color: string }> }).buildings[0])
+      .toMatchObject({ name: 'C Saved Hall', color: '#EF4444' })
+    expect(warning.mock.calls.some(([message]) => String(message).includes('save blocked by safety guard'))).toBe(false)
+
+    view.unmount()
+    clearActiveGraph()
+    useGraphStore.getState().loadMapData(MAP_ID)
+    const reloaded = render(
+      <EditorBridge>
+        <SaveStatus />
+      </EditorBridge>,
+    )
+    await vi.waitFor(() => expect(reloaded.getByText('All changes saved')).toBeInTheDocument())
+    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().graph.buildings[0]).toMatchObject({ name: 'C Saved Hall', color: '#EF4444' })
+    expect(useGraphStore.getState().authoredDocument?.buildings[0]).toMatchObject({ name: 'C Saved Hall', color: '#EF4444' })
+    expect(postedBodies).toHaveLength(2)
+    expect(warning.mock.calls.some(([message]) => String(message).includes('save blocked by safety guard'))).toBe(false)
+  })
+
   it('keeps a successful five-second editor save saved when an older recovery read fails late', async () => {
     const baseline = payload('Baseline Hall')
     localStorage.setItem(CACHE_KEY, JSON.stringify(baseline))
