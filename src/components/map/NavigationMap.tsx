@@ -13,6 +13,8 @@ import {
 } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import type { CampusBundle } from '@/types/nav-types'
+import type { NavigationContextValue } from './NavigationContext'
 
 type CampusBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number }
 
@@ -42,6 +44,20 @@ interface NavigationMapContextValue {
   ) => boolean
 }
 
+export interface NavigationMapSceneState {
+  bundle: CampusBundle
+  route: { path: string[]; cost: number } | null
+  navigationTargetBuildingId?: string
+  navigationContext: NavigationContextValue | null
+  fitCamera: boolean
+}
+
+interface NavigationMapSceneContextValue {
+  state: NavigationMapSceneState | null
+  publish: (owner: symbol, state: NavigationMapSceneState) => void
+  clear: (owner: symbol) => void
+}
+
 const NavigationMapContext = createContext<NavigationMapContextValue>({
   map: null,
   isReady: false,
@@ -55,8 +71,18 @@ const NavigationMapContext = createContext<NavigationMapContextValue>({
   fitBoundsIfChanged: () => false,
 })
 
+const NavigationMapSceneContext = createContext<NavigationMapSceneContextValue>({
+  state: null,
+  publish: () => undefined,
+  clear: () => undefined,
+})
+
 export function useNavigationMap() {
   return useContext(NavigationMapContext)
+}
+
+export function useNavigationMapScene() {
+  return useContext(NavigationMapSceneContext)
 }
 
 interface NavigationMapProviderProps {
@@ -75,6 +101,8 @@ export function NavigationMapProvider({ active, surfaceKey, children }: Navigati
   const isReadyRef = useRef(false)
   const initialOptionsRef = useRef<NavigationMapRuntimeOptions | null>(null)
   const lastFittedBoundsRef = useRef<string | null>(null)
+  const [sceneState, setSceneState] = useState<NavigationMapSceneState | null>(null)
+  const sceneOwnerRef = useRef<symbol | null>(null)
 
   const requestMap = useCallback((options: NavigationMapRuntimeOptions) => {
     if (!hostRequestedRef.current) {
@@ -134,6 +162,17 @@ export function NavigationMapProvider({ active, surfaceKey, children }: Navigati
     return true
   }, [])
 
+  const publishSceneState = useCallback((owner: symbol, state: NavigationMapSceneState) => {
+    sceneOwnerRef.current = owner
+    setSceneState(state)
+  }, [])
+
+  const clearSceneState = useCallback((owner: symbol) => {
+    if (sceneOwnerRef.current !== owner) return
+    sceneOwnerRef.current = null
+    setSceneState(null)
+  }, [])
+
   useEffect(() => {
     if (!map || !isReady) return
     if (!active) {
@@ -183,9 +222,17 @@ export function NavigationMapProvider({ active, surfaceKey, children }: Navigati
     requestMap,
   ])
 
+  const sceneContextValue = useMemo<NavigationMapSceneContextValue>(() => ({
+    state: sceneState,
+    publish: publishSceneState,
+    clear: clearSceneState,
+  }), [clearSceneState, publishSceneState, sceneState])
+
   return (
     <NavigationMapContext.Provider value={contextValue}>
-      {children}
+      <NavigationMapSceneContext.Provider value={sceneContextValue}>
+        {children}
+      </NavigationMapSceneContext.Provider>
     </NavigationMapContext.Provider>
   )
 }
