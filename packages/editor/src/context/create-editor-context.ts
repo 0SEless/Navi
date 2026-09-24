@@ -64,11 +64,35 @@ import { AutosaveService } from '../services/autosave-service'
 import { PublishStore } from '../services/publish-store'
 import { PublishService } from '../services/publish-service'
 import { EditingContextService } from '../editing-context'
-import { CoordinateTransformer, CONNECTIVITY_CONTRACT_VERSION, migrateAreasToPois, normalizeRoadRouting } from '@navi/core'
-import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LocalCoord, Floor, Staircase, Elevator, RoomDoor, RouteNetwork, Wall, Window, RoomAttributes, Opening, EntranceAccess, Road, PlanAlignment } from '@navi/core'
+import { CoordinateTransformer, CONNECTIVITY_CONTRACT_VERSION, isRouteEdgeType, isRouteNodeType, migrateAreasToPois, normalizeRoadRouting } from '@navi/core'
+import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, Entrance, LocalCoord, Floor, Staircase, Elevator, RoomDoor, RouteEdge, RouteNetwork, RouteNode, Wall, Window, RoomAttributes, Opening, EntranceAccess, Road, PlanAlignment } from '@navi/core'
 import type { TracePath } from '@/types/nav-types'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
 import type { EditorContext } from './editor-context'
+
+interface LegacyRouteGraphNode {
+  id: string
+  type: string
+  buildingId: string
+  floor: number
+  position: { lat: number; lng: number }
+  metadata?: Record<string, unknown>
+}
+
+interface LegacyRouteGraphEdge {
+  id: string
+  from: string
+  to: string
+  distance: number
+  type: string
+  routeEdgeType?: unknown
+  metadata?: Record<string, unknown>
+}
+
+interface LegacyRouteGraphProjection {
+  nodes?: readonly LegacyRouteGraphNode[]
+  edges?: readonly LegacyRouteGraphEdge[]
+}
 
 function computeCentroid(points: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
   let lat = 0, lng = 0
@@ -151,6 +175,98 @@ function buildingOriginsMap(graph: any): Map<string, { lat: number; lng: number 
     origins.set(b.id, points.length > 0 ? computeCentroid(points) : computeFallbackBuildingOrigin(b.id, graph))
   }
   return origins
+}
+
+/**
+ * Recover the authored floor route network from a legacy Graph projection.
+ * This is a one-time Graph → CampusDocument migration fallback only: a
+ * canonical floor routeNetwork, including an explicitly empty one, always
+ * wins. IDs and edge endpoints are recovered from the stable route projection
+ * prefixes; unrelated derived Graph nodes/edges are not promoted to authored
+ * route data.
+ */
+function recoverLegacyRouteNetwork(
+  graph: LegacyRouteGraphProjection,
+  buildingId: string,
+  floorLevel: number,
+  transformer?: CoordinateTransformer,
+  buildingOrigin?: { lat: number; lng: number },
+): RouteNetwork | undefined {
+  const graphNodes = graph.nodes ?? []
+  const routeNodes: RouteNode[] = []
+  const routeIdByGraphId = new Map<string, string>()
+  const seenRouteNodeIds = new Set<string>()
+
+  for (const graphNode of graphNodes) {
+    const routeNodeId = graphNode?.metadata?.routeNodeId
+    const routeNodeType = graphNode?.metadata?.routeNodeType
+    if (
+      graphNode?.type !== 'intersection' ||
+      graphNode.buildingId !== buildingId ||
+      graphNode.floor !== floorLevel ||
+      typeof graphNode.id !== 'string' ||
+      typeof routeNodeId !== 'string' ||
+      routeNodeId.length === 0 ||
+      graphNode.id !== `N-route-${routeNodeId}` ||
+      !isRouteNodeType(routeNodeType) ||
+      seenRouteNodeIds.has(routeNodeId)
+    ) {
+      continue
+    }
+
+    const worldPosition = graphNode.position
+    if (!Number.isFinite(worldPosition.lat) || !Number.isFinite(worldPosition.lng)) continue
+    const position = worldToLocalWithFallback(worldPosition, buildingId, transformer, buildingOrigin)
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) continue
+
+    seenRouteNodeIds.add(routeNodeId)
+    routeIdByGraphId.set(graphNode.id, routeNodeId)
+    routeNodes.push({ id: routeNodeId, type: routeNodeType, position, floor: floorLevel })
+  }
+
+  if (routeNodes.length === 0) return undefined
+
+  const graphEdges = graph.edges ?? []
+  const routeEdges: RouteEdge[] = []
+  const seenRouteEdgeIds = new Set<string>()
+  for (const graphEdge of graphEdges) {
+    if (
+      typeof graphEdge?.id !== 'string' ||
+      !graphEdge.id.startsWith('E-route-') ||
+      typeof graphEdge.from !== 'string' ||
+      typeof graphEdge.to !== 'string'
+    ) {
+      continue
+    }
+    const from = routeIdByGraphId.get(graphEdge.from)
+    const to = routeIdByGraphId.get(graphEdge.to)
+    const id = graphEdge.id.slice('E-route-'.length)
+    const distance = graphEdge.distance
+    if (
+      !from ||
+      !to ||
+      id.length === 0 ||
+      seenRouteEdgeIds.has(id) ||
+      typeof distance !== 'number' ||
+      !Number.isFinite(distance) ||
+      distance < 0
+    ) {
+      continue
+    }
+
+    const recordedType = graphEdge.routeEdgeType ?? graphEdge.metadata?.routeEdgeType ?? graphEdge.type
+    const type = isRouteEdgeType(recordedType)
+      ? recordedType
+      : graphEdge.type === 'stair' || graphEdge.type === 'stairs'
+        ? 'stairs'
+        : graphEdge.type === 'elevator'
+          ? 'elevator'
+          : 'walk'
+    seenRouteEdgeIds.add(id)
+    routeEdges.push({ id, from, to, type, distance })
+  }
+
+  return { nodes: routeNodes, edges: routeEdges }
 }
 
 // ── P0 T0.3: legacy per-floor records → feature entities ──
@@ -454,6 +570,13 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer, 
           ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
           ...(p.appearance !== undefined ? { appearance: p.appearance } : {}),
         }))
+        // Authored route data is authoritative, including an explicit empty
+        // network. Only legacy floors with no routeNetwork may recover the
+        // positively marked route projection already present in Graph.
+        const authoredRouteNetwork = (fd.routeNetwork as RouteNetwork | undefined)
+          ?? (f.routeNetwork as RouteNetwork | undefined)
+        const routeNetwork = authoredRouteNetwork
+          ?? recoverLegacyRouteNetwork(graph, b.id, level, transformer, buildingOrigin)
 
         // Overlay geometry from graph.components
         for (const c of comps) {
@@ -589,13 +712,9 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer, 
           parametricComponents: [],
           ...(legacyPois !== undefined ? { pois: legacyPois } : {}),
           ...(mergedDoors !== undefined ? { doors: mergedDoors } : {}),
-          // P1-T7 (R2.5/D3): authored route network passes through verbatim —
-          // first-class persisted entity, never synthesized from geometry.
-          // New-shape floorData wins, raw floor record is the fallback (same
-          // precedence as doors above). Absent stays absent (D12 additive).
-          ...(((fd.routeNetwork as RouteNetwork | undefined) ?? (f.routeNetwork as RouteNetwork | undefined)) !== undefined
-            ? { routeNetwork: ((fd.routeNetwork as RouteNetwork | undefined) ?? (f.routeNetwork as RouteNetwork | undefined)) as RouteNetwork }
-            : {}),
+          // P1-T7 (R2.5/D3): authored route network passes through verbatim;
+          // only absent legacy authored state migrates a marked Graph projection.
+          ...(routeNetwork !== undefined ? { routeNetwork } : {}),
           metadata: (fd.metadata as Record<string, unknown>) ?? f.metadata ?? {},
           ...(fd.walls !== undefined ? { walls: fd.walls as Wall[] } : {}),
           ...(fd.windows !== undefined ? { windows: fd.windows as Window[] } : {}),
