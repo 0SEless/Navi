@@ -315,4 +315,11 @@ describe('InteractionController', () => {
     unmount()
     expect(mockAutosave.setTransientInteractionActive).toHaveBeenLastCalledWith(false)
   })
+  it('keeps map panning enabled while vertex editing is idle', () => {
+    currentTool = 'vertex'
+    render(<InteractionController map={mockMap} drawing={mockDrawing} />)
+
+    expect(mockMap.dragPan.disable).not.toHaveBeenCalled()
+    expect(mockMap.dragPan.enable).toHaveBeenCalled()
+  })
 })

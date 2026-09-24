@@ -117,7 +117,7 @@ export function InteractionController({ map, onSetRoomDrag, onEmptyMapClick, dra
     if (dragVertexRef.current || buildingDragRef.current) {
       cancelActiveGesture()
     }
-    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'area' || tool === 'import-osm' || tool === 'set-boundary' || tool === 'vertex' || tool === 'place-panorama' || tool === 'poi' || tool === 'poi-circle' || tool === 'poi-rectangle' || tool === 'poi-polygon') {
+    if (tool === 'route' || tool === 'room' || tool === 'boundary' || tool === 'building' || tool === 'area' || tool === 'import-osm' || tool === 'set-boundary' || tool === 'place-panorama' || tool === 'poi' || tool === 'poi-circle' || tool === 'poi-rectangle' || tool === 'poi-polygon') {
       map.dragPan.disable()
     } else {
       map.dragPan.enable()

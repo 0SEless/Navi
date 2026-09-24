@@ -2,7 +2,9 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
-import { useEditor, useEditingEngine } from '@navi/editor'
+import { ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
+import { buildRoadJunctionMovePlan, useEditor, useEditingEngine } from '@navi/editor'
+import type { RoadJunctionMovePlan } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 import { haversine } from '@/engine/geo-utils'
@@ -11,6 +13,24 @@ const VERTEX_SOURCE = 'vertex-source'
 const VERTEX_LAYER = 'vertex-points'
 const VERTEX_EDGE_LAYER = 'vertex-edges'
 const VERTEX_MIDPOINT_LAYER = 'vertex-midpoints'
+
+interface ActiveVertexDrag {
+  pointerId: number
+  canvas: HTMLCanvasElement
+  originalPoints: LatLng[]
+  previewPoints: LatLng[]
+  originalPosition: LatLng
+  latestPosition: LatLng
+  renderedPosition: LatLng
+  selectedIndex: number
+  originals: { adjacentPoint?: LatLng; isEndpoint: boolean }
+  moved: boolean
+  junctionId: string | null
+  junctionPlan: RoadJunctionMovePlan | null
+  frameId: number | null
+  dragPanWasEnabled: boolean
+  boxZoomWasEnabled: boolean
+}
 
 // Safe query wrapper that checks if layer exists before querying
 function safeQueryRenderedFeatures(
@@ -26,38 +46,6 @@ function safeQueryRenderedFeatures(
   } catch {
     return []
   }
-}
-
-function pointsToLineCoords(points: LatLng[]): [number, number][] {
-  return points.map((p) => [p.lng, p.lat] as [number, number])
-}
-
-function buildEdgeGeo(points: LatLng[]): GeoJSON.FeatureCollection {
-  if (points.length < 2) return { type: 'FeatureCollection', features: [] }
-  return {
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: pointsToLineCoords(points) },
-    }],
-  }
-}
-
-function buildMidpointGeo(points: LatLng[]): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = []
-  for (let i = 0; i < points.length - 1; i++) {
-    const mid = {
-      lat: (points[i].lat + points[i + 1].lat) / 2,
-      lng: (points[i].lng + points[i + 1].lng) / 2,
-    }
-    features.push({
-      type: 'Feature',
-      properties: { segment: i },
-      geometry: { type: 'Point', coordinates: [mid.lng, mid.lat] },
-    })
-  }
-  return { type: 'FeatureCollection', features }
 }
 
 function addVertexLayers(map: maplibregl.Map) {
@@ -103,13 +91,16 @@ export function useVertexEditor(map: maplibregl.Map | null) {
   const setVertexEditing = useStudioStore((s) => s.setVertexEditing)
 
   const { document, services } = useEditor()
-  const editEngine = useEditingEngine()
+  const { begin, doCommit } = useEditingEngine()
   const dispatcher = services.get('dispatcher')!
   const workflow = services.get('workflow')!
   const autosaveRef = useRef<{ setTransientInteractionActive?: (active: boolean) => void } | null>(
     services.get('autosave') as { setTransientInteractionActive?: (active: boolean) => void } | null,
   )
   const transientInteractionActiveRef = useRef(false)
+  const activeDragRef = useRef<ActiveVertexDrag | null>(null)
+  const finishDragRef = useRef<((commit: boolean) => void) | null>(null)
+  const doubleClickZoomWasEnabledRef = useRef<boolean | null>(null)
 
   useEffect(() => {
     autosaveRef.current = services.get('autosave') as { setTransientInteractionActive?: (active: boolean) => void } | null
@@ -132,57 +123,85 @@ export function useVertexEditor(map: maplibregl.Map | null) {
 
   const pointsRef = useRef<LatLng[]>(currentEditRoad?.polyline.points ?? [])
   const selectedIdxRef = useRef<number | null>(null)
-  const dragStartRef = useRef<LatLng | null>(null)
-  const dragMovedRef = useRef(false)
-  const dragOriginalsRef = useRef<{ adjacentPoint?: LatLng; isEndpoint: boolean }>({ isEndpoint: false })
 
   useEffect(() => {
     pointsRef.current = currentEditRoad?.polyline.points ?? []
   }, [currentEditRoad])
 
-  const handleSave = useCallback((points: LatLng[]) => {
+  const handleSave = useCallback((points: LatLng[], junctionPlan?: RoadJunctionMovePlan | null) => {
     if (currentEditRoad) {
-      editEngine.begin({ kind: 'modifyGeometry', entityId: currentEditRoad.id, geometry: { polyline: { points } } })
-      editEngine.doCommit()
+      begin({ kind: 'modifyGeometry', entityId: currentEditRoad.id, geometry: { polyline: { points } } })
+      doCommit()
       dispatcher.execute({
         id: 'entity.update',
         label: 'Update Road Geometry',
-        payload: { entityId: currentEditRoad.id, changes: { polyline: { points } } },
+        payload: {
+          entityId: currentEditRoad.id,
+          changes: { polyline: { points } },
+          ...(junctionPlan ? {
+            junctionMove: {
+              junctionId: junctionPlan.junctionId,
+              position: junctionPlan.position,
+              roadGeometry: junctionPlan.roads.map(({ roadId, points: roadPoints }) => ({ roadId, points: roadPoints })),
+            },
+          } : {}),
+        },
       })
       workflow.save('manual')
     }
-  }, [currentEditRoad, editEngine, dispatcher, workflow])
+  }, [begin, currentEditRoad, dispatcher, doCommit, workflow])
 
-  // Switching away from vertex mode abandons any unfinished pointer gesture.
-  // The existing editing-mode state normally drives this transition, but the
-  // explicit tool guard also covers a toolbar switch that races the map event.
   const tool = useStudioStore((s) => s.tool)
-  useEffect(() => {
-    if (tool !== 'vertex') {
-      dragStartRef.current = null
-      dragMovedRef.current = false
-      releaseTransientInteraction()
-    }
-  }, [releaseTransientInteraction, tool])
-
-  const updateDisplay = useCallback((points: LatLng[], selectedIdx?: number) => {
+  const updateDisplay = useCallback((points: LatLng[], selectedIdx?: number, junctionPlan?: RoadJunctionMovePlan | null) => {
     if (!map || !map.getSource(VERTEX_SOURCE)) return
     const src = map.getSource(VERTEX_SOURCE) as maplibregl.GeoJSONSource
     if (src) {
+      const selectedRoadId = currentEditRoad?.id ?? ''
+      const previewRoads = junctionPlan?.roads ?? [{ roadId: selectedRoadId, points }]
+      const features: GeoJSON.Feature[] = []
+
+      for (const road of previewRoads) {
+        const roadPoints = road.roadId === selectedRoadId ? points : road.points
+        const isSelectedRoad = road.roadId === selectedRoadId
+        if (isSelectedRoad) {
+          roadPoints.forEach((point, index) => {
+            features.push({
+              type: 'Feature',
+              properties: {
+                roadId: road.roadId,
+                index,
+                selected: index === selectedIdx,
+                segment: -1,
+              },
+              geometry: { type: 'Point', coordinates: [point.lng, point.lat] },
+            })
+          })
+        }
+        if (roadPoints.length > 1) {
+          features.push({
+            type: 'Feature',
+            properties: { roadId: road.roadId, segment: -2 },
+            geometry: { type: 'LineString', coordinates: roadPoints.map((point) => [point.lng, point.lat]) },
+          })
+          for (let index = 0; isSelectedRoad && index < roadPoints.length - 1; index += 1) {
+            const midpoint = {
+              lat: (roadPoints[index].lat + roadPoints[index + 1].lat) / 2,
+              lng: (roadPoints[index].lng + roadPoints[index + 1].lng) / 2,
+            }
+            features.push({
+              type: 'Feature',
+              properties: { roadId: road.roadId, segment: index },
+              geometry: { type: 'Point', coordinates: [midpoint.lng, midpoint.lat] },
+            })
+          }
+        }
+      }
       src.setData({
         type: 'FeatureCollection',
-        features: [
-          ...points.map((p, i) => ({
-            type: 'Feature' as const,
-            properties: { index: i, selected: i === selectedIdx || false, segment: -1 },
-            geometry: { type: 'Point' as const, coordinates: [p.lng, p.lat] as [number, number] },
-          })),
-          ...buildEdgeGeo(points).features,
-          ...buildMidpointGeo(points).features,
-        ],
+        features,
       })
     }
-  }, [map])
+  }, [currentEditRoad?.id, map])
 
   useEffect(() => {
     if (!map) return
@@ -203,27 +222,30 @@ export function useVertexEditor(map: maplibregl.Map | null) {
     }
   }, [map, isVertexEditing, currentEditRoad, updateDisplay])
 
-  // Disable MapLibre interactions that fight vertex editing:
-  // - dragPan pans the map while dragging a vertex (vertex "escapes" the cursor)
-  // - doubleClickZoom zooms the map when double-clicking to enter vertex edit
-  // Both are restored when editing ends (or the hook unmounts mid-edit).
+  // Keep the historical double-click zoom lock, restoring its exact prior state.
+  // Pan and box zoom are disabled only for the lifetime of an active pointer drag.
   useEffect(() => {
     if (!map) return
     if (isVertexEditing) {
-      map.dragPan.disable()
+      if (doubleClickZoomWasEnabledRef.current === null) {
+        doubleClickZoomWasEnabledRef.current = map.doubleClickZoom.isEnabled()
+      }
       map.doubleClickZoom.disable()
-    } else {
-      map.dragPan.enable()
-      map.doubleClickZoom.enable()
+    } else if (doubleClickZoomWasEnabledRef.current !== null) {
+      if (doubleClickZoomWasEnabledRef.current) map.doubleClickZoom.enable()
+      else map.doubleClickZoom.disable()
+      doubleClickZoomWasEnabledRef.current = null
     }
     return () => {
-      if (isVertexEditing) {
+      const wasEnabled = doubleClickZoomWasEnabledRef.current
+      if (wasEnabled !== null) {
         try {
-          map.dragPan.enable()
-          map.doubleClickZoom.enable()
+          if (wasEnabled) map.doubleClickZoom.enable()
+          else map.doubleClickZoom.disable()
         } catch {
           /* map may already be removed (StrictMode / unmount) */
         }
+        doubleClickZoomWasEnabledRef.current = null
       }
     }
   }, [map, isVertexEditing])
@@ -248,22 +270,26 @@ export function useVertexEditor(map: maplibregl.Map | null) {
     if (!map || !isVertexEditing) return
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
-      if (features.length > 0) {
-        const idx = features[0].properties?.index as number
-        if (idx != null) selectedIdxRef.current = idx
-        updateDisplay(pointsRef.current, idx)
+      const vertexFeature = features.find((feature) => feature.properties?.roadId === currentEditRoad?.id)
+      if (vertexFeature) {
+        const index = vertexFeature.properties?.index
+        if (typeof index === 'number' && Number.isInteger(index) && index >= 0 && index < pointsRef.current.length) {
+          selectedIdxRef.current = index
+          updateDisplay(pointsRef.current, index)
+        }
         return
       }
-      const midFeatures = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_MIDPOINT_LAYER] })
-      if (midFeatures.length > 0) {
-        const segIdx = midFeatures[0].properties?.segment as number
-        if (segIdx != null && pointsRef.current.length > 1) {
+      const midpointFeature = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_MIDPOINT_LAYER] })
+        .find((feature) => feature.properties?.roadId === currentEditRoad?.id)
+      if (midpointFeature) {
+        const segment = midpointFeature.properties?.segment
+        if (typeof segment === 'number' && Number.isInteger(segment) && segment >= 0 && segment < pointsRef.current.length - 1) {
           const mid = {
-            lat: (pointsRef.current[segIdx].lat + pointsRef.current[segIdx + 1].lat) / 2,
-            lng: (pointsRef.current[segIdx].lng + pointsRef.current[segIdx + 1].lng) / 2,
+            lat: (pointsRef.current[segment].lat + pointsRef.current[segment + 1].lat) / 2,
+            lng: (pointsRef.current[segment].lng + pointsRef.current[segment + 1].lng) / 2,
           }
           const newPoints = [...pointsRef.current]
-          newPoints.splice(segIdx + 1, 0, mid)
+          newPoints.splice(segment + 1, 0, mid)
           pointsRef.current = newPoints
           updateDisplay(newPoints)
         }
@@ -274,87 +300,218 @@ export function useVertexEditor(map: maplibregl.Map | null) {
     }
     map.on('click', handleClick)
     return () => { map.off('click', handleClick) }
-  }, [map, isVertexEditing, updateDisplay])
+  }, [map, isVertexEditing, currentEditRoad?.id, updateDisplay])
 
-  // Vertex drag
+  // Native captured drag: only transient overlay geometry changes per frame.
   useEffect(() => {
-    if (!map || !isVertexEditing) return
-    const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
-      const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
-      if (features.length > 0) {
-        const idx = features[0].properties?.index as number
-        selectedIdxRef.current = idx
-        dragStartRef.current = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        dragMovedRef.current = false
-        dragOriginalsRef.current = {
-          isEndpoint: idx === 0 || idx === pointsRef.current.length - 1,
-          adjacentPoint: idx === 0 && pointsRef.current.length > 1
-            ? { ...pointsRef.current[1] }
-            : idx === pointsRef.current.length - 1 && pointsRef.current.length > 1
-              ? { ...pointsRef.current[pointsRef.current.length - 2] }
-              : undefined,
-        }
-      }
+    if (!map || !isVertexEditing || tool !== 'vertex' || !currentEditRoad) return
+    const canvas = map.getCanvas()
+
+    const toPosition = (event: PointerEvent): LatLng => {
+      const bounds = canvas.getBoundingClientRect()
+      const point: [number, number] = [event.clientX - bounds.left, event.clientY - bounds.top]
+      const position = map.unproject(point)
+      return { lat: position.lat, lng: position.lng }
     }
-    const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
-      if (selectedIdxRef.current == null || !dragStartRef.current) return
-      const idx = selectedIdxRef.current
-      const { isEndpoint, adjacentPoint } = dragOriginalsRef.current
-      try {
-        if (!dragMovedRef.current && (e.lngLat.lat !== dragStartRef.current.lat || e.lngLat.lng !== dragStartRef.current.lng)) {
-          dragMovedRef.current = true
+
+    const updatePreview = (drag: ActiveVertexDrag, position: LatLng) => {
+      if (drag.junctionId) {
+        const plan = buildRoadJunctionMovePlan(document, { junctionId: drag.junctionId, position })
+        const selectedRoad = plan?.roads.find((road) => road.roadId === currentEditRoad.id)
+        if (plan && selectedRoad) {
+          drag.junctionPlan = plan
+          drag.previewPoints = selectedRoad.points
+          pointsRef.current = selectedRoad.points
+          selectedIdxRef.current = drag.selectedIndex
+          updateDisplay(selectedRoad.points, drag.selectedIndex, plan)
+          drag.renderedPosition = position
+          return
+        }
+        drag.junctionPlan = null
+      }
+
+      const points = [...drag.previewPoints]
+      const { isEndpoint, adjacentPoint } = drag.originals
+      if (isEndpoint && adjacentPoint) {
+        const distanceToAdjacent = haversine(position, adjacentPoint)
+        const originalDistance = haversine(drag.originalPosition, adjacentPoint)
+        if (distanceToAdjacent > originalDistance * 1.1) {
+          const insertAt = drag.selectedIndex === 0 ? 0 : points.length
+          points.splice(insertAt, 0, { ...position })
+          drag.selectedIndex = insertAt
+          drag.originals.adjacentPoint = insertAt === 0
+            ? { ...points[1] }
+            : { ...points[points.length - 2] }
+        } else {
+          points[drag.selectedIndex] = { ...position }
+        }
+      } else {
+        points[drag.selectedIndex] = { ...position }
+      }
+      drag.previewPoints = points
+      pointsRef.current = points
+      selectedIdxRef.current = drag.selectedIndex
+      updateDisplay(points, drag.selectedIndex)
+      drag.renderedPosition = position
+    }
+
+    const removeWindowListeners = () => {
+      window.removeEventListener('pointermove', handlePointerMove, true)
+      window.removeEventListener('pointerup', handlePointerUp, true)
+      window.removeEventListener('pointercancel', handlePointerCancel, true)
+      canvas.removeEventListener('lostpointercapture', handleLostPointerCapture)
+    }
+
+    const finishDrag = (commit: boolean, finalPosition?: LatLng) => {
+      const drag = activeDragRef.current
+      if (!drag) return
+      if (finalPosition) {
+        drag.latestPosition = finalPosition
+        if (!drag.moved && (finalPosition.lat !== drag.originalPosition.lat || finalPosition.lng !== drag.originalPosition.lng)) {
+          drag.moved = true
           setTransientInteractionActive(true)
         }
-
-        if (isEndpoint && adjacentPoint) {
-          const distToAdj = haversine(
-            { lat: e.lngLat.lat, lng: e.lngLat.lng },
-            adjacentPoint,
-          )
-          const originalDist = haversine(dragStartRef.current, adjacentPoint)
-          if (distToAdj > originalDist * 1.1) {
-            const newPoints = [...pointsRef.current]
-            const insertAt = idx === 0 ? 0 : newPoints.length
-            newPoints.splice(insertAt, 0, { lat: e.lngLat.lat, lng: e.lngLat.lng })
-            pointsRef.current = newPoints
-            selectedIdxRef.current = insertAt
-            updateDisplay(newPoints, insertAt)
-            dragOriginalsRef.current = {
-              ...dragOriginalsRef.current,
-              adjacentPoint: idx === 0
-                ? { ...pointsRef.current[1] }
-                : { ...pointsRef.current[pointsRef.current.length - 2] },
-            }
-            return
-          }
-        }
-
-        const newPoints = [...pointsRef.current]
-        newPoints[idx] = { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        pointsRef.current = newPoints
-        updateDisplay(newPoints, idx)
-      } catch (error) {
-        dragStartRef.current = null
-        dragMovedRef.current = false
-        releaseTransientInteraction()
-        throw error
       }
-    }
-    const handleMouseUp = () => {
+      activeDragRef.current = null
+      if (drag.frameId !== null) {
+        cancelAnimationFrame(drag.frameId)
+        drag.frameId = null
+      }
+
       try {
-        if (selectedIdxRef.current != null && dragStartRef.current && dragMovedRef.current) {
-          handleSave(pointsRef.current)
+        if (commit && drag.moved) {
+          if (drag.latestPosition.lat !== drag.renderedPosition.lat || drag.latestPosition.lng !== drag.renderedPosition.lng) {
+            updatePreview(drag, drag.latestPosition)
+          }
+          handleSave(drag.previewPoints, drag.junctionPlan)
+        } else if (!commit) {
+          pointsRef.current = drag.originalPoints
+          selectedIdxRef.current = drag.selectedIndex
+          updateDisplay(drag.originalPoints, drag.selectedIndex)
         }
       } finally {
-        dragStartRef.current = null
-        dragMovedRef.current = false
+        removeWindowListeners()
+        try {
+          if (drag.canvas.hasPointerCapture(drag.pointerId)) drag.canvas.releasePointerCapture(drag.pointerId)
+        } catch {
+          /* Pointer capture can be released automatically by the browser. */
+        }
+        try {
+          if (drag.dragPanWasEnabled) map.dragPan.enable()
+          else map.dragPan.disable()
+          if (drag.boxZoomWasEnabled) map.boxZoom.enable()
+          else map.boxZoom.disable()
+        } catch {
+          /* The map may have been removed during cleanup. */
+        }
         releaseTransientInteraction()
       }
     }
+    finishDragRef.current = (commit) => finishDrag(commit)
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = activeDragRef.current
+      if (!drag || event.pointerId !== drag.pointerId) return
+      event.preventDefault()
+      const position = toPosition(event)
+      drag.latestPosition = position
+      if (!drag.moved && (position.lat !== drag.originalPosition.lat || position.lng !== drag.originalPosition.lng)) {
+        drag.moved = true
+        setTransientInteractionActive(true)
+      }
+      if (drag.frameId === null) {
+        drag.frameId = requestAnimationFrame(() => {
+          drag.frameId = null
+          if (activeDragRef.current !== drag) return
+          try {
+            updatePreview(drag, drag.latestPosition)
+          } catch (error) {
+            finishDrag(false)
+            throw error
+          }
+        })
+      }
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const drag = activeDragRef.current
+      if (!drag || event.pointerId !== drag.pointerId) return
+      event.preventDefault()
+      finishDrag(true, toPosition(event))
+    }
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      const drag = activeDragRef.current
+      if (!drag || event.pointerId !== drag.pointerId) return
+      finishDrag(true, toPosition(event))
+    }
+
+    const handleLostPointerCapture = (event: PointerEvent) => {
+      const drag = activeDragRef.current
+      if (drag && event.pointerId === drag.pointerId) finishDrag(true)
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || event.isPrimary === false || activeDragRef.current) return
+      const bounds = canvas.getBoundingClientRect()
+      const point: [number, number] = [event.clientX - bounds.left, event.clientY - bounds.top]
+      const features = safeQueryRenderedFeatures(map, point, { layers: [VERTEX_LAYER] })
+      const index = features[0]?.properties?.index
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index >= pointsRef.current.length) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      const originalPoints = pointsRef.current.map((position) => ({ ...position }))
+      const originalPosition = toPosition(event)
+      const junction = (document.roadJunctions ?? []).find((candidate) =>
+        candidate.roadIds.includes(currentEditRoad.id) &&
+        haversine(originalPoints[index], candidate.position) <= ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters,
+      )
+      const initialJunctionPlan = junction
+        ? buildRoadJunctionMovePlan(document, { junctionId: junction.id, position: junction.position })
+        : null
+      const drag: ActiveVertexDrag = {
+        pointerId: event.pointerId,
+        canvas,
+        originalPoints,
+        previewPoints: originalPoints.map((position) => ({ ...position })),
+        originalPosition,
+        latestPosition: originalPosition,
+        renderedPosition: originalPosition,
+        selectedIndex: index,
+        originals: {
+          isEndpoint: index === 0 || index === originalPoints.length - 1,
+          adjacentPoint: index === 0 && originalPoints.length > 1
+            ? { ...originalPoints[1] }
+            : index === originalPoints.length - 1 && originalPoints.length > 1
+              ? { ...originalPoints[originalPoints.length - 2] }
+              : undefined,
+        },
+        moved: false,
+        junctionId: initialJunctionPlan?.junctionId ?? null,
+        junctionPlan: initialJunctionPlan,
+        frameId: null,
+        dragPanWasEnabled: map.dragPan.isEnabled(),
+        boxZoomWasEnabled: map.boxZoom.isEnabled(),
+      }
+      activeDragRef.current = drag
+      selectedIdxRef.current = index
+      updateDisplay(originalPoints, index, initialJunctionPlan)
+      map.dragPan.disable()
+      map.boxZoom.disable()
+      window.addEventListener('pointermove', handlePointerMove, true)
+      window.addEventListener('pointerup', handlePointerUp, true)
+      window.addEventListener('pointercancel', handlePointerCancel, true)
+      canvas.addEventListener('lostpointercapture', handleLostPointerCapture)
+      try {
+        canvas.setPointerCapture(event.pointerId)
+      } catch {
+        /* Window listeners still track the pointer when capture is unavailable. */
+      }
+    }
+
     const handleContextMenu = (e: maplibregl.MapMouseEvent) => {
-      dragStartRef.current = null
-      dragMovedRef.current = false
-      releaseTransientInteraction()
+      finishDragRef.current?.(false)
       e.originalEvent.preventDefault()
       const features = safeQueryRenderedFeatures(map, e.point, { layers: [VERTEX_LAYER] })
       if (features.length > 0 && pointsRef.current.length > 2) {
@@ -367,28 +524,15 @@ export function useVertexEditor(map: maplibregl.Map | null) {
         handleSave(newPoints)
       }
     }
-    map.on('mousedown', handleMouseDown)
-    map.on('mousemove', handleMouseMove)
-    map.on('mouseup', handleMouseUp)
     map.on('contextmenu', handleContextMenu)
-    const canvas = map.getCanvas()
-    const handlePointerCancel = () => {
-      dragStartRef.current = null
-      dragMovedRef.current = false
-      releaseTransientInteraction()
-    }
-    canvas.addEventListener('pointercancel', handlePointerCancel)
+    canvas.addEventListener('pointerdown', handlePointerDown, true)
     return () => {
-      dragStartRef.current = null
-      dragMovedRef.current = false
-      releaseTransientInteraction()
-      map.off('mousedown', handleMouseDown)
-      map.off('mousemove', handleMouseMove)
-      map.off('mouseup', handleMouseUp)
+      finishDrag(false)
+      finishDragRef.current = null
       map.off('contextmenu', handleContextMenu)
-      canvas.removeEventListener('pointercancel', handlePointerCancel)
+      canvas.removeEventListener('pointerdown', handlePointerDown, true)
     }
-  }, [map, isVertexEditing, updateDisplay, handleSave, releaseTransientInteraction, setTransientInteractionActive])
+  }, [map, isVertexEditing, currentEditRoad, document, tool, updateDisplay, handleSave, releaseTransientInteraction, setTransientInteractionActive])
 
   return { active: isVertexEditing, getPoints: () => pointsRef.current, cancel: () => setVertexEditing(null, null) }
 }

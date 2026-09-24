@@ -2,6 +2,8 @@ import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, MutationResult } from './types'
 import { recalculateBuilding } from './floor-handlers'
+import { buildRoadJunctionMovePlan } from './road-junction-geometry'
+import type { RoadJunctionMoveRequest } from './road-junction-geometry'
 
 export function detectEntityType(document: CampusDocument, id: string): string {
   for (const bld of document.buildings) {
@@ -50,10 +52,32 @@ export const entityUpdateHandler: CommandHandler = {
     const entity = resolveEntity(document, entityId)
     if (!entity) return { success: false, error: `Entity not found: ${entityId}` }
 
+    const hasJunctionMove = payload.junctionMove !== undefined
+    const junctionMovePlan = hasJunctionMove
+      ? buildRoadJunctionMovePlan(document, payload.junctionMove as RoadJunctionMoveRequest)
+      : null
+    if (hasJunctionMove && !junctionMovePlan) {
+      return { success: false, error: 'Road junction move is invalid or no longer connected' }
+    }
+
     const oldValues: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(changes)) {
       oldValues[key] = entity[key]
       entity[key] = value
+    }
+
+    if (junctionMovePlan) {
+      for (const roadGeometry of junctionMovePlan.roads) {
+        const road = document.roads.find((candidate) => candidate.id === roadGeometry.roadId)
+        if (!road) return { success: false, error: `Road not found: ${roadGeometry.roadId}` }
+        road.polyline = { ...road.polyline, points: roadGeometry.points }
+        if (road.id !== entityId) {
+          recordChange(document, { entityId: road.id, entityType: 'road', operation: 'updated' })
+        }
+      }
+      const junction = document.roadJunctions?.find((candidate) => candidate.id === junctionMovePlan.junctionId)
+      if (!junction) return { success: false, error: `Road junction not found: ${junctionMovePlan.junctionId}` }
+      junction.position = junctionMovePlan.position
     }
 
     const entityType = detectEntityType(document, entityId)
@@ -72,15 +96,26 @@ export const entityUpdateHandler: CommandHandler = {
       if (bld) recalculateBuilding(bld)
     }
 
-    return { success: true, entityId, data: { oldValues } }
+    const junctionMoveSnapshot = junctionMovePlan
+      ? {
+          junctionId: junctionMovePlan.junctionId,
+          position: junctionMovePlan.previousPosition,
+          roadGeometry: junctionMovePlan.roads.map(({ roadId, previousPoints }) => ({
+            roadId,
+            points: previousPoints,
+          })),
+        }
+      : undefined
+    return { success: true, entityId, data: { oldValues, junctionMoveSnapshot } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): any {
     const entityId = payload.entityId as string
     const oldValues = result.data?.oldValues as Record<string, unknown>
+    const junctionMove = result.data?.junctionMoveSnapshot as RoadJunctionMoveRequest | undefined
     return {
       id: 'entity.update',
       label: 'Undo Property Edit',
-      payload: { entityId, changes: oldValues },
+      payload: { entityId, changes: oldValues, ...(junctionMove ? { junctionMove } : {}) },
     }
   },
 }
