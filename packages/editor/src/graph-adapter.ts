@@ -7,6 +7,56 @@ import type { Component, ComponentType, DoorData, TracePath, Building as LegacyB
 import { pointToSegmentDistance } from '@/engine/geo-utils'
 import { resolveLevelGeometry } from './geometry/resolve-level-geometry'
 
+function stableProjectionValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableProjectionValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [
+        key,
+        stableProjectionValue((value as Record<string, unknown>)[key]),
+      ]),
+    )
+  }
+  return value
+}
+
+function projectionFingerprint(value: object, excludedKeys: readonly string[]): string {
+  const record = value as Record<string, unknown>
+  const projected = Object.fromEntries(
+    Object.keys(record)
+      .filter((key) => !excludedKeys.includes(key))
+      .sort()
+      .map((key) => [key, stableProjectionValue(record[key])]),
+  )
+  return JSON.stringify(projected)
+}
+
+function groupByFingerprint<T>(
+  values: T[],
+  fingerprint: (value: T) => string | null,
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>()
+  for (const value of values) {
+    const key = fingerprint(value)
+    if (key === null) continue
+    const group = groups.get(key)
+    if (group) group.push(value)
+    else groups.set(key, [value])
+  }
+  return groups
+}
+
+function edgeProjectionFingerprint(edge: NavEdge, nodeKeysById: Map<string, string>): string | null {
+  const from = nodeKeysById.get(edge.from)
+  const to = nodeKeysById.get(edge.to)
+  if (!from || !to) return null
+  return JSON.stringify([
+    from,
+    to,
+    projectionFingerprint(edge, ['id', 'from', 'to']),
+  ])
+}
+
 function coreLatLngToLegacy(p: CoreLatLng): LegacyLatLng {
   return { lat: p.lat, lng: p.lng }
 }
@@ -235,7 +285,100 @@ export class GraphAdapter {
     }
     const preserveOutOfScope = options.preserveOutOfScope === true
     this.syncLegacy(document, { preserveOutOfScope })
+    this.reuseExactProjectionIdentities(previous)
     this.reconcileCanonicalCollections(previous, document, { preserveOutOfScope })
+  }
+
+  /**
+   * Keep derived IDs stable across a full rebuild only when each regenerated
+   * entity has one exact structural match in the prior projection. The new
+   * document remains the sole source of payload/topology; prior Graph state
+   * contributes identity labels only.
+   */
+  private reuseExactProjectionIdentities(previous: {
+    nodes: NavNode[]
+    edges: NavEdge[]
+  }): void {
+    if (previous.nodes.length === 0 && previous.edges.length === 0) return
+
+    const previousNodeKeysById = new Map(
+      previous.nodes.map((node) => [node.id, projectionFingerprint(node, ['id'])]),
+    )
+    const regeneratedNodes = this.graph.nodes
+    const regeneratedNodeKeysById = new Map(
+      regeneratedNodes.map((node) => [node.id, projectionFingerprint(node, ['id'])]),
+    )
+    const previousNodesByKey = groupByFingerprint(
+      previous.nodes,
+      (node) => previousNodeKeysById.get(node.id) ?? null,
+    )
+    const regeneratedNodesByKey = groupByFingerprint(
+      regeneratedNodes,
+      (node) => regeneratedNodeKeysById.get(node.id) ?? null,
+    )
+    const reusedNodeIds = new Map<string, string>()
+    const stableNodeProjectionKeysById = new Map<string, string>()
+    const claimedPreviousNodeIds = new Set<string>()
+    const nodesWithStableIds = regeneratedNodes.map((node) => {
+      const key = regeneratedNodeKeysById.get(node.id)
+      const previousMatches = key ? previousNodesByKey.get(key) : undefined
+      if (!key || regeneratedNodesByKey.get(key)?.length !== 1 || previousMatches?.length !== 1) {
+        return node
+      }
+
+      const previousNode = previousMatches[0]
+      const conflictingCurrentKey = regeneratedNodeKeysById.get(previousNode.id)
+      if (
+        claimedPreviousNodeIds.has(previousNode.id) ||
+        (conflictingCurrentKey !== undefined && conflictingCurrentKey !== key)
+      ) {
+        return node
+      }
+
+      claimedPreviousNodeIds.add(previousNode.id)
+      reusedNodeIds.set(node.id, previousNode.id)
+      stableNodeProjectionKeysById.set(previousNode.id, key)
+      return node.id === previousNode.id ? node : { ...node, id: previousNode.id }
+    })
+
+    this.graph.setNodes(nodesWithStableIds)
+
+    const previousEdgesByKey = groupByFingerprint(previous.edges, (edge) =>
+      edgeProjectionFingerprint(edge, stableNodeProjectionKeysById),
+    )
+    const remappedEdges = this.graph.edges.map((edge) => ({
+      ...edge,
+      from: reusedNodeIds.get(edge.from) ?? edge.from,
+      to: reusedNodeIds.get(edge.to) ?? edge.to,
+    }))
+    const regeneratedEdgesByKey = groupByFingerprint(remappedEdges, (edge) =>
+      edgeProjectionFingerprint(edge, stableNodeProjectionKeysById),
+    )
+    const regeneratedEdgeKeyById = new Map(
+      remappedEdges.map((edge) => [edge.id, edgeProjectionFingerprint(edge, stableNodeProjectionKeysById)]),
+    )
+    const claimedPreviousEdgeIds = new Set<string>()
+    const edgesWithStableIds = remappedEdges.map((edge) => {
+      const key = regeneratedEdgeKeyById.get(edge.id)
+      const previousMatches = key ? previousEdgesByKey.get(key) : undefined
+      if (!key || regeneratedEdgesByKey.get(key)?.length !== 1 || previousMatches?.length !== 1) {
+        return edge
+      }
+
+      const previousEdge = previousMatches[0]
+      const conflictingCurrentKey = regeneratedEdgeKeyById.get(previousEdge.id)
+      if (
+        claimedPreviousEdgeIds.has(previousEdge.id) ||
+        (conflictingCurrentKey !== undefined && conflictingCurrentKey !== key)
+      ) {
+        return edge
+      }
+
+      claimedPreviousEdgeIds.add(previousEdge.id)
+      return edge.id === previousEdge.id ? edge : { ...edge, id: previousEdge.id }
+    })
+
+    this.graph.setEdges(edgesWithStableIds)
   }
 
   private reconcileCanonicalCollections(
