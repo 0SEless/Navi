@@ -9597,3 +9597,31 @@
 - **Fix**: Recounted with `$_.StartsWith('??')`; true counts 110 M / 346 ?? / 2 D matched baseline exactly (plus the one real temp entry, later deleted).
 - **Prevention**: Use `StartsWith('??')` (or `git status --porcelain -z`/`--porcelain=v1` parsing) for literal porcelain prefixes; never `-like` with `?` or `*` when the pattern itself contains those characters.
 - **Related tasks**: Live Publish Acceptance Gate
+
+## 2026-09-25: Vitest route-test fake missing update/insert chains
+- **Error**: New `optional-null-artifacts.test.ts` (T2) failed at setup: `fakeDb.storage.from().update is not a function`.
+- **Cause**: The hand-rolled fake only supported the read path; `writePublishedMap` (public-map-writer) chains `.update().eq().lt().select()` then `.insert().select()`, so the write path needs builder methods with `await`able resolution.
+- **Fix**: Rewrote the fake with full chainable builder (`update/insert/select/eq/lt/gte/in/or` returning resolved promises) plus `storage.from('published_maps').select()` returning data; then 2/2 pass.
+- **Prevention**: Before writing route tests against `/api/publish`, mirror every Supabase builder method the writer path actually calls (`writePublishedMap` update-then-insert); prefer extending an existing shared fake over a minimal ad-hoc one.
+- **Related tasks**: Phase 3 T2
+
+## 2026-09-25: Unused `deserialize` import in new panorama round-trip test
+- **Error**: ESLint warning `@typescript-eslint/no-unused-vars` on `deserialize` in `src/__tests__/panorama-hotspot-roundtrip.test.ts:17` (Gate E lint).
+- **Cause**: The test passes inline `deserialize` lambdas to the `Publisher`/`RoundTripVerifier` constructors (matching `publisher.test.ts` style) while also importing the serializer helper - one of the two was redundant.
+- **Fix**: Removed `deserialize` from the `@navi/publisher` import; re-ran eslint (0/0) and the test (3/3 pass).
+- **Prevention**: Run `npx eslint` on every touched/new file before declaring a gate green; when constructors take inline serializer lambdas, do not import the standalone helper.
+- **Related tasks**: Phase 3 T3, T5
+
+## 2026-09-25: PowerShell method-call typo in status counting
+- **Error**: Final-status command failed to parse: `Unexpected token '-startswith'` / `Unexpected token ''??''`.
+- **Cause**: Wrote `$_ -startswith '??'` (operator position) instead of `$_.StartsWith('??')` (method call).
+- **Fix**: Corrected to `$_.StartsWith('??')`; counts then reconciled (navi-next 113/349/2, parent 29/6103/58).
+- **Prevention**: PowerShell member access on `$_` always uses `.` method/property syntax, never an operator; reuse the known-good counting snippet from ERRORS.md instead of retyping it.
+- **Related tasks**: Phase 3 T5
+
+## 2026-09-25: Pre-existing parse error in runtime identity-comparison test (confirmed, not fixed)
+- **Error**: Full `@navi/runtime` vitest run: 1 file fails to transform - `packages/runtime/src/__tests__/data-identity-comparison.test.ts` - `Expected '}' but found 'EOF' at line 255:3` (arrow-function brace opened at L39 never closed); 0 tests run from it. 436 other runtime tests pass.
+- **Cause**: The committed file content is syntactically broken (last touched in `4ca9d98 stabilize: packages/runtime`); it is git-clean, so the defect is pre-existing - Phase 3 never modified it (baseline only covered `src/loader`, so this full-package scope was never run pre-edit).
+- **Fix**: None - out of Phase 3 scope. Documented in the Phase 3 report under Pre-existing Failures; left untouched.
+- **Prevention**: Run full-package suites (not just changed subdirectories) when establishing baselines; treat committed-broken files found in wider runs as pre-existing via `git status --porcelain <file>` + `git log -3 -- <file>` before attributing them to current work.
+- **Related tasks**: Phase 3 T5
