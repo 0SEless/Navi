@@ -2424,3 +2424,20 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Abandoned the local read-back route, deleted the pulled file immediately (it also held Supabase/Cloudinary/Mapbox secrets) plus the helper scripts, and verified the object through the Cloudflare dashboard instead: `navi-360` (Public Access Disabled) -> `_navi-tests/` -> `r2-connectivity-test.txt`, `text/plain`, 25 B - byte-exact for `NAVI R2 connectivity test`.
 - **Prevention**: Never treat `vercel env pull` output as a complete secret dump - check parsed value lengths before trusting it, keep pulled files in a temp path outside the repo, and delete them in the same command. For bucket verification, plan on the Cloudflare dashboard/API unless real credentials are supplied out-of-band, and never print a credential value to recover.
 - **Related tasks**: R2 connectivity test (verification phase）
+
+
+## 2026-09-25: Chrome Private Network Access blocked the loopback file fetch during live E2E
+
+- **Error**: In the authenticated production page, fetch('http://127.0.0.1:8765/pano-ingest-test.jpg') was rejected four times with "Access to fetch ... blocked by CORS policy: Permission was denied for this request to access the loopback address space" / net::ERR_FAILED; two wrapper page.evaluate calls hit the MCP timeout instead of returning the caught TypeError.
+- **Cause**: The temp file server itself was healthy (local HEAD 200; OPTIONS 204 with Access-Control-Allow-Origin: * and Access-Control-Allow-Private-Network: true). Chrome's Private Network Access permission gate denies public-origin -> loopback requests regardless of the target's CORS response, and the rejection did not surface cleanly through the evaluate bridge.
+- **Fix**: Bypassed loopback entirely: copied the test JPEG into .playwright-mcp/ (an MCP-allowed root), attached a drop handler in the page that read e.dataTransfer.files[0] into an ArrayBuffer, dropped the file with the Playwright drop API, then PUT the in-page buffer to the presigned URL. The E2E then passed all five steps with an exact SHA256 match.
+- **Prevention**: Never route test payloads through a local HTTP server from a production https page. Inject bytes into the page via Playwright drop/setFiles (or chunked transfer), or serve from an origin that is both PNA-permitted and CORS-allowed. Keep the OPTIONS/PNA headers on any temp server anyway - they were not the blocker here.
+- **Related tasks**: T9 (live E2E)
+
+## 2026-09-25: Bulk string replace dropped closing parens in panorama-resolve tests
+
+- **Error**: npx vitest run src/app/api/panorama-resolve failed to parse: "Expected '}' but found ';'" at line 62 - all eight GET(req(... call sites were mangled (e.g. await GET(req("");).
+- **Cause**: A chained replace (GET(asNext( -> GET(req(, then ) as never) -> )) removed one closing parenthesis from each call: the second pattern consumed the call's own closing paren while collapsing the cast, leaving one unclosed GET(.
+- **Fix**: Repaired mechanically with a targeted regex over lines matching await GET\(req\( ending in ');' -> '));' (8 lines fixed); the suite then passed 8/8.
+- **Prevention**: After any bulk transform of call expressions, run the file's tests (or node --check) before moving on; prefer structured edits or transform one complete pattern at a time, and verify paren balance with a parse, not by eye.
+- **Related tasks**: T6
