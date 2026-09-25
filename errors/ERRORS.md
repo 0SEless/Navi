@@ -1,5 +1,12 @@
 # ERRORS.md — Ledger of errors encountered
 
+## 2026-09-15: Sync hardening Phase 6 — No new product errors; fixture discoveries + recorded baselines
+- **Error**: No product-code errors in Phase 6. Two fixture-level discoveries and two pre-existing baselines: (1) `new Graph(campusId)` ignores its argument (`Graph` has no explicit constructor), so the fixture snapshot carried `asu-ibajay` until `graph.campusId` was assigned before `GraphAdapter.sync`; (2) `CampusDocument.metadata.name` is not carried by `GraphSnapshot` (the mapping falls back to the campusId), so the importer now overlays `campusMap.name` when the envelope includes the campus row; (3) `compiler-adapter.test.ts` fails to load because `packages/editor/src/demo/golden-campus` does not exist in this checkout (pre-existing); (4) `tsc --noEmit` reports only the pre-existing `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3) TS1005`.
+- **Cause**: The fixture assumed a `Graph` constructor side effect that does not exist; campus display metadata lives in `campus_maps.data`, not `graph_snapshots.data`; both baseline failures predate this phase.
+- **Fix**: Assigned `graph.campusId` explicitly in the fixture and re-sync tests; restored `metadata.name` from `campusMap.name` in `importCampusBackup`; left the two baselines untouched and documented them in the Phase 6 gate artifact.
+- **Prevention**: Never infer `Graph` constructor behavior — set `campusId` after construction; treat `graph_snapshots.data` as the authoritative graph payload and `campus_maps.data` as the campus-metadata carrier; compare repo-wide vitest/tsc output against recorded baselines before attributing failures to a change.
+- **Related tasks**: Phase 6 T1–T4
+
 ## 2026-09-13: P0 stabilization — Supabase management credential rejected (migration 009 blocked)
 - **Error**: `supabase projects list` with `SUPABASE_ACCESS_TOKEN` from `navi-next/.env.local` returned `LegacyProjectsListUnexpectedStatusError … Unauthorized`; no DB password/psql or Management API path is available, so production migration 009 could not be applied.
 - **Cause**: The personal access token is expired/revoked (same class as the earlier cleanup-token entry); the CLI is not linked and no database password exists in any env file.
@@ -7042,3 +7049,2551 @@
 - **Fix**: No application source, tests, or live data changed. Verification for this task stands on the direct evidence: grep re-scan 0 offenders, `node --check` 29/29, `__tests__/e2e-safety.test.ts` 14/14. Treat the graph as not refreshed and resolve the `graphify-out` lock in a separate maintenance task.
 - **Prevention**: Check that `graphify-out` is writable/not locked before relying on a refresh; only accept a graphify update when it exits successfully with the new graph written.
 - **Related tasks**: E2E safety wiring
+
+## 2026-09-13: Connected Supabase backup export was rejected by safety policy
+- **Error**: The connected Supabase `execute_sql` read-only call could inspect the production state, but the safety layer rejected exporting the full private production campus rows and live RPC definition into the local `audit-artifacts` directory.
+- **Cause**: This session exposes no native Supabase backup/export operation, and the connected safety layer requires explicit authorization for that sensitive payload and destination.
+- **Fix**: No production mutation, migration, local data export, or workaround was attempted. The migration remains unapplied and the protected campus remains unchanged.
+- **Prevention**: Obtain explicit user authorization for the exact local backup destination, or use a connected native backup reference, before applying production DDL that requires a recoverable pre-migration snapshot.
+- **Related tasks**: T2, T3
+
+## 2026-09-13: Backup result wrapper required connector-specific parsing
+- **Error**: The first backup orchestration attempts failed locally while extracting the Supabase connector response: repeated `<untrusted-data>` markers selected the explanatory marker, and the final successful write attempted to call unavailable `Buffer.byteLength` after the artifact had already been applied.
+- **Cause**: The connector wraps SQL rows in repeated safety prose, and `functions.exec` does not expose Node's `Buffer` global.
+- **Fix**: Selected the payload between the actual opening/closing safety markers, verified the written JSON with PowerShell, and did not rerun the export after the artifact existed. No production state changed.
+- **Prevention**: Parse the second newline-delimited opening marker, stop at the first closing marker, and use PowerShell file metadata for byte counts in this runtime.
+- **Related tasks**: T2
+
+## 2026-09-13: Baseline comparator treated JSON object ordering as data drift
+- **Error**: A local equality check reported `global_counts_match: false` even though every count matched the captured baseline.
+- **Cause**: The comparison used `JSON.stringify` on objects with different property insertion order.
+- **Fix**: Reclassified the result as a comparator artifact; individual count values were compared by field and matched 12/31/55/51/1/1/3. No production state changed.
+- **Prevention**: Compare structured count fields by key or canonicalize JSON before equality checks.
+- **Related tasks**: T2, T6
+
+## 2026-09-13: RPC audit check did not accept PostgreSQL search_path normalization
+- **Error**: The first post-migration semantic checker marked the deployed function audit false because `pg_get_functiondef` rendered `SET search_path TO 'public'` instead of the migration source spelling `SET search_path = 'public'`.
+- **Cause**: PostgreSQL normalizes equivalent function configuration syntax when returning the definition.
+- **Fix**: Re-ran the check with both canonical renderings; the deployed function is hardened and the audit passes.
+- **Prevention**: Compare normalized SQL semantics, not only source formatting, when validating `pg_get_functiondef` output.
+- **Related tasks**: T3, T4
+
+## 2026-09-13: Clean dev migration replay stopped at 003 missing campus_maps
+- **Error**: On the empty `navi-development` project, migrations 001 and 002 applied, but migration 003 failed with PostgreSQL `42P01: relation "public.campus_maps" does not exist`.
+- **Cause**: Local migration 001 creates graph snapshots/buildings/route nodes/route edges; migration 003 alters `campus_maps`; migration 006 creates `published_maps`, not `campus_maps`. The repository has no committed `CREATE TABLE campus_maps` migration even though production contains that legacy table.
+- **Fix**: No production state changed. Root cause is confirmed by local migration inspection and the dev database relation readback. A dev-only compatibility bootstrap matching the production table shape is pending before reapplying 003.
+- **Prevention**: Keep the legacy `campus_maps` table definition in the versioned schema sequence or make 003 conditional only after a reviewed bootstrap; validate a clean empty-project replay before declaring dev isolation ready.
+- **Related tasks**: T7
+
+## 2026-09-13: Dev migration audit command used an invalid PowerShell pipeline
+- **Error**: The first schema-only migration scan failed with `An empty pipe element is not allowed` before reading or applying migration content.
+- **Cause**: PowerShell does not pipe a `foreach` statement block in that form.
+- **Fix**: Re-ran using an explicit output array; no project state changed.
+- **Prevention**: Build arrays explicitly when batching PowerShell inspection results instead of piping a statement block.
+- **Related tasks**: T7
+
+## 2026-09-13: Final production baseline checker used the wrong graph snapshot key
+- **Error**: The first fresh protected-campus verification query failed with PostgreSQL `42703: column "map_id" does not exist` on `graph_snapshots`.
+- **Cause**: The graph snapshot and authored graph tables use `campus_id`; only the legacy `campus_maps` table uses `map_id`.
+- **Fix**: Read the live information-schema columns, corrected the read-only query, and verified the protected revision, hashes, counts, and global counts exactly match the pre-backup baseline.
+- **Prevention**: Confirm table key names from the live schema before composing cross-table verification queries, especially where legacy and current persistence tables coexist.
+- **Related tasks**: T6, T8
+
+## 2026-09-13: Final RPC checker required normalized search_path matching
+- **Error**: A final semantic checker reported `public_search_path: false` while all other migration/RPC invariants passed.
+- **Cause**: The checker used an exact string match that did not accept the live PostgreSQL-rendered whitespace/configuration form.
+- **Fix**: Re-ran the check with a PostgreSQL-aware regex; the live definition contains `SET search_path TO 'public'` and the normalized check passed.
+- **Prevention**: Use whitespace- and equivalent-syntax-aware semantic checks for `pg_get_functiondef` output; never treat a checker false negative as a production defect without inspecting the live definition.
+- **Related tasks**: T4, T8
+
+## 2026-09-13: P1 private server export safety gate blocked exact artifact
+- **Error**: The connected Supabase tool accepted a harmless `SELECT 1`, but rejected the full read-only protected-campus export before local parsing or file creation.
+- **Cause**: The export contains private production rows and the live RPC definition; the connector safety layer requires explicit authorization for that payload and destination.
+- **Fix**: Stopped T2 before writing `server-before-recovery.json`; no production state or local production data changed. Recorded the non-sensitive P1 gate report instead.
+- **Prevention**: Obtain direct authorization for the exact private export and local destination before retrying; never split or weaken the export to bypass a safety gate.
+- **Related tasks**: T2, T6
+
+## 2026-09-13: P1 protected Studio tab could not be bound read-only
+- **Error**: Three exact read-only binding attempts for the existing Studio tab timed out through the browser connector: returned tab ID, canonical browser name, and returned provider ID.
+- **Cause**: The existing user-owned tab is listed but not currently bindable by the available browser-control surface.
+- **Fix**: Performed no click, navigation, reload, close, storage read/write, save, sync, or API request; marked local extraction blocked rather than substituting a new session.
+- **Prevention**: Restore a safe read-only tab binding or have the user provide an existing NAVI export/debug artifact; do not use a new headless tab as a proxy for the valuable local state.
+- **Related tasks**: T3, T6
+
+## 2026-09-13: P1 final artifact checker used invalid PowerShell expression syntax
+- **Error**: The first final verification command exited with a PowerShell parser error while combining `git check-ignore` and `$LASTEXITCODE` inside an object initializer.
+- **Cause**: PowerShell requires the command result to be assigned or evaluated in a separate statement before using it in the object literal.
+- **Fix**: Re-ran with a separate `$ignored` assignment; the checker exited 0 and verified the blocker report exists, raw exports are absent, the recovery directory is ignored, and the report has the exact blocked status.
+- **Prevention**: Keep external command checks in explicit statements before constructing PowerShell objects.
+- **Related tasks**: T1, T6
+
+## 2026-09-13: P1 export size probe used unavailable jsonb_object_length
+- **Error**: The read-only production metadata probe failed with PostgreSQL `42883: function jsonb_object_length(jsonb) does not exist`.
+- **Cause**: This production PostgreSQL build does not expose that JSONB helper; the query used it only to estimate graph payload shape.
+- **Fix**: No production state changed. Replace the expression with a count over `jsonb_object_keys`, which is already supported by the export query.
+- **Prevention**: Prefer portable JSONB inspection expressions and validate helper availability with a narrow read-only probe before embedding them in a larger export.
+- **Related tasks**: T2
+
+## 2026-09-13: P1 connector wrapper parser selected explanatory marker
+- **Error**: The authorized read-only export attempt was not written because the in-memory parser selected the final explanatory `<untrusted-data-…>` marker instead of the payload marker and reported a missing terminator.
+- **Cause**: The connector repeats the same marker in its introduction, payload boundary, and closing explanation; selecting the last opening marker is incorrect.
+- **Fix**: No production state changed. Select the marker whose matching closing tag occurs after its opening, and keep the export partitioned into bounded SELECT-only sections for safer transport.
+- **Prevention**: Parse the second/newline-delimited payload boundary (or the opening marker with a valid following closing tag), never the final explanatory marker.
+- **Related tasks**: T2
+
+## 2026-09-13: P1 bound Studio tab lacks page-evaluation storage read
+- **Error**: The exact existing Studio tab can now be bound safely and its accessibility state is readable, but the available CUA surface exposes no read-only page-evaluation or localStorage API for extracting the persisted graph bytes.
+- **Cause**: The browser connector provides safe tab binding and accessibility actions only in this session; using DevTools manually would cross the continuation’s explicit manual-action gate.
+- **Fix**: No browser action or storage mutation occurred. Source inspection established the exact localStorage keys and serialization contract; stop at `MANUAL LOCAL EXPORT REQUIRED` with one read-only console download snippet.
+- **Prevention**: Do not substitute a new browser session or infer local state from visible entity rows; require a safe page-evaluation path or the user-provided exact export.
+- **Related tasks**: T3
+
+## 2026-09-13: P1 post-export checker omitted graph snapshot FROM clause
+- **Error**: The first fresh post-export baseline query failed with PostgreSQL `42P01: missing FROM-clause entry for table "gs"`.
+- **Cause**: The JSON projection referenced the protected graph snapshot alias without including its table in the outer query.
+- **Fix**: No production state changed; correct the SELECT to read the single protected graph snapshot row explicitly, then rerun the checker.
+- **Prevention**: Validate outer-query aliases in narrow read-only SQL before using them in post-mutation/baseline verification projections.
+- **Related tasks**: T2, T6
+
+## 2026-09-13: P1 post-export revision comparator used display formatting
+- **Error**: The first post-export checker marked `revisionMatch` false even though the current ISO value and the approved baseline represented the same instant.
+- **Cause**: The checker compared the live ISO `T` timestamp to the artifact’s PostgreSQL space-separated rendering as raw strings.
+- **Fix**: No production state changed. Compare the fresh live value to the exact ISO baseline (or normalize both as timestamps); the remaining hashes and counts already matched.
+- **Prevention**: Treat timestamp display formatting as non-semantic while requiring the same instant and preserving the raw rendering in the artifact.
+- **Related tasks**: T2, T6
+
+## 2026-09-13: P1 supplied browser-local export absent at required path
+- **Error**: The continuation reported `browser-local-before-recovery.json` available, but the exact required path did not exist when verified; the recovery directory contained only the report and server artifacts, and no matching file was found under the project, Desktop, or Downloads.
+- **Cause**: The manual download was not present in the shared workspace filesystem at the specified destination.
+- **Fix**: No placeholder, rename, normalization, or substitute server copy was created. Stop T3 before hashing or reconciliation and request the unchanged local export at the exact path.
+- **Prevention**: Check exact path existence and parseability before creating any local hash or inventory; never infer local state from the user’s statement alone.
+- **Related tasks**: T3, T4, T6
+
+## 2026-09-13: P1 recovery-log patch used stale progress context
+- **Error**: A combined documentation patch was rejected because one progress-log context line did not match the current file.
+- **Cause**: The patch included an incorrect fragment while updating several files together.
+- **Fix**: No repository or production state changed; re-read the current tail and apply smaller exact-context patches.
+- **Prevention**: Patch multi-file recovery logs with exact current context and separate stale sections before retrying.
+- **Related tasks**: T3, T6
+
+## 2026-09-13: P1 browser-local export recheck remained absent
+- **Error**: A new continuation again stated that the browser-local export had been placed at the required path, but `Test-Path` remained false and the recovery directory still contained no browser-local JSON.
+- **Cause**: The unchanged manual export is not visible in the shared workspace filesystem at the declared destination.
+- **Fix**: No hash, parse, copy, inventory, reconciliation, proposal, manifest, browser action, or production operation was performed; retain the Stage 1 blocked gate.
+- **Prevention**: Require filesystem existence and raw-byte verification before progressing beyond T3; do not infer artifact availability from a message alone.
+- **Related tasks**: T3, T4, T6
+
+## 2026-09-13: P1 browser-local export third existence check still absent
+- **Error**: The latest continuation again declared the browser-local export available, but the exact path still failed `Test-Path` and no bytes could be hashed or parsed.
+- **Cause**: The file is not visible in the shared workspace filesystem despite the conversational status.
+- **Fix**: No substitute, placeholder, rename, browser action, or production operation was performed; retain the blocked gate.
+- **Prevention**: Require the actual unchanged file or attachment to be visible before resuming T3/T4.
+- **Related tasks**: T3, T4, T6
+
+## 2026-09-14: Stage 1 validator initially missed nested floorData provenance
+- **Error**: The first offline validator reported no rooms/roomAttributes and treated top-level doors as lacking ownership metadata.
+- **Cause**: NAVI stores the relevant structural evidence under `building.floorData`, including `roomAttributes`, `walls`, nested `doors`, and nested ownership metadata; the initial check only inspected `building.floors` and top-level graph doors.
+- **Fix**: Updated the local read-only reconciliation helper to inventory and validate `floorData` structure, nested door ownership, candidate room references, and floor-level counts. The raw artifacts were not changed.
+- **Prevention**: Validate both top-level projections and nested floorData before classifying room/door evidence as unavailable.
+- **Related tasks**: T4, T6
+
+## 2026-09-14: Stage 1 artifact refresh hit stale one-line patch context
+- **Error**: A combined generated-artifact patch failed to match the current one-line reconciliation diff while refreshing outputs after the validator update.
+- **Cause**: The large generated JSON line had changed between the read and patch construction, making exact whole-line update context brittle.
+- **Fix**: Re-read the generated artifacts and refreshed only the affected ignored recovery artifacts with explicit delete/add apply_patch operations; no raw export was targeted.
+- **Prevention**: Use smaller artifact-specific refreshes for large generated JSON and perform a fresh parse/hash verification after each refresh.
+- **Related tasks**: T4, T5, T6
+
+## 2026-09-14: Stage 1 reconciliation bundle exceeded command-output cap
+- **Error**: The first combined JSON bundle exceeded the command output cap and returned a truncation warning instead of parseable JSON.
+- **Cause**: The local inventory included 1,772 door records and field-level values in a single bundle.
+- **Fix**: Split the deterministic helper into artifact-specific outputs and compacted repeated inventory schema fields while retaining stable IDs, digests, structural key fields, and raw-source references.
+- **Prevention**: Bound generated evidence by artifact/category and preserve large nested values through source-artifact hashes and explicit omission reasons.
+- **Related tasks**: T4, T5
+
+## 2026-09-14: Stage 1.5 door variant reporter double-wrapped indexed records
+
+- **Error**: The first read-only `reconcile-stage1.5.mjs door` run computed correct duplicate multiplicities but showed `index`/`value` as the variant keys and null structural summaries.
+- **Cause**: `variantSummary()` passed records that already had `{ value, index }` through the generic `groupBy()` helper, adding a second wrapper before selecting the sample.
+- **Fix**: Group the indexed records directly by the canonical digest of `row.value`; no raw evidence or generated recovery artifact was modified by the failed diagnostic run.
+- **Prevention**: Assert that every reported door variant contains the expected `id`, `buildingId`, `floor`, `position`, and `width` fields before accepting forensic output.
+- **Related tasks**: Stage 1.5 T2
+
+## 2026-09-14: Stage 1.5 generated artifact refresh used unsupported same-patch replacement
+
+- **Error**: `apply_patch` rejected a patch containing both `Delete File` and `Add File` operations for `DOOR-FORENSICS.json`.
+- **Cause**: The patch engine does not permit multiple operations targeting the same path in one patch.
+- **Fix**: Refresh the generated, reproducible artifact with separate delete and add patch calls; the immutable local/server source artifacts were never targeted.
+- **Prevention**: For large generated artifacts, use two explicit patch operations for whole-file replacement and verify the final JSON/hash immediately.
+- **Related tasks**: Stage 1.5 T2
+
+## 2026-09-14: Stage 1.5 matrix summary queried non-existent property names
+
+- **Error**: The first concise PowerShell summary of the generated floor matrix displayed zero floors, entrances, traces, and junctions even though the full JSON contained them.
+- **Cause**: The diagnostic queried draft property names (`floorAttribution`, `entranceAttribution`, and similar) instead of the final top-level keys (`floors`, `entrances`, `traces`, `roadJunctions`).
+- **Fix**: Listed the generated object's actual property names, reran the summary against the final schema, and verified 41 floor rows, three entrance groups, 22 traces, and 23 LOCAL authored junctions. The generated artifact was not changed by the bad read.
+- **Prevention**: Introspect generated JSON keys or validate against an explicit schema before accepting compact count probes.
+- **Related tasks**: Stage 1.5 T3
+
+## 2026-09-14: PowerShell coerced exact protected revision to local DateTime display
+
+- **Error**: `ConvertFrom-Json` displayed the exact ISO server revision as `2026-09-13T18:10:07.45635+08:00`, which appeared to violate the required `+00:00` literal.
+- **Cause**: PowerShell automatically converted the ISO string to a local-offset `DateTime`; the JSON file itself still contained `2026-09-13T10:10:07.45635+00:00` byte-for-byte.
+- **Fix**: Verified the raw JSON line and used Node string parsing/normalization for the final gate. The exact required revision passed all final checks.
+- **Prevention**: Use raw-text or non-coercing JSON string checks for precision-sensitive revision literals; retain the PostgreSQL rendering separately.
+- **Related tasks**: Stage 1.5 T3, T5, T6
+
+## 2026-09-14: Initial Stage 1.5 graphify refresh hit Windows access denial
+
+- **Error**: The first mandatory `graphify update .` attempt exited with `[WinError 5] Access is denied`.
+- **Cause**: The normal sandboxed process lacked access required by the graph rebuild path, matching the repository's known intermittent Windows graphify failure.
+- **Fix**: Retried the same local index operation with explicitly reviewed elevated access. It completed successfully with 26,633 nodes, 38,877 edges, and 2,095 communities.
+- **Prevention**: When the exact Windows access-denied signature recurs, retry the scoped `graphify update .` operation with approved elevated access and verify its exit code/output.
+- **Related tasks**: Stage 1.5 T6
+
+## 2026-09-14: Stage 1.6 visual verification probe quoting failure
+- **Error**: The first compact Node verification command failed to parse because PowerShell mangled an embedded JSON string literal inside the command text.
+- **Cause**: The diagnostic used nested backslash quoting for a JSON array comparison in a PowerShell-launched `node -e` command.
+- **Fix**: No artifact was changed and no production/browser operation occurred; rerun the check with structural comparisons that avoid nested quote literals.
+- **Prevention**: Use direct array checks or a temporary read-only Node expression without nested JSON string quoting for Windows probes.
+- **Related tasks**: Stage 1.6 T2, T6
+
+## 2026-09-14: Stage 1.6 HTML verification regex quoting failure
+- **Error**: The first standalone HTML verification command failed before execution because PowerShell altered a JavaScript regular-expression literal embedded in `node -e`.
+- **Cause**: Windows command-string escaping is not reliable for nested regex syntax.
+- **Fix**: No artifact was changed; switch to literal marker checks in PowerShell and a separate simple Node compile probe.
+- **Prevention**: Keep Windows verification commands free of nested regex literals; use direct file reads and literal marker tests.
+- **Related tasks**: Stage 1.6 T3, T6
+
+## 2026-09-14: Stage 1.5 authored diff omitted zero-valued required categories
+
+- **Error**: Final schema review found that `authored-reconciliation-diff.json` reported only dispositions with nonzero counts, so required categories `KEEP_SERVER`, `MERGE`, and `REMOVE_CONFIRMED_TEST_POLLUTION` were implicit rather than explicit zeros.
+- **Cause**: The generic `countBy` helper emits only observed keys, while the Stage 1.5 contract requires a fixed six-category authored reconciliation taxonomy.
+- **Fix**: Added a fixed ordered disposition schema and legends for all six categories, regenerated the authored diff, offline validation, and manifest, and reran 61 checks successfully. Counts are 46/0/0/3/0/44 in required category order.
+- **Prevention**: Validate enumerated report taxonomies against the required complete key set, including zero-valued categories, before sealing dependent hashes.
+- **Related tasks**: Stage 1.5 T5, T6
+
+## 2026-09-14: Stage 1.6 worksheet/hash verification assumptions
+- **Error**: The first T4 verification probe expected the worksheet phrase `Decision 44` and compared lowercase Node hashes with uppercase baseline literals, so it reported false checks.
+- **Cause**: The generated worksheet intentionally uses a Markdown row number (`| 44 |`), and SHA-256 hex casing is presentation-only.
+- **Fix**: No artifact changed; rerun with structural row markers and case-normalized hashes.
+- **Prevention**: Verify generated Markdown by stable table markers and normalize digest casing before comparison.
+- **Related tasks**: Stage 1.6 T4, T6
+
+## 2026-09-14: Stage 1.6 review-data copy gained an extra newline
+- **Error**: Offline validation found that `review/review-data.json` was two bytes longer than `human-review-visual-data.json` because the generated patch added one extra trailing newline.
+- **Cause**: The command output already contained a newline and the patch assembly added another.
+- **Fix**: Refresh only the generated review-data copy from the exact visual-data bytes; immutable evidence and the review page source were not changed.
+- **Prevention**: Compare generated copy byte lengths and SHA-256 before sealing the manifest; avoid double-appending output terminators.
+- **Related tasks**: Stage 1.6 T5, T6
+
+## 2026-09-14: Stage 1.6 manifest refresh sequencing error
+- **Error**: The old generated `RECOVERY-MANIFEST.json` was removed before the manifest helper read it, so the first replacement generation failed with `ENOENT`.
+- **Cause**: The helper was written to carry forward the previous manifest and the delete/add refresh was attempted in the wrong order.
+- **Fix**: No immutable evidence or production state was touched; reconstruct the Stage 1.6 manifest from verified baseline fields and current artifact hashes, then validate every artifact entry.
+- **Prevention**: Generate and validate replacement content before deleting a generated manifest; use a separate baseline source when a helper depends on the prior file.
+- **Related tasks**: Stage 1.6 T5, T6
+
+## 2026-09-14: Stage 1.6 manifest verification inverted plan-marker probe
+- **Error**: The first manifest verification reported the idempotency plan check false even though all plan and artifact content was present.
+- **Cause**: The probe used an inverted boolean expression around the phrase `IMPLEMENTED IN STAGE 1.6` instead of checking the explicit plan-only marker.
+- **Fix**: No artifact changed; rerun with the direct `PLAN ONLY — NOT IMPLEMENTED IN STAGE 1.6` marker check.
+- **Prevention**: Prefer positive exact-marker assertions for gate documents; avoid compound negation in verification probes.
+- **Related tasks**: Stage 1.6 T5, T6
+
+## 2026-09-14: Stage 1.6 graphify refresh required scoped retry
+- **Error**: The required normal `graphify update .` invocation again hit `[WinError 5] Access is denied` during the local graph rebuild.
+- **Cause**: The sandboxed graphify process lacks access required by the repository's Windows graph extraction path.
+- **Fix**: Retried the same local graph-index operation with reviewed elevated access. It completed successfully with 26,661 nodes, 38,902 edges, and 2,100 communities; no production or browser state was touched.
+- **Prevention**: Keep the retry scoped to `graphify update .` and verify the rebuild counts and exit output before sealing the gate.
+- **Related tasks**: Stage 1.6 T6
+
+## 2026-09-14: Stage 1.6 final verifier selected the HTML root tag
+- **Error**: The final combined verifier attempted to parse the HTML beginning after the first `>` and received the `<html>` document text instead of embedded JSON.
+- **Cause**: The probe did not first locate the `<script id=...>` data marker.
+- **Fix**: No artifact changed; use the explicit embedded-script marker, as in the earlier independent HTML verification.
+- **Prevention**: Anchor parsers to the intended element marker before extracting embedded data; keep the compiled runtime check separate.
+- **Related tasks**: Stage 1.6 T6
+
+## 2026-09-14: Stage 1.7 GraphAdapter door projection RED checkpoint
+- **Error**: The new repeated-sync and serialize/reload/sync tests failed because `GraphAdapter.sync()` returned two projected door records for one canonical `floorData.doors` record.
+- **Cause**: The adapter appended each fresh world-coordinate projection to the graph's existing derived door array instead of rebuilding the derived collection for the sync pass.
+- **Fix**: RED checkpoint recorded before implementation; no production, browser, or recovery evidence was changed.
+- **Prevention**: Rebuild projected doors into a fresh array and assert repeated sync/reload counts against canonical nested door records.
+- **Related tasks**: Stage 1.7 T2
+
+## 2026-09-14: Stage 1.7 roundtrip fixture normalization
+- **Error**: After the projection fix, the serialize/reload test compared a source door without `metadata` to the normalized document door with `metadata: {}`.
+- **Cause**: `createDocument(Graph.toJSON())` applies the schema’s empty-metadata default during reconstruction; the projection count and stable ID were already correct.
+- **Fix**: Make the test fixture include the normalized empty metadata object; no production or recovery artifact changed.
+- **Prevention**: Assert roundtrip canonical records after schema normalization and keep count/ID assertions separate from optional-field defaults.
+- **Related tasks**: Stage 1.7 T2
+
+## 2026-09-14: Stage 1.7 full diff-check surfaced unrelated pre-existing whitespace
+- **Error**: Repository-wide `git diff --check` reported trailing whitespace in `docs/architecture/rendering.md`.
+- **Cause**: The violation is in an unrelated existing documentation line and is outside the Stage 1.7 change scope.
+- **Fix**: Do not modify the unrelated user file; verify only the Stage 1.7 changed paths with a scoped diff check and report the repository-wide pre-existing exception.
+- **Prevention**: Keep final verification both repository-wide (to surface baseline issues) and scoped to changed paths (to prove this task introduced no whitespace errors).
+- **Related tasks**: Stage 1.7 T5
+
+## 2026-09-14: Stage 1.7 graphify refresh required scoped retry
+- **Error**: The required normal `graphify update .` invocation failed with `[WinError 5] Access is denied` during the local rebuild.
+- **Cause**: The sandboxed graphify process lacks access required by the Windows extraction path, matching the prior Stage 1.6 boundary.
+- **Fix**: Retry the same local-only `graphify update .` operation with reviewed elevated access, then verify its exit output and graph counts.
+- **Prevention**: Keep the elevated retry scoped to the graph refresh command; do not broaden it to production or browser access.
+- **Related tasks**: Stage 1.7 T5
+
+## 2026-09-14: Stage 1.7 graphify final refresh target replacement denied
+- **Error**: The final elevated graphify refresh failed while replacing `graphify-out/.graph.tmp.json` with `graphify-out/graph.json` due to `[WinError 5] Access is denied`.
+- **Cause**: Windows denied the local graph output replacement even though AST extraction completed; this is separate from the earlier sandbox extraction denial.
+- **Fix**: Retry the same scoped local graph refresh once, then verify the existing graph index and keep the recovery gate based on independent artifact/test evidence.
+- **Prevention**: Treat graphify output replacement as a local tooling prerequisite, never as a production dependency; verify graph artifacts after every retry.
+- **Related tasks**: Stage 1.7 T5
+
+## 2026-09-14: Stage 1.7 final graphify verifier used the wrong edge key
+- **Error**: The final combined verifier reported the graphify count check false because it read `graph.edges`.
+- **Cause**: `graphify-out/graph.json` stores graph edges under the NetworkX-compatible `links` key; the graph itself was rebuilt successfully.
+- **Fix**: Inspect the index schema and rerun the verifier against `nodes` and `links`; no recovery or production artifact changed.
+- **Prevention**: Validate graph-index key names before asserting generated counts; keep artifact-gate checks independent of graphify serialization details.
+- **Related tasks**: Stage 1.7 T5
+
+## 2026-09-14: Stage 1.7 scoped lint exposed pre-existing test debt
+- **Error**: `npx eslint` on the changed GraphAdapter source/test files exited nonzero on seven pre-existing `no-explicit-any` errors and two unused-import warnings in `graph-adapter.test.ts`.
+- **Cause**: The reported locations are unchanged baseline test code; the new idempotency test hunks do not contain those lint violations, and `graph-adapter.ts` produced no lint findings.
+- **Fix**: Preserve unrelated baseline test cleanup; verify the exact diff hunks and rely on the fresh focused 21/21 and related 41/41 test passes for this gate.
+- **Prevention**: Keep lint results separated into changed-line findings and baseline debt when a broad test file is in scope.
+- **Related tasks**: Stage 1.7 T5
+
+## 2026-09-14: Stage 1.8 production deployment provenance is not reproducible
+- **Error**: The READY production deployment `dpl_29MTMWDBUoXu5JZDG2hzxyTFeLyZ` reports `gitDirty: "1"`; its Git SHA matches `HEAD`, but the narrow GraphAdapter fix and its two tests are absent from `HEAD` and exist only in the dirty working tree alongside extensive unrelated WIP.
+- **Cause**: The deployment was created from a dirty CLI working tree, so the commit identity cannot prove which uncommitted files were included.
+- **Fix**: Stop the deployment/release path at the preflight gate; do not deploy or mutate production. Continue only with read-only evidence capture and report the provenance blocker.
+- **Prevention**: Prepare a clean, reproducible commit containing only the audited fix and tests, then verify its deployment identity before any future controlled write.
+- **Related tasks**: Stage 1.8 T2, T5
+
+## 2026-09-14: Stage 1.8 chunked backup parser required wrapper handling
+- **Error**: The first orchestration of the partitioned Supabase SELECT export stopped while isolating one response's untrusted-data row envelope; no backup file was written by that attempt.
+- **Cause**: The diagnostic parser assumed one exact wrapper shape instead of handling each tool response's JSON envelope and marker boundaries independently.
+- **Fix**: Reran the same SELECT-only chunk export with per-response marker parsing and verified all 19 chunks, exact reassembly, JSON parsing, and campus identity before writing the backup.
+- **Prevention**: Parse connector envelopes defensively and require contiguous chunk indices and final reparse before accepting an export.
+- **Related tasks**: Stage 1.8 T3
+
+## 2026-09-14: Stage 1.8 local artifact assembly used unavailable Buffer global
+- **Error**: The first local backup assembly reached the final in-memory step but raised `ReferenceError: Buffer is not defined`; no artifact was written by that attempt.
+- **Cause**: The V8 orchestration runtime does not expose Node's `Buffer` global.
+- **Fix**: Reran the unchanged SELECT-only export without the runtime-only byte helper, wrote the backup through the approved local artifact path, then computed the final file/raw-graph hashes with local Node verification.
+- **Prevention**: Keep Node-only hashing in the local verification command and use database-reported byte counts inside connector orchestration.
+- **Related tasks**: Stage 1.8 T3, T5
+
+## 2026-09-14: Stage 1.8A worktree status probe quoting failure
+- **Error**: The first compact PowerShell probe for isolated-worktree status/diff checks failed with a parser error before running.
+- **Cause**: A semicolon-separated command expression was embedded inside a calculated property without valid PowerShell grouping.
+- **Fix**: No worktree or production state changed; rerun the status and diff checks as separate simple commands.
+- **Prevention**: Keep Windows verification probes single-purpose and avoid compound command expressions inside object literals.
+- **Related tasks**: Stage 1.8A T5
+
+## 2026-09-14: Stage 1.8A isolated npm install hit Windows EPERM
+- **Error**: `npm ci` in the new release worktree failed with `EPERM` while spawning a package install script.
+- **Cause**: Windows rejected an npm lifecycle child process in the isolated environment; this was unrelated to the two-file release diff.
+- **Fix**: No primary-tree or production state changed. Retry installation with lifecycle scripts disabled, then run the focused tests and production build from the clean worktree.
+- **Prevention**: Avoid unreviewed dependency lifecycle hooks during release verification and keep the lockfile unchanged.
+- **Related tasks**: Stage 1.8A T5, T6
+
+## 2026-09-14: Stage 1.8A clean-base test exposed missing required dependency
+- **Error**: GraphAdapter and persistence suites in the clean release worktree could not resolve `../commands/semantic-room-handlers` from `create-editor-context.ts`; the clean base `HEAD` does not contain the imported file.
+- **Cause**: The primary dirty worktree has `packages/editor/src/commands/semantic-room-handlers.ts` as untracked WIP, so the previous dirty deployment's build depended on more than the two audited GraphAdapter files.
+- **Fix**: Pause the release commit and audit the missing file and its transitive imports before deciding whether it is a minimal required dependency or an unsafe unrelated WIP.
+- **Prevention**: Test from a clean committed base before deployment and classify every missing import explicitly; never copy unrelated WIP merely to make a build pass.
+- **Related tasks**: Stage 1.8A T4, T6
+
+## 2026-09-14: Stage 1.8A dependency probe quoting failure
+- **Error**: The first compact PowerShell probe for `semantic-room-handlers.ts` status/imports failed with a parser error before execution.
+- **Cause**: Conditional expressions and collection literals were nested inside a calculated property with invalid PowerShell syntax.
+- **Fix**: No file or worktree state changed; rerun the existence, status, imports, and content checks as separate commands.
+- **Prevention**: Keep Windows audit probes single-purpose and avoid nested conditional expressions in object literals.
+- **Related tasks**: Stage 1.8A T4
+
+## 2026-09-14: Stage 1.8A dependency resolution probe pipeline error
+- **Error**: A follow-up PowerShell relative-import resolution probe failed with `An empty pipe element is not allowed` before it could inspect the file.
+- **Cause**: The inline object expression combined conditional values with a pipeline in a form PowerShell parsed as an empty pipe element.
+- **Fix**: No source, worktree, production, browser, or recovery evidence changed; replace the compound probe with separate simple checks.
+- **Prevention**: Keep import-resolution verification in explicit assignment/loop statements and avoid inline conditional expressions at the end of a pipeline.
+- **Related tasks**: Stage 1.8A T2
+
+## 2026-09-14: Stage 1.8A clean-base test exposed second missing required dependency
+- **Error**: After adding the audited missing semantic-room handler, the clean GraphAdapter suite stopped at the next unresolved import, `../commands/road-recovery-handlers`, from tracked `create-editor-context.ts`.
+- **Cause**: The primary dirty checkout contains another untracked command handler imported by the tracked editor context; clean `HEAD` does not contain it.
+- **Fix**: Pause the release again and audit `road-recovery-handlers.ts` and its transitive imports before deciding whether it is part of the minimal required closure.
+- **Prevention**: Advance clean-build dependency discovery one unresolved import at a time and include only files proven necessary for the committed production dependency graph.
+- **Related tasks**: Stage 1.8A T2, T4
+
+## 2026-09-14: Stage 1.8A clean-base test exposed third missing required dependency
+- **Error**: After adding the audited road-recovery closure, the clean GraphAdapter suite stopped at the next unresolved import, `../commands/parametric-handlers`, from tracked `create-editor-context.ts`.
+- **Cause**: The dirty production worktree contains a broader untracked command-handler set than the GraphAdapter fix itself; clean `HEAD` does not contain all imports required by the tracked editor context.
+- **Fix**: Stop copying handlers one at a time and inventory the complete missing-import closure before deciding whether a reproducible release can be safely isolated.
+- **Prevention**: Enumerate the clean build dependency boundary before staging and reject a release whose closure is broader than the audited, reviewable scope.
+- **Related tasks**: Stage 1.8A T2, T4
+
+## 2026-09-14: Stage 1.8A full-closure probe quoting failure
+- **Error**: The first Node-based full-closure inventory command failed with a PowerShell parser error before execution.
+- **Cause**: The inline regular expression contained quote characters that conflicted with the shell's outer quoting.
+- **Fix**: No source, worktree, production, browser, or recovery evidence changed; replace the regex parser with a quote-free line-based import probe.
+- **Prevention**: Keep cross-shell audit commands free of nested quote delimiters and verify the probe itself exits successfully before using its results.
+- **Related tasks**: Stage 1.8A T2
+
+## 2026-09-14: Stage 1.8A Node closure probe hit Windows spawn EPERM
+- **Error**: The quote-free Node closure probe failed with `spawnSync git EPERM` before it could read the clean import graph.
+- **Cause**: The sandbox denied a child-process spawn from Node even though the same Git commands are available as direct shell probes.
+- **Fix**: No source, worktree, production, browser, or recovery evidence changed; use direct Git output and parse it in the orchestration layer instead of spawning Git from Node.
+- **Prevention**: Keep Windows Git inspection as direct `exec_command` calls and avoid nested process creation for audit-only checks.
+- **Related tasks**: Stage 1.8A T2
+
+## 2026-09-14: Stage 1.8A artifact hash probe pipeline error
+- **Error**: The first hash/size probe for the blocked-stage artifacts failed with `An empty pipe element is not allowed` before reading any artifact.
+- **Cause**: PowerShell does not accept piping directly from the closing brace of a `foreach` statement in that inline form.
+- **Fix**: No artifact or production state changed; accumulate results explicitly and pipe the completed array instead.
+- **Prevention**: Use explicit output arrays for multi-file verification probes and keep the final pipeline outside the loop.
+- **Related tasks**: Stage 1.8A T7
+
+## 2026-09-14: Stage 1.8A graphify refresh access boundary
+- **Error**: The required normal `graphify update .` from the isolated release worktree failed with `[WinError 5] Access is denied`.
+- **Cause**: The Windows graph extraction path lacks the local access required to rebuild the graph index in the sandboxed process.
+- **Fix**: No source, audit artifact, production, browser, or campus state changed; the same scoped elevated local refresh completed with 8,097 nodes, 15,597 edges, and 485 communities.
+- **Prevention**: Keep graphify retries limited to local graph-index generation and verify the resulting counts or failure explicitly; never treat graph refresh as production authorization.
+- **Related tasks**: Stage 1.8A T7
+
+## 2026-09-14: Stage 1.8A final verifier used the wrong primary relative path
+- **Error**: The combined final verifier attempted `git -C ..\\navi-next` from the project root, produced a path error, and therefore reported zero primary status rows for that subcheck.
+- **Cause**: The primary repository is the sibling directory `navi-next`, not a child of the project root's parent path.
+- **Fix**: No artifact or production state changed; rerun the primary status/hash check with the explicit `navi-next` path and do not use the invalid subcheck result.
+- **Prevention**: Use absolute or project-root-relative repository paths in cross-directory verification commands and require the Git command to exit successfully.
+- **Related tasks**: Stage 1.8A T7
+
+## 2026-09-14: Stage 1.8B audit generator template syntax error
+- **Error**: The first complete inventory generator failed to parse before reading the worktree because a nested Markdown template literal was not escaped.
+- **Cause**: The generator used a backtick-delimited template literal inside another backtick-delimited expression.
+- **Fix**: No audit output, source file, primary worktree, recovery artifact, or external state changed; replace the nested template with string concatenation and rerun the unchanged status input.
+- **Prevention**: Keep generated Markdown fragments in ordinary quoted strings when they are assembled inside template expressions; run a syntax check before the inventory pass.
+- **Related tasks**: Stage 1.8B T2
+
+## 2026-09-14: Stage 1.8B dependency map alias resolution false positives
+- **Error**: The first generated dependency map reported 17 unresolved imports for `@navi/core/src/...` and `@navi/editor/src/...` paths that exist in the current source tree.
+- **Cause**: The resolver appended an alias's `src/` prefix without stripping the `src/` already present in the import specifier.
+- **Fix**: No source or production state changed; correct alias normalization and regenerate the dependency map, preservation manifest, and feature matrix.
+- **Prevention**: Test alias resolution against both package-root and explicit-`src` import forms before accepting unresolved-import counts.
+- **Related tasks**: Stage 1.8B T2
+
+## 2026-09-14: Stage 1.8B current WIP route snapping baseline failure
+- **Error**: The current primary floor-editor suite failed one case: `route-network-maplibre.test.ts` expected three route nodes after multi-click endpoint snapping but received four; the suite result was 7 files passed / 1 failed and 105 passed / 1 failed tests.
+- **Cause**: The current development WIP's route authoring behavior creates an additional node in that branch scenario; this is a baseline behavior discrepancy, not a Stage 1.8B change.
+- **Fix**: Do not modify the primary WIP during consolidation; record the failure and carry it into clean-baseline comparison.
+- **Prevention**: Require the clean baseline to reproduce this exact current-WIP result or stop for material behavior divergence; do not suppress or rewrite the test.
+- **Related tasks**: Stage 1.8B T3, T6
+
+## 2026-09-14: Stage 1.8B current WIP TypeScript syntax baseline failure
+- **Error**: `npx tsc --noEmit` stopped with `TS1005: '}' expected` at `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)`.
+- **Cause**: The current dirty WIP contains a syntax error in an untracked runtime test; no compiler result beyond the parser error is available.
+- **Fix**: Do not alter the primary WIP during consolidation; record the failure and treat the baseline as non-building until separately corrected by the owner.
+- **Prevention**: Require a clean syntax/typecheck gate before any baseline is called reproducible; preserve the failing file and exact diagnostic.
+- **Related tasks**: Stage 1.8B T3, T6
+
+## 2026-09-14: Stage 1.8B current WIP production build spawn failure
+- **Error**: `npm run build` compiled successfully but failed during Next.js page-data collection with Windows `spawn EPERM`; Next skipped type validation during that build.
+- **Cause**: The sandboxed Windows environment denied a build worker child-process spawn; this is independent of the current WIP TypeScript parser failure.
+- **Fix**: No source fix or production operation was attempted; record the build as failed and preserve the exact environment error for clean-baseline comparison.
+- **Prevention**: Do not call the current WIP production build reproducible until both typecheck and page-data collection complete with exit 0; use the isolated baseline to test whether the spawn failure is environmental.
+- **Related tasks**: Stage 1.8B T3, T6
+
+## 2026-09-14: Stage 1.8B submodule probe Windows signal-pipe failure
+- **Error**: `git submodule status` failed with `couldn't create signal pipe, Win32 error 5` before returning submodule state.
+- **Cause**: The sandboxed Git process could not create a Windows signal pipe; this repository is not known to contain submodules from the worktree structure.
+- **Fix**: No repository or external state changed; rerun the submodule check with a simpler direct probe and record the exit result explicitly.
+- **Prevention**: Treat environment-level Git failures as unknown until a second scoped probe confirms the repository state; never infer submodule contents from a failed command.
+- **Related tasks**: Stage 1.8B T1, T4
+
+## 2026-09-14: Stage 1.8B secret-name probe parser failure
+- **Error**: The first candidate secret-file probe failed with a PowerShell missing-parenthesis parser error before inspecting any path.
+- **Cause**: A compound assignment embedded a command invocation and `$LASTEXITCODE` expression inside an object initializer.
+- **Fix**: No file or secret content was read or changed; rerun with separate existence and `git check-ignore` commands.
+- **Prevention**: Keep sensitive-file probes to one path/one command per statement and never print file contents.
+- **Related tasks**: Stage 1.8B T4
+
+## 2026-09-14: Stage 1.8B worktree preflight parser failure
+- **Error**: The isolated-baseline path/branch preflight failed with a PowerShell missing-parenthesis parser error before checking any state.
+- **Cause**: A Git command and `$LASTEXITCODE` expression were nested inside a calculated property cast.
+- **Fix**: No worktree, branch, source, or external state changed; rerun path, branch, and registration checks as separate assignments.
+- **Prevention**: Keep Git state probes single-purpose and assign command exit state before constructing verification objects.
+- **Related tasks**: Stage 1.8B T5
+
+## 2026-09-14: Stage 1.8B isolated dependency install spawn failure
+- **Error**: Normal `npm ci` in the isolated baseline worktree failed with Windows `EPERM` during package lifecycle child-process spawn and emitted cleanup warnings for locked dependency directories.
+- **Cause**: The sandboxed Windows environment denied the lifecycle worker spawn; this reproduces the known install limitation seen during the prior release-baseline work.
+- **Fix**: No source, primary WIP, production, browser, or recovery state changed; use `npm ci --ignore-scripts` for dependency installation and record lifecycle scripts as unexecuted.
+- **Prevention**: Verify dependency installation in the isolated worktree with lifecycle execution disabled when the environment cannot spawn package scripts; do not interpret this as a source-build pass.
+- **Related tasks**: Stage 1.8B T5, T6
+
+## 2026-09-14: Stage 1.8B isolated floor-suite path selection error
+- **Error**: The first isolated floor-editor verification command omitted the `__tests__` directory for two existing test paths, so Vitest executed 6 of the intended 8 files.
+- **Cause**: The copied command list was reconstructed without verifying the exact repository-relative paths.
+- **Fix**: No source, production, browser, or recovery state changed; verify paths with the repository file list and rerun the complete eight-file suite.
+- **Prevention**: Resolve every test path before invoking a multi-file verification command and require the reported file count to match the planned matrix.
+- **Related tasks**: Stage 1.8B T5, T6
+
+## 2026-09-14: Stage 1.8B tracked deletion omission during baseline copy
+- **Error**: The first tracked-diff copy transferred 354 modified paths but omitted the 16 allowed deleted source/test/tooling paths, causing the isolated build to report a duplicate login route not present in the primary WIP.
+- **Cause**: The copy allowlist selected `modified-tracked` entries and did not separately include Git deletion entries; the preservation manifest's deleted paths were not exposed in the same file list.
+- **Fix**: No primary, production, browser, or recovery state changed; apply the exact primary deletion patch to the isolated worktree and keep generated `test-results` deletions excluded.
+- **Prevention**: Reconcile modified, added, and deleted status classes separately before baseline construction and require targeted status parity for every primary deletion.
+- **Related tasks**: Stage 1.8B T5, T6
+
+## 2026-09-14: Stage 1.8B isolated graphify refresh access boundary
+- **Error**: Normal `graphify update .` from the committed isolated baseline failed with `[WinError 5] Access is denied` while rebuilding the local graph index.
+- **Cause**: The Windows graph extraction process lacks the access needed by the sandboxed refresh path.
+- **Fix**: No source, baseline commit, primary WIP, production, browser, or recovery artifact changed; retry only the scoped local graph refresh with elevated execution and record the result.
+- **Prevention**: Keep graph refreshes local to the audited worktree, verify node/edge counts or explicit failure, and never interpret graph indexing as deployment or production authorization.
+- **Related tasks**: Stage 1.8B T6
+
+## 2026-09-14: Stage 1.8B report generator template syntax error
+- **Error**: The first Stage 1.8B final-report generator failed to parse because a literal backtick pair inside a Markdown template string was not escaped.
+- **Cause**: The report text used JavaScript template-literal delimiters for inline Markdown code formatting.
+- **Fix**: No report, source, primary WIP, baseline commit, recovery artifact, or external state changed; replace that inline formatting with plain text and syntax-check before rerunning.
+- **Prevention**: Run `node --check` on generated report scripts before feeding them audit data; avoid unescaped backticks inside template literals.
+- **Related tasks**: Stage 1.8B T7
+
+## 2026-09-14: Stage 1.8B final verifier path-assignment typo
+- **Error**: The first combined final verifier joined the baseline variable assignment to the audit-path assignment, producing an invalid baseline path and null manifest input for those subchecks.
+- **Cause**: A backslash separator was placed between two inline PowerShell assignments instead of a newline or semicolon.
+- **Fix**: No file or state changed; discard the invalid combined result and rerun with separate assignments and explicit path validation.
+- **Prevention**: Keep final-verifier path declarations on separate statements and require every repository/artifact root to pass `Test-Path` before dependent checks.
+- **Related tasks**: Stage 1.8B T7
+
+## 2026-09-14: Stage 1.8B.1 data-identity parser blocker diagnosis
+- **Error**: `npx tsc --noEmit` in the isolated clean baseline fails at `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)` with TS1005 (`}` expected).
+- **Cause**: The one-line manifest-count test places a `//` comment before the remaining `buildingIndex` statements, so the comment consumes the intended statements and the test's closing `})`, leaving the outer test structure unterminated. The same file hash is present in the primary WIP and isolated baseline.
+- **Fix**: Pending the smallest syntax-only repair on the isolated baseline branch; no primary WIP, production, browser, localStorage, or deployment state changed.
+- **Prevention**: Avoid line comments in compact one-line test bodies when code and structural delimiters follow; require a parser/typecheck gate before treating a clean baseline as buildable.
+- **Related tasks**: Stage 1.8B.1 T1, T2
+
+## 2026-09-14: Stage 1.8B.1 root test-harness path mismatch
+- **Error**: The repository-root `npm test -- --run packages/runtime/src/__tests__/data-identity-comparison.test.ts` invocation exits with “No test files found”.
+- **Cause**: The root Vitest include list excludes `packages/runtime`; the runtime package has its own `vitest.config.ts` with `src/**/*.test.ts` relative to `packages/runtime`.
+- **Fix**: No source or external state changed; use the package-local runtime test command with the path `src/__tests__/data-identity-comparison.test.ts`.
+- **Prevention**: Resolve package-local Vitest configuration and run the affected test from its owning package when root discovery does not include that package.
+- **Related tasks**: Stage 1.8B.1 T1, T3
+
+## 2026-09-14: Stage 1.8B.1 full typecheck remains nonzero after parser repair
+- **Error**: After the isolated one-line syntax repair, `npx tsc --noEmit` no longer reports TS1005 but exits nonzero with many unrelated type errors across existing tests, app code, compiler fixtures, and runtime/editor code.
+- **Cause**: The clean-baseline source tree contains additional type inconsistencies beyond the targeted unterminated test structure; the parser repair only addresses the requested TS1005 blocker.
+- **Fix**: No unrelated source was changed and no compiler settings were weakened; retain the exact repair and classify the full-typecheck gate separately from the repaired parser blocker.
+- **Prevention**: Capture the complete post-repair typecheck error set and compare it with a known parent or prior baseline before attributing the remaining errors to the targeted repair.
+- **Related tasks**: Stage 1.8B.1 T2, T3
+
+## 2026-09-14: Stage 1.8B.1 reconstructed floor-matrix count mismatch
+- **Error**: The first reconstructed eight-file floor-editor command ran 8 files / 132 tests, with 131 passed and the known `route-network-maplibre` failure, rather than the historical Stage 1.8B record of 105/106.
+- **Cause**: The prior Stage 1.8B artifact records the matrix as “[8 audited floor-editor paths]” without preserving the literal path list; the initial reconstruction included additional route-authoring files.
+- **Fix**: No source, primary WIP, production, browser, localStorage, or deployment state changed; retain the result as independent confirmation of the same known failure and do not relabel it as the historical 105/106 matrix.
+- **Prevention**: Preserve literal focused-test path lists in future gate artifacts, not only aggregate file/test counts.
+- **Related tasks**: Stage 1.8B.1 T3
+
+## 2026-09-14: Stage 1.8B.1 Windows wildcard configuration probe
+- **Error**: A read-only `rg` probe passed `next.config.*` as a literal Windows path and returned an invalid filename-pattern error before inspecting configuration.
+- **Cause**: PowerShell did not expand the wildcard argument for ripgrep.
+- **Fix**: No source or environment state changed; rerun the configuration inspection against explicit resolved files.
+- **Prevention**: Use `rg --files` to resolve Windows paths first, then pass explicit files to focused probes.
+- **Related tasks**: Stage 1.8B.1 T4
+
+## 2026-09-14: Stage 1.8B.1 quantified post-repair typecheck debt
+- **Error**: The full post-repair `npx tsc --noEmit --pretty false` exits 1 with 989 TypeScript diagnostics across 270 files; parser-error count is zero, but the standalone typecheck does not pass.
+- **Cause**: The current development baseline contains broad pre-existing type inconsistencies outside the repaired data-identity test; the root Next config also sets `typescript.ignoreBuildErrors: true` for production compilation.
+- **Fix**: No unrelated source or compiler configuration was changed; retain the narrow syntax repair and classify the standalone typecheck as a remaining source gate failure.
+- **Prevention**: Keep standalone typecheck results separate from Next's ignored build validation and do not call a bundler compile a full TypeScript pass.
+- **Related tasks**: Stage 1.8B.1 T3, T4
+
+## 2026-09-14: Stage 1.8B.1 general Node child-process spawn restriction
+- **Error**: Direct `child_process.spawnSync` returns `EPERM` for `node` and `cmd.exe` from the isolated repository and from `C:\Windows\Temp`.
+- **Cause**: The managed Windows execution environment denies child-process creation independently of repository cwd; the executable files exist and TEMP/TMP resolve to existing directories.
+- **Fix**: No security software, permissions, environment variables, source, or production state were changed; record the restriction as independent build-environment evidence.
+- **Prevention**: Prove child-process behavior inside and outside the repository before attributing Next worker failures to application code; never hide the failure with an environment-specific workaround.
+- **Related tasks**: Stage 1.8B.1 T4, T5
+
+## 2026-09-14: Stage 1.8B.1 runtime adjacent-suite baseline failures
+- **Error**: The package-local runtime suite runs 43 files / 495 tests and reports 5 failures / 429 passes / 61 skips in the existing runtime-engine, search-engine, and routing-engine fixture tests.
+- **Cause**: Those tests fail their existing fixture-load assertions; the repaired data-identity test is a separate skipped file and is not implicated by the failure stack.
+- **Fix**: No adjacent tests, fixture data, source, production, browser, localStorage, or deployment state was changed; preserve the failures as baseline evidence.
+- **Prevention**: Keep the targeted parser repair isolated from broad fixture-suite cleanup and report adjacent baseline failures explicitly.
+- **Related tasks**: Stage 1.8B.1 T3
+
+## 2026-09-14: Stage 1.8B.1 isolated graph refresh access boundary
+- **Error**: Required local `graphify update .` after the isolated source edit failed with Windows `[WinError 5] Access is denied` while rebuilding the graph index.
+- **Cause**: The graph extraction process lacks the access required by the normal sandboxed refresh path; this is the same local graph boundary recorded during Stage 1.8B.
+- **Fix**: No source, primary WIP, recovery artifact, production, browser, or deployment state changed; retry only the scoped isolated graph refresh with elevated execution.
+- **Prevention**: Keep graph refreshes local to the audited worktree and verify node/edge counts or explicit failure; never treat graph indexing as deployment authorization.
+- **Related tasks**: Stage 1.8B.1 T5
+
+## 2026-09-14: Stage 1.8B.1 floor-count probe parser error
+- **Error**: A read-only PowerShell test-count probe failed with “An empty pipe element is not allowed” before inspecting files.
+- **Cause**: PowerShell does not allow a pipeline directly after a `foreach` statement without collecting the loop output first.
+- **Fix**: No source, test, artifact, or external state changed; rerun with an explicit result array.
+- **Prevention**: Use `@(... )` around PowerShell loop output before piping to sorting or formatting commands.
+- **Related tasks**: Stage 1.8B.1 T3
+
+## 2026-09-14: Stage 1.8B.1 hash probe parser repeat
+- **Error**: A second read-only PowerShell hash probe repeated the same “An empty pipe element is not allowed” parser error before reading the candidate and Stage 1.8 backup paths.
+- **Cause**: The hash probe again piped directly from a `foreach` statement instead of first assigning the loop output.
+- **Fix**: No artifact or external state changed; rerun with an explicit result array.
+- **Prevention**: Keep PowerShell loop collection and downstream formatting as separate statements in final verification probes.
+- **Related tasks**: Stage 1.8B.1 T6
+
+## 2026-09-14: Stage 1.8B.2 fixture probe parser error
+- **Error**: A read-only PowerShell comparison probe failed with “An empty pipe element is not allowed” before inspecting fixture directories and test-file hashes.
+- **Cause**: The command piped directly after a `foreach` statement instead of collecting loop results first.
+- **Fix**: No source, worktree, test, artifact, production, browser, or localStorage state changed; rerun with an explicit result array.
+- **Prevention**: Collect PowerShell loop output in `@(...)` or a typed array before applying `ConvertTo-Json` or another pipeline.
+- **Related tasks**: Stage 1.8B.2 T4, T6
+
+## 2026-09-14: Stage 1.8B.2 fixture probe parser repeat
+- **Error**: The first retry of the fixture inspection probe failed with a PowerShell “Unexpected token 'else'” parser error before reading any path.
+- **Cause**: The compact inline conditional combined nested hashtable literals and pipeline expressions in a form PowerShell parsed ambiguously.
+- **Fix**: No state changed; use separate assignment statements and a minimal conditional structure.
+- **Prevention**: Avoid dense inline PowerShell object construction in verification probes; build fields in separate statements.
+- **Related tasks**: Stage 1.8B.2 T4, T6
+
+## 2026-09-14: Stage 1.8B.2 verification probe construction error
+- **Error**: The pre-verification PowerShell probe emitted reserved-variable write errors and a bad-revision error before producing its validation JSON.
+- **Cause**: The script attempted to assign PowerShell's automatic `$Error` variable and contained a typo in the parent commit argument.
+- **Fix**: No artifact or repository state changed; use a neutral parse-error variable and the verified parent commit `42e50b3ac6f33c5ae1c358c46aa36337edaaed0d`.
+- **Prevention**: Avoid automatic PowerShell variable names and copy commit IDs from the frozen manifest into verification probes.
+- **Related tasks**: Stage 1.8B.2 T6
+
+## 2026-09-14: Stage 1.8C verifier dotted-key parser error
+- **Error**: The first independent Stage 1.8C verifier failed to parse before checking any artifact because it accessed the JSON key `stage1.9Boundary` through PowerShell dotted-property syntax.
+- **Cause**: PowerShell interpreted the period in the JSON key as a member-access separator, leaving an invalid property expression.
+- **Fix**: No artifact, worktree, production, browser, or localStorage state changed; rerun with bracketed access for keys containing periods.
+- **Prevention**: Use bracketed property access for JSON keys containing dots, hyphens, or other non-identifier characters in verification probes.
+- **Related tasks**: Stage 1.8C T5
+
+## 2026-09-14: Stage 1.8C verifier checked outer repository HEAD
+- **Error**: The first final Stage 1.8C status probe compared the outer workspace repository HEAD with the frozen `navi-next` source-submodule HEAD and reported a false unexpected commit change.
+- **Cause**: The audited source commit `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc` is the `navi-next` submodule HEAD; the probe ran `git rev-parse HEAD` from the outer workspace root.
+- **Fix**: No repository, artifact, production, browser, or localStorage state changed; verify the source HEAD with `git -C navi-next` and keep the outer workspace status separate.
+- **Prevention**: Resolve repository/submodule boundaries before comparing frozen commits; label each HEAD check with its repository path.
+- **Related tasks**: Stage 1.8C T5
+
+## 2026-09-14: Stage 1.8C verifier compared unscoped status-row count
+- **Error**: The corrected final probe compared the frozen outer-workspace status-row count `1781` with the `navi-next` submodule’s current status count `405` and reported a false failure.
+- **Cause**: The historical count and the current count were collected at different repository boundaries; status-row count is not the immutable source-integrity check.
+- **Fix**: No source, artifact, production, browser, or localStorage state changed; retain the source-submodule HEAD check and treat the current WIP status as contextual evidence only.
+- **Prevention**: Compare status counts only when the repository path, inclusion flags, and snapshot procedure are identical; use the frozen source commit and immutable recovery hashes for integrity gates.
+- **Related tasks**: Stage 1.8C T5
+
+## 2026-09-14: Stage 1.8D source probe foreach pipeline parser error
+- **Error**: The first read-only Stage 1.8D source/deployment configuration probe failed to parse before inspecting any path because it piped directly from a `foreach` statement.
+- **Cause**: PowerShell requires loop output to be collected before applying a pipeline or formatter.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; rerun with an explicit result array.
+- **Prevention**: Collect every PowerShell loop result before piping or serializing it; keep status and path probes as separate statements.
+- **Related tasks**: Stage 1.8D T1
+
+## 2026-09-14: Stage 1.8D clean P0 worktree missing committed-import dependencies
+- **Error**: The clean P0 worktree at `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc` failed to resolve `packages/editor/src/commands/semantic-room-handlers` while loading GraphAdapter and persistence test suites. The other seven focused suites passed 64/65 tests.
+- **Cause**: The committed `create-editor-context.ts` imports handler modules that are absent from the clean commit and appear to exist only in the dirty primary WIP.
+- **Fix**: Pending a narrow dependency-closure classification; no source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Build and test from an isolated clean worktree before deployment; trace every missing import to a tracked commit or explicitly justified minimal source addition.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D clean guard suite identifies unguarded debug scripts
+- **Error**: The clean P0 `__tests__/e2e-safety.test.ts` failed because `debug-fiber.mjs` and `test-undo-redo.mjs` lack the required environment-guard import; the suite reported 1 failed test and 64 passing tests overall.
+- **Cause**: Those debug scripts are present in the clean source tree without the guard import expected by the P0 safety test.
+- **Fix**: Pending classification as production-relevant guard source versus non-production debug/test tooling; no source or external state changed.
+- **Prevention**: Keep guard-test evidence separate from production runtime evidence and do not deploy unclassified debug tooling as a workaround.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D dependency closure exposes second handler frontier
+- **Error**: After adding only the first five missing modules, the clean editor/persistence suites exposed two additional unresolved registered imports: `packages/editor/src/commands/route-access-handlers.ts` and `packages/editor/src/commands/levels-handlers.ts`. All 65 executed tests passed before the two suites stopped at module resolution.
+- **Cause**: The committed `create-editor-context.ts` contains a broader pre-existing handler registration closure than the initial missing-import frontier.
+- **Fix**: Pending exact closure classification; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Iterate import resolution from the clean worktree and include only directly registered runtime modules and their required transitive dependencies.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D dependency closure exposes validation frontier
+- **Error**: After adding the directly registered handler closure, the clean editor/persistence suites exposed unresolved import `packages/editor/src/validation/rules/modules/room-door-geometry.ts`. All 65 executed tests passed before the two suites stopped at module resolution.
+- **Cause**: The committed editor context also imports a validation rule absent from the clean P0 tree but present in the dirty development source.
+- **Fix**: Pending exact dependency classification; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Continue resolving only imported production modules; do not copy unrelated validation or Floor Editor WIP without an import-chain reason.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D dependency closure exposes service frontier
+- **Error**: After adding the direct validation frontier, the clean editor/persistence suites exposed unresolved import `packages/editor/src/services/RelationshipService` from the narrowly required `relationship-handlers.ts`. All 65 executed tests passed before the two suites stopped at module resolution.
+- **Cause**: The committed handler closure also depends on a service absent from the clean P0 tree but present in the dirty development source.
+- **Fix**: Pending exact dependency classification; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Resolve transitive imports from the clean worktree and record each included file rather than importing the full WIP closure.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D clean dependency runtime export mismatch
+- **Error**: After resolving the missing editor modules, the clean editor/persistence suites failed during module initialization because `ROUTE_NETWORK_THRESHOLDS` was undefined in the imported `@navi/core` package.
+- **Cause**: The newly required road-connectivity module expects a core runtime export that is not present in the clean P0 package build, indicating a further source dependency or an accidental/stale import boundary.
+- **Fix**: Pending source-level classification; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Verify runtime exports and package build inputs in the clean worktree before treating a copied WIP module as deployable.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D recursive import probe regex parser error
+- **Error**: The recursive clean-worktree import probe failed to parse before reading files because its PowerShell regex quoting for single- and double-quoted import strings was invalid.
+- **Cause**: Dense nested quoting inside `Select-String -Pattern` was parsed as an array/index expression.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; use a simpler line-based import parser.
+- **Prevention**: Avoid nested quote-heavy PowerShell regex literals; prefer `rg` output or a small separately validated parser.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D path existence probe foreach pipeline repeat
+- **Error**: The follow-up path existence probe failed to parse before inspecting viewport and relationship-service paths because it piped directly from a `foreach` statement.
+- **Cause**: The probe again serialized loop-built objects without first assigning the collection.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; use a list accumulator and serialize after the loop.
+- **Prevention**: Keep all loop-built path records in an explicit list before `ConvertTo-Json`.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D path probe checked absent viewport index directory
+- **Error**: A read-only `rg` path probe reported that the clean `packages/editor/src/canvas` directory was absent while also checking a non-existent `viewport/index` path.
+- **Cause**: The probe passed a directory that had not yet been populated in the clean worktree and included an index-path candidate that was not part of the repository layout.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; use explicit known file paths and the primary/clean status table.
+- **Prevention**: Resolve candidate file paths before passing directories to search tools; avoid mixing expected and speculative paths in one probe.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D dependency trace foreach pipeline parser repeat
+- **Error**: The dependency trace probe failed to parse before inspecting the missing handler and debug-script paths because it piped directly from a `foreach` statement.
+- **Cause**: The probe again used loop output as a pipeline without collecting it first.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; rerun with explicit result arrays and separate serialization statements.
+- **Prevention**: Do not place a pipeline immediately after a PowerShell `foreach`; assign loop results before formatting.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D handler trace serialization parser repeat
+- **Error**: The handler dependency trace failed to parse before collecting handler hashes because a second `foreach` output was piped directly into `ConvertTo-Json`.
+- **Cause**: The probe reused the invalid loop-to-pipeline construction instead of accumulating objects first.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; rerun with a list accumulator and serialize only after the loop.
+- **Prevention**: Use `System.Collections.Generic.List[object]` for all loop-built verification records.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D safety probe invalid working directory
+- **Error**: The read-only safety-script inspection was rejected before execution because the command supplied an invalid working-directory path.
+- **Cause**: The PowerShell path string omitted the workspace segment in the command invocation.
+- **Fix**: No source, worktree, artifact, production, browser, or localStorage state changed; rerun from the verified workspace root.
+- **Prevention**: Reuse the exact validated workspace path for all probes and avoid hand-typing path variants.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8B.2 final log-tail probe precedence error
+- **Error**: The final read-only log/status probe failed because PowerShell parsed `-join` as a `Get-Content` parameter.
+- **Cause**: The command omitted parentheses around the `Get-Content` expression before applying `-join`.
+- **Fix**: No artifact or worktree state changed; rerun with explicit `@(...)` collection and parentheses.
+- **Prevention**: Parenthesize PowerShell command output before applying operators such as `-join`.
+- **Related tasks**: Stage 1.8B.2 T6
+
+## 2026-09-14: Stage 1.8D import probe quoting error
+- **Error**: A read-only `rg` import probe failed to parse its quote-heavy regular expression before inspecting source files.
+- **Cause**: The PowerShell string and regular-expression character classes conflicted, producing an unclosed character class.
+- **Fix**: No source, worktree, artifact, production, browser, localStorage, or recovery state changed; switch to literal-path inspection and simpler line-based probes.
+- **Prevention**: Avoid nested quote-heavy regular expressions in PowerShell; use explicit paths or a separately validated parser.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D minimal core closure patch context mismatch
+- **Error**: The first apply-patch attempt for the minimal core dependency closure was rejected because its expected index-file context did not match the clean worktree.
+- **Cause**: The clean file’s exact line-ending/context representation differed from the combined patch context.
+- **Fix**: No file was changed by the rejected patch; retry with smaller exact-context edits.
+- **Prevention**: Inspect the exact target file before applying multi-file patches and keep closure edits independently verifiable.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D clean closure exposes core symbol frontier
+- **Error**: After adding the route-network thresholds and line-intersection export, the focused matrix reached runtime but 17 GraphAdapter tests failed because `normalizeRoadRouting` and `collectFloorDoors` were undefined.
+- **Cause**: The clean P0 core package still lacks two runtime symbols used by the committed GraphAdapter path; these are additional dependency-closure candidates.
+- **Fix**: Pending exact audited-source tracing; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Continue validating the clean closure with focused runtime tests and add only symbols whose definitions and import paths are proven from the audited baseline.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D clean closure exposes area-migration frontier
+- **Error**: After adding the proven road-routing, door, connectivity, and entrance-access closure, four GraphAdapter tests remained failing; three stopped because `migrateAreasToPois` was undefined and one reported missing road endpoint nodes.
+- **Cause**: The committed editor context invokes the area-to-POI migration at document creation, and the clean core package still lacks its runtime export. The endpoint assertion may be a separate behavioral dependency and is not yet attributed.
+- **Fix**: Pending exact migration-source tracing and isolated endpoint investigation; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Resolve runtime dependency closure from call sites and test evidence while keeping behavior failures distinct from symbol-resolution failures.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D endpoint projection behavior remains isolated
+- **Error**: After adding the audited area-migration and POI-geometry closure, 87/88 focused tests passed; the only failure was the GraphAdapter test expecting two `roadEndpoint` nodes for an added road but observing none.
+- **Cause**: No unresolved import or runtime symbol remains in the focused matrix. The endpoint discrepancy must be compared against the clean P0 graph implementation and the audited baseline before it can be classified.
+- **Fix**: Pending read-only implementation comparison; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Do not change runtime behavior solely to satisfy a single test until the test, graph compiler, and source provenance are reconciled.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D graph comparison path probe error
+- **Error**: Two read-only comparison commands attempted `packages/editor/src/engine/graph.ts`, which does not exist in the clean worktree.
+- **Cause**: The alias import path was mistaken for the repository-relative file location.
+- **Fix**: No source, worktree, artifact, production, browser, localStorage, or recovery state changed; resolve the file from the clean file list before comparison.
+- **Prevention**: Confirm repository-relative paths with `rg --files` before invoking literal-path reads or no-index diffs.
+- **Related tasks**: Stage 1.8D T3
+
+## 2026-09-14: Stage 1.8D clean production build dependency and network failure
+- **Error**: `npm run build` in the isolated clean deployment worktree failed with 115 unresolved module/export errors and two Google Font fetch failures.
+- **Cause**: The exact P0 tree’s full Next application import graph contains additional current-development files and core exports not present at the P0 commit; the build also attempted to fetch Geist fonts while network access was unavailable.
+- **Fix**: No primary source, deployment, production, browser, localStorage, or recovery state changed; focused P0 tests remain 88/88, and the build closure is pending classification.
+- **Prevention**: Run the full production build from a clean audited source before deployment; separate required application closure from unrelated WIP and record offline asset/network constraints explicitly.
+- **Related tasks**: Stage 1.8D T4, T5
+
+## 2026-09-14: Stage 1.8D patch-builder immutability error
+- **Error**: A local JavaScript wrapper failed with `Assignment to constant variable` while constructing an apply-patch payload.
+- **Cause**: The wrapper declared the patch accumulator as immutable before appending file sections.
+- **Fix**: No source, worktree, artifact, production, browser, localStorage, or recovery state changed; rerun with a mutable accumulator.
+- **Prevention**: Use `let` for dynamically assembled patch text and confirm the patch tool is actually called before reporting a file change.
+- **Related tasks**: Stage 1.8D T3, T4
+
+## 2026-09-14: Stage 1.8D offline dependency-lock refresh failure
+- **Error**: `npm install --package-lock-only --ignore-scripts --no-audit` failed with `ENOTCACHED` because `@types/qrcode` was unavailable in the offline npm cache; npm also could not write its log directory.
+- **Cause**: The sandbox has no cached response for the newly required audited dependency and network access is restricted.
+- **Fix**: No lockfile was written by the failed command; use the exact dependency entries from the audited 42e50b3 lockfile or request approved network escalation when deployment requires it.
+- **Prevention**: Prefer an audited lockfile already present in the known baseline and verify the lockfile before running `npm ci`.
+- **Related tasks**: Stage 1.8D T4, T5
+
+## 2026-09-14: Stage 1.8D field-surface replacement patch shape error
+- **Error**: The apply-patch wrapper rejected the exact 42e50b3 `field.tsx` replacement because a delete and add operation targeted the same path in one patch.
+- **Cause**: The patch format requires a single update operation for an existing file rather than multiple operations for the same target.
+- **Fix**: No source, worktree, artifact, production, browser, localStorage, or recovery state changed; retry with one exact-context update operation.
+- **Prevention**: Use a single update or full-file replacement form per target path and verify the patch tool accepts it before proceeding.
+- **Related tasks**: Stage 1.8D T4, T5
+## 2026-09-14: Stage 1.8D residual-build error-log patch context mismatch
+- **Error**: The first attempt to append the residual clean-build failure to `errors/ERRORS.md` was rejected because its expected prior entry was not present at the supplied patch context.
+- **Cause**: The error ledger’s current tail differed from the context copied into the patch.
+- **Fix**: No source, worktree, artifact, production, browser, localStorage, or recovery state changed; retry by deriving the append context from the current ledger contents.
+- **Prevention**: Read the current ledger tail immediately before appending a new error and anchor the patch to that exact text.
+- **Related tasks**: Stage 1.8D T4, T5
++## 2026-09-14: Stage 1.8D clean build residual module and export frontier
+- **Error**: The second clean production build exited 1 after the initial closure. It reported missing `public-app-contracts`, `mapTheme`, `useCaptureDirection`, and `qr-location` modules; unavailable `pdfjs-dist` and `qrcode` packages in the current install; and missing `QR_PUBLIC_HOSTS`, `isStableQrId`, `resolveQrCheckpoint`, `buildPassiveLocationArrowGeoJson`, and `distanceMeters` exports.
+- **Cause**: The isolated worktree source closure is not yet complete, and its `node_modules` was installed before the audited dependency additions; several exact baseline exports remain absent from the P0 source surface.
+- **Fix**: Pending read-only provenance tracing; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Resolve each module and export against the audited baseline before changing source; install only the exact audited lockfile before treating build evidence as final.
+- **Related tasks**: Stage 1.8D T4, T5
+## 2026-09-14: Stage 1.8D clean build residual navigation-beam exports
+- **Error**: After installing the exact audited lockfile, the clean production build exited 1 with only two unresolved exports: `buildNavigationHeadingBeamGeoJson` and `createNavigationHeadingBeamLayers` from `src/lib/navigation-heading-arrow.ts`.
+- **Cause**: The remaining application source closure references navigation-beam helpers that are not present in the exact 42e50b3 version of that module.
+- **Fix**: Pending provenance classification; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Do not invent or import newer WIP behavior into the deployment source without proving it belongs to the audited clean baseline.
+- **Related tasks**: Stage 1.8D T4, T5
+## 2026-09-14: Stage 1.8D clean build exits without source diagnostics
+- **Error**: After applying the exact audited marker component and installing the exact lockfile, `npm run build` exited 1, but the diagnostic filter reported no missing module, export, type, or syntax error.
+- **Cause**: The remaining failure is not yet classified; it may be the previously observed restricted-network font fetch or another build-stage failure outside the filter.
+- **Fix**: Pending full-output capture; no primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Capture the complete build failure summary before treating a filtered build as a pass.
+- **Related tasks**: Stage 1.8D T5
+## 2026-09-14: Stage 1.8D clean build missing non-production Supabase environment
+- **Error**: The clean source build reached prerendering but exited 1 on `/map/search` because `@supabase/ssr` could not create a client without a project URL and API key.
+- **Cause**: The isolated deployment worktree intentionally has no environment file or production credentials.
+- **Fix**: Pending safety-contract inspection; no credential, primary source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Use only explicit non-production build-time placeholders under the repository’s environment guardrails; never copy production secrets into the clean deployment worktree.
+- **Related tasks**: Stage 1.8D T5
+## 2026-09-14: Stage 1.8D Vercel deployment commit provenance unavailable
+- **Error**: The READY production deployment `dpl_HsUHGuDp3ZXvXwHJsWuksNAd6ZbE` inspected successfully, but its Vercel metadata reports `gitSource: null`, `source: null`, and `meta: null`; no server-side commit identity equals clean source commit `404c37bb9985c304b7aaaa89be25adf79ff59a03`.
+- **Cause**: The deployment was uploaded from a local detached worktree through the CLI and the project has no configured local Git remote/source linkage that Vercel exposed in deployment metadata.
+- **Fix**: Pending final gate classification; no Supabase campus mutation, browser, localStorage, publish, force resync, conflict resolution, or Stage 1.9 write occurred.
+- **Prevention**: Require a deployment metadata field or provider-linked source identity that exactly matches the audited clean commit before granting Stage 1.9 write approval.
+- **Related tasks**: Stage 1.8D T6, T7
+## 2026-09-14: Stage 1.8D source-manifest tree probe quoting error
+- **Error**: A read-only `git rev-parse 404c37b...^{tree}` probe was parsed incorrectly by the PowerShell command layer and reported an ambiguous revision.
+- **Cause**: The revision suffix containing `^{tree}` was not quoted for the shell invocation.
+- **Fix**: No source, deployment, artifact, production, browser, localStorage, or recovery state changed; rerun with a quoted revision expression.
+- **Prevention**: Quote Git revision expressions containing caret/braced suffixes in PowerShell probes.
+- **Related tasks**: Stage 1.8D T7, T10
+## 2026-09-14: Stage 1.8D offline-validation artifact patch newline error
+- **Error**: The first apply-patch wrapper rejected the new offline-validation artifact because an extra generated terminal line appeared before the `*** End Patch` marker.
+- **Cause**: The JSON string’s final newline was prefixed as a standalone patch line while the marker was appended directly.
+- **Fix**: No artifact, source, deployment, production, browser, localStorage, or recovery state changed; retry with normalized patch content.
+- **Prevention**: Normalize generated artifact content before prefixing patch lines and append the patch terminator on its own line.
+- **Related tasks**: Stage 1.8D T10
+
+## 2026-09-15: Stage 1.8D.1 Vercel CLI help probe emitted accepted spawn EPERM
+- **Error**: `vercel help git` printed the Git command surface but then emitted the known Windows `spawn EPERM` update-check error.
+- **Cause**: The managed host blocks the Vercel CLI child-process update check; this is the accepted Stage 1.8D baseline condition.
+- **Fix**: No source, remote, deployment, production, browser, localStorage, or recovery state changed; use the printed command surface and supported API/CLI probes without reopening the accepted baseline.
+- **Prevention**: Treat this host-level Vercel update-check failure separately from Git/deployment provenance and avoid unrelated remediation.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 second error-log append context mismatch
+- **Error**: A follow-up attempt to append the accepted Vercel CLI probe error was rejected because the selected ledger context did not match the current file.
+- **Cause**: The ledger contains repeated `Stage 1.8D T10` task markers, so a non-unique patch anchor was selected.
+- **Fix**: No source, remote, deployment, production, browser, localStorage, or recovery state changed; use a unique context or a deliberately scoped append anchor.
+- **Prevention**: Anchor ledger patches on a unique dated heading rather than a repeated task line.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 clean-commit push requires explicit source-export approval
+- **Error**: The normal push of the narrow provenance branch was rejected by the execution safety reviewer because it would export the audited source commit to the external GitHub remote.
+- **Cause**: The current authorization covers provenance work but does not satisfy the reviewer’s requirement for explicit approval to transmit this source payload to `https://github.com/0SEless/Navi.git`.
+- **Fix**: No remote branch was created; the preceding dry-run was a no-op. No source, deployment, production, browser, localStorage, or recovery state changed.
+- **Prevention**: Obtain explicit approval naming the exact commit and destination before publishing source for provider-backed provenance.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 Vercel API help probe emitted accepted spawn EPERM
+- **Error**: `vercel help api` printed the API command surface but then emitted the known Windows `spawn EPERM` update-check error.
+- **Cause**: The managed host blocks the Vercel CLI child-process update check; this is the accepted Stage 1.8D baseline condition.
+- **Fix**: No source, remote, deployment, production, browser, localStorage, or recovery state changed; use the printed API command surface through an approved non-interactive path.
+- **Prevention**: Separate host-level CLI update-check failures from the API request result and do not reopen accepted baseline debt.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 direct Vercel deployment API requires authentication
+- **Error**: Read-only `GET /v13/deployments/7Wjy42UdDjxBCvpe2kDhnoFzK7WZ` returned HTTP 403 because the request lacked a Vercel authentication token.
+- **Cause**: This host has no Vercel token or CLI login state; direct deployment metadata is not public.
+- **Fix**: No Vercel or production state changed; provenance was established through the public GitHub Vercel deployment object/status, which records the exact audited SHA and successful Vercel deployment URL.
+- **Prevention**: Prefer provider-linked GitHub deployment records when direct Vercel API credentials are unavailable; never invent a source SHA from an unauthenticated response.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 final completion probe parser error
+- **Error**: The final read-only PowerShell completion probe failed to parse because a parenthesis was omitted around the TODO-count expression.
+- **Cause**: The expression combined an inline `Where-Object` pipeline and format operator without a separately assigned count.
+- **Fix**: No file, remote, deployment, production, browser, localStorage, or recovery state changed; rerun with a separately assigned incomplete-task count.
+- **Prevention**: Keep PowerShell pipeline results in named variables before applying formatting operators.
+- **Related tasks**: Stage 1.8D.1 final verification
+
+## 2026-09-15: Stage 1.8D.1 Git remote probe blocked by host network
+- **Error**: Read-only `git ls-remote origin` could not connect to `github.com` through the managed host proxy and exited 1.
+- **Cause**: The default sandbox network path is unavailable for the GitHub remote.
+- **Fix**: No repository, branch, deployment, production, browser, localStorage, or recovery state changed; retry the same read-only probe only through the approved network escalation path.
+- **Prevention**: Verify remote reachability before relying on provider-backed deployment provenance; preserve the exact command and result before escalation.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+
+## 2026-09-15: Stage 1.8D.1 error-log append context mismatch
+- **Error**: The first attempt to append the Git remote probe failure was rejected because the copied end-of-file context did not match `errors/ERRORS.md`.
+- **Cause**: The patch context was taken from a truncated ledger view rather than the exact current tail.
+- **Fix**: No source, deployment, production, browser, localStorage, or recovery state changed; re-read the exact ledger tail before applying the append.
+- **Prevention**: Anchor error-log appends to the current final ledger entry and verify the patch result before continuing.
+- **Related tasks**: Stage 1.8D.1 provenance closure
+## 2026-09-14: Stage 1.8D normal graphify refresh access failure
+- **Error**: The required post-source-change `graphify update .` completed its extraction attempt but failed to rebuild with Windows `[WinError 5] Access is denied`.
+- **Cause**: The normal graphify process lacks access to one of the local project/index paths; this matches the known Windows graphify access boundary.
+- **Fix**: No source, deployment, audit artifact, production, browser, localStorage, or recovery state changed; retry through the previously used scoped elevated local graphify path.
+- **Prevention**: Run graphify refresh with the repository’s scoped elevated retry when the normal indexer reports the known access boundary.
+- **Related tasks**: Stage 1.8D T10
+## 2026-09-15: Stage 1.8D progress-log context mismatch
+- **Error**: The final progress-log patch was rejected because its copied T10 context did not match the current `progress/PROGRESS.md` tail.
+- **Cause**: The progress entry had changed formatting relative to the patch context.
+- **Fix**: No source, deployment, audit artifact, production, browser, localStorage, or recovery state changed; derive the append context from the current progress file.
+- **Prevention**: Read the exact current log tail before applying final bookkeeping updates.
+- **Related tasks**: Stage 1.8D T10
+
+## 2026-09-15: Stage 1.9 final prewrite manifest field probe
+- **Error**: A read-only local prewrite verification script attempted to read `protectedSnapshot.updated_at` from `STAGE1.9-PREWRITE-BASELINE.json`, but that artifact uses a different field layout.
+- **Cause**: The probe assumed the field layout instead of validating the artifact schema before dereferencing it.
+- **Fix**: No production RPC, artifact mutation, browser, localStorage, or recovery state changed; correct the probe to use the actual baseline field layout and rerun the read-only check.
+- **Prevention**: Validate artifact keys before reading nested fields in final prewrite probes.
+- **Related tasks**: Stage 1.9 prewrite gate
+
+## 2026-09-15: Stage 1.9 post-CAS result formatting probe
+- **Error**: The wrapper that issued the single authorized CAS RPC failed while formatting the returned read-only result because `Buffer` is unavailable in the `functions.exec` runtime.
+- **Cause**: Node-only result formatting was used in the outer JavaScript runtime after the RPC call completed.
+- **Fix**: No retry or second mutation was performed; determine the write outcome through SELECT-only readback.
+- **Prevention**: Use runtime-neutral byte-count formatting after external mutation calls and treat post-call wrapper errors as outcome-unknown until readback verifies state.
+- **Related tasks**: Stage 1.9 controlled recovery write
+
+## 2026-09-15: Stage 1.9A wrapper probe TextEncoder mismatch
+- **Error**: A SELECT-only wrapper probe returned from Supabase, then failed while measuring the serialized result because `TextEncoder` is also unavailable in the outer `functions.exec` runtime.
+- **Cause**: The first local repair assumed a browser/Node-compatible byte API in the outer runtime even though only JSON serialization is required for this capture path.
+- **Fix**: No protected RPC, mutation, browser, localStorage, publish, or recovery state changed; remove byte-count measurement from the outer wrapper and retain `JSON.stringify` result capture only.
+- **Prevention**: Keep the outer recovery wrapper limited to runtime primitives verified in that host; omit byte measurement unless a verified host API is genuinely required.
+- **Related tasks**: Stage 1.9A RPC execution-path repair
+
+## 2026-09-15: Stage 1.9A candidate hash assertion typo
+- **Error**: The read-only candidate hash probe printed the correct SHA-256 but contained a mistyped expected-hash literal in its final assertion.
+- **Cause**: A duplicated hexadecimal fragment was entered in the shell probe’s comparison constant.
+- **Fix**: No candidate or other state changed; use the exact recorded SHA-256 and rerun the assertion.
+- **Prevention**: Copy immutable hash constants from the recorded evidence and verify the comparison string before executing the probe.
+- **Related tasks**: Stage 1.9A candidate re-verification
+
+## 2026-09-15: pg-query-emscripten single-process parse ceiling on the 10th migration
+- **Error**: `node parse-migrations.mjs <migrations dir>` aborted on `010_campus_graph_revisions.sql` with `Terminating process due to FATAL error` (libpg_query context `pg_query: 536903712 ... used`), despite the file parsing cleanly on its own.
+- **Cause**: pg-query-emscripten 5.1.0 accumulates every parse/parsePlpgsql call in one libpg_query memory context (about 512 MiB ceiling). The nine existing migrations already consume about 490 MB in one process, leaving roughly 12.5 KB of parse budget for any new 10th file.
+- **Fix**: Validated every migration (including 010: 16 statements, 4 plpgsql bodies) with the same unmodified tool, one file per fresh process (exact byte copies). No parser or SQL content was weakened to fit the tool.
+- **Prevention**: Expect the single-process ceiling whenever the migrations directory grows; validate new migrations in fresh-process runs and record the combined-run ceiling plus isolated results in the gate artifact.
+- **Related tasks**: Sync hardening Phase 5
+
+## 2026-09-15: Scratch isolation loop used -LiteralPath with a wildcard
+- **Error**: The first per-migration parser isolation loop silently kept prior copies (`Remove-Item -LiteralPath <dir>\*.sql` never expanded the wildcard), so isolated runs were actually cumulative directory runs.
+- **Cause**: `-LiteralPath` disables wildcard expansion and the failure was suppressed by `-ErrorAction SilentlyContinue`.
+- **Fix**: Delete and recreate the scratch directory per file; verified outputs now show exactly one migration per run.
+- **Prevention**: Never pair `-LiteralPath` with wildcard patterns; use `-Path` for globs or delete/recreate directories.
+- **Related tasks**: Sync hardening Phase 5
+
+## 2026-09-15: graphify update timed out during Phase 5 revision-history work
+- **Error**: `graphify update .` produced no output and was terminated after 600s while indexing the workspace.
+- **Cause**: Known Windows graphify access/performance boundary on this host (previously recorded access-denied retries); the graph has ~91k nodes.
+- **Fix**: No source, production, browser, or recovery state changed; Phase 5 verification does not depend on the graph refresh. Re-run through the previously used scoped elevated path when required.
+- **Prevention**: Expect long/no-output graphify updates on this host; schedule them separately from phase gates and record the boundary instead of retrying indefinitely.
+- **Related tasks**: Sync hardening Phase 5
+
+## 2026-09-19: Vercel production design provenance investigation — CLI and browser boundaries
+- **Error**: The first Vercel listing probe used unsupported `--limit`; the corrected sandbox probe could not reach Vercel through proxy `127.0.0.1:9`; the elevated `vercel ls` reached Vercel but rejected the stored token as invalid. A screenshot of the already-open production tab also timed out once.
+- **Cause**: CLI option mismatch, managed network/authentication state, and a browser capture boundary; none prevented read-only verification because the authenticated Vercel dashboard and fresh tabs were available.
+- **Fix**: Preserved the probe outputs, used the dashboard deployment details as the authoritative read-only source, and used accessibility state/fresh deployment tabs instead of retrying the timed-out screenshot blindly.
+- **Prevention**: Verify CLI flags and auth before relying on CLI provenance; prefer the dashboard/provider-linked deployment record when the CLI token is invalid; re-observe a fresh browser tab before coordinate or screenshot retries.
+- **Related tasks**: Vercel design provenance investigation T3–T5
+
+## 2026-09-21: Phase 3A authored Graph round-trip hard gate blocked
+- **Error**: The focused Phase 3A characterization test found authored
+  `CampusDocument` fields lost, duplicated, or identity-collided after
+  `GraphAdapter → Graph.toJSON() → Graph.fromJSON() → createDocument()`.
+- **Cause**: The current Graph representation/hydration path does not carry
+  campus name/description, vertical connectors, connector stops, panorama
+  heading/image assets/hotspots, or stable top-level panorama/QR identity; it
+  also introduces small local-coordinate precision drift.
+- **Fix**: Stopped at the required hard gate. No canonical serializer,
+  fingerprint, SaveRevision identity, queue/status/CAS/mutation-id/recovery,
+  server schema, or production source change was introduced.
+- **Prevention**: Treat the exact authored diff as blocking evidence; repair the
+  representation/adapter contract and rerun the lossless round-trip gate before
+  adding revision identity. Do not normalize away authored fields or precision
+  differences merely to make the test pass.
+- **Related tasks**: NAVI Save/Sync Phase 3A T1
+
+## 2026-09-21: Phase 3A graphify refresh no-output boundary
+- **Error**: The repository-mandated `graphify update .` attempt produced no
+  output for 60 seconds and was stopped after the required code-change refresh
+  attempt.
+- **Cause**: This matches the known Windows graphify access/performance
+  boundary; the graph is large and prior refresh attempts have timed out.
+- **Fix**: The required graph query was completed before source inspection; no
+  production code or authored state was changed by the refresh attempt.
+- **Prevention**: Keep graphify refreshes separate from the Phase 3A evidence
+  gate and use the recorded graphify boundary rather than retrying indefinitely.
+- **Related tasks**: NAVI Save/Sync Phase 3A T1
+
+## 2026-09-21: Phase 3A.1 focused Vitest startup spawn EPERM
+- **Error**: The first focused `authored-document.test.ts` invocation failed while loading the Vitest config with `spawn EPERM`, before test collection.
+- **Cause**: The managed sandbox blocks the child process Vite uses for config dependency externalization on this Windows checkout.
+- **Fix**: No source or test state was changed by the failed process; rerun the identical focused command through the approved elevated execution path.
+- **Prevention**: Distinguish startup-only `spawn EPERM` from real test failures and preserve the command/output for the final evidence.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 T1
+
+## 2026-09-21: Phase 3A.1 repository TypeScript baseline
+- **Error**: `tsc --noEmit` stopped at `cert-final2/packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)` and `stabilize-final/packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)` with `TS1005: '}' expected`.
+- **Cause**: The checkout contains the established unrelated runtime fixture syntax error in nested baseline copies; no Phase 3A.1 diagnostic was emitted before the parser stopped.
+- **Fix**: No baseline or Phase 3A.1 source was changed to mask it; use focused suites and the production build as the changed-code verification gates.
+- **Prevention**: Keep repository-wide typecheck baseline separate from focused changed-file evidence and do not repair owner fixtures in this phase.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 T6
+
+## 2026-09-21: Phase 3A.1 graphify refresh no-output boundary
+- **Error**: The required post-change `graphify update .` produced no output for roughly 60 seconds and was stopped.
+- **Cause**: The known Windows graphify indexing/access boundary recurred on the large dirty checkout.
+- **Fix**: The scoped graph query completed before inspection and no graph refresh result was used as test evidence; no source state was changed by the stopped process.
+- **Prevention**: Keep graphify refreshes separate from the authored persistence gates and do not retry indefinitely on this host.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 T6
+
+## 2026-09-21: Phase 3A.1 delivery sandbox remote fetch boundary
+- **Error**: The initial read-only `git fetch --all --prune` could not connect to GitHub through the managed proxy and exited with a connection error.
+- **Cause**: The default sandbox network path blocks the configured HTTPS Git remote.
+- **Fix**: No repository, branch, worktree, deployment, or production state changed; the identical fetch was rerun through the approved elevated read-only path and completed successfully.
+- **Prevention**: Attempt the normal fetch first, preserve the exact failure, then use the approved elevated path before selecting a production base.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Delivery T1
+
+## 2026-09-21: Phase 3A.1 delivery replay patch shape error
+- **Error**: The first generated replay patch attempted to delete and re-add the same clean-worktree path in one `apply_patch` operation, which the patch validator rejected.
+- **Cause**: `apply_patch` requires separate operations when replacing an existing file.
+- **Fix**: No owner or clean-worktree source state changed; replay is continuing with separate scoped delete/add operations and per-file verification.
+- **Prevention**: Generate one operation per existing path and reserve `Add File` for paths absent from the clean base.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Delivery T3
+
+## 2026-09-21: Phase 3A.1 delivery replay terminal newline error
+- **Error**: The first clean-worktree replay added one extra blank line at EOF to the replaced tracked files, and `git diff --check` reported the new blank lines.
+- **Cause**: The shell capture wrapper appended its own newline after file content that already ended with one.
+- **Fix**: No owner checkout changed; normalize captured content to exactly one terminal newline in the clean worktree and rerun `git diff --check`.
+- **Prevention**: Strip all trailing newlines from captured file content before constructing an `apply_patch` add body, then append exactly one newline.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Delivery T3
+
+## 2026-09-21: Phase 3A.1 clean-worktree build missing local Supabase env
+- **Error**: The production build compiled, then prerendering `/demo/navigate` failed because the isolated worktree had no `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- **Cause**: Local environment files are intentionally untracked and were not copied into the clean integration worktree.
+- **Fix**: No env file, deployment, or source state changed; rerun with the two existing owner values supplied only to the child build process.
+- **Prevention**: Keep secrets out of the clean commit and provide required local build inputs process-locally for verification.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Delivery T5
+
+## 2026-09-21: Phase 3A.1 rollout sandbox remote fetch boundary
+- **Error**: The rollout worktree's initial read-only `git fetch --all --prune` was blocked by the managed proxy connection to GitHub.
+- **Cause**: The default sandbox network path cannot reach the configured HTTPS Git remote.
+- **Fix**: No Git, deployment, database, or production state changed; retry the identical fetch through the approved elevated read-only path.
+- **Prevention**: Fetch before lineage decisions, preserve the exact failure, and use the approved network path rather than guessing remote state.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Rollout T1
+
+## 2026-09-21: Phase 3A.1 rollout Vercel deployment metadata boundary
+- **Error**: The latest READY production deployment `dpl_2QXssKCQHkNR1hvG4LaJxVLMdSMK` is visible and aliased to `navi-next.vercel.app`, but the deployment metadata returned by the connected Vercel surface contains no Git SHA or source branch.
+- **Cause**: The deployment source is recorded as `cli`, and the available build-log inspection surface returned `Tool get_deployment_build_logs not found`.
+- **Fix**: No migration, database, Git push, deployment, or production state changed; continue with the supported CLI/API inspection path and stop if lineage remains ambiguous.
+- **Prevention**: Never infer a deployed SHA from deployment age or URL; require explicit source provenance before migration or application rollout.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Rollout T1
+
+## 2026-09-21: Phase 3A.1 rollout Vercel CLI inspection boundary
+- **Error**: The local Vercel CLI exposed `inspect` help but its default `whoami`/network path failed with the known child-process `spawn EPERM` and proxy `ECONNREFUSED 127.0.0.1:9` errors.
+- **Cause**: The managed sandbox blocks the CLI update check and default network route; no local Vercel token environment variable is present.
+- **Fix**: No rollout mutation occurred; use the connected Vercel API surface or the approved elevated CLI path, and do not infer source provenance.
+- **Prevention**: Treat CLI inspection output as incomplete until an authenticated deployment record returns the source SHA and branch.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Rollout T1
+
+## 2026-09-21: Phase 3A.1 rollout exact production SHA unavailable
+- **Error**: The approved elevated Vercel inspection confirmed the current READY production alias, but the deployment record has only `id`, `name`, `url`, `target`, `readyState`, `createdAt`, `aliases`, `builds`, and `contextName`; `source` is CLI and both `gitSource` and `meta` are null. No deployed commit SHA or source branch can be established.
+- **Cause**: The current production deployment was created through the Vercel CLI without Git provenance in the exposed deployment record; the connected build-log inspection tool is unavailable.
+- **Fix**: Stopped before migration, push, deployment, or production data mutation. The exact production SHA/source gate remains unsatisfied.
+- **Prevention**: Require an explicit Vercel Git source SHA and branch (or equivalent immutable deployment provenance) before applying migration 014 or replacing production code; never infer lineage from deployment timestamps, aliases, or build fingerprints.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 Rollout T1, T2, T3, T4, T5
+
+## 2026-09-21: Production provenance recovery default fetch boundary
+- **Error**: The read-only `git fetch --all --prune` for provenance recovery failed through the managed proxy with a connection error.
+- **Cause**: The default sandbox network path cannot reach the configured GitHub HTTPS remote.
+- **Fix**: No branch, worktree, source, or production state changed; use the approved elevated read-only fetch path and preserve the output.
+- **Prevention**: Attempt the normal fetch first, then retry only the identical read-only command through the approved elevated path before making lineage decisions.
+- **Related tasks**: NAVI Production Provenance Recovery T1
+
+## 2026-09-21: Production provenance recovered from retained CLI inspect record
+- **Error**: The current connected Vercel inspect surface omitted nested Git metadata (`meta`/`gitSource`) for the READY production deployment, initially leaving the deployed SHA apparently unavailable.
+- **Cause**: The deployment was created through the Vercel CLI and the current API/CLI surface exposed only a reduced deployment object.
+- **Fix**: Read the retained authenticated CLI inspect output in the local Codex session log for the exact deployment ID; it records the immutable SHA `5193355b1706aa811bac7c8b151d49e706d02744`, ref `codex/building-delete-persistence`, source `cli`, and commit message. Cross-checking the clean matching worktree recovered exact provenance without mutation.
+- **Prevention**: Preserve full authenticated `vercel inspect --format=json` output for every production deployment and require the SHA/ref pair plus a clean local tree before rollout decisions; do not infer provenance from aliases or timestamps.
+- **Related tasks**: NAVI Production Provenance Recovery T3, T4, T5
+
+## 2026-09-21: Canonical integration dependency install spawn boundary
+- **Error**: `npm install` in the new canonical integration worktree failed with Windows `spawn EPERM` while npm rebuilt package scripts; cleanup also reported locked ignored dependency directories.
+- **Cause**: The managed sandbox blocks child-process spawning from npm in this Windows checkout; the failure occurred before any tracked source edit.
+- **Fix**: Preserve the clean Git worktree and retry the identical dependency setup through the approved elevated execution path; do not copy owner `node_modules` into tracked state.
+- **Prevention**: Treat setup-only `spawn EPERM` as an execution boundary, keep dependency artifacts ignored, and use the approved elevated path before diagnosing source failures.
+- **Related tasks**: NAVI Canonical Release-Line Integration T1
+
+## 2026-09-21: Canonical integration stale graph-store expectation
+- **Error**: The focused `src/store/graph-store.test.ts` suite reported one failure: its legacy tampered-cache assertion expected `conflict`, but the production Phase 3C local-ahead path correctly settled `idle`.
+- **Cause**: The test predates the local-ahead contract. The same failure reproduces unchanged on the clean `5193355b1706aa811bac7c8b151d49e706d02744` worktree, so it is not introduced by the Phase 3A.1 replay.
+- **Fix**: Do not alter production sync behavior or broaden the integration diff to rewrite this unrelated baseline assertion; retain the failure as known baseline evidence and use the dedicated local-ahead regression for the Phase 3C gate.
+- **Prevention**: Keep stale conflict expectations separate from local-ahead coverage and run the untouched production baseline before attributing focused failures to the replay.
+- **Related tasks**: NAVI Canonical Release-Line Integration T5–T7
+
+## 2026-09-22: Canonical integration stale authored campus hydration
+- **Error**: The editor building-delete regression mounted a prior test's authored companion into a different campus graph, so deleting the active building left the wrong document entity mounted.
+- **Cause**: The new authored store field persisted across a direct test `setState` reset, and the bridge accepted it without checking that its campus ID matched the active graph/map.
+- **Fix**: The existing EditorBridge and floor bridge hydration paths now pass an authored snapshot only when its campus ID matches the active graph/map; the editor interaction matrix returned to green.
+- **Prevention**: Treat authored companions as campus-scoped and guard hydration at every graph-to-editor context boundary; reset authored state in future direct-store test fixtures.
+- **Related tasks**: NAVI Canonical Release-Line Integration T5–T7
+
+## 2026-09-22: Canonical integration published-artifact disconnected fixture baseline
+- **Error**: The publish matrix retained two `published-artifacts-pipeline.test.ts` failures because `compileV2` returned `HALLWAY_DISCONNECTED` for the existing sample document.
+- **Cause**: The fixture's hallway waypoints are not reachable from an entrance; the same two failures reproduce on the untouched Phase 3A.1 worktree and are documented compiler baseline behavior.
+- **Fix**: Kept compiler connectivity validation unchanged, recorded the two baseline failures, and used the green publish blocking/integration/service/store regressions as the required publish gate.
+- **Prevention**: Do not weaken the compiler's connectivity gate or rewrite an unrelated fixture to make a save/sync integration pass; keep disconnected-fixture diagnostics separate from touched publish behavior.
+- **Related tasks**: NAVI Canonical Release-Line Integration T7
+
+## 2026-09-22: Phase 3A.1 final rollout default network boundaries
+- **Error**: The default sandbox path blocked the read-only remote fetch and the first Vercel promotion attempt with proxy/child-process errors.
+- **Cause**: GitHub/Vercel network access and the Windows CLI child-process path require the approved elevated execution boundary in this managed environment.
+- **Fix**: Retried only the identical fetch/promotion operations through the approved elevated path; the release branch was created and the exact production deployment was promoted successfully.
+- **Prevention**: Preserve the failed default-path evidence, never change the command or target to work around the boundary, and verify the resulting remote/deployment SHA independently.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 final rollout T1, T4
+
+## 2026-09-22: Phase 3A.1 production authenticated smoke boundary
+- **Error**: The requested authored save/reload and disposable building deletion matrix could not be executed automatically without an authenticated owner session and an explicitly identified safe test campus/building.
+- **Cause**: Anonymous production route checks cannot safely exercise editor mutations, and no disposable production test target was supplied in the rollout request.
+- **Fix**: Performed only safe anonymous HTTP route/runtime checks and read-only Supabase verification; recorded the authenticated authored/delete matrix as manual-owner smoke required and made no production data mutation.
+- **Prevention**: Before any production write smoke, supply the exact safe test campus/building and an authenticated owner session, then verify the complete save/readback/delete/refresh sequence and clean up immediately.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 final rollout T5
+
+## 2026-09-22: Final lineage evidence PowerShell revision quoting
+- **Error**: An unquoted PowerShell invocation of `git rev-parse HEAD^{tree}` treated the brace expression as shell syntax and returned an invalid revision diagnostic.
+- **Cause**: PowerShell command parsing altered Git's revision expression before Git received it.
+- **Fix**: Re-ran the same read-only check with the revision expression quoted; the canonical tree hash verified as `2d1d1ad6517a5b7ab91db14de08335c2643a063b`.
+- **Prevention**: Quote Git brace expressions in PowerShell evidence commands.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 final rollout T1, T6
+
+## 2026-09-22: Final migration verification legacy column typo
+- **Error**: A read-only aggregate check referenced `campus_graph_revisions.graph`; PostgreSQL rejected it because the live legacy column is `graph_data`.
+- **Cause**: The verification query used a shorthand name from an earlier evidence note instead of the production table definition.
+- **Fix**: Inspected `information_schema.columns`, reran the corrected SELECT using `graph_data`, and confirmed 78/78 revision graph rows with zero authored rows; no data mutation occurred.
+- **Prevention**: Resolve live column names before composing final verification aggregates.
+- **Related tasks**: NAVI Save/Sync Phase 3A.1 final rollout T3, T6
+
+## 2026-09-22: P0 autosave focused test execution boundary
+- **Error**: The first focused Vitest invocation hit Windows `spawn EPERM` before the test process started.
+- **Cause**: The managed sandbox blocks the child-process path used by the local Vite/Vitest runner.
+- **Fix**: Re-ran the identical focused command through the approved elevated execution path; no source or production state changed.
+- **Prevention**: Treat runner startup failures as an execution boundary and preserve the exact command before retrying elevated.
+- **Related tasks**: P0 normal autosave T2, T4
+
+## 2026-09-22: P0 autosave regression command mismatch
+- **Error**: The first bridge regression used `building.rename`, which is not registered by the production editor context.
+- **Cause**: The test assumed a specialized rename command instead of the registered generic `entity.update` command used by the property editor path.
+- **Fix**: Corrected the regression to dispatch `entity.update` with the building id and name change; the bridge test then passed.
+- **Prevention**: Verify command registration in `create-editor-context.ts` before writing dispatcher-level tests.
+- **Related tasks**: P0 normal autosave T2, T3
+
+## 2026-09-22: P0 autosave create-test authored snapshot leakage
+- **Error**: Adding the create integration case made the following delete case see the created building from the prior test.
+- **Cause**: The direct graph-store fixture reset omitted the new `authoredDocument` field, so the bridge reused a same-campus authored companion across tests.
+- **Fix**: Reset `authoredDocument` to `null` in the fixture before each case; the production campus-scoped hydration guard remains unchanged.
+- **Prevention**: Reset every authored companion field when directly resetting the graph store in integration tests.
+- **Related tasks**: P0 normal autosave T4
+
+## 2026-09-22: P0 autosave graphify refresh boundary
+- **Error**: `graphify update .` could not rebuild the canonical worktree graph and returned Windows `WinError 5: Access is denied`.
+- **Cause**: The graphify extractor cannot write its generated output in this managed temp checkout.
+- **Fix**: No source or deployment state changed; retain the prior mandatory graph query evidence and continue with direct test/build verification.
+- **Prevention**: Treat graphify refresh as a tooling boundary, not a source failure; do not alter production code to work around it.
+- **Related tasks**: P0 normal autosave T4
+
+## 2026-09-22: P0 autosave build environment boundary
+- **Error**: The first clean `npm run build -- --webpack` reached static generation but failed because Supabase public environment variables were absent.
+- **Cause**: The canonical temp worktree intentionally has no ignored `.env.production.local` file.
+- **Fix**: No source or deployment state changed; rerun the identical build with process-local non-secret public placeholders, as established by the repository build gate.
+- **Prevention**: Keep build credentials out of the worktree and inject only the public build inputs process-locally.
+- **Related tasks**: P0 normal autosave T4, T5
+
+## 2026-09-22: False reload convergence first runner boundary
+- **Error**: The first focused convergence Vitest invocation failed before loading the config with Windows `spawn EPERM`.
+- **Cause**: The managed sandbox blocks the child-process path used by the Vite/Vitest runner in the canonical temp worktree.
+- **Fix**: Re-ran the identical focused command through the approved elevated execution path; the test then produced the expected RED against the old classifier and GREEN after the fix.
+- **Prevention**: Preserve the exact failed command and treat runner startup failures as an execution boundary before diagnosing source behavior.
+- **Related tasks**: NAVI false reload convergence T2, T4
+
+## 2026-09-22: False reload convergence build environment boundary
+- **Error**: The first production build compiled successfully but failed while prerendering `/demo/navigate` because Supabase public environment variables were absent.
+- **Cause**: The clean canonical worktree intentionally has no ignored `.env.production.local` file.
+- **Fix**: Re-ran the same build with process-local non-secret public placeholders; all 41 static pages generated successfully.
+- **Prevention**: Keep build credentials out of the worktree and inject only documented public build inputs process-locally.
+- **Related tasks**: NAVI false reload convergence T4, T5
+
+## 2026-09-22: False reload convergence graphify refresh boundary
+- **Error**: Required `graphify update .` could not rebuild the canonical temp worktree and returned Windows `WinError 5: Access is denied`.
+- **Cause**: The graphify extractor cannot write its generated output in this managed temp checkout.
+- **Fix**: No source or deployment state changed; the mandatory pre-edit graph query plus direct test/build evidence remain valid.
+- **Prevention**: Treat graphify refresh failure as a tooling boundary and never alter production code to work around it.
+- **Related tasks**: NAVI false reload convergence T1, T4
+
+## 2026-09-22: P0 autosave scoped lint baseline
+- **Error**: Scoped ESLint reported existing `react-hooks/refs` errors in `EditorBridge.tsx` and existing `no-explicit-any` diagnostics in the touched test file.
+- **Cause**: The repository's current lint baseline already contains these diagnostics; the change did not alter the ref access sites and the test file already uses broad body fixtures.
+- **Fix**: Kept scope limited to the autosave intent fix; production build and focused Vitest verification pass.
+- **Prevention**: Track lint cleanup separately from the P0 persistence fix and do not broaden this release to unrelated style refactors.
+- **Related tasks**: P0 normal autosave T4
+
+## 2026-09-22: Older reload freshness response reasserted a false conflict
+- **Error**: A full-editor double reload could settle the newer canonical snapshot as `synced`, then a delayed freshness response from the earlier reload set `syncStatus` to `conflict` and rendered `Changes not synced`.
+- **Cause**: `checkServerFreshness` guarded only `currentMapId`; two loads of the same campus therefore shared a map identity while carrying different session generations and local drafts.
+- **Fix**: Capture the campus session generation at `loadMapData` and require the freshness response to belong to the active generation before reading local state or writing sync status.
+- **Prevention**: Keep a final-state double-reload regression that asserts the last status writer and the active graph, not only the classifier result.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T2–T4
+
+## 2026-09-22: Reused workflow context retained a dirty reload baseline
+- **Error**: A clean `checking → synced` reload left the mounted `WorkflowStore.saveState` at `dirty` when the editor context had been reused after a prior edit, even though the Graph store and server were canonical.
+- **Cause**: `WorkflowService.handlePersistenceSyncState` only healed dirty state after an explicit save/recovery path; it did not recognize a completed freshness check as an authoritative baseline restoration.
+- **Fix**: Record the document version at `checking` and mark the workflow baseline saved on the matching `synced` completion, only when no document revision occurred during the check.
+- **Prevention**: Assert both Graph and Workflow status after all reload effects settle; keep active edits during freshness checks in the dirty path.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T3–T4
+
+## 2026-09-22: Reload audit Graphify update required elevated access
+- **Error**: The first required `graphify update .` after the reload audit changes failed with `[WinError 5] Access is denied`.
+- **Cause**: The managed Windows sandbox blocks Graphify's extraction worker from writing its incremental graph output.
+- **Fix**: Re-ran the identical update with the approved elevated boundary; Graphify rebuilt 12,092 nodes, 26,649 edges, and 560 communities.
+- **Prevention**: Treat this as an environment boundary and retry the exact Graphify command elevated after source changes.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T5
+
+## 2026-09-22: Scoped workflow-service lint retained pre-existing any findings
+- **Error**: The touched `workflow-service.ts` file still reports two `@typescript-eslint/no-explicit-any` errors in its unchanged save error paths.
+- **Cause**: Those `catch (err: any)` and `saveFailed(err: any)` declarations predate this reload-status patch; the new lifecycle fields introduce no lint findings.
+- **Fix**: Left unrelated error typing unchanged and verified the changed Graph/workflow-store/test files with a zero-error scoped lint command.
+- **Prevention**: Keep pre-existing whole-file lint findings separate from changed-line verification before expanding a P0 lifecycle patch.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T5
+
+## 2026-09-23: Canonical release push blocked by external-egress review
+- **Error**: The sandboxed push could not reach GitHub, and the required
+  elevated retry was rejected because the exact external destination and
+  repository payload were not explicitly approved by the safety reviewer.
+- **Cause**: Network egress and remote release-branch mutation require a
+  destination-specific authorization even when the task requests a release.
+- **Fix**: No workaround or indirect upload was attempted. The verified local
+  commit remains clean and ready at `867c53534205ef4218bd523862882f18fc2b84bf`.
+- **Prevention**: Request explicit authorization for the exact remote URL,
+  branch, and commit before retrying the push; never route the payload around
+  the review boundary.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T5
+
+## 2026-09-23: Final release provenance readback quoting boundary
+- **Error**: The first combined PowerShell readback of `HEAD^{tree}` passed malformed arguments to Git and printed an invalid tree value.
+- **Cause**: PowerShell interpreted the unquoted revision expression while composing the shell command.
+- **Fix**: Re-ran the same read-only check with the revision expression quoted; the canonical tree resolved to `c2cd6287bb3e3dc0fdccb3f24194c05e089e5334` and the worktree remained clean.
+- **Prevention**: Quote Git revision expressions containing braces in PowerShell release evidence commands.
+- **Related tasks**: NAVI P0 Reload Status Last-Writer T5
+
+## 2026-09-23: Save lifecycle trace fixture compared different serialization layers
+- **Error**: The first diagnostic save trace compared the POST's normalized building payload with the local Graph cache as whole objects; the assertion failed on serializer-added defaults (`baseElevation`, `floors`, `height`, and `outline`).
+- **Cause**: `/api/graph` serialization intentionally enriches legacy Graph JSON while the local draft stores the lean Graph representation.
+- **Fix**: Kept the trace read-only and compared the stable authored building identity/name while preserving the full request and status timeline.
+- **Prevention**: Compare canonical identity fields or normalize through the production serializer when testing local-vs-POST payloads; do not treat expected projection defaults as a save failure.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T1
+
+## 2026-09-23: Save acknowledgement/retry regressions correctly RED before fix
+- **Error**: The new lifecycle regressions rejected the current implementation: HTTP 503 stopped after one POST, and a successful POST with a failed revision read-back surfaced a terminal error instead of retrying the same mutation; Vitest also reported the expected handled-promise warnings from those RED cases.
+- **Cause**: `performSyncToSupabase` retries only transport-error message strings, not retryable HTTP statuses or acknowledgement uncertainty.
+- **Fix**: None yet at this checkpoint; retain the RED tests as the root-cause gate before the production change.
+- **Prevention**: Keep first-try success, uncertain-ack replay, HTTP 5xx/429, and true-409 tests in the focused lifecycle matrix.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T3
+
+## 2026-09-23: Stale-session acknowledgement read-back kept polling
+- **Error**: The focused save/sync matrix timed out when an old campus session's failed legacy read-back was released after an A → B → A switch.
+- **Cause**: The new bounded read-back loop checked session ownership only after the helper returned, so a stale response could start another unresolved GET before the caller's guard ran.
+- **Fix**: Pass the active session/epoch guard into `resolveAcknowledgedRevision` and exit before/after every read-back fetch when that guard is false; the stale save now resolves without writing status into the reopened session.
+- **Prevention**: Guard every retry iteration, not only the outer POST response and final acknowledgement branch; retain the A → B → A regression with a delayed read-back.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T3, T4
+
+## 2026-09-23: Online recovery fixture used an enriched POST projection
+- **Error**: The online-event recovery regression classified the acknowledged seed as a conflict even though the seed content was equal.
+- **Cause**: The fixture compared the local Graph fingerprint with the serializer-enriched POST projection (`floors`, `outline`, and default elevations), reproducing the same projection mismatch as the trace fixture.
+- **Fix**: The fixture now models the server with the canonical `Graph` shape for both seed and recovered snapshots; production serialization remains unchanged.
+- **Prevention**: Keep lifecycle tests at one canonical representation per comparison and reserve enriched payload assertions for request-shape checks.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T4
+
+## 2026-09-23: Recovery regression assumed immediate HTTP 500 failure
+- **Error**: The broader refresh-recovery matrix timed out in its failed-retry case after HTTP 500 became a bounded transient retry.
+- **Cause**: The test awaited the retry promise with real timers and retained the pre-fix immediate-failure assumption.
+- **Fix**: Advance the fake clock through the 47-second 2/5/10/30-second sequence before asserting the preserved conflict state.
+- **Prevention**: Any test that exercises retryable 408/429/5xx behavior must attach its rejection before advancing the bounded retry clock.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T4
+
+## 2026-09-23: Save acknowledgement graphify refresh boundary
+- **Error**: Required `graphify update .` could not rebuild the canonical temp worktree and returned Windows `WinError 5: Access is denied`.
+- **Cause**: The graphify extractor cannot write its generated output in this managed canonical checkout.
+- **Fix**: Retried the identical update through the approved elevated filesystem boundary; Graphify rebuilt 12,104 nodes, 26,681 edges, and 554 communities. No source or deployment state changed.
+- **Prevention**: Treat the default-path failure as a tooling boundary and retry the exact command elevated; never alter save/sync code to work around it.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T4
+
+## 2026-09-23: Lifecycle trace test explicit-any lint finding
+- **Error**: Scoped ESLint reported one `@typescript-eslint/no-explicit-any` in the new save lifecycle trace fixture.
+- **Cause**: The parsed local draft assertion used a broad `Record<string, any>` convenience type.
+- **Fix**: Narrowed the parsed value to `Record<string, unknown>`; no production lint findings remained in scope.
+- **Prevention**: Keep diagnostic fixture payloads typed with `unknown` and narrow only at the assertion boundary.
+- **Related tasks**: NAVI P0 Save Acknowledgement and Automatic Retry T4
+
+## 2026-09-23: Map transition audit command construction recovered
+- **Error**: An initial skill lookup used an invalid path; one PowerShell ripgrep command used unsupported brace expansion; and two functions.exec snippets had JavaScript quoting errors before nested commands ran. A route-oriented Graphify explain query also found no matching node.
+- **Cause**: Shell syntax and lookup assumptions were carried across environments, while the existing Graphify index has sparse route-specific entries and historical worktree duplicates.
+- **Fix**: Re-ran the skill read with its catalog path, used explicit PowerShell file arguments, corrected the command string, and traced the checked-in navi-next source directly after the required initial Graphify query.
+- **Prevention**: Use canonical skill paths and PowerShell-compatible command syntax; treat sparse Graphify results as navigation hints and verify route lifecycle claims in source.
+- **Related tasks**: NAVI User Map Route Transition Performance Audit T1-T4
+## 2026-09-23: Road drag task setup command resolution
+- **Error**: The first Graphify skill lookup used a missing project-local path. A first SPEC append command also failed before execution because Markdown backticks ended the JavaScript template literal.
+- **Cause**: The skill location was initially resolved from the repository instead of the catalog root, and nested command construction treated embedded Markdown punctuation as JavaScript syntax.
+- **Fix**: Read the skill from its catalog path and rebuilt the append command from PowerShell-safe line arrays. No product source was changed.
+- **Prevention**: Resolve skill paths from the catalog and avoid unescaped Markdown backticks inside JavaScript template literals.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 kickoff
+
+## 2026-09-23: Road drag route path wildcard lookup
+- **Error**: PowerShell Get-Content could not read the route page path containing literal bracket segments.
+- **Cause**: PowerShell treated the bracketed route parameter segments as wildcard syntax.
+- **Fix**: Re-ran the route read using Get-Content -LiteralPath; no source was changed.
+- **Prevention**: Use -LiteralPath for Next.js route files containing [param] segments.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T1
+
+## 2026-09-23: Production save retry audit diagnostic command friction
+- **Error**: An initial Graphify explain phrase matched no indexed symbol; a source search targeted a nonexistent `apps/studio-new` path; `vercel logs --help` printed usage but then exited on `spawn EPERM`; two tool snippets had JavaScript/PowerShell quoting errors; the CUA inventory did not expose `listWindows` despite the generic docs.
+- **Cause**: Graphify indexes exact code symbols, this canonical repository is rooted directly at `src/`, Vercel CLI's optional version worker was blocked, and the installed CUA surface differs from the bundled generic API reference.
+- **Fix**: Queried the exact `performSyncToSupabase` symbol, searched from the canonical root, used the working read-only Vercel log command, corrected shell quoting, and stopped calling the unavailable CUA method. No product source or production campus data changed.
+- **Prevention**: Resolve exact Graphify symbols and verify repository layout before path searches; avoid CLI help paths that spawn version checks when the operational command works; use observed tool exports and incrementally validate PowerShell/JavaScript command strings.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T1
+
+## 2026-09-23: Road drag source-reference command quoting
+- **Error**: A PowerShell rg verification command parsed the `mousedown` alternative from its regex as a command name and did not emit the requested source references.
+- **Cause**: Nested shell quoting around a regex capture group was malformed.
+- **Fix**: Re-ran the reference search with a simple `-e` pattern that avoids nested quote syntax; the source/status checks remained read-only.
+- **Prevention**: Keep PowerShell search patterns simple and pass them as one explicitly quoted argument.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T1
+
+## 2026-09-23: Map runtime persistence setup lookup and patch context
+- **Error**: A source read first targeted `map/layers/RouteLine.tsx` although RouteLine lives at `map/RouteLine.tsx`; two initial documentation patches also used end markers that did not match the target files.
+- **Cause**: The layered file layout and document tails were assumed instead of confirmed from the repository before composing paths and patch context.
+- **Fix**: Confirmed the actual RouteLine path, re-read exact document endings, then appended the task spec, plan, and checklist successfully. No product files were changed by the failed commands.
+- **Prevention**: Resolve source paths with `rg --files` and use literal paths; inspect the document tail before patching or use a verified task-specific append.
+- **Related tasks**: NAVI Map Runtime Persistence T1
+
+## 2026-09-23: Road drag focused Vitest blocked by sandbox process spawn
+- **Error**: The baseline `useVertexEditor.test.tsx` run stopped before test collection when Vite attempted to spawn its Windows safe-path resolver and received `EPERM`.
+- **Cause**: The restricted process sandbox blocks the child process Vite uses during config bundling.
+- **Fix**: No product or test source changed; retry the identical focused test under the reviewed elevated execution boundary.
+- **Prevention**: Run Vite/Vitest from the approved process boundary on this Windows host and distinguish runner startup failure from a test result.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T2
+
+## 2026-09-23: Road drag probe patch context mismatch
+- **Error**: The first test-instrumentation patch did not apply because the patch expected a `map,` context line that is not present in the test harness.
+- **Cause**: The harness is declared as `const map = { ... }`; the patch context came from a mistaken reconstruction of its shape.
+- **Fix**: No file changed. Re-read the exact test harness and will apply smaller context-verified edits.
+- **Prevention**: Use the current file text as the patch anchor instead of inferred surrounding syntax.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T2
+
+## 2026-09-23: Map runtime persistence expected RED lifecycle failures
+- **Error**: The new route lifecycle suite ran 5 cases; 4 failed because Explore→Navigate and Explore→Home→Explore constructed additional maps, same-valued bounds were refit on a new object reference, and the runtime had no hidden-route suspension.
+- **Cause**: NavigationMap owns its MapLibre instance inside each route scene and its fit effect depends on the bounds object identity; the shared /map shell currently has no map visibility/runtime owner.
+- **Fix**: Added a lazy host owned by the shared `/map` shell, kept route scene resources scoped to their page, and deduplicated fits by numeric bounds. The lifecycle suite now passes; later call-site review also added a self-contained host for `NavigationMap` consumers outside the Explore/Navigate shell.
+- **Prevention**: Keep keyed route-scene transitions in the lifecycle test, compare active map identity/resources, and test numeric bounds changes separately from object recreation.
+- **Related tasks**: NAVI Map Runtime Persistence T1-T3
+
+## 2026-09-23: Map runtime test patch context and gate command quoting
+- **Error**: An initial NavigationMap test patch used a mismatched context, and a multi-file Vitest command escaped route-group parentheses in a way PowerShell parsed as a command; the first gate then showed one failure in the untouched NavigatePage development-simulator test.
+- **Cause**: The patch anchor contained whitespace not present in the current test file, and PowerShell does not use backslash to escape parentheses inside this command form. The NavigatePage test expects a simulator marker that the unchanged page source does not render.
+- **Fix**: Re-read the exact unit test and replaced it with a provider/host harness; quoted the route test paths and reran the focused matrix. Five of six files passed; the 25-test NavigatePage file had 24 passes and its unrelated simulator assertion failed.
+- **Prevention**: Anchor patches to freshly read text, pass route-group paths as single-quoted PowerShell arguments, and inspect the owning page before attributing unrelated UI-test failures to map-runtime changes.
+- **Related tasks**: NAVI Map Runtime Persistence T3-T4
+
+## 2026-09-23: Production save retry integration baseline resolved the wrong workspace package
+- **Error**: The deployed-SHA worktree's `ReloadStatusLastWriter.test.tsx` failed before its assertions because `__resetWorkflowStatusTraceForTests` was not a function; the independent save retry suite passed 9/9.
+- **Cause**: The worktree is nested under `navi-next/node_modules/.cache`, whose ancestor `node_modules/@navi/editor` junction resolves to the dirty shared checkout. That package version lacks the workflow trace exports present in the isolated deployed-SHA worktree.
+- **Fix**: No product source changed. Correct the isolated test dependency resolution before using this reload integration baseline; keep the shared checkout untouched.
+- **Prevention**: Verify workspace-package resolution when testing a worktree nested below `node_modules`; do not attribute cross-checkout module mismatches to application behavior.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T2-T4
+
+## 2026-09-23: Delayed recovery GET overwrites a newer acknowledged save (RED)
+- **Error**: The production-shaped `EditorBridge` + Graph store + `SaveStatus` regression performs one five-second autosave, receives `{ success: true, updatedAt: 'R2' }`, reaches `synced`, then becomes `error` when the earlier same-campus recovery GET returns HTTP 503.
+- **Cause**: `syncLocalChanges` checks campus session generation but has no save-attempt ordering guard after its awaited GET; the active campus is unchanged when the stale failure writes `syncStatus=error`.
+- **Fix**: Added a monotonic sync-operation generation check after asynchronous recovery reads and before recovery failure writes; the real editor autosave integration now stays `synced` with `All changes saved` when the older recovery GET fails late. Added client/server lifecycle correlation using mutation chain id, attempt/session/epoch, safe fingerprints, response status, and authoritative revision; server logs do not include authored payload contents.
+- **Prevention**: Keep the delayed same-session failure after a real newer save in the final-header integration suite; retain session/epoch guards and true-conflict tests.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T2-T4
+
+## 2026-09-23: Fake-timer wait helper advanced through the retry window
+- **Error**: The retry integration test could not observe the transient `retrying automatically` header because `vi.waitFor` advanced fake time until the 2-second retry had already succeeded.
+- **Cause**: A polling helper that advances virtual time was used while intentionally holding the retry backoff at 2 seconds.
+- **Fix**: Removed polling during the held backoff; assertions now read the retry status synchronously at 5,000 ms, then advance 1,999 ms and 1 ms explicitly. The 503→200 integration test passed.
+- **Prevention**: Do not use polling helpers to inspect intermediate states under fake timers when those helpers can advance the timer being tested.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T2-T4
+
+## 2026-09-23: Retry integration did not observe the first transient state
+- **Error**: The integration test recorded an HTTP 503 from its first POST but observed the store already `synced` at the point it expected the bounded `syncing` retry state.
+- **Cause**: The test file's shared `jsonResponse` helper accepted only a body and always built a status-200 Response, silently ignoring the test's requested 503 status. The implementation therefore correctly acknowledged a success.
+- **Fix**: The helper now accepts an optional status code and passes it to `Response`; the temporary trace print was removed.
+- **Prevention**: Capture the ordered Graph status trace and GET/POST sequence at the observation boundary before changing test timing or production code.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T2-T4
+
+## 2026-09-23: Road drag implementation patch context mismatch
+- **Error**: The first production drag patch did not apply because its import context still expected the pre-helper import line.
+- **Cause**: The junction helper import had already been added in a preceding successful patch, so the larger replacement patch used stale context.
+- **Fix**: No source was changed by the failed patch. Re-read the current hook and will apply the replacement against its exact `Vertex drag` block.
+- **Prevention**: Split production edits into narrow patches anchored on freshly read source text.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T3
+
+## 2026-09-23: Road drag junction pointer threshold import and probe boundary
+- **Error**: The focused pointer/junction run raised `ReferenceError: ROUTE_NETWORK_THRESHOLDS is not defined`; the hook probe also counted its pointer-down selection repaint as one of the move repaints.
+- **Cause**: The import hunk was part of a larger patch that failed on stale context, while the instrumentation baseline was captured before pointer-down.
+- **Fix**: Imported `ROUTE_NETWORK_THRESHOLDS` directly in the hook and started the per-move source counter after pointer-down. The failed test run used in-memory fixtures only.
+- **Prevention**: Keep imports in a separate context-verified patch and align metric counters with the event boundary named in the report.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T3
+
+## 2026-09-23: Road drag junction overlay floating-point assertion
+- **Error**: The junction overlay test compared a projected longitude exactly and received `-111.92998800000001` instead of the mathematically equivalent literal `-111.929988`.
+- **Cause**: The screen-to-map projection fixture uses IEEE-754 floating-point arithmetic, so an exact decimal representation is not stable.
+- **Fix**: Compared the projected coordinate at a fixed decimal precision while keeping copied road endpoints and shared-junction assertions exact where appropriate.
+- **Prevention**: Use bounded numeric comparisons for projected coordinates and reserve exact deep equality for copied authored coordinates.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T3
+
+## 2026-09-23: Map runtime standalone consumer compatibility and verification gates
+- **Error**: Moving `NavigationMap` to the `/map` shell initially left Capture map consumers outside that shell without a host. Repository-wide lint, typecheck, and test commands also returned existing workspace failures; the first sandboxed production build hit `spawn EPERM`, and Graphify first hit `WinError 5`.
+- **Cause**: Capture pages use the same `NavigationMap` adapter without `AdaptiveShell`; lint scans generated `.next` and nested archived worktrees; the typecheck includes three malformed archived runtime tests; the full suite has unrelated failing editor/compiler cases; Windows sandbox process/file access is restricted.
+- **Fix**: `NavigationMap` now uses the shared runtime only on active Explore/Navigate surfaces and creates a scoped local host for standalone consumers. The Capture-inclusive focused matrix passed 11 files / 83 tests, scoped ESLint passed, and the elevated production build passed. Full-gate details and the Graphify retry outcome are recorded in the Map Runtime Persistence T4 progress entry.
+- **Prevention**: Search all `NavigationMap` consumers before changing its ownership; run a Capture-inclusive regression matrix; compare scoped lint/type/build evidence with workspace-wide gates and archive/generated-tree failures.
+- **Related tasks**: NAVI Map Runtime Persistence T2-T4
+
+## 2026-09-23: Graphify refresh denied atomic graph replacement
+- **Error**: The sandboxed `graphify update .` failed during re-extraction with `WinError 5`. The elevated retry extracted 21,387 files, wrote a 150 MB temporary graph, then failed replacing `graphify-out/graph.json` with `WinError 5` (exit 1). A second overlapping Graphify worker also exited 1 without updating `graph.json`.
+- **Cause**: Windows denied Graphify's final temporary-file replacement despite Modify ACLs. The failed invocation left a worker alive after the command returned; the exact older process tree was stopped before checking the remaining run.
+- **Fix**: Did not force a manual rename. `graph.json` retained its previous size/timestamp, although Git lists it as modified relative to HEAD; the generated temporary/cache state is left for review and recorded in the T4 log.
+- **Prevention**: Check all Graphify child processes before another retry; if the atomic replace remains denied after a single-process elevated run, stop instead of overwriting the curated graph outside Graphify.
+- **Related tasks**: NAVI Map Runtime Persistence T4
+
+## 2026-09-23: Road drag interaction regression suite replacement
+- **Error**: The T3 interaction test replaced the existing InteractionController suite with one panning test, and the drag-pan refactor removed the existing vertex-mode double-click-zoom lock.
+- **Cause**: The regression was written in a simplified harness instead of extending the established suite; drag-pan and double-click-zoom behavior shared one mode effect and were changed together.
+- **Fix**: Restored the original interaction cases and added the idle-pan assertion. The hook now disables double-click zoom only during vertex editing, restores its prior enabled state on exit, and leaves pan/box-zoom suppression scoped to an active drag. Four focused files pass 26 tests.
+- **Prevention**: Extend baseline suites instead of replacing them; review deleted tests and preserve unrelated gesture behavior when splitting interaction state.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T3
+
+## 2026-09-23: Scoped road drag ESLint includes baseline and test-double errors
+- **Error**: Scoped ESLint exited 1 with 45 errors and 5 warnings across the road drag paths. Diagnostics include existing `any` annotations in editor commands and render-time ref assignments in StudioCanvas/InteractionController, plus explicit `any` casts in drag test doubles.
+- **Cause**: The workspace lint rules flag established legacy patterns in touched files, while the new focused test harnesses used permissive `any` casts for MapLibre/editor fakes.
+- **Fix**: Removed explicit `any` from the expanded vertex hook and new StudioCanvas test doubles and replaced the inverse assertion with a typed object assertion. ESLint passes on those authored tests plus the junction helper. The final full scoped run reports 25 existing errors and one warning in legacy command/ref patterns and the original InteractionController test harness; it reports no task-introduced lint error.
+- **Prevention**: Prefer narrow structural test-double types, and compare scoped diagnostics to unchanged source lines before broad refactors.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T4
+
+## 2026-09-23: Route cursor state reset trips render-effect lint
+- **Error**: Scoped ESLint flagged the synchronous `setCursorPos(null)` / `setAltHeld(false)` reset in StudioCanvas when leaving route mode.
+- **Cause**: The route-only listener effect also tried to clear React state during effect setup, which triggers a cascading render and violates the workspace `react-hooks/set-state-in-effect` rule.
+- **Fix**: Confirmed SnapPreviewOverlay is rendered only for `activeTool === 'route'`. The effect now returns outside route mode and defers a cancellable stale-state reset on route entry; the focused UI tests pass and the new set-state-in-effect lint error is gone.
+- **Prevention**: Keep tool-specific listeners scoped by tool and avoid state resets in effect setup when conditional rendering already suppresses the state consumer.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T4
+
+## 2026-09-23: Route cursor follow-up patch context mismatch
+- **Error**: The first narrow StudioCanvas follow-up patch did not match the current effect cleanup block.
+- **Cause**: The cleanup lines differed from the reconstructed context; no source file changed.
+- **Fix**: Re-read the effect and applied a narrow route-only cleanup/reset patch; focused UI tests pass.
+- **Prevention**: Anchor follow-up edits on the current full effect body and keep lifecycle changes in a small patch.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T4
+
+## 2026-09-23: Next-build process check quoting error
+- **Error**: A process-check script failed JavaScript parsing before any command ran.
+- **Cause**: Nested single-quoted PowerShell filters were not escaped in the `functions.exec` source.
+- **Fix**: Used a simple wildcard match, returning only process IDs; it found two Next dev processes in this checkout, neither was stopped.
+- **Prevention**: Avoid nested shell quoting when a simple wildcard filter is sufficient.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T4
+
+## 2026-09-23: Project TypeScript check reaches archived syntax errors
+- **Error**: `npx tsc --noEmit --pretty false` exits 1 on `TS1005: '}' expected` at line 255 in `cert-final2/packages/runtime/src/__tests__/data-identity-comparison.test.ts`, the equivalent main-workspace file, and the equivalent `stabilize-final` file.
+- **Cause**: The repository TypeScript configuration includes two archived nested worktrees with the same malformed runtime test fixture.
+- **Fix**: No archived files changed. The production build compiled successfully but skips TypeScript validation per `next.config.ts`; the project typecheck remains blocked by this known baseline.
+- **Prevention**: Keep archived worktrees out of this interaction fix and report the typecheck baseline separately from the production build result.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T4
+
+## 2026-09-23: Road drag Graphify refresh denied during re-extraction
+- **Error**: The single `graphify update .` run ended with `Nothing to update or rebuild failed` and `[graphify watch] Rebuild failed: [WinError 5] Access is denied`.
+- **Cause**: Windows denied Graphify access during re-extraction. The graph output already had extensive dirty cache/report state before this invocation, so the refresh cannot be isolated from that existing state.
+- **Fix**: No second or elevated retry was started; no graph artifact was manually changed or staged. Graphify refresh remains unverified for this task.
+- **Prevention**: Keep the pre-existing generated graph changes outside the feature commit; retry only after the current permission/state issue is resolved, using one Graphify process.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T5
+
+## 2026-09-23: Trace report has an extra blank line at EOF
+- **Error**: `git diff --cached --check` found a new blank line at the end of the saved Vitest trace report.
+- **Cause**: PowerShell `Tee-Object` preserved a trailing blank output record.
+- **Fix**: Trimmed the report's trailing blank output record, re-staged only that file, and reran `git diff --cached --check`; it now exits 0.
+- **Prevention**: Run `git diff --cached --check` after staging generated test output, not only source diffs.
+- **Related tasks**: NAVI Road Vertex Sticky Drag P0 T5
+
+## 2026-09-23: Save/retry production build Turbopack panic
+- **Error**: `npm run build` from the isolated deployed-SHA worktree failed during middleware bundle emission with `TurbopackInternalError: Expected process result to be a module`; Next also warned that it inferred the parent `navi-next` workspace root because both parent and nested worktree contain lockfiles.
+- **Cause**: The Turbopack failure is internal; the supported webpack fallback then exposed independent compile blockers already present at the deployed SHA: unresolved Dashboard/Dataset/AppLayout imports and workspace TypeScript package exports left untranspiled. No changed save/retry file appears in the reported diagnostics. The isolated checkout is not currently self-buildable.
+- **Fix**: Compared both supported build paths from the same worktree; both fail (Turbopack panic, webpack compile errors). No application files were changed by either build. Release remains gated on identifying a canonical buildable source ref without sweeping unrelated WIP into this patch.
+- **Prevention**: Run both production bundlers against the exact commit before release; require the canonical ref to contain its imported app modules and proper workspace transpilation, and keep the isolated worktree root explicit.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T4
+
+## 2026-09-23: Save/retry Graphify refresh denied by Windows ACL
+- **Error**: Sandboxed `graphify update .` returned `[WinError 5] Access is denied`. The elevated retry extracted 21,387 files, then spent over four minutes in silent graph indexing at roughly 6–7 GB working set without returning; it was interrupted. The command did not report a successful graph refresh.
+- **Cause**: The sandbox lacked access to one or more scanned paths; the elevated indexing/replacement stage is unusually resource-heavy and made no bounded completion.
+- **Fix**: Stopped only the Graphify process after confirming the worker remained active with high memory use. Partial generated cache/report changes are preserved for review; no graph cache cleanup or manual replacement was attempted.
+- **Prevention**: Do not infer success from AST extraction alone; require a final exit code. Check memory/progress before extending indexing, and do not delete partial generated artifacts or widen ACLs as a workaround.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T4-T5
+
+## 2026-09-23: PowerShell build-path probe syntax error
+- **Error**: A one-line PowerShell path probe raised `ParserError: An empty pipe element is not allowed` before running the intended path checks.
+- **Cause**: The `foreach` statement was piped inline without first assigning the generated objects.
+- **Fix**: Re-ran the probe with an explicit `$report` assignment and confirmed the three source files exist in the isolated checkout; no repository files were changed by the failed command.
+- **Prevention**: Assign output from multi-statement PowerShell loops before piping it to formatting commands.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T4
+
+## 2026-09-23: Save/retry progress-log patch context mismatch
+- **Error**: The first append patch for the save/retry T3-T4 progress entry did not apply because its assumed end-of-file line was stale; no file changed.
+- **Cause**: `PROGRESS.md` had a later MapLibre task entry than the tail inferred from an earlier truncated view.
+- **Fix**: Re-read the exact current EOF before retrying the append.
+- **Prevention**: Anchor workflow-log appends to a fresh tail, not a remembered prior section ending.
+- **Related tasks**: NAVI P0 Production Save Error / Retry Acceptance T4
+
+## 2026-09-23: Isolated road-drag npm install blocked by spawn EPERM
+- **Error**: `npm ci --offline --no-audit --no-fund` in the exact-SHA acceptance checkout exited 1 with `spawn EPERM`; npm also reported a cleanup `EPERM` while rolling back its partial `node_modules` install.
+- **Cause**: Windows denied an npm lifecycle child-process spawn in the managed sandbox.
+- **Fix**: Re-ran the locked install under the authorized local runner with `--offline`; 816 packages installed successfully. The original checkout was not changed.
+- **Prevention**: Use locked, locally available dependencies in the isolated checkout and keep all install/build output out of the original worktree.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1
+
+## 2026-09-23: Build provenance baseline npm install sandbox spawn
+- **Error**: The first canonical `npm ci --no-audit --no-fund` in the isolated production-SHA checkout exited with Windows `spawn EPERM`; npm also reported cleanup `EPERM` while removing partial ignored `node_modules` content.
+- **Cause**: The managed sandbox denied an npm lifecycle child-process spawn.
+- **Fix**: Re-ran the same locked install in the authorized elevated context. It installed 816 packages; the tracked `package-lock.json` remained unchanged. The same install succeeded in the second comparison worktree.
+- **Prevention**: Keep installs confined to disposable audit worktrees; after `spawn EPERM`, retry the same locked install through the authorized local runner and verify lockfile status.
+- **Related tasks**: NAVI Build Blocker Provenance Audit T1-T4
+
+## 2026-09-23: Build provenance save patch transfer sandbox spawn
+- **Error**: The first Node-based Git diff transfer to the clean comparison worktree failed before applying changes because `spawnSync git` returned `EPERM`.
+- **Cause**: The sandbox denied a child process started from Node; no patch application occurred in that attempt.
+- **Fix**: Re-ran the allowlisted preflight and `git apply` in the authorized elevated context. The target received exactly four files and its binary diff hash matches the preserved patch.
+- **Prevention**: Verify target SHA/status and the exact file allowlist before applying; use the approved execution context for the subprocess and compare the resulting diff hash.
+- **Related tasks**: NAVI Build Blocker Provenance Audit T3-T5
+
+## 2026-09-23: Build provenance audit inspection and append friction
+- **Error**: One worktree status check ran while `git worktree add` was still checking out files and briefly showed a transient all-files-dirty view; a later check was attempted from a misspelled worktree path. A Git show using a mistyped object argument failed before succeeding with the correct abbreviated SHA. The Vercel project/build-log MCP calls had schema/tool availability errors, and an initial progress-log patch used stale EOF context.
+- **Cause**: Commands were issued before checkout completion, the workdir contained a path typo, the Git revision argument was malformed, the connector schema and available operations differed from discovery metadata, and another task updated the shared log after the earlier tail read.
+- **Fix**: Waited for checkout completion and verified clean status; used the correct path and commit abbreviation; used read-only Vercel CLI inspection for deployment settings/logs; reread the current log tail and appended without replacing other entries. No shared source, owner files, Vercel state, or generated Graphify artifacts were changed by the failed probes.
+- **Prevention**: Wait for worktree creation to finish before status checks; copy exact paths/SHAs; re-read shared-log EOF immediately before append; fall back to available read-only CLI inspection when connector metadata is stale.
+- **Related tasks**: NAVI Build Blocker Provenance Audit T1-T5
+
+## 2026-09-23: Exact-SHA acceptance build lacks Supabase configuration
+- **Error**: `npm run build` in the clean acceptance checkout compiled, then failed prerendering `/demo/navigate` because `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` were absent.
+- **Cause**: The isolated checkout intentionally did not receive the ignored environment file from the original checkout.
+- **Fix**: Checking only whether an explicitly non-production test configuration is available; no credentials have been copied and no deployment was attempted.
+- **Prevention**: Keep secrets out of isolated acceptance checkouts unless their destination is confirmed test-only; never let a local browser exercise persist edits to production.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1
+
+## 2026-09-23: Browser CLI unavailable and environment inventory probe syntax error
+- **Error**: `agent-browser` is not installed on PATH. The first PowerShell env-file inventory probe also called `Trim` on a null regex group and did not classify the Supabase destinations.
+- **Cause**: Browser CLI was not provisioned in this workspace; the probe did not account for blank or dynamic environment assignments.
+- **Fix**: Use the already installed project Playwright package and rerun a guarded inventory that reports only local/remote categories, never credential values. No app or environment file was changed.
+- **Prevention**: Check tool availability before relying on an optional CLI and guard env parsing before URI inspection.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1-T2
+
+## 2026-09-23: Authentication source search used invalid path arguments
+- **Error**: A read-only `rg` query included an unsupported PowerShell wildcard path (`navi-next/e2e*`) and obsolete root-level middleware paths, so that query returned argument/path errors.
+- **Cause**: The search used shell glob syntax where `rg` expected concrete paths; the middleware lives under `src/`.
+- **Fix**: Re-ran focused searches against explicit existing source paths. No repository files were changed by the failed query.
+- **Prevention**: Resolve concrete paths from the project graph before composing multi-path searches.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1-T2
+
+## 2026-09-23: NAVI Explore Render Model Cache setup and verification tooling
+- **Error**: Initial setup used an incorrect safe-refactor skill path before resolving the listed caveman skill path. A documentation append driver then failed JavaScript parsing because Markdown backticks conflicted with its template literal, and one plan patch missed because it assumed bold formatting that was absent. The first scoped ESLint pass also identified unused parameters in the new counting test builders. The sandboxed production build compiled but failed with spawn EPERM during page-data worker creation. All three Graphify update attempts after source/test changes failed with WinError 5; the generated graph tree is dirty, including cache artifacts and report/label files, and the prior workspace already contained graph output changes.
+- **Cause**: The skill directory was resolved incorrectly; embedded Markdown delimiters were not escaped in the tool driver; the patch context did not match the actual plan text; test-only builder parameters were unused; Windows sandbox process creation was denied; Graphify could not access a generated-output path during rebuild.
+- **Fix**: Read the skill from the correct listed path; rewrote documentation appends with delimiter-safe strings and patched against freshly read text; removed unused test parameters; reran the same production build through the authorized elevated path, which passed and generated 41 static pages. No manual graph-cache cleanup or replacement was attempted. The Graphify limitation is recorded for this task.
+- **Prevention**: Resolve skill roots from the catalog before reading, avoid unescaped Markdown delimiters in generated JavaScript, patch exact observed text, avoid unused fixture arguments, use the authorized build path after a sandbox spawn denial, and do not manually rewrite Graphify's generated output after WinError 5.
+- **Related tasks**: NAVI Explore Render Model Identity Cache T1-T3
+
+## 2026-09-23: Vercel env-run delimiter rejected by PowerShell wrapper
+- **Error**: The first `vercel env run -e preview -- node -e ...` invocation reported `No command provided` before running the comparison subprocess.
+- **Cause**: The PowerShell script wrapper did not pass the command separator through as expected.
+- **Fix**: Retry with the explicit `vercel.cmd` wrapper and argument array; the failed invocation printed no environment values and changed no Vercel state.
+- **Prevention**: Pass native CLI arguments through an explicit wrapper and verify the child process runs before interpreting its output.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1
+
+## 2026-09-23: Vercel environment probe did not report its comparison
+- **Error**: `vercel env run` under the explicit `.cmd` wrapper exited 0 but emitted no expected backend-comparison labels, so the Preview backend could not be classified.
+- **Cause**: The Windows wrapper/child argument boundary did not deliver the intended Node probe output; the CLI reported only that it loaded Preview variables and the existing local dotenv file.
+- **Fix**: Treat the Preview backend as unverified and do not deploy/use it for a drag. A read-only variable-name listing confirmed no `E2E_CAMPUS_ID`; no variable values were printed or changed.
+- **Prevention**: Validate the child process output explicitly before trusting a platform environment probe; avoid relying on ambiguous wrapper output for safety decisions.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1-T2
+
+## 2026-09-23: Vercel CLI help update-check spawn blocked
+- **Error**: `vercel env ls --help` printed its usage, then exited 1 with `spawn EPERM` in the CLI's latest-version check.
+- **Cause**: The managed Windows sandbox denied the CLI update-check child process.
+- **Fix**: Used the local-runner path for read-only Vercel listing commands; no deployment or environment changes occurred.
+- **Prevention**: Treat CLI update-check failures separately from command output and use the scoped local runner when a requested CLI child process is blocked.
+- **Related tasks**: NAVI Road Vertex Drag Browser Acceptance T1
+
+## 2026-09-23: Release provenance Vercel CLI version probe blocked
+- **Error**: `vercel inspect --help` printed usage, but the adjacent CLI version probe exited with `spawn EPERM` and proxy `ECONNREFUSED` during the latest-version check.
+- **Cause**: The managed Windows sandbox denied the Vercel CLI child-process/update-check path; the help text itself completed successfully.
+- **Fix**: Retried the read-only deployment inspection through the approved local runner and captured the deployment metadata/build-log fields. No Vercel state changed.
+- **Prevention**: Separate successful command help from CLI update-check failures; use the approved local runner for the same scoped read-only deployment inspection.
+- **Related tasks**: Navi Save/Sync Final Release T1
+
+## 2026-09-23: Release provenance Vercel MCP project/log tool mismatch
+- **Error**: The Vercel project connector rejected the available `projectId`/`idOrName` argument shapes, and the advertised deployment build-log tool returned “not found”.
+- **Cause**: The exposed connector schema and backing MCP tool schema are inconsistent in this session.
+- **Fix**: Used the read-only Vercel deployment/list APIs and local CLI `inspect`/`project inspect` instead; deployment logs were successfully read through the CLI. No Vercel state changed.
+- **Prevention**: When a connector's schema and backend disagree, preserve the error and fall back once to the installed read-only CLI rather than repeatedly guessing parameters.
+- **Related tasks**: Navi Save/Sync Final Release T1
+
+## 2026-09-23: Release plan initially undercounted required signatures
+- **Error**: The first release plan draft described 14 required signatures although the user's brief contains 16.
+- **Cause**: The feature list was summarized before its cardinality was reconciled against the source brief.
+- **Fix**: Corrected T2 to enumerate all 16 signatures before beginning source verification; no product code or release state changed.
+- **Prevention**: Transcribe and count required release signatures directly from the approved brief before marking an audit gate complete.
+- **Related tasks**: Navi Save/Sync Final Release T2
+
+## 2026-09-23: Patch preflight trimmed first porcelain filename
+- **Error**: The first patch-transfer preflight rejected the source allowlist because its output parser removed the first status-column space and parsed `src/...` as `rc/...`.
+- **Cause**: Calling `.trim()` on the full multiline porcelain output removed meaningful leading whitespace from its first line.
+- **Fix**: No files were changed; adjust the parser to strip only trailing newline characters and rerun all base, status, and patch-fingerprint assertions before applying the patch.
+- **Prevention**: Preserve fixed-width Git porcelain status columns when parsing; test path extraction against the first status line before using it as a mutation gate.
+- **Related tasks**: Navi Save/Sync Final Release T3
+
+## 2026-09-23: Patch fingerprint initially interpreted as raw SHA-256
+- **Error**: The expected 40-character patch fingerprint did not match a raw SHA-256 digest, so the fail-closed transfer gate stopped before application.
+- **Cause**: The brief's fingerprint is the Git blob object ID of the diff bytes, not a 64-character raw SHA-256 digest (nor raw SHA-1).
+- **Fix**: Confirmed read-only that `git hash-object --stdin` over the preserved diff yields the exact expected `0562526ecca7440621f4770fb90d9901023d47b4`; use that object-ID computation for the transfer gate.
+- **Prevention**: Determine and use the fingerprint's documented/object format before comparing; keep independent path, base, and cleanliness assertions.
+- **Related tasks**: Navi Save/Sync Final Release T3
+
+## 2026-09-23: Release worktree changed between patch preflights
+- **Error**: A release-worktree status check that had previously been clean later showed the four save-patch files modified before the transfer command could apply anything.
+- **Cause**: An intervening writer changed the shared worktree; its identity is not established by the available evidence.
+- **Fix**: Stopped without applying again; independently compared source and target HEAD/tree, the complete diff Git blob ID, and the exact four-path status. All match the approved patch, with no extra paths.
+- **Prevention**: Revalidate shared-worktree status immediately before each mutation and, when state changes unexpectedly, prove full content identity before proceeding.
+- **Related tasks**: Navi Save/Sync Final Release T3
+
+## 2026-09-23: PowerShell parsed Git upstream shorthand
+- **Error**: A local ref inspection command containing `@{u}` failed in PowerShell with a hash-literal parser error before any Git command ran.
+- **Cause**: PowerShell interpreted the unquoted Git upstream shorthand as its hashtable syntax.
+- **Fix**: No repository state changed; quote the shorthand as a literal argument and rerun the read-only ref inspection.
+- **Prevention**: Quote Git ref expressions that begin with `@{` when issuing them through PowerShell.
+- **Related tasks**: Navi Save/Sync Final Release T5
+
+## 2026-09-23: Vercel MCP project lookup schema mismatch recurred
+- **Error**: The Vercel connector advertised `projectId` but its backend first requested `idOrName`, then the outer schema rejected `idOrName` as an additional field. Project lookup returned no project settings.
+- **Cause**: The connector's exposed schema and backend validation remain inconsistent.
+- **Fix**: Stopped parameter retries after the contradictory errors; no Vercel state changed. Rely on verified Git/Vercel deployment metadata and installed read-only CLI evidence.
+- **Prevention**: Do not continue guessing connector argument shapes after contradictory validation; record the mismatch and use a known read-only fallback.
+- **Related tasks**: Navi Save/Sync Final Release T5-T6
+
+## 2026-09-23: Isolated Graphify refresh failed with Windows access denial
+- **Error**: `graphify update .` in the telemetry-redaction worktree stopped with `Nothing to update or rebuild failed` and `[WinError 5] Access is denied` during code-file extraction.
+- **Cause**: The Graphify rebuild process could not write one of its generated index/extraction targets under the default sandbox permissions.
+- **Fix**: No product source was changed by Graphify. The operation was confined to the isolated telemetry worktree; generated Graphify output is excluded from the release commit. Retry only the same worktree-local refresh through the permission-reviewed execution path.
+- **Prevention**: Keep Graphify refreshes scoped to disposable/isolated worktrees for release tasks and never stage generated Graphify artifacts unless explicitly requested.
+- **Related tasks**: NAVI Save Patch Telemetry Redaction T5
+
+## 2026-09-23: Save-sync release shell/repository preflight mistakes
+- **Error**: Initial Git lookup used the outer workspace instead of `navi-next`; a plan lookup used the product-repo path instead of the workflow root; one `HEAD^{tree}` PowerShell command was parsed incorrectly; and a documentation patch missed because shared TODO/progress state had advanced.
+- **Cause**: The task uses nested Git and workflow roots, PowerShell parses ref syntax, and the release checklist was updated concurrently in the shared workspace.
+- **Fix**: No product files were changed by these failed lookups/patches. Re-read the live workflow artifacts, verified Git commands from the exact worktree, and used the quoted `--verify '<sha>^{tree}'` form; T2/T3 evidence is recorded in progress.
+- **Prevention**: Confirm the active repository/workflow root, quote Git revision expressions in PowerShell, and reread shared planning context immediately before documentation edits.
+- **Related tasks**: Navi Save/Sync Final Release T1-T3
+
+## 2026-09-23: Supabase changelog Markdown fetch rejected
+- **Error**: The browser fetch for `https://supabase.com/changelog.md` returned HTTP 400 for `text/markdown`.
+- **Cause**: The fetch tool does not support that response content type.
+- **Fix**: Fell back to the official breaking-change changelog page; no relevant breaking change affects this app-level revision/acknowledgement patch. No schema or SDK behavior changes.
+- **Prevention**: Use the official HTML changelog when the tool rejects the Markdown endpoint.
+- **Related tasks**: Navi Save/Sync Final Release T2
+
+## 2026-09-23: Read-only remote lookup blocked by sandbox egress
+- **Error**: My default-sandbox `git ls-remote` attempt could not reach GitHub through the configured proxy.
+- **Cause**: External egress is restricted in the default execution context.
+- **Fix**: The completed T2 progress record reports a successful read-only check of the canonical origin branch at the selected base. A fresh remote SHA check remains required immediately before push.
+- **Prevention**: Use the approved execution context for a fresh remote check and do not rely on a stale tracking ref when pushing.
+- **Related tasks**: Navi Save/Sync Final Release T2, T5
+
+## 2026-09-23: Save-sync patch preflight parser error resolved
+- **Error**: The earlier preflight parser misread the first path because it trimmed fixed-width porcelain output.
+- **Cause**: Trimming removed the leading status-column space.
+- **Fix**: Applied the patch only after direct `git apply --check`, `git apply --stat`, exact four-path inspection, and matching binary-diff hash verification. The new worktree now has only the approved four paths modified.
+- **Prevention**: Inspect Git path output directly or preserve status columns when parsing; keep an allowlist and verify the patch digest.
+- **Related tasks**: Navi Save/Sync Final Release T3
+
+## 2026-09-23: Focused save-sync matrix exposed lifecycle telemetry assertion failure
+- **Error**: The 18-suite focused run completed 16 files / 112 tests successfully, with one failure in `src/app/api/graph/__tests__/lifecycle-timeout.test.ts`; it rejects the words `buildings` and `nodes` found as keys in the zero-count `graphCounts` telemetry object.
+- **Cause**: Not yet classified; the release patch changed `route.ts`, so the exact-base route and test must be compared before attributing this to the patch.
+- **Fix**: No product or test files changed. The failure is being checked on the unmodified exact base before deciding whether it belongs in the save/sync gate.
+- **Prevention**: Compare a failed focused test against the exact base commit; do not broaden a four-file release patch to repair unrelated telemetry/test-contract debt without evidence.
+- **Related tasks**: Navi Save/Sync Final Release T4
+
+## 2026-09-23: Lifecycle telemetry assertion fails only with release patch
+- **Error**: `lifecycle-timeout.test.ts` passes 9/9 on base `3f5277d` but fails 1/9 on release commit `2c62f8e`; the logger line contains structural `graphCounts` keys `buildings` and `nodes`, which the test's broad regex rejects.
+- **Cause**: The patch's API lifecycle telemetry emits numeric graph-count fields; the existing test treats any occurrence of those key names as payload leakage. No authored payload values or secrets appeared in the captured line.
+- **Fix**: No code or test adjustment made because resolving the test/logging contract would expand or alter the exact four-file patch. Release remains held for user direction.
+- **Prevention**: Before shipment, either narrow the telemetry test to assert against sensitive values/payload rather than structural count keys, or remove the count fields; rerun the focused suite and both builds on the resulting exact commit.
+- **Related tasks**: Navi Save/Sync Final Release T4-T6
+
+## 2026-09-23: Canonical release push rejected by external-egress review
+- **Error**: `git push --porcelain origin HEAD:refs/heads/release/navi-phase3a1-2026-09-22` was rejected by the safety reviewer before execution because the external destination and exact source payload were not explicitly authorized.
+- **Cause**: Source export to GitHub requires destination- and payload-specific approval beyond the in-scope release request.
+- **Fix**: Did not retry or use an alternate upload/deploy path. Local commit `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4` remains in the clean worktree; no push or deployment occurred.
+- **Prevention**: Obtain explicit user approval naming `https://github.com/0SEless/Navi.git`, the canonical branch, and the exact commit before attempting egress again.
+- **Related tasks**: Navi Save/Sync Final Release T5-T6
+
+## 2026-09-23: PowerShell tree-revision probe parsing error
+- **Error**: A post-commit `git rev-parse HEAD^{tree}` probe was misparsed by PowerShell and returned an invalid encoded argument before producing the tree SHA.
+- **Cause**: The revision expression's braces/caret were not protected as a literal shell argument.
+- **Fix**: No repository state changed; the commit's tree SHA had already been captured by the verified Node/Git commit gate as `9877b1e490aa5209ff20e1c83dc94bc004d7e80d`.
+- **Prevention**: Quote brace-bearing Git revision expressions or use the checked Node/Git wrapper.
+- **Related tasks**: Navi Save/Sync Final Release T5
+
+## 2026-09-23: Vercel deployment lookup did not resolve alias URL
+- **Error**: The Vercel deployment lookup endpoint returned 404 when given the production alias URL `https://navi-next.vercel.app`.
+- **Cause**: The lookup operation does not resolve the alias URL directly to its active deployment.
+- **Fix**: Used the read-only project deployment list, which confirmed latest production deployment `dpl_CMDPXGrDFmMTrdDTAuMhRAAVtZsz` is READY and still has empty Git metadata. No deployment or alias changed.
+- **Prevention**: Resolve the current alias through the project deployment list, then inspect the resolved deployment ID.
+- **Related tasks**: Navi Save/Sync Final Release T6
+
+## 2026-09-23: Save-sync release auto-review rejected exact push
+- **Error**: The explicit non-force push of local commit `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4` to `https://github.com/0SEless/Navi.git` branch `release/navi-phase3a1-2026-09-22` was rejected before execution.
+- **Cause**: Automatic approval review stated that the transcript did not provide trusted user authorization for that exact payload and destination, and cited a prior destination-specific denial.
+- **Fix**: No remote write occurred. The local commit remains clean and exact; the remote ref was last read as parent `3f5277dcf14a8a17712d2c1e36c67a7de0181594`. Deployment was not attempted.
+- **Prevention**: Do not retry through another transport or indirect path. Obtain explicit user approval naming this commit, repository URL, and branch, then use the standard non-force push.
+- **Related tasks**: Navi Save/Sync Final Release T5-T6
+
+## 2026-09-23: Expanded save-sync suite found a telemetry assertion mismatch
+- **Error**: Sixteen additional focused files passed (112 tests); `lifecycle-timeout.test.ts` failed one assertion on the patch because serialized log metadata includes `buildings` and `nodes` count keys.
+- **Cause**: The release patch adds `graphCounts` metadata; the existing test's no-payload regex rejects those field names even though the emitted values are collection lengths. The same test passes 9/9 on the exact unmodified base.
+- **Fix**: No source/test edits were made, preserving the approved four-file diff and its integrity hash. The requested 9-file/59-test matrix passes; this extra suite failure is recorded separately and is not presented as a full-suite pass.
+- **Prevention**: Treat telemetry metadata separately from payload contents, but retain privacy assertions and review any mismatch before broadening the approved patch.
+- **Related tasks**: Navi Save/Sync Final Release T4-T5
+
+## 2026-09-23: Lifecycle log count fields removed to restore existing contract
+- **Error**: The original save patch's lifecycle log added `buildings` and `nodes` count keys, causing the existing no-payload/no-collection-name assertion to fail even though the values were lengths.
+- **Cause**: Those collection counts were extra metadata, not required by timeout handling, request/session correlation, or any documented diagnostic contract. The lifecycle test explicitly rejects the field names.
+- **Fix**: Removed only the `buildings` and `nodes` properties from `graphCounts` in `src/app/api/graph/route.ts`; retained the edge/component counts and all attempt/session/fingerprint/revision/outcome trace fields. The test remains unchanged and passes 9/9 after cleanup.
+- **Prevention**: Keep lifecycle logs within the existing no-graph-collection-name contract; add only diagnostics required for lifecycle classification or correlation.
+- **Related tasks**: Navi Save Patch Final Regression Cleanup T1-T3
+
+## 2026-09-23: Regression command omitted a missing explicit test path
+- **Error**: The 18-argument Vitest invocation returned exit 0 with 17 collected files / 113 passing tests because `src/store/__tests__/graph-store-idempotency.test.ts` does not exist; the release suite path list was incomplete/inaccurate.
+- **Cause**: A copied test path was assumed valid without checking it against the isolated worktree. Vitest did not fail the entire command for that unmatched explicit path.
+- **Fix**: Located the canonical file at `src/store/graph-store-idempotency.test.ts`, preflighted all 18 paths, and reran the corrected batch; all 18 files / 117 tests passed. No source or test files changed because of the incomplete attempt.
+- **Prevention**: Check every explicit path exists in the release worktree before running or interpreting a regression batch.
+- **Related tasks**: Navi Save Patch Final Regression Cleanup T3
+
+## 2026-09-23: Narrow telemetry test correction halted by request-derived identifiers
+- **Error**: The lifecycle test reproduces 8/9 pass, 1 fail at the privacy assertion. The regex `/buildings|nodes|payload|service_role|secret/i` first matches `buildings` in `graphCounts.buildings`; `nodes` is also present as a key. The actual serialized event additionally contains `requestId` (UUID), `mutationId` (`M1`), `attemptChainId` (`M1`), and `campusId` (`test-campus-x`).
+- **Cause**: `campusId` is assigned from `getCampusIdFromBody(body)` and identifiers are included in the lifecycle log. Numeric graph counts are safe scalars, but the request-derived campus identifier and mutation/correlation identifiers conflict with the current brief's no-ID/no-campus-entity-value condition.
+- **Fix**: Did not weaken or edit the test. Restored the previously removed count fields to match original commit `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`; all four production file blob IDs match that commit. Stopped pending clarification or authorization for a separate telemetry-redaction change.
+- **Prevention**: Do not treat a regex false positive as proof the full log is safe. Inspect each emitted field's provenance and keep ID checks until the no-ID contract is satisfied.
+- **Related tasks**: Navi Save Patch Telemetry Test Correction T2-T5
+
+## 2026-09-23: Read-only investigation commands needed explicit context correction
+- **Error**: The first Graphify query from the isolated release worktree could not find `graphify-out/graph.json`; an initial PowerShell `Get-Content -Skip` invocation used an unsupported parameter; an early status check was run from the dirty owner checkout rather than the release worktree.
+- **Cause**: Graph data belongs to the outer project root, PowerShell's `Get-Content` does not support `-Skip`, and the status command inherited the wrong working directory.
+- **Fix**: Ran the read-only Graphify query at the outer project root, used `Select-Object -Skip` to read the ledger, and repeated Git checks with the explicit release-worktree path. No Graphify update or generated-file change was made.
+- **Prevention**: Use explicit workdirs for every repository command and the PowerShell pipeline form `Get-Content | Select-Object -Skip`.
+- **Related tasks**: Navi Save Patch Telemetry Test Correction T1-T2
+
+## 2026-09-23: Shared regression checklist changed during cleanup
+- **Error**: The shared cleanup plan/TODO were modified during this run to propose a test-only correction, contrary to the current brief's preferred minimal source logging cleanup.
+- **Cause**: Multiple tasks share the same workflow directory; the exact writer is not established.
+- **Fix**: Left the conflicting plan/TODO untouched and recorded this run in uniquely named workflow artifacts. The release worktree source remains limited to the authorized `route.ts` count-field removal.
+- **Prevention**: Reread shared workflow artifacts before editing; when a conflict appears, preserve the other artifact and use a task-specific filename.
+- **Related tasks**: Navi Save Patch Final Regression Cleanup T1-T4
+
+## 2026-09-23: Map deployment audit probes needed corrected command paths
+- **Error**: A PowerShell `foreach` pipeline had a parse error; initial GitHub raw-source probes returned 404 because they included the local `navi-next/` prefix although the remote repository root is already that app; the first attempt to append this ledger entry did not match the exact existing tail context.
+- **Cause**: The PowerShell pipeline was attached after a statement block, local checkout paths were assumed to match remote repository paths, and the patch context did not match the file ending exactly.
+- **Fix**: Assigned loop output before formatting, queried the deployed commit's GitHub tree to establish repository-relative paths, and used an explicit append after rereading the exact tail. Failed probes made no repository or remote changes.
+- **Prevention**: Validate the remote tree/path before fetching raw files, assign PowerShell loop output before piping, and inspect exact end-of-file context before patching a ledger.
+- **Related tasks**: NAVI Map Performance Production Deployment Verification T1-T2
+
+## 2026-09-23: Shared release worktree reverted lifecycle cleanup
+- **Error**: The pre-commit audit found `src/app/api/graph/route.ts` had returned to the original patch contents, so `buildings` and `nodes` were present again after the cleanup tests/builds had passed.
+- **Cause**: A concurrent writer changed the shared release worktree; the exact writer and timing are not established.
+- **Fix**: Reapplied only the authorized two-field logging cleanup and reran the lifecycle test (9/9), corrected 18-file suite (117/117), focused save suite (61/61), and both builds (41/41 pages each). The route blob remained `d71db5be8e5ae22337613f545ce6205cf37c49de` throughout the final gates. No commit or push was made at this checkpoint.
+- **Prevention**: Compare the exact route diff and worktree status before each validation gate and before commit; rerun every required gate after any unexpected shared-worktree change.
+- **Related tasks**: Navi Save Patch Final Regression Cleanup T2-T4
+
+## 2026-09-23: Concurrent writer reintroduced production route diff during test-only task
+- **Error**: After a read-only verification showed the four production files matching original commit `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`, the final check found `src/app/api/graph/route.ts` changed again (2 insertions / 4 deletions), removing `graphCounts.buildings` and `.nodes`. The lifecycle test itself remains identical to HEAD.
+- **Cause**: A concurrent writer is changing the shared release worktree; identity and timing cannot be established from Git evidence.
+- **Fix**: Did not overwrite the concurrent change again. No test-only correction, new commit, push, or deployment was made. The worktree is not in the requested production-frozen state.
+- **Prevention**: Serialize ownership of the release worktree before continuing; after it is quiescent, restore/verify the exact original route and rerun every gate against the final state.
+- **Related tasks**: Navi Save Patch Telemetry Test Correction T1-T5
+
+## 2026-09-23: PowerShell array comparison misclassified an unchanged diff
+- **Error**: A post-test guard reported `route.ts` had changed during the lifecycle test even though the test passed 9/9 and the source diff was unchanged.
+- **Cause**: PowerShell's `-ne` operator compared the line arrays returned by Git element-by-element instead of comparing the complete diff text.
+- **Fix**: Re-read the worktree and confirmed only `route.ts` is modified with exactly the intended two-field removal; the lifecycle test passed. No product edit resulted from the false alarm.
+- **Prevention**: Normalize multi-line command output with `Out-String` or compare a Git blob hash instead of using `-ne` on output arrays.
+- **Related tasks**: Navi Save Patch Final Regression Cleanup T2-T3
+
+## 2026-09-23: Offline dependency install failed in the telemetry worktree
+- **Error**: `npm ci --offline --no-audit --no-fund` exited with `EPERM` while spawning a package script; npm also reported an `EPERM` cleanup attempt for the worktree's `node_modules/next` directory.
+- **Cause**: Windows denied a child-process spawn during install. The install is incomplete, so it cannot be used as test evidence.
+- **Fix**: No product source was changed. Verified the worktree lockfile hash exactly matches the shared checkout's lockfile; after the failed script-spawn attempt left no worktree `node_modules`, `npm ci --offline --no-audit --no-fund --ignore-scripts` installed 816 packages successfully, and the scoped Vitest run completed. The initial failed install itself is not counted as verification.
+- **Prevention**: Check the worktree-local install state before retrying npm, verify package-lock parity, and do not remove or reset generated dependency paths until their exact worktree scope is confirmed.
+- **Related tasks**: NAVI Save Patch Telemetry Redaction T2
+
+## 2026-09-23: Sandboxed Vitest startup blocked by Windows child-process EPERM
+- **Error**: A fresh explicit 18-file Vitest run failed while loading `vitest.config.ts` because Vite's real-path helper could not spawn (`spawn EPERM`).
+- **Cause**: Windows sandbox restrictions prevented the config helper child process from starting; this was an environment failure before test collection, not a test failure.
+- **Fix**: Retried the same matrix and the separately requested focused/lifecycle suites using the permission-reviewed local runner. Results: 18/18 files, 121/121 tests; focused 9/9 files, 64/64 tests; lifecycle 9/9 tests. No files were changed by the failed attempt.
+- **Prevention**: Classify startup `EPERM` separately from test failures; use the reviewed runner for the exact read-only test command and verify collected file/test counts.
+- **Related tasks**: NAVI Save Patch Telemetry Redaction T5
+
+## 2026-09-23: Standalone TypeScript validation hits unchanged baseline parser error
+- **Error**: `npx tsc --noEmit --pretty false` exits 1 at `packages/runtime/src/__tests__/data-identity-comparison.test.ts:255:3` with `TS1005: '}' expected`.
+- **Cause**: The repository's existing test file has an unmatched brace; Next production builds also report that they skip full type validation.
+- **Fix**: Compared the file against base `3f5277dcf14a8a17712d2c1e36c67a7de0181594`; it is unchanged. Recorded the typecheck as a baseline limitation, not as a regression introduced by the telemetry patch. Required focused/broad tests and both builds pass.
+- **Prevention**: Check whether compiler failures are in changed files and compare suspect baseline files to the selected base before attributing type errors to a scoped patch.
+- **Related tasks**: NAVI Save Patch Telemetry Redaction T5
+
+## 2026-09-23: PowerShell parsed unquoted Git tree expression as shell syntax
+- **Error**: The combined post-commit metadata check printed a PowerShell `-EncodedCommand` argument and failed to resolve `HEAD^{tree}`; subsequent commands in that shell still returned the parent, file list, and clean status.
+- **Cause**: PowerShell interpreted the braces in the unquoted revision expression.
+- **Fix**: Reran the query with the complete revision quoted: `git rev-parse 'HEAD^{tree}'`. It returned tree `b333abe982fbb692fa4b2a42bb6f863b5c7d6b9b`; commit, exact base parent, single-commit distance, six-file list, diff check, and clean status all verified.
+- **Prevention**: Quote brace-bearing Git revision expressions in PowerShell and evaluate the tree-hash command's exit code independently.
+- **Related tasks**: NAVI Save Patch Telemetry Redaction T6
+
+## 2026-09-23: Exact-SHA release required approved runner and Vercel CLI fallback
+- **Error**: Sandboxed GitHub access could not read the remote ref; an unquoted PowerShell `HEAD^{tree}` expression failed to parse; default Vercel CLI network checks hit `spawn EPERM`/proxy `ECONNREFUSED`; the Vercel connector returned 404 for the linked project and 403 for runtime errors/logs.
+- **Cause**: Restricted sandbox egress and PowerShell brace parsing; the connector did not expose access to the project associated with the local Vercel link.
+- **Fix**: Quoted the Git tree expression, then used the approved runner for read-only remote checks, the authorized normal push, remote SHA verification, and authenticated Vercel CLI inspection. A Git-created deployment with exact branch/SHA metadata was promoted; no campus data or Vercel project settings were changed.
+- **Prevention**: Quote brace-bearing Git refs; after sandbox egress fails, use only the approved runner. For Vercel connector 404/403 on a known linked project, use the authenticated CLI read-only fallback and verify source metadata plus production alias before promotion.
+- **Related tasks**: Navi Save/Sync Final Release T5-T6
+
+## 2026-09-23: Map scene audit probes and effect-boundary interpretation
+- **Error**: One source search referenced a nonexistent `src/lib/navigation-render-model.ts` path; an initial resource-ID search expression produced no matches; two PowerShell effect-dependency probes failed to parse. A broad search result also initially made `setData` callback dependencies look like map-resource setup dependencies.
+- **Cause**: The audit used an outdated guessed path, over-escaped a search expression, and matched callback dependency arrays without preserving the enclosing `useEffect` boundary.
+- **Fix**: Resolved the cache in `src/components/map/NavigationRenderModel.ts`, reran resource-ID searches with simpler patterns, and inspected setup effects and their cleanup blocks directly. Confirmed layer setup effects depend on the map; floor/context changes call `setData` without tearing down sources/layers.
+- **Prevention**: Resolve paths from imports/Graphify, prefer simple PowerShell and `rg` probes, and inspect complete effect boundaries before classifying lifecycle dependencies.
+- **Related tasks**: T1, T2
+
+## 2026-09-23: Map scene audit workflow artifact command parse failure
+- **Error**: The first audit-document write command failed in the JavaScript tool wrapper before PowerShell ran because Markdown backticks terminated the wrapper template literal.
+- **Cause**: Raw Markdown delimiters were embedded in the JavaScript template string.
+- **Fix**: Rebuilt the document strings without embedded template delimiters and wrote the workflow documents successfully.
+- **Prevention**: Keep Markdown/code delimiters escaped or use a string representation that cannot terminate the tool wrapper.
+- **Related tasks**: T3
+
+## 2026-09-23: Map scene audit progress-log command parse failure
+- **Error**: The first attempt to append the RouteLine finding to the audit progress log failed in the JavaScript wrapper before PowerShell ran because Markdown backticks around an inline code fragment terminated the wrapper template literal.
+- **Cause**: Raw Markdown delimiters were embedded in the JavaScript template string.
+- **Fix**: Retried with the fragment written in plain text.
+- **Prevention**: Keep Markdown delimiters escaped or omit inline formatting in wrapper-generated log text.
+- **Related tasks**: T3
+
+## 2026-09-23: Initial skill-path and clarification-tool arguments were invalid
+- **Error**: The first skill read used two incorrect plugin paths, and the first optional worktree-approval question used an unsupported `question` field in the asynchronous input schema.
+- **Cause**: The skill roots resolve to the user-level `.agents` / plugin cache locations, and this tool accepts `title` rather than `question`.
+- **Fix**: Read the full Graphify/investigate-first skills from their listed roots and resent the worktree question with a valid schema. No repository or production state changed.
+- **Prevention**: Expand skill roots from the session catalog and follow the callable schema exactly before invoking UI input tools.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T1
+
+## 2026-09-23: Graphify lookup returned stale duplicated editor fixtures
+- **Error**: The mandatory save-lifecycle Graphify query returned repeated references to legacy `apps/studio-new/tests/recovery.test.ts` copies and unrelated manifest/selection concepts, not the deployed `src/store` save and persistence graph.
+- **Cause**: The existing Graphify index covers duplicated historical worktrees and its query vocabulary did not distinguish the deployed `navi-next` save pipeline.
+- **Fix**: Kept the query result as non-authoritative navigation context; no source conclusion was drawn from it. The investigation proceeds against a new clean worktree at the immutable deployed SHA.
+- **Prevention**: Check Graphify `source_location` against the requested deployed tree and treat stale/duplicate matches as insufficient evidence; direct source tracing follows only after the required initial graph query.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T1-T2
+
+## 2026-09-23: Lifecycle test source probes used unsupported wildcard/path assumptions
+- **Error**: `rg` was first given PowerShell-style wildcard path arguments for test files, then a guessed `packages/editor/src/adapters/graph-adapter.ts` path that does not exist.
+- **Cause**: `rg` does not expand PowerShell wildcard path arguments in that form, and the adapter lives at `packages/editor/src/graph-adapter.ts`.
+- **Fix**: Listed candidate files with `rg --files`, reran searches against explicit paths, and read the adapter from its actual location. No source files changed.
+- **Prevention**: Use `rg --files` to resolve paths before querying and pass exact repo-relative paths to `rg`.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T2-T3
+
+## 2026-09-23: Reload lifecycle harness teardown and held ACK fixture
+- **Error**: The first production-shaped test attempt called `ServiceRegistry.destroy()`, which invokes `destroy()` on plain stores and attempted to destroy a busy persistence adapter; a held recovery POST also accidentally omitted its revision, causing a second read-back cycle rather than settling the intended ACK.
+- **Cause**: `ServiceRegistry` owns a mixed set of lifecycle services and plain stores, while the test's held-POST helper reused the uncertain-ACK mode instead of returning a normal authoritative revision.
+- **Fix**: Test teardown now destroys only the real AutosaveService and WorkflowService instances and resets GraphStore memory while preserving localStorage. The held recovery POST now commits and returns `updatedAt` normally. The lifecycle test then produces the intended RED: two local-ahead ACK cases retain `WorkflowStore.saveState=dirty` and render `Unsaved changes` after server/local B and marker R1, while session 3 is clean; the server/local-B uncertain-ACK branch converges on session 2.
+- **Prevention**: For session teardown tests, destroy only lifecycle-owning services and inspect mixed registries before invoking a bulk destroy. Separate a committed revision ACK from an omitted-revision ACK in controlled-server helpers.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T3-T4
+
+## 2026-09-23: Local-ahead recovery ACK left the workflow baseline dirty until reload
+- **Error**: The production-shaped lifecycle test showed a successful guarded recovery POST changed controlled server/local authored state to B, advanced `navi-sync-status-${campusId}` to R1, cleared included pending intent, and set Graph sync to `synced`, while `WorkflowStore.saveState` remained `dirty` / `Unsaved changes`. A second reload alone healed the baseline through `checking → synced`.
+- **Cause**: The local-ahead resume calls `enqueueCampusSave()` directly rather than `WorkflowService.save()`. Initial stale-marker `idle` had already made workflow state dirty, so `graphSyncStartedClean` was false and the old synced-state gate had no matching freshness or blocked-sync baseline to accept the successful Graph ACK.
+- **Fix**: Capture the editor document version at persistence sync start. For a successful out-of-band `synced` completion, use that version as the baseline only if the document is unchanged; clear the captured version on idle, freshness restart, error/conflict, and normal workflow save completion/failure.
+- **Prevention**: When a remote sync can be initiated outside the workflow save API, assert both Graph and Workflow state after ACK. Preserve the document-version guard so an authored edit committed during the request cannot be reported saved.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T3-T5
+
+## 2026-09-23: Second-reload task-log patch context did not match
+- **Error**: A combined progress/TODO/ledger/error update was rejected because its expected T4 TODO line did not match the current wording; no file was changed by the failed patch.
+- **Cause**: The visible checklist said “preserve crash recovery,” while the patch expected “preserve legitimate recovery.”
+- **Fix**: Re-read exact document tails and reapplied the updates with verified context.
+- **Prevention**: Re-read task-document lines before broad multi-file patches and use exact current wording as the patch anchor.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T4-T5
+
+## 2026-09-23: NAVI map scene patch context did not match
+- **Error**: A combined apply_patch for the ExploreMap ownership move was rejected because its large layer-composition context did not match the current file; it made no source change.
+- **Cause**: The structural patch bundled import, helper, component, and JSX changes into one broad context hunk.
+- **Fix**: Re-read the current file and split the ownership change into smaller exact edits.
+- **Prevention**: Apply structural React moves as focused hunks and re-check the target source after a rejected patch.
+- **Related tasks**: NAVI Map Transition Optimization 3 T2
+
+## 2026-09-23: Persistent scene entrance layer missing map input
+- **Error**: The first post-scaffolding lifecycle check found the expected campus resources except for the entrances source/layer.
+- **Cause**: Moving ExploreLayers into PersistentCampusScene omitted EntranceLayer's required map prop; that component uses the explicit prop rather than NavigationMap context.
+- **Fix**: Pass the shared map to EntranceLayer and keep its data updates under the same persistent scene owner.
+- **Prevention**: When moving a composed React scene, verify every child component's props against its interface instead of assuming all layers read the map context.
+- **Related tasks**: NAVI Map Transition Optimization 3 T2
+
+## 2026-09-23: Persistent scene hidden-snapshot lint failure
+- **Error**: Scoped ESLint rejected reading/writing the retained scene ref during render; it also found unused test imports, two explicit any test types, and an unused style-test render handle.
+- **Cause**: The hidden-scene freeze stored the last visible selector snapshot in a ref and read it to derive render output; test refactoring left stale imports and an overly broad fixture type.
+- **Fix**: Replace render-time ref access with equality-guarded conditional state synchronization during render, then remove stale imports/variables and use a typed scene-state fixture.
+- **Prevention**: Keep refs for callbacks/imperative ownership only; when a render must retain the last visible snapshot, use a guarded previous-state comparison and rerun scoped lint after moving component ownership.
+- **Related tasks**: NAVI Map Transition Optimization 3 T2
+
+## 2026-09-23: Missing React hook import in BuildingLayer handler stabilization
+- **Error**: Focused BuildingLayer tests failed at render with `ReferenceError: useLayoutEffect is not defined`.
+- **Cause**: The stable selection/callback refs use `useLayoutEffect`, but the React import list was not updated.
+- **Fix**: Add `useLayoutEffect` to the React imports, then rerun RouteLine and BuildingLayer focused tests.
+- **Prevention**: When introducing a React hook, update imports in the same patch and run its focused component test immediately.
+- **Related tasks**: T3
+
+## 2026-09-23: Building selection no longer syncs on selected ID changes
+- **Error**: The stabilized styledata listener remained registered, but the BuildingLayer focused test saw only the initial selected feature state after the selected building changed.
+- **Cause**: Listener registration had become stable as intended, but selection synchronization was tied only to listener setup and no longer ran after the selection prop changed.
+- **Fix**: Keep a one-time styledata listener effect and add a separate lightweight selection effect keyed by selectedBuildingId that calls the same stable sync function.
+- **Prevention**: When replacing dependency-driven listener recreation with refs, preserve a separate effect for the state changes that previously triggered the callback.
+- **Related tasks**: T3
+
+## 2026-09-23: Map scene TypeScript verification hit repository and fixture baselines
+- **Error**: Repository `tsc --noEmit` stopped on the documented archived `data-identity-comparison.test.ts:255` unmatched brace. A temporary narrowed check bypassed those archives but reported existing `packages/core`/`NavigationRenderModel` type errors, the committed ExploreMap NavigationCamera heading-status mismatch, and test fixture/matcher typing diagnostics in the selected tests.
+- **Cause**: The project typecheck includes malformed archived worktrees and currently inconsistent workspace package types. Several new test fixtures also use incomplete type shapes; matcher augmentation is not part of the TypeScript test config.
+- **Fix**: Correct the new scene test fixture types and re-run narrowed production-source checking; keep unrelated core, committed ExploreMap, and matcher baseline diagnostics distinct. Remove the temporary config after every run.
+- **Prevention**: Compare diagnostics with committed source before assigning ownership, and use the project build plus focused tests/lint while the repository-wide type baseline remains broken.
+- **Related tasks**: T4
+
+## 2026-09-23: Handler-snapshot test patch anchor mismatch
+- **Error**: The combined patch to add a persistent-handler identity snapshot failed because its expected assertion block did not match the current lifecycle test; no test file changed.
+- **Cause**: The patch context omitted the surrounding asynchronous wait/source-capture lines present in the current test.
+- **Fix**: Re-read the exact helper and transition-test sections, then apply the helper and assertions as separate narrow hunks.
+- **Prevention**: Re-anchor test edits from the current exact file contents instead of combining helper insertion with a guessed assertion context.
+- **Related tasks**: T4
+
+## 2026-09-23: Scoped lint found unused campus mock parameter
+- **Error**: Scoped ESLint reported one unused `_campusId` parameter in the typed `fetchCampusData` mock; no lint errors occurred.
+- **Cause**: The parameter was added to make the mock signature compatible with the store, but the implementation did not use it.
+- **Fix**: Give `vi.fn` the explicit optional-campus function signature while keeping a zero-argument implementation.
+- **Prevention**: Prefer an explicit mock generic when the dependency accepts optional arguments that the test does not inspect.
+- **Related tasks**: T4
+
+## 2026-09-23: NAVI second-reload broad regression gate remains red
+- **Error**: The targeted 18-file save/reload matrix completed 125/128 tests with three failures in `local-ahead-auto-resume` and `refresh-recovery`. The repository-wide run completed 6,039/6,106 tests, with 59 failed, 8 skipped, 21 failed files, and one unhandled expectation rejection. The unchanged Graph-store failure cases were also reproduced by running their two files alone.
+- **Cause**: Current-tree expectations disagree with observed Graph-store behavior in three save-related cases (retry remains `syncing`; two recovery errors resolve), while the broad suite also contains failures outside the changed paths, including references to a missing `packages/editor/src/demo/golden-campus`. A full unchanged-base replay was not run, so all non-target failures are not claimed as baseline-proven.
+- **Fix**: Kept GraphStore and its tests untouched; recorded the failed gate for review. The focused lifecycle/workflow gate remains 27/27, and both requested production builds pass.
+- **Prevention**: Preserve the exact failure list/count in the release report and compare failing broad suites against the same deployed SHA before attributing them to this scoped workflow-baseline change.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T5-T6
+
+## 2026-09-23: NAVI second-reload scoped lint retained existing error typing
+- **Error**: ESLint on both changed files reports two `no-explicit-any` errors in `workflow-service.ts`; the new lifecycle test passes scoped ESLint with no output.
+- **Cause**: The `catch (err: any)` and `saveFailed(err: any)` annotations are unchanged from the exact deployed base; `git show HEAD:packages/editor/src/services/workflow-service.ts` confirms they predate this patch.
+- **Fix**: Left unrelated error typing unchanged; no lint issue was found in changed lines or the new test.
+- **Prevention**: Compare full-file lint findings with the selected base and keep unrelated typing cleanup out of a narrow P0 lifecycle fix.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T5
+
+## 2026-09-23: NAVI second-reload Graphify default access denied, reviewed retry succeeded
+- **Error**: The initial worktree-local `graphify update .` stopped with `[WinError 5] Access is denied` during extraction.
+- **Cause**: The default Windows sandbox denied Graphify's generated-index write boundary.
+- **Fix**: Retried the identical worktree-scoped command through the permission-reviewed runner; it rebuilt `graphify-out` with 12,210 nodes, 26,835 edges, and 587 communities. Generated graph output was not staged.
+- **Prevention**: Use the documented reviewed retry for the exact Graphify update after source edits, and exclude generated graph artifacts from the release commit.
+- **Related tasks**: NAVI P0 Second-Reload Persisted Lifecycle T5
+
+## 2026-09-23: Map scene production build worker spawn denied
+- **Error**: `npm run build` compiled successfully but failed during page-data collection with Windows `spawn EPERM`.
+- **Cause**: The managed sandbox denied Next.js worker process creation; this is the established build-worker boundary in ERRORS.md.
+- **Fix**: Retry the identical build command with elevated execution; do not change application code or build configuration for the sandbox failure.
+- **Prevention**: Distinguish successful compilation from a complete production build and use the approved worker-capable execution path when the sandbox denies child workers.
+- **Related tasks**: T4
+
+## 2026-09-23: Graphify incremental refresh denied by Windows access control
+- **Error**: Required `graphify update .` reached code re-extraction, then exited with `[WinError 5] Access is denied`; no successful update was reported.
+- **Cause**: The sandboxed Graphify Python worker lacked access to at least one indexed workspace path.
+- **Fix**: Retry the same required incremental update with elevated execution. If the retry is denied, preserve generated graph files and report the limitation.
+- **Prevention**: Run the post-change Graphify update through the approved access path; do not manually edit graph output or clean pre-existing graph artifacts.
+- **Related tasks**: T4
+
+## 2026-09-23: Graphify rebuild stopped under low-memory pressure
+- **Error**: The elevated Graphify update completed AST extraction for about 29,800 files but remained in graph construction without output, using about 8 GB; Windows reported only 0.3 GB free memory.
+- **Cause**: The existing project Graphify manifest/cache caused a near-full repository rebuild across archived worktrees and generated trees, exceeding the available memory budget.
+- **Fix**: Sent Ctrl+C to the Graphify session to protect the workspace; left graphify-out files untouched and reported the incomplete index refresh.
+- **Prevention**: Repair the Graphify incremental manifest or scope its cache to the canonical project before another full update; do not retry a repository-wide graph rebuild under the same memory constraints.
+- **Related tasks**: T4
+
+## 2026-09-23: Existing Navigate development-simulator test failed in supplemental suite
+- **Error**: The map/navigation regression group passed NavigationMap, NavigationCamera, Explore page, and 24 Navigate page cases, but the Navigate development-simulator case could not find `navigation-dev-panel` (40/41 tests passed total).
+- **Cause**: The test mocks `NavigationSession` with a `NavigationProvider` wrapper that never renders `NavigationDevPanel`, so the test expectation cannot be satisfied by that test double. The Navigate page and test are unchanged in this task.
+- **Fix**: No unrelated Navigate UI or test-mock change was made; report this as a pre-existing supplemental-suite failure, separate from the green map-scene suite.
+- **Prevention**: Render the development panel in the NavigationSession test double when that existing test is next maintained; keep this map task scoped to its runtime and scene owners.
+- **Related tasks**: T4
+
+## 2026-09-23: Second-reload matrix failures proven pre-existing
+- **Error**: The fix matrix had three failures (`local-ahead-auto-resume` retry status and two `refresh-recovery` rejection expectations), but their provenance was not previously compared against the deployed parent.
+- **Cause**: The prior release gate ran only at the fix SHA and used aggregate counts for the wider suite.
+- **Fix**: Ran the identical 18-file/128-test command at fix `f0535f603b0f73ac614bd5857e037462c2226ed9` and parent `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`. Each of the same three assertions failed with the same actual value/error on the unchanged parent. Parent-only lifecycle test reds were expected and disappeared on the fix. No application code changed.
+- **Prevention**: Attribute regressions only after comparing each exact test/assertion/state on the unchanged parent; keep test collection size and the temporary test fixture explicit.
+- **Related tasks**: NAVI second-reload regression provenance T1–T4
+
+## 2026-09-23: Clean worktree production build environment and disk limits
+- **Error**: A clean production build initially lacked the two public Supabase build variables. With temporary non-production placeholders, Turbopack passed, but webpack compiled with warnings and failed while writing its cache with `ENOSPC`. An earlier sandboxed Turbopack attempt also hit `spawn EPERM` before page generation.
+- **Cause**: The isolated worktree intentionally had no local environment file, Next.js workers require the reviewed elevated path on this host, and only about 281 MB was free after installing the full locked dependencies.
+- **Fix**: Used process-local dummy values only (no production credentials or `.env` edits), retried Turbopack through the worker-capable path (41/41 pages passed), recorded webpack as blocked, and removed only the task-generated `.next` and `node_modules` folders. C: free space recovered to about 1.08 GB.
+- **Prevention**: Verify disk headroom before a two-mode build; keep build placeholders non-production and process-local; distinguish `EPERM`, missing configuration, and `ENOSPC` from source compilation regressions.
+- **Related tasks**: NAVI second-reload regression provenance T5
+
+## 2026-09-23: Provenance command quoting and output-pipeline mistake
+- **Error**: One read-only combined command failed at JavaScript string parsing; a follow-up PowerShell command interpreted Git output as file paths when it was piped to `Get-FileHash`, producing noisy path/access errors. No repository file was changed by those commands.
+- **Cause**: Nested quoting in the tool wrapper and using a file-oriented cmdlet on text streamed from `git show`.
+- **Fix**: Reissued the checks as bounded Git comparisons and bounded source excerpts; verified the exact telemetry tree, unchanged workflow source, clean applicability check, and clean worktree states.
+- **Prevention**: Keep wrapper strings simple; use `git diff --quiet` for blob equality and avoid piping source text into filesystem path cmdlets.
+- **Related tasks**: NAVI second-reload regression provenance T4
+## 2026-09-23: Deployment Vercel inspection needed login and scope
+- **Error**: Vercel CLI had no saved credentials; an unscoped project lookup returned 404, and the domain-filtered alias endpoint returned no records.
+- **Cause**: The CLI session needed the user's device login, and project/API scope had to match the linked team; the alias endpoint did not resolve the production domain.
+- **Fix**: The user completed one device login. Queried the project with its team scope, used the authenticated production deployment list for source SHA, and used vercel inspect on the production alias to resolve its target.
+- **Prevention**: Confirm account and project scope, and verify aliases through the deployment inspection command rather than inferring from an empty alias-list response.
+- **Related tasks**: NAVI Persistent Campus Scene Deployment T1, T4
+
+## 2026-09-23: Deployment command context and quoting corrections
+- **Error**: One workflow patch did not match the current TODO tail, and one PowerShell command failed parsing before execution.
+- **Cause**: The patch used a stale sentence; a command placed a semicolon-separated status assignment inside a conditional expression.
+- **Fix**: Re-read the exact TODO tail and reapplied the patch; separated the PowerShell command and status check. No source files or Git state were changed by the failed attempts.
+- **Prevention**: Confirm exact append context and keep PowerShell command execution/status checks on separate statements.
+- **Related tasks**: NAVI Persistent Campus Scene Deployment T2
+
+## 2026-09-23: Isolated dependency and Vitest commands hit spawn EPERM
+- **Error**: The first offline npm ci and unsandboxed Vitest config load failed with Windows spawn EPERM.
+- **Cause**: The managed sandbox blocked child processes required by npm package scripts and Vite path resolution.
+- **Fix**: Retried npm ci and both focused/broader Vitest suites through the elevated process boundary; install added 816 packages, then tests passed 5 files/30 tests and 22 files/174 tests.
+- **Prevention**: Use the approved process boundary for these test/build tools when the sandbox rejects child-process creation.
+- **Related tasks**: NAVI Persistent Campus Scene Deployment T3
+
+## 2026-09-23: Read-only NAVI map regression probes had tooling errors
+- **Error**: A Graphify query from the clean deployment worktree failed because that worktree has no `graphify-out/graph.json`; the first Chrome screenshot capture timed out; one read-only browser evaluation had a JavaScript parenthesis typo; a React-fiber inspection was unavailable on the production DOM; and one PowerShell search used quoting/path arguments that did not resolve.
+- **Cause**: Graphify output exists only in the outer project root, the browser capture API had a transient CDP timeout, the evaluation snippet was malformed, production React internals were not exposed, and shell search context differed between the outer repo and the clean worktree.
+- **Fix**: Re-ran Graphify from the project root; later browser snapshots/screenshots and repeated production route transitions completed; corrected the evaluation; used source and test evidence from the exact clean production worktree. No product-code failure was observed.
+- **Prevention**: Run Graphify from the project root, use supported page observations, keep read-only probes syntactically small, and use paths relative to the selected checkout.
+- **Related tasks**: NAVI Map Scene Optimization #3 Regression Diagnosis T1–T3
+
+## 2026-09-23: Isolated production build initially lacked local public Supabase inputs
+- **Error**: The first clean-worktree build compiled but prerendering /demo/navigate failed because NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY were absent.
+- **Cause**: The isolated worktree intentionally contained no local environment file.
+- **Fix**: Loaded the existing local public values into the single build process only; the production build then generated all 41 pages. No Vercel environment or project configuration changed, and values were not emitted.
+- **Prevention**: For an isolated build, provide existing required public inputs process-locally; do not change deployed environment configuration.
+- **Related tasks**: NAVI Persistent Campus Scene Deployment T3
+
+## 2026-09-23: Production camera observation did not expose numeric zoom
+- **Error**: The production screenshot request timed out, and the read-only page evaluation surface exposed `window.performance` as undefined, so the MapLibre instance and numeric camera state could not be read.
+- **Cause**: The browser inspection surface restricts page globals and the screenshot CDP request did not complete.
+- **Fix**: Used the live accessibility DOM plus exact deployed-source and Git-baseline evidence; reported the controller's requested zoom target without claiming a measured live zoom delta.
+- **Prevention**: Treat production camera numbers as unavailable unless the page exposes a supported read-only camera signal; do not inject instrumentation or grant permissions for an audit.
+- **Related tasks**: NAVI No-Route Navigate Camera Regression Addendum T5–T7
+
+## 2026-09-24: Camera regression test patch anchor did not match
+- **Error**: The initial controller-test patch failed verification because it expected a `getBearing` spy type declaration absent from the actual fixture.
+- **Cause**: The fixture's returned test helpers expose bearing through a closure and only type the methods needing mock-specific APIs; `apply_patch` applied the independent NavigationCamera bridge test before reporting the controller-hunk failure.
+- **Fix**: Verified the partial application, retained the in-scope controller-unmount test, and re-read the exact fixture before adding the controller regressions in smaller hunks.
+- **Prevention**: Inspect every target file after a failed multi-file patch because prior independent hunks may already have applied; anchor follow-up edits to actual source.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T1
+
+## 2026-09-24: Next CLI help probe ran from the workspace root
+- **Error**: `npx next --help` was invoked from the outer Navi workspace, where no local Next CLI exists, and attempted to resolve a package instead of checking the app's installed CLI.
+- **Cause**: The inspection command used the outer workspace as its working directory while referencing the nested app only for `package.json`.
+- **Fix**: Confirmed there are no package/lockfile changes and no new npx install process; will invoke `navi-next/node_modules/.bin/next` from the app directory.
+- **Prevention**: Run package-manager and binary probes from the package directory that owns the executable.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Route-preview test insertion was already applied
+- **Error**: A follow-up insertion for the route-preview case did not match because the earlier successful route-preview hunk was already present.
+- **Cause**: I attempted to apply the same test change twice after a prior multi-hunk failure had been partially resolved through a separate successful patch.
+- **Fix**: Re-read the file, confirmed the passive-to-preview test is present once, and made no additional change.
+- **Prevention**: Verify current file content after each successful smaller hunk before retrying a previously attempted change.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T1
+
+## 2026-09-24: Camera cleanup regression assertion included max-zoom restoration
+- **Error**: The first RED run's Explore-unmount assertion treated the controller's `setMaxZoom(22)` restoration as a camera movement, causing an extra failure unrelated to camera-state preservation.
+- **Cause**: The shared helper grouped zoom-ceiling cleanup with center/zoom/bearing/pitch transforms.
+- **Fix**: Keep the focused RED failures for passive `easeTo` and active-policy ownership; narrow the teardown assertion to transform methods and explicitly verify the original max zoom is restored.
+- **Prevention**: Assert camera state separately from MapLibre interaction/constraint cleanup APIs.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T1
+
+## 2026-09-24: Camera regression follow-up patch context did not match
+- **Error**: A second focused test patch was rejected because its route-preview anchor did not match the controller suite's current test ordering.
+- **Cause**: The file's line offsets changed after the initial setup regressions were inserted, and the combined patch expected stale surrounding text.
+- **Fix**: No files changed in this attempt; split the GPS, route-preview, and cleanup test edits into separate hunks using fresh exact context.
+- **Prevention**: Avoid combining test insertions in a shifted file; inspect each insertion point immediately before patching.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T1
+
+## 2026-09-24: Isolated Turbopack build rejected dependency junction
+- **Error**: The copied production build failed before compiling with `Symlink [project]/node_modules is invalid, it points out of the filesystem root`.
+- **Cause**: The isolated build copy used a junction to the existing installed dependencies outside the copied Turbopack root.
+- **Fix**: No application files changed; retry the isolated production build with Next's webpack builder before considering a larger dependency copy.
+- **Prevention**: Keep Turbopack's filesystem root and dependency tree within the same project root, or use a builder that supports the isolated dependency resolution setup.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Scoped camera TypeScript check exposed untyped map spies
+- **Error**: A targeted TypeScript check reported mock-property errors on the NavigationCamera test fake's `easeTo`, `fitBounds`, `on`, and `off`, along with existing `packages/core` type drift and the configured matcher augmentation gap.
+- **Cause**: The fake was cast to the MapLibre interface but its Vitest mock methods were not included in the mock-specific intersection type; the wider source graph also imports unchanged core modules.
+- **Fix**: Add explicit Vitest mock method types to the in-scope fake, rerun the focused check, and keep core/matcher baseline findings separate.
+- **Prevention**: Type every fake API whose mock call history is asserted, and use a scoped TypeScript config that includes the project's test setup types when checking matcher assertions.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Test-setup lookup used PowerShell wildcard paths
+- **Error**: The test-type augmentation lookup passed `vitest.config.*` and `src/test*` as literal Windows paths to ripgrep and emitted path error 123.
+- **Cause**: PowerShell did not expand the wildcard arguments in that invocation.
+- **Fix**: The command still found `src/test-setup.ts`; use explicit `--glob` filters if another lookup is needed.
+- **Prevention**: On Windows, keep search roots literal and express patterns with ripgrep's `--glob` option.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Camera fake Omit typing dropped MapLibre call signatures
+- **Error**: The first `Omit`-based mock-type check reported that Vitest `Mock` methods were not assignable to `NavigationCameraMap` because required call signatures had been removed.
+- **Cause**: The replacement properties described mock metadata but not the original MapLibre method signatures.
+- **Fix**: Keep the `Omit` for mock metadata access, then intersect each mocked member with its indexed `NavigationCameraMap` method type.
+- **Prevention**: When typing mocks for interface methods, retain the original callable signature alongside mock call-history typing.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: PowerShell parsed unquoted route test paths
+- **Error**: The first relevant map-suite command failed before test collection because PowerShell interpreted the `(` in `src/app/(public)/...` as shell syntax.
+- **Cause**: Route test arguments containing parentheses were passed without shell quoting.
+- **Fix**: Re-ran the command with each test path single-quoted; Vitest collected the intended 11 files.
+- **Prevention**: Quote route-group paths in PowerShell test invocations.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Navigate page matrix repeated known dev-panel test-double failure
+- **Error**: The relevant map suite passed 163/164 tests; `renders the development simulator only behind the explicit non-production flag` could not find `navigation-dev-panel` in the rendered test DOM.
+- **Cause**: The existing Navigate page test mock does not render the development simulator panel; this same baseline failure is documented in the earlier Navigate map regression entry and is unrelated to the camera controller change.
+- **Fix**: No unrelated test or UI files were changed. All camera, route-preview, map runtime persistence, Explore, and render-model tests in the matrix passed.
+- **Prevention**: Repair the Navigate page test double in a separate scoped change before treating that assertion as a passing gate.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Narrowed camera TypeScript check reports existing core package drift
+- **Error**: The final narrowed `tsc` check exited 2 with unchanged `packages/core` export, missing type, and discriminated-union errors; it reported no diagnostics in the three changed application files.
+- **Cause**: The selected controller/tests import the existing inconsistent `packages/core` type graph.
+- **Fix**: Keep the scoped diagnostics classified as baseline; the temporary config was removed and no core files were modified.
+- **Prevention**: Re-run the narrowed check after related core types are reconciled, and compare file paths before attributing failures to this camera patch.
+- **Related tasks**: NAVI Passive Navigate Camera Ownership T3
+
+## 2026-09-24: Road-drag baseline Vitest sandbox spawn denied
+- **Error**: The first baseline Vitest run failed before collecting tests with Windows `spawn EPERM` while Vite loaded `vitest.config.ts`.
+- **Cause**: The managed sandbox blocked the child-process spawn used by Vite's external dependency resolver.
+- **Fix**: Re-ran the identical `npx vitest run src/components/studio/__tests__/useVertexEditor.test.tsx` command with the approved elevated execution context; baseline passed 1 file / 4 tests.
+- **Prevention**: Treat this as runner startup failure, not an application test failure; use the established exact-command elevated retry when this Windows EPERM recurs.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T1
+
+## 2026-09-24: Road-drag browser fixture route used Next private folder prefix
+- **Error**: The first local Playwright navigation returned HTTP 404 for the temporary fixture page.
+- **Cause**: The App Router reserves underscore-prefixed folders as private folders, so `src/app/__road-drag-fixture` did not register a route.
+- **Fix**: Moved the temporary page to the public route folder `src/app/road-drag-fixture-local`.
+- **Prevention**: Use non-underscore directory names for temporary App Router pages and verify the local route before running browser assertions.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T1
+
+## 2026-09-24: Road-drag browser fixture used unsupported Point.toArray
+- **Error**: The local Playwright probe loaded the fixture but failed before dragging because `map.project(...).toArray()` is not a function in the installed MapLibre version.
+- **Cause**: The harness assumed MapLibre's `Point` object exposed an array conversion method.
+- **Fix**: Read the projected screen coordinates from its `x` and `y` fields.
+- **Prevention**: Match browser instrumentation to the installed MapLibre API and check the returned value shape before using it.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T1
+
+## 2026-09-24: Road-drag StudioCanvas Profiler RED baseline
+- **Error**: The new focused StudioCanvas Profiler regression assertion failed on the clean release parent: 60 map `mousemove` events produced 60 React commits where the target is zero commits during vertex editing. The route snap-preview test passed.
+- **Cause**: StudioCanvas stores a new cursor object in React state for every map movement even when the route snap-preview consumer is inactive.
+- **Fix**: This is intentional RED evidence; production source remains unchanged. T3 will scope cursor updates to route authoring and rerun the same Profiler assertion.
+- **Prevention**: Keep the existing route snap-preview positive test and assert only the inactive vertex-edit path has no cursor-driven commits.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T1-T3
+
+## 2026-09-24: Road-drag test patch script template parse error
+- **Error**: The first PowerShell patch invocation was rejected by the JavaScript command template parser before it reached the shell; no test file was changed.
+- **Cause**: PowerShell backtick newline escapes collided with the outer JavaScript template literal.
+- **Fix**: Switched the patch script to normalize CRLF using character codes instead of embedded backticks.
+- **Prevention**: Keep PowerShell control characters out of JavaScript template literals or construct them from character codes.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T2
+
+## 2026-09-24: Road-drag test patch template retry retained newline escapes
+- **Error**: A second attempted patch script was rejected by the outer command parser before the shell ran; no test file changed.
+- **Cause**: Two PowerShell backtick-newline tokens remained in the script's replacement expressions.
+- **Fix**: Rebuild the replacement strings with the explicit `$lf` variable and no embedded backticks.
+- **Prevention**: Search the complete command template for backticks before invoking the shell.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T2
+
+## 2026-09-24: Road-drag regression insertion template had mismatched delimiter
+- **Error**: The regression-test insertion command was rejected by the JavaScript template parser before shell execution; no test file changed.
+- **Cause**: The task array assignment ended with an extra parenthesis copied from a `Promise.all` wrapper.
+- **Fix**: Use a single command call and close the array assignment directly.
+- **Prevention**: Validate outer JavaScript delimiters before invoking nested shell edits.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T2
+
+## 2026-09-24: Road-drag canvas test update template retained an escape
+- **Error**: The combined StudioCanvas/plan update was rejected by the outer JavaScript parser before shell execution; no file changed.
+- **Cause**: An unnecessary PowerShell escape token remained inside the JavaScript template string.
+- **Fix**: Removed the token and separated the canvas fixture edit from the workflow-plan addendum.
+- **Prevention**: Keep all backtick characters out of `functions.exec` JavaScript templates unless deliberately escaped at the outer layer.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T2
+
+## 2026-09-24: Road-drag pointer test double used the wrong MapLibre point shape
+- **Error**: The first post-implementation hook run produced NaN pointer coordinates in test previews.
+- **Cause**: Production correctly passed a MapLibre PointLike tuple to `map.unproject`, while the test double accepted only an `{x,y}` object.
+- **Fix**: Updated the double to accept both tuple and object shapes; the browser-facing implementation remains on the documented tuple form.
+- **Prevention**: Keep map fakes compatible with the installed MapLibre PointLike API and exercise pointer coordinates through the real method signature.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T3
+
+## 2026-09-24: Road-drag broad scoped ESLint reports untouched baseline findings
+- **Error**: ESLint over all touched source and test files exited 1 with 31 diagnostics.
+- **Cause**: Every reported location is on unchanged legacy code: explicit-any casts and resolver/inverse types in `entity-update-handler`, render-time ref assignments and an existing any in `InteractionController`, the pre-existing dispatcher ref assignment in `StudioCanvas`, and existing any casts in `InteractionController.test`.
+- **Fix**: Removed avoidable any casts from the changed vertex and entity-update test lines; focused ESLint over the changed hook, junction helper, and changed/new tests passes. Kept unrelated baseline cleanup out of this road-drag patch.
+- **Prevention**: Compare diagnostics to the exact release diff and keep touched-file lint debt separate from new findings.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T3
+
+## 2026-09-24: Browser drag probe missed pointerdown after target propagation stop
+- **Error**: The first real-browser slow-drag probe recorded zero active pointer moves although transient gating and preview source updates were active.
+- **Cause**: The production pointerdown handler intentionally stops propagation at the canvas; the fixture counted pointerdown only at document bubble phase, so its active-drag event counter never started.
+- **Fix**: Moved the fixture pointerdown counter to window capture phase, which observes the event before the canvas handler. No product code change was needed.
+- **Prevention**: Place browser event probes at a propagation phase that precedes the interaction under test, and cross-check counters against the transient gate and source updates.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T4
+
+## 2026-09-24: Browser outside-canvas scenario left the shared fixture vertex offscreen
+- **Error**: A later junction scenario found no authored commit after an earlier release-outside-canvas scenario.
+- **Cause**: The fixture shares one in-memory campus across scenarios, and the outside-canvas drag deliberately moved the vertex outside the viewport before later scenarios tried to hit it.
+- **Fix**: Reordered the outside-canvas release case to run after other vertex scenarios and pointercancel.
+- **Prevention**: Order destructive-to-fixture geometry cases last or reset the synthetic document between scenarios.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T4
+
+## 2026-09-24: Browser active-move counter double-counted pointercancel completion
+- **Error**: The outside-canvas run had 24 preview updates while the probe reported zero active-drag moves.
+- **Cause**: Its cumulative down-versus-up/cancel formula counted a physical pointerup after a synthetic pointercancel as two terminal events.
+- **Fix**: Count move events while the hook's transient interaction gate is active; it marks drag movement before the event reaches the probe's document listener.
+- **Prevention**: Measure gesture lifetime from the interaction's transient state instead of inferring it from cumulative event totals when a browser may emit multiple terminal events.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T4
+
+## 2026-09-24: Browser sequence caught an uncaught map error after terminal gestures
+- **Error**: The complete Playwright gesture sequence finished its assertions but captured one uncaught `Cannot read properties of undefined (reading 'lat')` page error.
+- **Cause**: The original click listener remained alongside the captured-drag effect and indexed midpoint segments without validating road identity or bounds. The first guard was added to a redundant listener, leaving the original listener able to throw.
+- **Fix**: Kept one click listener, scoped vertex/midpoint handles to the selected road, and bounds-checked both feature indexes before reading geometry. Secondary junction roads contribute a transient line preview only.
+- **Prevention**: Keep hit-tested edit handles scoped to their authored entity and validate source-derived indexes against the current geometry before dereferencing.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T4
+
+## 2026-09-24: Road-drag Graphify sandbox refresh required reviewed retry
+- **Error**: The first worktree-local `graphify update .` attempt exited with `[WinError 5] Access is denied` while extracting code.
+- **Cause**: The sandboxed Graphify worker could not write its generated cache/output in the isolated worktree.
+- **Fix**: The reviewed retry completed after extracting 1,685 uncached files and rebuilt Graphify with 12,195 nodes, 26,878 edges, and 574 communities; memory stayed above 1.1 GB free.
+- **Prevention**: Use the reviewed Graphify retry for this known worker boundary, monitor memory during uncached worktree rebuilds, and exclude generated graph files from the application commit.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag route cursor used a nonexistent StudioStore field
+- **Error**: Final source review found the route-only cursor gate and snap-preview condition read `activeTool` from `useStudioStore`, but `StudioState` declares only `tool` and `isVertexEditing`. The StudioCanvas test mock supplied an `activeTool` field absent at runtime, masking the mismatch.
+- **Cause**: The route-preview optimization regression used a permissive mock instead of the actual `CurrentToolStore` source of active tool state.
+- **Fix**: StudioCanvas now uses the subscribed tool registry and real isVertexEditing state for both cursor listeners and the snap overlay. The route positive control and vertex-mode case pass; the final focused suite passed 33/33.
+- **Prevention**: Match UI tests to production state contracts; inspect declared store shapes and subscription sources before introducing selector-based gates.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T3-T5
+
+## 2026-09-24: Road-drag patch targeted the owner checkout instead of the isolated worktree
+- **Error**: The first patch-tool call could not resolve the intended StudioCanvas file and made no changes.
+- **Cause**: The patch tool does not accept the explicit worktree context used by the shell commands, and the initial target was the owner checkout path rather than the isolated worktree path.
+- **Fix**: Applied the exact correction through the reviewed shell in the isolated worktree; confirmed the owner checkout has no source path and remained untouched.
+- **Prevention**: For worktree-scoped source edits, verify the selected worktree path and use a write mechanism that honors that explicit root.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag T5 StudioCanvas test startup hit spawn EPERM
+- **Error**: The focused StudioCanvas Vitest command failed while Vite loaded `vitest.config.ts`; no test cases were collected.
+- **Cause**: The managed sandbox blocked Vite's child-process real-path resolver (`spawn EPERM`), matching the recorded T1 baseline runner limitation.
+- **Fix**: The reviewed retry passed 1 file / 2 tests; the final focused road-drag suite passed 4 files / 33 tests.
+- **Prevention**: When this exact Windows runner failure recurs, use the already-approved exact-command retry rather than classifying it as a product failure.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag final StudioCanvas lint rerun reports legacy ref access
+- **Error**: Scoped ESLint over StudioCanvas and its regression test exited 1 on `dispatcherRef.current = ...` at StudioCanvas line 138 (`react-hooks/refs`).
+- **Cause**: This render-time ref assignment predates the road-drag patch and is unchanged by the route-tool state correction.
+- **Fix**: Retain the diagnostic as a known baseline; no unrelated dispatcher ref redesign was made. The same existing diagnostic was already present in the broader touched-file lint pass.
+- **Prevention**: Compare lint locations to the patch before attributing them; avoid expanding this focused drag fix into dispatcher lifecycle cleanup.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T3-T5
+
+## 2026-09-24: Road-drag post-fix dev server spawn denied
+- **Error**: `next dev --port 4300` exited before server startup with Windows `spawn EPERM` in Next's worker launcher.
+- **Cause**: The managed sandbox blocked the child process used to start Next's dev worker.
+- **Fix**: The reviewed local server started; the synthetic fixture returned HTTP 200, the browser had no console errors, and the final rerendering drag passed with one mutation and save. The server and fixture were removed.
+- **Prevention**: Distinguish runner startup failures from page failures; use the reviewed runner only for this local browser gate.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag browser fixture counter rerenders interrupted its own drag
+- **Error**: The post-correction synthetic browser drag recorded pointer moves and preview writes but no release mutation/save; the fixture's live metrics re-rendered the hook component during the gesture.
+- **Cause**: Counter publication used React state in the same component that owns `useVertexEditor`. Each preview caused a rerender, changing the editing-engine return object dependency and cleaning up the active pointer effect in this test harness.
+- **Fix**: The counter harness was first switched to imperative publication. The hook was then hardened to depend on stable editing callbacks; a final browser run with React-updating counters completed 8 pointer moves, 9 source writes, one mutation/save, released capture, and restored pan/box zoom.
+- **Prevention**: Browser instrumentation around lifecycle hooks must not cause React renders in the component under test; publish metrics outside React state.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T4-T5
+
+## 2026-09-24: Road-drag fixture patch script failed PowerShell variable parsing
+- **Error**: The temporary fixture rewrite was rejected before execution because `$count:` in an interpolated PowerShell error message parsed as an invalid variable reference; no fixture file changed.
+- **Cause**: A colon immediately followed the variable name inside a double-quoted string.
+- **Fix**: Use braced PowerShell variable interpolation (`${count}`) before the colon and rerun the same exact-count replacements.
+- **Prevention**: Brace PowerShell variables when punctuation follows them in interpolated strings.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag final Graphify refresh sandbox denied
+- **Error**: The required `graphify update .` after the route-state correction failed during code re-extraction with `[WinError 5] Access is denied`.
+- **Cause**: The default worker again lacked write access to its generated extraction/cache path inside the isolated worktree.
+- **Fix**: The reviewed retry rebuilt Graphify with 12,195 nodes, 26,881 edges, and 562 communities. A final reviewed refresh after the last source edit exited successfully and found no topology changes; generated files stayed unstaged.
+- **Prevention**: Use the established reviewed retry for the exact refresh and never stage generated graph artifacts.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag Graphify worker memory query denied
+- **Error**: The read-only `Get-CimInstance Win32_OperatingSystem` memory snapshot returned `Access denied` while the reviewed final Graphify refresh was running.
+- **Cause**: The managed environment denied this Windows CIM class to the task process.
+- **Fix**: CIM access remained denied; the filtered process listing exposed no Python/Graphify-named worker. The reviewed Graphify process later exited successfully. No system memory measurement is claimed.
+- **Prevention**: Use process-local counters before requesting system-wide CIM data in this sandbox.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag effect dependencies could cancel capture on an unrelated rerender
+- **Error**: The live fixture rerender probe interrupted a vertex drag before release. Source review confirmed `handleSave` depends on the whole `useEditingEngine()` return object, which is newly allocated on each render; a component rerender therefore changes the drag effect dependency and its cleanup cancels active pointer capture.
+- **Cause**: The hook tracks the editing-engine wrapper object rather than its stable `begin` and `doCommit` callbacks. The test harness also used a stable wrapper, hiding this production identity behavior.
+- **Fix**: The hook now depends on stable begin/doCommit callbacks. Tests model a fresh editing-engine wrapper and stable services; the rerender regression passes, and the final browser rerender drag also completed with one release command/save.
+- **Prevention**: Keep long-lived pointer effect dependencies referentially stable and test with the production hook's return identity behavior.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T3-T5
+
+## 2026-09-24: Road-drag stability patch script failed host interpolation
+- **Error**: The source/test edit command was rejected by the outer JavaScript template before PowerShell execution because a PowerShell `${Path}` string was interpreted as JavaScript interpolation; no files changed.
+- **Cause**: PowerShell and JavaScript both use `${...}` interpolation syntax inside the command template.
+- **Fix**: Remove `${...}` from PowerShell diagnostic strings and build messages with string concatenation, then rerun the exact source/test patch.
+- **Prevention**: Avoid `${...}` in PowerShell embedded within JavaScript template literals; use concatenation or a separately quoted command string.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag rerender-test patch missed the service mock block
+- **Error**: The stable-callback source replacements succeeded, but the test patch's exact beforeEach service block did not match, so the command stopped before changing the test file.
+- **Cause**: The assumed multiline text did not match the file's actual line-ending/spacing representation.
+- **Fix**: Re-read the exact mock and replaced only its beforeEach service getter with a normalized first-match edit; verified the diff and added the rerender regression.
+- **Prevention**: Inspect exact raw file text before multiline replacements and make independently verifiable edits.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag service getter pattern matched two test setups
+- **Error**: The next test patch inserted the stable `serviceMap` setup, then stopped because its generic multiline `services.get` pattern matched both the default mock and a junction-specific override; no other test changes were applied.
+- **Cause**: The pattern was not scoped to the beforeEach block as intended.
+- **Fix**: Scoped the replacement to the first beforeEach getter; the junction-specific test mock stayed intact, and the new rerender regression passes.
+- **Prevention**: Count and scope multiline replacements to their enclosing test setup before writing.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+
+## 2026-09-24: Road-drag Git revision check used unquoted PowerShell metacharacters
+- **Error**: The pre-stage revision check misparsed `HEAD^{tree}` in PowerShell and emitted an encoded-command argument error; no Git state changed.
+- **Cause**: PowerShell interpreted the unquoted brace expression as a script block/argument boundary.
+- **Fix**: Quote Git revision expressions that contain braces, then repeat the read-only HEAD/tree/parent checks.
+- **Prevention**: Quote revision expressions such as `HEAD^{tree}` in PowerShell commands.
+- **Related tasks**: NAVI P0 Road Editor Sticky Vertex Drag T5
+## 2026-09-24: NAVI road-drag release push initially rejected by automatic approval review
+- **Error**: The authorized exact-SHA normal push command was rejected before execution. The review said the attachment text did not count as explicit authorization in the trusted user message.
+- **Cause**: The release instructions were present in a pasted attachment while the direct message did not repeat the authorization.
+- **Fix**: No retry or alternate route was attempted in that turn. After the user explicitly authorized the exact push and deploy directly in chat, all local and remote preconditions were rechecked and the normal fast-forward push succeeded; live `ls-remote` verified the exact SHA.
+- **Prevention**: For release mutations, put explicit push/deploy authorization directly in the user message as well as any attached runbook.
+- **Related tasks**: NAVI Road Drag Production Release T3-T5
+
+## 2026-09-24: NAVI road-drag Vercel CLI identity preflight did not complete
+- **Error**: `vercel whoami` printed only its CLI/Node banner and returned no identity within 15 seconds; the read-only process was interrupted. No project link was found in the owner checkout or release worktree.
+- **Cause**: Unknown; the CLI identity request did not complete within the bounded check.
+- **Fix**: The CLI path was not used for deployment. The read-only Vercel connector identified the NAVI team and `navi-next` project, then the exact Git preview deployment was promoted to production. No project link or configuration was changed.
+- **Prevention**: Verify the existing Vercel account and project link before starting a production deployment; do not auto-link or reconfigure the project.
+- **Related tasks**: NAVI Road Drag Production Release T4-T5
+
+## 2026-09-24: NAVI Vercel project/build-log connector schema mismatch
+- **Error**: The project-details connector rejected the documented `projectId` field at its backend boundary; an alternate field was stripped by the workspace schema guard. The exposed build-log tool returned “not found.”
+- **Cause**: The Vercel connector’s published schemas do not match its backend tool contracts for those two read-only operations.
+- **Fix**: Project identity and deployment provenance were established through the working team/project listing and deployment-list/detail tools. Deployment reached READY; the unavailable build-log query was not retried.
+- **Prevention**: Use confirmed working read-only Vercel endpoints and avoid repeating calls after schema mismatch; distinguish unavailable build logs from runtime error results.
+- **Related tasks**: NAVI Road Drag Production Release T4-T5
+
+## 2026-09-24: Vercel URL fetch helper could not fetch production map route
+- **Error**: The Vercel URL fetch helper returned an access error for `/map`, while root and login fetches returned 200.
+- **Cause**: The helper could not provide access to that route; no production response failure was established by this helper result.
+- **Fix**: A non-mutating direct GET with redirect following verified `/map` returned 200 after one redirect to `/map/home`.
+- **Prevention**: When the URL helper cannot fetch a route, verify with a direct non-mutating HTTP GET and record the final URL and redirect count.
+- **Related tasks**: NAVI Road Drag Production Release T5
+
+## 2026-09-25: Core barrel ambiguous HotspotContent export and wrong CampusDocument import
+- **Error**: Publisher typecheck reported TS2308 in packages/core/src/types/index.ts (HotspotContent exported by both './entities' and './navigation-artifacts') and TS2305 in packages/core/src/validation/panorama-validation.ts (CampusDocument not exported from '../types/entities').
+- **Cause**: Two star re-exports collide on the same member name; panorama-validation imported CampusDocument from the wrong module (it is defined in types/document.ts).
+- **Fix**: Added explicit `export type { HotspotContent } from './entities'` (an explicit re-export resolves the star ambiguity; the entities flavor is what barrel consumers pair with PanoramaHotspot) and split the import to '../types/document'. Publisher typecheck 15 -> 13.
+- **Prevention**: When two star exports collide, add an explicit re-export naming the canonical source; import types from their defining module, not a neighboring one.
+- **Related tasks**: 360 Phase 2 T1
+
+## 2026-09-25: Publisher types.ts missing panorama re-exports; schemaVersions key mismatch
+- **Error**: Six TS2459/TS2305 errors (index.ts:33-35, package-builder.ts:21-23) for PanoramaIndexFile/PanoramaEntryFile/HotspotFile imported from './types', plus TS2561 (package-builder.ts:294 `buildings`) and TS2551 (package-builder.test.ts:254) because BuiltPackage.schemaVersions declared `building` while runtime uses `buildings`.
+- **Cause**: types.ts imported PanoramaIndexFile for internal use without re-exporting it and never imported the other two; the schemaVersions type key lagged the plural artifact-name contract (ARTIFACT_NAMES uses 'buildings', the builder emits `buildings:`).
+- **Fix**: Added `export type { PanoramaIndexFile, PanoramaEntryFile, HotspotFile } from '@navi/core'`; changed BuiltPackage.schemaVersions `building` -> `buildings` and mirrored the manifest-builder.test fixture key; input side (PublishOptions) left unchanged. Publisher typecheck 13 -> 5; zero runtime change.
+- **Prevention**: Keep contract re-export lists in sync when adding artifact types; name schema-version keys exactly as ARTIFACT_NAMES so the publisher lookups type-check without casts.
+- **Related tasks**: 360 Phase 2 T2
+
+## 2026-09-25: buildPanoramaFile dropped hotspotType and content from hotspots
+- **Error**: The new test "preserves hotspotType and content through the artifact mapping (R6.1/R6.2)" failed with `expected undefined to be 'navigation'` - buildPanoramaFile mapped only id/type/target/yaw/pitch/label.
+- **Cause**: The mapping predates information hotspots gaining hotspotType/content; HotspotFile supported both fields but the projection never carried them, silently stripping authored content from panorama-index.json.
+- **Fix**: Added conditional spread + structuredClone for hotspotType and content (mirrors buildPOIFile style). RED (24 passed/1 failed) -> GREEN (25/25); full suites publisher 108/108, core 348/348, tour 33/33.
+- **Prevention**: Diff every artifact projection against its source entry type for optional fields; write fidelity tests that supply optional fields in fixtures instead of asserting only lengths/ids.
+- **Related tasks**: 360 Phase 2 T3
+
+## 2026-09-25: PowerShell inventory command misparsed a parenthesized route path
+- **Error**: The source inventory command treated the unquoted `(public)` segment as PowerShell syntax and stopped before reading the requested route files.
+- **Cause**: Paths containing parentheses were passed as bare PowerShell arguments.
+- **Fix**: Reissue the read with the route paths enclosed in single quotes; no application files changed.
+- **Prevention**: Quote every PowerShell path argument containing parentheses or other shell metacharacters.
+- **Related tasks**: NAVI Public Map Data Repair preflight / T1
+
+## 2026-09-25: Public-map store RED exposed missing snapshot POI/trace normalization
+- **Error**: The test-first public-store run had 9 expected failures across 2 files (37 existing tests passed): snapshot POIs/search entries and authored traces were absent, duplicate published POIs remained, and store search changed revealedPoiIds before page effects could own it.
+- **Cause**: The public-store parser only read artifacts.poiIndex, did not normalize doc.pois or doc.traces, and updated reveal state inside its search action.
+- **Fix**: T1 added typed normalization for published/snapshot POIs and canonical/legacy traces, a pure search action, and an explicit reveal setter; both focused public-store suites now pass 46/46 tests.
+- **Prevention**: Keep source-specific normalization, stable-ID deduplication, malformed-geometry rejection, and search purity covered at the public-store boundary.
+- **Related tasks**: NAVI Public Map Data Repair T1
+
+## 2026-09-25: Error-ledger append wrapper had a template-literal parse error
+- **Error**: The first functions.exec wrapper failed to parse before executing the error-ledger append because Markdown backticks inside a JavaScript template string terminated the string.
+- **Cause**: The tool wrapper mixed template-literal delimiters with unescaped inline-code delimiters.
+- **Fix**: Reissued the append with plain text and no embedded backticks; the failed wrapper made no file change.
+- **Prevention**: Avoid backticks inside JavaScript template strings passed to functions.exec, or use a safely quoted plain string.
+- **Related tasks**: NAVI Public Map Data Repair T1 preflight
+
+## 2026-09-25: Authored Road traces are dropped between compile and public runtime (T2 RED)
+- **Error**: The focused T2 regression run failed four new expected assertions across compiler artifacts, publish serialization, public-campus retrieval, and the mock publish-to-public-store round trip; 33 existing assertions passed.
+- **Cause**: Compiled navigation artifacts do not include canonical Road traces, the publish route omits trace arrays from the public artifact blob, and public-campus reads only graph traces rather than preferring the published artifact trace field.
+- **Fix**: Added the optional Road trace field to NavigationArtifacts, emitted source document Roads, allowlisted the trace array in the publish artifact blob, and made public-campus prefer artifact traces with graph-trace fallback. GREEN: 4 files, 37/37 tests passed, including the mock publish-to-public-store round trip.
+- **Prevention**: Keep a test that follows canonical Road records through compile, publish, public-campus retrieval, and runtime normalization while keeping graph edges distinct.
+- **Related tasks**: T2
+
+## 2026-09-25: Vite test runner blocked while resolving Windows paths
+- **Error**: The T2 verification run stopped before loading tests with Vite startup error `spawn EPERM` from `optimizeSafeRealPathSync`; no assertions ran.
+- **Cause**: The restricted process environment denied a child-process spawn used during Vite path resolution.
+- **Fix**: Reran the same focused mocked suite with process-spawn permission; all 4 files and 37 tests passed. The initial attempt ran no tests and was not counted as test evidence.
+- **Prevention**: If a test runner fails before test collection with a process permission error, distinguish runner startup failure from test results and rerun only the focused, mocked test command with the necessary permission.
+- **Related tasks**: T2, T6
+
+## 2026-09-25: Map layers dropped outdoor POI shapes and authored trace identity (T3 RED)
+- **Error**: The focused T3 RED run produced six intended assertion failures: outdoor POIs were absent from GeoJSON, visible authored trace feature IDs/categories/metadata were not preserved, duplicate/invalid trace coordinates were not rejected, and the new readiness suite could not resolve the not-yet-added AuthoredRoadLayer.
+- **Cause**: POILayer projected only indoor point POIs; PublicMap's local trace projection emitted unkeyed features without canonical metadata or coordinate validation; no dedicated authored-road layer/style-readiness helper existed in the current checkout.
+- **Fix**: Added validated outdoor point/circle/rectangle/polygon projection and separate shape layers to POILayer; added a shared authored trace GeoJSON projection with stable IDs, canonical/metadata properties, malformed-coordinate rejection, and navigation-only filtering; added a dedicated authored-road source/layer and readiness helper. GREEN: the focused three-file T3 suite passed 12/12.
+- **Prevention**: Validate geometry and coordinates before handing plain GeoJSON to MapLibre; test stable IDs, authored fields, display-mode filtering, and delayed style readiness at the projection/layer boundary.
+- **Related tasks**: T3
+
+## 2026-09-25: Outdoor POI source initialized before latest data callback was available (T3 verification)
+- **Error**: After the style became ready in the focused layer test, the POI source and layers existed but the source had not received the outdoor POI GeoJSON; 11 other assertions passed.
+- **Cause**: The asynchronous style-ready callback can initialize the source before the latest-data callback is safely available to that initialization path.
+- **Fix**: POILayer now stores the latest setData callback and invokes it when style readiness initializes or discovers the source. Rerun passed all 12 focused T3 tests.
+- **Prevention**: Exercise delayed style readiness with real data and assert source contents, not only source/layer registration.
+- **Related tasks**: T3, T4
+
+## 2026-09-25: Persistent scene does not register the authored-road source (T4 RED)
+- **Error**: The focused persistence suite failed seven lifecycle expectations because the current PersistentCampusScene did not register the authored-roads source/layers; the new campus-update and style-reload assertions also could not observe outdoor POI or Road payloads.
+- **Cause**: The scene renders only the existing indoor POI model and RouteLine; it has no outdoor POI prop or authored-road layer mount.
+- **Fix**: Added a memoized outdoor-scope POI projection prop and mounted AuthoredRoadLayer with bundle traces beside existing building layers. GREEN: MapRuntimePersistence passed 8/8, including campus replacement, style rehydration, and resource-count assertions.
+- **Prevention**: Keep persistence assertions for campus data replacement, delayed style readiness, one registration per resource, and style reload rehydration while preserving existing scene owners and map props.
+- **Related tasks**: T4
+
+## 2026-09-25: Search-page and Navigate POI reveal effects are missing (T5 RED)
+- **Error**: The test-first run had the three new Navigate reveal/clear assertions fail and both Search reveal/clear assertions fail; 24 other Navigate assertions passed. One existing Navigate development-simulator assertion also failed in this run, outside the new reveal tests.
+- **Cause**: Neither current page owned reveal synchronization in an effect. The separate development-simulator assertion also fails when run alone, before and after the reveal fix; it is outside the repair and its cause is not attributed here.
+- **Fix**: Added effect-based reveal synchronization to Navigate and Search, including empty-query and closed-picker clearing. Full page rerun: 29 passed, 1 existing development-simulator assertion failed; all five new reveal assertions passed. The isolated simulator test also fails by itself, and its test/code path was not changed.
+- **Prevention**: Keep reveal writes effect-only, clear on empty/inactive states, and report full-suite results separately from an independently failing pre-existing assertion.
+- **Related tasks**: T5
+
+## 2026-09-25: Graphify refresh blocked by Windows access denial during T6
+- **Error**: Required `graphify update .` was invoked from the app checkout and produced no output for 60 seconds; after interrupting the stalled run, Graphify reported `[WinError 5] Access is denied` while re-extracting source files.
+- **Cause**: This Windows checkout denies Graphify's extraction/rebuild operation, matching earlier recorded failures.
+- **Fix**: Left generated graph files alone and continued source-based tests and review; no manual edits to graphify-out were made.
+- **Prevention**: Retry Graphify after the underlying checkout permission state changes; treat its generated output as generated and rely on focused tests/code review meanwhile.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Routing runtime validation fixture fails during compiler setup
+- **Error**: The existing routing regression group passed 7 files and 44 tests, with 8 skipped; `routing-runtime-validation.test.ts` failed at `expect(result.success).toBe(true)` before its A* assertions ran.
+- **Cause**: The compiler rejects the test's `createCampus()` fixture. The failing test, compiler pipeline, and routing implementation are unchanged from app HEAD; the exact compiler diagnostic was not surfaced by this assertion.
+- **Fix**: No repair code was changed because the failure is in an untouched fixture/compiler setup path; retained it as a verification limitation for follow-up.
+- **Prevention**: Have compiler-fixture tests print or assert structured diagnostics when compilation fails, so future baseline failures identify the rejected input.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Phase 9B atomicity fixtures used malformed POI records
+- **Error**: The broader store/map matrix found two Phase 9B atomicity checks receiving no POI after normalization.
+- **Cause**: Their published and cached fixtures used `{ id }` records without the required position, which the public-store intentionally filters as malformed.
+- **Fix**: Updated only the fixture helper to supply a valid labeled/category POI with position and properties; retained the atomic campus replacement assertions.
+- **Prevention**: Use valid runtime POI shapes in bundle/cache fixtures, and reserve malformed records for explicit rejection tests.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: ESLint verification used an incorrect scene path
+- **Error**: ESLint stopped before analyzing the requested files because `PersistentCampusScene.tsx` was supplied under `src/components/public` instead of its actual `src/components/map` directory.
+- **Cause**: The candidate file path was inferred from its role rather than verified in the current checkout.
+- **Fix**: Located the current untracked scene under `src/components/map` and corrected the command before retrying lint.
+- **Prevention**: Resolve each changed file path from the active checkout before assembling explicit lint arguments.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Repository-wide diff check surfaced unrelated dirty files
+- **Error**: `git diff --check` reported trailing whitespace in the pre-existing `spec/SPEC.md` and a blank line at EOF in generated `apps/studio-new/.next` output, alongside line-ending warnings across the already-dirty checkout.
+- **Cause**: The command checks the whole shared working tree, which contains unrelated in-progress changes and generated artifacts.
+- **Fix**: Left those files untouched and narrowed the follow-up check to files changed for this repair.
+- **Prevention**: Run scoped diff checks in a shared dirty checkout, then report whole-tree findings separately without rewriting unrelated files.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Scoped TypeScript check found POI fixture type mismatches
+- **Error**: The full project check stops at the known TS1005 parser error in runtime identity-comparison tests. A targeted program also found `scope` on two `SearchEntry` fixtures and missing required `searchable` values in two POI visibility fixtures, alongside pre-existing workspace/test typing errors.
+- **Cause**: The new fixtures mixed POI-only scope metadata into SearchEntry and did not satisfy the declared PointOfInterestVisibility shape.
+- **Fix**: Removed `scope` from the search result fixtures and supplied `searchable` on the two visibility objects. No runtime code changed.
+- **Prevention**: Type new fixtures at the boundary they represent: CampusPOI versus SearchEntry; include all required visibility fields.
+- **Related tasks**: T3, T5, NAVI Public Map Data Repair T6
+
+## 2026-09-25: Second local Next dev server blocked by existing shared lock
+- **Error**: `npm run dev -- --port 3017` exited because the shared `.next/dev` state reports an existing Next server on port 3000 (PID 15844).
+- **Cause**: A server was already running for this checkout, so a second server could not acquire the dev lock.
+- **Fix**: Did not terminate or replace the existing process; use its read-only local endpoint for runtime inspection.
+- **Prevention**: Check for a running Next server before starting one in a shared checkout and reuse an existing server when appropriate.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Live campus record unavailable in the verification environment
+- **Error**: The read-only local request for `map-map-1-repe` returned HTTP 200 with `source: "empty"`, null revision, and no buildings, POIs, nodes, edges, or dedicated traces; the local Explore page displayed “No campus data available.” Direct navigation to the deployed API was blocked by browser clients.
+- **Cause**: The configured local Supabase target returned no published-map or snapshot row for that ID. The deployed API response could not be inspected through the available browser clients, so the live production payload and campus identity could not be confirmed.
+- **Fix**: Made no database changes and did not treat the empty response as a pass. Verified the full API/store/compiler and map-layer wiring with deterministic round-trip and lifecycle fixtures instead.
+- **Prevention**: Provide a read-only non-production environment containing this campus record, or a sanitized snapshot, when live-payload verification is required.
+- **Related tasks**: NAVI Public Map Data Repair T6
+
+## 2026-09-25: Hotspot fixture cannot compile natively (HALLWAY_DISCONNECTED)
+- **Error**: `compileV2` on `campus-backup-fixture.buildCampusDocument()` fails with `HALLWAY_DISCONNECTED x2`, blocking the only dataset that contains real hotspot `hotspotType`/`content` data from the live publish chain.
+- **Cause**: The fixture is round-trip/read-path data (its graph topology is a serialization closure, not a compile-ready floor plan); exhaustive search found no other dataset in repo or dev DB with hotspot content fields.
+- **Fix**: With explicit user approval, built a disclosed hybrid: w15f compile-ready structure + the fixture's `panoramas` array verbatim (no fabricated hotspot data). Recorded in `progress/LIVE-PUBLISH-ACCEPTANCE-2026-09-25.md`.
+- **Prevention**: Gate/fixture inputs must be compile-ready closures; keep one round-trip-proven doc+panorama fixture that also passes `compileV2` so future gates need no hybrid.
+- **Related tasks**: Live Publish Acceptance Gate
+
+## 2026-09-25: PowerShell Invoke-WebRequest silently drops Cookie header (401)
+- **Error**: `Invoke-WebRequest -Headers @{Cookie='navi-mock-session=...'}` returned 401 from auth-guarded mutation routes even with a valid mock session cookie.
+- **Cause**: `Cookie` is a restricted header in PowerShell's `Invoke-WebRequest`/`HttpClient` header handling and is silently discarded.
+- **Fix**: Issued all authenticated HTTP calls with Node `fetch`, which sends the Cookie header as given; chain then passed 200 at every stage.
+- **Prevention**: Never set `Cookie` via PowerShell `-Headers`; use Node fetch (or `-WebSession`) for cookie-authenticated local API calls.
+- **Related tasks**: Live Publish Acceptance Gate
+
+## 2026-09-25: Wildcard `-like '??*'` miscounted git status untracked lines
+- **Error**: `git status --porcelain | Where-Object { $_ -like '??*' }` reported 459 "untracked" lines vs baseline 346, implying 113 phantom new files during final verification.
+- **Cause**: In PowerShell `-like`, `?` is a single-character wildcard, so `??*` matches EVERY line, not lines starting with the literal `??`.
+- **Fix**: Recounted with `$_.StartsWith('??')`; true counts 110 M / 346 ?? / 2 D matched baseline exactly (plus the one real temp entry, later deleted).
+- **Prevention**: Use `StartsWith('??')` (or `git status --porcelain -z`/`--porcelain=v1` parsing) for literal porcelain prefixes; never `-like` with `?` or `*` when the pattern itself contains those characters.
+- **Related tasks**: Live Publish Acceptance Gate

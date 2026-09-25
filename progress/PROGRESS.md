@@ -6342,9 +6342,1336 @@ do not expand this completed phase retroactively.
 - **Live GET evidence:** `/api/graph` 200 (29 buildings / 34 floor records / 53 nodes / 50 edges, revision `2026-09-13T10:10:07.45635+00:00`); matching `/api/campuses` row reports `building_count=29`; `/api/public-campus` 200 with `source=graph_snapshots` and 29/53/50 (deployed fallback currently exposes 1 trace/1 POI); `/api/published-map` 404. No production POST or publish request was issued.
 - **Gate result:** exact Studio-local JSON and stable-ID/content comparison are unavailable through the supported browser context, while the fresh server revision drifted from the earlier observation. Legacy `osm-bldg-*` and other server-only records were not deleted; no server sync, force overwrite, final write backup, or publication was attempted. Continue only after an exact local export and explicit authoritative merge decision.
 
+## 2026-09-13 — NAVI Supabase P0: backup gate passed
+
+- **Backup:** With explicit user authorization, the connected Supabase integration exported the protected campus persistence rows for `graph_snapshots`, `buildings`, `route_nodes`, `route_edges`, `campus_maps`, and `published_maps`, plus the current `public.sync_graph_snapshot(payload jsonb)` definition, to [NAVI-SUPABASE-P0-BACKUP-2026-09-13.json](../audit-artifacts/NAVI-SUPABASE-P0-BACKUP-2026-09-13.json). The artifact is 290,757 bytes and contains 1/29/53/50/1/0 rows for those collections.
+- **Post-backup read-only verification:** Protected revision, graph byte length 145,191, MD5 `1997bc43b8d7b22815be8cef509a9981`, SHA-256 `74695e7318d7753639ef52d4d7985e52f290795b581b2c177251b09b09a6a20d`, authored counts 29/53/50, campus-map hash, and null protected publication row match the pre-backup baseline. Global count values remain 12/31/55/51/1/1/3.
+- **Next:** Apply only the audited migration 009 to `oltfaepqcktrumfhadzb`; do not write `map-map-1-k6bv`.
+
+## 2026-09-13 — NAVI Supabase P0: migration 009 applied
+
+- **Execution:** Applied the exact committed `009_graph_snapshot_optimistic_concurrency.sql` through the connected Supabase migration operation to `oltfaepqcktrumfhadzb`; result `{success:true}`. No reset, seed replay, truncate, or campus write was issued.
+- **Migration state:** Remote history now contains `20260913134853 / 009_graph_snapshot_optimistic_concurrency`.
+- **RPC readback:** `public.sync_graph_snapshot(payload jsonb)` is owned by `postgres`; deployed definition has advisory locking, server-revision CAS, post-lock `clock_timestamp()`, transport-field stripping, `updatedAt` return, and `SET search_path TO 'public'` (PostgreSQL-normalized spelling).
+- **Advisors:** Existing findings remain: `spatial_ref_sys` RLS disabled, PostGIS in `public`, three PostGIS SECURITY DEFINER warnings, leaked-password protection disabled, and pre-existing performance notices. No unrelated advisor remediation was applied.
+- **Next:** Run disposable CAS and divergent-client tests with exact fixture cleanup.
+
+## 2026-09-13 — NAVI Supabase P0: production CAS contract verified
+
+- **Fixture:** `p0-cas-verification-20260913135210` was created only through `public.sync_graph_snapshot` and was never the protected campus.
+- **CAS evidence:** Initial R1 `2026-09-13T13:52:26.444338+00:00`; valid client A returned R2 `2026-09-13T13:52:30.861944+00:00`; valid sequential save returned R3 `2026-09-13T13:52:39.597422+00:00`; both stale R1 attempts returned SQLSTATE `40001 GRAPH_SNAPSHOT_CONFLICT`.
+- **Persistence evidence:** At R3 the stored marker was `R3-sequential`, with 1 building, 2 nodes, 1 edge, and both `expectedServerUpdatedAt` and `forceServerOverwrite` absent from stored JSON.
+- **Overlap evidence:** Two concurrent requests using R3 produced exactly one success and one conflict, demonstrating server-side serialization. Cleanup removed all fixture rows; global counts returned exactly to 12/31/55/51/1/1/3. Evidence: [NAVI-SUPABASE-P0-CAS-2026-09-13.json](../audit-artifacts/NAVI-SUPABASE-P0-CAS-2026-09-13.json).
+- **Client evidence:** Focused graph-store suite passed **3 files / 20 tests**. It proves direct POST `updatedAt` acknowledgement with zero GET confirmation, serialized/coalesced saves with max one in flight, stale conflict preservation, transport-field stripping, and no false `synced` state.
+- **Next:** Complete source/guard isolation verification and inspect separate development-project provisioning requirements.
+
+## 2026-09-13 — NAVI Supabase P0: client and dev isolation evidence
+
+- **Client commit:** Commit `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc` is present with subject `fix(studio): stabilize graph sync and isolate production tests`.
+- **Client verification:** Focused graph-store tests passed 20/20; the source path sends the last acknowledged revision, consumes direct POST `updatedAt` without GET confirmation, coalesces rapid saves, and preserves dirty local state on conflict.
+- **Guard verification:** E2E/cleanup guard tests passed 21/21. Local `.env.local` still points at production but routine test writes are fail-closed without explicit override; no local env secrets were changed.
+- **Development project:** Created `navi-development` (`scvgulusmutnzasmgysx`) in the sole organization, `$0/month`, `ap-northeast-1`. It started with zero migrations/tables/data. The repository sequence required a dev-only `campus_maps` compatibility bootstrap because committed 003 references a legacy table omitted from the migration set; unchanged 003→009 then applied successfully. A synthetic dev fixture returned an authoritative revision and was fully cleaned, returning all NAVI table counts to zero.
+- **Next:** Re-run the protected production baseline after migration, then finish environment/report gates without campus recovery.
+
 ## 2026-09-13 — Studio save banner administrator contract (presentation only)
 
 - **Scope:** `save-status-model.ts`, `SaveStatus.tsx`, `FloorEditor.tsx` ContextHeader tooltip string, and their tests. `graph-store.ts`, `packages/editor/`, and all recovery behavior (handlers, store calls, force-overwrite confirmation dialog) were untouched.
 - **Contract:** conflict banner title `Changes not synced` with a fixed preservation body; primary actions `Review conflict` (same handler) and `Load server version`; `Force overwrite` plus the raw `diagnostic` moved under an `Advanced recovery` disclosure. Offline sync error maps to `Saved on this device` with no recovery actions; other sync errors keep `Save failed — changes preserved` with a human-readable detail. Raw `syncError`/`saveError` now live only in `SaveStatusModel.diagnostic`.
 - **Verification:** `npx vitest run` focused gate (save-status-model + SaveStatus + studio-persistence) -> 3 files / 12 tests passed; extra FloorEditor render suites -> 2 files / 12 tests passed. `npx eslint` on the five changed files: four clean; `FloorEditor.tsx` retains only the pre-existing 28-problem baseline (none on changed lines).
 - **Graph:** `graphify update .` succeeded (26410 nodes / 38567 edges / 2098 communities); the previous `WinError 5` did not recur.
+
+## 2026-09-13 — NAVI Supabase P0 stabilization: target and backup gate
+
+- **Target verification:** Connected Supabase project is `oltfaepqcktrumfhadzb`, named `0SEless's Project`, region `ap-northeast-1`, PostgreSQL 17.6, `ACTIVE_HEALTHY`. Remote migration listing currently contains seven records corresponding to the pre-009 schema history; no 009 record is present.
+- **Read-only baseline:** Protected `map-map-1-k6bv` is at revision `2026-09-13T10:10:07.45635+00:00`, 29 buildings, 53 route nodes, 50 route edges, `campus_maps` present with MD5 `d08877fc78c0f0959f38dfa154ac6940`, and no `published_maps` row. Global counts are 12 graph snapshots, 31 buildings, 55 nodes, 51 edges, 1 campus map, 1 published map, and 3 capture sessions. Server SHA-256 fingerprint captured as `74695e7318d7753639ef52d4d7985e52f290795b581b2c177251b09b09a6a20d`.
+- **Migration audit:** The exact committed `navi-next/supabase/migrations/009_graph_snapshot_optimistic_concurrency.sql` contains advisory locking, post-lock `clock_timestamp()`, `search_path = 'public'`, metadata-placeholder adoption, stale-revision rejection, transport-field stripping, atomic authored-row replacement, and authoritative `updatedAt` return. Audit result: PASS.
+- **Gate result:** The connected integration exposes SQL and migration operations but no native backup/export. A full local production-row backup was safety-rejected; no workaround or write was attempted. Next: obtain explicit authorization for the exact local backup destination or provide a native backup reference, then continue at T2.
+
+## 2026-09-13 — NAVI Supabase P0 stabilization: final verification
+
+- **Fresh protected read:** Re-read production after migration and disposable-fixture cleanup. `map-map-1-k6bv` remains at revision `2026-09-13T10:10:07.45635+00:00`, graph snapshot id `6696`, 145,191 graph bytes, MD5 `1997bc43b8d7b22815be8cef509a9981`, SHA-256 `74695e7318d7753639ef52d4d7985e52f290795b581b2c177251b09b09a6a20d`, and protected counts 1/29/53/50/1/0. Global counts remain 12/31/55/51/1/1/3. This is identical to the pre-backup baseline.
+- **Fresh migration/RPC read:** Migration `20260913134853 / 009_graph_snapshot_optimistic_concurrency` is recorded; `public.sync_graph_snapshot(payload jsonb)` exists and its live definition passes advisory-lock, CAS-conflict, transport-strip, authoritative-`updatedAt`, normalized `SET search_path TO 'public'`, and no-reset/truncate checks.
+- **Fresh local tests:** Graph-store focused suite passed 3 files / 20 tests. E2E and clean-database guard suite passed 2 files / 21 tests. Artifact verification found all five P0 artifacts; four JSON artifacts parse successfully, the Markdown report ends with the exact required status, and the TODO has 8 checked / 0 unchecked tasks.
+- **Safety result:** No protected-campus write, force resync, browser load, localStorage clear, publish, delete, unrelated SQL, or recovery action occurred. Disposable production and dev fixtures were cleaned; dev NAVI table counts returned to zero.
+- **Final status:** `NAVI SUPABASE P0: PASS — DEV PROJECT SETUP REMAINS`.
+
+## 2026-09-13 — NAVI protected campus recovery Stage 1: blocked before extraction
+
+- **T1 preflight:** PASS. Production `oltfaepqcktrumfhadzb` is `ACTIVE_HEALTHY`; migration 009 and RPC CAS invariants are active; the protected revision remains `2026-09-13T10:10:07.45635+00:00`; protected counts remain 29/53/50; no active database query or local test process mentioning the protected campus was observed; E2E/cleanup guards passed 21/21.
+- **Server extraction:** A full private read-only export was attempted but the connected safety layer rejected the payload before parsing/writing. `server-before-recovery.json` and its hash do not exist. No workaround or partial private export was written.
+- **Local extraction:** The exact existing Chrome Studio tab was listed but could not be bound read-only after returned-ID, browser-name, and provider-ID attempts timed out. No UI action, reload, storage operation, save, sync, force overwrite, or API write occurred.
+- **Artifacts:** Stage 1 SPEC/PLAN/TODO and the non-sensitive [RECONCILIATION-REPORT.md](../audit-artifacts/navi-campus-recovery-2026-09-13/RECONCILIATION-REPORT.md) were written. Raw local/server artifacts, inventories, diff, proposal, and manifest were intentionally not fabricated.
+- **Production mutation:** `NONE`.
+- **Next:** Direct authorization for the exact private export destination and a safe read-only binding to the existing Studio tab are required before T2/T3 can resume. The recovery-write approval gate was not reached.
+
+- **Final verification:** Corrected checker exited 0: blocker report exists and ends `NAVI CAMPUS RECOVERY STAGE 1: BLOCKED`; recovery directory is ignored; all four raw export/hash files are absent as intended. A fresh read-only production query still reports snapshot id 6696, revision `2026-09-13T10:10:07.45635+00:00`, graph SHA-256 `74695e7318d7753639ef52d4d7985e52f290795b581b2c177251b09b09a6a20d`, protected counts 29/53/50/0 published, and global counts 12/31/55/51/1/1/3.
+
+## 2026-09-13 23:06:54 +08:00 — NAVI protected campus recovery Stage 1 continuation
+
+- **T2 server export:** Explicit user authorization was received for the ignored recovery directory. A partitioned SELECT-only export reconstructed the protected graph snapshot, legacy campus map row, authored building/node/edge rows, protected published/capture projections, schema columns, and the live `sync_graph_snapshot` definition. The raw artifact is [server-before-recovery.json](../audit-artifacts/navi-campus-recovery-2026-09-13/server-before-recovery.json) with SHA-256 `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36` in its sidecar.
+- **T2 verification:** Artifact parses; sidecar recomputes exactly; protected revision is `2026-09-13T10:10:07.45635+00:00` (PostgreSQL rendering `2026-09-13 10:10:07.45635+00`), graph id `6696`, version `1.0.0`, graph projection counts 29 buildings / 53 nodes / 50 edges / 56 doors / 3 traces / 4 POIs; all required sections and one RPC definition are present. Production mutation: `NONE`.
+- **T3 gate:** The exact existing Chrome Studio tab is now bound safely without navigation or UI action. Next: inspect the source-defined persistence keys and use only a read-only extraction path; no replacement tab or storage mutation is permitted.
+
+## 2026-09-13 23:08:00 +08:00 — NAVI protected campus recovery Stage 1 manual local-export gate
+
+- **Source contract:** `navi-next/src/store/graph-store.ts` defines `navi-graph-map-map-1-k6bv` as the graph localStorage key and `navi-sync-status-map-map-1-k6bv` as the read-only sync marker. The graph snapshot contains `expectedServerUpdatedAt`; the marker contains `serverTimestamp`, `snapshotFingerprint`, and `syncedAt`.
+- **Browser evidence:** The exact existing Studio tab bound safely. No reload, navigation, click, focus action, console execution, storage operation, network request, save, sync, load-server, or force overwrite occurred. Visible state reports `Changes not synced` and preserved local work; Publish is disabled.
+- **Gate:** The available CUA surface has no page-evaluation/localStorage read method. Per the continuation instruction, stop at `MANUAL LOCAL EXPORT REQUIRED` and provide one exact read-only console download snippet. T4–T6 remain pending until the user returns the raw local artifact.
+- **Post-export server check:** A fresh SELECT after the artifact write returned snapshot id `6696`, revision `2026-09-13T10:10:07.45635+00:00`, 145,191 graph bytes, graph MD5/SHA-256 `1997bc43b8d7b22815be8cef509a9981` / `74695e7318d7753639ef52d4d7985e52f290795b581b2c177251b09b09a6a20d`, protected counts 29/53/50/1/1/0, and global counts 12/31/55/51/1/1/3. Exact ISO and normalized-instant revision checks passed; production mutation remains `NONE`.
+
+## 2026-09-13 23:22:42 +08:00 — NAVI protected campus recovery Stage 1 continuation recheck
+
+- **Input verification:** The exact path `audit-artifacts/navi-campus-recovery-2026-09-13/browser-local-before-recovery.json` is absent. The recovery directory contains only `RECONCILIATION-REPORT.md`, `server-before-recovery.json`, and `server-before-recovery.sha256`; no matching browser-local export was found under the project, Desktop, or Downloads.
+- **Safety result:** No local hash, parse, copy, inventory, reconciliation, proposal, manifest, browser action, or production operation was performed. T3 is blocked at the missing-file gate; T4–T6 remain pending.
+
+## 2026-09-13 23:30:02 +08:00 — NAVI protected campus recovery Stage 1 local-export recheck
+
+- **Result:** The exact browser-local export path remains absent after the user’s reported placement. No matching file is present in the recovery directory, so the unchanged artifact cannot be hashed or parsed.
+- **Gate:** T3 remains blocked; T4–T6 were not started. Production and browser state remain untouched.
+
+## 2026-09-13 23:31:38 +08:00 — NAVI protected campus recovery Stage 1 third local-export recheck
+
+- **Result:** `Test-Path` still reports the declared browser-local artifact absent; no SHA-256 or parse result exists.
+- **Gate:** T3 remains blocked and T4–T6 remain pending. No substitute local state, browser action, or production operation was performed.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1 reconciliation gate
+
+- **T3 verification:** The exact browser-local artifact exists at `audit-artifacts/navi-campus-recovery-2026-09-13/browser-local-before-recovery.json`; byte length `1,273,956`; SHA-256 `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`; artifact format and campus identity match; rawGraphJson parses and is `map-map-1-k6bv`; source keys are `navi-graph-map-map-1-k6bv` and `navi-sync-status-map-map-1-k6bv`.
+- **T4/T5:** Created local/server structural inventories, stable-ID field-level diff, provenance evidence, review-gated proposed recovery, and recovery manifest. Local/server candidates were preserved; no authority was selected. Review count is 592 non-identical stable-ID records.
+- **T6:** Created `OFFLINE-VALIDATION.json` and the complete `RECONCILIATION-REPORT.md`. Serialization, campus identity, building/floor, route endpoint, component, nested door-ownership-reference, and roundtrip checks pass; duplicate door IDs remain on both candidates, so offline validation is not a clean pass.
+- **Safety:** Raw local bytes were not rewritten. No production API, RPC, browser, localStorage, publish, resync, conflict-resolution, or campus recovery operation was issued during reconciliation. The write-approval gate is stopped.
+- **Gate result:** `NAVI CAMPUS RECOVERY STAGE 1: REVIEW REQUIRED`.
+
+- **Final artifact verification:** All required Stage 1 artifacts and hash sidecars exist and parse; the unchanged local SHA-256 recomputes as `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`; localStorage source keys, raw graph campus identity, sync marker, inventories, diff count `592`, write-disabled proposal, stopped manifest, and final report status all match the gate contract. No production operation was issued during reconciliation.
+
+## 2026-09-14 01:04:38 +08:00 — NAVI protected campus recovery Stage 1.5 attribution gate
+
+- **T1/T2 model and door forensics:** Classified canonical authored, derived, projection, legacy, and runtime state with source citations. Proved that `GraphAdapter.sync()` appends runtime door projections without clearing them. LOCAL 1,772 / SERVER 56 top-level records collapse to LOCAL 7 / SERVER 1 unique canonical floor doors; all 15 side-specific duplicate groups are `SAFE_DERIVED_DUPLICATE`, with zero canonical duplicate IDs.
+- **T3 authorship:** Built `FLOOR-AUTHORSHIP-MATRIX.json/.md` and `NAVIGATION-DERIVATION-ANALYSIS.md`. Reviewed all 34 building stable-ID cases and 41 floor rows: seven building cases `KEEP_LOCAL`, three `DERIVED_ONLY_DIFFERENCE`, and 24 stable-ID cases requiring review. Selected the coherent LOCAL Comsci level-0 wall/opening/room-attribute/seven-door bundle while keeping its 16-node/15-edge route/access provenance decision unresolved; Octagon remains unresolved because neither current artifact contains the recorded prior 11-wall/6-attribute state. Attributed 22 roads, 23 LOCAL authored junctions, and three entrance clusters.
+- **T4 reduction/policy:** `authored-reconciliation-diff.json` deterministically reduces 592 raw review rows to 93 decision units. Three are projection-only; 90 are meaningful authored decisions. The complete required taxonomy is explicit: `KEEP_LOCAL=46`, `KEEP_SERVER=0`, `MERGE=0`, `REGENERATE_DERIVED=3`, `REMOVE_CONFIRMED_TEST_POLLUTION=0`, `REVIEW_REQUIRED=44`. Added `RECOVERY-POLICY.md`, the non-executable `DUPLICATE-DOOR-RECOVERY-PLAN.md`, and a fully numbered 44-item `HUMAN-REVIEW-DECISIONS.md` containing local/server state, evidence, uncertainty, recommendation, and risk.
+- **T5 proposal/manifest/report:** Updated `proposed-authoritative-recovery.json`, `RECOVERY-MANIFEST.json`, `OFFLINE-VALIDATION.json`, and `RECONCILIATION-REPORT.md`. `authority`, `proposedSnapshot`, and `executableRecoveryPayload` remain `null`; `writeAuthorized` is false. Candidate-specific topology/schema validation is explicitly `NOT_RUN_NO_CANDIDATE`, while evidence/artifact validation passes. A final schema correction made all zero-valued dispositions explicit and refreshed dependent hashes.
+- **Final verification:** 61/61 checks passed. The manifest's 18 artifact hashes match; required JSON parses; all six disposition keys are present; canonical door IDs are unique; raw graph edge, building/floor, component, floor-route/door, ownership-candidate, and authored-junction references resolve; serialization roundtrips pass; the report header/gate and human rows 1–44 are exact. Manifest SHA-256 is `a693023f276a0d2d64ded6fa3dd19799367564fb6dd66a07e5ab84e6248fe887`; offline validation SHA-256 is `dec1e056fd844a8fc07f71441a1066963bbf7222b764fa3bb222680669ce3f00`; authored diff SHA-256 is `a82ffbafe4ca63ea3a9a382b5643812077b6dd390d2fd038aef287efa7d2046a`.
+- **Protected evidence:** LOCAL SHA-256 remains `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`; SERVER SHA-256 remains `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`; protected server revision remains exactly `2026-09-13T10:10:07.45635+00:00` in immutable evidence.
+- **Graph index:** The normal `graphify update .` hit the known Windows access denial; approved elevated refreshes succeeded. The final index contains 26,637 nodes / 38,881 edges / 2,105 communities.
+- **Safety/gate:** No production read/write, graph sync, force overwrite, server-version load, browser/localStorage action, conflict resolution, publish, deletion, ID regeneration, or executable recovery payload occurred in Stage 1.5. Stop before Stage 2. Gate: `NAVI CAMPUS RECOVERY STAGE 1.5: HUMAN DECISIONS REQUIRED`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.6 human review package
+
+- **T1 ledger:** Created `HUMAN-DECISION-LEDGER.json` with exactly 44 decisions in the preserved 1–44 numbering. All entries are `userDecision: null` and `decisionStatus: PENDING`. Dependency groups A–F, road/junction dependencies, and POI lineage groups are explicit.
+- **T2/T3 visual review:** Created compact `human-review-visual-data.json`, `review/review-data.json`, and static `review/index.html`. The page embeds local evidence, supports LOCAL/SERVER/OVERLAY modes, shows side-by-side state and geometry, and has no network, persistence, save, apply, publish, conflict-resolution, or resync behavior.
+- **T4 capture package:** Created `HUMAN-REVIEW-WORKSHEET.md`, `SAFE-DEFAULT-RECOMMENDATIONS.md`, and `HUMAN-DECISIONS-ANSWERS.json`. The answer template has 44 null/PENDING slots; no answer or authority was invented. Octagon defaults to defer/manual reconstruction; Comsci defaults to manual route-by-route review; roads remain preservation-biased pending junction analysis.
+- **T5 gate artifacts:** Created the plan-only `GRAPH-ADAPTER-DOOR-IDEMPOTENCY-FIX-PLAN.md`, updated `RECONCILIATION-REPORT.md` to the Stage 1.6 package report, and sealed `STAGE1.6-OFFLINE-VALIDATION.json` plus `RECOVERY-MANIFEST.json`. Candidate snapshot validation remains `NOT_RUN_NO_CANDIDATE`; proposal authority/snapshot/payload remain null and write authorization is false.
+- **Verification:** Final offline verifier passed 20/20 structural/safety checks; Stage 1.6 offline validation passed 18/18 with zero failures; manifest artifact hashes all match; review data parses; HTML runtime compiles and contains no runtime network/persistence calls; immutable raw hashes remain LOCAL `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817` and SERVER `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`; protected revision remains `2026-09-13T10:10:07.45635+00:00`.
+- **Graph context:** Normal `graphify update .` hit `[WinError 5]`; scoped elevated retry succeeded with 26,661 nodes / 38,902 edges / 2,100 communities.
+- **Safety/gate:** No production write/read, `/api/graph` POST, protected RPC call, force resync, server-version load, browser/localStorage mutation, publish, conflict resolution, candidate construction, or adapter repair occurred. Stage 1.6 stops ready for human decision capture.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.6: READY FOR HUMAN DECISION CAPTURE`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.7 offline candidate gate
+
+- **T1 evidence freeze:** Re-verified immutable LOCAL SHA-256 `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817` and SERVER SHA-256 `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`; protected revision remains exactly `2026-09-13T10:10:07.45635+00:00`.
+- **T2 code fix:** Implemented the narrow GraphAdapter derived-door projection replacement in `navi-next/packages/editor/src/graph-adapter.ts`; focused suite passed 21/21 and related ownership/route suite passed 41/41. Canonical nested `floorData.doors` remains the source and is not mutated by sync.
+- **T3 human decisions/candidate:** Encoded all 44 owner-authorized decisions with concrete dispositions, provenance, stable-ID mappings, and candidate results. Built `recovery-candidate-stage1.7.json` from the verified LOCAL canonical projection, retained the two explicitly authorized SERVER-only POIs, regenerated seven top-level door projections, and recomputed Comsci ownership through the production geometry path. Candidate SHA-256 is `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`.
+- **T4 offline validation:** `STAGE1.7-OFFLINE-VALIDATION.json` passes 30/30 checks, including explicit stairs/elevators/vertical-transition no-dangling validation. Candidate counts are 21 buildings / 202 nodes / 201 edges / 3 components / 22 roads / 10 POIs / 7 projected doors; Comsci is 8 walls / 2 openings / 4 room attributes / 7 canonical doors / 16 route nodes / 15 route edges / 1 entranceAccess; Octagon level 0 remains empty; 23 authored junction nodes are retained with no legacy-inferred carriers.
+- **T5 verification/context:** All 16 manifest artifact hashes match; resolved ledger/answers are 44/44 with zero pending; scoped `git diff --check` is clean; `graph-adapter.ts` lints clean. Broad test-file lint still reports only pre-existing `graph-adapter.test.ts` `any`/unused-import debt, and repository-wide diff check reports one unrelated pre-existing trailing-space line in `docs/architecture/rendering.md`. Normal graphify refresh hit the known Windows access boundary; the final scoped elevated retry succeeded with 26,689 nodes / 38,926 edges / 2,097 communities.
+- **Safety:** No production mutation, API/RPC write, force resync, server-version load, browser/localStorage mutation, conflict resolution, publish, or production recovery occurred. The valuable Studio tab was not reloaded or closed. Write authorization remains false.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.7: OFFLINE CANDIDATE READY — PRODUCTION WRITE NOT AUTHORIZED`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8 T1 evidence freeze
+
+- **Verification:** Immutable LOCAL/SERVER/candidate hashes match the recorded baselines: `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`, `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`, and `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`.
+- **Candidate gate:** Campus identity is `map-map-1-k6bv`; 44/44 decisions are resolved with zero pending; Stage 1.7 offline validation is `PASS` 30/30; candidate write authorization is false and production mutation is `NONE`.
+- **Safety:** Immutable evidence was read only; no production, browser, localStorage, or recovery write occurred.
+- **Next:** Audit the exact GraphAdapter fix, tests, repository dirty state, current deployment provenance, and public alias without deploying.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8 T2 deployment audit
+
+- **Fix audit:** The working-tree GraphAdapter change replaces the derived top-level door projection once per sync from canonical `floorData.doors`; the two idempotency/roundtrip tests are present. Focused GraphAdapter tests passed `21/21`; related door-ownership/route-network tests passed `20/20` (`41/41` combined). Scoped diff check passed.
+- **Lint:** `graph-adapter.ts` is clean; the test file still reports the previously recorded seven `no-explicit-any` errors and two unused-import warnings at unchanged baseline lines.
+- **Deployment:** Vercel production alias `navi-next.vercel.app` points to READY deployment `dpl_29MTMWDBUoXu5JZDG2hzxyTFeLyZ`, commit SHA `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc`, with public root/login HTTP `200`. The deployment metadata reports `gitDirty: "1"`; the audited fix/tests are absent from that commit and are only in the dirty tree, so the exact production bundle is not reproducibly identified. No deployment was issued.
+- **Safety:** Public fetches were read-only; no Studio tab, browser storage, protected API, RPC, or campus mutation was used.
+- **Next:** Read migration/RPC metadata and capture a fresh protected-campus backup only if the exact protected revision remains unchanged.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8 T3/T4 read-only preflight
+
+- **Migration/RPC:** Migration `20260913134853` (`009_graph_snapshot_optimistic_concurrency`) is applied. The live `public.sync_graph_snapshot(payload jsonb)` definition was captured without invocation; advisory locking, `FOR UPDATE`, post-lock `clock_timestamp()`, transport stripping, and `40001` CAS conflicts are present.
+- **Fresh protected evidence:** Row `6696` remains at exact revision `2026-09-13T10:10:07.45635+00:00`; raw graph SHA-256 is `74695E7318D7753639EF52D4D7985E52F290795B581B2C177251B09B09A6A20D`; fresh backup SHA-256 is `17D0C1FC9FE62485479424D7B6F1D996E21E0FCD69D207706E088AA1CBA218CC`; current counts remain 29/53/50/3/4/56 for buildings/nodes/edges/traces/POIs/doors.
+- **Artifacts:** Created `STAGE1.8-PRODUCTION-PREFLIGHT.json`, `STAGE1.8-REPORT.md`, `STAGE1.8-OFFLINE-VALIDATION.json`, `server-prewrite-stage1.8.json`, and the plan-only `STAGE1.9-PRODUCTION-WRITE-PLAN.md`; updated `RECOVERY-MANIFEST.json` while preserving prior evidence entries.
+- **Offline validation:** 21/21 checks pass. The Stage 1.8 gate remains blocked only by the non-reproducible dirty production deployment/fix provenance and observed production `/api/graph` error telemetry.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8 final gate
+
+- **Independent verification:** 37/37 checks passed. Immutable LOCAL/SERVER/candidate hashes, fresh backup hash, raw graph hash, exact protected revision, RPC/migration evidence, preflight gate, offline validation, report/plan markers, manifest count, and all 21 manifest artifact hashes verify.
+- **Fresh backup:** `server-prewrite-stage1.8.json` SHA-256 `17D0C1FC9FE62485479424D7B6F1D996E21E0FCD69D207706E088AA1CBA218CC`; row `6696`; revision unchanged; production mutation `NONE`.
+- **Gate:** Offline evidence is valid, but the production fix cannot be proven because the READY deployment is dirty and the audited fix is absent from its commit. Stage 1.9 write approval was not reached; write authorization remains false.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8: BLOCKED — PRODUCTION DEPLOYMENT PROVENANCE NOT REPRODUCIBLE`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8A clean-release gate
+
+- **T1 preservation:** Created `STAGE1.8A-WORKTREE-BASELINE.json`; the primary `master` checkout remains at `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc` with 1,781 status rows and the exact baseline status SHA-256 `E6F015E8CAB42C3BE437C1385F52B4E06E8A3E498940D0C4822C6ECE786A5686`. User WIP was not reset, stashed, deleted, or rewritten.
+- **T2 closure audit:** The exact GraphAdapter source/test fix was isolated in a separate worktree. Clean dependency discovery required `semantic-room-handlers.ts`, then road-recovery/road-connectivity/legacy-recovery candidates, and next exposed `parametric-handlers.ts`. Tracked `create-editor-context.ts` directly imports nine additional untracked handlers, making the closure broader unrelated WIP rather than a safe narrow release.
+- **Verification:** `npm ci --ignore-scripts` completed in the isolated worktree, but the focused clean GraphAdapter suite stopped before execution on the unresolved broader context dependency. No commit, production build, Vercel deployment, or Supabase read was attempted.
+- **Artifacts:** Created `STAGE1.8A-REPRODUCIBLE-DEPLOYMENT-REPORT.md`, `STAGE1.8A-RELEASE-CONTENTS.md`, and `STAGE1.8A-PRODUCTION-VERIFICATION.json`; updated `RECOVERY-MANIFEST.json` with the blocked-stage evidence. No `server-prewrite-stage1.8a.json` was created because deployment was blocked before the post-deployment backup gate.
+- **Graph index:** Normal graphify refresh hit the known Windows access boundary; the scoped elevated retry succeeded with 8,097 nodes / 15,597 edges / 485 communities in the isolated worktree.
+- **Safety:** No protected campus POST/RPC/write, browser/localStorage mutation, publish, force resync, conflict resolution, server-version load, or Stage 1.9 action occurred. Controlled campus write remains unauthorized.
+- **Final status:** `STAGE 1.8A BLOCKED — CLEAN RELEASE CANNOT BE ISOLATED SAFELY`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8B current development baseline consolidation
+
+- **T1/T2 preservation and closure:** Reverified primary `master` at `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc`; 1,781 status rows and status SHA-256 `E6F015E8CAB42C3BE437C1385F52B4E06E8A3E498940D0C4822C6ECE786A5686` remain unchanged. Built `CURRENT-SOURCE-DEPENDENCY-MAP.json` with 363 reachable source nodes and zero unresolved imports, `CURRENT-WIP-FEATURE-MATRIX.md`, and `STAGE1.8B-WORKTREE-PRESERVATION-MANIFEST.json` with 1,139 preserved entries.
+- **T3/T4 verification:** Current primary WIP verification recorded GraphAdapter 21/21, persistence/serialization 14/14, focused editor/route/topology 184/184, the pre-existing floor-editor 7/8-file failure (105/106), TypeScript `TS1005` in `data-identity-comparison.test.ts`, and build `spawn EPERM`. Secret/generated gate passed with explicit exclusions; `.env.local` was not read or included.
+- **T5/T6 baseline:** Created isolated branch `codex/navi-stage1.8b-baseline` from the current HEAD and committed the audited source baseline at `42e50b3ac6f33c5ae1c358c46aa36337edaaed0d` using one dependency-preserving commit. Incorporated 354 modified tracked paths, 16 deleted tracked source/test/tooling paths, and 611 previously untracked source/test/configuration/migration/tooling paths; excluded generated/cache output, documentation-only entries, uncertain files, secrets, local audit/recovery evidence, and deployment/environment files. Baseline status is clean. Exact parity checks pass for GraphAdapter 21/21, persistence 14/14, and the 11-file editor/route/topology command 147/147; the floor, TypeScript, and build outcomes match the primary WIP exactly. Normal `npm ci` hit lifecycle `spawn EPERM`; `npm ci --ignore-scripts` installed 816 packages and audited 823 with zero vulnerabilities. Elevated local graphify refresh completed at 11,817 nodes / 25,877 edges / 592 communities.
+- **T7 immutable gate:** Wrote `STAGE1.8B-CLEAN-BASELINE-VERIFICATION.json`, `STAGE1.8B-BASELINE-COMMIT-MANIFEST.md`, and `STAGE1.8B-BASELINE-CONSOLIDATION-REPORT.md`; updated `RECOVERY-MANIFEST.json` only with Stage 1.8B status/references. All 35 manifest artifact hashes match. Candidate, local evidence, server evidence, and Stage 1.8 backup hashes remain `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`, `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`, `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`, and `17D0C1FC9FE62485479424D7B6F1D996E21E0FCD69D207706E088AA1CBA218CC`.
+- **Safety:** No Supabase mutation, protected-campus POST/RPC, deployment, publish, browser/localStorage mutation, force resync, server-version load, conflict resolution, Stage 1.8C, or Stage 1.9 action occurred. Write authorization remains false.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8B: BLOCKED — CURRENT WIP DOES NOT BUILD MATERIALLY`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8B.1 syntax repair and build-blocker gate
+
+- **T1/T2 diagnosis and repair:** Reproduced TS1005 at `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)`. The line-212 `//` comment consumed the existing `buildingIndex` assertion and closing delimiter. Changed only that comment to a block comment in the isolated branch; the primary WIP remains untouched.
+- **Commit:** Parent/start `42e50b3ac6f33c5ae1c358c46aa36337edaaed0d`; repair commit `8e1017b05fcffe9496c62370770b7f3e295ae57a`; only `packages/runtime/src/__tests__/data-identity-comparison.test.ts` changed. `git diff --check` passed.
+- **Verification:** GraphAdapter 21/21, persistence 14/14, and editor/route/topology 147/147 passed. The affected runtime test command exited 0 with its explicit 61-test `describe.skip`. The historical floor result remains 105/106 with the same endpoint-snapping failure; a literal-path reconstruction reproduced the same failure at 131/132. Runtime adjacent tests retain five existing fixture failures.
+- **TypeScript/build:** TS1005 is absent, but standalone `npx tsc --noEmit --pretty false` exits 1 with 989 diagnostics across 270 files. `npm run build` compiles, skips type validation because root `next.config.ts` sets `ignoreBuildErrors`, then fails during 11-worker page-data collection with `spawn EPERM`.
+- **Spawn diagnosis:** Direct `child_process.spawnSync` for Node and `cmd.exe` returns EPERM both in the isolated repository and with `C:\Windows\Temp` cwd. Node/npm/Next are v24.16.0/11.13.0/16.2.9; executables and TEMP/TMP exist. Spawn classification is D (global Windows process-spawn restriction), but overall build classification remains C because standalone TypeScript is nonzero.
+- **Artifacts:** Created `STAGE1.8B.1-BUILD-BLOCKER-REPORT.md`, `STAGE1.8B.1-TYPESCRIPT-REPAIR.md`, `STAGE1.8B.1-SPAWN-EPERM-DIAGNOSTIC.md`, and `STAGE1.8B.1-VERIFICATION.json`; updated `RECOVERY-MANIFEST.json` references/status only. All 39 manifest artifact hashes match.
+- **Immutable evidence:** Candidate/local/server/Stage 1.8 backup hashes remain `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`, `E98855E393058C7E5722E192E053A363ADBBEE1B3B0EEE80C9EDE8923ED9D817`, `161DE0D5720C8576F022CF945C8A30794EEC51103A7E9600C0E8F4A31407DF36`, and `17D0C1FC9FE62485479424D7B6F1D996E21E0FCD69D207706E088AA1CBA218CC`; primary status remains 1,781 rows with SHA `E6F015E8CAB42C3BE437C1385F52B4E06E8A3E498940D0C4822C6ECE786A5686`.
+- **Safety:** No production/Supabase mutation, protected-campus POST/RPC, deployment, publish, browser/localStorage mutation, force resync, server-version load, conflict resolution, Stage 1.8C, or Stage 1.9 action occurred. Write authorization remains false.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8B.1: BLOCKED — SOURCE BUILD DEFECT REMAINS`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8B.2 differential baseline gate
+
+- **T1/T2 evidence:** Reverified the four immutable recovery hashes. Created a clean parent worktree at `42e50b3ac6f33c5ae1c358c46aa36337edaaed0d`, captured exact `npx tsc --noEmit` diagnostics for parent and repair, and used a separate parent syntax-normalization probe to isolate parser-frontier effects.
+- **TypeScript differential:** Exact parent has one TS1005 parser diagnostic; repair has 989 diagnostics. The normalized parent probe and repair have identical 989 tuples: 0 new, 0 removed, 989 unchanged baseline. No tsconfig or suppression changes were made.
+- **Tests:** GraphAdapter 21/21, persistence 14/14, editor/route/topology 147/147, and the known route-network 3-vs-4 failure match parent vs repair. The five original repair-worktree fixture failures were traced to CRLF fixture bytes versus LF manifest checksums; the same repair commit in a separate LF checkout passes 25/25 focused fixture tests and 434 passed / 61 skipped runtime tests.
+- **Build:** Parent and repair commit both compile with Next 16.2.9, both skip type validation under the unchanged `ignoreBuildErrors` config, and both fail at page-data worker creation with independently environmental `spawn EPERM`.
+- **Artifacts:** Created `STAGE1.8B.2-DIFFERENTIAL-BASELINE-REPORT.md`, `STAGE1.8B.2-TSC-BASELINE.json`, `STAGE1.8B.2-TSC-REPAIR.json`, `STAGE1.8B.2-TSC-DIFF.json`, `STAGE1.8B.2-TEST-DIFF.json`, `STAGE1.8B.2-BUILD-DIFF.json`, and `STAGE1.8B.2-VERIFICATION.json`. All required files exist, JSON parses, recorded hashes match, immutable evidence hashes match, and the artifacts are Git-ignored.
+- **Safety:** No Supabase mutation, protected-campus POST/RPC, recovery write, deployment, publish, browser/localStorage mutation, force resync, server-version load, conflict resolution, Stage 1.8C, or Stage 1.9 action occurred. Write authorization remains false.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8B.2: PASS — SOURCE DELTA VALID` (gate classification: B — SOURCE DELTA VALID / HOST BUILD BLOCKED).
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8C non-write gate
+
+- **Authority and scope:** No standalone Stage 1.8C definition was present. The existing Stage 1.8 production-preflight spec/plan, recovery policy, Stage 1.9 write plan, and continuation instructions establish the non-mutating boundary; the derived Stage 1.8C spec/plan/TODO only records that execution and does not change the recovery architecture.
+- **Candidate and offline evidence:** The existing Stage 1.7 candidate remains byte-identical at SHA-256 `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`; 44/44 decisions are concrete with zero pending; Stage 1.7 validation remains 30/30 PASS and Stage 1.8 validation remains 21/21 PASS. No candidate regeneration or normalization occurred.
+- **Fresh protected read:** One SELECT-only baseline check found row `6696` at `2026-09-13T10:10:07.45635+00:00`, data MD5 `1997bc43b8d7b22815be8cef509a9981`, 145191 bytes, and unchanged graph/table counts. `STAGE1.8C-FRESH-PROTECTED-BASELINE.json` records the exact match to `server-prewrite-stage1.8.json`.
+- **Contract and boundary:** Migration 009 and the captured `public.sync_graph_snapshot(payload jsonb)` definition confirm the audited advisory-lock/CAS contract. The future Stage 1.9 single CAS payload is recorded but not executed; write authorization remains false. Existing dirty deployment provenance remains a prerequisite for a later non-write stage, not a new Stage 1.8C defect.
+- **Artifacts and verification:** Created `STAGE1.8C-FRESH-PROTECTED-BASELINE.json`, `STAGE1.8C-VERIFICATION.json`, and `STAGE1.8C-GATE-REPORT.md`. Independent final probe passed 20/20 checks: existence, JSON parsing, immutable hashes, campus/revision, gate status, no-new-defect list, report marker, and Git-ignore containment.
+- **Scope-corrected final check:** The audited `navi-next` submodule HEAD remains `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc`; the outer workspace HEAD remains `597a07a2d581f3161b35c8d3bd96997722ce520d`. The final repository-scoped verification passed 14/14 checks. The submodule's 405 contextual WIP status rows were not treated as an integrity gate.
+- **Safety:** Protected campus mutation `NONE`; no protected POST/RPC, force resync, server-version load, browser/localStorage mutation, conflict resolution, publish, or E2E occurred. The valuable Studio tab was not reloaded or closed.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8C: PASS — READY FOR NEXT NON-WRITE STAGE`.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8D T1–T5 clean deployment source gate
+
+- **Source freeze/closure:** Built isolated worktree `.stage1.8d-clean-deployment` from frozen P0 parent `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc`; exact audited 42e50b3 runtime closure and dependency lockfile were incorporated. Stage 1.8B.1 repair commit `8e1017b05fcffe9496c62370770b7f3e295ae57a` and unrelated primary WIP remain excluded.
+- **Derived source commit:** Clean worktree committed as `404c37bb9985c304b7aaaa89be25adf79ff59a03` (`chore(recovery): close clean P0 deployment source graph`), with 115 changed files, no staged whitespace errors, and empty post-commit status. `.vercelignore` excludes `vercel.json`, `debug-fiber.mjs`, and `test-undo-redo.mjs` from deployment payload; no environment or recovery artifacts were included.
+- **Verification:** Exact-lockfile `npm ci --ignore-scripts --no-audit` added 816 packages; focused P0 matrix passed 10/10 files and 88/88 tests. `npm run build` passed with process-scoped non-production placeholders only (`BUILD_EXIT=0`); no production URL, key, override, campus id, POST, RPC, browser, localStorage, publish, force-resync, or conflict-resolution operation was used.
+- **Primary preservation:** Primary `navi-next` remains at `6e3ed5b2b809cc9933ddb1d7f6d434c0925c70bc` with its original 1,124-row WIP status; the isolated commit is the only source mutation made for this gate.
+- **Next:** T6 deploy only the exact derived clean commit, then prove deployment provenance before any safe read-only smoke check or fresh protected SELECT baseline.
+
+## 2026-09-14 — NAVI protected campus recovery Stage 1.8D final non-write gate
+
+- **T6 deployment:** Deployed the isolated clean source to Vercel production as deployment `dpl_HsUHGuDp3ZXvXwHJsWuksNAd6ZbE`; it is `READY` and aliased at `https://navi-next.vercel.app`. The remote build compiled successfully and generated 33 static pages.
+- **T7 provenance/smoke:** Read-only inspect found `gitSource`, `source`, and `meta` all `null`; the server-side deployment cannot be matched to clean commit `404c37bb9985c304b7aaaa89be25adf79ff59a03`. Public GET smoke checks for `/`, `/login`, and `/map/search` returned HTTP 200. Provenance is therefore **not proven**, despite the local source and remote build both passing.
+- **T8 protected baseline:** One SELECT-only post-deployment check found row `6696`, campus `map-map-1-k6bv`, revision `2026-09-13T10:10:07.45635+00:00`, MD5 `1997bc43b8d7b22815be8cef509a9981`, 145191 bytes, graph counts 29/53/50/3/4/56, and protected table counts 1/29/53/50/0/0. All match `server-prewrite-stage1.8.json`; protected state is unchanged.
+- **T9 envelope:** Created plan-only `STAGE1.8D-STAGE1.9-WRITE-ENVELOPE.json`; `writeAuthorized=false`, `stage1_9Approval=false`, `operation.execute=false`, and no executable candidate payload is embedded. No RPC, POST, force resync, server-version load, browser/localStorage mutation, publish, or conflict resolution occurred.
+- **T10 artifacts/verification:** Created the Stage 1.8D report, source manifest, deployment verification, fresh protected baseline, Stage 1.9 envelope, and offline validation. Offline artifact validation passed 22/22; final manifest/hash/baseline/write-safety verification passed 61/61; manifest contains 45 matching artifact hashes. Immutable candidate/local/server/prewrite hashes remain unchanged. The isolated worktree is clean at `404c37b`; primary remains at frozen HEAD with 1,124 status rows.
+- **Graph context:** Normal graphify refresh hit the known Windows access boundary; the scoped elevated retry completed with 91,335 nodes / 92,589 edges / 12,602 communities.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8D: BLOCKED — DEPLOYMENT PROVENANCE NOT PROVEN`.
+
+## 2026-09-15 — NAVI protected campus recovery Stage 1.8D.1 Git-backed provenance closure
+
+- **T1/T2 source and publication:** Verified clean worktree HEAD `404c37bb9985c304b7aaaa89be25adf79ff59a03`, tree `943d893d94402bfad4fa6dbfa23966b5a9f3cf1d`, empty status, and zero explicitly prohibited tracked paths. Published only `recovery/deployment-provenance-2026-09-15`; the remote tip matches exactly. No force-push, history rewrite, primary-WIP push, or shared-branch modification occurred.
+- **T3 Git-backed provenance:** GitHub deployment `6448382203`, created by `vercel[bot]`, records SHA `404c37bb9985c304b7aaaa89be25adf79ff59a03`; the Vercel status is `success` and points to `https://navi-next-8bf8xo6um-navi01.vercel.app`. Vercel deployment identifier is `7Wjy42UdDjxBCvpe2kDhnoFzK7WZ`. Therefore `AUDITED_COMMIT == DEPLOYED_COMMIT` is proven. The deployment is Preview; the production alias was not changed under the narrow authorization.
+- **T4 smoke:** Read-only GETs for `/`, `/login`, and `/map/search` returned HTTP 200.
+- **T5 protected baseline:** One SELECT-only query found row `6696`, campus `map-map-1-k6bv`, revision `2026-09-13T10:10:07.45635+00:00`, data MD5 `1997bc43b8d7b22815be8cef509a9981`, graph counts 29/53/50/3/4/56, and protected table counts 1/29/53/50/0/0. All match `server-prewrite-stage1.8.json`; protected state is unchanged.
+- **T6 artifacts:** Created `STAGE1.8D.1-PROVENANCE-CLOSURE-REPORT.md`, `STAGE1.8D.1-GIT-DEPLOYMENT-VERIFICATION.json`, `STAGE1.8D.1-FRESH-PROTECTED-BASELINE.json`, `STAGE1.8D.1-STAGE1.9-WRITE-ENVELOPE.json`, and `STAGE1.8D.1-MANIFEST.json`. All four JSON artifacts parse; the final evidence gate passed; immutable recovery hashes remain unchanged.
+- **Stage 1.9 safety:** `writeAuthorized=false`, `stage1_9Approval=false`, `operation.execute=false`, `forceServerOverwrite=false`, `retry=NONE`. No protected RPC/POST, recovery write, force resync, server-version load, browser/localStorage mutation, publish, or conflict resolution occurred.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.8D.1: PASS — DEPLOYMENT PROVENANCE PROVEN — READY FOR STAGE 1.9 WRITE APPROVAL`.
+
+## 2026-09-15 — NAVI protected campus recovery Stage 1.9 single CAS attempt
+
+- **Authorization and prewrite gate:** The user authorized exactly one CAS write for `map-map-1-k6bv` using `recovery-candidate-stage1.7.json`, with `forceServerOverwrite=false` and no retry. Final read-only preflight passed: candidate SHA-256 `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`, semantic graph SHA-256 `8D41B2EDC146DF2D8D92F74568707824A0625A14F6A810ED0DA30523318516A4`, expected revision `2026-09-13T10:10:07.45635+00:00`, and candidate counts 21/202/201/22/10/7 for buildings/nodes/edges/traces/POIs/doors.
+- **Mutation attempt:** Exactly one `public.sync_graph_snapshot(payload jsonb)` invocation was issued. No retry, force overwrite, fallback write, automatic rollback, POST, browser mutation, localStorage mutation, publish, force resync, server-version load, or conflict resolution occurred.
+- **Readback:** The wrapper failed after the RPC while formatting its result because `Buffer` is unavailable. The subsequent SELECT-only readback found snapshot `6696`, revision `2026-09-13T10:10:07.45635+00:00`, MD5 `1997bc43b8d7b22815be8cef509a9981`, 145191 bytes, graph counts 29/53/50/3/4/56, protected counts 1/29/53/50/0/0, and global counts 12/31/55/51/1/3; every value matches the prewrite baseline.
+- **Artifacts:** Created `STAGE1.9-POSTWRITE-READBACK.json` and `STAGE1.9-GATE-REPORT.md`; appended the wrapper error to `errors/ERRORS.md`. The candidate and immutable rollback evidence remain unchanged.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.9: BLOCKED — CAS RESULT NOT CAPTURED AND WRITE NOT APPLIED BY READBACK; NO RETRY AUTHORIZED`.
+
+## 2026-09-15 — NAVI protected campus recovery Stage 1.9A RPC execution-path repair
+
+- **Root cause:** The prior inline wrapper reached the post-await diagnostic expression and then threw `ReferenceError: Buffer is not defined` at `exec_main.mjs:22` while evaluating `Buffer.byteLength(payload, "utf8")`; the awaited MCP call had returned control, but its result was not serialized. A follow-up probe also confirmed `TextEncoder` is unavailable in the outer runtime.
+- **Repair:** Added recovery-only `stage1.9a-rpc-wrapper.mjs`; it uses JSON serialization only and contains no `Buffer`, `TextEncoder`, Supabase call, credential, protected campus ID, or application import. No application source, migration, schema, deployment, browser, or localStorage change occurred.
+- **Verification:** Success-shaped and conflict-shaped result fixtures both round-trip with exact `updatedAt`/error fields and zero exceptions. A real read-only Supabase MCP `SELECT 1 AS wrapper_probe` response serialized successfully. Live `sync_graph_snapshot(payload jsonb)` contract reinspection passed all expected CAS/result-shape flags.
+- **Protected readback:** SELECT-only row `6696` remains at revision `2026-09-13T10:10:07.45635+00:00`, MD5 `1997bc43b8d7b22815be8cef509a9981`, 145191 bytes, graph counts 29/53/50/3/4/56, protected counts 1/29/53/50/0/0, and global counts 12/31/55/51/1/3. No protected RPC was invoked in Stage 1.9A.
+- **Candidate/envelope:** Candidate remains unchanged at SHA-256 `B4553C9E8EDD23036B5559A15183EA3900135DC9D4ED204F9EBE29E03FDF2C53`. New envelope is plan-only with `expectedServerUpdatedAt=2026-09-13T10:10:07.45635+00:00`, `forceServerOverwrite=false`, `retry=NONE`, one future invocation allowance, and `writeAuthorization=false`.
+- **Artifacts:** Created the six required Stage 1.9A artifacts plus the recovery-only wrapper; updated `RECOVERY-MANIFEST.json`; final artifact/hash/JSON verification passed.
+- **Final status:** `NAVI CAMPUS RECOVERY STAGE 1.9A: PASS — EXECUTION PATH VERIFIED — NEW STAGE 1.9 AUTHORIZATION REQUIRED`.
+
+## 2026-09-15 — NAVI sync hardening Phase 6 lossless backup/import contract
+
+- **Delivered:** New domain module `navi-next/src/services/campus-backup/` (`types.ts`, `export.ts`, `validate.ts`, `import.ts`) plus `__tests__/fixture.ts`, `__tests__/helpers.ts`, `__tests__/roundtrip.test.ts`, `__tests__/validate.test.ts`. No existing file was modified; the module has no React, store, `fetch`, localStorage or Supabase import.
+- **Contract:** `navi-campus-backup/v1` envelope `{format, schemaVersion, exportedAt, campusId, sourceRevision, graph, campusMap?}`; deterministic `createCampusBackup` (deep-copied, stable ids preserved); read-only `validateCampusBackup` (structural + semantic, typed issues, explicit older **and** newer schema rejection); `importCampusBackup` validates then rebuilds `Graph.fromJSON` + `createDocument` and returns `{graph, document, campusMap, sourceRevision, transformer, warnings}` with zero network/storage calls.
+- **Round trip:** graph→envelope→validate→import canonical equality PROVEN (volatile `updatedAt` excluded); reconstructed `CampusDocument` preserves the authored ids/geometry/metadata carried by `graph_snapshots.data`; re-sync through `GraphAdapter` is equal modulo volatile `genId()` node/edge ids. Invalid payloads (unknown format/version, missing campusId, duplicate ids, edge→missing node, door→missing room/building/floor, NaN coordinates, dangling route edge) are rejected; import throws `CampusBackupImportError`.
+- **Evidence:** `npx vitest run src/services/campus-backup` → 2 files / 21 tests PASS; adjacent 4 suites 19 PASS; `src/services` 131 PASS with 1 pre-existing suite-load failure (`packages/editor/src/demo/golden-campus` missing); ESLint clean; `tsc --noEmit` only the pre-existing `data-identity-comparison.test.ts(255,3)` baseline error.
+- **Audit:** authoritative-vs-derived field matrix (campus metadata/boundary, buildings, floors, walls, rooms, room attributes, doors, entrances, stairs, elevators, POIs, roads/traces, route nodes/edges, junctions, separated crossings, QR, panoramas, floor geometry, stable ids, ownership) recorded in `progress/SYNC-HARDENING-PHASE6-BACKUP-GATE.md`, including lossy pre-existing projections (building/room `category`, entrance `type`/`connectorRoadId`, `road.type` collapse, panorama heading/image/hotspots, connectorStops/verticalConnectors/parametricComponents).
+- **Safety:** no production mutation, no Supabase/network call, no migration, no deploy/push/commit, no browser/localStorage action; protected campus untouched.
+- **Status:** `NAVI SYNC HARDENING PHASE 6: PASS — BACKUP/IMPORT CONTRACT LOCAL-ONLY`.
+
+## 2026-09-15 - NAVI sync hardening Phase 5 revision-history gate (local-only)
+
+- **Deliverables:** Authored `navi-next/supabase/migrations/010_campus_graph_revisions.sql` (revision ledger + shared `write_graph_snapshot` + revision capture in `sync_graph_snapshot` + CAS-gated `restore_graph_revision` + autosave-only `prune_graph_revisions`; RLS/privilege style per 003/008), fetch-only `navi-next/src/services/graph-revisions.ts`, tests `navi-next/src/services/__tests__/graph-revisions.test.ts`. Gate artifact: `progress/SYNC-HARDENING-PHASE5-REVISION-HISTORY-GATE.md`.
+- **Equivalence:** Normalization check vs the live 009 contract - CAS block, projection/upsert block, and return contract identical; advisory lock held by sync/restore/prune; 2 shared-writer call sites; history insert before snapshot upsert; restore never updates/deletes history; prune autosave-only.
+- **Evidence:** All 10 migrations parse OK with the unmodified parser (one file per fresh process; the single-process run hits the pg-query-emscripten ~512MiB libpg_query context ceiling on the 10th file - tool capacity, not syntax). `npx vitest run src/services/__tests__/graph-revisions.test.ts` 17/17 PASS; ESLint clean (exit 0).
+- **Safety:** No production mutation, no migration applied, no Supabase/network call, no deploy/push/commit, no browser/localStorage action; protected campus untouched. MIGRATION NOT APPLIED - production gate required.
+
+## 2026-09-19 — Vercel production design provenance investigation
+
+- **Scope:** Read-only investigation. No product source, commit, push, deploy,
+  alias change, cache purge, Vercel setting, Supabase data, or browser
+  localStorage mutation was performed.
+- **Graph/ledger pre-read:** Queried Graphify before source search. Relevant
+  prior conditions were the dirty/manual-deployment provenance failures and
+  the current source-curation block.
+- **Local source evidence:** `navi-next` is on `master` at `6e3ed5b` with a
+  heavily dirty working tree. The current working tree changes 25 public/map
+  design files (about `2077` additions / `601` deletions in the scoped diff)
+  and adds newer public components including `HomeHeroCarousel.tsx`,
+  `CampusBrowser.tsx`, and `ProfileDashboard.tsx`. The committed
+  `HomeDashboard` still contains the older search/quick-action/mock-
+  announcement surface; the working tree contains the newer dynamic hero,
+  campus highlights, and profile/campus experience.
+- **Vercel project evidence:** Project metadata is `navi-next`; the documented
+  root is `navi-next`, with `next build` and `.next` output. `.vercelignore`
+  excludes `.next`, so a local build directory cannot carry the newer design
+  into a source deployment.
+- **Live deployment evidence:** Vercel dashboard marks deployment
+  `HsUHGuDp3ZXvXwHJsWuksNAd6ZbE` as `Production` and `Current`, created Sep 14,
+  with current domain `navi-next.vercel.app` and deployment domain
+  `navi-next-2n5w1h1l0-navi01.vercel.app`. Its source is labeled `vercel deploy`,
+  not a Git commit. The live artifact renders the older `Navigate Your Campus`
+  / old Home UI.
+- **Preview comparison:** The verified Git-backed deployment
+  `7Wjy42UdDjxBCvpe2kDhnoFzK7WZ` is Preview at
+  `navi-next-8bf8xo6um-navi01.vercel.app`, from SHA
+  `404c37bb9985c304b7aaaa89be25adf79ff59a03`; the Production alias was not
+  moved to it. It also predates the current dirty working-tree design.
+- **HTTP/browser evidence:** Production and preview both return prerendered
+  Vercel responses, but with different asset sets (65 vs 229 static references)
+  and different chunk layouts. Production was a CDN `HIT`; this is not evidence
+  of a same-deployment stale CSS cache. Fresh browser tabs reproduced the old
+  UI on the Production/Current artifact and the recorded preview artifact.
+- **CLI boundary:** `vercel ls` reached Vercel only after network escalation
+  and then reported the stored CLI token invalid. The dashboard was used for
+  deployment identity instead. A production-tab screenshot timed out once;
+  accessibility state and fresh deployment tabs supplied the required evidence.
+- **Root cause:** The latest design was never included in the active production
+  artifact. It remains uncommitted/uncurated local work, while Production
+  points to a Sep 14 manual CLI deployment whose source is not Git-proven and
+  whose UI is the older committed design. The verified newer Git-backed build
+  is Preview only. Cache invalidation is therefore not the primary cause.
+- **Final status:** `VERCEL DESIGN PROVENANCE: ROOT CAUSE CONFIRMED — LATEST
+  DESIGN NOT IN PRODUCTION ARTIFACT; CLEAN SOURCE CURATION AND EXPLICIT
+  PRODUCTION PROMOTION REQUIRED; NO MUTATION PERFORMED`.
+
+## 2026-09-22 — NAVI Phase 3A.1 final production rollout
+
+- **Canonical release:** Verified clean worktree `C:\Users\Administrator\AppData\Local\Temp\navi-canonical-release-line-20260921`, commit `b13a46aeb8f9688e081680bd17c5ca9c480ede33`, tree `2d1d1ad6517a5b7ab91db14de08335c2643a063b`; production predecessor and confirmation commits are both ancestors. No owner checkout changes were made.
+- **Database:** Applied only `014_authored_document_snapshots.sql` to Supabase production project `oltfaepqcktrumfhadzb`. Migration history records version `20260921162339`; both authored columns are nullable `jsonb`; legacy rows remain (`graph_snapshots=4`, `campus_graph_revisions=78`); authored row counts remain zero, proving no automatic backfill. Security/performance advisors report only pre-existing notices.
+- **Git/Vercel:** Pushed `release/navi-phase3a1-2026-09-22` at the exact canonical SHA. Promoted Vercel deployment `dpl_5fp92QmPFFUXbu3TTiCiGHNJSWPL` to production; it is READY, aliases `navi-next.vercel.app`, and carries the exact Git branch/SHA metadata.
+- **Verification:** Production root, `/map?campus=asu-main`, and `/login` returned HTTP 200. Vercel runtime errors for the last hour: none. The full authenticated authored-save/reload/delete matrix remains manual-owner-only because no safe test campus/building and authenticated session were supplied; no production content was mutated.
+- **Next:** Stop. Do not start SaveRevision/Phase 3A architecture in this rollout.
+- **Status:** `NAVI PHASE 3A.1 FINAL PRODUCTION ROLLOUT: DEPLOYMENT PASS — AUTHENTICATED OWNER SMOKE REQUIRED — STOPPED BEFORE SAVE REVISION`.
+# 2026-09-22 — P0 normal autosave server write
+
+- Root cause: `AutosaveService` and `WorkflowService` already scheduled the 5-second save, but `EditorBridge` only recorded authored intent for building deletes. Generic committed building edits therefore reached the graph-store no-save-on-load/view gate with zero pending intents and produced no POST.
+- Fix: `EditorBridge` now resolves the committed entity's authored scope from the canonical `CampusDocument` and records a deduplicated intent for building/floor/door/route/POI/outdoor changes. CAS queue behavior and `forceServerOverwrite: false` are unchanged.
+- Tests: final focused matrix passed 9 files / 59 tests, including building edit/create/delete network assertions, timer reset/transient gate, queue/CAS conflict, readiness, local-draft refresh, and server-adoption recovery. Graph API route/lifecycle contract tests passed 2 files / 17 tests, including authored-document forwarding to the idempotent RPC; attribution/false-saved gates passed 2 files / 15 tests.
+- Build: `npm run build -- --webpack` passed with process-local public Supabase placeholders; 41/41 static pages generated. Scoped ESLint retains existing baseline diagnostics only.
+- Release: commit `a634a13ba419a8886bb1d7b1ca53a2a38a283a4d`, tree `9c76177399e4f31c7db70b409286a161ed9a2851`, pushed fast-forward to `release/navi-phase3a1-2026-09-22`.
+- Vercel: production deployment `dpl_2wf9xLuPMe4xcoYkykkrentuJnec` READY, aliases `navi-next.vercel.app` and `navi-next-navi01.vercel.app`, metadata exact SHA above; root/map/login HTTP 200; no runtime errors in the last hour.
+- Next: none for this P0 scope.
+
+## 2026-09-22 — False reload conflict three-way convergence
+
+- **Scope:** Focused Phase 3A.1 reload/recovery classification fix. The normal
+  five-second autosave queue, CAS, mutation id, and `force=false` path were
+  preserved.
+- **Root cause evidence:** `checkServerFreshness()` previously required the
+  active in-memory `storeFingerprint` to equal the persisted local Graph
+  fingerprint before considering local/server equality. During authored
+  hydration/reload, that stale projection forced the normal conflict branch
+  even when canonical local and server content were equal.
+- **Fix:** Added a composite canonical identity in
+  `src/store/graph-store.ts`: the existing Phase 3A.1 authored fingerprint is
+  authoritative when present; normalized persistent Graph content remains the
+  legacy fallback. Three-way classification now handles converged, local-ahead,
+  server-ahead, and true-divergence cases; stale markers/revisions are healed
+  without a write, and a stale active projection is rehydrated from the
+  converged authoritative payload.
+- **Tests:** `canonical-convergence.test.ts` covers the reload race, authored
+  versus derived Graph drift, double reload, runtime flags, local-ahead,
+  server-ahead, true divergence, and both-changed-but-equal convergence. The
+  focused save/sync/workflow matrix passed 13 files / 92 tests; the convergence
+  plus workflow baseline pair passed 2 files / 29 tests.
+- **Build/lint:** Production `npm run build` passed with process-local public
+  Supabase placeholders; 41/41 static pages generated. Scoped ESLint passed for
+  the classifier and regression tests.
+- **Status:** Implementation and verification pass; release commit/push/deploy
+  are the next task.
+
+- **Release:** Commit `564c157505c405b242f5b9be3d8cbc291571c416` (tree
+  `499256069baecb53c61f3fb1af0b785d44f2fcfb`) was pushed fast-forward to
+  `release/navi-phase3a1-2026-09-22`; the previous autosave commit remains an
+  ancestor.
+- **Deployment:** Vercel deployment `dpl_2mjhg4rNTSKnnjih4QY3tgb7mKB7` is
+  READY/production, aliases `navi-next.vercel.app` and
+  `navi-next-navi01.vercel.app`, and API metadata records the exact SHA and
+  release ref. Root, `/map?campus=asu-main`, and `/login` returned HTTP 200;
+  the deployment error-log query returned no entries.
+- **Final status:** `NAVI THREE-WAY RELOAD CONVERGENCE: FIXED AND DEPLOYED`.
+- **Post-deploy regression:** The normal autosave/saved-state matrix passed
+  10 files / 62 tests after promotion; no force-overwrite or queue behavior
+  changed.
+
+## 2026-09-23 — P0 reload status last-writer audit
+
+- **Evidence:** Source-tagged Graph and Workflow traces reproduced the actual
+  last writer. A delayed `checkServerFreshness` from an older same-campus load
+  changed `synced → conflict` after the newer reload had converged; the stale
+  per-campus cache was reread under a shared `currentMapId`.
+- **Fix:** Freshness checks now carry the `campusSessionGeneration`; stale
+  responses cannot classify or write the active session. Local-ahead safety
+  accepts an authored-canonical match while EditorBridge rebuilds a derived
+  Graph projection. A reused WorkflowStore heals `dirty → saved` only after a
+  matching `checking → synced` freshness completion with no document revision.
+- **Tests:** Final focused reload/sync/workflow plus autosave/delete/confirmation
+  matrix passed 16 files / 129 tests. Required A–F matrix is green, including
+  true divergence remaining conflict and local-ahead guarded save/ack. Scoped
+  lint passed for changed Graph/workflow-store/test files; the touched
+  workflow-service retains two pre-existing `no-explicit-any` diagnostics.
+- **Build:** Webpack production build passed with process-local public
+  Supabase placeholders; all 41/41 static pages generated.
+- **Release:** Clean canonical commit `867c53534205ef4218bd523862882f18fc2b84bf`.
+  The default push failed at the network boundary and the elevated push was
+  rejected by the external-egress safety review; no remote branch or deployment
+  was mutated.
+- **Next:** Obtain explicit authorization for the exact GitHub destination,
+  then push this commit to `release/navi-phase3a1-2026-09-22` and deploy the
+  exact SHA. Do not claim production fixed/deployed until provenance is checked.
+
+## 2026-09-23 — P0 reload last-writer release verification
+
+- **Release source:** Canonical clean worktree is `867c53534205ef4218bd523862882f18fc2b84bf` with tree `c2cd6287bb3e3dc0fdccb3f24194c05e089e5334`; worktree status is clean.
+- **Push:** `release/navi-phase3a1-2026-09-22` on `https://github.com/0SEless/Navi.git` resolves to the exact `867c53534205ef4218bd523862882f18fc2b84bf` commit.
+- **Deployment:** Vercel deployment `dpl_93pJy5KGkaXJthpTAYt37fgQ2L5L` is `READY`/`PROMOTED` for production. Vercel API metadata records the exact SHA, release ref, and tree; aliases are `navi-next.vercel.app` and `navi-next-navi01.vercel.app`.
+- **Build:** Remote Vercel build passed; Next.js generated all 41/41 static pages. Existing build warnings remain unchanged.
+- **HTTP:** Production root returned 200; `/map` followed its expected 307 redirect to `/map/home` and returned final HTTP 200; `/login` returned 200.
+- **Runtime:** The deployment's recent log query contained only the three route checks and no error/warning entries. No authenticated Studio route was exercised because no safe owner session/campus was supplied.
+- **Next:** Owner must run the authenticated manual reload/save smoke matrix; no further release mutation is authorized in this task.
+- **Status:** `NAVI RELOAD LAST-WRITER FIX: DEPLOYED — OWNER ACCEPTANCE PENDING`.
+
+## 2026-09-23 — P0 save acknowledgement and automatic retry implementation
+
+- **Trace:** A deterministic direct graph-store trace reproduces the observed false failure: one POST returns HTTP 200 and commits `R1`, but omits `updatedAt`; the bounded revision read-back receives five HTTP 500 responses. The old implementation wrote `syncStatus=error` in the acknowledgement branch and again in `performSyncToSupabase`'s catch; no second POST occurred. The enriched trace records T0–T9, mutation id, campus/session identity (`generation=0`, `epoch=0`), CAS expected revision, force=false, fingerprints, and final POST count=1.
+- **Fix:** Successful writes never replay a legacy mutation solely because the response omitted `updatedAt`; only the authoritative GET read-back retries. Network/408/429/5xx failures use one guarded 2s/5s/10s/30s chain, stop on 409/CAS and 401/403, abort stale session/epoch work, and reconcile through `syncLocalChanges()` on `online` so an uncertain committed write is adopted without reload or false CAS conflict. Retry UX is explicit and bounded.
+- **Tests:** Consolidated save acknowledgement, queue/CAS, saved-state, recovery/supersession, readiness, refresh, workflow, autosave, reload-last-writer, and status-model verification passed 13 files / 103 tests. The new lifecycle file covers first-try success, uncertain ACK with no second POST, multiple transient failures, online recovery, auth refusal, true conflict, stale-session response, and newer-edit supersession. Scoped ESLint passed.
+- **Build:** `npm run build -- --webpack` passed with process-local public Supabase placeholders; Next.js generated 41/41 static pages. Existing export and middleware warnings remain unchanged.
+- **Next:** Commit this canonical worktree once, push the exact SHA to the requested release branch, deploy that SHA, verify Vercel provenance/routes/logs, then stop for owner-authenticated smoke.
+
+## 2026-09-23 — P0 save acknowledgement and automatic retry release
+
+- **Commit:** Clean canonical commit `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, tree `f96a89cd5145e2af946e1918210466ca5a43217e`; no post-commit worktree changes.
+- **Push:** `origin/release/navi-phase3a1-2026-09-22` resolves exactly to `3f5277dcf14a8a17712d2c1e36c67a7de0181594`.
+- **Deployment:** Vercel `dpl_CMDPXGrDFmMTrdDTAuMhRAAVtZsz` is READY/PROMOTED in production, aliases `navi-next.vercel.app` and `navi-next-navi01.vercel.app`. API metadata records commit SHA `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, message `fix: recover transient save acknowledgements automatically`, and the clean integration release-line ref.
+- **HTTP/runtime:** Production `/`, `/map` (redirect followed), and `/login` returned 200. Last-hour deployment logs contain informational route checks and a successful `/api/graph` POST (`outcome=SUCCESS`, status 200); no error/warning entries were observed.
+- **Verification:** Final consolidated save/sync/autosave/workflow/reload/status matrix passed 13 files / 105 tests; preserved three-way convergence, building-delete persistence, confirmation, and bridge-delete regressions passed 4 files / 23 tests (128/128 total); scoped ESLint passed; webpack production build generated 41/41 static pages. Graphify elevated refresh rebuilt 12,104 nodes, 26,681 edges, and 554 communities.
+- **Owner handoff:** Do not perform automated production campus mutations. Owner should run the authenticated normal edit → 5-second autosave → reload once → second reload no-op smoke and confirm the final status. No database migration was required.
+- **Final status:** `NAVI SAVE FAILURE RECOVERY: AUTOMATIC — BROWSER RELOAD NOT REQUIRED — OWNER AUTHENTICATED SMOKE PENDING`.
+
+## 2026-09-23 — NAVI User Map Route Transition Performance Audit
+
+- **Scope:** Read-only application-code audit of /map/home, /map/explore, and
+  /map/navigate. No application code or tests were changed or run.
+- **Findings:** Explore and Navigate both render the shared ExploreMap module,
+  but each route mounts its own NavigationMap instance. NavigationMap removes
+  its MapLibre instance on unmount. The shared map layout and Zustand campus
+  store survive route changes, so ordinary same-session route re-entry does
+  not repeat the campus API request or PublishedCampus parsing. It does repeat
+  map construction, raster tile loading/checks, ExploreMap model building,
+  source/layer setup, and Explore bounds fitting.
+- **Recommendation:** Keep only a lazy MapLibre host in the shared /map shell
+  after the first Explore/Navigate visit; let route page trees unmount normally
+  and reuse the host across Home/Explore/Navigate. Release it when leaving the
+  public map shell. Preserve style readiness and route-layer cleanup.
+- **Verification:** Required Graphify query ran first; route-specific source
+  tracing and source/layer counts completed. Documentation diff check exited 0
+  with only expected LF-to-CRLF warnings. No runtime profile was collected, so
+  timings remain estimates rather than measured benchmarks.
+- **Next:** Stop before implementation as requested.
+
+## 2026-09-23 10:44 Asia/Manila — NAVI Road Vertex Sticky Drag P0
+
+- **SPEC/PLAN/TODO:** Added the road-vertex interaction requirements, five-task plan, and visible checklist. T1 is the only task in progress. The todowrite tool is unavailable, so the checklist is Markdown in TODO.md.
+- **Graph:** Queried Graphify before source browsing. Its current results surfaced the floor-editor E2E drag helper but not the production road-vertex path; T1 will trace imports from the live editor route.
+- **Workspace boundary:** The nested navi-next checkout is on master at a0c5f072 and already has dirty studio, editor-context, Graph/store, and generated .next files. The active save acknowledgement/retry edits are explicitly outside this task.
+- **Verification:** `git diff --check -- spec/SPEC.md plan/PLAN.md TODO.md` exited 0; only the repository LF-to-CRLF warnings appeared.
+- **Setup errors:** Added the skill-path and command-quoting errors to errors/ERRORS.md.
+- **Next:** Trace the live production editor and resolve exact implementation/test paths before reproducing or editing.
+
+## 2026-09-23 — NAVI P0 Production Save Error / Retry Acceptance T1
+
+- **Production UI:** Read-only inspection of the already-open authenticated
+  production Studio tab confirms the exact red `Save failed — changes
+  preserved` header and generic detail.
+- **Live API:** Read-only production `GET /api/graph` returned HTTP 200,
+  `updatedAt`, `authoredDocumentFormatVersion: 1`, `authoredDocument`, and the
+  Graph snapshot. It is current at 10:39:03 +08:00.
+- **Vercel logs:** Seven POSTs in the inspected production window returned
+  HTTP 200 / `outcome=SUCCESS`; each had a distinct mutation ID. No 4xx/5xx
+  requests were returned. The successful requests cannot be correlated to
+  the red header because the deployed client/server logs do not include a
+  client attempt number or local/server fingerprint.
+- **Source finding:** An awaited `syncLocalChanges` GET failure can write
+  `syncStatus=error` after a newer save succeeds because it is guarded only by
+  campus session, not by operation order. The online handler ignores events
+  while `syncStatus=syncing`. Both become T2/T3 regression targets.
+- **Safety:** No production campus data was changed. Retrospective active-tab
+  local fingerprint and POST response body remain unavailable through the
+  existing read-only evidence.
+- **Workspace:** Created an isolated worktree from deployed SHA
+  `3f5277dcf14a8a17712d2c1e36c67a7de0181594` under the ignored
+  `navi-next/node_modules/.cache/codex-worktrees/navi-prod-save-retry` path;
+  shared dirty checkout and canonical release worktree remain untouched.
+- **Next:** T2 RED integration regression with actual `EditorBridge`, Graph
+  store, Workflow store, `SaveStatus`, and deployed API response shape.
+
+## 2026-09-23 — NAVI P0 Production Save Error / Retry Acceptance T2 baseline
+
+- **Baseline:** The save-acknowledgement/automatic-retry suite passed 9/9 on
+  deployed SHA `3f5277dcf14a8a17712d2c1e36c67a7de0181594`.
+- **Reload integration baseline:** The existing 8-case
+  `ReloadStatusLastWriter.test.tsx` failed in `afterEach` before assertions
+  because `@navi/editor` resolved through an ancestor junction to the dirty
+  shared checkout, which does not export the trace helper present in the
+  isolated release worktree. This is a test-resolution boundary, not evidence
+  about production behavior.
+- **Next:** Resolve only the isolated workspace package mapping, rerun the
+  reload baseline, then add the delayed failure/newer successful editor-save
+  regression before changing production logic.
+
+## 2026-09-23 — NAVI P0 Production Save Error / Retry Acceptance T2 RED
+
+- **Test shape:** The regression uses the real `EditorBridge`, `Graph` store,
+  `WorkflowService`/five-second `AutosaveService`, and `SaveStatus`. It changes
+  a building through the editor dispatcher, verifies local authored-draft
+  persistence, and checks the normal POST contract (`force=false`, expected
+  revision R1, one mutation id, authored document B).
+- **RED evidence:** A successful POST with `updatedAt=R2` produces one POST and
+  reaches `All changes saved`; after the delayed recovery GET returns HTTP 503,
+  the current implementation writes `syncStatus=error`. The expected final
+  header assertion fails at `ReloadStatusLastWriter.test.tsx:403`.
+- **Root cause candidate:** `syncLocalChanges` guards the response by campus
+  session only. The test keeps the same campus/session, so the stale recovery
+  response remains eligible to overwrite a newer save result.
+- **Next:** Add the narrow operation-order guard, extend integration coverage to
+  transient failure → 2-second retry success, then re-run the regression.
+
+## 2026-09-23 — NAVI P0 Production Save Error / Retry Acceptance T2 COMPLETE
+
+- **Workspace isolation:** The test worktree was nested below `node_modules`,
+  so its parent package junctions selected the dirty shared workspace. Local
+  ignored junctions now map each `@navi/*` dependency to the isolated source;
+  no shared checkout files were changed.
+- **First-try/late-failure test:** One production-shaped editor command wrote
+  the new authored local draft; after the real 5-second debounce, one POST
+  acknowledged `R2` and the header became `All changes saved`. A delayed
+  same-session recovery GET then returned HTTP 503 and the header reverted to
+  the exact production red failure text. This is the T2 RED proof.
+- **Retry test:** The real editor autosave made no POST by 4,999 ms, attempt 1
+  returned HTTP 503 at 5,000 ms, attempt 2 ran exactly 2,000 ms later and
+  returned HTTP 200. Both requests shared one mutation ID and retained
+  `forceServerOverwrite: false` / expected revision R1; final header was
+  `All changes saved`, status `synced`, marker revision R2.
+- **Verification:** Existing reload integration passed 8/8 on the corrected
+  worktree package resolution. Retry integration passed 1/1. The new late
+  recovery test failed as expected and rendered `Save failed — changes
+  preserved` plus the production generic failure detail.
+- **Next:** T3 adds the operation-order guard and correlated attempt telemetry;
+  preserve 409 conflict, online recovery, session generation, and campus epoch.
+
+## 2026-09-23 10:58 Asia/Manila — NAVI Road Vertex Sticky Drag T1
+
+- **Trace:** The production editor route reaches `useVertexEditor` through EditPage → EditorBridge → StudioWorkspace → StudioCanvas. T1 source references and lifecycle are recorded under the task in `plan/PLAN.md`.
+- **Observed path:** MapLibre mousedown hit-tests the orange `vertex-points` layer; mousemove updates the hook-local point array and calls `vertex-source.setData`; mouseup dispatches one `entity.update` then calls the existing manual persistence path. There is no document/Graph/server write in the move handler and no snap call in this hook.
+- **Performance candidates:** One handle source `setData` and one unconditional StudioCanvas cursor state update occur for each MapLibre mousemove. This is source evidence only; timings and render counts are not measured yet.
+- **Interaction gaps:** Pointer capture and pointercancel are absent. Map dragPan is disabled for the whole vertex-edit mode by both the hook and InteractionController; boxZoom is untouched. These need a behavior-focused probe before any change.
+- **Connectivity/save boundary:** GraphAdapter projection runs on document.changed and the manual persistence path performs a second sync before GraphStore.save. Existing five-second autosave remains untouched. Junction/snap behavior in this vertex hook is deferred to the measured probe.
+- **Workspace protection:** The planned drag-hook, StudioCanvas, and existing hook-test files are clean. The already-dirty graph-store, EditorBridge, and create-editor-context save-retry files remain excluded.
+- **Verification:** Source/status evidence collected; `git diff --check` on workflow artifacts exited 0 with only LF-to-CRLF notices. No application source was edited and no test was run in T1.
+- **Next:** T2 will add diagnostic coverage in the hook test and a StudioCanvas test to count per-move render work and write behavior.
+
+## 2026-09-23 11:07 Asia/Manila — NAVI Road Vertex Sticky Drag T2
+
+- **Probe:** Focused Vitest passed 2 files / 4 tests. The 60-move synthetic trace requested and displayed each coordinate exactly, called `vertex-source.setData` 60 times, performed 0 document commands, 0 Graph writes, and 0 store writes before release; one command/save path ran on release.
+- **Canvas:** StudioCanvas committed 60 times for 60 map moves in vertex mode. Hook callback timing was median 0.007 ms / worst 0.0773 ms in a synchronous fake; React Profiler timing with child components stubbed was median 0.3738 ms / worst 0.6132 ms. Neither timing includes browser paint or MapLibre worker rendering.
+- **Source findings:** This drag path has no snap helper or Alt bypass, and no native pointer capture/cancel. The map's `dragPan` is disabled for the entire vertex-edit mode in both the hook and InteractionController. The synthetic test cannot establish the behavior of a real pointer leaving the browser canvas.
+- **T2 verification:** `npx vitest run src/components/studio/__tests__/useVertexEditor.test.tsx src/components/studio/__tests__/StudioCanvas.test.tsx --reporter=verbose` exited 0 (2 files / 4 tests). No production database or campus data was accessed.
+- **Next:** Implement pointer capture/cancel, drag-scoped interaction suppression, frame-coalesced transient rendering, and connected junction movement under T3; save/autosave files remain excluded.
+
+## 2026-09-23 — NAVI Map Runtime Persistence T1
+
+- **Spec/plan/TODO:** Added the persistence criteria, exact source/test ownership, four-task plan, and visible checklist. T1 is complete; T2 is the only task in progress.
+- **RED verification:** `npm run test -- src/components/public/__tests__/MapRuntimePersistence.test.tsx` exited 1 as expected: 5 tests ran, Home-first lazy creation passed, and 4 failed on Explore→Navigate map recreation, Explore→Home→Explore map recreation, same-bounds refitting by new object identity, and missing map suspension on Profile.
+- **Test boundary:** Route adapters use distinct keys to model actual Next route component unmounts. The MapLibre fake rejects duplicate source/layer ids and tracks scene-level handlers separately from the runtime error handler.
+- **Next:** Move instance/canvas ownership to the shared `AdaptiveShell` lifecycle and keep route-scoped scene cleanup.
+
+## 2026-09-23 — NAVI Map Runtime Persistence T2-T3
+
+- **Ownership:** `NavigationMapProvider` now lives in `NavigationMap.tsx`; the host is rendered inside AdaptiveShell's shared /map main region. The first route-level map scene requests it. Home/Profile keep their own route UI trees and hide/stop the initialized canvas. Leaving AdaptiveShell removes the runtime.
+- **Route behavior:** MapLibre load/error setup runs once per shell runtime. Route scene children still render only after map readiness and unmount normally, so their source/layer/listener cleanup runs at the page boundary. No style replacement or campus store/API change was added.
+- **Camera/bounds:** Visible Explore/Navigate paths request resize on animation frame. Navigate can raise maxPitch without lowering it on Explore return. Campus fit remains 800 ms and is keyed by numeric bounds, so same-bounds remounts do not refit while changed bounds do.
+- **Verification:** The new lifecycle suite passed 5/5. The map/shell/explore focused matrix passed 53/53 across five files; the sixth, unchanged NavigatePage test file passed 24/25 and failed only its pre-existing-looking development-simulator marker assertion (the page source contains no such panel). T4 will rerun all requested checks and report this precisely.
+- **Next:** Run full TypeScript, lint, test/build checks and Graphify update; finish logs and verify the scoped diff.
+
+## 2026-09-23 — NAVI Map Runtime Persistence T4
+
+- **Call-site compatibility:** Final source review found Capture consumers outside the `/map` shell. `NavigationMap` now retains its local host for those consumers and uses the shared shell runtime only on active Explore/Navigate routes. The Capture-inclusive regression matrix passed after this adjustment.
+- **Focused tests:** `npm run test -- src/components/map/__tests__/NavigationMap.test.tsx src/components/public/__tests__/MapRuntimePersistence.test.tsx src/components/public/__tests__/ExploreMap.test.tsx src/components/public/__tests__/AdaptiveShell.test.tsx src/components/map/__tests__/NavigationCamera.test.tsx src/components/map/__tests__/NavigationPositionMarker.test.tsx src/components/map/__tests__/RouteLine.test.tsx src/components/map/layers/__tests__/BuildingLayer.test.tsx src/components/map/layers/__tests__/IndoorLayers.test.ts src/features/capture/__tests__/RecordingMap.test.tsx src/features/capture/__tests__/CaptureMapCamera.test.tsx src/features/capture-review/__tests__/CaptureReviewMap.test.tsx` passed 11 files / 83 tests.
+- **Full tests:** `npm run test` exited 1: 571 of 588 test files passed; 17 failed. Of 6,032 tests, 5,991 passed, 33 failed, and 8 were skipped. The changed runtime/Capture matrix passes. The separately run unchanged NavigatePage suite has 24/25 passing; its failure expects a development simulator marker not present in the page source.
+- **TypeScript:** `npx tsc --noEmit` exits 1 on the same three existing `TS1005` parse errors in `packages/runtime/src/__tests__/data-identity-comparison.test.ts` under `cert-final2`, the main workspace, and `stabilize-final`. Next build itself reports that it skips type validation.
+- **Lint:** Scoped ESLint on the four changed application/test files exits 0. Full `npm run lint` exits 1 after scanning generated `.next` and nested archived worktrees, reporting 5,217 errors and 44,008 warnings.
+- **Build:** The sandboxed Next build first stopped at page-data worker creation with `spawn EPERM`. The final elevated `npm run build` passed: compilation succeeded and all 41 static pages were generated.
+- **Graphify:** The sandboxed `graphify update .` first failed re-extraction with `WinError 5`. The elevated run extracted 21,387 files but failed its final replacement with `WinError 5` (`graphify-out/.graph.tmp.json` → `graphify-out/graph.json`, exit 1). A subsequent overlapping worker also exited 1; the stale worker was stopped. No manual replacement was attempted. The old `graph.json` file timestamp/size stayed at its pre-run values, while Git currently lists it as modified relative to HEAD; the generated state was left for review.
+- **Diff:** `git diff --check` passed for application and workflow files with only expected LF-to-CRLF notices. No source performance timing was collected; the Chrome Performance comparison remains for the user's follow-up benchmark.
+- **Workflow:** T4 verification and logging are complete. The Graphify refresh is the only blocked check; its final status and generated-file state are documented in `errors/ERRORS.md`.
+
+## 2026-09-23 — NAVI Road Vertex Sticky Drag P0 T4/T5
+
+- **Final regression matrix:** 9 focused files / 71 tests passed, including
+  pointer capture/cancel, 60-frame movement, frame coalescing, idle pan,
+  double-click state preservation, connected-junction preview/commit/undo, and
+  existing save/autosave gates. The report contains all 60 synthetic pointer
+  rows; each requested coordinate matches the overlay-source coordinate.
+- **Performance/write trace:** 60 source updates across 60 synthetic frames,
+  zero feature queries or Studio-store updates during moves, zero Document
+  commands before release, and zero StudioCanvas commits across 60 vertex moves.
+  GraphAdapter is not mounted in the hook harness, so projection is marked
+  uninstrumented. The synchronous source-double handler median was 0.0766 ms,
+  worst 0.2109 ms; these are not browser timings.
+- **Save/build:** Existing save/autosave regressions passed 45/45. Next 16.2.9
+  production build passed and generated 41 static pages; it skipped TypeScript
+  validation by configuration. The separate project typecheck fails only on
+  three repeated archived `TS1005` parse errors.
+- **Lint:** Focused lint on new drag helpers and authored pointer tests passed.
+  Full scoped lint remains 25 legacy errors plus one warning; the final run had
+  no task-introduced diagnostic.
+- **Graphify:** One refresh attempt failed during re-extraction with
+  `WinError 5`. The output was already extensively dirty beforehand and was
+  left unstaged; no retry or manual replacement was attempted.
+- **Commit scope review:** Child-repository diff check passed. Staging is limited
+  to the ten planned source/test paths plus
+  `navi-next/reports/NAVI-road-vertex-pointer-trace-2026-09-23.log`; the dirty
+  save-retry/autosave files and generated Graphify output remain excluded.
+- **T5 completion:** Created local commit
+  `8cfad38173f6e71d44288b8b36fab80227362f44`
+  (`fix: keep road vertex drags under pointer`) with exactly the 10 planned
+  source/test files and the 60-frame trace report. The cached diff check passed
+  and the index is empty afterward. Existing save-retry edits remain
+  unstaged; there was no push or deploy. Graphify refresh failure is recorded
+  in ERRORS.md; generated Graphify output was excluded.
+
+## 2026-09-23 12:27 Asia/Manila — NAVI P0 Production Save Error / Retry Acceptance T3-T4
+
+- **T3 cause/fix:** A same-campus recovery GET can outlive a newer successful
+  POST acknowledgement. The active-session check alone allowed the delayed
+  GET failure to set the visible red state. Added a monotonic sync-operation
+  guard around recovery results/status writes; a stale read now logs its
+  rejection and cannot replace the newer `synced` state.
+- **Lifecycle evidence:** The real `EditorBridge`/Graph store/AutosaveService/
+  `SaveStatus` test edits a building, preserves its local authored draft,
+  issues one `force=false` POST at 5 seconds, and acknowledges `R2`. A held
+  recovery read then returns 503; the trace records old/latest chain ids,
+  session/epoch/revision, HTTP/read outcome, safe local/last-acknowledged
+  fingerprints, `statusWriteApplied:false`, and final `synced` status. No
+  authored payload is logged.
+- **Retry/API evidence:** A retryable first POST returns 503; attempt 2 runs
+  exactly 2,000 ms later with the same mutation ID, expected revision, and
+  `force=false`, returns 200 with `updatedAt=R2`, and the final header is
+  `All changes saved`. The API route regression verifies revision passthrough
+  and excludes a sensitive authored-name sentinel from logs.
+- **Focused verification:** 9 files / 74 tests passed, including reload
+  convergence, offline→online recovery, true conflict, building deletion,
+  confirmation, and save-status behavior. Scoped ESLint and `git diff --check`
+  passed. Workspace TypeScript remains blocked by the known runtime test
+  parse error at line 255.
+- **Production boundary:** No production POST or campus edit was performed.
+  Earlier read-only logs showed successful server POSTs but did not identify
+  the owner's browser chain; actual production first-attempt/retry outcome and
+  an at-red live server fingerprint remain unproven.
+- **Build/Graphify gate:** Both Turbopack and webpack production builds fail at
+  the deployed SHA (Turbopack middleware panic; webpack workspace package
+  type-export and Dashboard/Dataset/AppLayout resolution errors). Graphify
+  AST extraction completed after the elevated retry, but indexing remained
+  silent at approximately 6 GB for several minutes and was interrupted; the
+  refresh is incomplete and partial generated graph files are preserved.
+- **Release status:** T3 complete; T4 remains in progress but blocked; T5 is
+  pending. No commit, push, or deployment was made because the exact-SHA
+  production build gate is red. Do not run an owner save smoke until an exact
+  production deployment is verified.
+- **Next:** Decide whether to expand scope to repair the baseline clean-checkout
+  build blockers or keep this save/retry patch staged until the canonical
+  buildable source line is available; then repeat the exact-SHA build before
+  push/deploy.
+
+## 2026-09-23 — NAVI Road Vertex Drag Browser Acceptance T1-T3
+
+- **SPEC/PLAN/TODO:** Added the dedicated acceptance spec, three-task plan, and visible TODO. T1 verified the exact commit in a clean detached clone; T2 is blocked pending a verified non-production environment and explicit disposable Studio campus/map ID; T3 recorded the blocker and measurement status.
+- **Checkout:** `C:\Users\Administrator\Desktop\CODEme\Navi\.acceptance-worktree-8cfad381` is at `8cfad38173f6e71d44288b8b36fab80227362f44`; initial and post-build Git status are clean. No `graphify-out` exists there, and the target commit file list excludes Graphify, save/retry, and autosave paths.
+- **Dependencies/build:** `npm ci --offline --no-audit --no-fund` succeeded under the local runner (816 packages). `npm run build` compiled with Next 16.2.9, skipped type validation by config, then exited 1 during prerender of `/demo/navigate` because the isolated checkout has no Supabase URL/anon key. No local server was started.
+- **Safety/evidence:** The existing development and production environment files point to different remote Supabase projects, but neither supplies `E2E_CAMPUS_ID`; production middleware explicitly rejects development mock auth. A read-only Vercel lookup found no preview for this SHA, and the configured Preview environment has no test-campus ID. No environment credentials were copied. No browser drag, map edit, save, production mutation, Vercel deployment, or promotion occurred. The original owner recording was not supplied.
+- **Verification result:** Real-browser acceptance remains unverified; all drag and performance metrics are marked not measured in `reports/NAVI-road-vertex-browser-acceptance-2026-09-23.md`. Continuation needs a non-production environment file path, explicit disposable campus/map ID, and the recording if owner-feel comparison is required.
+
+## 2026-09-23 — NAVI Explore Render Model Identity Cache
+
+- **Scope:** Added a module-scoped WeakMap keyed by exact CampusBundle reference. Explore now obtains the cached unthemed NavigationRenderModel and derives mapAppearance colors in a separate memo. Explore page mount behavior, the persistent MapLibre lifecycle, routes, campus loading, Zustand, and map layers were not changed.
+- **Files:** navi-next/src/components/map/NavigationRenderModel.ts; navi-next/src/components/public/ExploreMap.tsx; navi-next/src/components/map/__tests__/NavigationRenderModelCache.test.ts; navi-next/src/components/public/__tests__/ExploreMap.test.tsx.
+- **RED evidence:** Before implementation, four cache tests failed because the cache API did not exist, and the appearance test observed two builder calls. The other ten Explore tests passed.
+- **Focused verification:** The final NavigationRenderModel cache, existing NavigationRenderModel, and ExploreMap suites passed 3 files / 54 tests, including an ExploreMap unmount/remount with the same CampusBundle.
+- **Scoped ESLint:** Exited 0 with zero errors. Two existing unused-import warnings remain in NavigationRenderModel.ts for FloorGeometryBuilding and FloorGeometryFloor; no new test warnings remain.
+- **TypeScript:** npx tsc --noEmit --pretty false exited 1 on the established TS1005 parse errors at line 255 in packages/runtime/src/__tests__/data-identity-comparison.test.ts under cert-final2, the main workspace, and stabilize-final. No changed-file diagnostics were reported.
+- **Production build:** The sandbox run compiled but failed to spawn Next page-data workers with EPERM. The authorized elevated rerun passed compilation, generated all 41 static pages, and exited 0. Next reports that the build skips type validation.
+- **Diff check:** git diff --check passed for the changed tracked application and workflow paths.
+- **Graphify:** The required graphify update was attempted three times after source/test changes and each attempt ended with WinError 5. Generated graph/cache files remain in their dirty workspace state and were not manually replaced or cleaned.
+- **Performance:** No browser timing was collected and no speed improvement is claimed. The user will repeat the same Chrome Performance benchmark.
+- **Next:** Repeat the controlled Chrome Performance benchmark on the implemented cache.
+
+## 2026-09-23 13:24 Asia/Manila — NAVI Build Blocker Provenance Audit
+
+- **Scope:** Read-only provenance audit. Added this audit's spec, plan, and
+  visible TODO. No product source, dependency manifest, Vercel setting, live
+  data, or deployment was changed.
+- **Baseline:** Created
+  `C:\Users\Administrator\Desktop\CODEme\Navi\.navi-audit-worktrees\baseline-3f5277d`
+  at `3f5277dcf14a8a17712d2c1e36c67a7de0181594`; tree
+  `f96a89cd5145e2af946e1918210466ca5a43217e`; status clean. Root package is an
+  npm workspace (`packages/*`) using `package-lock.json`. Node 24.16.0 and npm
+  11.13.0; `npm ci --no-audit --no-fund` installed 816 packages and left the
+  tracked lockfile unchanged.
+- **Baseline build:** With process-local audit-only public Supabase placeholders,
+  `npm run build` (Next 16.2.9/Turbopack) passed compilation and generated
+  41/41 static pages. `npm run build -- --webpack` also passed and generated
+  41/41 pages. Dashboard, DatasetManagement, and AppLayout files exist and
+  resolve. No Turbopack middleware panic or fatal package-export parse error
+  reproduced. Nonfatal warnings: Next's middleware-to-proxy deprecation,
+  missing `useFloor`/`useBuildingFloors` re-exports, and Supabase's Edge-runtime
+  `process.version` notice.
+- **Patch comparison:** Created the second checkout at the same SHA and applied
+  only `src/store/graph-store.ts`, `src/app/api/graph/route.ts`,
+  `src/app/api/graph/__tests__/route.test.ts`, and
+  `src/components/studio/__tests__/ReloadStatusLastWriter.test.tsx`. Its
+  byte-diff hash matches the preserved patch (`0562526ecca7440621f4770fb90d9901023d47b4`).
+  The same locked install and both builds passed with the same warnings and
+  41/41 pages. A fresh focused run passed 9 files / 55 tests; the earlier patch
+  acceptance run is recorded as 9 files / 74 tests.
+- **Failure provenance:** The reported missing page modules and Turbopack panic
+  were caused by the earlier nested worktree under `node_modules`/workspace
+  resolution context, not by production SHA source. The remaining webpack
+  export warnings are a pre-existing source inconsistency: commit
+  `93803b8047cd` removed both hook implementations while leaving their barrel
+  re-exports. They are warnings, not build blockers.
+- **Vercel comparison:** Project settings report root `.`, Next.js, `next build`,
+  `.next`, and `npm install`. The exact-SHA Git deployment is READY; current
+  production is a separate CLI-sourced READY deployment without a Git SHA in
+  its metadata, so the exact source SHA of the current alias cannot be proven
+  from the available record. Both Vercel build logs use Next 16.2.9/Turbopack,
+  a 2-core/8-GB build machine, and restored build caches; remote Node version
+  was not exposed. Vercel's `.vercelignore` excludes `.next`, `node_modules`,
+  and `graphify-out`. The audit checkouts had no Graphify output; the production
+  tree does contain tracked `apps/studio-new/.next` files, which did not block
+  either clean-worktree build.
+- **Classification:** `WORKSPACE CONTAMINATION` (decision case C). No build
+  unblock fix is warranted in this phase. Preserve the save patch; separately
+  verify current production deployment provenance before rollout and, if
+  desired, scope the stale editor re-export cleanup independently.
+
+## 2026-09-23 — NAVI Save/Sync Final Release T1
+
+- **Current alias:** `dpl_CMDPXGrDFmMTrdDTAuMhRAAVtZsz`, READY production,
+  URL `navi-next-4441g82au-navi01.vercel.app`, alias `navi-next.vercel.app`,
+  created 2026-09-23 10:23:58.738 +08. Vercel metadata reports source `cli`,
+  empty `meta`, and no Git source/ref/SHA/tree. CLI inspect confirms Node 24.x,
+  1,729 uploaded files, `npm install` + `next build`, cache restored from
+  `dpl_93pJy5KGkaXJthpTAYt37fgQ2L5L`; the build log contains no source SHA.
+- **Comparison:** The READY Git-linked deployment
+  `dpl_Dr7oGdGsn6qkSntww11VYQa3dhf1` carries branch
+  `release/navi-phase3a1-2026-09-22` and SHA
+  `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, created 29 seconds before the
+  current CLI deployment. The commit tree is
+  `f96a89cd5145e2af946e1918210466ca5a43217e`; local and origin release refs
+  point to that SHA. Timing is not proof that the CLI artifact used the same
+  tree. The configured PowerShell history has 228 lines and zero matching
+  deploy/push/inspect commands; `.vercel/project.json` identifies the project
+  but carries no deployment-source information. Current dirty owner HEAD is
+  `8cfad38173f6e71d44288b8b36fab80227362f44` and is not used as release input.
+- **T1 verification:** All listed read-only provenance sources were checked.
+  Current alias exact SHA/tree/ref are `NOT RECOVERABLE`; no Vercel state or
+  campus content changed. Case C is the remaining path; T2 must prove each
+  required feature signature at `3f5277…` before any new worktree/patch action.
+- **Next:** T2 — individually verify authored persistence, autosave/save
+  request contract, revision/session/convergence guards, regressions, and the
+  automatic retry foundation at the exact selected base.
+
+## 2026-09-23 — NAVI Save/Sync Final Release T2
+
+- **Base decision:** Case C. The current alias SHA remains `NOT RECOVERABLE`.
+  Selected `3f5277dcf14a8a17712d2c1e36c67a7de0181594` as the
+  `CANONICAL SAVE-SYNC RELEASE BASE`; tree
+  `f96a89cd5145e2af946e1918210466ca5a43217e`. Read-only `git ls-remote`
+  confirms the canonical branch `release/navi-phase3a1-2026-09-22` still points
+  to this exact SHA. Vercel also has a READY Git-linked deployment for this
+  branch/SHA, created 29 seconds before the current CLI-sourced production
+  deployment. The earlier clean-worktree audit passed both Turbopack and
+  webpack builds on this base and on the same four-file patch.
+- **Confidence:** HIGH that this is the latest known buildable,
+  production-intended release base; this does not establish that the unlinked
+  CLI artifact currently on the alias has identical source.
+- **Feature-signature matrix at the exact base:**
+
+  | # | Required signature | Result | Source/regression evidence |
+  |---:|---|---|---|
+  | 1 | `authored_document` persistence | PRESENT | `baseline-3f5277d/supabase/migrations/014_authored_document_snapshots.sql:9-18,43-62`; `src/app/api/graph/route.ts:71-94` |
+  | 2 | 5-second autosave | PRESENT | `packages/editor/src/services/autosave-service.ts:104-140`; `autosave-transient-gate.test.ts:42-60` asserts 4,999 ms/no save, then 5,000 ms/one save |
+  | 3 | Authored intent recording | PRESENT | `src/components/studio/EditorBridge.tsx:343-371`; `EditorBridgeBuildingDelete.test.tsx:21-47` |
+  | 4 | One normal POST after quiet debounce | PRESENT | `src/store/__tests__/building-delete-persistence.test.tsx:46-95` drives EditorBridge, waits 4,999 ms with no additional POST, then observes exactly one at 5,000 ms |
+  | 5 | Normal save uses `force=false` | PRESENT | Same integration test asserts `posted[1].forceServerOverwrite === false` at line 93; store defaults force to only explicit `true` at `src/store/graph-store.ts:1127-1129` |
+  | 6 | CAS protection | PRESENT | Client sends marker revision at `src/store/graph-store.ts:1569-1573`; migration checks expected/current revision at `014_authored_document_snapshots.sql:145-160` |
+  | 7 | Mutation ID/idempotency | PRESENT | Client reuses one serialized mutation body across attempts at `src/store/graph-store.ts:1571-1573`; SQL replay/collision handling at migration 014 lines 205-239; retry test checks one ID at `save-ack-auto-retry.test.ts:74-104` |
+  | 8 | Immediate local draft | PRESENT | `EditorBridge.tsx:367-371` calls local persistence on committed document change; `graph-store.ts:1086-1099` writes without advancing the server marker |
+  | 9 | Session generation | PRESENT | `src/store/graph-store.ts:254-261`; stale response regression `save-ack-auto-retry.test.ts:245-266` |
+  | 10 | Supersession protection | PRESENT | `graph-store.ts:272-286,1576-1582`; `save-ack-auto-retry.test.ts:126-152` drops stale retry after a newer edit |
+  | 11 | Three-way canonical convergence | PRESENT | Local/server/ack classification at `graph-store.ts:647-705`; CASE 2/3/4/I at `canonical-convergence.test.ts:167-218` |
+  | 12 | Reload stale-freshness guard | PRESENT | Session guard at `graph-store.ts:598-607`; delayed-response regressions at `ReloadStatusLastWriter.test.tsx:122-194` |
+  | 13 | Building-delete persistence | PRESENT | End-to-end local draft → payload → server → marker → hard reload at `building-delete-persistence.test.tsx:132-188` |
+  | 14 | Building-confirmation fix | PRESENT | Save/finalize ordering and committed-ID reuse at `src/components/studio/ConfirmOverlay.tsx:48-89`; regressions at `ConfirmOverlay.test.tsx:126-176` |
+  | 15 | True divergence protection | PRESENT | CASE 4 preserves local content and performs zero POSTs at `canonical-convergence.test.ts:196-206`; distinct UI conflict assertion at `ReloadStatusLastWriter.test.tsx:253-273` |
+  | 16 | Automatic retry foundation | PRESENT | Bounded delay/guarded retries at `graph-store.ts:187,1642-1663`; 503 recovery and stable mutation-ID tests at `save-ack-auto-retry.test.ts:53-108` |
+
+- **Evidence boundary:** T2 verified source and regression definitions in the
+  exact commit; the fresh focused test execution is T4. The existing
+  2026-09-21 progress record says migration 014 was applied to production, but
+  this task did not re-query the database. No product source, Supabase state,
+  Vercel state, or campus content changed.
+- **T2 verification:** All 16 signatures are PRESENT at the selected exact
+  base. Proceed to a new clean worktree and replay only the preserved patch.
+- **Next:** T3 — create the fresh release worktree outside `node_modules`, then
+  verify exact base/tree/status and patch digest.
+
+## 2026-09-23 14:17 Asia/Manila — NAVI Save/Sync Final Release T3
+
+- **Worktree:** Created the new release checkout at
+  `C:\Users\Administrator\Desktop\CODEme\Navi\.navi-release-worktrees\release-3f5277d-20260923`,
+  outside `node_modules`, on `release/navi-phase3a1-2026-09-22` at base
+  `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, tree
+  `f96a89cd5145e2af946e1918210466ca5a43217e`.
+- **Patch:** The preserved source and release target both have the expected
+  Git diff blob ID `0562526ecca7440621f4770fb90d9901023d47b4` (diff SHA-256
+  `bc9fc4ee0def042ad3b0e98da5e5bdeb18c684329763a0fa54810a7dccd669ea`).
+  Exactly the four approved paths differ; `git diff --check` passes.
+- **State note:** The target was verified clean, then was observed with the
+  exact four-file patch before the guarded transfer command could apply it.
+  The intervening writer is unknown. No reapplication or overwrite was done;
+  source/target HEAD, tree, full diff object ID, and path allowlist were
+  compared independently and match. This state change is recorded in
+  `errors/ERRORS.md`.
+- **T3 verification:** PASS — exact base/tree, exact patch content/fingerprint,
+  only approved files changed, diff check clean. Focused tests/builds remain T4.
+- **Next:** T4 — install from the locked manifest in this isolated worktree,
+  run the required focused suite, then Turbopack and webpack builds.
+
+## 2026-09-23 14:23 Asia/Manila — NAVI Save/Sync Final Release T4
+
+- **Install:** `npm ci --offline --no-audit --no-fund` succeeded in the isolated
+  release worktree (816 packages). The tracked lockfile remained unchanged.
+- **Focused tests:** The nine requested save/sync regression files passed:
+  **9 files / 59 tests**. Coverage includes transient 5-second autosave,
+  building deletion and confirmation, retry/idempotency, true CAS conflict,
+  canonical/reload convergence, stale recovery ordering, SaveStatus, and API
+  route behavior. These are unit/component tests; no production campus data
+  was accessed or written.
+- **Turbopack:** `npm run build` passed on Next 16.2.9 and generated **41/41**
+  static pages. It emitted the existing middleware-to-proxy deprecation.
+- **Webpack:** `npm run build -- --webpack` passed and generated **41/41**
+  static pages. It emitted the existing missing `useFloor`/
+  `useBuildingFloors` barrel-export and Supabase Edge `process.version`
+  warnings, plus cache-size warnings; no unrelated warning cleanup was made.
+- **Integrity:** After tests/builds, HEAD is still
+  `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, tree is
+  `f96a89cd5145e2af946e1918210466ca5a43217e`, exactly four approved files are
+  modified, diff blob ID remains
+  `0562526ecca7440621f4770fb90d9901023d47b4`, and `git diff --check` passes.
+- **T4 verification:** PASS — 9/59 focused tests and both production build
+  modes pass. No production credentials were used and no product code outside
+  the preserved patch changed.
+- **Next:** T5 — read the release/push error entries, verify canonical remote
+  destination and fast-forward state, then create one focused commit and push
+  without force.
+
+## 2026-09-23 — NAVI Save/Sync Final Release T3
+
+- **Worktree:** Used the newly created `C:\Users\Administrator\Desktop\CODEme\Navi\.navi-release-worktrees\release-3f5277d-20260923`, outside `node_modules`. It starts at `3f5277dcf14a8a17712d2c1e36c67a7de0181594`, tree `f96a89cd5145e2af946e1918210466ca5a43217e`, and was clean before patch application.
+- **Patch replay:** Applied the preserved binary diff from the separate audit checkout. `git apply --check` passed; the applied diff changes exactly `src/store/graph-store.ts`, `src/app/api/graph/route.ts`, `src/app/api/graph/__tests__/route.test.ts`, and `src/components/studio/__tests__/ReloadStatusLastWriter.test.tsx`.
+- **Verification:** Replayed diff hash is `0562526ecca7440621f4770fb90d9901023d47b4`; `git diff --check` passed; HEAD/tree remain exact; no other path is modified. No road-drag or Graphify file was included.
+- **Next:** T4 — install lockfile dependencies in this worktree, run the focused mocked save/retry/reload regressions, then both production builds.
+
+## 2026-09-23 — NAVI Save/Sync Final Release T4/T5 follow-up
+
+- **Focused gate:** The prior scoped run in this exact worktree recorded 9 files / 59 tests passing. My expanded 18-file run passed 16 files / 112 tests and exposed one additional failure in `src/app/api/graph/__tests__/lifecycle-timeout.test.ts`.
+- **Failure classification:** That adjacent test passes 9/9 at the unmodified base, and fails on the patch because the added route telemetry serializes `graphCounts` with `buildings`/`nodes` keys. The emitted values are array lengths only, not graph payload values. The test is outside the requested 9-file save/retry/reload gate. I left the exact four-file patch unchanged and recorded the failure for review; this report does not claim the expanded suite is all green.
+- **Builds:** Turbopack and webpack both passed on Next 16.2.9 and generated 41/41 pages. Existing middleware-to-proxy and webpack barrel-export/cache warnings were left untouched per scope.
+- **Local commit:** `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`, tree `9877b1e490aa5209ff20e1c83dc94bc004d7e80d`, parent/base `3f5277dcf14a8a17712d2c1e36c67a7de0181594`. Its commit diff contains exactly the four approved paths and diff blob `0562526ecca7440621f4770fb90d9901023d47b4`.
+- **Remote preflight:** Immediately before push, read-only `git ls-remote` returned `3f5277dcf14a8a17712d2c1e36c67a7de0181594` for `refs/heads/release/navi-phase3a1-2026-09-22` on `https://github.com/0SEless/Navi.git`.
+- **Push/deploy:** The explicit non-force push of commit `2c62f8e…` to that exact branch was rejected by automatic approval review because it considered trusted authorization for the exact payload/destination absent and cited a prior destination-specific denial. The command was not run; remote remains at the last verified base, and no Vercel deployment or alias change occurred.
+- **Next:** T5 awaits explicit approval for the exact commit/repository/branch. T6 cannot run until that pushed SHA is available as a deployment source.
+
+## 2026-09-23 14:38 Asia/Manila — NAVI Save/Sync Final Release stop/recheck
+
+- **Current alias recheck:** The read-only Vercel project deployment list still
+  shows production deployment `dpl_CMDPXGrDFmMTrdDTAuMhRAAVtZsz` at
+  `navi-next-4441g82au-navi01.vercel.app` as READY/production. Its Git metadata
+  remains empty, so the current alias's exact source SHA is still
+  NOT RECOVERABLE. No deployment was created or promoted.
+- **Release gates:** The requested nine-file matrix and both builds passed;
+  the supplemental lifecycle telemetry test is patch-only red (1/9) versus
+  9/9 on the base. The narrow test/log contract choice remains with the owner.
+- **External-write gate:** The non-force push was denied before execution.
+  The last verified remote ref SHA is the base; the local commit is retained,
+  and no source export or deploy workaround was attempted.
+- **T6:** Not run because no exact pushed Git-SHA deployment exists. `/`,
+  `/map`, `/login`, and post-deploy runtime-error checks are therefore
+  unverified for this release. Owner-authenticated smoke remains required
+  after any future approved deployment.
+- **Next:** Await the owner's disposition of the lifecycle telemetry assertion
+  and explicit source-export approval for repository URL
+  `https://github.com/0SEless/Navi.git`, branch
+  `release/navi-phase3a1-2026-09-22`, and the exact commit being released.
+
+## 2026-09-23 14:46 Asia/Manila — NAVI Save Patch Regression Cleanup T1/T2
+
+- **Reproduction:** On exact base `3f5277dcf14a8a17712d2c1e36c67a7de0181594`,
+  `npm test -- src/app/api/graph/__tests__/lifecycle-timeout.test.ts` passed
+  9/9. On original patch commit `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`,
+  it failed 1/9 (8/9 passed) at the success-log assertion.
+- **Exact mismatch:** The test expects the lifecycle log to have no
+  `buildings|nodes|payload|service_role|secret` names. The patch log included
+  `graphCounts: { buildings: 0, nodes: 0, edges: 0, components: 0 }`; only the
+  two prohibited keys triggered the regex.
+- **Contract decision:** The source comment and test establish a structured
+  lifecycle log that excludes graph payload fields and credentials. The count
+  values are lengths, but neither count is needed for timeout classification
+  or request/session correlation. Keep the test and remove the two unnecessary
+  fields; retain edge/component counts and all save trace metadata.
+- **Change:** In the dedicated release worktree, changed only
+  `src/app/api/graph/route.ts` to remove the `buildings` and `nodes` count
+  properties from the log type, initializer, and assignment. No save/retry
+  behavior or test was changed. `git diff --check` passed.
+- **Verification:** The cleaned lifecycle test passes 9/9. The 18-file suite,
+  focused 9-file suite, and both builds remain T3 work.
+- **Next:** Run T3 exactly as specified in the cleanup plan; then create a
+  local final commit only if every suite/build gate is green. Push/deploy are
+  explicitly out of scope.
+
+## 2026-09-23 14:59 Asia/Manila — NAVI Save Patch Telemetry Test Correction T1/T2
+
+- **Baseline:** Release worktree HEAD remains `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`, tree `9877b1e490aa5209ff20e1c83dc94bc004d7e80d`. Restored the prior route-only cleanup; all four approved production-file blobs match the original commit (graph-store `809fbfe919dee41f0658ed74e505389d269d52fc`, route `1121b842a5cb8114fab2736707cee18ab82cbba7`, route test `e27c3f402a23ce6f8334528738d11ef4b31ff9b4`, reload test `b496e0037c999a5d749c39556d530a38a616091c`).
+- **Reproduction:** Ran only `npm run test -- src/app/api/graph/__tests__/lifecycle-timeout.test.ts`: 8/9 passed, 1 failed. Expected rule was no `buildings|nodes|payload|service_role|secret`; exact first match was `buildings` in `graphCounts.buildings`, with `nodes` also matched.
+- **Telemetry inspection:** `graphCounts.buildings` and `graphCounts.nodes` are numeric `0` values; the captured event had no arrays, geometry, authored entities, full Graph/CampusDocument, secrets, or tokens. However, it also included `requestId` (UUID), `mutationId`/`attemptChainId` (`M1`), and `campusId` (`test-campus-x`). Source confirms `campusId` comes from `getCampusIdFromBody(body)`.
+- **T2 gate:** BLOCKED. The brief requires no IDs and no campus entity values, so a test-only assertion relaxation would hide request-derived identifier telemetry. No test correction, broad suite, focused suite, builds, or new commit was made. No push/deploy occurred.
+- **Next:** Await clarification whether request/correlation IDs are permitted diagnostic metadata, or authorization for a separate production telemetry-redaction change. Keep the test unchanged until then.
+
+## 2026-09-23 15:04 Asia/Manila — NAVI Save Patch Telemetry Test Correction final recheck
+
+- **Concurrent change:** A final read-only check found `route.ts` had changed again after its original-blob match was recorded: the same 2-insertion/4-deletion cleanup removes building/node counts. The lifecycle test remains at its original blob. The writer is unknown.
+- **Disposition:** Preserved the concurrent worktree edit and did not restore it again. Current release worktree is therefore not compliant with the production-file freeze and has no new commit. The user-requested test-only change remains unmade because the emitted log also contains request-derived IDs.
+- **Next:** Pause until release-worktree ownership is serialized and the user clarifies whether operational IDs are allowed or authorizes a separate source redaction task. No push or deploy.
+
+## 2026-09-23 14:55 Asia/Manila — NAVI Save Patch Regression Cleanup T3
+
+- **Broad regression:** Preflight verified all 18 requested paths, including
+  the canonical `src/store/graph-store-idempotency.test.ts`; the corrected
+  matrix passed **18 files / 117 tests**. The first 17-file collection was
+  incomplete due to a copied path and is logged in `errors/ERRORS.md`.
+- **Focused save suite:** The targeted nine-file set passed **9 files / 61
+  tests**. It covers autosave and transient gating, offline/online readiness,
+  save acknowledgement/retry, lifecycle ordering, stale reload status, API
+  route behavior, conflict queueing, and building-delete persistence. A
+  supplementary nine-file selection also passed 69/69.
+- **Builds:** `npm run build` (Turbopack) and `npm run build -- --webpack`
+  both exited 0 and generated **41/41** pages. The build used process-local
+  `.invalid` Supabase placeholders, restored after the commands. Existing
+  middleware deprecation and webpack re-export warnings remain nonfatal.
+- **Functional integrity:** Only `src/app/api/graph/route.ts` differs from
+  original commit `2c62f8e…`, and its diff removes only the two count keys.
+  `git diff --check` passed; `graph-store.ts`, `route.test.ts`, and
+  `ReloadStatusLastWriter.test.tsx` remain unchanged from that commit.
+- **Workflow:** A concurrently modified test-only cleanup checklist was left
+  untouched; this task uses the separate authorized plan/TODO artifacts.
+- **Next:** T4 — verify the unpushed local commit can safely be amended into one
+  final four-file release commit, then stop without push/deploy.
+
+## 2026-09-23 15:05 Asia/Manila — NAVI Save Patch Regression Cleanup T3 final rerun
+
+- **Shared-worktree recovery:** The pre-commit hash check found the route had
+  been restored to the original patch. Reapplied only the approved count-key
+  removal and reran every required gate against route blob
+  `d71db5be8e5ae22337613f545ce6205cf37c49de`.
+- **Lifecycle:** `lifecycle-timeout.test.ts` passed 9/9 on the cleanup.
+- **Broad suite:** All 18 preflighted files passed, **117/117 tests**.
+- **Focused suite:** All 9 selected save files passed, **61/61 tests**.
+- **Builds:** Turbopack and webpack both passed and generated **41/41** pages;
+  route blob remained unchanged after each. Existing warnings only.
+- **Scope:** No tests were edited; the three functional save/retry files still
+  match original commit `2c62f8e…`. The only source delta is the two count
+  fields in `route.ts`. Build-only Supabase placeholders were process-local.
+- **Next:** T4 — verify amend safety and create the final local commit; stop
+  without push or deployment.
+
+## 2026-09-23 — NAVI Map Performance Production Deployment Verification
+
+- **Repository:** The `navi-next` checkout remains on `master` at `8cfad38173f6e71d44288b8b36fab80227362f44`; it has 425 existing working-tree entries (86 tracked changes and 339 untracked). The eight map-performance paths remain dirty there and were not staged from that checkout.
+- **Production provenance:** Vercel project `navi-next` is linked to GitHub repository `0SEless/Navi`; configured production branch is `release/navi-modern-baseline-2026-09-19`. Before the push, that branch was at `a26488e880e8a9b72842209ee2de644d9e2476e2`; the active alias resolved to READY deployment `dpl_CMDPXGrDFmMTrdDTAuMhRAAVtZsz` at commit `3f5277dcf14a8a17712d2c1e36c67a7de0181594`.
+- **Source audit:** At `3f5277d`, `NavigationMap.tsx`/`AdaptiveShell.tsx` lacked the shared persistent map host and `NavigationRenderModel.ts` lacked the module-scoped WeakMap accessor. The eight selected map files were unchanged between the configured branch head and the deployed commit.
+- **Commit/push:** In an isolated worktree based on live commit `3f5277d`, created `605a9dea15435e623ebb5c75699c566de276ea2b` (`perf(map): persist runtime and cache explore render model`). Its diff contains exactly the eight intended implementation/test paths; `git diff --cached --check` passed. A standard non-force push advanced the configured production branch from `a26488e…` to `605a9de…`.
+- **Deployment verification:** Vercel deployment `dpl_63cgSQHC8RLepUCp3BHaBV2KtzGr` is READY, target `production`, includes alias `navi-next.vercel.app`, and reports `gitSource.sha=605a9dea15435e623ebb5c75699c566de276ea2b` on `release/navi-modern-baseline-2026-09-19`. The remote production branch reports the same SHA.
+- **Result:** Both requested performance changes are in production and the site is ready for the controlled Chrome Performance benchmark. No new benchmark or performance claim was made.
+- **Next:** Repeat the previously controlled Chrome Performance benchmark against the deployed production alias.
+
+## 2026-09-23 15:06 Asia/Manila — NAVI Save Patch Regression Cleanup T4
+
+- **Final commit:** `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`, message
+  `fix(studio): guard stale recovery results after save`, tree
+  `a9b69a801a2aaf284e42586f25a4f30cbfa92976`, parent/base
+  `3f5277dcf14a8a17712d2c1e36c67a7de0181594`.
+- **Commit scope:** Exactly four paths are present in the base-to-commit diff:
+  `src/store/graph-store.ts`, `src/app/api/graph/route.ts`,
+  `src/app/api/graph/__tests__/route.test.ts`, and
+  `src/components/studio/__tests__/ReloadStatusLastWriter.test.tsx`. Relative
+  to original commit `2c62f8e…`, only `route.ts` differs, removing the two
+  collection-count keys; the functional save/retry files are unchanged.
+- **Amend safety:** The original commit was only reachable from the local
+  release branch, the remote-tracking ref remained at the base, and no other
+  worktree had this branch checked out. Amended locally into one clean commit.
+- **Final verification:** Worktree clean; branch is one local commit ahead.
+  Lifecycle 9/9, broad 18/117, focused 9/61, Turbopack 41/41 pages, and
+  webpack 41/41 pages all pass on the final tree.
+- **Release boundary:** No push or deployment was performed, as requested.
+  This cleanup task stops here pending explicit authorization for any later
+  external action.
+
+## 2026-09-23 — NAVI Save Patch Telemetry Redaction T1-T2
+
+- **Workflow:** Added feature spec, plan, visible TODO, and execution plan for the telemetry-only cleanup. Graphify was queried read-only before source browsing.
+- **Isolated worktree:** Created `C:\Users\Administrator\Desktop\CODEme\Navi\.navi-release-worktrees\telemetry-redaction-3f5277d-20260923` on `codex/navi-save-telemetry-redaction-2026-09-23` from exact base `3f5277dcf14a8a17712d2c1e36c67a7de0181594`. The worktree was clean before replay. Cherry-picked original patch `2c62f8e07f6ac554438bacac0a8c8b0897c2cde4`; resulting tree exactly matches `9877b1e490aa5209ff20e1c83dc94bc004d7e80d` and contains its original four files only.
+- **Audit:** The API lifecycle event logs request/mutation/attempt-chain IDs, campus ID, fingerprints, revisions, graph counts, and authored-document presence. Client save/recovery events log correlation/session fields, revisions, fingerprints, server errors, and lifecycle statuses. Existing route privacy test currently expects mutation/campus IDs, so it must be changed to assert a strict safe-field allowlist while retaining behavioral checks.
+- **Verification:** Exact replay's focused nine-file save matrix passed **9 files / 62 tests**. The separate original `lifecycle-timeout.test.ts` run reproduced the known privacy failure (**8/9**): its log contains `requestId`, `mutationId`, `attemptChainId`, `campusId`, graph fingerprints/revision, and `graphCounts`. Functional behavior was tested before redaction; source remains unchanged from original patch tree `9877b1e490aa5209ff20e1c83dc94bc004d7e80d`.
+- **Dependencies:** The first offline install attempt hit Windows `EPERM` on a package-script spawn and was logged. With exact package-lock parity verified, `npm ci --offline --no-audit --no-fund --ignore-scripts` installed 816 packages; the test run completed successfully.
+- **T3 RED:** Added exact safe-field assertions to the route lifecycle tests and client save/recovery tests. Before any product edit, the three-file run failed as intended (**4 failed / 24 passed**): API lifecycle records expose request/mutation/chain/campus IDs, fingerprints, revisions, and graph counts; client records expose IDs, epochs, fingerprints, and revisions. The 5-second save and stale recovery tests retain in-memory assertions for actual behavior; internal request/body correlation assertions remain.
+- **T4 GREEN:** API lifecycle telemetry now carries only `event`, `attemptNumber`, `durationMs`, `outcome`, and HTTP `status`. Client save/recovery telemetry uses a typed runtime allowlist for event/status/attempt/retry/outcome and safe boolean comparison/discard metadata. Request/campus/mutation IDs, fingerprints, revisions, counts, error details, and content remain available to internal save logic where needed but are no longer emitted. Dynamic error objects/IDs were also removed from production route/store logs.
+- **T4 verification:** The focused privacy/behavior gate passed **4 files / 39 tests** (`lifecycle-timeout`, API route, `ReloadStatusLastWriter`, and save-ack/retry). `git diff --check` passed; only the six expected source/test paths are modified in the new worktree.
+- **Next:** T5 — run the separately required lifecycle gate, preflight and execute all nine focused and 18 broad files, confirm the behavior matrix, refresh Graphify only within the isolated worktree, then run both builds.
+
+## 2026-09-23 15:41 Asia/Manila — NAVI Save Patch Production Release T5-T6
+
+- **Pre-push gates:** Release worktree at `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`, tree `a9b69a801a2aaf284e42586f25a4f30cbfa92976`, parent `3f5277dcf14a8a17712d2c1e36c67a7de0181594`; clean status and exactly four approved files. Road-drag commit `8cfad38173f6e71d44288b8b36fab80227362f44` is not an ancestor. Previously recorded final gates: broad 117/117, focused 61/61, Turbopack 41/41 pages, webpack 41/41 pages.
+- **Push:** Normal non-force push advanced `release/navi-phase3a1-2026-09-22`; final `git ls-remote` equals `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`.
+- **Deployment provenance:** Vercel Git preview `dpl_HMLsr87MyvRvFH1fJVnsm8iv6RZs` records branch `release/navi-phase3a1-2026-09-22` and SHA `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`. Promoted production deployment `dpl_4Rw71twscbtzpjfmRw9bDJLN4d8M` is READY at `https://navi-next-30msmbmvq-navi01.vercel.app`, with `https://navi-next.vercel.app` and the release-branch alias attached. Tree SHA is verified from the exact Git commit.
+- **Runtime checks:** Non-mutating GETs to `/`, `/map`, and `/login` each returned HTTP 200. The production deployment's Vercel CLI error and fatal log queries returned no entries for the last 15 minutes. The Vercel runtime connector returned 403 and was not treated as evidence.
+- **Scope:** Graphify and road-drag are excluded; no campus data, Vercel project settings, environment variables, OAuth, RLS, or domains were changed. Stop here for owner manual save/reload smoke.
+- **Next:** Owner smoke required; no further automated or data-mutating action.
+
+## 2026-09-23 — NAVI Save Patch Telemetry Redaction T5 Graphify attempt
+
+- **Graphify:** Following the project instruction after source edits, attempted `graphify update .` only in the new telemetry worktree. It failed during extraction with Windows `[WinError 5] Access is denied`; this is recorded in `errors/ERRORS.md`. No product source was changed by Graphify, and no Graphify output will be staged or committed.
+- **Next:** Retry the same worktree-local Graphify refresh through the permission-reviewed path, then preflight and run the focused/broad suites and both builds.
+
+## 2026-09-23 16:07 Asia/Manila — NAVI Save Patch Telemetry Redaction T5 verification
+
+- **Graphify:** Permission-reviewed `graphify update .` succeeded only in the isolated telemetry worktree: 12,116 nodes, 26,697 edges, and 566 communities. Generated Graphify output remains unstaged and excluded from the release diff.
+- **Fresh regression gates:** The strict lifecycle suite passed 9/9; the broader 18-file matrix passed 18 files / 121 tests; the focused nine-file save suite passed 9 files / 64 tests. A sandboxed Vitest startup initially hit `spawn EPERM`; the permission-reviewed read-only retry completed successfully.
+- **Builds:** Turbopack `npm run build` and webpack `npm run build -- --webpack` both exited 0 and generated 41/41 pages. Existing middleware deprecation and webpack missing-hook-re-export warnings remain. Next build explicitly skips full type validation.
+- **Typecheck:** Standalone `npx tsc --noEmit --pretty false` stops at the unchanged baseline parser error `packages/runtime/src/__tests__/data-identity-comparison.test.ts:255:3` (`'}' expected`). Git confirms this file has no diff from the specified base.
+- **Final audit:** `git diff --check` passed; the isolated worktree shows exactly six intended source/test paths, with no Graphify files in the source diff. No source edits were made after these fresh gates.
+- **Next:** T6 — stage only the six approved paths, amend the local replay commit into the requested single commit, verify exact parent/tree/path list and clean status, then stop without push/deploy.
+
+## 2026-09-23 16:08 Asia/Manila — NAVI Save Patch Telemetry Redaction T6 final commit
+
+- **Commit:** Amended the isolated replay to `605961df8967df2df8ae1604c2da829b6c869aa4` (`fix(studio): guard stale recovery and redact save telemetry`), tree `b333abe982fbb692fa4b2a42bb6f863b5c7d6b9b`, parent exactly `3f5277dcf14a8a17712d2c1e36c67a7de0181594`.
+- **Scope:** Base-to-commit diff contains exactly six approved paths: API lifecycle test, API route test, API route, reload last-writer test, graph store, and save-ack retry test. `git diff --check` passes; branch is one commit ahead and worktree is clean. Graphify, road drag, and other unrelated work are excluded.
+- **Release boundary:** No push or deployment performed. Stop pending explicit exact-SHA push authorization.
+
+## 2026-09-23 — NAVI Persistent Map Scene Audit (read-only)
+
+- **Workflow:** Added audit-specific SPEC, PLAN, and TODO under the root workflow directories. Queried Graphify before source browsing and read the relevant error-ledger entries.
+- **Audit:** Confirmed Explore and Navigate reuse the same shell-owned MapLibre instance and inline OSM style. Their route-level ExploreMap instances remount; cleanup removes the 10 campus GeoJSON sources / 29 campus layers plus two passive marker sources / two layers, then the next route registers them again. RouteLine is an optional route-owned source and three layers and currently tears those down/rebuilds on its effect dependencies.
+- **Lifecycle:** Indoor/floor changes use setData in existing sources; the setup effects depend on map. NavigationCamera controller and NavigationSession/GPS remain route-scoped. Home/Profile hide and stop the runtime; they currently have no map scene because the ExploreMap owner unmounted.
+- **OSM evidence:** The host schedules resize after route-surface changes and after becoming visible. Navigate camera policy can fit route bounds or move the camera. The supplied aggregate transfer lacks per-request URLs/initiators, so it does not prove which event caused 349 kB; source evidence rules out map/style reconstruction and makes changed tile coverage/cache misses the likely request source.
+- **Verification:** Source anchors were checked for host lifetime, MapLibre constructor/cleanup, layer IDs/counts, route-line cleanup, camera listeners/cleanup, and existing persistence-test assertions. Audit SPEC/PLAN/TODO files exist. No application source or tests were changed or run.
+- **Next:** Implementation should move only scene resource ownership under the lazy /map runtime, keep route UI/session/camera controls route-scoped, and run the focused integration/lifecycle matrix recorded in the audit response.
+- **Additional repeated work:** Navigate passes a fresh route wrapper object to ExploreMap from its render (route ? { path, cost } : null), while RouteLine’s teardown/setup effect depends on the route object, active floor, and navigation segment. A Navigate UI/store rerender or floor/segment change can therefore rebuild the route source and three layers even when the route path is unchanged; treat that as a separate dynamic-source fix.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T1
+
+- **Graphify:** Queried Graphify first. Its traversal returned duplicated legacy `apps/studio-new` recovery fixtures rather than the deployed save pipeline; it is treated as stale navigation context, not evidence about the incident.
+- **Isolation:** With owner approval, created fresh app worktree `C:\Users\Administrator\AppData\Local\Temp\navi-second-reload-d4a1-20260923`, branch `codex/navi-second-reload-persisted-state-2026-09-23`, at deployed SHA `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`. HEAD, parent, and initial clean status verified.
+- **Dependencies:** `npm ci --offline --no-audit --no-fund --ignore-scripts` succeeded (816 packages). `node` resolves `@navi/editor` to this worktree's `packages/editor`; no shared-checkout symlink is used.
+- **Next:** T2 — inspect only the persistence, graph/workflow status owners, and existing reload integration test at the deployed SHA; capture exact keys and ack/hydration transitions without source edits.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T2
+
+- **Inventory:** At deployed SHA `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`, the authored document and legacy Graph projection share localStorage key `navi-graph-${campusId}`. The acknowledgement marker is `navi-sync-status-${campusId}`; explicit user-chosen server-adoption backup is `navi-graph-backup-${campusId}`.
+- **Runtime-only records:** pending authored intent/sequence, retry loop and attempt, queue/mutation-chain ID, authoritative guard baseline, local-ahead auto-resume flag, session/operation generation, campus epoch, and workflow baseline are memory only. No graph-save state was found in IndexedDB/sessionStorage. Workflow baseline is recreated per editor context.
+- **Acknowledgement:** `save()` persists B locally before POST. Confirmed revision updates marker and clears included intents. A committed POST without a revision followed by unavailable GET read-back leaves server B/local B but marker A and returns a client error; it does not issue another POST.
+- **Reload prediction:** first freshness GET should compare local/server authored B equal, advance the marker to B, and settle `synced`; second load should start at `checking`. This predicts one-reload convergence, not the owner’s two-reload video. The exact two-session difference is not proven; T3 will capture actual values across full bridge/session teardown.
+- **Existing evidence:** baseline focused suites passed 3 files / 20 tests. These cover freshness and ack uncertainty separately, not their full persistent cross-session composition.
+- **Next:** T3 — use a controlled server and real localStorage/editor bridge to test uncertain ACK, first and second reload, plus pre-ACK preservation.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T3
+
+- **Test:** Added `src/components/studio/__tests__/PersistedReloadLifecycle.test.tsx`, retaining real localStorage between destroyed/recreated editor sessions and inspecting an independent controlled server snapshot after each POST.
+- **Proven two-reload path:** Original save attempts can all fail before commit (server A, local B, marker R0). On session 2, recovery safely writes B against R0 and server becomes B/R1; graph sync is `synced`, local cache is B, marker is R1, pending intent count is zero, yet WorkflowStore/UI remain `dirty` / `Unsaved changes`. Session 3 starts `checking`, performs no POST, and heals to saved. This is a real `WorkflowService` state transition gap, not pending intent/retry persisted across reload.
+- **Server/local equal branch:** A POST that commits B but cannot confirm its revision leaves server/local B and marker R0; the first reload's canonical read advances the marker and settles saved with zero reload POSTs. This exact branch does not require a second reload.
+- **Regression evidence:** Before fix, T3 has 2 expected failing lifecycle assertions and 2 passing assertions. The failing cases include normal local-ahead recovery and crash-before-ACK resume. The passing cases include committed-but-unconfirmed ACK and normal ACK/no-reload/30-second/two-reload behavior.
+- **Next:** T4 — connect a successful out-of-band Graph sync ACK to the workflow baseline only when the document version did not change during that sync; retain the T3 red as the gate.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T4
+
+- **Root cause:** With server still at A after the original failed save, local B and marker A correctly trigger guarded local-ahead recovery on session 2. Its POST commits B/R1 and the marker advances; however, the direct GraphStore recovery path emits `syncing → synced` without calling `WorkflowService.save()`. Since the workflow had already turned dirty on initial `idle`, `graphSyncStartedClean` is false and the prior code never accepts this ACK. Session 3's matching-marker freshness check then heals it, explaining the second reload.
+- **Fix:** `WorkflowService` captures the document version at Graph sync start and treats a successful direct sync as a saved baseline only when the current version still matches. Errors/conflicts/idle/freshness restart and normal workflow saves clear the captured version. A newer edit during recovery remains dirty.
+- **Verification:** New lifecycle suite plus existing workflow-service suite passed: 2 files / 27 tests. Coverage includes local-ahead save, uncertain ACK where server/local already equal (first reload clean/no POST), pre-ACK crash preservation/resume, concurrent newer edit preservation, 30-second no-reload green state, and two clean reloads with no duplicate POST.
+- **Scope:** Only `packages/editor/src/services/workflow-service.ts` and `src/components/studio/__tests__/PersistedReloadLifecycle.test.tsx` changed in the isolated app worktree. `git diff --check` passes.
+- **Next:** T5 — focused/broad regressions, both production builds, lint, Graphify refresh, final source diff review.
+
+## 2026-09-23 — NAVI Map Transition Optimization 3 T1
+
+- **Workflow:** Added task-specific SPEC, PLAN, and TODO. Re-read the map scene audit entries in ERRORS.md before T1 and before the next task; relevant hazards are the old route-cleanup expectations, MapLibre style-reload overlay loss, and confusing setup effects with data-update effects.
+- **RED evidence:** Updated `navi-next/src/components/public/__tests__/MapRuntimePersistence.test.tsx` to assert 12 common sources, 31 common layers, stable handlers across Explore/Navigate and Explore/Home/Explore, hidden-scene update suppression, campus replacement through existing sources, and one rehydration per style reload.
+- **Result:** The focused lifecycle suite intentionally failed 7/8 tests because the existing runtime has no persistent campus-scene owner; the failure points at absent common sources/layers. The existing campus-bounds no-op/change test passed. No application implementation has been changed yet.
+- **Next:** T2 — add the lazy shell-owned scene and route snapshot bridge, retaining route UI/session ownership.
+
+## 2026-09-23 — NAVI Map Transition Optimization 3 T2
+
+- **Ownership:** Added `PersistentCampusScene` under AdaptiveShell beside the persistent canvas host. The scene waits for the existing lazy host to be requested and ready, reads the existing public campus store, and keeps the 10 campus layers plus passive position marker and route line mounted through Explore/Navigate/Home/Profile. ExploreMap now publishes only the current route/navigation snapshot; Explore controls, FloorSelector, NavigationCamera, and NavigationSession remain route-scoped.
+- **Safety:** A separate scene context uses owner tokens so an old route cleanup cannot clear a newer publisher. Scene data uses the exact current CampusBundle and the existing render-model WeakMap. While Home/Profile is hidden, presentation/store updates retain the last visible snapshot; a new bundle is applied when active. Genuine style.load events remount scene resources once for style rehydration.
+- **Tests:** Runtime lifecycle **1 file / 8 tests passed**; ExploreMap scene publisher and route UI **1 file / 9 tests passed**. Scoped ESLint on NavigationMap, PersistentCampusScene, AdaptiveShell, ExploreMap, and the two focused test files passed with no output.
+- **Errors logged/fixed:** EntranceLayer's explicit map prop was initially omitted during the move; lint also rejected render-time ref access in hidden-state freezing. Both were corrected and their findings recorded in ERRORS.md.
+- **Next:** T3 — preserve RouteLine source/layer registrations while route semantics change, pass marker state through stable sources, and keep building handlers current without duplicate attachment.
+
+## 2026-09-23 — NAVI Map Transition Optimization 3 T3
+
+- **RouteLine:** Kept the route source and three layers registered for the persistent scene lifetime; route/floor/navigation-segment changes now update the existing GeoJSON source with `setData`. A per-Map WeakMap remembers the last camera-fit route path across style resource remounts, avoiding replay for the same route.
+- **Building handlers:** Stabilized click and styledata handlers across selected-building/callback changes using current-value refs. Selection still synchronizes on selection changes and styledata; repeated prop updates no longer detach/reattach handlers.
+- **RED/GREEN:** Added tests first; RouteLine initially failed the route-resource and remount-camera assertions, and BuildingLayer initially failed the singular-handler assertion. After implementation, RouteLine + BuildingLayer passed **2 files / 7 tests**. Scoped ESLint across T1–T3 changed source and tests passed with no output.
+- **No source change:** `NavigationPositionMarker.tsx` keeps its existing source/layer setup/update/cleanup behavior; moving its owner under PersistentCampusScene makes that lifecycle stable across page route remounts. Its existing focused test was included in T4 verification.
+- **Next:** T4 — run the lifecycle, Explore publisher, route, marker, and BuildingLayer test matrix; scoped lint, project typecheck, production build, diff review, Graphify refresh, and workflow logging.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T5
+
+- **Focused gate:** The new persisted lifecycle suite plus `workflow-service.test.ts` passed 2 files / 27 tests. The 18-file save/reload matrix passed 125/128 tests; the three failures are the independently reproduced, untouched `local-ahead-auto-resume`/`refresh-recovery` cases. `src/store` is byte-for-byte unchanged from the deployed base.
+- **Broad gate:** Full Vitest completed 598 files / 6,106 tests: 6,039 passed, 59 failed, 8 skipped, one unhandled expectation rejection. Failures span 21 files; besides the same three graph-recovery cases, examples include missing `golden-campus` imports and a routing compiler assertion. The broad result is recorded as red; no unchanged-base full replay was run.
+- **Build/lint:** Turbopack and webpack production builds both exited 0 and generated 41/41 pages. Webpack emitted existing missing `useFloor`/`useBuildingFloors` re-export and Edge-runtime warnings. Scoped ESLint passes the new lifecycle test; `workflow-service.ts` retains two verified base `any` errors.
+- **Graph/diff:** Default Graphify refresh hit Windows access denied; the reviewed retry succeeded (12,210 nodes, 26,835 edges, 587 communities). `git diff --check` passes. Build/test-generated `demo-output` and compiler snapshot artifacts were cleaned/restored; only the intended workflow source and lifecycle test remain in the worktree.
+- **Next:** T6 — commit only those two paths locally from exact deployed parent `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`; verify clean worktree and do not push/deploy.
+
+## 2026-09-23 — NAVI P0 Second-Reload Persisted Lifecycle T6
+
+- **Commit:** `f0535f603b0f73ac614bd5857e037462c2226ed9` (`fix(editor): acknowledge local-ahead recovery in workflow`), tree `cf596762761483b8115831f1baf4b36932362e7b`, parent exactly deployed SHA `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`.
+- **Scope:** Commit contains only `packages/editor/src/services/workflow-service.ts` and `src/components/studio/__tests__/PersistedReloadLifecycle.test.tsx`. Commit diff check passes; isolated worktree is clean.
+- **Release boundary:** No push, deployment, or production data access performed. Broad tests remain red as recorded in T5; do not deploy until that report is reviewed.
+
+## 2026-09-23 — NAVI Map Transition Optimization 3 T4
+
+- **Focused scene tests:** `MapRuntimePersistence`, `ExploreMap`, `RouteLine`, `BuildingLayer`, and `NavigationPositionMarker` passed **5 files / 30 tests**. Coverage verifies one lazy MapLibre host, scene source/layer/handler identity across Explore↔Navigate and Explore→Home→Explore, camera retention/no repeated fit, campus replacement via existing sources, style reload rehydration, marker updates, and full shell cleanup.
+- **Supplemental route regressions:** `NavigationMap`, `NavigationCamera`, Explore page, and Navigate page tests ran **4 files / 41 tests**: **40 passed / 1 failed**. The sole pre-existing Navigate dev-panel expectation is unsatisfiable under that file's mocked `NavigationSession`, which does not render `NavigationDevPanel`; neither Navigate source nor test changed.
+- **Lint/build:** Scoped ESLint over 10 changed source/test files passed with no output. `npm run build` passed after the sandbox denied worker creation; the elevated retry compiled and generated **41/41 static pages**. Next.js reports it skips TypeScript validation.
+- **TypeScript:** Project `tsc --noEmit` is blocked by the documented unmatched brace at `packages/runtime/src/__tests__/data-identity-comparison.test.ts:255` in the main and archived copies. A narrowed production check reports existing `packages/core`/`NavigationRenderModel` errors and the unchanged ExploreMap/NavigationCamera heading-status mismatch confirmed in committed HEAD; it reports no diagnostics in NavigationMap, PersistentCampusScene, RouteLine, BuildingLayer, or AdaptiveShell. Temporary config was removed.
+- **Diff:** Scoped `git diff --check` passed. No temporary typecheck config remains. Only task application paths were inspected; no commit, push, or deployment was performed.
+- **Graphify:** The mandatory `graphify update .` failed under the sandbox with WinError 5. Its elevated retry extracted roughly 29,800 files, then used about 8 GB while available system memory fell to 0.3 GB. It was interrupted with Ctrl+C to protect the machine. Generated Graphify state was left intact; the index refresh is incomplete and should be retried only after the project cache is scoped/repaired.
+- **Performance claim:** No speedup is claimed; repeat the controlled Chrome Performance benchmark after this change.
+- **Workflow status:** T4 application verification is complete. The repository Graphify refresh remains the only incomplete workflow item because continuing the full rebuild exceeded available memory.
+
+## 2026-09-23 — NAVI Second-Reload Regression Provenance Gate
+
+- **Graph navigation:** Ran the mandatory Graphify query first. It returned stale/general release-gate nodes rather than the current save path, so it was treated as navigation only; the exact pinned commits and production-source diffs were authoritative.
+- **T1 fix matrix:** At `f0535f603b0f73ac614bd5857e037462c2226ed9`, the exact 18-file command collected 128 tests: **125 passed, 3 failed**, plus one unhandled expectation rejection. The reds were `local-ahead-auto-resume.test.ts` (expected `error`, actual `syncing`, assertion line 154), and two `refresh-recovery.test.ts` cases (expected `/exploded/i` rejection but resolved `undefined`, line 179; expected auth-specific rejection but resolved `undefined`, line 249). Their states were a POST 500/retry still `syncing`, and manual-conflict recovery against POST 500 / POST 401 respectively; subsequent preservation/conflict assertions were not reached.
+- **T2 parent matrix:** At unchanged `d4a1ccb1e5af907aa43cf2b3c285a699c246d52d`, the same 18-file command collected 128 tests: **123 passed, 5 failed**. It reproduced the same three failures with the same assertions and outcomes. The two extra failures were the intentionally pre-fix lifecycle cases requiring session 3 to heal dirty status. Because the parent lacked the newly added lifecycle test, it was copied byte-for-byte for the comparison (SHA-256 `ED60E6D7525373C39C6F27F03FF2C8CD231F9C222D52A56AA73A9A86AF5D794D`) and removed immediately afterward. A direct 17-file parent run also reproduced the same three GraphStore failures. Both worktrees used the same lockfile SHA-256 `8664E47155AE4603F81B4BCD38F7C43FCEF73B12A14CB1C4CAEA7D4784E67F8C`, Node `v24.16.0`, npm `11.13.0`, and the same 816-package install.
+- **T3 verdict/lifecycle:** Each target red is **PRE-EXISTING**; **0 new regressions** from the second-reload fix. Focused `PersistedReloadLifecycle.test.tsx` + `workflow-service.test.ts`: **27/27 passed**. Covered local-ahead recovery, ACK-before-reload, crash before ACK, no second reload, and the named newer-edit guard `keeps a newer authored edit dirty when it lands during local-ahead recovery`.
+- **Root cause confirmed:** Session 1 leaves server A/local B/marker R0 after retries exhaust. Session 2 guarded recovery writes B/R1 and clears intent, but before the fix its direct GraphStore ACK bypassed `WorkflowService.save()`, leaving WorkflowStore dirty. The fix captures the document version at sync start and accepts the out-of-band ACK only when the document did not change. Session 3 is no longer required; the focused lifecycle suite passes.
+- **T4 telemetry candidate:** Candidate `605961df8967df2df8ae1604c2da829b6c869aa4` has expected tree `b333abe982fbb692fa4b2a42bb6f863b5c7d6b9b`. The two fix paths do not overlap candidate-edited paths; its `workflow-service.ts` matches the fix parent and the lifecycle test is absent. Read-only `git apply --check` is **CLEAN**. Candidate `GraphStore` adds operation-generation stale-response guards and telemetry/redaction; its CASE B path still clears to idle, performs the guarded non-force save, and the successful save ACK sets `syncStatus` to `synced`. No replay/merge/combined test was performed; preserve this status/ACK behavior when composing.
+- **T5 builds:** `npm run build` with process-local non-production Supabase placeholders passed under the worker-capable path and generated **41/41** pages (Turbopack). `npm run build -- --webpack` compiled with existing `useFloor`/`useBuildingFloors` and Edge-runtime warnings, then failed writing the webpack cache with `ENOSPC`; current required build result is **PASS / FAIL**, not PASS / PASS. The worktree initially lacked environment variables; no real Supabase credentials or `.env` edits were used.
+- **Cleanup/scope:** Removed only task-created parent/fix `node_modules`, the temporary parent test copy, and fix `.next` outputs; recovered about 1.08 GB. Fix, parent, and telemetry worktrees have no tracked or untracked changes. No source change, push, deploy, production data access, replay, or merge occurred.
+- **Next:** Stop before composition as requested. Webpack needs a rerun only after more disk headroom is available; do not treat the three pre-existing GraphStore failures as patch regressions.
+## 2026-09-23 — NAVI Persistent Campus Scene Production Deployment
+
+- **T1 / deployment provenance:** Vercel project navi-next is configured for production branch release/navi-modern-baseline-2026-09-19. That branch and deployed performance baseline were at 605a9dea. The live production alias resolved to READY deployment dpl_4Rw71twscbtzpjfmRw9bDJLN4d8M from d4a1ccb on release/navi-phase3a1-2026-09-22. To avoid rolling back the currently live studio/API fix, merge commit 646a023 joins the exact live commit with the performance baseline.
+- **T2 / commit:** Created 306d5ebec33d0064f5774a8b1cd52c7e07a616b4, perf(map): persist campus scene across map routes. It changes exactly ten PersistentCampusScene implementation/test files; no dirty master, Graphify, .next, or workflow files are included.
+- **T3 / verification:** Focused persistent-scene/map suite passed 5 files / 30 tests. Broader map and Explore/Navigate suite passed 22 files / 174 tests. Scoped ESLint passed. Staged diff check passed before commit. Production build passed and generated 41/41 pages when existing local public Supabase build inputs were injected into that process only; no Vercel project settings or environment values changed. Next.js reports that the build skips TypeScript validation.
+- **T4 / deployment:** Pushed normally; origin/release/navi-modern-baseline-2026-09-19 and Vercel production both report `306d5ebec33d0064f5774a8b1cd52c7e07a616b4`. Deployment `dpl_95tSUEasQyC3DTQNW2q5CW5C28NE` is READY at `navi-next-gzfuembv2-navi01.vercel.app`; `navi-next.vercel.app` resolves to that same deployment. The production branch history preserves both baseline `605a9de` and current-live `d4a1ccb`.
+- **Performance claim:** No Chrome benchmark was run and no speedup is claimed.
+
+## 2026-09-23 — NAVI Map Scene Optimization #3 Regression Diagnosis
+
+- **Target ancestry:** `306d5eb` is the Optimization #3 commit, parent `646a023`; `646a023` has first parent `605a9de`. The `605a9de` → `646a023` first-parent diff contains only the preserved graph API/store paths, not map runtime code.
+- **Production reproduction:** Repeated Explore → Navigate → Explore twice on `https://navi-next.vercel.app`; each transition reached the expected URL, the returned Explore page had one connected/visible MapLibre canvas, and captured console errors/warnings were empty. Explore → Home → Explore also succeeded; Home hid the single canvas/host (`data-active=false`, `display:none`) and Explore restored it (`data-active=true`). No local development server was started because the checkout's local Supabase configuration has a documented production-write hazard.
+- **Lifecycle trace:** Explore and Navigate both keep `NavigationMapProvider.active=true`; `map.stop()` runs only on surfaces where `AdaptiveShell.mapSurfaceActive` is false, resize is queued after active surface changes, and `map.remove()` remains host cleanup at `/map` shell unmount. ExploreScenePublisher publishes a new owner-tagged route snapshot and clears only its own owner. Navigate route unmount destroys NavigationCamera and clears its geolocation watch.
+- **Regression verdict:** The reported failure was not reproduced and no console stack/screenshot error text was available in the pasted request. No exact Optimization #3 root cause is established; no application code, route, navigation state, or deployment was changed. Keep the persistent-scene architecture pending a reproduction with the original error/state.
+- **Next:** If the issue recurs, capture the exact console error and establish whether Navigate had an active route/GPS camera state. Add a real-browser regression for that state before changing the scene lifecycle.
+
+## 2026-09-23 — NAVI No-Route Navigate Camera Regression Addendum
+
+- **Production state:** Repeated Explore → Navigate on `https://navi-next.vercel.app`. The live no-route DOM reports `data-navigation-phase="setup"` by source contract, shows the Destination search region, “Set starting point,” NAVI code scan, Top camera controls, and disabled Recenter. No route-preview panel is expected while `routeKey === null`; the Navigate setup UI is present in this inspection.
+- **Camera call:** `NavigatePageContent` still mounts `ExploreMap` with `surface: 'active'`, `mode: 'TOP'`, `initialSetup: true`, and `routeBounds: null` in setup. The new `NavigationCamera` controller has `hasUpdated=false`; its first update counts as `modeChanged`, derives TOP policy `preferredZoom=16`/`maxZoom=16`, and calls `map.easeTo({ pitch, bearing, zoom: 16, duration: 360 })` unless reduced motion makes duration zero. The call happens even when position is null. This overwrites the inherited Explore zoom; when Explore fit is above 16 the effect is an outward zoom.
+- **Other candidate calls:** The ExploreMap bounds effect can run on the route mount, but `fitBoundsIfChanged` rejects the already-fitted identical campus bounds. `RouteLine` has no path and Navigate publishes `fitCamera=false`, so it does not fit. The route-change `map.resize()` is viewport maintenance and emits MapLibre movement events; the app does not provide it camera coordinates/bounds. PersistentCampusScene has no camera call.
+- **GPS:** `NavigationSession` starts `watchPosition` on Navigate mount even while `active=false`. During `initialSetup`, the controller frames the first valid position regardless of heading-follow state (the existing controller test explicitly covers TOP with heading-follow OFF); subsequent camera tracking depends on policy. Explicit Locate/Recenter are separate. In the observed production DOM Recenter was disabled and heading-follow was OFF, so the reported zoom target does not require GPS and no live center fix was exposed.
+- **#3 comparison:** `NavigationCamera.tsx`, `navigation-camera-controller.ts`, and the Navigate page are byte-identical from pre-#3 `605a9de` through deployed `306d5eb`. #3 moved the campus layers to PersistentCampusScene but kept NavigationCamera route-scoped. This reset predates #3 and is not introduced by it; it was already possible on the shared map runtime.
+- **Limits/status:** Screenshot capture timed out and browser evaluation did not expose `window.performance` or the map instance, so no numeric live zoom delta is claimed. No application code, route state, GPS permission, or deployment was changed. Next: await authorization before any fix.
+
+## 2026-09-24 — NAVI Passive Navigate Camera Ownership
+
+- **Graph navigation:** Ran the required Graphify query before source lookup; it returned unrelated setup/theme/store nodes and did not expose the camera controller. Source tracing used the named Navigate props, controller state machine, and existing tests.
+- **T1 / RED:** Added camera-state tracking to the controller fixture and regression cases for passive Navigate mount, Explore→Navigate with no route, delayed GPS first fix, manual gesture + GPS, explicit Recenter, passive→active TOP, route-preview fitting, and Navigate controller cleanup. Added a React bridge unmount assertion.
+- **Expected failing proof:** Focused run of `navigation-camera-controller.test.ts` and `NavigationCamera.test.tsx` collected 48 tests: 4 intended controller failures and 44 passes. The failures show initial setup `easeTo({zoom:16})`, no-route transition `easeTo({zoom:16})`, GPS-first-fix `easeTo({center,zoom:16})`, and active TOP failing to reassert policy after passive setup. The passive→route-preview fit and route bridge cleanup pass.
+- **GPS behavior:** The old test that required first-fix setup framing was replaced with no-takeover coverage. Manual gesture suspension remains covered, and explicit Recenter has independent positive coverage.
+- **Scope:** No application source has changed yet. The passive ownership guard is planned only in `navi-next/src/lib/navigation-camera-controller.ts`; ExploreMap, Navigate, runtime persistence, routing, campus fetch, and published data remain unchanged. No deploy or performance claim.
+- **T2 / implementation:** Added a controller-local passive-setup ownership guard. It continues applying gesture policy and state, but skips camera transforms and max-zoom writes for `initialSetup + active surface + no route bounds + no explicit camera action`. Explicit Recenter, heading-follow, compass reset, and a setup mode change release the hold; leaving setup forces policy reevaluation. The controller/bridge rerun passed **48/48**.
+- **Performance claim:** No measured speed improvement is claimed; the controlled Chrome benchmark remains for the user to repeat.
+
+## 2026-09-24 — NAVI Passive Navigate Camera Ownership: Verification
+
+- **Focused tests:** `navigation-camera-controller.test.ts` and `NavigationCamera.test.tsx`: **49/49 passed** after the final test addition. Coverage includes no camera mutation on passive setup mount, Explore→Navigate preservation of center/zoom/bearing/pitch, delayed first-GPS suppression, manual gesture suspension, explicit Recenter, passive→active TOP and POV policy, route-preview fit, camera preservation on Explore return, and controller listener cleanup.
+- **Map regression matrix:** 11 relevant policy/controller/control/bridge/map/runtime-persistence/ExploreMap/render-model/Explore-page/Navigate-page test files: **163 passed, 1 failed**. The failure is the pre-existing Navigate test-double assertion `renders the development simulator only behind the explicit non-production flag` (`navigation-dev-panel` absent from the page test mock). The camera, Explore/Navigate, runtime-persistence, render-model, and map cases passed.
+- **Scoped lint:** ESLint passed for the three changed application files.
+- **TypeScript:** Full repository `tsc` remains blocked by the unchanged archived runtime-test syntax error. A temporary narrowed check after the POV test emitted no diagnostics in the three changed files; it still exits 2 for existing `packages/core` type drift (RouteNetwork/ParametricComponent/HotspotContent/CampusDocument/POI points). The temporary config was removed.
+- **Production build:** Isolated temporary copy built successfully with Next's webpack builder and generated **41/41** routes. The default Turbopack attempt stopped before compilation because the temporary dependency junction pointed outside its project root; no application source was changed to work around it. Existing build warnings are recorded in the command output.
+- **Graphify:** No refresh was attempted: the repository error ledger documents repeated Windows access-denied writes and a full update reaching about 8 GB while only 0.3 GB memory remained. Generated Graphify output was left untouched.
+- **Diff/scope:** `git diff --check` passed. Application changes are limited to `navigation-camera-controller.ts` and its controller/React-bridge tests. No deployment or Chrome benchmark was run; no measured performance claim is made.
+
+## 2026-09-24 19:40 Asia/Manila — NAVI P0 Road Editor Sticky Vertex Drag T1
+
+- **Current lineage:** Fetched `release/navi-phase3a1-2026-09-22`; both `git ls-remote` and `FETCH_HEAD` resolved to `469e3d90b27da8617b9467b7472b624d6df6fe34`. Detached worktree is `C:\Users\Administrator\AppData\Local\Temp\navi-road-drag-p0-20260924`, tree `7a2980441c3f78ec75b438921999e65dae8efbe2`; no product-source edit was made.
+- **Browser baseline:** Actual Chromium/Playwright against a local Next route with only synthetic in-memory roads and fake dispatcher/workflow/autosave services; fake Supabase URL was loopback only. Page returned HTTP 200 with no page errors. The focused 60-step drag measured 61 pointermove events (including move-to-handle), 60 `vertex-source.setData` calls, 0 document commands during movement, 1 authored command and 1 manual workflow save on release, 0 drag-window long tasks above 50 ms, and map pan remained disabled after release.
+- **Scenario samples:** Slow 13 events/12 source updates/1 release; fast 31/30/1; precise-short 2/2/1; long 81/80/1; leave-handle while inside map 37/36/1; two repeated drags each 9/8/1. Releasing outside the map canvas produced 21 pointer moves/15 source updates/0 commits and left the transient interaction gate active. A synthetic junction drag produced 21/20/1 but moved only the selected road; the connected road geometry and junction metadata stayed unchanged.
+- **Canvas baseline:** The current `StudioCanvas` Profiler probe recorded 60 React commits for 60 synthetic map `mousemove` events (median 0.3791 ms, max 0.7636 ms); the independent route snap-preview case passed. This is React Profiler timing with children stubbed, separate from Chromium timings.
+- **Call path:** `useVertexEditor` map `mousedown` hit-tests `vertex-points`, stores the selected index and drag start; `mousemove` updates `pointsRef`, rebuilds the point/edge/midpoint FeatureCollection, and calls `vertex-source.setData` synchronously; `mouseup` calls `handleSave`, which commits the editing-engine operation, dispatches one `entity.update`, then invokes `workflow.save('manual')`. `pointercancel` only clears drag flags/releases the transient gate and does not restore the preview. `StudioCanvas` independently calls `setCursorPos` on every map `mousemove`. `useVertexEditor` disables dragPan for all of vertex-edit mode; `InteractionController` also disables it for the `vertex` tool. `EditorBridge` runs `GraphAdapter.sync` from `document.changed`, so source tracing plus the 0 movement commands establishes 0 graph regeneration during pointer movement and normal projection after the release command. The hook path does not read road junctions or invoke a snap helper.
+- **Prior `8cfad381` comparison:** Pointer capture, RAF preview coalescing, current-gesture-only map-pan/box-zoom suppression, and shared-junction geometry movement are still applicable. One final command on ordinary `mouseup` is already present, but the old path does not flush a final pending pointer position and loses the release if the pointer exits the canvas. Route-only cursor updates are still applicable. Preserve the current autosave transient gate; the candidate removed it, which conflicts with this task's no-autosave-during-movement requirement. Do not take the candidate's broad `InteractionController` rewrite: it deletes unrelated building-drag transient handling and other gesture behavior. Keep the existing double-click zoom lock and endpoint insert/delete behavior.
+- **Verification:** Existing `useVertexEditor.test.tsx` passed 1 file / 4 tests. The test-only StudioCanvas Profiler probe is intentionally RED on this parent: 1 failed / 1 passed, with the intended assertion reporting 60 commits instead of 0. This confirms the current render regression. Full pointer/capture/junction regression coverage is next.
+- **Next:** T2 — extend the existing hook and interaction coverage while retaining all legacy cases; establish RED assertions before source changes.
+
+## 2026-09-24 20:00 Asia/Manila — NAVI P0 Road Editor Sticky Vertex Drag T2
+
+- **Regression scope:** Extended the hook, interaction-controller, and StudioCanvas tests, and added an entity-update boundary regression for atomic shared-junction geometry, GraphAdapter connectivity, and undo. The new tests check a 60-move burst, latest release coordinate, pointer capture/cancel/unmount cleanup, transient autosave gating, pan restoration, pre-disabled double-click zoom, and route snap-preview preservation.
+- **RED evidence:** Re-ran the focused Vitest command on unchanged production source: **4 files; 11 failed / 21 passed**. Every failure was the intended assertion for behavior absent from the current release; there were no runner/transform failures. The StudioCanvas profiler reported **60 commits for 60 map moves** (median 0.3654 ms, max 0.6763 ms; React-only with child components stubbed).
+- **Next:** T3 — implement pointer lifecycle, transient frame-batched preview, scoped map interaction changes, route-only cursor updates, and junction move propagation without editing save/sync architecture.
+
+## 2026-09-24 20:15 Asia/Manila — NAVI P0 Road Editor Sticky Vertex Drag T3
+
+- **Implementation:** Added native pointer capture and temporary per-frame vertex/junction previews; pointerup and pointercancel flush the latest coordinate and dispatch one undoable entity update; cleanup releases capture, transient autosave gate, pan, and box zoom. Pan is no longer disabled merely because vertex mode is selected. Double-click zoom restores its prior state. StudioCanvas cursor state updates only for route snap preview. Added reversible shared-junction geometry planning and entity-update support; no save/sync source was changed.
+- **Focused verification:** **4 files / 32 tests passed**. This covers 60 event frame batching with zero movement-time dispatcher/graph calls, one release commit, outside-handle window movement, cancel/unmount cleanup, map interaction restoration, junction projection/undo, and route preview.
+- **Lint:** Focused ESLint on the changed hook, new helper, and changed/new tests passed. Broad touched-file ESLint reports **31 existing diagnostics** at lines untouched by this patch (legacy explicit-any and render-time ref assignments); the finding is recorded in ERRORS.md. `git diff --check` passed.
+- **Next:** T4 — real-browser acceptance and downstream road/junction/routing/autosave suites; use only the existing synthetic local fixture.
+
+## 2026-09-24 20:40 Asia/Manila — NAVI P0 Road Editor Sticky Vertex Drag T4
+
+- **Browser:** Playwright Chromium used the local fake-auth synthetic campus only (no real Supabase, owner account, or campus data). `/road-drag-fixture-local` returned HTTP 200; page errors **0**. Slow, fast, precise-short, long, leave-handle, connected-junction, two repeated, and release-outside-canvas scenarios all persisted the final pointer coordinate with preview error **<0.001 px**; each had **0 authored commits and 0 GraphAdapter syncs during movement**, then **1 authored command, 1 GraphAdapter sync, and 1 workflow save at release**. Pointercancel did the same once. Pan and box zoom restored immediately; a map pan immediately afterward moved the center. Long tasks over 50 ms during all active drags: **0** (two >50 ms tasks occurred across the whole sequence, outside the measured active-movement windows).
+- **Frame behavior:** In this browser run, Playwright emitted each move on a separate animation frame, so source updates equaled pointer moves (8/8 slow, 60/60 fast, 1/1 precise, 100/100 long, 24/24 leave-handle, 30/30 junction, 9/9 repeated each, 24/24 outside-canvas). The deterministic same-frame burst regression sent 60 pointer events and produced **1** visual source update. StudioCanvas Profiler: **60→0 commits** for 60 vertex-mode map moves; route snap-preview positive control passes.
+- **Downstream gate:** **18 files / 199 tests passed** across road snap/connectivity/authoring, junctions, entity update/undo, GraphAdapter, routing, and autosave. The extra `routing-validation.test.ts` run had **3 known fixture failures** in entrance/hallway and room-door routing, already logged on 2026-08-31; its other two tests passed. No failure was introduced on the changed flow.
+- **Next:** T5 — remove local-only browser harness, run both production builds, refresh Graphify once, review the exact staged list, and create one local focused commit. No push or deploy.
+
+## 2026-09-24 22:00 Asia/Manila — NAVI P0 Road Editor Sticky Vertex Drag T5 LOG
+
+- **Final correction:** StudioCanvas now gets its active ID from the subscribed CurrentToolStore hook, checks actual vertex-edit state, and avoids cursor updates outside route preview. The drag effect now depends on stable editing-engine begin/commit callbacks so an unrelated React rerender does not cancel pointer capture.
+- **Verification:** Focused road-drag tests passed 4 files / 33 tests; the useVertexEditor file alone passed 10/10. Scoped ESLint on the hook and its test exited 0. The broader T4 downstream matrix passed 18 files / 199 tests; the separate routing-validation file had 3 previously documented fixture failures. The scoped StudioCanvas ESLint probe still reports the unchanged dispatcherRef render-time assignment at line 138.
+- **Browser:** Temporary local synthetic fixture returned HTTP 200 and zero console errors. A real pointer drag triggered React-updating counters, moved outside the canvas, and recorded 8 pointer moves, 9 source writes, one authored mutation, one save, transient gate true/false, pointer capture released, drag pan restored, and box zoom restored. No production or campus data was used. The temporary route, tab, and dev server were removed.
+- **Builds:** Turbopack passed with 41/41 static pages. Webpack passed with 41/41 pages. Existing middleware deprecation and missing useFloor/useBuildingFloors export warnings remain; Next skipped type validation.
+- **Graphify:** The final reviewed refresh exited successfully and found no code-graph topology changes. Generated Graphify artifacts were not staged.
+- **Commit:** f14b8be31c6b60ba20a472a99c0b0543c8fa45dd; tree 375b9ab07ebd89d92b3ed6e09d7188bb8e6ef810; parent 469e3d90b27da8617b9467b7472b624d6df6fe34. Exactly ten intended paths are committed; worktree clean.
+- **Release boundary:** Local commit only. No push or deployment. Owner review is next.
+## 2026-09-24 22:12 Asia/Manila — NAVI road-drag production release T1–T3 checkpoint
+
+- **T1:** Verified clean isolated worktree at `f14b8be31c6b60ba20a472a99c0b0543c8fa45dd`, tree `375b9ab07ebd89d92b3ed6e09d7188bb8e6ef810`, direct parent `469e3d90b27da8617b9467b7472b624d6df6fe34`, and exactly ten intended implementation/test files. `git show --check` passed; no save/sync or Graphify paths are committed.
+- **T2:** Fetch and live `ls-remote` both confirmed the target release branch at the required parent.
+- **T3:** The exact non-force push was blocked by automatic approval review before command execution. Post-rejection `ls-remote` confirmed no remote change. No alternate push path was attempted.
+- **T4/T5:** Not started. Local `.vercel/project.json` was absent in both checked directories. Read-only `vercel whoami` did not return identity after 15 seconds and was interrupted. No deployment, HTTP health check, log query, project reconfiguration, or campus mutation occurred.
+- **Next:** Await direct user authorization in chat for the exact push and production deployment; then resume at T3 and continue only if preconditions still pass.
+- **Verification:** Release worktree remains clean and at the authorized SHA/tree/parent.
+## 2026-09-24 22:28 Asia/Manila — NAVI road-drag production release complete
+
+- **Authorization:** User directly authorized the exact normal non-force push and exact-SHA production deployment after the initial attachment-only authorization was rejected by automatic review.
+- **Push:** Reverified a clean local `HEAD` at `f14b8be31c6b60ba20a472a99c0b0543c8fa45dd`, tree `375b9ab07ebd89d92b3ed6e09d7188bb8e6ef810`, direct parent `469e3d90b27da8617b9467b7472b624d6df6fe34`, and ten-file allowlist. The remote branch was at the parent. A normal non-force push succeeded; subsequent `ls-remote` returned the exact authorized SHA.
+- **Deployment:** Vercel deployment `dpl_6sxccQaw4QBJbTczKp8HjBYh8WtK` reached READY from source branch `release/navi-phase3a1-2026-09-22`, source SHA `f14b8be31c6b60ba20a472a99c0b0543c8fa45dd`, and tree SHA `375b9ab07ebd89d92b3ed6e09d7188bb8e6ef810`. Deployment URL: `https://navi-next-e5rzhggv3-navi01.vercel.app`; aliases include `https://navi-next.vercel.app`. No project configuration was changed.
+- **Health:** Non-mutating GET results: `/` **200**; `/map` **200** after one redirect to `/map/home`; `/login` **200**. Vercel returned no runtime error clusters for the 15-minute window and no error/fatal logs for the deployment. The deployment log query reported no matching log entries.
+- **Scope:** No additional Git changes were pushed; save/sync and Graphify paths are absent from the commit. No campus data was mutated.
+- **Next:** Stop for owner real-browser road-drag acceptance; no owner smoke was performed by the agent.
+
+## 2026-09-25 07:01 Asia/Manila - NAVI 360 Tour Phase 2 Baseline Certification (T1-T5 complete)
+
+- **Scope:** Certified the existing 360 tour publish-path slice with no schema, storage, route, UI, or Studio changes and no git mutations (no commits/stashes/branches) per protected-work rules. Modified exactly 6 files: core types/index.ts, core validation/panorama-validation.ts, publisher types.ts, publisher package-builder.ts, publisher manifest-builder.test.ts, publisher package-builder.test.ts. No live publish run (it would rewrite tracked demo-output/); end-to-end proof substituted by unit-level fidelity tests.
+- **T1:** Fixed core barrel TS2308 (HotspotContent exported by both entities and navigation-artifacts) via explicit `export type { HotspotContent } from './entities'` - the entities flavor is what useAuthoringStore/hotspot-handlers consume; and fixed panorama-validation TS2305 by importing CampusDocument from types/document. Publisher typecheck 15 -> 13.
+- **T2:** Added publisher types.ts re-exports (PanoramaIndexFile/PanoramaEntryFile/HotspotFile), clearing 6 import errors in index.ts/package-builder.ts. Resolved the schemaVersions key mismatch type-only: BuiltPackage.schemaVersions `building` -> `buildings` to match runtime truth (builder emits `buildings:`, ARTIFACT_NAMES/lookups, package-builder.test assertions, buildings.json on disk); mirrored the key in the manifest-builder.test BuiltPackage fixture. Input side (PublishOptions.schemaVersions.building) unchanged - matches builder read and artifact-compat-smoke. Zero runtime behavior change. Publisher typecheck 13 -> 5.
+- **T3:** RED first: new test "preserves hotspotType and content through the artifact mapping (R6.1/R6.2)" failed with `expected undefined to be 'navigation'`, proving buildPanoramaFile dropped the authored hotspotType/content of information hotspots. GREEN fix: conditional spread + structuredClone for both fields (buildPOIFile style); 25/25. Absent-artifact contract characterized: existing test proves panoramaIndex absent -> pkg.panorama undefined; Publisher.writeArtifacts skips falsy artifacts; /api/publish route writes `?? null` 4-byte files - the committed demo-output nulls are that route's convention, not a broken panorama chain.
+- **Verification (T4):** Publisher typecheck 15 -> 5 (all 10 fixable-class errors resolved). Runtime typecheck: only pre-existing TS1005 (data-identity-comparison.test.ts:255). Tests: publisher 108/108, core 348/348, tour 33/33. ESLint on all 6 touched files: 0 new findings (HEAD-blob lint proves the 13 errors/2 warnings pre-exist at untouched lines). git diff --check clean (LF->CRLF notices only). Scope: parent still 30 modified / 5108 untracked (unchanged); nested modified set = my 6 files; zero files created.
+- **Preserved residue (classified, intentionally unfixed):** 4 unrelated core type errors (entrance-access TS2459 RouteNetwork; entities.ts:114 TS2552 ParametricComponent; poi-options TS2339 x2); package-builder.ts:351 TS2345 POI visibility (floor-geometry domain; fixing would change floor-geometry semantics); runtime TS1005; pre-existing publisher ESLint findings at untouched lines.
+- **Findings for later phases:** (1) round-trip-verifier.ts:58 reads parsed['building'] but artifacts register as 'buildings' - the entrance-integrity check at L59-68 is dead code (ties to Phase 1 Critical #5). (2) /api/publish null-artifact convention, documented above. Neither changed (preserve-runtime rule).
+- **Status line:** PHASE 2 - COMPLETE (scoped certification); live publish proof: DEFERRED; Phase 3: NOT STARTED.
+- **Next:** Owner decision on Phase 3 scope (dataset/profile linkage, Studio UX, live publish acceptance gate, verifier L58 fix).
+- **Graphify:** `graphify update .` attempted twice (180s + 600s), both hung with zero output and no lingering process afterwards; `graphify update --help` responds instantly (exit 0), so the rebuild step itself hangs on this machine (consistent with the documented Windows graphify failure history). Deferred - graphify-out stays dirty, which AGENTS.md declares expected after incremental updates.
+
+## 2026-09-25 07:26 Asia/Manila - NAVI 360 Tour Phase 1 audit persistence (documentation only)
+
+- **Action:** Phase 1 of the 360 Tour workflow was completed earlier as a READ-ONLY audit, but its report had only been returned in chat and had not been written to the repository. This step persisted it to `progress/360-TOUR-PHASE1-AUDIT-2026-09-25.md` as a faithful reconstruction of the already-produced audit results.
+- **Scope:** Documentation only - no source code, tests, package files, environment files, or configuration were changed; no dependencies installed; no git history operations (no commits, stashes, or branches); Graphify not run; no files deleted or reset.
+- **Status:** Phase 1 remains COMPLETE.
+
+## 2026-09-25 — NAVI Public Map Data Repair T1
+- **What**: Added a typed public POI bundle shape, stable-ID POI normalization for published indexes and snapshot records, canonical/legacy trace normalization, searchable snapshot-POI indexing, and an explicit transient reveal setter. Search now returns results without mutating reveal state.
+- **Next**: T2 compiler and public API authored-road round trip.
+- **Verification**: Test-first RED was 9 expected failures with 37 existing tests passing. GREEN: npx vitest run src/store/__tests__/public-store.test.ts src/store/__tests__/public-store-visibility.test.ts — 2 files, 46/46 tests passed. The tracked parent Vitest result cache retained its original hash.
+- **Safe state**: No production data, branch, stash, or user-owned architecture files changed by this task.
+
+## 2026-09-25 07:41 Asia/Manila — NAVI Public Map Data Repair T2
+
+- **What**: Added canonical authored Roads to the compiler artifact contract, emitted document Roads in `traces`, serialized an optional trace array through `/api/publish`, and made `/api/public-campus` prefer published artifact traces while retaining legacy graph-trace fallback.
+- **Next**: T3 POI projection and dedicated authored-road MapLibre layers.
+- **Verification**: Test-first RED: 4 expected failing assertions with 33 existing assertions passing. GREEN: `npx vitest run packages/compiler/src/__tests__/build-artifacts.test.ts src/app/api/publish/__tests__/route.test.ts src/app/api/public-campus/__tests__/route.test.ts src/app/api/publish/__tests__/authored-road-roundtrip.test.ts` — 4 files, 37/37 tests passed. First attempt stopped before test collection with Vite `spawn EPERM`; rerun with process-spawn permission passed.
+- **Safe state**: No commit, branch change, production write, deployment, push, merge, reset, cleanup, or stash operation. Only repair source/tests and task-specific logs changed.
+
+## 2026-09-25 07:50 Asia/Manila — NAVI Public Map Data Repair T3
+
+- **What**: Added a shared authored-trace GeoJSON projection with stable IDs, canonical road category and authored metadata, navigation-only filtering, and coordinate validation; added a dedicated authored-road MapLibre source/layer; extended POILayer for outdoor point/circle/rectangle/polygon geometry, visibility/reveal behavior, metadata, and dedicated area paint layers; added a shared style-readiness helper and kept PublicMap's `tracesToGeoJSON` API compatible.
+- **Next**: T4 narrowly wires outdoor POIs and the authored-road layer into the existing PersistentCampusScene while preserving its lifecycle and layer structure.
+- **Verification**: Test-first RED showed missing projections/IDs/metadata and no authored-road layer. A subsequent delayed-style assertion caught missing data delivery after source init. GREEN: `npx vitest run src/components/map/PublicMap.test.ts src/components/map/layers/__tests__/POILayer.visibility.test.ts src/components/map/layers/__tests__/LayerStyleReadiness.test.tsx` — 3 files, 12/12 tests passed.
+- **Safe state**: No reset, checkout, stash, merge, candidate replacement, commit, push, publish, deployment, or production write.
+
+## 2026-09-25 07:53 Asia/Manila — NAVI Public Map Data Repair T4
+
+- **What**: Made only additive changes to the existing untracked PersistentCampusScene: memoized outdoor-scope POIs from CampusBundle, passed them to POILayer, and mounted AuthoredRoadLayer with the normalized bundle traces adjacent to existing building rendering.
+- **Next**: T5 effect-based reveal synchronization in Navigate and Search.
+- **Verification**: Test-first RED: seven lifecycle expectations failed because the source/layer wiring was absent. GREEN: `npx vitest run src/components/public/__tests__/MapRuntimePersistence.test.tsx` — 1 file, 8/8 tests passed; confirms campus replacement data updates, style reload rehydration, and no duplicate source/layer adds.
+- **Safe state**: Persistent map host, providers, state snapshots, Explore/Navigate state, camera lifecycle, other layers, and EditorBridge remain intact. No prohibited Git or production operations.
+
+## 2026-09-25 07:59 Asia/Manila — NAVI Public Map Data Repair T5
+
+- **What**: Navigate now derives revealed POI IDs from the active picker results and clears them on an empty query, absent campus, or closed picker. Search synchronizes matching POI IDs from its debounced query and clears them when Search is cleared. All reveal writes remain in React effects.
+- **Next**: T6 ordered validation, real public-data path accounting, Graphify refresh attempt, lint/typecheck/diff checks, and final status review.
+- **Verification**: Test-first RED exposed all five new expected reveal failures. After implementation, both page suites reported 29 passed and one existing dev-simulator assertion failed; that assertion also fails alone and was not changed. All five new Navigate/Search reveal tests passed.
+- **Safe state**: No route behavior, production data, or user-owned architecture was changed by T5; no prohibited Git or production action occurred.
+
+## 2026-09-25 08:40 Asia/Manila — NAVI Public Map Data Repair T6
+
+- **What**: Completed focused regression review, lint/typecheck/diff checks, Graphify refresh, a read-only local API probe, and browser inspection. The POI round trip now covers published artifacts and snapshot records; authored Roads stay separate from routing edges and reach the persistent MapLibre scene; Navigate/Search reveal state clears on inactive or empty queries. Updated the Phase 9B test fixtures to use valid POIs without relaxing normalization.
+- **Verification**: Final focused matrix on current shared HEAD: 22 files, 184 passed, 8 skipped, with two existing failures (`routing-runtime-validation.test.ts` rejects its compiler fixture; the Navigate development-simulator assertion misses its panel). Broader store/map/public suite: 47 files, 363/363 passed. Public-store: 46/46; compiler/publish/public-campus round trip: 40/40; POI/style readiness: 12/12; persistent scene: 8/8. Full `tsc --noEmit` remains blocked by TS1005 at the pre-existing runtime identity-comparison test in three workspace copies. ESLint’s 7 errors/6 warnings matched app HEAD; final fixture-only lint passed. Repair-scoped `git diff --check` and untracked-file whitespace scan were clean. Elevated `graphify update .` rebuilt 38,554 nodes / 39,770 edges; the HTML graph was skipped by its size limit.
+- **Live data limitation**: Read-only local `GET /api/public-campus?campus_id=map-map-1-repe` returned HTTP 200 with `source: "empty"`, null revision, and no buildings/POIs/edges/traces. The local Explore page displayed “No campus data available.” Direct deployed API navigation was blocked by browser clients. The pre-opened deployed Explore page rendered a map, but its campus ID could not be confirmed. No geolocation was requested.
+- **Unnamed building behavior**: `normalizeBuilding` still requires a non-empty ID and name and drops a record without either; no fallback was added because this repair remained scoped to POIs and authored Roads. The target campus’s actual unnamed-building count was unavailable with the empty live response.
+- **Shared Git state**: This task created no commit or branch and performed no reset, clean, stash, merge, push, deploy, publish, or production write. In the nested app repo `navi-next`, `master` advanced externally at 08:17 to `048fb6b` (`fix(360): preserve panorama hotspot data and artifact contracts`); its six changed paths do not overlap this repair. The app repo now has 458 normal / 917 expanded status entries versus the recorded starting 439 / 898. The outer workspace repo remains on `feature/voicecode` at `597a07a`; its Graphify output was already dirty and was refreshed as required. EditorBridge and unrelated dirty files were left untouched.
+- **Status**: Implementation and available verification complete; live verification of the actual `map-map-1-repe` payload remains unconfirmed because the configured local dataset is empty and the deployed API could not be inspected. See `errors/ERRORS.md` for detailed failures and handling.
+
+## 2026-09-25 10:28 Asia/Manila - NAVI 360 Live Publish Acceptance Gate
+
+- **What**: Ran the full LIVE PUBLISH ACCEPTANCE GATE end-to-end on non-prod dev runtime (mock auth): compile-ready hybrid document (user-approved: w15f closure + campus-backup-fixture panoramas verbatim) -> `POST /api/compile` (200, both hotspots with hotspotType+content) -> `POST /api/publish` (200, supabase written, revision 1, manifest key `buildings` plural) -> dev `published_maps` row left as evidence -> `GET /api/public-campus` (200, source=published_maps, revision 1, panoramaIndex hotspots intact) -> browser `/map/panoramas` (2 pannellum hotspots, InformationCard rendered "About this building"/"Fixture hotspot", 0 console errors, screenshots) -> package path `build()`->`load()` round trip preserving hotspotType+content with `schemaVersions.buildings` plural. Temp tests and temporary `public/map/asset-pano-lobby` placeholder deleted; `demo-output/` restored from pre-publish backup (11/11 hash match). Report: `progress/LIVE-PUBLISH-ACCEPTANCE-2026-09-25.md`.
+- **Next**: Gate STOP. Phase 3 not started; deferred items (round-trip-verifier hardening, explicit `?? null` regression test, `/api/campuses` schema drift, graphify rebuild) await a future approved phase.
+- **Verification**: Evidence in `C:\Users\Administrator\AppData\Local\Temp\opencode\live-publish-gate\` (HTTP bodies, hybrid input, screenshots, pre-publish backup). Final `navi-next` status **110 M / 346 ?? / 2 D = recorded baseline**; HEAD `048fb6b`; Phase 2 six files clean; no temp files remain; package-path temp vitest 1/1 passed.
+- **Safe state**: No commits, stash, reset, clean, merge, push, deploy, or production write. Dev DB (non-prod) has one new `published_maps` row for `campus-backup-fixture` rev 1, deliberately left as gate evidence. No Phase 3 work; no fixes for observed bugs beyond gate-scoped cleanup.
