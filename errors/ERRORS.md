@@ -2397,3 +2397,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: No live data was changed. Validate the completed patch locally against a disposable authenticated fixture; leave deployment, migration application, and live data repair as explicit rollout work.
 - **Prevention**: Inspect production read-only before rollout, deploy code and migration deliberately, and diagnose/repair live referential data without overwriting an unsynced browser snapshot.
 - **Related tasks**: Floor Editor Stabilization T7, production verification
+
+## 2026-09-25: Interrupted npm install zero-filled package-lock.json and node_modules
+
+- **Error**: The first `npm install @aws-sdk/client-s3` run was interrupted mid-write. `package-lock.json` became 530,652 bytes of NUL characters (0 valid JSON), and 177 files inside `node_modules/@aws-sdk/core` and `node_modules/@smithy/core` were also all-NUL. `tsc --noEmit` reported 142 `TS1127: Invalid character` errors from those corrupted `.d.ts` files.
+- **Cause**: The installer preallocates/extends files before writing them; killing it mid-write leaves the extended region zero-filled. Git already treated `package-lock.json` as binary before this, so the corruption was invisible to a normal `git diff`.
+- **Fix**: Restored the lockfile with `git checkout -- package-lock.json` (HEAD copy parsed clean, 917 packages), regenerated it with `npm install --package-lock-only` (942 packages, 396 pure insertions, 0 removals), deleted only the two all-NUL package directories, and re-ran `npm install`. Verified with a byte-level scan (3,316 files, 0 corrupted) and re-ran `tsc` (145 lines -> 3, all pre-existing `data-identity-comparison.test.ts` parse errors).
+- **Prevention**: Never interrupt `npm install`; after any interrupted install, (a) confirm the lockfile parses as JSON and contains no NUL bytes, (b) byte-scan the newly added package trees for all-NUL files before trusting lint/tsc/tests, and (c) prefer `--package-lock-only` first so the lock is written separately from `node_modules`.
+- **Related tasks**: T1
