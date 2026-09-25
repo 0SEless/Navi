@@ -2764,3 +2764,15 @@
 - **Limitation:** no `R2_*` credentials exist locally (0 R2 keys in `.env.development.local`, `.env.production.local`, `.env.example`, or the process env), so the real upload to `navi-360` could not be executed from this machine. No credentials were invented or modified.
 - **Incident:** the first `npm install` was interrupted and zero-filled `package-lock.json` plus 177 files in `@aws-sdk/core`/`@smithy/core`; recovered per `errors/ERRORS.md`.
 - **Next:** commit the 8 scoped files, deploy, then `POST /api/r2-connectivity-test` with a real session against Vercel to execute the live upload.
+
+
+## 2026-09-25 - R2 connectivity test deployed and verified against production
+
+- **Commit:** `b56743de3f75b6269b678bfcf2d6294ae4eeb2e1` (`feat(r2): add server-side R2 connectivity test endpoint`), 10 files / 937 insertions / 0 deletions. Mixed log files were staged at blob level so only this run's entries (errors +8, progress +9) entered the commit; the pre-existing unstaged work in both logs stayed unstaged.
+- **Deploy:** Vercel CLI authenticated via device flow (user-approved), production deployment `dpl_2YUvRKhtGpL82fmkvacXnk3GX16T` -> `READY`, aliased to `https://navi-next.vercel.app`, built from a clean detached worktree at `b56743d` (worktree removed afterwards). Build list contains `/api/r2-connectivity-test` (dynamic route).
+- **HTTP:** unauthenticated `POST /api/r2-connectivity-test` -> `401 {"error":"Authentication required."}`; `GET /` -> `200`.
+- **Live test (authenticated):** `POST` from an existing `NAVIADMIN` production session -> `200 {"ok":true,"provider":"cloudflare-r2","bucket":"navi-360","object":"_navi-tests/r2-connectivity-test.txt"}`.
+- **Blocker resolved:** the secret had been created as `r2_secret_access_key`; case-sensitive mismatch, renamed and redeployed (details in `errors/ERRORS.md`).
+- **Independent verification (user-run):** Cloudflare dashboard shows `navi-360` with Public Access Disabled -> `_navi-tests/` -> `r2-connectivity-test.txt`, `text/plain`, 25 B = exact length of `NAVI R2 connectivity test`.
+- **Limitation:** R2 credentials are write-only in Vercel (`vercel env pull` returns `""`), so no machine-side read-back was possible. No credential value was printed, stored, or committed at any point; the pulled env file and helper scripts were deleted.
+- **Next:** nothing outstanding. Optional tidy-up: drop the stray lowercase `R2_region` Shared variable. Branch state unchanged: local `master` is 381 ahead / 5 behind `origin/master` and was not pushed.

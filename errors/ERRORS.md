@@ -2405,3 +2405,22 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Restored the lockfile with `git checkout -- package-lock.json` (HEAD copy parsed clean, 917 packages), regenerated it with `npm install --package-lock-only` (942 packages, 396 pure insertions, 0 removals), deleted only the two all-NUL package directories, and re-ran `npm install`. Verified with a byte-level scan (3,316 files, 0 corrupted) and re-ran `tsc` (145 lines -> 3, all pre-existing `data-identity-comparison.test.ts` parse errors).
 - **Prevention**: Never interrupt `npm install`; after any interrupted install, (a) confirm the lockfile parses as JSON and contains no NUL bytes, (b) byte-scan the newly added package trees for all-NUL files before trusting lint/tsc/tests, and (c) prefer `--package-lock-only` first so the lock is written separately from `node_modules`.
 - **Related tasks**: T1
+
+
+---
+
+## 2026-09-25: Lowercase R2 secret env var name blocked the live connectivity test
+
+- **Error**: The authenticated production `POST /api/r2-connectivity-test` returned `500 {"error":"missing_configuration","missing":["R2_SECRET_ACCESS_KEY"]}` even though all four `R2_*` variables existed in Vercel Shared env linked to `navi-next`. The other three (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`) were resolved; only the secret was not.
+- **Cause**: Vercel/Linux environment variable names are case-sensitive. The Shared variable had been created as `r2_secret_access_key` (lowercase) while `R2_REQUIRED_ENV_VARS` in `src/lib/r2.ts` looks up `R2_SECRET_ACCESS_KEY`. A second, benign mismatch also exists: `R2_region` (lowercase `r`) is ignored because the code reads `R2_REGION` and falls back to `auto`.
+- **Fix**: The variable was renamed to `R2_SECRET_ACCESS_KEY` in the Vercel dashboard and re-linked to `navi-next` for Production + Preview, then the project was redeployed because env changes only reach a running function on a fresh deployment. Verified by `vercel env pull` (all four `R2_*` keys present) and by the endpoint returning `200`.
+- **Prevention**: When adding server env vars, paste the exact uppercase name from the source constant. Remember (a) case matters, (b) a redeploy is mandatory after any env change, and (c) the `missing: [name]` array from `readR2Config` pinpoints the mismatch - never guess which variable is wrong.
+- **Related tasks**: R2 connectivity test (deployment phase)
+
+## 2026-09-25: `vercel env pull` cannot export sensitive credentials, blocking independent object read-back
+
+- **Error**: After the upload succeeded, an independent read of `_navi-tests/r2-connectivity-test.txt` failed with `400 InvalidArgument`. Diagnosis showed `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` were written as `""` (2 bytes each) in the pulled env file while `R2_ENDPOINT` and `R2_BUCKET` pulled normally, so any S3 client built from that file had empty credentials.
+- **Cause**: `vercel env pull` (CLI 54.15.0) redacts those two write-only/sensitive values and offers no `--decrypt` option, so the local environment can never be reconstructed from a pull. The AWS SDK rejects empty credentials with `InvalidArgument` before any request is signed.
+- **Fix**: Abandoned the local read-back route, deleted the pulled file immediately (it also held Supabase/Cloudinary/Mapbox secrets) plus the helper scripts, and verified the object through the Cloudflare dashboard instead: `navi-360` (Public Access Disabled) -> `_navi-tests/` -> `r2-connectivity-test.txt`, `text/plain`, 25 B - byte-exact for `NAVI R2 connectivity test`.
+- **Prevention**: Never treat `vercel env pull` output as a complete secret dump - check parsed value lengths before trusting it, keep pulled files in a temp path outside the repo, and delete them in the same command. For bucket verification, plan on the Cloudflare dashboard/API unless real credentials are supplied out-of-band, and never print a credential value to recover.
+- **Related tasks**: R2 connectivity test (verification phase）
