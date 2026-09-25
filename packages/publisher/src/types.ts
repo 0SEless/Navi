@@ -18,6 +18,14 @@ export type {
   NavigationPackageManifest,
 } from '@navi/core'
 
+// 360 Tour (R6.1): panorama artifact file contracts, re-exported so ./index
+// and package-builder can source them from './types'.
+export type {
+  PanoramaIndexFile,
+  PanoramaEntryFile,
+  HotspotFile,
+} from '@navi/core'
+
 import type {
   PackageMetadata,
   NavigationGraphFile,
@@ -53,7 +61,7 @@ export interface BuiltPackage {
     graph: string
     search: string
     spatial: string
-    building: string
+    buildings: string
     poi: string
     panorama: string
     floorGeometry: string

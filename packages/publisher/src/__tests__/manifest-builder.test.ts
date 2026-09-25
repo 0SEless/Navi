@@ -17,7 +17,7 @@ const samplePkg: BuiltPackage = {
     routeable: true,
   },
   graph: null as unknown as BuiltPackage['graph'],
-  schemaVersions: { graph: '1.0.0', search: '1.0.0', spatial: '1.0.0', building: '1.0.0', poi: '1.0.0', panorama: '1.0.0', floorGeometry: '1.0.0', qrIndex: '1.0.0' },
+  schemaVersions: { graph: '1.0.0', search: '1.0.0', spatial: '1.0.0', buildings: '1.0.0', poi: '1.0.0', panorama: '1.0.0', floorGeometry: '1.0.0', qrIndex: '1.0.0' },
 }
 
 describe('ManifestBuilder', () => {

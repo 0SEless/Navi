@@ -1,4 +1,5 @@
-import type { Panorama, CampusDocument } from '../types/entities'
+import type { Panorama } from '../types/entities'
+import type { CampusDocument } from '../types/document'
 
 export interface PanoramaValidationIssue {
   panoramaId: string

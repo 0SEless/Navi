@@ -296,6 +296,70 @@ describe('Panorama artifact (M6.5a)', () => {
     expect(pkg.panorama!.panoramas[0].hotspots).toHaveLength(2)
   })
 
+  it('preserves hotspotType and content through the artifact mapping (R6.1/R6.2)', () => {
+    const arts = makeArtifacts({
+      panoramaIndex: {
+        version: '1.0.0',
+        panoramas: [
+          {
+            id: 'pano-1',
+            title: 'Lobby',
+            imageAssetId: 'img-1',
+            buildingId: 'b1',
+            floor: 0,
+            position: { lat: 14.5, lng: 121.0 },
+            heading: 90,
+            hotspots: [
+              { id: 'h-nav', type: 'navigation', target: 'rm-1', yaw: 45, pitch: -10, label: 'Room 1', hotspotType: 'navigation' },
+              {
+                id: 'h-info',
+                type: 'information',
+                target: '',
+                yaw: 120,
+                pitch: 5,
+                label: 'About',
+                hotspotType: 'information',
+                content: {
+                  title: 'Welcome',
+                  description: 'Campus lobby',
+                  imageUrl: 'https://cdn.example/img.webp',
+                  linkUrl: 'https://example.com',
+                  linkLabel: 'More',
+                  entityId: 'poi-1',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    const pkg = build(arts, { campusId: 'c-1', campusName: 'C', outputDir: '/tmp' })
+    const hotspots = pkg.panorama!.panoramas[0].hotspots
+
+    // Base mapping (pre-existing behavior)
+    expect(hotspots[0]).toMatchObject({
+      id: 'h-nav',
+      type: 'navigation',
+      target: 'rm-1',
+      yaw: 45,
+      pitch: -10,
+      label: 'Room 1',
+    })
+    // hotspotType must survive the artifact mapping
+    expect(hotspots[0].hotspotType).toBe('navigation')
+    expect(hotspots[1].hotspotType).toBe('information')
+    // Information-hotspot content must survive the artifact mapping
+    expect(hotspots[1].content).toEqual({
+      title: 'Welcome',
+      description: 'Campus lobby',
+      imageUrl: 'https://cdn.example/img.webp',
+      linkUrl: 'https://example.com',
+      linkLabel: 'More',
+      entityId: 'poi-1',
+    })
+  })
+
   it('includes panorama in schemaVersions', () => {
     const pkg = build(makeArtifacts(), { campusId: 'c-1', campusName: 'C', outputDir: '/tmp' })
     expect(pkg.schemaVersions.panorama).toBe('1.0.0')
