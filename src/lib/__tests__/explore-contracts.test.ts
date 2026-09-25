@@ -203,5 +203,9 @@ describe('Explore contracts', () => {
   it('exposes only real panoramas with a published asset for the selected building', () => {
     expect(getAvailablePanoramas(bundle, 'b1').map(panorama => panorama.id)).toEqual(['pano-library'])
     expect(getAvailablePanoramas({ ...bundle, panoramaIndex: undefined }, 'b1')).toEqual([])
+    // T2: the publish route stores an explicit `null` (route.ts `?? null`)
+    // and public-store passes it through its type-only cast — consumers
+    // must be null-safe, not just undefined-safe.
+    expect(getAvailablePanoramas({ ...bundle, panoramaIndex: null as unknown as undefined }, 'b1')).toEqual([])
   })
 })

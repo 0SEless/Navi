@@ -55,7 +55,11 @@ export class RoundTripVerifier {
       }
     }
 
-    const building = parsed['building'] as BuildingIndexFile | undefined
+    // Published packages key this artifact `buildings` (see ARTIFACT_NAMES in
+    // publisher.ts). The verifier parses `manifest.artifacts` entries, so the
+    // lookup must use the published key — `building` was always undefined and
+    // this entrance-integrity block never executed against real packages.
+    const building = parsed['buildings'] as BuildingIndexFile | undefined
     if (building && graph) {
       const nodeIds = new Set(graph.nodes.map(n => n.id))
       for (const b of building.buildings) {
