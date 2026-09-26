@@ -13,11 +13,12 @@ interface FloorItemProps {
   onDelete: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  onEditInterior: () => void
 }
 
 function FloorItem({
   floor, isActive, index, total,
-  onSetActive, onRename, onDuplicate, onDelete, onMoveUp, onMoveDown,
+  onSetActive, onRename, onDuplicate, onDelete, onMoveUp, onMoveDown, onEditInterior,
 }: FloorItemProps) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(floor.label)
@@ -78,6 +79,11 @@ function FloorItem({
         style={{ background: 'none', border: 'none', color: index === total - 1 ? '#444' : '#888', cursor: index === total - 1 ? 'default' : 'pointer', fontSize: 12, padding: '0 2px' }}
       >▼</button>
       <button
+        onClick={e => { e.stopPropagation(); onEditInterior() }}
+        title="Edit floor interior"
+        style={{ background: 'none', border: 'none', color: '#60A5FA', cursor: 'pointer', fontSize: 12, padding: '0 2px' }}
+      >✎</button>
+      <button
         onClick={e => { e.stopPropagation(); onDuplicate() }}
         title="Duplicate"
         style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}
@@ -93,14 +99,14 @@ function FloorItem({
 
 export function FloorManager() {
   const { document, services } = useEditor()
-  const dispatcher = services.get('dispatcher') as any
-  const viewport = services.get('viewport') as any
-  const buildingId = viewport.activeBuildingId as string | null
+  const dispatcher = services.get('dispatcher')
+  const viewport = services.get('viewport')
+  const buildingId = viewport?.activeBuildingId ?? null
 
   const building = buildingId ? document.buildings.find(b => b.id === buildingId) : null
 
   const handleAddFloor = useCallback(() => {
-    if (!buildingId) return
+    if (!buildingId || !dispatcher || !viewport) return
     dispatcher.execute({ id: 'floor.create', label: 'Add Floor', payload: { buildingId } })
     // auto-set active floor to new one
     const bld = document.buildings.find(b => b.id === buildingId)
@@ -110,18 +116,37 @@ export function FloorManager() {
   }, [buildingId, dispatcher, document.buildings, viewport])
 
   const handleSetActive = useCallback((floorId: string) => {
+    if (!viewport) return
     viewport.setActiveFloor(floorId === viewport.activeFloorId ? null : floorId)
   }, [viewport])
 
+  const handleEditInterior = useCallback(async (level: number) => {
+    if (!buildingId || !dispatcher) return
+    const workflow = services.get('workflow')
+    if (workflow?.save) {
+      try {
+        await workflow.save('manual')
+      } catch (err) {
+        console.warn('Pre-navigation save failed:', err)
+      }
+    }
+    dispatcher.execute({
+      id: 'building.editInterior',
+      label: 'Edit Interior',
+      payload: { buildingId, floor: level },
+    })
+  }, [buildingId, dispatcher, services])
+
   const handleRename = useCallback((floorId: string, label: string) => {
-    dispatcher.execute({ id: 'floor.rename', label: 'Rename Floor', payload: { floorId, label } })
+    dispatcher?.execute({ id: 'floor.rename', label: 'Rename Floor', payload: { floorId, label } })
   }, [dispatcher])
 
   const handleDuplicate = useCallback((floorId: string) => {
-    dispatcher.execute({ id: 'floor.duplicate', label: 'Duplicate Floor', payload: { floorId } })
+    dispatcher?.execute({ id: 'floor.duplicate', label: 'Duplicate Floor', payload: { floorId } })
   }, [dispatcher])
 
   const handleDelete = useCallback((floorId: string) => {
+    if (!dispatcher || !viewport) return
     dispatcher.execute({ id: 'floor.delete', label: 'Delete Floor', payload: { floorId } })
     if (viewport.activeFloorId === floorId) {
       viewport.setActiveFloor(null)
@@ -129,17 +154,21 @@ export function FloorManager() {
   }, [dispatcher, viewport])
 
   const handleMoveFloor = useCallback((floorId: string, direction: 'up' | 'down') => {
-    if (!building) return
-    const idx = building.floors.findIndex(f => f.id === floorId)
+    if (!building || !dispatcher) return
+    const floorIds = building.floors.map((f) => f.id)
+    const idx = floorIds.indexOf(floorId)
     if (idx === -1) return
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= building.floors.length) return
-    const floors = building.floors
-    const temp = floors[idx]
-    floors[idx] = floors[swapIdx]
-    floors[swapIdx] = temp
-    floors.forEach((f, i) => { f.level = i })
-  }, [building])
+    if (swapIdx < 0 || swapIdx >= floorIds.length) return
+    const temp = floorIds[idx]
+    floorIds[idx] = floorIds[swapIdx]
+    floorIds[swapIdx] = temp
+    dispatcher.execute({
+      id: 'floor.reorder',
+      label: 'Reorder Floors',
+      payload: { buildingId: building.id, floorIds },
+    })
+  }, [building, dispatcher])
 
   if (!building) return null
 
@@ -166,6 +195,7 @@ export function FloorManager() {
           index={i}
           total={arr.length}
           onSetActive={() => handleSetActive(flr.id)}
+          onEditInterior={() => handleEditInterior(flr.level)}
           onRename={(label) => handleRename(flr.id, label)}
           onDuplicate={() => handleDuplicate(flr.id)}
           onDelete={() => handleDelete(flr.id)}

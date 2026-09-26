@@ -342,9 +342,19 @@ export class GraphAdapter {
 
     if (!this.transformer) {
       this.transformer = new CoordinateTransformer()
-      for (const b of document.buildings) {
+    }
+    for (const b of document.buildings) {
+      if (!this.transformer.getBuildingSystem(b.id)) {
         const origin = b.footprint.points.length > 0 ? b.footprint.points[0] : { lat: 0, lng: 0 }
-        this.transformer.registerBuilding({ buildingId: b.id, origin, rotation: 0 })
+        this.transformer.registerBuilding({ buildingId: b.id, origin, rotation: b.rotation ?? 0 })
+      }
+      for (const f of b.floors ?? []) {
+        if (!this.transformer.getFloorSystem(b.id, f.level)) {
+          this.transformer.registerFloor(b.id, f.level, {
+            offset: (f.offset as { x: number; y: number } | undefined) ?? { x: 0, y: 0 },
+            rotation: (f.rotation as number | undefined) ?? 0,
+          })
+        }
       }
     }
     this.graph.setBuildings([])
@@ -1006,7 +1016,7 @@ export class GraphAdapter {
     // graph node when the panorama is anchored to a known building. A panorama
     // without buildingId (or a legacy world-stored one) passes through verbatim
     // (R15.8: entity data is never dropped).
-    for (const pano of document.panoramas) {
+    for (const pano of document.panoramas ?? []) {
       const legacyWorld = 'lat' in pano.position
         ? pano.position
         : (pano.buildingId && this.transformer
@@ -1031,7 +1041,7 @@ export class GraphAdapter {
     // 11. QR Checkpoints → Nodes
     // P1-T4 (D9): QR positions are building-local — same world derivation as
     // entrances/panoramas, with verbatim pass-through for legacy world records.
-    for (const qr of document.qrCheckpoints) {
+    for (const qr of document.qrCheckpoints ?? []) {
       const legacyWorld = (qr.position as unknown as { lat?: number }).lat !== undefined
         ? (qr.position as unknown as { lat: number; lng: number })
         : (this.transformer

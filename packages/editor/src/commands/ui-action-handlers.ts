@@ -21,10 +21,14 @@ export const buildingEditInteriorHandler: CommandHandler = {
     const building = document.buildings.find(b => b.id === buildingId)
     if (!building) return { success: false, error: `Building not found: ${buildingId}` }
     if (building.floors.length === 0) return { success: false, error: 'Building has no floors' }
+    const targetFloor = (payload as { floor?: number })?.floor ?? 0
+    const matchedFloor = building.floors.some(f => f.level === targetFloor)
+      ? targetFloor
+      : (building.floors[0]?.level ?? 0)
     const pathParts = window.location.pathname.split('/')
     const mapId = pathParts[2]
     if (mapId) {
-      window.location.href = `/studio/${mapId}/edit/building/${buildingId}/floor/0`
+      window.location.href = `/studio/${mapId}/edit/building/${buildingId}/floor/${matchedFloor}`
     }
     return { success: true, entityId: buildingId }
   },

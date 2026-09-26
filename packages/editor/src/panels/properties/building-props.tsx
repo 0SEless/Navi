@@ -32,8 +32,12 @@ function formatTimestamp(ts: number): string {
 }
 
 function getFootprintPoints(building: Building): { lat: number; lng: number }[] {
-  const fp = building.footprint as any
-  return Array.isArray(fp) ? fp : (fp?.points ?? [])
+  const fp: unknown = building.footprint
+  if (Array.isArray(fp)) return fp as { lat: number; lng: number }[]
+  if (fp && typeof fp === 'object' && 'points' in fp && Array.isArray((fp as { points: unknown }).points)) {
+    return (fp as { points: { lat: number; lng: number }[] }).points
+  }
+  return []
 }
 
 function footprintCentroid(points: { lat: number; lng: number }[]): { lat: number; lng: number } | null {
@@ -47,21 +51,21 @@ function footprintCentroid(points: { lat: number; lng: number }[]): { lat: numbe
 export function BuildingProperties({ building }: Props) {
   const { services } = useEditor()
   const editEngine = useEditingEngine()
-  const dispatcher = services.get<any>('dispatcher')
+  const dispatcher = services.get('dispatcher')
   const { snapshot } = usePublish()
   const [showFloorManager, setShowFloorManager] = useState(false)
   const positionEditTarget = useStudioStore((s) => s.positionEditTarget)
   const setPositionEditTarget = useStudioStore((s) => s.setPositionEditTarget)
   const isAdjusting = positionEditTarget?.type === 'building' && positionEditTarget?.id === building.id
 
-  const centroid = useMemo(() => footprintCentroid(getFootprintPoints(building)), [building.footprint])
+  const centroid = useMemo(() => footprintCentroid(getFootprintPoints(building)), [building])
 
   const update = useCallback((changes: Record<string, unknown>) => {
     for (const [property, value] of Object.entries(changes)) {
       editEngine.begin({ kind: 'assign', entityId: building.id, property, value })
       editEngine.doCommit()
     }
-    dispatcher.execute({ id: 'entity.update', label: 'Edit Building', payload: { entityId: building.id, changes } })
+    dispatcher?.execute({ id: 'entity.update', label: 'Edit Building', payload: { entityId: building.id, changes } })
   }, [editEngine, dispatcher, building.id])
 
   const openPositionEditor = useCallback(() => {
@@ -183,10 +187,23 @@ export function BuildingProperties({ building }: Props) {
       <ActionButton
         disabled={building.floors.length === 0}
         style={{ opacity: building.floors.length === 0 ? 0.5 : 1 }}
-        onClick={() => dispatcher.execute({
-          id: 'building.editInterior', label: 'Edit Interior',
-          payload: { buildingId: building.id },
-        })}
+        onClick={async () => {
+          const workflow = services.get('workflow')
+          if (workflow?.save) {
+            try {
+              await workflow.save('manual')
+            } catch (err) {
+              console.warn('Pre-navigation save failed:', err)
+            }
+          }
+          const viewport = services.get('viewport')
+          const activeFloor = building.floors.find((f) => f.id === viewport?.activeFloorId)
+          dispatcher?.execute({
+            id: 'building.editInterior',
+            label: 'Edit Interior',
+            payload: { buildingId: building.id, floor: activeFloor?.level ?? building.floors[0]?.level ?? 0 },
+          })
+        }}
       >
         Edit Interior
       </ActionButton>
@@ -268,7 +285,7 @@ export function BuildingProperties({ building }: Props) {
       <ActionButton variant="danger" onClick={() => {
         editEngine.begin({ kind: 'delete', entityIds: [building.id] })
         editEngine.doCommit()
-        dispatcher.execute({
+        dispatcher?.execute({
           id: 'building.delete', label: 'Delete Building',
           payload: { buildingId: building.id },
         })
