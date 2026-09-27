@@ -24,6 +24,12 @@
  * ── Change me when the DB schema changes ─────────────────────
  */
 
+import {
+  AUTHORED_DOCUMENT_FORMAT_VERSION,
+  toAuthoredDocumentSnapshot,
+} from '@navi/core'
+import type { CampusDocument } from '@navi/core'
+
 export interface RpcBuilding {
   id: string
   name: string
@@ -55,6 +61,9 @@ export interface RpcPayload {
   pois?: unknown[]
   doors?: unknown[]
   separatedCrossings?: unknown[]
+  /** Versioned authored CampusDocument companion; Graph remains the projection. */
+  authoredDocumentFormatVersion?: typeof AUTHORED_DOCUMENT_FORMAT_VERSION
+  authoredDocument?: CampusDocument
 }
 
 export interface BuildingLike {
@@ -99,13 +108,14 @@ export interface GraphSnapshotLike {
 export function serializeSnapshot(
   snapshot: GraphSnapshotLike,
   overrideCampusId?: string | null,
+  authoredDocument?: CampusDocument | null,
 ): RpcPayload {
   const campusId = overrideCampusId || snapshot.campusId
   if (!campusId) {
     throw new Error('Cannot serialize snapshot: campusId is required')
   }
 
-  return {
+  const payload: RpcPayload = {
     id: snapshot.id || campusId,
     campusId,
     version: snapshot.version || '1.0.0',
@@ -122,6 +132,12 @@ export function serializeSnapshot(
     // Persistence fix: explicit separation decisions must survive save/reload.
     separatedCrossings: snapshot.separatedCrossings,
   }
+
+  if (authoredDocument) {
+    payload.authoredDocumentFormatVersion = AUTHORED_DOCUMENT_FORMAT_VERSION
+    payload.authoredDocument = toAuthoredDocumentSnapshot(authoredDocument)
+  }
+  return payload
 }
 
 /**

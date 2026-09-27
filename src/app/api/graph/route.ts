@@ -13,6 +13,7 @@ type MutationOutcome =
   | "REPLAY"
   | "CAS_CONFLICT"
   | "MUTATION_COLLISION"
+  | "INVALID_REQUEST"
   | "TIMEOUT"
   | "UPSTREAM_ERROR"
   | "UNKNOWN"
@@ -70,9 +71,12 @@ export async function GET(request: NextRequest) {
 
   const result = await supabase
     .from("graph_snapshots")
-    .select("data, updated_at")
+    .select("data, authored_document, updated_at")
     .eq("campus_id", campusId)
-    .maybeSingle() as unknown as { data: { data: unknown; updated_at?: string } | null; error: { message: string } | null };
+    .maybeSingle() as unknown as {
+      data: { data: unknown; authored_document?: unknown; updated_at?: string } | null
+      error: { message: string } | null
+    };
 
   if (result.error) {
     console.error(`[api/graph] graph_snapshots query failed for campus "${campusId}":`, result.error);
@@ -80,10 +84,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (result.data?.data) {
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       ...(result.data.data as Record<string, unknown>),
       updatedAt: result.data.updated_at ?? null,
-    });
+    }
+    if (result.data.authored_document !== null && result.data.authored_document !== undefined) {
+      response.authoredDocumentFormatVersion = 1
+      response.authoredDocument = result.data.authored_document
+    }
+    return NextResponse.json(response);
   }
 
   return NextResponse.json({
@@ -116,6 +125,12 @@ export async function POST(request: NextRequest) {
     mutationId = typeof body?.mutationId === "string" ? body.mutationId : null;
     campusId = getCampusIdFromBody(body) ?? null;
     expectedRevision = typeof body?.expectedServerUpdatedAt === "string" ? body.expectedServerUpdatedAt : null;
+
+    if (!campusId) {
+      outcome = "INVALID_REQUEST";
+      status = 400;
+      return NextResponse.json({ error: "campusId is required" }, { status });
+    }
 
     const blocked = assertCampusMutationAllowed(campusId);
     if (blocked) return blocked;
