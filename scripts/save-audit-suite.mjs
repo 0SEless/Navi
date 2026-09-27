@@ -921,10 +921,11 @@ const SCENARIOS = [
       x.state.doorsBefore = (summarize(await readDb())?.floorDoors || 0)
       x.state.writeIndex = x.cap.writes.length
 
-      const doorBtn = x.page.locator('button[title*="Door" i], button[aria-label*="Door" i]').first()
+      const doorBtn = x.page.locator('button[title="Door"]').first()
       if (await doorBtn.isVisible()) {
         await doorBtn.click()
         await sleep(600)
+
         const startX = bb.x + bb.width / 2 - 120
         const startY = bb.y + bb.height / 2 - 80
         await x.page.mouse.move(startX, startY)
