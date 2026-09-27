@@ -7,6 +7,7 @@ import type { LayerVisibility } from '@/types/studio-types'
 
 let mockDispatcherExecute = vi.fn()
 let mockGraphComponents: unknown[] = []
+let mockFloorComponentsById: Record<string, unknown[]> = {}
 let mockRemoveComponent = vi.fn()
 let mockUpdateComponent = vi.fn()
 let mockSaveGraph = vi.fn()
@@ -118,13 +119,16 @@ vi.mock('maplibre-gl', () => {
 })
 
 vi.mock('@/hooks/floor-graph-selectors', () => ({
-  useFloorComponents: () => mockGraphComponents as any[],
+  useFloorComponents: (_buildingId: string, _level: number, floorId?: string) =>
+    (floorId ? mockFloorComponentsById[floorId] ?? [] : mockGraphComponents) as any[],
   useFloorComponent: (id: string | null) => mockGraphComponents.find((component: any) => component.id === id)
     ?? (id === 'C001' ? { id: 'C001', type: 'room', name: 'Room 1', buildingId: 'BLD01', floor: 0 } : null),
   isSemanticRoomComponent: (component: any) => component?.metadata?.source === 'derived-face' && component?.metadata?.semanticRoom === true,
   useFloorRenderVersion: () => 0,
   useFloorCampusId: () => 'asu-ibajay',
   useFloorComponentsAll: () => [],
+  resolveFloorScope: (floors: Array<{ id: string; level: number }>, floorId?: string, level?: number) =>
+    floorId ? floors.find((floor) => floor.id === floorId) : floors.find((floor) => floor.level === level),
   useFloorSyncStatus: () => 'synced',
   useFloorSyncError: () => null,
   useLegacyBuilding: () => null,
@@ -163,6 +167,15 @@ vi.mock('@/store/graph-store', () => ({
     }),
 }))
 
+// Stub the gesture-heavy FloorPlanAlignment overlay so tests can drive its
+// commit path (onChange) directly. Only rendered when alignMode is set —
+// existing tests never render it, so this mock is inert for them.
+vi.mock('../FloorPlanAlignment', () => ({
+  FloorPlanAlignment: ({ onChange }: { onChange: (align: Record<string, number>) => void }) => (
+    <button data-testid="fpa-commit-stub" onClick={() => onChange({ rotation: 45 })} />
+  ),
+}))
+
 const building: Building = {
   id: 'BLD01',
   name: 'Test Building',
@@ -184,6 +197,7 @@ describe('FloorEditorCanvas', () => {
     mockMoveLayer = vi.fn()
     mockMapInstance = null
     mockGraphComponents = []
+    mockFloorComponentsById = {}
     mockEditorValue = makeEditorValue({ buildings: [] })
   })
 
@@ -202,6 +216,34 @@ describe('FloorEditorCanvas', () => {
         />
       )
     ).not.toThrow()
+  })
+
+  it('commits alignment gestures through the onAlignmentChange prop (regression: undeclared callback identifier)', async () => {
+    const onAlignmentChange = vi.fn()
+    render(
+      <FloorEditorCanvas
+        building={building}
+        floor={0}
+        tool="select"
+        layers={layers}
+        selectedId={null}
+        onSelect={vi.fn()}
+        alignMode
+        floorPlanUrl="https://example.com/floor-plan.png"
+        planAlignment={{ scaleX: 1, scaleY: 1 }}
+        onAlignmentChange={onAlignmentChange}
+      />
+    )
+
+    // FloorPlanAlignment renders only after map 'load' (mapReady); the stub
+    // button invokes the canvas's onChange lambda — the exact path that threw
+    // "ReferenceError: onAlignmentChange is not defined" when the prop was
+    // declared in FloorEditorCanvasProps but missing from the destructuring.
+    const commitStub = await screen.findByTestId('fpa-commit-stub')
+    await userEvent.click(commitStub)
+
+    expect(onAlignmentChange).toHaveBeenCalledTimes(1)
+    expect(onAlignmentChange).toHaveBeenCalledWith({ scaleX: 1, scaleY: 1, rotation: 45 })
   })
 
   it('promotes wall editing layers above room overlays for reliable endpoint dragging', async () => {
@@ -242,6 +284,7 @@ describe('FloorEditorCanvas', () => {
   })
 
   it('shows delete button when a component is selected', () => {
+    mockGraphComponents = [{ id: 'C001', type: 'room', name: 'Room 1', buildingId: 'BLD01', floor: 0 }]
     render(
       <FloorEditorCanvas
         building={building}
@@ -258,6 +301,7 @@ describe('FloorEditorCanvas', () => {
   it('dispatches room.delete command on delete click', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
+    mockGraphComponents = [{ id: 'C001', type: 'room', name: 'Room 1', buildingId: 'BLD01', floor: 0 }]
     render(
       <FloorEditorCanvas
         building={building}
@@ -278,6 +322,7 @@ describe('FloorEditorCanvas', () => {
   it('calls onSelect(null) on delete click', async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()
+    mockGraphComponents = [{ id: 'C001', type: 'room', name: 'Room 1', buildingId: 'BLD01', floor: 0 }]
     render(
       <FloorEditorCanvas
         building={building}
@@ -414,6 +459,273 @@ describe('FloorEditorCanvas', () => {
     expect(JSON.stringify(shellDocument)).toBe(documentBefore)
     expect(shellDocument.buildings[0].floors[0].rooms).toHaveLength(0)
     expect(shellDocument.buildings[0].floors[0].roomAttributes).toHaveLength(0)
+  })
+
+  it('Phase A vertical contract: elevated-floor walls extrude on the single-floor presentation datum', async () => {
+    // Root-cause repro (spec/FLOOR-ELEVATION-ACTIVE-FLOW.md, Phase 0 classification B):
+    // a floor with elevation > 0 must present its walls on the same datum as every
+    // other renderable in the single-floor view (rooms base 0, derived rooms base 0.1,
+    // route edges base 0, floor-plan raster at ground plane) — NOT on the stacking datum.
+    const elevatedDocument = {
+      schemaVersion: 1,
+      version: 1,
+      metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+      buildings: [
+        {
+          id: 'BLD01', name: 'Test Building', code: 'TB', category: 'academic', description: '',
+          footprint: { points: [] }, baseElevation: 0, height: 10, color: '#fff', aliases: [], metadata: {},
+          floors: [
+            {
+              id: 'flr-bld01-0', level: 0, label: 'Ground', elevation: 0, height: 3.5,
+              walls: [],
+              rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+            {
+              id: 'flr-bld01-1', level: 1, label: 'Floor 2', elevation: 3.5, height: 3.5,
+              walls: [
+                { id: 'wall-up-1', start: { x: 0, y: 0 }, end: { x: 8, y: 0 }, thickness: 0.15, height: 3.5 },
+              ],
+              rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+          ],
+          verticalConnectors: [],
+        },
+      ],
+      roads: [], panoramas: [], qrCheckpoints: [],
+    }
+    const documentBefore = JSON.stringify(elevatedDocument)
+    mockEditorValue = makeEditorValue(elevatedDocument)
+    mockEditorValue.transformer = {
+      buildingLocalToWorld: (point: { x: number; y: number }) => ({ lat: point.y * 1e-5, lng: point.x * 1e-5 }),
+      worldToBuildingLocal: () => null,
+    }
+
+    render(
+      <FloorEditorCanvas
+        building={{ ...building, floors: [0, 1] }}
+        floor={1}
+        tool="select"
+        layers={layers}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(mockMapInstance?.getSource('floor-walls-3d')?.setData).toHaveBeenCalled())
+    const calls = mockMapInstance?.getSource('floor-walls-3d')?.setData.mock.calls ?? []
+    const data = calls[calls.length - 1][0] as {
+      features: Array<{ properties: { id: string; base: number; height: number } }>
+    }
+    expect(data.features).toHaveLength(1)
+    expect(data.features[0].properties.id).toBe('wall-up-1')
+
+    // Wall extrusion sits on the view's floor plane (presentation datum), so wall
+    // bases align with the floor representation; formula height = base + wall.height
+    // is unchanged (0 + 3.5).
+    expect(data.features[0].properties.base).toBe(0)
+    expect(data.features[0].properties.height).toBe(3.5)
+
+    // The authoritative stacking elevation stays intact in the document and the
+    // render path never mutates authored data.
+    expect(elevatedDocument.buildings[0].floors[1].elevation).toBe(3.5)
+    expect(JSON.stringify(elevatedDocument)).toBe(documentBefore)
+  })
+
+  it('Phase A vertical contract: ground-floor (elevation 0) wall extrusion behavior is unchanged', async () => {
+    const groundDocument = {
+      schemaVersion: 1,
+      version: 1,
+      metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+      buildings: [
+        {
+          id: 'BLD01', name: 'Test Building', code: 'TB', category: 'academic', description: '',
+          footprint: { points: [] }, baseElevation: 0, height: 10, color: '#fff', aliases: [], metadata: {},
+          floors: [
+            {
+              id: 'flr-bld01-0', level: 0, label: 'Ground', elevation: 0, height: 3.5,
+              walls: [
+                { id: 'wall-g-1', start: { x: 0, y: 0 }, end: { x: 6, y: 0 }, thickness: 0.15, height: 3.5 },
+              ],
+              rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+          ],
+          verticalConnectors: [],
+        },
+      ],
+      roads: [], panoramas: [], qrCheckpoints: [],
+    }
+    mockEditorValue = makeEditorValue(groundDocument)
+    mockEditorValue.transformer = {
+      buildingLocalToWorld: (point: { x: number; y: number }) => ({ lat: point.y * 1e-5, lng: point.x * 1e-5 }),
+      worldToBuildingLocal: () => null,
+    }
+
+    render(
+      <FloorEditorCanvas building={building} floor={0} tool="select" layers={layers} selectedId={null} onSelect={vi.fn()} />
+    )
+
+    await waitFor(() => expect(mockMapInstance?.getSource('floor-walls-3d')?.setData).toHaveBeenCalled())
+    const calls = mockMapInstance?.getSource('floor-walls-3d')?.setData.mock.calls ?? []
+    const data = calls[calls.length - 1][0] as {
+      features: Array<{ properties: { id: string; base: number; height: number } }>
+    }
+    expect(data.features).toHaveLength(1)
+    expect(data.features[0].properties.id).toBe('wall-g-1')
+    expect(data.features[0].properties.base).toBe(0)
+    expect(data.features[0].properties.height).toBe(3.5)
+  })
+
+  it('isolates every floor-scoped source by canonical floor ID across GF → 1F → 2F → GF', async () => {
+    const multiFloorDocument = {
+      schemaVersion: 1,
+      version: 1,
+      metadata: { campusId: 'test', name: 'test', description: '', lastModified: '', editorVersion: '0.1.0' },
+      buildings: [
+        {
+          id: 'BLD01', name: 'Test Building', code: 'TB', category: 'academic', description: '',
+          footprint: { points: [] }, baseElevation: 0, height: 10, color: '#fff', aliases: [], metadata: {},
+          floors: [
+            {
+              id: 'floor-ground', level: -1, label: 'Ground', elevation: 0, height: 3.5,
+              walls: [{ id: 'wall-g', start: { x: 0, y: 0 }, end: { x: 5, y: 0 }, thickness: 0.15, height: 3.5 }],
+              routeNetwork: {
+                nodes: [{ id: 'rn-g', type: 'room', position: { x: 1, y: 1 }, floor: -1 }],
+                edges: [],
+              },
+              rooms: [{ id: 'room-g', name: 'Room-G', polygon: { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+            {
+              id: 'floor-one', level: 2, label: '1F', elevation: 3.5, height: 3.5,
+              walls: [{ id: 'wall-1', start: { x: 0, y: 0 }, end: { x: 0, y: 7 }, thickness: 0.15, height: 3.5 }],
+              routeNetwork: {
+                nodes: [{ id: 'rn-1', type: 'room', position: { x: 2, y: 2 }, floor: 2 }],
+                edges: [],
+              },
+              rooms: [{ id: 'room-1', name: 'Room-1', polygon: { points: [{ x: 2, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+            {
+              id: 'floor-two', level: 7, label: '2F', elevation: 7, height: 3.5,
+              walls: [{ id: 'wall-2', start: { x: 0, y: 0 }, end: { x: 9, y: 0 }, thickness: 0.15, height: 3.5 }],
+              routeNetwork: {
+                nodes: [{ id: 'rn-2', type: 'room', position: { x: 4, y: 4 }, floor: 7 }],
+                edges: [],
+              },
+              rooms: [{ id: 'room-2', name: 'Room-2', polygon: { points: [{ x: 4, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+            },
+          ],
+          verticalConnectors: [],
+        },
+      ],
+      roads: [], panoramas: [], qrCheckpoints: [],
+    }
+    const documentBefore = JSON.stringify(multiFloorDocument)
+    mockEditorValue = makeEditorValue(multiFloorDocument)
+    mockEditorValue.transformer = {
+      buildingLocalToWorld: (point: { x: number; y: number }) => ({ lat: point.y * 1e-5, lng: point.x * 1e-5 }),
+      worldToBuildingLocal: () => null,
+    }
+    const roomComponent = (id: string, name: string, x: number) => ({
+      id, type: 'room', name, buildingId: 'BLD01', floor: 0,
+      position: { lat: 0, lng: 0 },
+      polygon: [{ lat: 0, lng: x }, { lat: 0, lng: x + 0.00001 }, { lat: 0.00001, lng: x + 0.00001 }],
+    })
+    mockFloorComponentsById = {
+      'floor-ground': [roomComponent('room-g', 'Room-G', 0)],
+      'floor-one': [roomComponent('room-1', 'Room-1', 1)],
+      'floor-two': [roomComponent('room-2', 'Room-2', 2)],
+    }
+
+    const canvasProps = {
+      building: { ...building, floors: [-1, 2, 7] },
+      tool: 'select' as const,
+      layers,
+      selectedId: null,
+      onSelect: vi.fn(),
+    }
+
+    const { rerender } = render(<FloorEditorCanvas {...canvasProps} floor={-1} activeFloorId="floor-ground" />)
+
+    // Ground floor selected: only ground-floor content is live.
+    await waitFor(() => {
+      const walls = mockMapInstance?.getSource('floor-walls')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string } }>
+      }
+      expect(walls.features.map((f) => f.properties.id)).toEqual(['wall-g'])
+    })
+    await waitFor(() => {
+      const nodes = mockMapInstance?.getSource('floor-route-nodes')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string } }>
+      }
+      expect(nodes.features.map((f) => f.properties.id)).toEqual(['rn-g'])
+    })
+    await waitFor(() => {
+      const rooms = mockMapInstance?.getSource('floor-rooms')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string } }>
+      }
+      expect(rooms.features.map((f) => f.properties.id)).toEqual(['room-g'])
+    })
+
+    // 1F: index 1 is deliberately not its level (2).
+    rerender(<FloorEditorCanvas {...canvasProps} floor={2} activeFloorId="floor-one" />)
+
+    await waitFor(() => {
+      const walls = mockMapInstance?.getSource('floor-walls')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string } }>
+      }
+      expect(walls.features.map((f) => f.properties.id)).toEqual(['wall-1'])
+    })
+    await waitFor(() => {
+      const walls3d = mockMapInstance?.getSource('floor-walls-3d')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string; base: number } }>
+      }
+      expect(walls3d.features.map((f) => f.properties.id)).toEqual(['wall-1'])
+      // Upper-floor consistency (Phase A contract holds on switch, too).
+      expect(walls3d.features[0].properties.base).toBe(0)
+    })
+    await waitFor(() => {
+      const nodes = mockMapInstance?.getSource('floor-route-nodes')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string; floor: number } }>
+      }
+      expect(nodes.features.map((f) => f.properties.id)).toEqual(['rn-1'])
+      expect(nodes.features[0].properties.floor).toBe(2)
+    })
+    await waitFor(() => {
+      const rooms = mockMapInstance?.getSource('floor-rooms')?.setData.mock.calls.at(-1)?.[0] as {
+        features: Array<{ properties: { id: string } }>
+      }
+      expect(rooms.features.map((f) => f.properties.id)).toEqual(['room-1'])
+    })
+
+    // An old GF selection has no active-floor component and must produce no selection overlay.
+    rerender(<FloorEditorCanvas {...canvasProps} floor={2} activeFloorId="floor-one" selectedId="room-g" />)
+    await waitFor(() => {
+      const selection = mockMapInstance?.getSource('floor-selection')?.setData.mock.calls.at(-1)?.[0] as { features: unknown[] }
+      expect(selection.features).toEqual([])
+    })
+
+    // 2F then back to GF, with sources cleared/replaced on each transition.
+    rerender(<FloorEditorCanvas {...canvasProps} floor={7} activeFloorId="floor-two" />)
+    await waitFor(() => {
+      const walls = mockMapInstance?.getSource('floor-walls')?.setData.mock.calls.at(-1)?.[0] as { features: Array<{ properties: { id: string } }> }
+      expect(walls.features.map((f) => f.properties.id)).toEqual(['wall-2'])
+    })
+    await waitFor(() => {
+      const rooms = mockMapInstance?.getSource('floor-rooms')?.setData.mock.calls.at(-1)?.[0] as { features: Array<{ properties: { id: string } }> }
+      expect(rooms.features.map((f) => f.properties.id)).toEqual(['room-2'])
+    })
+    await waitFor(() => {
+      const nodes = mockMapInstance?.getSource('floor-route-nodes')?.setData.mock.calls.at(-1)?.[0] as { features: Array<{ properties: { id: string } }> }
+      expect(nodes.features.map((f) => f.properties.id)).toEqual(['rn-2'])
+    })
+    rerender(<FloorEditorCanvas {...canvasProps} floor={-1} activeFloorId="floor-ground" />)
+    await waitFor(() => {
+      const rooms = mockMapInstance?.getSource('floor-rooms')?.setData.mock.calls.at(-1)?.[0] as { features: Array<{ properties: { id: string } }> }
+      expect(rooms.features.map((f) => f.properties.id)).toEqual(['room-g'])
+    })
+
+    // Visibility/floor switching is presentation-only: authored walls, route
+    // graphs and the document itself are byte-identical.
+    expect(JSON.stringify(multiFloorDocument)).toBe(documentBefore)
   })
 
   it('populates a spatial Door footprint after map readiness for 2D and 2.5D rendering', async () => {

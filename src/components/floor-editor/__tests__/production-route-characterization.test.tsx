@@ -178,6 +178,8 @@ vi.mock('@/hooks/floor-graph-selectors', () => ({
     const comp = (mockGraphComponents as any[]).find((c: any) => c.id === id)
     return comp ?? null
   },
+  resolveFloorScope: (floors: Array<{ id: string; level: number }>, floorId?: string, level?: number) =>
+    floorId ? floors.find((floor) => floor.id === floorId) : floors.find((floor) => floor.level === level),
   isSemanticRoomComponent: (component: any) => component?.metadata?.source === 'derived-face' && component?.metadata?.semanticRoom === true,
   useFloorRenderVersion: () => 0,
   useFloorCampusId: () => 'test-campus',

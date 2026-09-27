@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEditor, useEditingEngine, useSelection, ENABLE_CANVAS_EDITOR, InteractionController as CanonicalInteractionController, getWallJunctions, moveWallJunction, snapWallJunctionPosition } from '@navi/editor'
 import type { Command } from '@navi/editor'
-import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId, isSemanticRoomComponent } from '@/hooks/floor-graph-selectors'
+import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId, isSemanticRoomComponent, resolveFloorScope } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { CoordinateTransformer, LocalCoord, PlanAlignment, Wall } from '@navi/core'
 import { resizeRectangleFootprint, rotateRectangleFootprint } from '@navi/core'
@@ -39,7 +39,8 @@ import { syncFloorPlanImageLayer, type FloorPlanMapLike } from '@/lib/floor-plan
 import { createPathProjection, componentToEditablePath, snapTo45Degrees } from '@/lib/path-projection'
 import { screenToImagePixel, screenToBuildingLocal } from '@/lib/two-point-calibration'
 import type { Point2D } from '@/lib/two-point-calibration'
-import { resolveFloorPlanUrl } from '@/services/floor-plan-lifecycle'
+// resolveFloorPlanUrl removed: FloorEditorCanvas now uses the floorPlanUrl prop
+// directly (already resolved per-floor by FloorEditor). Bug A fix (T1).
 // P4-T1: Canvas editor (behind feature flag)
 import { CanvasViewport, componentsToFloorGeometry, useCanvasViewport, useCanvasEvents, useCanvasSelection, useCanvasEditingAdapter, screenToWorld, hitTestFloor, useMapLibreCamera } from '@navi/editor'
 import { DoorTool } from '@navi/editor/src/tools/door-tool'
@@ -377,6 +378,7 @@ function promoteWallEditingLayers(map: maplibregl.Map): void {
 
 interface FloorEditorCanvasProps {
   building: Building
+  activeFloorId?: string
   floor: number
   tool: StudioTool
   layers: LayerVisibility
@@ -522,14 +524,18 @@ function setSourceData(map: maplibregl.Map, sourceId: string, features: GeoJSON.
   if (source) source.setData({ type: 'FeatureCollection', features })
 }
 
-export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const readyRef = useRef(false)
 
-  const floorComponents = useFloorComponents(building.id, floor)
-  const selectedComponent = useFloorComponent(selectedId)
+  const floorComponents = useFloorComponents(building.id, floor, activeFloorId)
+  const fallbackSelectedComponent = useFloorComponent(selectedId)
+  // Selection is part of the render scope. A globally resolved selected entity
+  // from another floor must not leak into this floor's highlight/overlay layers.
+  const selectedComponent = floorComponents.find((component) => component.id === selectedId)
+    ?? (fallbackSelectedComponent && fallbackSelectedComponent.floor === floor ? fallbackSelectedComponent : null)
   const renderVersion = useFloorRenderVersion()
   const campusId = useFloorCampusId()
 
@@ -600,7 +606,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     if (!wallId) return
 
     const currentBuilding = editor.document.buildings.find((candidate) => candidate.id === building.id)
-    const currentFloor = currentBuilding?.floors.find((candidate) => candidate.level === floor)
+    const currentFloor = currentBuilding && resolveFloorScope(currentBuilding.floors, activeFloorId, floor)
     if (!currentFloor) {
       setWallEditError('Unable to find the active floor for this wall')
       return
@@ -620,7 +626,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     setSelectedWallId(null)
     setWallEditError(null)
     onSelectRef.current?.(null)
-  }, [building.id, dispatcher, editor.document.buildings, floor, readOnly])
+  }, [activeFloorId, building.id, dispatcher, editor.document.buildings, floor, readOnly])
 
   useEffect(() => {
     if (tool === 'select') return
@@ -800,13 +806,34 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
   }, [viewMode, cameraSnapshot, onCameraSnapshot, mapReady])
 
-  // Floor plan image overlay — add source + layer dynamically when URL available
+  // Floor plan image overlay — add source + layer dynamically when URL available.
+  //
+  // Bug A fix (T1): Use the `floorPlanUrl` prop directly. The parent (FloorEditor)
+  // already resolves the per-floor image URL from `currentFloorData.planImageId`
+  // (falling back to `building.floorPlanUrls[currentLevel]` as a read-only legacy path).
+  // Re-resolving here from `building.floorPlanUrls[level]` was a parallel read that
+  // (a) used the floor index instead of level number, and (b) could observe a stale
+  // shared URL before the per-floor planImageId write had propagated to the building object.
+  //
+  // Bug B fix (T4/T5): MapLibre `type:'image'` sources are 2D-only — their four lat/lng
+  // corner coordinates carry no elevation. In pitched 2.5D mode the raster sits at Z=0
+  // while wall/room extrusions float above it, creating a visual gap. Hide the floor-plan
+  // layer in 2.5D mode; it is only meaningful in top-down 2D authoring view.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-    const level = building.floors?.[floor] ?? floor
-    const currentFloorData = building.floorData?.find((fd: any) => fd.level === level || fd.level === floor)
-    const imgUrl = resolveFloorPlanUrl(building.floorPlanUrls?.[level], currentFloorData as any)
+
+    // In 2.5D mode the raster image has no Z coordinate and would float at ground
+    // level while extruded geometry appears above it. Hide it; the 3D geometry
+    // (walls, rooms) provides the visual context in that view.
+    if (viewMode === '2.5d') {
+      if (map.getLayer('floor-floorplan-layer')) {
+        try { map.setLayoutProperty('floor-floorplan-layer', 'visibility', 'none') } catch { /* layer race */ }
+      }
+      return
+    }
+
+    const imgUrl = floorPlanUrl
 
     // Capture image dimensions for calibration coordinate conversion
     if (imgUrl && (!calImageRef.current || calImageRef.current.src !== imgUrl)) {
@@ -829,7 +856,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     // The image layer is added after the static editor layers; restore wall
     // editing targets to the top so their handles remain visible and hittable.
     if (rendered) promoteWallEditingLayers(map)
-  }, [building.floorPlanUrls, building.floorData, floor, buildingFp, mapReady, planAlignment])
+  }, [floorPlanUrl, buildingFp, mapReady, planAlignment, viewMode])
 
   // Sync rooms + hallways for this floor
   useEffect(() => {
@@ -1025,7 +1052,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const wallFeatures: GeoJSON.Feature[] = []
       const bld = editor.document.buildings.find((b) => b.id === building.id)
       if (!bld) return
-      const fl = bld.floors.find((f) => f.level === floor)
+      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
       if (!fl?.walls || fl.walls.length === 0) {
         const wallSrc = map.getSource('floor-walls') as maplibregl.GeoJSONSource | undefined
         if (wallSrc) wallSrc.setData({ type: 'FeatureCollection', features: [] })
@@ -1050,7 +1077,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const wallSrc = map.getSource('floor-walls') as maplibregl.GeoJSONSource | undefined
       if (wallSrc) wallSrc.setData({ type: 'FeatureCollection', features: wallFeatures })
     } catch { console.warn('FloorEditorCanvas: wall source not ready for setData') }
-  }, [renderVersion, building.id, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Sync wall extrusion polygons for 3D fill-extrusion
   useEffect(() => {
@@ -1061,7 +1088,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     try {
       const bld = editor.document.buildings.find((b) => b.id === building.id)
       if (!bld) return
-      const fl = bld.floors.find((f) => f.level === floor)
+      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
       if (!fl?.walls || fl.walls.length === 0) {
         const src = map.getSource('floor-walls-3d') as maplibregl.GeoJSONSource | undefined
         if (src) src.setData({ type: 'FeatureCollection', features: [] })
@@ -1101,7 +1128,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const src = map.getSource('floor-walls-3d') as maplibregl.GeoJSONSource | undefined
       if (src) src.setData({ type: 'FeatureCollection', features: worldFeatures })
     } catch { console.warn('FloorEditorCanvas: wall-3d source not ready') }
-  }, [renderVersion, building.id, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Sync openings (doors/windows) from document to floor-openings source
   useEffect(() => {
@@ -1112,7 +1139,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     try {
       const bld = editor.document.buildings.find((b) => b.id === building.id)
       if (!bld) return
-      const fl = bld.floors.find((f) => f.level === floor)
+      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
       if (!fl?.openings || fl.openings.length === 0 || !fl.walls || fl.walls.length === 0) {
         const src = map.getSource('floor-openings') as maplibregl.GeoJSONSource | undefined
         if (src) src.setData({ type: 'FeatureCollection', features: [] })
@@ -1173,7 +1200,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const src = map.getSource('floor-openings') as maplibregl.GeoJSONSource | undefined
       if (src) src.setData({ type: 'FeatureCollection', features })
     } catch { console.warn('FloorEditorCanvas: opening source not ready') }
-  }, [renderVersion, building.id, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Sync route network from document to MapLibre
   useEffect(() => {
@@ -1184,7 +1211,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     try {
       const bld = editor.document.buildings.find((b) => b.id === building.id)
       if (!bld) return
-      const fl = bld.floors.find((f) => f.level === floor)
+      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
       const network = fl?.routeNetwork
 
       const nodeFeatures: GeoJSON.Feature[] = []
@@ -1253,7 +1280,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const edge3dSrc = map.getSource('floor-route-edges-3d') as maplibregl.GeoJSONSource | undefined
       if (edge3dSrc) edge3dSrc.setData({ type: 'FeatureCollection', features: edge3dFeatures })
     } catch { console.warn('FloorEditorCanvas: route network source not ready') }
-  }, [renderVersion, building.id, floor, transformer, routeNodePreview, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, routeNodePreview, mapReady])
 
   // Render the selected semantic access relationship as an ephemeral connector.
   // The line is presentation-only: RoomAttributes and EntranceAccess remain the
@@ -1271,7 +1298,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
 
     const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-    const fl = bld?.floors.find((candidate) => candidate.level === floor)
+    const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
     const network = fl?.routeNetwork
     if (!fl || !network) {
       source.setData(empty)
@@ -1312,7 +1339,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
 
     source.setData({ type: 'FeatureCollection', features })
-  }, [selectedId, selectedComponent, renderVersion, editor.document, building.id, floor, transformer, mapReady])
+  }, [selectedId, selectedComponent, renderVersion, editor.document, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Derive rooms from canonical wall graph (W5)
   useEffect(() => {
@@ -1323,7 +1350,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     try {
       const bld = editor.document.buildings.find((b) => b.id === building.id)
       if (!bld) return
-      const fl = bld.floors.find((f) => f.level === floor)
+      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
       if (!fl?.walls || fl.walls.length === 0) {
         const src = map.getSource('floor-derived-rooms') as maplibregl.GeoJSONSource | undefined
         if (src) src.setData({ type: 'FeatureCollection', features: [] })
@@ -1381,7 +1408,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       const src = map.getSource('floor-derived-rooms') as maplibregl.GeoJSONSource | undefined
       if (src) src.setData({ type: 'FeatureCollection', features })
     } catch { console.warn('FloorEditorCanvas: derived rooms source not ready') }
-  }, [renderVersion, building.id, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Populate room labels from floor components
   useEffect(() => {
@@ -1414,7 +1441,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     if (!src) return
     if (selectedWallId) {
       const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-      const fl = bld?.floors.find((candidate) => candidate.level === floor)
+      const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
       const wall = fl?.walls?.find((candidate) => candidate.id === selectedWallId)
       const feature = wall && transformer ? wallFeature(wall, transformer, building.id, { type: 'line' }) : null
       src.setData({ type: 'FeatureCollection', features: feature ? [{ ...feature, properties: { type: 'line' } }] : [] })
@@ -1433,7 +1460,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
     if (comp.type === 'route-edge') {
       const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-      const fl = bld?.floors.find((candidate) => candidate.level === floor)
+      const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
       const edgeId = (comp.metadata?.edgeId as string | undefined) ?? comp.id
       const edge = fl?.routeNetwork?.edges.find((candidate) => candidate.id === edgeId)
       const from = edge ? fl?.routeNetwork?.nodes.find((candidate) => candidate.id === edge.from) : undefined
@@ -1472,7 +1499,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         ],
       })
     }
-  }, [selectedId, selectedComponent, selectedWallId, renderVersion, editor.document, building.id, floor, transformer, mapReady])
+  }, [selectedId, selectedComponent, selectedWallId, renderVersion, editor.document, building.id, activeFloorId, floor, transformer, mapReady])
 
   // Relationship overlay — ephemeral visualization of entrance↔road connections
   useEffect(() => {
@@ -1622,7 +1649,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
 
     const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-    const fl = bld?.floors.find((candidate) => candidate.level === floor)
+    const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
     const walls = fl?.walls
     if (!walls?.length) {
       setSourceData(map, 'floor-wall-junctions', [])
@@ -1630,7 +1657,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
 
     setSourceData(map, 'floor-wall-junctions', wallJunctionFeatures(walls, selectedWallId, transformer, building.id))
-  }, [selectedWallId, renderVersion, readOnly, tool, transformer, building.id, floor, editor.document, mapReady])
+  }, [selectedWallId, renderVersion, readOnly, tool, transformer, building.id, activeFloorId, floor, editor.document, mapReady])
 
   // Point placement preview (entrance / stair / elevator tools)
   useEffect(() => {
@@ -1690,7 +1717,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       if (!junctionId || !wallId) return
 
       const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-      const fl = bld?.floors.find((candidate) => candidate.level === floor)
+      const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
       const walls = fl?.walls
       if (!walls?.length) return
       const junction = getWallJunctions(walls).find((candidate) => candidate.id === junctionId)
@@ -1714,7 +1741,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       if (!nodeId) return
 
       const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-      const fl = bld?.floors.find((candidate) => candidate.level === floor)
+      const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
       const node = fl?.routeNetwork?.nodes.find((candidate) => candidate.id === nodeId)
       if (!fl || !node) return
 
@@ -1978,7 +2005,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
             }
           })
         const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-        const fl = bld?.floors.find((candidate) => candidate.level === floor)
+        const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
 
         if (patches.length > 0 && fl) {
           const result = dispatcher.execute({
@@ -2223,7 +2250,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         }
 
         const bld = editor.document.buildings.find((candidate) => candidate.id === building.id)
-        const fl = bld?.floors.find((candidate) => candidate.level === floor)
+        const fl = bld && resolveFloorScope(bld.floors, activeFloorId, floor)
         if (!fl) return
         const result = dispatcher.execute({
           id: 'roomAttributes.declare',
@@ -2335,7 +2362,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
       } catch { /* zombie map — already destroyed */ }
     }
 
-  }, [mapReady, selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id, floor, readOnly, onSelect, cancelWallJunctionDrag, calibrationMode, onCalibrationClick, planAlignment, buildingFp, onCalibrationImageLoaded])
+  }, [mapReady, selectedId, floorComponents, tool, dispatcher, transformer, renderVersion, editEngine, building.id, activeFloorId, floor, readOnly, onSelect, cancelWallJunctionDrag, calibrationMode, onCalibrationClick, planAlignment, buildingFp, onCalibrationImageLoaded])
 
   // Door "Connect to Route…" pick mode: a node click resolves directly, an
   // edge click opens the junction-creation prompt.
@@ -2436,9 +2463,10 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
     }
   }, [tool, alignMode, viewMode])
 
-  const canvasLevel = building.floors?.[floor] ?? floor
-  const canvasFloorData = building.floorData?.find((fd: any) => fd.level === canvasLevel || fd.level === floor)
-  const activePlanUrl = resolveFloorPlanUrl(building.floorPlanUrls?.[canvasLevel], canvasFloorData as any, floorPlanUrl)
+  // Bug A fix (T1): the floorPlanUrl prop is the already-correct per-floor URL
+  // resolved by the parent. Use it directly instead of re-reading from the shared
+  // building.floorPlanUrls which could shadow the per-floor planImageId.
+  const activePlanUrl = floorPlanUrl
   const hasFloorPlan = !!activePlanUrl
 
   const effectiveFootprint: LatLng[] = useMemo(() => {
@@ -2630,7 +2658,7 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
           )}
         </div>
       )}
-      {selectedId && (
+      {selectedId && selectedComponent && (
         <div style={{
           position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
           display: 'flex', gap: 6, background: '#1E293B', borderRadius: 8, padding: '4px 6px',
@@ -2706,7 +2734,7 @@ interface CanvasFloorViewProps {
 function CanvasFloorView({ building, floorIndex, floorComponents, pathProj, transformer, onSelect, tool, mapRef, buildingFp }: CanvasFloorViewProps) {
   const { lastSelected } = useSelection()
   const selectedId = lastSelected?.id ?? null
-  const selectedComponent = useFloorComponent(selectedId)
+  const selectedComponent = floorComponents.find((component) => component.id === selectedId) ?? null
   const editor = useEditor()
   const dispatcher = editor.services.get('dispatcher')!
   const toolRegistry = editor.services.get('toolRegistry')!

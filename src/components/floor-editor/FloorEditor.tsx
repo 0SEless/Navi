@@ -33,6 +33,7 @@ import { commitFloorPlanAlignment } from '@/lib/floor-plan-commit'
 import { uploadFloorPlanImage, deleteFloorPlanImage } from '@/services/floor-plan-storage'
 import {
   buildFloorPlanReplaceAlignment,
+  collectBuildingFloorPlanReferences,
   readFloorPlanImageDimensions,
   resolveFloorPlanUrl,
 } from '@/services/floor-plan-lifecycle'
@@ -100,9 +101,12 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const [snapMode, setSnapMode] = useState<'architectural' | 'trace' | 'free'>('trace')
 
 
-  const currentLevel = building?.floors?.[floorAdapter.activeFloorIndex] ?? floor
-  const currentFloorData = building?.floorData?.find((fd: any) => fd.level === currentLevel)
-  const currentFloorId = (currentFloorData as any)?.id as string | undefined
+  const canonicalFloor = editorDoc.buildings
+    .find((candidate) => candidate.id === buildingId)
+    ?.floors.find((candidate) => candidate.level === floor)
+  const currentFloorData = building?.floorData?.find((fd: any) => fd.level === floor || (canonicalFloor?.id && fd.id === canonicalFloor.id))
+  const currentFloorId = canonicalFloor?.id ?? ((currentFloorData as any)?.id as string | undefined)
+  const currentLevel = canonicalFloor?.level ?? (typeof (currentFloorData as any)?.level === 'number' ? (currentFloorData as any).level : floor)
   const planAlignment = (currentFloorData as any)?.planAlignment as PlanAlignment | undefined
 
   // ROU Task 5: canonical room-id fingerprint of the active floor. The document
@@ -110,11 +114,17 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   // changes when the canonical room set changes, so edits that leave the room
   // set untouched never re-dispatch the reconcile effect.
   useDocumentVersion()
-  const canonicalFloor = editorDoc.buildings
-    .find((candidate) => candidate.id === buildingId)
-    ?.floors.find((candidate) => (currentFloorId ? candidate.id === currentFloorId : candidate.level === floor))
+
+
+
   const roomIdFingerprint = canonicalFloor ? canonicalRoomIds(canonicalFloor).join('|') : ''
-  const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[floor], currentFloorData as any)
+  // Bug A fix (T1): use currentLevel (the floor's level number) as the floorPlanUrls key,
+  // not the raw `floor` prop (which is a 0-based array index, not a level number).
+  // floorPlanUrls is keyed by level (0=GF, 1=1F, …) so using the index silently
+  // reads the wrong slot when level ≠ index. currentFloorData.planImageId is always
+  // preferred (per-floor, isolated); floorPlanUrls[currentLevel] is a read-only
+  // legacy fallback and must never be mutated by a replace operation.
+  const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[currentLevel], currentFloorData as any)
   const hasPlan = !!planImageUrl
   const persistedLocked = !!(currentFloorData as any)?.locked
 
@@ -191,7 +201,16 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   const [navPreviewOpen, setNavPreviewOpen] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
-  const floorComponents = useFloorComponents(buildingId, floorAdapter.activeFloorIndex)
+  const floorComponents = useFloorComponents(buildingId, currentLevel, currentFloorId)
+
+  // Clear stale selection if the selected entity does not belong to the active floor
+  useEffect(() => {
+    if (!lastSelected) return
+    const belongsToFloor = floorComponents.some((comp) => comp.id === lastSelected.id)
+    if (!belongsToFloor) {
+      clear()
+    }
+  }, [currentFloorId, currentLevel, floorComponents, lastSelected, clear])
   const graphNodes = useGraphStore((state) => state.graph.nodes)
   const graphEdges = useGraphStore((state) => state.graph.edges)
   const graphBuildings = useGraphStore((state) => state.graph.buildings)
@@ -310,8 +329,11 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     setPendingFinishAccess(null)
   }, [pendingFinishAccess, services])
   const validationChecks = useMemo(
-    () => runValidationChecks(building, floorAdapter.activeFloorIndex, floorComponents, undefined, editorDoc.roads, editorDoc),
-    [building, floorAdapter.activeFloorIndex, floorComponents, editorDoc],
+    () => {
+      const floorIndex = building?.floors ? Math.max(0, building.floors.indexOf(currentLevel)) : 0
+      return runValidationChecks(building, floorIndex, floorComponents, undefined, editorDoc.roads, editorDoc)
+    },
+    [building, currentLevel, floorComponents, editorDoc],
   )
 
   // Sync nav preview state when editor mode changes
@@ -425,7 +447,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [editorMode, selectedId, floorComponents, select, dispatcher, handleManualSave])
 
-  const floorCount = building?.floors?.length ?? 0
+  const floorExists = (building?.floors ? building.floors.includes(floor) : false) || !!canonicalFloor
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
   const canvasTool = mode === 'setup' ? 'select' : viewMode === '2.5d' ? 'select' : activeTool
 
@@ -484,7 +506,18 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             buildingId,
             floorLevel: currentLevel,
           }
-          await deleteFloorPlanImage(existingUrl, scope)
+          // Shared-asset guard: only physically delete the old asset when no
+          // other floor (per-floor planImageId, legacy floorPlanUrls fallback,
+          // or persisted floorPlanVisuals) still resolves to it. The update
+          // above already set this floor's binding to publicUrl, so the
+          // override keeps the captured (pre-update) building from counting
+          // this floor's stale reference to existingUrl.
+          await deleteFloorPlanImage(existingUrl, scope, {
+            referencedUrls: collectBuildingFloorPlanReferences(building, {
+              level: currentLevel,
+              planImageId: publicUrl,
+            }),
+          })
         }
         setUploadCardDismissed(true)
         setMode('setup')
@@ -497,7 +530,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     } finally {
       setIsUploading(false)
     }
-  }, [services, currentFloorId, buildingId, mapId, currentLevel])
+  }, [services, currentFloorId, building, buildingId, mapId, currentLevel])
 
   // T5: Remove Floor Plan Handler
   const handleRemoveFloorPlan = useCallback(async () => {
@@ -519,11 +552,21 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         buildingId,
         floorLevel: currentLevel,
       }
-      await deleteFloorPlanImage(existingUrl, scope)
+      // Shared-asset guard: this floor's binding is now null (explicit
+      // removal), so the override stops the captured pre-update building
+      // from counting this floor's stale reference to existingUrl. Any
+      // sibling still resolving it (planImageId or legacy fallback) keeps
+      // the asset alive.
+      await deleteFloorPlanImage(existingUrl, scope, {
+        referencedUrls: collectBuildingFloorPlanReferences(building, {
+          level: currentLevel,
+          planImageId: null,
+        }),
+      })
     }
     setMode('mapping')
     setShowGotIt(false)
-  }, [services, currentFloorId, planImageUrl, editorAlignment, mapId, buildingId, currentLevel])
+  }, [services, currentFloorId, building, planImageUrl, editorAlignment, mapId, buildingId, currentLevel])
 
   const handleCalibrationClick = useCallback((type: 'plan' | 'map', point: Point2D) => {
     setCalError(null)
@@ -617,7 +660,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
           Building not found
         </div>
-      ) : floor < 0 || floor >= floorCount ? (
+      ) : !floorExists ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
           Floor not found
         </div>
@@ -635,10 +678,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
       />
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={floor} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} activeFloorId={currentFloorId} />
+        <FloorOutliner building={building} activeFloor={currentLevel} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} activeFloorId={currentFloorId} />
 
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} floor={floorAdapter.activeFloorIndex} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
+          <FloorEditorCanvas building={building} activeFloorId={currentFloorId} floor={currentLevel} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
           {selectedEntranceForPicker && (
             <OutdoorRoutePicker
               open

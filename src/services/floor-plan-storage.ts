@@ -66,7 +66,28 @@ export async function uploadFloorPlanImage(
   }
 }
 
-export async function deleteFloorPlanImage(url: string, scope?: FloorPlanStorageScope): Promise<void> {
+export interface DeleteFloorPlanImageOptions {
+  /**
+   * Authoritative floor-plan URLs still referenced after the update that
+   * triggered this deletion (see `collectBuildingFloorPlanReferences`).
+   * If the target URL appears here the asset is SHARED: deletion is skipped
+   * safely (return, no throw — a shared asset is an expected condition, not
+   * an error). Reference existence takes precedence over storage-path
+   * ownership: a `floor-N-` prefix proves namespace, never exclusivity.
+   */
+  referencedUrls?: readonly (string | null | undefined)[]
+}
+
+export async function deleteFloorPlanImage(
+  url: string,
+  scope?: FloorPlanStorageScope,
+  options?: DeleteFloorPlanImageOptions,
+): Promise<void> {
+  // Reference guard FIRST: a floor-plan asset may only be physically deleted
+  // when NO authoritative floor-plan reference resolves to it.
+  if (options?.referencedUrls?.some((referenced) => referenced != null && referenced === url)) {
+    return
+  }
   // Destructive storage cleanup is allowed only after ownership is proven.
   if (!scope || !isOwnedFloorPlanUrl(url, scope)) return
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
