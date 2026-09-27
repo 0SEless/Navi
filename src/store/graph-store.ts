@@ -382,15 +382,17 @@ async function checkServerFreshness(mapId: string): Promise<void> {
   }
 
   const marker = readSyncMarker(mapId)
+
   const localDirty = !marker || marker.snapshotFingerprint !== localFingerprint
   const storeAhead = storeFingerprint !== localFingerprint
 
-  if (!localDirty && !storeAhead) {
+  if (!localDirty && (!storeAhead || state.pendingAuthoredMutations.length === 0)) {
     const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
     const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
     if (Number.isFinite(lastServerTime) && Number.isFinite(incomingServerTime)) {
-      if (incomingServerTime < lastServerTime) {
-        // A stale replica/response must not roll a known-newer clean snapshot back.
+      if (incomingServerTime <= lastServerTime) {
+        // A stale replica/response or matching revision with post-mount projection
+        // must not roll a clean snapshot back or surface a false conflict.
         useGraphStore.setState({ syncStatus: 'synced', syncError: null })
         return
       }
@@ -398,8 +400,6 @@ async function checkServerFreshness(mapId: string): Promise<void> {
         adoptServerSnapshotData(mapId, data)
         return
       }
-      // Same server revision with different content is internally inconsistent;
-      // preserve local data and surface the normal explicit conflict below.
     } else {
       // Legacy markers have no server revision. Preserve established behavior
       // while the next successful response upgrades the marker.
@@ -442,7 +442,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   beginCampusHydration: () => set({ campusReady: false }),
-  completeCampusHydration: () => set({ campusReady: true }),
+  completeCampusHydration: () => {
+    const currentJson = get().graph.toJSON()
+    lastAcknowledgedCollections = collectionsOf(currentJson)
+    set({ campusReady: true })
+  },
 
   addNode: (node) => {
     const n = node as { buildingId?: string | null; floor?: number | null; type?: string }
@@ -1134,7 +1138,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        keepalive: true,
+        ...(typeof body === 'string' && body.length < 60000 ? { keepalive: true } : {}),
         body,
       })
       if (!res.ok) {

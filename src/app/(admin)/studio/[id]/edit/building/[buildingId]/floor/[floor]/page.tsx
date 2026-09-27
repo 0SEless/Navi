@@ -62,12 +62,12 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       save: async () => {
         syncDocumentAndCapture()
         useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
-        await useGraphStore.getState().save({ trigger: 'autosave' })
+        await useGraphStore.getState().save({ trigger: 'manual' })
       },
       syncToSupabase: async () => {
         syncDocumentAndCapture()
         useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
-        await useGraphStore.getState().syncToSupabase({ trigger: 'autosave' })
+        await useGraphStore.getState().syncToSupabase({ trigger: 'manual' })
       },
       publish: async () => ({ success: true, version: '1.0.0' }),
       getSyncState: (): PersistenceSyncState => {
@@ -134,6 +134,11 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
   useEffect(() => {
     const flushLocalPersistence = () => {
       const state = useGraphStore.getState()
+      const workflow = context.services.get('workflow') as { isDirty?: () => boolean } | undefined
+      const isDirty = typeof workflow?.isDirty === 'function' ? workflow.isDirty() : false
+      if (!isDirty && state.pendingAuthoredMutations.length === 0) {
+        return
+      }
       const ga = new GraphAdapter(state.graph, context.transformer)
       ga.sync(context.document, floorScope)
       const nextState = useGraphStore.getState()

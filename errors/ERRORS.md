@@ -23,6 +23,28 @@ Track every error encountered during implementation. Each entry includes:
 
 (Errors will be logged here as implementation proceeds)
 
+## 2026-09-27: W3C Fetch Quota Exceeded on Graph Snapshots with keepalive
+- **Error**: Graph autosave failed in browser with `TypeError: Failed to fetch`, displaying "Sync failed".
+- **Cause**: `performSyncToSupabase` passed `keepalive: true` unconditionally. The W3C fetch specification enforces a strict 64 KiB buffer quota across all in-flight keepalive requests, whereas campus graph payloads are ~290 KB.
+- **Fix**: Guarded `keepalive: true` in `performSyncToSupabase` to only attach when `body.length < 60000`.
+- **Prevention**: Never attach `keepalive: true` to full document or graph serialization requests exceeding 60 KB.
+- **Related tasks**: P1 Save Stabilization
+
+## 2026-09-27: Post-Mount Normalization Triggered False Destructive Save Blocks
+- **Error**: Editor rejected building property edits (C1) and floor additions (C2) with `Cross-scope destructive save blocked: no pending authored intent covers edges[...]`.
+- **Cause**: On mount, `GraphAdapter.sync()` cleans and normalizes orphan road junctions in memory. Because `completeCampusHydration` did not update `lastAcknowledgedCollections` with the normalized collections, the save guard compared against raw server JSON and interpreted the initial cleanup as an unauthorized destructive deletion.
+- **Fix**: Updated `completeCampusHydration()` to establish `lastAcknowledgedCollections = collectionsOf(currentJson)`.
+- **Prevention**: Always re-establish the acknowledged collections baseline after initial lifecycle hydration and adapter synchronization.
+- **Related tasks**: P1 Save Stabilization
+
+## 2026-09-27: Post-Mount Normalization Fingerprint Triggered False Conflict Status
+- **Error**: On page reload, the editor displayed `● Outdated [Load server version]` despite zero user conflicts.
+- **Cause**: In `checkServerFreshness()`, comparing the in-memory normalized graph fingerprint against the server's raw JSON fingerprint caused `storeAhead = true`. Even when `incomingServerTime <= lastServerTime` and no local authored mutations were pending, it fell through to mark `syncStatus = 'conflict'`.
+- **Fix**: Updated freshness gate so that when `!localDirty && (!storeAhead || state.pendingAuthoredMutations.length === 0)` and `incomingServerTime <= lastServerTime`, the clean state is preserved with `syncStatus = 'synced'`.
+- **Prevention**: Do not treat derived in-memory projection divergence as an uncommitted local user conflict when no authored mutations are pending.
+- **Related tasks**: P1 Save Stabilization
+
+
 ## 2026-09-06: Phase8A planning skill path lookup
 - **Error**: The first read-only lookup for the superpowers skill files used an old `.agents/skills/superpowers/...` location and returned `PathNotFound`.
 - **Cause**: The available skill-root mapping points superpowers to the bundled curated-remote cache in this session.
