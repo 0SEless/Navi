@@ -1,28 +1,34 @@
 # Progress Log
 
-## 2026-09-27: Full NAVI Studio Save Module Stabilization & Verification
+## 2026-09-27: Full NAVI Studio Save Module Stabilization & Live Vercel Production Verification
 
 ### What was done
+- **GET `/api/graph` Omission Resolved**: `src/app/api/graph/route.ts` and `src/services/graph-snapshot-serializer.ts` committed and deployed, restoring `authoredDocument` and snapshot version serialization for GET requests so clients never initialize `authoredDocument: null`.
+- **Authored Document Hydration**: In `EditorBridge.tsx` and `FloorEditorBridge.tsx`, removed guards withholding hydration when `authoredDocument` is empty/null, guaranteeing authoring models are always initialized from Supabase.
 - **W3C Fetch Quota Exceeded (<60 KiB guard)**: In `src/store/graph-store.ts`, guarded `keepalive: true` to only attach when `body.length < 60000`, resolving `TypeError: Failed to fetch` on full 290 KB graph snapshots.
 - **Safety Guard Baseline Alignment**: Updated `completeCampusHydration()` in `src/store/graph-store.ts` to establish `lastAcknowledgedCollections = collectionsOf(currentJson)`, preventing in-memory post-mount normalization (pruning orphan road junctions) from being flagged as uncommitted destructive deletions by the P0.11 safety guard.
 - **Freshness Gate & CAS Stability**: In `src/store/graph-store.ts` (`checkServerFreshness`), eliminated false conflict marks (`syncStatus = 'conflict'`) and the permanent `● Outdated [Load server version]` banner on page reload by verifying `incomingServerTime <= lastServerTime` when `pendingAuthoredMutations.length === 0`.
-- **Floor Editor Bridge & Exit Flush Guard**: In `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`, ensured manual save trigger semantics on floor saves and gated unmount persistence flushes on `isDirty` / pending authored mutations.
-- **Audit Suite Execution**: Enhanced `scripts/save-audit-suite.mjs` with exact floor deletion targeting and door authoring verification across full browser reload contexts.
+- **Floor Editor DoorTool Registration & Viewport Scope**:
+  - Registered `DoorTool` on `canonicalControllerRef.current` in `FloorEditorCanvas.tsx`.
+  - Added vertical datum contract `FLOOR_PRESENTATION_DATUM = 0` in `packages/editor/src/geometry/wall-to-polygon.ts`.
+  - Synchronized `viewport.activeBuildingId` and `viewport.activeFloorId` from route parameters and canonical floor in `FloorEditor.tsx`.
+- **Audit Suite Execution**: Enhanced `scripts/save-audit-suite.mjs` with exact floor deletion targeting and ToolDock button disambiguation across full browser reload contexts.
 
 ### Verification
-- **Automated Audit Suite (`scripts/save-audit-suite.mjs`)**: **6 PASS / 0 FAIL / 2 SKIPPED**:
-  - `C1` (Campus building name edit -> autosave -> Supabase): **PASS** (2 writes fired, persisted)
+- **Live Vercel Production Verification (`https://navi-next.vercel.app`)**: **6 PASS / 0 FAIL / 2 SKIPPED**:
+  - `C1` (Campus building name edit -> autosave -> Supabase): **PASS** (2 writes fired, persisted, reload clean)
   - `C2` (Campus Manage Floors -> "+ Add Floor" -> Supabase): **PASS** (1 write fired, persisted)
   - `C3` (Campus remove floor created by C2 -> Supabase): **PASS** (1 write fired, persisted)
   - `C6` (Campus reload shows 0 conflict cards / no Outdated banner): **PASS**
-  - `F1` (Floor editor place Door -> Supabase & survives reload): **PASS** (1 write fired, persisted)
+  - `F1` (Floor editor place Door -> Supabase & survives reload): **PASS** (1 write fired, persisted, verified after reload)
   - `F6` (Floor editor back to campus shows 0 conflict cards): **PASS**
-  - `F2` (Console safety guard / aborted / Outdated errors): **(none)**
+  - `F2` (Console safety guard / blocked / aborted / Outdated errors): **0 findings**
   - Restore check: production values match pre-test baseline.
 - **Vitest Unit Test Suite**: **20/20 test files passed (158/158 tests passed)**.
 
 ### What's next
-- Push verified fixes to remote master and deploy to Vercel production.
+- Merge `fix/floor-editor-persistence-2026-09-27` to main branch.
+
 
 
 ## 2026-08-30: Route draft preview visibility regression fixed
