@@ -508,7 +508,30 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Retry graph refresh after checkout permissions/state change and never hand-edit generated graph output.
 - **Related tasks**: T9 (final verification)
 
+## 2026-09-21: Building confirmation Save allows duplicate submissions
+- **Error**: The new RED confirmation tests show that two rapid Save clicks dispatch `building.create` twice, and a rejected `workflow.save('manual')` escapes as an unhandled rejection with no visible failure state.
+- **Cause**: `ConfirmOverlay.handleSave` has no synchronous in-flight guard, awaits workflow persistence before clearing the confirmation, and has no catch/failure UI for the building path.
+- **Fix**: Pending in the focused implementation task; add a ref-backed submit lock, stable per-confirmation building identity, success-only finalization, and caught retryable errors.
+- **Prevention**: Keep rapid double-click, pending-save, and rejected-persistence tests in the confirmation regression suite; do not clear the draft until command and workflow save succeed.
+- **Related tasks**: Building creation confirmation T1-T2
+
 ---
+
+## 2026-09-21: Graphify refresh denied after building confirmation fix
+
+- **Error**: The required `graphify update .` run after the confirmation fix reported `Nothing to update or rebuild failed` and `WinError 5: Access is denied` during code re-extraction.
+- **Cause**: The managed Windows checkout cannot write the generated graph output during refresh.
+- **Fix**: Left generated graph files untouched; relied on the required graph query plus focused tests, lint, and production build verification.
+- **Prevention**: Treat generated graph output as read-only when refresh permissions fail; do not hand-edit or delete graph artifacts.
+- **Related tasks**: Building confirmation T3
+
+## 2026-09-21: Sandboxed Next build worker spawn denied
+
+- **Error**: The first sandboxed `npm run build` compiled successfully but failed during Next page-data generation with `Error: spawn EPERM`.
+- **Cause**: Managed sandbox process restrictions prevented the Next worker from starting.
+- **Fix**: Re-ran the unchanged build with the required elevated execution approval; the build completed and generated all 41 static pages.
+- **Prevention**: Keep the compile result and worker-boundary failure distinct, then verify the same build command in the approved execution environment.
+- **Related tasks**: Building confirmation T3
 
 ## 2026-08-30: Repository-wide diff check includes unrelated dirty whitespace
 
@@ -2398,6 +2421,94 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Inspect production read-only before rollout, deploy code and migration deliberately, and diagnose/repair live referential data without overwriting an unsynced browser snapshot.
 - **Related tasks**: Floor Editor Stabilization T7, production verification
 
+## 2026-09-13: Door follow-up inspection regex was malformed
+- **Error**: A focused `rg` command for Floor Editor status rendering failed with an unclosed-group parser error.
+- **Cause**: PowerShell consumed the escaped quote inside a double-quoted regular expression.
+- **Fix**: Use separate single-quoted literal patterns or fixed-string searches for the follow-up inspection.
+- **Prevention**: Keep PowerShell `rg` expressions single-quoted when they contain quotes or grouping metacharacters.
+- **Related tasks**: Floor Editor Door feedback follow-up
+
+## 2026-09-13: Ripgrep Windows wildcard was passed as a literal path
+- **Error**: A follow-up search using `src/components/floor-editor/__tests__/*.test.ts*` failed with Windows error 123.
+- **Cause**: `rg` received a wildcard in a positional Windows path instead of a glob filter.
+- **Fix**: Search the directory and pass `--glob '*.test.ts*'` when filtering filenames.
+- **Prevention**: On Windows, use `rg --glob` rather than shell-style wildcards in path arguments.
+- **Related tasks**: Floor Editor Door feedback follow-up
+## 2026-09-13: Focused Door lint blocked by existing Floor Editor violations
+- **Error**: `npm run lint -- src/components/floor-editor/useFloorDrawing.ts src/components/floor-editor/FloorEditorCanvas.tsx src/components/floor-editor/__tests__/door-gesture-feedback.test.tsx` exited with 64 problems (38 errors, 26 warnings).
+- **Cause**: The two existing Floor Editor files already contain repository-wide strict-rule violations, including render-time ref access, effect-driven state resets, explicit `any`, and unused declarations. The Door change appears inside the same files, so ESLint reports the full existing file debt.
+- **Fix**: Used focused RED/GREEN behavioral tests, the shared rectangle-tool regression suite, `git diff --check`, and browser verification as the scoped quality gates; did not broaden this bug fix into a risky whole-file lint refactor.
+- **Prevention**: Establish a clean lint baseline or ratchet for the Floor Editor files so future scoped patches can distinguish newly introduced violations from legacy debt.
+- **Related tasks**: T8
+## 2026-09-13: Door browser suite could not launch Chromium in sandbox
+- **Error**: `node e2e-floor-editor-stabilization.mjs` failed with `browserType.launch: spawn EPERM` before any scenario ran.
+- **Cause**: The workspace sandbox blocks the Playwright Chromium child process.
+- **Fix**: Re-ran the same disposable-fixture browser suite with the required elevated process permission.
+- **Prevention**: Run Playwright browser-launching verification outside the restricted sandbox when the test requires a real Chromium process.
+- **Related tasks**: T8
+## 2026-09-13: Verification lookup used an invalid working-directory string
+- **Error**: A read-only `rg` lookup could not start because the generated working directory contained stray Unicode characters and Windows returned error 267.
+- **Cause**: The tool-call argument was accidentally transformed instead of using the known literal repository path.
+- **Fix**: Reissued the lookup with the exact literal `C:\Users\Administrator\Desktop\CODEme\Navi\navi-next` working directory.
+- **Prevention**: Reuse verified literal Windows paths in tool arguments; do not construct or transform a known working-directory value.
+- **Related tasks**: T8
+
+## 2026-09-13: Door rectangle gesture could fail silently
+- **Error**: With Door active, clicking the floor appeared to do nothing; a very quick drag could also fail to create a Door even when its geometry should have been valid.
+- **Cause**: `mousedown` wrote rectangle state asynchronously, while `mousemove` and `mouseup` read a ref that was only updated in a later React effect. Degenerate geometry, missing coordinate context, missing floor context, and dispatcher rejection all returned without user-visible feedback.
+- **Fix**: Added one synchronous state/ref update boundary for the shared Door/Stair/Elevator gesture and an accessible canvas status that reports instructions, progress, explicit rejection reasons, command errors, and success.
+- **Prevention**: Test gesture handlers in a single `act`/event frame as well as normal paced input, and require every authoring boundary to either create/select an object or expose a visible explanation.
+- **Related tasks**: T8
+## 2026-09-13: Door fix Graphify rebuild denied in sandbox
+- **Error**: `graphify update .` reached the rebuild step but failed with Windows access denied.
+- **Cause**: Graphify's incremental rebuild needs child-process/file access not available in the restricted sandbox.
+- **Fix**: Re-ran the required graph update with elevated execution permission.
+- **Prevention**: Use the approved elevated path for Graphify updates after code modifications when the sandbox denies its worker.
+- **Related tasks**: T8
+## 2026-09-13: Progress-log patch context mismatched twice
+- **Error**: Two documentation-only `apply_patch` attempts failed verification before changing files.
+- **Cause**: The first expected line contained an extra period; the second used a cause sentence as though it were an existing heading.
+- **Fix**: Re-read the exact progress tail and applied the graph-result line against literal existing context while appending this ledger entry independently.
+- **Prevention**: Copy exact context from the latest file read and avoid combining unrelated patch hunks until every anchor is verified.
+- **Related tasks**: T8
+## 2026-09-13: Duplicate closing brace in spatial-door-handlers test after append
+- **Error**: `vite:oxc` PARSE_ERROR at `spatial-door-handlers.test.ts:339:1` (`Unexpected token`); the suite failed to load.
+- **Cause**: The append edit's replacement block ended with the describe's closing `})` while the original file already ended with one, leaving an extra brace.
+- **Fix**: Removed the duplicate `})` and re-ran the suite (16/16 green).
+- **Prevention**: After appending to the end of a file, re-read the final lines and verify brace balance before running.
+- **Related tasks**: Final review fix (C1)
+## 2026-09-13: Root tsc blocked by pre-existing parse error
+- **Error**: `npx tsc --noEmit -p tsconfig.json` fails with `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3): error TS1005: '}' expected.`
+- **Cause**: Pre-existing syntax error in an unrelated untracked test file, not in this fix pass.
+- **Fix**: Not fixed (out of scope); changed files were validated with vitest and scoped eslint instead.
+- **Prevention**: Treat root tsc as blocked until that file is repaired; use targeted suites for verification.
+- **Related tasks**: Final review fix (C1/I1/M4)
+## 2026-09-13: Scoped core tsc hits pre-existing ParametricComponent type-name drift
+- **Error**: `npx tsc --noEmit --strict packages/core/src/room-identity.ts packages/core/src/__tests__/room-identity.test.ts` reports `packages/core/src/types/entities.ts(114,25): error TS2552: Cannot find name 'ParametricComponent'. Did you mean 'ParametricComponentEntity'?`
+- **Cause**: Pre-existing `Floor.parametricComponents` field references a type name that no longer exists (interface renamed to `ParametricComponentEntity`); unrelated to the new room-identity files, which report zero errors.
+- **Fix**: Not fixed (out of scope); the new helper was verified with vitest (16/16) and the serializer regression suite (10/10).
+- **Prevention**: Treat the root/core tsc gate as blocked until `entities.ts` type drift is repaired; use targeted suites for task verification.
+- **Related tasks**: ROU Task 1 (canonical room identity helpers)
+
+## 2026-09-13: Semantic door ownership always resolves ambiguous on multi-room floors
+
+- **Error**: Browser verification (ROU Task 9) created Doors inside two wall-derived semantic Rooms; both Doors were placed at the correct positions inside their faces but were stored with `ownership: { status: 'ambiguous', candidateRoomIds: [<Room A>, <Room B>] }` and no `roomId`. The same run re-evaluated the pre-existing unassigned Segment Door and assigned it ambiguous candidates instead of resolving it.
+- **Cause**: `deriveRooms()` emits closed rings that repeat the first vertex as the last point (`packages/editor/src/geometry/room-ownership.ts` consumes them via `collectFloorRoomOwnershipPolygons`). In `containsPoint`, the final loop iteration pairs that duplicated vertex with itself; `pointOnSegment` then computes `cross = 0` and `dot = 0`, and the guard `dot >= 0 && dot <= lengthSq` (0 ≤ 0) returns `true`. Every derived face therefore "contains" every point, so any floor with ≥2 declared semantic Rooms reports `ambiguous`; a single-face floor would falsely report `assigned` outside its bounds. Offline reproduction: `resolveUniqueRoomOwner({x:11.94,y:4.02}, …)` → ambiguous `[room-1-…, semantic-room-face-97xrm4]` although the point is inside face A only; `{x:25.42,y:-19.54}` (outside both) also ambiguous.
+- **Fix**: FIXED (fix wave 1, commit `0820454` — `fix(editor): ignore degenerate ring edges in room containment`). `pointOnSegment` in `packages/editor/src/geometry/room-ownership.ts` now computes the squared segment length up front and returns `false` for (near-)zero-length segments (`lengthSq <= 1e-18`) before the cross/dot math, so the duplicated closing vertex of derived rings can no longer satisfy the dot-product bounds and "contain" every point. Non-degenerate edge semantics are unchanged: a point on a real shared wall (and on its shared vertices) is still detected through the adjacent edges, preserving the door-on-boundary → `ambiguous` behavior.
+- **Verification**: RED first on `packages/editor/src/geometry/__tests__/room-ownership.test.ts` — the two-adjacent-semantic-rooms case resolved `ambiguous [room-a, room-b]` and a far point resolved `assigned` through the repeated closing vertex; after the fix 11/11 pass (new cases: adjacent-room interior ownership, shared-wall ambiguity, shared-corner ambiguity, far point outside a closed ring). Regressions `packages/editor/src/commands/__tests__/door-ownership-reconcile.test.ts` + `packages/editor/src/commands/__tests__/spatial-door-handlers.test.ts` → 24/24. Browser: fresh `npm run dev` + `node e2e-floor-editor-stabilization.mjs` → `FLOOR EDITOR BROWSER VALIDATION — PASS (57/57)`; the two previously failing semantic checks now report `{status:'assigned'}` with `room-1-zu4b` and `semantic-room-face-97xrm4`.
+- **Prevention**: Any point-in-polygon consumer of `deriveRooms()` output must be tested with ≥2 derived faces and the repeated closing vertex. Existing `room-ownership.test.ts` cases used hand-authored open rings (legacy Rooms) or a single derived face, which kept the defect latent.
+- **Related tasks**: ROU Task 9 (found); ROU Task 2 (first fed derived rings into `containsPoint`).
+
+## 2026-09-15: Route tests broke nothing, but a new session guard must ship with cookie-bearing fixtures
+
+- **Error**: (Prevented before failure) Adding `requireMutationSession` to the mutating API routes would have returned `401` for every existing route test, because they built `NextRequest`s and fake `{ json }` request objects with no cookies.
+- **Cause**: Route handlers previously had no auth surface, so their focused suites never modeled session cookies. Two publish suites pass hand-rolled request doubles, not `NextRequest`.
+- **Fix**: Adapted the tests minimally: real `NextRequest`s gained a `navi-mock-session` cookie header, and the fake doubles gained `cookies: { getAll: () => [SESSION_COOKIE] }`; no assertion was weakened, and new 401/423 tests were added for `/api/graph` and `/api/publish`.
+- **Prevention**: When a new server guard reads request state, update every request double in the same change and prove the guard runs before the client/write (assert the client/write was never called).
+- **Related tasks**: Phase 3 mutation gate (P1-4)
+
+---
+
 ## 2026-09-25: Interrupted npm install zero-filled package-lock.json and node_modules
 
 - **Error**: The first `npm install @aws-sdk/client-s3` run was interrupted mid-write. `package-lock.json` became 530,652 bytes of NUL characters (0 valid JSON), and 177 files inside `node_modules/@aws-sdk/core` and `node_modules/@smithy/core` were also all-NUL. `tsc --noEmit` reported 142 `TS1127: Invalid character` errors from those corrupted `.d.ts` files.
@@ -2425,7 +2536,6 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Never treat `vercel env pull` output as a complete secret dump - check parsed value lengths before trusting it, keep pulled files in a temp path outside the repo, and delete them in the same command. For bucket verification, plan on the Cloudflare dashboard/API unless real credentials are supplied out-of-band, and never print a credential value to recover.
 - **Related tasks**: R2 connectivity test (verification phase）
 
-
 ## 2026-09-25: Chrome Private Network Access blocked the loopback file fetch during live E2E
 
 - **Error**: In the authenticated production page, fetch('http://127.0.0.1:8765/pano-ingest-test.jpg') was rejected four times with "Access to fetch ... blocked by CORS policy: Permission was denied for this request to access the loopback address space" / net::ERR_FAILED; two wrapper page.evaluate calls hit the MCP timeout instead of returning the caught TypeError.
@@ -2441,3 +2551,57 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Repaired mechanically with a targeted regex over lines matching await GET\(req\( ending in ');' -> '));' (8 lines fixed); the suite then passed 8/8.
 - **Prevention**: After any bulk transform of call expressions, run the file's tests (or node --check) before moving on; prefer structured edits or transform one complete pattern at a time, and verify paren balance with a parse, not by eye.
 - **Related tasks**: T6
+
+---
+
+## 2026-09-26: New recalculation test asserted a whole-floor snapshot that included its own sentinel
+
+- **Error**: The first run of the new `packages/editor/src/__tests__/floor-recalculation.test.ts` failed its "does not mutate authored walls or rooms" case: `JSON.stringify(building.floors)` differed before/after `recalculateBuilding`.
+- **Cause**: The snapshot captured `elevation: -1` (the sentinel set so recalculation must overwrite it) - the assertion tested the very field the function is supposed to change.
+- **Fix**: Scoped the snapshot to authored geometry only (walls + rooms JSON), keeping a separate assertion that `walls` still deep-equal the authored wall.
+- **Prevention**: When asserting "no mutation" on a function whose purpose is mutation, snapshot only the fields it must not touch; never snapshot the output field under test alongside them.
+- **Related tasks**: T-A4
+
+## 2026-09-26: Baseline test/tsc failures found while running the Phase A regression matrix (all pre-existing)
+
+- **Error**: The focused matrix and the full `npx vitest run` baseline showed 18 failing files / 34 failing tests (routing-validation 3, topology-audit 2, route-network-maplibre 1, semantic-room-interaction 1, compiler suites ~16, InspectorMigration 3, navigate page.test 1, phase3a-authored-state 1, qr-location 1, plus 3 suite-level import/parse errors); `tsc --noEmit` reports 1 error and `packages/runtime` has 1 parse-broken suite - all matching `data-identity-comparison.test.ts` (TS1005, `Expected '}' but found 'EOF'`).
+- **Cause**: Pre-existing state, not Phase A: several are clean-at-HEAD (`routing-validation`, `topology-audit`, `route-network-maplibre`, `semantic-room-interaction`, `data-identity-comparison`), one is the parallel workstream's untracked test (`phase3a-authored-state.test.ts` ??), and the rest co-locate with that workstream's dirty files (`packages/compiler/src/emitter/artifacts.ts` M, `src/services/graph-snapshot-serializer.ts` M, `src/app/(public)/map/navigate/page.tsx` + test M, studio `EditorBridge/MapCard/StudioDashboard` M, `create-editor-context.ts` M). Phase A's import graph excludes all of them: `wall-to-polygon` importers = FloorEditorCanvas + 2 passing tests; `FloorEditorCanvas` importers = 2 passing tests.
+- **Fix**: None in this program (out of scope; would violate task-file boundaries). Full baseline recorded in `progress/PROGRESS.md` for a before/after comparison at Phase F.
+- **Prevention**: Capture the full-suite baseline before making changes; attribute every failure by import-graph reachability + `git status`, never by assumption; treat `packages/runtime` as its own vitest project (root config does not include it).
+- **Related tasks**: T-A5, F
+
+## 2026-09-27: Cross-scope destructive save blocked during floor interior editing & campus floor creation
+- **Error**: Navi Studio failed to persist second floor creation and interior floor edits (routes, rooms). The browser console logged: `[graph-store] save blocked by safety guard: Cross-scope destructive save blocked: no pending authored intent covers nodes[...] edges[...]`. On reload, client flagged "Outdated / Load server version".
+- **Cause**:
+  1. `GraphAdapter.sync()` regenerated volatile node IDs (`N0001..`) and edge IDs (`E0001..`) on outdoor road traces during reconciliation because `compileTrace()` did not reuse IDs from existing nodes/edges.
+  2. `reconcileCanonicalCollections()` evaluated `outdoorCovered` as true even for floor-scoped syncs, overwriting baseline outdoor nodes.
+  3. The P0.11 safety guard detected baseline outdoor nodes (`N1187..N1193`) missing in candidate graph without an outdoor authored intent, failing closed and aborting the save.
+  4. In Campus Editor, `document.changed` did not register `recordAuthoredMutation`, causing autosave to see `pending.length === 0` and drop the network write.
+- **Fix**:
+  1. Updated `compileTrace()` and `Graph.addTraceWithCompile()` to accept a stable snapshot reference and reuse matching node and edge IDs by coordinates.
+  2. Added `scope?: GraphAdapterScope` to `GraphAdapter.sync()` and `reconcileCanonicalCollections()`, ensuring non-outdoor scopes keep `outdoorCovered = false` and preserve all outdoor entities verbatim.
+  3. Added authored mutation recording in `EditorBridge.tsx` for `document.changed`, `syncDocumentAndCapture`, `persistenceAdapter.save`, and `visibilitychange/beforeunload` flushes.
+- **Prevention**: Always pass the active editor scope to projection synchronizers (`GraphAdapter.sync(document, scope)`), preserve stable identity for entities not owned by the current scope, and attribute mutation intent at command boundaries before network persistence.
+- **Related tasks**: T1, T2, T3, T4
+
+## 2026-09-27: Cross-floor node adoption could silently overwrite another floor's node
+- **Error**: QA review found `findMatchingExistingNode` in `src/engine/trace-compiler.ts` returned `candidates[0]` when no building/floor match existed (and always returned the sole candidate on the single-candidate path), so a trace compiled on one floor could adopt a same-coordinate node owned by a different floor.
+- **Cause**: Coordinate-only matching ignores scope; stacked floors in the same building share identical lat/lng by design. Adoption hands the trace the foreign node's stable id, and `Graph.addNode` persists via `Map.set` upsert, replacing the other floor's node (position + buildingId + floor) with the compiling floor's data - silent cross-floor corruption exactly in the multi-floor scenario the persistence fix targets.
+- **Fix**: Scope-strict reuse - only an exact `(buildingId ?? '', floor ?? 0)` match may donate its id; otherwise return `undefined` and let `genId('N')` mint a fresh node. Duplicate nodes across floors are correct because each floor is a separate graph scope.
+- **Prevention**: Never adopt identity by coordinate alone in multi-scope data; when an id is reused, the adopting entity's scope must equal the donor's scope, and any `Map.set`-style upsert on shared coordinates must be proven scope-safe by a test with two floors at identical coordinates.
+- **Related tasks**: T1
+
+## 2026-09-27: Save-boundary intent injection defeated the P0.11 unattributed-mutation guard
+- **Error**: QA review found `EditorBridge.tsx` `saveGraph` and `syncToSupabase` called `recordAuthoredMutation('building'|'outdoor', ...)` unconditionally whenever `pendingAuthoredMutations.length === 0`.
+- **Cause**: The guard `evaluateAuthoredSave` fails closed precisely when no authored intent covers the candidate delta (CASE A in case-e-attribution: changed candidate with no authored intent). Injecting an intent at the exact `pending.length === 0` precondition made every EditorBridge save pass, defeating the guard for unattributed graph changes. Store-level tests bypassed EditorBridge, so no test covered the interaction.
+- **Fix**: The fallback now also requires `contextRef.current.document.version > 0` (a real authored editor change - the same gate the visibility/beforeunload flush handlers use). Hydration/view-only sessions keep version 0 and remain fail-closed.
+- **Prevention**: Never fabricate authorization at a consumption boundary gated on "authorization missing"; gate any fallback on an independent proof the guarded action was legitimate (mutation counter/version advance), and add an interaction test that runs through the real adapter boundary, not just the store.
+- **Related tasks**: T3, T4
+
+## 2026-09-27: Hardcoded Supabase service-role key in workspace verification script
+- **Error**: `scripts/verify-persistence-fix.ts` (untracked) contained a plaintext production service-role JWT for `https://oltfaepqcktrumfhadzb.supabase.co` - full read/write access to the database if the file were ever committed or shared.
+- **Cause**: Convenience during the earlier end-to-end persistence verification; script was written outside the tracked change set so the secret check never ran on it.
+- **Fix**: Replaced literals with `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env reads and a fail-fast error. Verified `git log --all -S <key>` and `git grep` are both empty - the key never entered history; the file stays untracked and excluded from the commit set.
+- **Prevention**: Never paste service-role keys into files; read them from env, and pre-commit `git grep -E "eyJhbGciOi.*(service|role)"`-style scans before any commit; rotate the key if the workspace or repo is ever made public.
+- **Related tasks**: T3
+

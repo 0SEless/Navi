@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, use, useState } from 'react'
+import { useEffect, use, useMemo, useState } from 'react'
 import { FloorEditor } from '@/components/floor-editor/FloorEditor'
 import { ErrorBoundary } from '@/components/floor-editor/ErrorBoundary'
 import {
@@ -37,6 +37,13 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
 }
 
 function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildingId: string; floor: number }) {
+  // Stable identity so effects can list it as a dependency without re-running
+  // on every render.
+  const floorScope = useMemo(
+    () => ({ kind: 'floor', buildingId, floor }),
+    [buildingId, floor],
+  )
+
   const [context] = useState(() => {
     let currentCtx: EditorContext | null = null
 
@@ -44,7 +51,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       if (!currentCtx) return
       const state = useGraphStore.getState()
       const ga = new GraphAdapter(state.graph, currentCtx.transformer)
-      ga.sync(currentCtx.document)
+      ga.sync(currentCtx.document, floorScope)
       const nextState = useGraphStore.getState()
       if (nextState.authoredDocument !== null || currentCtx.document.version > 0) {
         nextState.setAuthoredDocument(currentCtx.document)
@@ -97,13 +104,13 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
   useEffect(() => {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
-    new GraphAdapter(graph, context.transformer).sync(context.document)
+    new GraphAdapter(graph, context.transformer).sync(context.document, floorScope)
     if (useGraphStore.getState().authoredDocument !== null) {
       useGraphStore.getState().setAuthoredDocument(context.document)
     }
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     useGraphStore.getState().completeCampusHydration()
-  }, [context])
+  }, [context, floorScope])
 
   // Continuous projection: keep graph and authoredDocument in lockstep as the user edits.
   useEffect(() => {
@@ -112,13 +119,13 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
 
     const unsubscribe = eventBus.on('document.changed', () => {
       const graph = useGraphStore.getState().graph
-      new GraphAdapter(graph, context.transformer).sync(context.document)
+      new GraphAdapter(graph, context.transformer).sync(context.document, floorScope)
       useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     })
 
     return () => unsubscribe()
-  }, [context])
+  }, [context, floorScope])
 
   // Route transitions and tab exits can unmount the editor without giving the
   // normal command autosave debounce a chance to run. Reuse the existing
@@ -127,7 +134,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
     const flushLocalPersistence = () => {
       const state = useGraphStore.getState()
       const ga = new GraphAdapter(state.graph, context.transformer)
-      ga.sync(context.document)
+      ga.sync(context.document, floorScope)
       const nextState = useGraphStore.getState()
       if (nextState.authoredDocument !== null || context.document.version > 0) {
         nextState.setAuthoredDocument(context.document)
@@ -147,7 +154,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       flushLocalPersistence()
     }
-  }, [buildingId, floor, context])
+  }, [buildingId, floor, context, floorScope])
 
   return (
     <ErrorBoundary>

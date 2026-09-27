@@ -208,6 +208,12 @@ export function reconcileAuthoredJunctions(input: ReconcileAuthoredJunctionsInpu
   return result
 }
 
+export interface GraphAdapterScope {
+  kind?: string
+  buildingId?: string | null
+  floor?: number | null
+}
+
 export class GraphAdapter {
   private graph: Graph
   private transformer?: CoordinateTransformer
@@ -225,7 +231,7 @@ export class GraphAdapter {
    * out-of-scope canonical entities back in so a scoped/partial document can
    * never delete or duplicate unrelated canonical content.
    */
-  sync(document: CampusDocument): void {
+  sync(document: CampusDocument, scope?: GraphAdapterScope): void {
     const previous = {
       buildings: (this.graph.buildings ?? []).slice(),
       components: (this.graph.components ?? []).slice(),
@@ -233,8 +239,8 @@ export class GraphAdapter {
       edges: (this.graph.edges ?? []).slice(),
       traces: (this.graph.traces ?? []).slice(),
     }
-    this.syncLegacy(document)
-    this.reconcileCanonicalCollections(previous, document)
+    this.syncLegacy(document, previous)
+    this.reconcileCanonicalCollections(previous, document, scope)
   }
 
   private reconcileCanonicalCollections(
@@ -246,17 +252,27 @@ export class GraphAdapter {
       traces: TracePath[]
     },
     document: CampusDocument,
+    scope?: GraphAdapterScope,
   ): void {
     const doc = document as unknown as {
       buildings: Array<{ id: string; floors: Array<{ level: number }> }>
       roads?: unknown
     }
-    const coveredBuildings = new Set(doc.buildings.map((b) => b.id))
+    const coveredBuildings = scope?.buildingId
+      ? new Set([scope.buildingId])
+      : new Set(doc.buildings.map((b) => b.id))
     const coveredFloors = new Map<string, Set<number>>()
-    for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
-    // Outdoor scope is covered only when the document actually carries the
-    // outdoor road collection (a floor/building-scoped view does not).
-    const outdoorCovered = Array.isArray(doc.roads)
+    if (scope?.buildingId && scope.floor !== undefined && scope.floor !== null) {
+      coveredFloors.set(scope.buildingId, new Set([scope.floor]))
+    } else {
+      for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
+    }
+    // Outdoor scope is covered only when:
+    // - explicit outdoor scope is given, OR
+    // - no scope is specified and document.roads is an array
+    const outdoorCovered = scope
+      ? scope.kind === 'outdoor'
+      : Array.isArray(doc.roads)
 
     const nodeCovered = (n: NavNode): boolean => {
       const bid = (n as { buildingId?: string | null }).buildingId
@@ -332,7 +348,13 @@ export class GraphAdapter {
     }
   }
 
-  private syncLegacy(document: CampusDocument): void {
+  private syncLegacy(
+    document: CampusDocument,
+    previous?: {
+      nodes?: NavNode[]
+      edges?: NavEdge[]
+    },
+  ): void {
     // Ordinary editor sync is explicit-only. Existing RoadJunction records are
     // pre-seeded below and reconstructed, but geometry alone never authors new
     // cross-road topology (including for unversioned/legacy documents).
@@ -962,7 +984,7 @@ export class GraphAdapter {
       // Canonical documents use the same 0.5 m radius as discovery and the
       // compiler merge gate — explicit authored junctions only.
       const connectivityRadius = isLegacy ? 5 : ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
-      this.graph.addTraceWithCompile(trace, connectivityRadius, allowGeometricInference)
+      this.graph.addTraceWithCompile(trace, connectivityRadius, allowGeometricInference, previous)
     }
 
     // Phase 4: Clean up pre-seeded junction nodes that are no longer valid

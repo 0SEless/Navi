@@ -15,10 +15,30 @@ function pointToLatLng(pt: LatLng): string {
   return `${pt.lat.toFixed(6)},${pt.lng.toFixed(6)}`
 }
 
+function findMatchingExistingNode(
+  existingNodes: NavNode[],
+  pos: LatLng,
+  trace: TracePath,
+): NavNode | undefined {
+  const key = pointToLatLng(pos)
+  const candidates = existingNodes.filter(n => pointToLatLng(n.position) === key)
+  if (candidates.length === 0) return undefined
+  // Identity reuse is scope-strict: stacked floors and adjacent buildings can
+  // share identical coordinates, so adopting a same-position node from another
+  // building/floor would silently overwrite it (addNode is a Map upsert).
+  // Only an exact building+floor match may donate its stable id.
+  const traceBuilding = trace.buildingId ?? ''
+  const traceFloor = trace.floor ?? 0
+  return candidates.find(
+    (n) => (n.buildingId ?? '') === traceBuilding && (n.floor ?? 0) === traceFloor,
+  )
+}
+
 export function compileTrace(
   trace: TracePath,
   existingNodes: NavNode[],
   existingEdges: NavEdge[],
+  stableReference?: { nodes?: NavNode[]; edges?: NavEdge[] },
 ): CompileTraceResult {
   if (trace.metadata?.role === 'wall') return { nodes: [], edges: [] }
 
@@ -45,15 +65,18 @@ export function compileTrace(
     }
   }
 
-  // 2. Create nodes
+  // 2. Create nodes (preserving stable identity when node exists at this position)
   const nodeMap = new Map<string, NavNode>()
   for (const pos of nodePositions) {
-    const id = genId('N')
     const key = pointToLatLng(pos)
+    const existing = findMatchingExistingNode(existingNodes, pos, trace)
+      ?? (stableReference?.nodes ? findMatchingExistingNode(stableReference.nodes, pos, trace) : undefined)
+    const id = existing ? existing.id : genId('N')
     const node: NavNode = {
-      id, label: `${trace.name ?? 'Path'} Node`,
-      name: `${trace.name ?? 'Path'} Node`,
-      type: 'intersection',
+      id,
+      label: existing?.label ?? `${trace.name ?? 'Path'} Node`,
+      name: existing?.name ?? `${trace.name ?? 'Path'} Node`,
+      type: existing?.type ?? 'intersection',
       buildingId: trace.buildingId ?? '',
       campusId: trace.campusId ?? '',
       floor: trace.floor,
@@ -61,7 +84,10 @@ export function compileTrace(
       // Endpoint availability is distinct from a shared intersection. The
       // renderer uses this marker to expose both ends for explicit authoring;
       // it must never be interpreted as an automatic graph connection.
-      metadata: endpointKeys.has(key) ? { roadEndpoint: true } : {},
+      metadata: {
+        ...(existing?.metadata ?? {}),
+        ...(endpointKeys.has(key) ? { roadEndpoint: true } : {}),
+      },
     }
     nodeMap.set(key, node)
     nodes.push(node)
@@ -73,16 +99,23 @@ export function compileTrace(
     const toKey = pointToLatLng(trace.points[i + 1])
     const fromNode = nodeMap.get(fromKey)
     const toNode = nodeMap.get(toKey)
-    if (fromNode && toNode) {
-      const edgeExists = existingEdges.some(
+    if (fromNode && toNode && fromNode.id !== toNode.id) {
+      const edgeInGraph = existingEdges.some(
         (e) => (e.from === fromNode.id && e.to === toNode.id) ||
                (e.from === toNode.id && e.to === fromNode.id)
       )
-      if (!edgeExists && fromNode.id !== toNode.id) {
+      if (!edgeInGraph) {
+        // Reuse edge id from stableReference if available
+        const stableEdge = stableReference?.edges?.find(
+          (e) => (e.from === fromNode.id && e.to === toNode.id) ||
+                 (e.from === toNode.id && e.to === fromNode.id)
+        )
+        const edgeId = stableEdge ? stableEdge.id : genId('E')
         edges.push({
-          id: genId('E'),
-          from: fromNode.id, to: toNode.id,
-          type: 'walk',
+          id: edgeId,
+          from: fromNode.id,
+          to: toNode.id,
+          type: stableEdge?.type ?? 'walk',
           distance: haversine(fromNode.position, toNode.position),
           weight: haversine(fromNode.position, toNode.position),
           campusId: trace.campusId ?? '',

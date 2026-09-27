@@ -2756,6 +2756,104 @@
 - **Production observation:** exact linked URL inspected read-only. It still serves the prior UI and reports `route_nodes_building_id_fkey` sync failure; no Save, Load-server, deletion, direct database edit, migration, deployment, or production-data mutation was performed.
 - **Next:** deploy the reviewed patch, apply migration 009, then separately diagnose the production route-node/building FK data condition before expecting the linked deployment to reflect the verified behavior.
 
+## 2026-09-13 10:35 +08:00 - Door gesture feedback and synchronous capture (T8)
+
+- **Reproduced:** On the exact local form of the linked floor route, Door activated but a plain map click produced no object, message, status, or console error.
+- **Root cause:** `mousedown` updated only React state while `mousemove`/`mouseup` consumed a ref synchronized by a later effect, so a same-frame gesture could lose its release. Every rejected rectangle boundary also returned silently.
+- **Fix:** Door/Stair/Elevator rectangle state now updates its mutable ref and render state together. The canvas exposes an accessible live status with activation instructions, in-progress guidance, explicit rejection reasons, command failure details, and creation success.
+- **Automated evidence:** RED first (2/2 focused failures), then focused hook GREEN 2/2 and shared Door/Stair/Elevator/Canvas regression GREEN 38/38. The new test file passes scoped ESLint and task-scoped `git diff --check` passes; whole-file Floor Editor lint remains blocked by the recorded legacy baseline.
+- **Browser evidence:** The exact local route visibly showed `Door: click and drag to draw a rectangle.` and changed to `No Door created — drag at least 0.2 m wide and deep.` after a click without mutating map data. The disposable authenticated workflow passed 30/30, including a valid Door drag, editing, transformations, persistence, shared Stair/Elevator behavior, and zero page errors; its temporary map shell was removed.
+- **Knowledge graph:** Required incremental update completed at 13,941 nodes, 27,723 edges, and 805 communities.
+- **Production safety:** No production page data, deployment, database row, or migration was changed.
+
+## 2026-09-13 - Route multi-click reliability T3: drag-pan guard (commit c00c088)
+
+- **Task:** Add Road-tool parity while Route (`tool === 'hallway'`) is active: disable `map.dragPan` so presses that drift past MapLibre's `clickTolerance` are not converted into pans that swallow the click.
+- **Test first (RED):** Appended `disables map drag-pan while the Route tool is active and restores it on tool change` to `src/components/floor-editor/__tests__/route-multiclick-reliability.test.tsx`. `npx vitest run ... -t "drag-pan"` failed with `expected "vi.fn()" to be called at least once` (probe `dragPan.disable` never called).
+- **Implementation:** Added a guarded effect in `src/components/floor-editor/useFloorDrawing.ts` immediately after the tool-change reset effect (line 432). It no-ops unless `map && mapReady && tool === 'hallway'`, calls `map.dragPan?.disable()`, and restores `enable()` in cleanup. The rectangle Door/Stair/Elevator gesture path is untouched because the effect only mounts for the Route tool.
+- **GREEN:** `npx vitest run src/components/floor-editor/__tests__/route-multiclick-reliability.test.tsx` passed 1 file / 3 tests.
+- **Commit:** `c00c088` — `fix: disable drag-pan while Route authoring keeps presses as clicks`; only the two briefed files, 32 insertions, 0 deletions.
+- **Hygiene:** `git diff --check` for the commit passed. Scoped ESLint: test file clean; `useFloorDrawing.ts` retains only pre-existing whole-file legacy debt (12 errors / 5 warnings, none on the new lines).
+- **Report:** `.superpowers/sdd/irj-reports/task-3-report.md`.
+
+## 2026-09-13 - Task 9 fix wave 1: stale route connection prompt (commit 6eb3e10)
+
+- **Finding:** Finishing a Route with an open segment-connection prompt left `routeConnectionPrompt` set; a later Yes/No would commit a stale lone route at the old click position.
+- **Fix:** `commitRoutePoints` hallway branch now clears `routeConnectionPrompt` at the transaction-complete point, immediately before the state reset (`src/components/floor-editor/useFloorDrawing.ts:584`). Accept/decline and rollback paths unchanged.
+- **Test first (RED):** Appended `finishing the route clears an open segment prompt instead of leaving it stale` to `src/components/floor-editor/__tests__/route-target-finish.test.tsx`; RED failed with `expected { edgeId: 'e1', ... } to be null` (1 failed | 4 passed).
+- **GREEN:** `npx vitest run src/components/floor-editor/__tests__/route-target-finish.test.tsx` 5/5; covering `production-route-characterization.test.tsx -t "Route segment finish"` 2 passed | 70 skipped.
+- **Hygiene:** Scoped ESLint shows only pre-existing findings; knowledge graph incremental update completed (14,092 nodes / 27,880 edges / 815 communities).
+- **Commit:** `6eb3e10` — 2 files changed, 34 insertions(+), 0 deletions(-).
+- **Report:** `.superpowers/sdd/irj-reports/task-9-report.md` (Fix wave 1 section).
+
+## 2026-09-13 - Indoor Route Junctions final review fix (C1 + I1 + M4)
+
+- **C1:** Added `collectDoorConnectorEdgeIds` and rejected Door connector edges as junction targets in `route.path.create` (failWithRestore) and `door.route.connect` (pre-mutation validation); hardened anchor removal in connect-reconnect and disconnect to remove every anchor-incident edge; `useFloorDrawing.commitRoutePoints` now returns `ok`/`rejected`/`skipped` so accept/decline/confirm/finish/node-click surface `onRouteStartRejected` instead of silently clearing the prompt.
+- **I1:** Shared `isRouteNodeReferencedByAccessRelationships` (entranceAccess + roomAttributes.accessPoints + building.verticalTransitions connections) replaces the floor-local guard.
+- **M4:** Both split commands journal the removed original edge as `route-edge deleted`.
+- **e2e/plan:** Route segment-finish step filters Door connector ids before picking an edge (delta stays +2); plan doc Task-14 arithmetic corrected +3 → +2.
+- **Verification:** command suites 61/61; hook suites 86/86; commands sweep 472/472; `node e2e-floor-editor-stabilization.mjs` → FLOOR EDITOR BROWSER VALIDATION — PASS (36/36).
+- **Report:** `.superpowers/sdd/irj-reports/final-review-fix-report.md`.
+
+## 2026-09-13 - ROU Task 1: Core canonical room-identity helpers
+
+- **TDD:** Added `packages/core/src/__tests__/room-identity.test.ts` (16 tests); RED = import resolution failure for `../room-identity`; GREEN = 16/16 after implementing `packages/core/src/room-identity.ts` and exporting it from `packages/core/src/index.ts`.
+- **Verification:** Focused suite 16/16; `packages/core/src/serialization/serializer.test.ts` 10/10 (no regressions); graphify update rebuilt 14,199 nodes / 28,002 edges.
+- **Hygiene:** Committed only the 3 task files; index.ts staged surgically (1 line) so 7 pre-existing uncommitted exports were not swept in. Scoped tsc shows only the pre-existing `entities.ts` `ParametricComponent` type-name drift.
+- **Commit:** `b6e8e3e` — 3 files changed, 221 insertions(+), 0 deletions(-).
+- **Report:** `.superpowers/sdd/ro-reports/task-1-report.md`.
+
+## 2026-09-13 - ROU Task 9: Browser verification + full suite + logs
+
+- **Delivered:** Extended `e2e-floor-editor-stabilization.mjs` with: orphan Door fixture + silent auto-adoption assertion on floor open (and persistence across save/reload); Outliner nesting (`Doors (` under the owning Room, no `Unassigned Doors` while all assigned); manual `Reconcile room ownership` idempotence (floor snapshot byte-identical); panel `Duplicate` (count +1, new id, ~0.5 m x/y offset, same canonical `roomId`, no `routeConnection`, selection follows); `Ctrl+D` duplicate + `Ctrl+Z` removal; duplicate persistence across save/reload; and a semantic canonical-ownership block (two fixture wall enclosures, Room tool declaration, attribute-only declaration via the production `roomAttributes.declare` command) with per-door `roomId`/ownership assertions. Added `waitForSnapshot`/`waitForSourceFeatures` polling for the debounced autosave (ERRORS.md timing entry).
+- **Browser:** fresh `npm run dev` on :3000 (stale listener PID 16996 stopped first) + `node e2e-floor-editor-stabilization.mjs` → `FLOOR EDITOR BROWSER VALIDATION — FAIL (55/57)`. All 48 pre-existing checks and 7 of 9 new checks pass; the 2 semantic Door checks expose a real product defect (see ERRORS.md entry) — the created Doors were placed correctly inside their faces but resolved `{status:'ambiguous'}` against every derived face.
+- **Defect evidence:** offline reproduction with the fixture walls: `resolveUniqueRoomOwner({x:11.94,y:4.02}, collectFloorRoomOwnershipPolygons(floor))` → `{status:'ambiguous', candidateRoomIds:[A,B]}` although the point is inside A only; `{x:25.42,y:-19.54}` (outside both) also → ambiguous.
+- **Suite:** `npm test` → **Test Files 15 failed | 533 passed (548); Tests 29 failed | 5649 passed | 8 skipped (5686)** — exactly the pre-existing baseline (15 files / 29 tests), no new failures; failures untouched.
+- **Commit:** `c532f80` — `test(e2e): verify room hierarchy, reconcile and door duplication`; only `e2e-floor-editor-stabilization.mjs` staged (+168/−9), `git diff --check` clean.
+- **Report:** `.superpowers/sdd/ro-reports/task-9-report.md`.
+
+## 2026-09-13 - ROU Task 9 fix wave: degenerate ring edges
+
+- **Defect:** `pointOnSegment` treated the duplicated closing vertex of wall-derived room rings (and any zero-length segment) as containing every point (`cross = 0` and `dot = 0` satisfied `0 >= 0 && 0 <= 0`), so every derived face "contained" every door position; floors with ≥2 semantic Rooms resolved every door `ambiguous` and never assigned a canonical `roomId`.
+- **Fix:** `packages/editor/src/geometry/room-ownership.ts` `pointOnSegment` now rejects (near-)zero-length segments (`lengthSq <= 1e-18`) before the cross/dot math; boundary points are still detected by the adjacent non-degenerate edges, so shared-wall `ambiguous` semantics are unchanged. Commit `0820454` — `fix(editor): ignore degenerate ring edges in room containment` (geometry + test only, +77/−1, parent `c532f80`, not amended).
+- **TDD:** RED on the two new `room-ownership` cases before the fix (`{x:2,y:2}` inside adjacent rooms → `ambiguous`; far point → `assigned`); GREEN 11/11 after (new shared-wall and shared-corner ambiguity pins kept passing). Regressions `door-ownership-reconcile` + `spatial-door-handlers` 24/24. `npx eslint` on the two changed files exit 0.
+- **Browser:** fresh `npm run dev` on :3000 + `node e2e-floor-editor-stabilization.mjs` → `FLOOR EDITOR BROWSER VALIDATION — PASS (57/57)`; the two semantic ownership checks now pass with canonical ids `room-1-zu4b` and `semantic-room-face-97xrm4`; the server started here was stopped afterwards.
+- **Ledger/report:** `errors/ERRORS.md` entry updated with Fix/Verification; `.superpowers/sdd/ro-reports/task-9-report.md` Fix wave section.
+
+## 2026-09-13 - E2E safety wiring: guard every Playwright-driven .mjs script
+
+- **Scope:** Every root `navi-next/*.mjs` and `navi-next/scripts/*.mjs` containing `from 'playwright'` must import `e2e/support/campus-guard.mjs`; `e2e/support/` files, `.ts` specs, `temp/*.mjs`, and the already-guarded `e2e-p4-*.mjs` set were left untouched.
+- **Offenders found (grep, 29):** root: check-floor, e2e-gate0, e2e-floor-editor-stabilization, e2e-debug, e2e-p1.1-gate1/2/3/4a/4b/5-uat, e2e-p0-gate0, e2e-p1.3-identity, e2e-panels, e2e-rc1..rc4, e2e-poi-outdoor-architecture, e2e-poi-fix, e2e-unified-poi-area, e2e-verify-fixes, e2e-verify-footprint-fix, e2e-repro-empty-footprint, verify-phase1/15/2c; scripts: debug-map, debug-localstorage, debug-browser.
+- **Rule 1 (fixed/selected campus -> requireE2eCampusId, 11):** check-floor, e2e-gate0, e2e-panels, e2e-p1.1-gate5-uat, e2e-verify-fixes, e2e-repro-empty-footprint, verify-phase1/15/2c, scripts/debug-localstorage, scripts/debug-browser. Hardcoded campus literals replaced with `mapId` (`const mapId = requireE2eCampusId()` or inline in the existing const) before any browser action; imports use `./e2e/support/campus-guard.mjs` (root) or `../e2e/support/campus-guard.mjs` (scripts).
+- **Rule 2 (own disposable campus / intercepts APIs / generic -> requireSafeTestEnvironment, 18):** e2e-floor-editor-stabilization, e2e-debug, e2e-p1.1-gate1/2/3/4a/4b, e2e-p0-gate0, e2e-p1.3-identity, e2e-rc1..rc4, e2e-poi-outdoor-architecture, e2e-poi-fix, e2e-unified-poi-area, e2e-verify-footprint-fix, scripts/debug-map. Guard call immediately after imports, before browser launch.
+- **Verification:** grep re-scan -> 0 offenders; `node --check` on all 29 changed files -> 29/29 exit 0; `npx vitest run __tests__/e2e-safety.test.ts` -> 1 file, 14/14 tests passed (includes "requires every playwright-driven .mjs script to import the environment guard"). No scripts executed, no dev server, no network/Supabase calls, no commits.
+- **Files changed:** the 29 listed above; interception logic, fixtures, selectors, and all behavioral code unchanged.
+
+## 2026-09-15 - SYNC hardening Phases 3+4: server mutation gate + writer guards
+
+- **Delivered:** `src/lib/api-guard.ts` (session requirement + protected-campus `423` deny with `NAVI_PROTECTED_CAMPUS_WRITES=1` server override + body/query campus extractors) applied to `/api/graph`, `/api/campuses`, `/api/campus-maps`, `/api/buildings`, `/api/publish` before any Supabase client call or disk write. Guarded `temp/check-compile-data.mjs`, `temp/check-data.mjs`, `scripts/gate3-runtime-verify.ts`, and both `e2e/floor-plan-*.spec.ts`; documented the override in `.env.example`.
+- **Auth finding:** middleware protects admin pages only (`/api/*` not in the matcher); API routes used the service-role key with zero auth. Real login sets `sb-*-auth-token*`; dev mock login sets base64-JSON `navi-mock-session` when `NODE_ENV !== 'production' && NEXT_PUBLIC_MOCK_AUTH=true` — the guard accepts exactly those two markers.
+- **Verification:** focused `npx vitest run` -> 8 files / 61 tests PASS (api-guard 16, graph 6, publish 16, campuses 8, graph-runtime 1, e2e-safety 14); `npx vitest run src/app/api` -> 11 files / 47 tests PASS; `npx tsc --noEmit` -> 0 errors in touched files (1 pre-existing unrelated); scoped `npx eslint` clean except pre-existing findings; `node --check` on both `.mjs` exit 0; scratch scripts exit 1 refusing production before browser launch.
+- **Report:** `../progress/SYNC-HARDENING-PHASE3-MUTATION-GATE.md`. **No production mutations, no Supabase calls, no commits.**
+- **Next:** P1-6 (wire the dev/test Supabase project — external), then product decision on verified sessions replacing the mock cookie (residual P1).
+
+## 2026-09-21 - Building creation confirmation / duplicate Save fix
+
+- **Root cause:** `ConfirmOverlay.handleSave` had no synchronous in-flight guard, generated a fresh building id on every click, and let rejected `workflow.save('manual')` promises escape without visible retry state. The confirmation remained live while persistence was pending, so rapid clicks dispatched duplicate `building.create` commands.
+- **Fix:** Added a ref-backed Save lock, one stable building id per confirmation, success-only draft finalization, retryable error UI, disabled Cancel/Save while pending, and command-result checks. Existing workflow persistence and sync architecture were left unchanged.
+- **Tests:** RED reproduced the duplicate-dispatch and unhandled-rejection failures. GREEN focused confirmation suite: 8/8; adjacent Studio confirmation/drawing suite: 51/51 across 7 files. Scoped ESLint passed.
+- **Build:** `npm run build` compiled and finalized all 41 static pages after the approved retry; the initial sandbox worker `EPERM` is recorded in `errors/ERRORS.md`.
+- **Graphify:** Required `graphify update .` was attempted and remained blocked by managed Windows `WinError 5`; generated graph output was not edited.
+- **Next:** T4 — commit only the scoped files, push a new non-force branch, deploy the exact pushed SHA, and verify provenance/HTTP response.
+
+## 2026-09-21 - Building confirmation release verification
+
+- **Commit:** `a0c5f072582c6a3a111151b24808ac413503c2ea` (`fix(studio): finalize building footprint after save`); commit contains only the two implementation/test files plus this bug's spec, plan, and TODO.
+- **Push:** `origin/codex/building-creation-confirmation` resolves to the exact commit SHA; no force push and no changes to `origin/master`.
+- **Vercel:** Production deployment `dpl_6gWPCN7r4L6kQxoyodv7Vtd8tqqu` reached `READY` and aliased `https://navi-next.vercel.app`. It was created from a clean worktree checked out at the exact commit SHA.
+- **HTTP:** `HEAD /` -> 200 and `HEAD /studio/create` -> 200 on the production alias.
+- **Owner smoke:** An authenticated production session was not available to this run. Owner should sign in and execute the four requested Studio checks: one building saves once and remains after reload; Cancel creates nothing; rejected Save leaves the draft and permits retry; a second intentional building saves as a distinct entity.
+
 ## 2026-09-25 - Temporary Cloudflare R2 connectivity test endpoint
 
 - **Delivered:** server-only `src/lib/r2.ts` (env validation by name, `S3Client` factory with `forcePathStyle`, `PutObject` of `_navi-tests/r2-connectivity-test.txt` = `NAVI R2 connectivity test`, error sanitizer) plus `POST /api/r2-connectivity-test` behind the existing `requireVerifiedMutationAuth` gate. Responses: `200 {ok,provider,bucket,object}`, `500 missing_configuration` (variable names only), `502 r2_request_failed` (`code`/`httpStatus`/`requestId`, no message). No ACL, no presigning, no `NEXT_PUBLIC_R2_*`.
@@ -2777,7 +2875,6 @@
 - **Limitation:** R2 credentials are write-only in Vercel (`vercel env pull` returns `""`), so no machine-side read-back was possible. No credential value was printed, stored, or committed at any point; the pulled env file and helper scripts were deleted.
 - **Next:** nothing outstanding. Optional tidy-up: drop the stray lowercase `R2_region` Shared variable. Branch state unchanged: local `master` is 381 ahead / 5 behind `origin/master` and was not pushed.
 
-
 ## 2026-09-25 - 360 panorama ingestion readiness: presigned sign/complete/resolve deployed and E2E-verified
 
 - **Delivered:** spec/NAVI-360-PANORAMA-INGESTION.md (8 approved gate decisions) + plan/NAVI-360-PANORAMA-INGESTION.md (T1-T13); src/lib/panorama-keys.ts (traversal-proof key convention panoramas/<campus>/<panorama>.<ext>, 25 MiB cap, content-type allowlist); src/lib/r2.ts presigners (presignPanoramaPut/presignPanoramaGet/headPanoramaObject, TTLs 600/300s bounded by 86400, browser-runtime refusal preserved); POST /api/panorama-upload (sign + complete: auth, protected-campus 423, registry-write-before-URL, HeadObject verification); public registry-gated GET /api/panorama-resolve; src/lib/panorama-asset-store.ts + migration 015_panorama_assets.sql (service-role only, RLS enabled, zero client grants). SDK fact: @aws-sdk/s3-request-presigner strips content-type from the signature (verified in its dist-cjs source), so content-type enforcement lives at complete (HeadObject) + the registry gate - recorded in spec/plan.
@@ -2791,3 +2888,47 @@
 - **Next:** user-side independent Cloudflare dashboard confirmation (object under panoramas/, image/jpeg, 8220561 B, bucket still Public Access Disabled); viewer/stitching/hotspot wiring remains out of scope per non-goals. Branch: local master at cce7628, not pushed.
 
 - **Independent verification (user-run, 4 screenshots):** Cloudflare dashboard shows Public Access Disabled, bucket size 8.22 MB; object `panoramas/asu-ibajay/e2e-ingest-20260925.jpg` with Type `image/jpeg`, Size 8.22 MB, Date Created 26 Sep 2026 05:26:26 GMT+8 (= 21:26:26 UTC, matching the E2E PUT window), and a rendered object preview; bucket root shows `_navi-tests/` alongside `panoramas/`. T9 step 5 closed - all five steps passed with evidence recorded.
+
+## 2026-09-26 - Floor-elevation program: Phase 0 verified (classification B) + Phase A vertical contract shipped
+
+- **Program:** `NAVI — FLOOR ELEVATION + ACTIVE FLOW.txt` (phases 0-F). Contracts recorded in `spec/FLOOR-ELEVATION-ACTIVE-FLOW.md` + `plan/FLOOR-ELEVATION-ACTIVE-FLOW.md`. No commits/push/deploy; shared dev data untouched.
+- **Phase 0 (root cause = reference/floor-plane contract mismatch):** Studio renders exactly one floor (`FloorEditorCanvas.tsx:1027/1063`), and of its five `fill-extrusion` layers four already sit on datum 0 (rooms `:148` base 0, door areas `:156` base 0, derived rooms `:241` base 0.1, route edges `:332` base 0) while only the wall extrusion applied the stacking datum (`wallsToExtrusionCollection(fl.walls, fl.elevation)` at `:1071`); every non-extrusion renderable (plan raster, outlines, labels, hallways, 2D walls, building fill) is pinned to z=0. On any floor with `elevation > 0` the walls alone rise = the audit's disconnect. `Floor.elevation`'s only other rendering consumer is the published POI stacking path (`packages/editor/src/rendering/geojson.ts:165`, `base_elevation = baseElevation + floor.elevation`) - a genuine multi-floor context. `recalculateBuilding` had zero test coverage (A.2 claim confirmed).
+- **Phase 0.5 (repro):** audit screenshot unavailable; current live graph has no walls on ANY floor of `osm-bldg-888026366` and the fixture has walls on level 0 only, so the screenshot state cannot be replayed from data without mutating shared dev data (forbidden) -> reproduced deterministically at component level: RED run failed with `expected 3.5 to be +0` (elevated floor's wall-extrusion `properties.base`).
+- **Phase A (Contract L - single-floor presentation frame):** exported `FLOOR_PRESENTATION_DATUM = 0` with the vertical-contract doc from `packages/editor/src/geometry/wall-to-polygon.ts`; `FloorEditorCanvas.tsx:1077` now passes it instead of `fl.elevation`. Untouched: wall XY/thickness data, extrusion formula `height = base + wall.height`, `Floor.elevation` semantics, `recalculateBuilding`, publisher/compiler/runtime/geojson stacking paths, 2D mode. A.6 determination: the floor-plan raster shares the active floor's own plane, so it cannot falsely imply z=0 is the physical floor (no suppression needed). A.9: no base slab (no legitimate need once coherent).
+- **Verification (Phase A gate):** RED->GREEN datum tests, `FloorEditorCanvas.test.tsx` 12/12 (elevated-floor contract + ground-floor unchanged guard + zero document mutation); new `floor-recalculation.test.ts` 10/10; wall/enclosure matrix 11 files / 189 tests PASS; `room-derivation.test.ts` PASS; focused floor-editor + editor geometry/commands 1230/1232 (2 pre-existing); `packages/runtime` (own config) 436/436 tests (1 pre-existing parse-broken file); `tsc --noEmit` -> only the pre-existing `data-identity-comparison.test.ts` TS1005; eslint: zero findings on changed lines/files (all findings on untouched pre-existing lines).
+- **Full baseline captured for Phase F:** `npx vitest run` = 610 files / 6227 tests -> **18 files / 34 tests failing, all pre-existing**. Attribution: Phase A import graph is `wall-to-polygon` (importers: FloorEditorCanvas + 2 passing tests) and `FloorEditorCanvas` (importers: 2 passing tests, both pass); every failing file lies outside it and co-locates with the parallel workstream's dirty files (`packages/compiler/src/emitter/artifacts.ts` M, `src/services/graph-snapshot-serializer.ts` M, `src/app/(public)/map/navigate/page.tsx` M + test M, studio `EditorBridge/MapCard/StudioDashboard` M, `create-editor-context.ts` M; `phase3a-authored-state.test.ts` untracked ??), or is clean-at-HEAD (`routing-validation`, `topology-audit`, `route-network-maplibre`, `semantic-room-interaction`, runtime parse error). Details in `errors/ERRORS.md`.
+- **Next:** Phase B - Studio multi-floor visibility decision (single-floor presentation is now the contract; any stack view must use the stacking datum).
+- **Phase B (COMPLETE):** B.1 audit recorded in spec with `path:line` (single-floor rendering via `floors.find(f.level === floor)` at all sync sites; footprint-only context; visibility map `:1496-1539`; plan raster per-level + stale-hide; Navigation Preview graph = active floor's `routeNetwork` `:1186`). B.2 decision: single-floor isolation IS the Studio contract, no stacking view built (YAGNI; future stack view must use `baseElevation + floor.elevation`). B.3: plan imagery stays a 2D reference on the presentation plane (no 3D raster engine). B.4: slab re-affirmed NO. B.5: new `FloorEditorCanvas.test.tsx › Phase B` floor-switch test (walls + wall extrusion + route graph swap atomically; zero document/route-network mutation) -> suite 13/13 PASS. B.6 gate met; floor-editor regression: 35/37 files pass, only the 2 baseline failures (route-network-maplibre, semantic-room-interaction).
+- **Next:** Phase C - Navigate activeFloor presentation.
+
+## 2026-09-27 - Navi Studio floor & interior persistence unblocked and verified
+
+- **Problem:** Adding a second floor or modifying interior routes/rooms/walls in Navi Studio failed to persist to Supabase. Edits appeared locally in `localStorage`, but autosave either skipped the write (`pending.length === 0`) or the Cross-Scope Destructive Save guard blocked it with `Cross-scope destructive save blocked: no pending authored intent covers nodes[...] edges[...]`, wiping outdoor road nodes (`N1187..N1193` on `T-1-0ur6`). On reload, the client showed "Outdated / Load server version", which overwrote user edits when accepted.
+- **Root Cause & Mechanism:**
+  1. `EditorBridge.tsx` listened to `document.changed` on the event bus, but never recorded authored mutation intents (`recordAuthoredMutation`). Thus, `pendingAuthoredMutations.length === 0` caused autosave to skip `POST /api/graph`.
+  2. `GraphAdapter.sync(document)` wiped all nodes and edges on sync and recompiled road traces via `compileTrace()`. `compileTrace` ignored existing IDs and assigned volatile `N0001..` / `E0001..` IDs to outdoor road traces.
+  3. `reconcileCanonicalCollections()` evaluated `outdoorCovered` as true for any document with a `roads` array, replacing existing outdoor nodes with freshly synthesized IDs.
+  4. The safety guard `evaluateAuthoredSave` detected that baseline outdoor nodes/edges had vanished without an outdoor authored intent, blocking the save.
+- **Fix Applied (3 parts):**
+  1. **T1 (Trace Compiler Identity Stability):** Updated `compileTrace()` in `src/engine/trace-compiler.ts` and `Graph.addTraceWithCompile()` in `src/engine/graph.ts` to accept `stableReference?: { nodes?: NavNode[]; edges?: NavEdge[] }`. It looks up matching nodes by coordinates and matching edges connecting those nodes, reusing stable IDs across reconciliations.
+  2. **T2 (Scope-Aware GraphAdapter Sync):** Added `scope?: GraphAdapterScope` to `GraphAdapter.sync()` and `reconcileCanonicalCollections()` in `packages/editor/src/graph-adapter.ts`. When syncing a floor or building scope, `outdoorCovered` is strictly false, preserving outdoor road entities verbatim. In `floor/[floor]/page.tsx`, all sync calls now pass `{ kind: 'floor', buildingId, floor }`.
+  3. **T3 (Campus Editor Mutation Attribution):** In `src/components/studio/EditorBridge.tsx`, `document.changed`, `syncDocumentAndCapture`, `persistenceAdapter.save`, and `visibility/unload` handlers now attribute authored mutations via `recordAuthoredMutation` (`building` or `outdoor`) so campus-level actions like `floor.create` pass the P0.11 save gate and autosave.
+- **Verification:**
+  - `src/engine/__tests__/trace-compiler.test.ts`: 7/7 tests PASS (including new stable node/edge identity reuse tests).
+  - `packages/editor/src/__tests__/sync-reconciliation.test.ts`: 6/6 tests PASS.
+  - `floor-editor-persistence.test.ts`: 2/2 tests PASS.
+  - Full regression suite across 7 files / 36 tests PASS with 0 failures (`trace-compiler`, `sync-reconciliation`, `floor-editor-persistence`, `studio-persistence`, `readiness-lifecycle`, `graph-store-save-queue`, `saved-state-gate`, `case-e-attribution`).
+  - End-to-end simulation against real Supabase snapshot (`scripts/verify-persistence-fix.ts`): verified that floor interior sync and campus-level `floor.create` both yield `verdict.allowed: true` with 0 removed outdoor entities.
+
+## 2026-09-27 - Independent QA review of floor/interior persistence change set: BLOCK + fixes applied
+
+- **Review scope:** the 5-file change set (+151/-44): `src/engine/trace-compiler.ts`, `src/engine/graph.ts`, `packages/editor/src/graph-adapter.ts`, `src/components/studio/EditorBridge.tsx`, `floor/[floor]/page.tsx`. Independent QA subagent + supervisor re-validation of every claim.
+- **Verdict:** BLOCK - 2 high-severity findings, both confirmed against the code before fixing.
+- **HIGH-1 (cross-floor node adoption):** `findMatchingExistingNode` returned `candidates[0]` without a scope check (single-candidate shortcut + no-match fallback). Stacked floors share identical lat/lng, so a floor-1 compile could adopt floor-0's stable node id; `Graph.addNode` is a `Map.set` upsert, so the floor-0 node would be silently replaced with floor-1 data. **Fix:** identity reuse is now scope-strict - return only an exact `buildingId`+`floor` match, otherwise `undefined` (fresh id via `genId('N')`).
+- **HIGH-2 (guard-defeating intent injection):** `EditorBridge.saveGraph`/`syncToSupabase` fabricated `recordAuthoredMutation(...)` unconditionally whenever `pendingAuthoredMutations.length === 0`, which is exactly the precondition under which the P0.11 guard fails closed (CASE A: changed candidate with no authored intent) - making the guard unreachable on every EditorBridge save. Tests missed it because they exercise the store directly, bypassing EditorBridge. **Fix:** fallback attribution now additionally requires `contextRef.current.document.version > 0` (a real editor change, the same signal the visibility/beforeunload handlers already use), so hydration/view-only sessions (version 0) stay fail-closed.
+- **Lint:** the change set introduced 3 new `react-hooks/exhaustive-deps` warnings in `floor/[floor]/page.tsx`; `floorScope` is now `useMemo`-stabilized and listed in all three effect dep arrays. Scoped eslint on the 5 files after fixes = 7 errors / 1 warning, byte-for-byte the pre-existing HEAD baseline (2x `react-hooks/refs`, 5x `no-explicit-any` in EditorBridge, 1 unused `_` in graph.ts) - 0 new problems.
+- **Security:** `scripts/verify-persistence-fix.ts` (untracked) had a hardcoded production Supabase service-role key; replaced with `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` env reads + fail-fast message. `git log --all -S <key-fingerprint>` empty and `git grep` empty - the key was never committed; it stays untracked.
+- **Verification after fixes:** full battery 9 files / **55/55 PASS** (trace-compiler 7, sync-reconciliation 6, floor-editor-persistence 2, studio-persistence, readiness-lifecycle 5, save-queue 9, saved-state-gate 10, case-e-attribution, floor-recalculation 10); scoped eslint matches baseline.
+- **Known follow-ups (not blocking, recorded by QA):** `metadata.traceId` overwrite when an id is reused; `entityType` 'batch'/unknown scope guessing in intent records; redundant POSTs on visibility/unload without a delta gate; `kind:'outdoor'` scope-drop path in `reconcileCanonicalCollections` currently unreachable.
+- **Next:** commit fix set, push to branch `fix/floor-editor-persistence-2026-09-27` (local master shares no ancestor with `origin/master` - unrelated histories, fast-forward push impossible), deploy to Vercel production.
+

@@ -55,17 +55,45 @@ import { persistStudioGraph } from './studio-persistence'
 export function EditorBridge({ children }: { children: ReactNode }) {
   const contextRef = useRef<EditorContext | null>(null)
 
+  // GraphAdapter is a projection step. Capture its document only when the
+  // campus already has a new-format authored snapshot or a real editor change
+  // has advanced the legacy document version; initial legacy hydration remains
+  // Graph-only and therefore cannot trigger an automatic rewrite.
+  const syncDocumentAndCapture = () => {
+    const ctx = contextRef.current
+    if (!ctx) return
+    const state = useGraphStore.getState()
+    const activeBuildingId = useStudioStore.getState().activeBuildingId
+    const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
+    const ga = new GraphAdapter(state.graph, ctx.transformer)
+    ga.sync(ctx.document, scope)
+    const nextState = useGraphStore.getState()
+    if (nextState.authoredDocument !== null || ctx.document.version > 0) {
+      nextState.setAuthoredDocument(ctx.document)
+    }
+  }
+
   const persistenceAdapter: PersistenceAdapter = {
     save: () => persistStudioGraph({
       syncDocument: () => {
-        const ctx = contextRef.current
-        if (ctx) {
-          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-          ga.sync(ctx.document)
-        }
+        syncDocumentAndCapture()
       },
       saveGraph: async () => {
         try {
+          const activeBuildingId = useStudioStore.getState().activeBuildingId
+          // Fallback attribution is gated on a real editor change: a document
+          // version advance proves an authored mutation happened even when its
+          // intent record was missed (e.g. floor.create from the Manage Floors
+          // dialog). Hydration/view-only sessions keep version 0, so the P0.11
+          // unattributed-mutation guard still fails closed for them.
+          const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+          if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
+            if (activeBuildingId) {
+              useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
+            } else {
+              useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
+            }
+          }
           await useGraphStore.getState().save({ trigger: 'autosave' })
         } catch (error: unknown) {
           console.warn('EditorBridge adapter save failed:', error)
@@ -77,7 +105,20 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
       },
     }),
-    syncToSupabase: () => useGraphStore.getState().syncToSupabase({ trigger: 'autosave' }),
+    syncToSupabase: () => {
+      const activeBuildingId = useStudioStore.getState().activeBuildingId
+      // Same gate as saveGraph: only a real document version advance may
+      // fabricate fallback attribution; version-0 sessions stay fail-closed.
+      const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+      if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
+        if (activeBuildingId) {
+          useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
+        } else {
+          useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
+        }
+      }
+      return useGraphStore.getState().syncToSupabase({ trigger: 'autosave' })
+    },
     getSyncState: (): PersistenceSyncState => {
       const state = useGraphStore.getState()
       return { status: state.syncStatus, error: state.syncError }
@@ -128,6 +169,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       useGraphStore.getState().graph,
       persistenceAdapter,
       navCompiler,
+      useGraphStore.getState().authoredDocument ?? undefined,
     )
     return ctx
   })
@@ -142,6 +184,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
     new GraphAdapter(graph, context.transformer).sync(context.document)
+    if (useGraphStore.getState().authoredDocument !== null) {
+      useGraphStore.getState().setAuthoredDocument(context.document)
+    }
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored
@@ -163,16 +208,31 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       clear: (origin?: SelectionOrigin) => void
     } | undefined
 
-    const unsubscribe = eventBus.on('document.changed', () => {
+    const unsubscribe = eventBus.on('document.changed', (evt?: { entityType?: string; entityId?: string }) => {
+      const activeBuildingId = useStudioStore.getState().activeBuildingId
+      const entityType = evt?.entityType
+
+      // Record authored mutation so P0.11 save guard attributes the change and permits autosave
+      if (entityType === 'floor' || entityType === 'building') {
+        useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId ?? evt?.entityId ?? null, null)
+      } else if (entityType === 'road') {
+        useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
+      } else if (activeBuildingId) {
+        useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
+      } else {
+        useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
+      }
+
       const graph = useGraphStore.getState().graph
-      new GraphAdapter(graph, context.transformer).sync(context.document)
+      const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
+      new GraphAdapter(graph, context.transformer).sync(context.document, scope)
+      useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
 
       // Undo can remove the currently selected Building through an inverse
       // command without going through the normal canvas selection path. Clear
       // that stale selection so the inspector does not show "Entity not
       // found" for an entity that was just removed.
-      const activeBuildingId = useStudioStore.getState().activeBuildingId
       if (activeBuildingId && !context.document.buildings.some((building) => building.id === activeBuildingId)) {
         useStudioStore.getState().setActiveBuilding(null)
       }
@@ -195,10 +255,10 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
-        const ctx = contextRef.current
-        if (ctx) {
-          const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-          ga.sync(ctx.document)
+        syncDocumentAndCapture()
+        const activeBuildingId = useStudioStore.getState().activeBuildingId
+        if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
+          useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
         }
         void useGraphStore.getState().save().catch((error: unknown) => {
           console.warn('EditorBridge visibility persistence failed:', error)
@@ -206,10 +266,10 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       }
     }
     const handleBeforeUnload = () => {
-      const ctx = contextRef.current
-      if (ctx) {
-        const ga = new GraphAdapter(useGraphStore.getState().graph, ctx.transformer)
-        ga.sync(ctx.document)
+      syncDocumentAndCapture()
+      const activeBuildingId = useStudioStore.getState().activeBuildingId
+      if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
+        useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
       }
       void useGraphStore.getState().save().catch((error: unknown) => {
         console.warn('EditorBridge unload persistence failed:', error)
@@ -221,7 +281,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [])
+  }, [context])
 
   // Wire SelectionBridge once per mount: keep the legacy studio store and the
   // new SelectionManager in sync (selection only, loop-guarded).
