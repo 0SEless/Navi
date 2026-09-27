@@ -83,4 +83,20 @@ describe('ContextHeader', () => {
     renderHeader({ buildingName: '' })
     expect(screen.getByText('/')).toBeDefined()
   })
+
+  it('renders Save button and triggers onSave callback when clicked', () => {
+    const onSave = vi.fn()
+    renderHeader({ onSave, status: 'saved' })
+    const btn = screen.getByRole('button', { name: 'Save' })
+    expect(btn).toBeDefined()
+    fireEvent.click(btn)
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables Save button while status is saving', () => {
+    const onSave = vi.fn()
+    renderHeader({ onSave, status: 'saving' })
+    const btn = screen.getByRole('button', { name: 'Saving…' }) as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+  })
 })

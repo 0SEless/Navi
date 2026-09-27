@@ -2605,3 +2605,43 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Never paste service-role keys into files; read them from env, and pre-commit `git grep -E "eyJhbGciOi.*(service|role)"`-style scans before any commit; rotate the key if the workspace or repo is ever made public.
 - **Related tasks**: T3
 
+## 2026-09-27: save-audit-suite crashed after all scenarios because the report table read a non-existent field
+- **Error**: `scripts/save-audit-suite.mjs` ran all 8 scenarios, completed the final restore check, then threw `TypeError: Cannot read properties of undefined (reading 'length')` inside `renderTable()` - the results table, the F2 console listing, and the non-zero exit code were never produced (process exited 2 via the `main().catch` FATAL handler instead of 1).
+- **Cause**: `renderTable()` used `r.writes.length`, but per-scenario write results are stored as `result.networkWrites` (the raw `cap.writes` array is never attached to the result). The field-name drift was introduced while refactoring the runner; `node --check` cannot catch it because it is a property access on a defined object, not a syntax error.
+- **Fix**: Changed to `(r.networkWrites || []).length` so a missing array degrades to 0 rather than throwing; verified by a full re-run that prints the table and exits 1.
+- **Prevention**: For any script that must exit non-zero on failure, the final reporting block is part of the critical path - exercise it end-to-end (a full run, or a call with a synthetic results array) before trusting `node --check`; make report rendering tolerant of missing fields so a reporting bug cannot mask real scenario failures.
+- **Related tasks**: QA-AUDIT-1
+
+## 2026-09-27: A batch edit dropped a variable declaration while its usages stayed
+- **Error**: A multi-edit to `scripts/save-audit-suite.mjs` accidentally deleted `const deduped = []` while leaving the `deduped.push` / `deduped.sort` / report usage in place - the next run would have thrown `deduped is not defined` at the F2 block, after every scenario had already mutated production.
+- **Cause**: The `oldText`/`newText` pair for the F2 console-health addition carried the declaration on the "remove" side, so the edit faithfully applied a destructive change. `node --check` passes on undefined variables (syntax only), so the mistake survived the syntax gate.
+- **Fix**: Re-read the edited region, spotted the missing declaration, and restored `const deduped = []` in the same session before the next run.
+- **Prevention**: After any multi-edit touching more than one site in a file, re-read the full edited region rather than trusting the diff summary; exercise the script's reporting path in addition to `node --check`, since reference errors are runtime-only.
+- **Related tasks**: QA-AUDIT-1
+
+## 2026-09-27: Evidence note interpolated a raw snapshot instead of its summary
+- **Error**: C2's verify note printed `inspector after reload showed undefined floors: true` - `after.floorCount` was read from the raw Supabase snapshot object (which has no `floorCount` key) instead of the `summarize()` output.
+- **Cause**: The scenario's `run()` bound a local `const after = summarize(...)`, while `verify()` reused the same name for the raw snapshot; the note line kept the old identifier after the two scopes diverged.
+- **Fix**: Replaced with `a.floorCount` (the `summarize()` result already bound in verify). Pass/fail logic was unaffected - only the human-readable evidence line was wrong.
+- **Prevention**: Never let a raw API payload and its derived summary share a variable name across functions; when a note prints a number, make `undefined` obvious (typed local, or format through `String(...)`) so evidence text cannot silently lie.
+- **Related tasks**: QA-AUDIT-1
+
+---
+
+## 2026-09-27: Floor Editor door & interior edits failed to persist across browser close/reload
+- **Error**: Placing doors or modifying interior entities in the Floor Editor did not persist to Supabase if the user closed the tab or browser shortly after editing, and reopening the URL restored the old floor state or prompted with an outdated-version conflict. Additionally, the Vercel production build threw `TypeError: setAuthoredDocument is not a function` because `src/store/graph-store.ts` was not staged in the git commit.
+- **Cause**:
+  1. The autosave mechanism uses a 2000ms debounce. If the user closes or unloads the tab immediately, `beforeunload` fires a `fetch('/api/graph')`, but the fetch lacked `keepalive: true`, causing the browser to abort the HTTP request on unload.
+  2. In the Floor Editor route (`src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`), the `document.changed` event listener did not call `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)`. As a result, when an immediate unload flush occurred, `pendingAuthoredMutations` was empty, triggering the P0.11 safety guard or failing to treat the save as an authored floor intent.
+  3. The Floor Editor's header (`ContextHeader.tsx`) lacked an explicit Save button or visual indicator (`Saved`, `Saving...`), so users had no visual confirmation of network completion before closing the tab.
+  4. In the previous git commit (`37539b6`), `src/store/graph-store.ts` was left unstaged, so production deployed without `setAuthoredDocument` and `authoredDocument` store actions, causing an immediate runtime crash on Vercel.
+- **Fix**:
+  1. Added `keepalive: true` to the `fetch('/api/graph', ...)` call in `src/store/graph-store.ts` so network writes survive browser tab close.
+  2. In the Floor Editor page, added `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)` upon `document.changed`.
+  3. Added an explicit `Save` button (with `Ctrl+S` / `Cmd+S` shortcut support) and status indicators to `ContextHeader.tsx` and wired it through `FloorEditor.tsx` using `workflow.save('manual')`.
+  4. Added end-to-end Vitest test suite (`packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts`) and unit tests for `ContextHeader.tsx`.
+  5. Staged and committed `src/store/graph-store.ts` along with all modified editor and UI files.
+- **Prevention**: Always use `keepalive: true` for unload-flush HTTP requests; ensure every editor surface binds `recordAuthoredMutation` to document change events; provide user-facing explicit save controls alongside autosave; and enforce pre-commit checks (`git status -s`) to prevent unstaged critical store/model files.
+- **Related tasks**: Floor Editor Door & Interior Persistence Hardening (T1, T2, T3, T4, T5)
+
+

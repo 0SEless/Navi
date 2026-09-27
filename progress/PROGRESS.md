@@ -1,5 +1,27 @@
 # Progress Log
 
+## 2026-09-27: Floor Editor Door & Interior Persistence Hardening
+
+### What was done
+- Added `keepalive: true` to `fetch('/api/graph', ...)` in `performSyncToSupabase` (`src/store/graph-store.ts`), ensuring network saves to Supabase survive browser tab close and page unload boundaries.
+- Included `src/store/graph-store.ts` (`setAuthoredDocument`, `authoredDocument`, serialization) in the deployment commit set to resolve production runtime `TypeError: setAuthoredDocument is not a function`.
+- Added continuous authored mutation intent attribution on `document.changed` in `FloorEditorBridge` (`src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`), ensuring autosaves and exit flushes are attributed to `floor` scope and approved by the P0.11 guard.
+- Added explicit manual Save button in `packages/editor/src/panels/ContextHeader.tsx` and wired it into `FloorEditor.tsx` alongside a `Ctrl+S` / `Cmd+S` keyboard shortcut and live sync status feedback.
+- Created `packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts` to verify door creation, spatial projection, RPC serialization, safety guard evaluation, and deserialization across single and multiple floors.
+
+### Verification
+- Vitest battery: 51/51 tests passed across 5 test suites:
+  - `packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts` (2/2 passed)
+  - `packages/editor/src/panels/__tests__/ContextHeader.test.tsx` (13/13 passed)
+  - `packages/editor/src/graph-adapter.test.ts` (21/21 passed)
+  - `src/store/graph-store.test.ts` (4/4 passed)
+  - `src/store/__tests__/authored-mutation-intent.test.ts` (11/11 passed)
+- FloorEditor component integration test: `FloorEditor-2d-2.5d-toggle.test.tsx` (11/11 passed)
+- Real Supabase snapshot verification: `scripts/verify-persistence-fix.ts` passed (baseline nodes/edges loaded, floor editor sync verified, P0.11 safety guard evaluated and approved, campus-level floor creation approved).
+
+### What's next
+- User commits and pushes tracked fixes to Vercel and tests live on production.
+
 ## 2026-08-30: Route draft preview visibility regression fixed
 
 ### What was done

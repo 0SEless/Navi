@@ -121,6 +121,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       const graph = useGraphStore.getState().graph
       new GraphAdapter(graph, context.transformer).sync(context.document, floorScope)
       useGraphStore.getState().setAuthoredDocument(context.document)
+      useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     })
 

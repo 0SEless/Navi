@@ -3,6 +3,11 @@ import { Graph } from '../engine/graph'
 import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 import { serializeSnapshot, type GraphSnapshotLike } from '../services/graph-snapshot-serializer'
+import type { CampusDocument } from '@navi/core'
+import {
+  parseAuthoredGraphPayload,
+  serializeAuthoredGraphPayload,
+} from '../services/authored-snapshot-persistence'
 import { appendIntent, evaluateAuthoredSave, intentsIncludedInSave, type AuthoredMutationIntent } from './authored-mutation-intent'
 import type { GuardCollections } from '../lib/save-safety-guard'
 
@@ -28,6 +33,9 @@ type SyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'confli
 
 interface GraphState {
   graph: Graph
+  /** Canonical authored state when the active snapshot uses the new format. */
+  authoredDocument: CampusDocument | null
+  setAuthoredDocument: (document: CampusDocument | null) => void
   currentMapId: string | null
   renderVersion: number
   syncStatus: SyncStatus
@@ -239,11 +247,17 @@ function graphFingerprint(snapshot: unknown): string {
   return snapshotFingerprint(stableStringify(json))
 }
 
-async function fetchServerSnapshot(mapId: string): Promise<(GraphSnapshot & { updatedAt?: string }) | null> {
+type PersistedGraphSnapshot = GraphSnapshot & {
+  updatedAt?: string
+  authoredDocument?: unknown
+  authoredDocumentFormatVersion?: number
+}
+
+async function fetchServerSnapshot(mapId: string): Promise<PersistedGraphSnapshot | null> {
   try {
     const res = await fetch(`/api/graph?campus_id=${encodeURIComponent(mapId)}`, { credentials: 'include' })
     if (!res.ok) return null
-    const data = (await res.json()) as GraphSnapshot & { updatedAt?: string }
+    const data = (await res.json()) as PersistedGraphSnapshot
     if (!data || !Array.isArray(data.nodes)) return null
     return data
   } catch {
@@ -281,12 +295,16 @@ function invalidateQueuedCampusSaves(mapId: string, reason: string): void {
 }
 
 /** Replace the active graph with a server snapshot and record the synced marker. */
-function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedAt?: string }): void {
+function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): void {
+  const persisted = parseAuthoredGraphPayload(data)
   const graph = Graph.fromJSON(data)
   graph.campusId = mapId
   const snapshot = graph.toJSON()
   try {
-    localStorage.setItem(storageKey(mapId), JSON.stringify(snapshot))
+    localStorage.setItem(
+      storageKey(mapId),
+      JSON.stringify(serializeAuthoredGraphPayload(snapshot as unknown as Record<string, unknown>, persisted.authoredDocument)),
+    )
   } catch {
     // Cache is best effort; the in-memory graph stays authoritative.
   }
@@ -297,7 +315,14 @@ function adoptServerSnapshotData(mapId: string, data: GraphSnapshot & { updatedA
   authoredIntentSeq = 0
   bumpCampusEpoch(mapId)
   invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
-  useGraphStore.setState({ graph, currentMapId: mapId, syncStatus: 'synced', syncError: null, pendingAuthoredMutations: [] })
+  useGraphStore.setState({
+    graph,
+    authoredDocument: persisted.authoredDocument,
+    currentMapId: mapId,
+    syncStatus: 'synced',
+    syncError: null,
+    pendingAuthoredMutations: [],
+  })
 }
 
 /**
@@ -392,6 +417,11 @@ async function checkServerFreshness(mapId: string): Promise<void> {
 
 export const useGraphStore = create<GraphState>((set, get) => ({
   graph: new Graph(),
+  authoredDocument: null,
+  setAuthoredDocument: (document) => {
+    const snapshot = document ? JSON.parse(JSON.stringify(document)) as CampusDocument : null
+    set({ authoredDocument: snapshot })
+  },
   currentMapId: null,
   renderVersion: 0,
   syncStatus: 'idle',
@@ -611,8 +641,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
     try {
       const snapshot = JSON.parse(raw)
-      const graph = Graph.fromJSON(snapshot)
-      set({ graph })
+      const persisted = parseAuthoredGraphPayload(snapshot)
+      const graph = Graph.fromJSON(persisted.graphPayload as GraphSnapshot)
+      set({ graph, authoredDocument: persisted.authoredDocument })
     } catch (e) {
       if (process.env.NODE_ENV === 'development') {
         console.error('[graph-store] Failed to parse localStorage graph:', e)
@@ -632,13 +663,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const key = storageKey(mapId)
     const raw = localStorage.getItem(key)
     let graph = new Graph()
+    let authoredDocument: CampusDocument | null = null
     if (raw) {
       try {
         const snapshot = JSON.parse(raw)
-        graph = Graph.fromJSON(snapshot)
+        const persisted = parseAuthoredGraphPayload(snapshot)
+        graph = Graph.fromJSON(persisted.graphPayload as GraphSnapshot)
+        authoredDocument = persisted.authoredDocument
       } catch (e) {
         if (process.env.NODE_ENV === 'development') {
           console.error('[graph-store] Failed to parse map data from localStorage:', e)
+        }
+        // A malformed authored companion must not make the legacy Graph
+        // unreadable. Keep the established compatibility path, but do not
+        // manufacture authored state from it.
+        try {
+          graph = Graph.fromJSON(JSON.parse(raw))
+        } catch {
+          graph = new Graph()
         }
       }
     }
@@ -647,7 +689,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     // CASE A — No local graph or empty: fetch from Supabase
     if (!raw || !graph.buildings.length) {
-      set({ graph, currentMapId: null })
+      set({ graph, authoredDocument, currentMapId: null })
       void get().fetchFromSupabase(mapId)
       return
     }
@@ -664,7 +706,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     } catch {
       locallySynced = false
     }
-    set({ graph, currentMapId: mapId, syncStatus: locallySynced ? 'checking' : 'idle', syncError: null })
+    set({ graph, authoredDocument, currentMapId: mapId, syncStatus: locallySynced ? 'checking' : 'idle', syncError: null })
     void checkServerFreshness(mapId)
   },
 
@@ -676,7 +718,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
-      set({ currentMapId: mapId, pendingAuthoredMutations: [], campusReady: false })
+      set({ currentMapId: mapId, authoredDocument: null, pendingAuthoredMutations: [], campusReady: false })
     } else {
       set({ currentMapId: mapId })
     }
@@ -689,7 +731,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (mapId) get().graph.campusId = mapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     const json = get().graph.toJSON()
-    localStorage.setItem(key, JSON.stringify(json))
+    const persisted = serializeAuthoredGraphPayload(json as unknown as Record<string, unknown>, get().authoredDocument)
+    localStorage.setItem(key, JSON.stringify(persisted))
     await get().syncToSupabase({ trigger: options?.trigger })
   },
 
@@ -698,7 +741,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const mapId = get().currentMapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     localStorage.removeItem(key)
-    set({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
+    set({ graph: new Graph(), authoredDocument: null, currentMapId: null, syncStatus: 'idle', syncError: null })
   },
 
   syncToSupabase: async (options?: { force?: boolean; trigger?: SaveTrigger }) => {
@@ -770,9 +813,10 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const raw = localStorage.getItem(key)
     if (raw) {
       try {
-        const graph = Graph.fromJSON(JSON.parse(raw))
+        const persisted = parseAuthoredGraphPayload(JSON.parse(raw))
+        const graph = Graph.fromJSON(persisted.graphPayload as GraphSnapshot)
         graph.campusId = mapId
-        set({ graph, currentMapId: mapId })
+        set({ graph, authoredDocument: persisted.authoredDocument, currentMapId: mapId })
       } catch (e) {
         console.warn('[graph-store] reSync: failed to parse local data', e)
       }
@@ -854,7 +898,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       const url = effectiveMapId ? `/api/graph?campus_id=${encodeURIComponent(effectiveMapId)}` : `/api/graph`
       const res = await fetch(url, { credentials: 'include' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as GraphSnapshot & { updatedAt?: string }
+      const data = await res.json() as PersistedGraphSnapshot
+      let authoredDocument: CampusDocument | null = null
+      try {
+        authoredDocument = parseAuthoredGraphPayload(data).authoredDocument
+      } catch (error) {
+        console.warn('[graph-store] server authored snapshot could not be hydrated:', error)
+      }
       if (!data || !data.nodes) {
         // F3: metadata-only or legacy rows carry an authoritative revision but
         // no graph arrays. Record that revision and mount an empty graph so the
@@ -870,7 +920,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         }
         const emptyGraph = new Graph()
         if (effectiveMapId) emptyGraph.campusId = effectiveMapId
-        set({ graph: emptyGraph, currentMapId: effectiveMapId ?? null, syncStatus: 'idle' })
+        set({ graph: emptyGraph, authoredDocument, currentMapId: effectiveMapId ?? null, syncStatus: 'idle' })
         return
       }
       const graph = Graph.fromJSON(data)
@@ -890,7 +940,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         invalidateQueuedCampusSaves(effectiveMapId, 'Superseded by authoritative server load')
       }
       useGraphStore.setState({ pendingAuthoredMutations: [] })
-      set({ graph, currentMapId: effectiveMapId, syncStatus: 'synced' })
+      set({ graph, authoredDocument, currentMapId: effectiveMapId, syncStatus: 'synced' })
     } catch (e) {
       console.warn('[graph-store] fetchFromSupabase failed:', e)
       set({ syncStatus: 'idle' })
@@ -1071,7 +1121,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   const snapshotHash = graphFingerprint(snapshot)
   // Serialize through the mapping layer to ensure RPC-compatible format
   // and inject the correct campusId from currentMapId
-  const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId)
+  const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId, preState.authoredDocument)
   const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
   // One logical save attempt keeps one mutation id for every transport retry.
   const mutationId = newMutationId()
@@ -1084,6 +1134,7 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        keepalive: true,
         body,
       })
       if (!res.ok) {

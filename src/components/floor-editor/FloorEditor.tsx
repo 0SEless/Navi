@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
@@ -366,11 +366,25 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     }
   }, [viewMode, activeTool, activateTool, CREATION_TOOLS_2_5D])
 
+  const handleManualSave = useCallback(async () => {
+    const workflow = services.get('workflow') as any
+    try {
+      await workflow?.save('manual')
+    } catch (error: unknown) {
+      console.warn('Manual save failed in FloorEditor:', error)
+    }
+  }, [services])
+
   const historyRef = useRef(services.get('history'))
   const dispatcher = services.get('dispatcher')
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !e.repeat) {
+        e.preventDefault()
+        void handleManualSave()
+        return
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.repeat) {
         e.preventDefault()
         if (e.shiftKey) {
@@ -396,7 +410,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [editorMode, selectedId, floorComponents, select, dispatcher])
+  }, [editorMode, selectedId, floorComponents, select, dispatcher, handleManualSave])
 
   const floorCount = building?.floors?.length ?? 0
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
@@ -603,6 +617,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         status={headerStatus}
         statusMessage={headerStatusMessage}
         selectedCount={selectedCount}
+        onSave={handleManualSave}
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
 
