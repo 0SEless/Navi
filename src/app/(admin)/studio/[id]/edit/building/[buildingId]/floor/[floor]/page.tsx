@@ -53,9 +53,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       const ga = new GraphAdapter(state.graph, currentCtx.transformer)
       ga.sync(currentCtx.document, floorScope)
       const nextState = useGraphStore.getState()
-      if (nextState.authoredDocument !== null || currentCtx.document.version > 0) {
-        nextState.setAuthoredDocument(currentCtx.document)
-      }
+      nextState.setAuthoredDocument(currentCtx.document)
     }
 
     const persistenceAdapter: PersistenceAdapter = {
@@ -105,9 +103,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
     new GraphAdapter(graph, context.transformer).sync(context.document, floorScope)
-    if (useGraphStore.getState().authoredDocument !== null) {
-      useGraphStore.getState().setAuthoredDocument(context.document)
-    }
+    useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     useGraphStore.getState().completeCampusHydration()
   }, [context, floorScope])
@@ -142,9 +138,7 @@ function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildi
       const ga = new GraphAdapter(state.graph, context.transformer)
       ga.sync(context.document, floorScope)
       const nextState = useGraphStore.getState()
-      if (nextState.authoredDocument !== null || context.document.version > 0) {
-        nextState.setAuthoredDocument(context.document)
-      }
+      nextState.setAuthoredDocument(context.document)
       useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
       void useGraphStore.getState().save({ trigger: 'autosave' }).catch((error: unknown) => {
         console.warn('Floor editor exit persistence failed:', error)

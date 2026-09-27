@@ -68,9 +68,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const ga = new GraphAdapter(state.graph, ctx.transformer)
     ga.sync(ctx.document, scope)
     const nextState = useGraphStore.getState()
-    if (nextState.authoredDocument !== null || ctx.document.version > 0) {
-      nextState.setAuthoredDocument(ctx.document)
-    }
+    nextState.setAuthoredDocument(ctx.document)
   }
 
   const persistenceAdapter: PersistenceAdapter = {
@@ -184,9 +182,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
     new GraphAdapter(graph, context.transformer).sync(context.document)
-    if (useGraphStore.getState().authoredDocument !== null) {
-      useGraphStore.getState().setAuthoredDocument(context.document)
-    }
+    useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored

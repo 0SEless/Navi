@@ -735,7 +735,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (mapId) get().graph.campusId = mapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     const json = get().graph.toJSON()
-    const persisted = serializeAuthoredGraphPayload(json as unknown as Record<string, unknown>, get().authoredDocument)
+    const currentAuthored = get().authoredDocument ?? useGraphStore.getState().authoredDocument
+    const persisted = serializeAuthoredGraphPayload(json as unknown as Record<string, unknown>, currentAuthored)
     localStorage.setItem(key, JSON.stringify(persisted))
     await get().syncToSupabase({ trigger: options?.trigger })
   },
@@ -1123,9 +1124,8 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   useGraphStore.setState({ syncStatus: 'syncing', syncError: null })
   const snapshot = useGraphStore.getState().graph.toJSON()
   const snapshotHash = graphFingerprint(snapshot)
-  // Serialize through the mapping layer to ensure RPC-compatible format
-  // and inject the correct campusId from currentMapId
-  const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId, preState.authoredDocument)
+  const effectiveAuthored = preState.authoredDocument ?? useGraphStore.getState().authoredDocument
+  const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId, effectiveAuthored)
   const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
   // One logical save attempt keeps one mutation id for every transport retry.
   const mutationId = newMutationId()
