@@ -26,7 +26,7 @@ import { genId } from '@navi/editor'
 import { generateStairGraphicsLatLng, generateElevatorGraphicsLatLng } from '@navi/editor/src/rendering/feature-graphics'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
-import { wallsToExtrusionCollection } from '@navi/editor/src/geometry/wall-to-polygon'
+import { wallsToExtrusionCollection, FLOOR_PRESENTATION_DATUM } from '@navi/editor/src/geometry/wall-to-polygon'
 import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src/geometry/opening-position'
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
@@ -42,6 +42,7 @@ import type { Point2D } from '@/lib/two-point-calibration'
 import { resolveFloorPlanUrl } from '@/services/floor-plan-lifecycle'
 // P4-T1: Canvas editor (behind feature flag)
 import { CanvasViewport, componentsToFloorGeometry, useCanvasViewport, useCanvasEvents, useCanvasSelection, useCanvasEditingAdapter, screenToWorld, hitTestFloor, useMapLibreCamera } from '@navi/editor'
+import { DoorTool } from '@navi/editor/src/tools/door-tool'
 import { StairTool } from '@navi/editor/src/tools/stair-tool'
 import { ElevatorTool } from '@navi/editor/src/tools/elevator-tool'
 import { EntranceTool } from '@navi/editor/src/tools/entrance-tool'
@@ -1067,8 +1068,14 @@ export function FloorEditorCanvas({ building, floor, tool, layers, selectedId, o
         return
       }
 
-      // Build local-space extrusion collection, then transform each polygon to world
-      const localCollection = wallsToExtrusionCollection(fl.walls, fl.elevation)
+      // Build local-space extrusion collection, then transform each polygon to world.
+      // Vertical contract (spec/FLOOR-ELEVATION-ACTIVE-FLOW.md): this view renders
+      // exactly one floor, so the active floor's own base plane IS z=0 — every
+      // renderable (rooms, derived rooms, doors, route edges, plan raster, 2D
+      // overlays) is pinned to the presentation datum, and the wall extrusion must
+      // match. `fl.elevation` is the stacking datum for multi-floor contexts and
+      // is never applied here; authored wall coordinates are untouched.
+      const localCollection = wallsToExtrusionCollection(fl.walls, FLOOR_PRESENTATION_DATUM)
       const worldFeatures: GeoJSON.Feature[] = []
 
       for (const feature of localCollection.features) {
@@ -2719,6 +2726,7 @@ function CanvasFloorView({ building, floorIndex, floorComponents, pathProj, tran
         ? (local) => transformer.buildingLocalToWorld(local, building.id)
         : undefined,
     })
+    canonicalControllerRef.current.registerTool(new DoorTool())
     canonicalControllerRef.current.registerTool(new StairTool())
     canonicalControllerRef.current.registerTool(new ElevatorTool())
     canonicalControllerRef.current.registerTool(new EntranceTool())

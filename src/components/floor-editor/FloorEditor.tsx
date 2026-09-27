@@ -112,7 +112,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   useDocumentVersion()
   const canonicalFloor = editorDoc.buildings
     .find((candidate) => candidate.id === buildingId)
-    ?.floors.find((candidate) => candidate.id === currentFloorId)
+    ?.floors.find((candidate) => (currentFloorId ? candidate.id === currentFloorId : candidate.level === floor))
   const roomIdFingerprint = canonicalFloor ? canonicalRoomIds(canonicalFloor).join('|') : ''
   const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[floor], currentFloorData as any)
   const hasPlan = !!planImageUrl
@@ -146,6 +146,19 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     () => calibrationFrame.corners.map((point) => [point.x, point.y] as Point2D),
     [calibrationFrame],
   )
+
+  // Keep viewport activeBuildingId and activeFloorId synchronized with the active FloorEditor scope
+  useEffect(() => {
+    const vp = viewport as Viewport | undefined
+    if (!vp) return
+    if (typeof vp.setActiveBuilding === 'function' && buildingId && vp.activeBuildingId !== buildingId) {
+      vp.setActiveBuilding(buildingId)
+    }
+    const resolvedFloorId = canonicalFloor?.id ?? currentFloorId
+    if (typeof vp.setActiveFloor === 'function' && resolvedFloorId && vp.activeFloorId !== resolvedFloorId) {
+      vp.setActiveFloor(resolvedFloorId)
+    }
+  }, [viewport, buildingId, canonicalFloor?.id, currentFloorId])
 
   // The editor document can hydrate after this component's first render. Keep
   // the local interaction gate aligned with the persisted floor lock once the
