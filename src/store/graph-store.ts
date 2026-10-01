@@ -37,6 +37,8 @@ interface GraphState {
   authoredDocument: CampusDocument | null
   setAuthoredDocument: (document: CampusDocument | null) => void
   currentMapId: string | null
+  /** Incremented only after a server graph and its local cache are adopted. */
+  serverAdoptionVersion: number
   renderVersion: number
   syncStatus: SyncStatus
   syncError: string | null
@@ -212,20 +214,18 @@ function writeSyncMarker(
   fingerprint: string,
   syncedAt: string,
   serverTimestamp: string | null,
-): void {
+): boolean {
   try {
     localStorage.setItem(syncStatusKey(mapId), JSON.stringify({
       snapshotFingerprint: fingerprint,
       syncedAt,
       serverTimestamp,
     }))
+    return true
   } catch {
     // Best effort: a missing marker only costs an extra server check.
+    return false
   }
-}
-
-function backupKey(mapId: string): string {
-  return `navi-graph-backup-${mapId}`
 }
 
 /** Canonical JSON with sorted keys so JSONB key reordering cannot fake a mismatch. */
@@ -275,6 +275,7 @@ function isServerSnapshotEmpty(data: GraphSnapshot): boolean {
  * epoch must not stamp their acknowledgement onto the new base.
  */
 const campusEpoch = new Map<string, number>()
+const adoptingCampuses = new Set<string>()
 const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
 const bumpCampusEpoch = (mapId: string): void => {
   campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
@@ -305,10 +306,11 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
       storageKey(mapId),
       JSON.stringify(serializeAuthoredGraphPayload(snapshot as unknown as Record<string, unknown>, persisted.authoredDocument)),
     )
-  } catch {
-    // Cache is best effort; the in-memory graph stays authoritative.
+  } catch (error) {
+    throw new Error(`Unable to persist the server version locally: ${error instanceof Error ? error.message : 'storage write failed'}`)
   }
-  writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
+  const markerWritten = writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
+  if (!markerWritten) throw new Error('Unable to record the adopted server revision locally.')
   lastAcknowledgedCollections = collectionsOf(snapshot)
   // Adopting the authoritative snapshot DISCARDS local edits: their pending
   // intents and any queued saves must not resurrect the discarded graph.
@@ -322,6 +324,7 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
     syncStatus: 'synced',
     syncError: null,
     pendingAuthoredMutations: [],
+    serverAdoptionVersion: useGraphStore.getState().serverAdoptionVersion + 1,
   })
 }
 
@@ -397,13 +400,21 @@ async function checkServerFreshness(mapId: string): Promise<void> {
         return
       }
       if (incomingServerTime > lastServerTime) {
-        adoptServerSnapshotData(mapId, data)
+        try {
+          adoptServerSnapshotData(mapId, data)
+        } catch (error) {
+          useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to persist server version locally.' })
+        }
         return
       }
     } else {
       // Legacy markers have no server revision. Preserve established behavior
       // while the next successful response upgrades the marker.
-      adoptServerSnapshotData(mapId, data)
+      try {
+        adoptServerSnapshotData(mapId, data)
+      } catch (error) {
+        useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to persist server version locally.' })
+      }
       return
     }
   }
@@ -423,6 +434,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ authoredDocument: snapshot })
   },
   currentMapId: null,
+  serverAdoptionVersion: 0,
   renderVersion: 0,
   syncStatus: 'idle',
   syncError: null,
@@ -731,6 +743,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   save: async (options?: { trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
+    if (mapId && adoptingCampuses.has(mapId)) throw new Error('Save paused while the server version is being adopted.')
     // Keep graph identity in sync with the active map
     if (mapId) get().graph.campusId = mapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
@@ -759,6 +772,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       throw new Error(unresolvedConflict)
     }
     const mapId = get().currentMapId
+    if (mapId && adoptingCampuses.has(mapId)) throw new Error('Sync paused while the server version is being adopted.')
     if (!mapId) {
       const message = 'Cannot sync without an active map'
       set({ syncStatus: 'error', syncError: message })
@@ -786,6 +800,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       console.warn('[graph-store] reSync: no active map')
       return
     }
+    if (adoptingCampuses.has(mapId)) throw new Error('Re-sync paused while the server version is being adopted.')
 
     if (!options?.force) {
       const data = await fetchServerSnapshot(mapId)
@@ -831,28 +846,37 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   /**
    * Resolve a local/server conflict in favour of the server snapshot.
-   * The unsynced local copy is preserved at `navi-graph-backup-<mapId>`
-   * before the server version replaces it.
+   * The unsynced local copy is replaced only after the user confirms. Do not
+   * duplicate large snapshots in localStorage: quota pressure can block the
+   * authoritative replacement itself.
    */
   adoptServerSnapshot: async () => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
     if (!mapId) return
-    const localRaw = localStorage.getItem(storageKey(mapId))
-    if (localRaw) {
-      try {
-        localStorage.setItem(backupKey(mapId), localRaw)
-      } catch {
-        // Backup is best effort; never block the explicit user action on it.
+    if (adoptingCampuses.has(mapId)) throw new Error('Server adoption is already in progress.')
+    adoptingCampuses.add(mapId)
+    try {
+      // Stop queued local snapshots and let any already-running request settle
+      // before fetching the revision to adopt. This prevents an older POST from
+      // racing the authoritative GET.
+      invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
+      await waitForCampusSavesToSettle(mapId)
+      if (get().currentMapId !== mapId) throw new Error('Server adoption cancelled because Studio navigated to another campus.')
+
+      const data = await fetchServerSnapshot(mapId)
+      if (!data || isServerSnapshotEmpty(data)) {
+        throw new Error('Unable to load the server version. Check your connection and try again.')
       }
+      if (get().currentMapId !== mapId) throw new Error('Server adoption cancelled because Studio navigated to another campus.')
+      adoptServerSnapshotData(mapId, data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to adopt the server version.'
+      if (get().currentMapId === mapId) set({ syncStatus: 'conflict', syncError: message })
+      throw error
+    } finally {
+      adoptingCampuses.delete(mapId)
     }
-    const data = await fetchServerSnapshot(mapId)
-    if (!data || isServerSnapshotEmpty(data)) {
-      const message = 'Unable to load the server version. Check your connection and try again.'
-      set({ syncStatus: 'error', syncError: message })
-      throw new Error(message)
-    }
-    adoptServerSnapshotData(mapId, data)
   },
 
   syncLocalChanges: async () => {
@@ -976,6 +1000,7 @@ interface CampusSaveQueue {
   pendingForce: boolean
   pendingTrigger: SaveTrigger
   waiters: Array<{ resolve: () => void; reject: (reason: unknown) => void }>
+  idleWaiters: Array<() => void>
 }
 
 const campusSaveQueues = new Map<string, CampusSaveQueue>()
@@ -988,6 +1013,7 @@ export function __resetGraphSaveQueuesForTests(): void {
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
   campusEpoch.clear()
+  adoptingCampuses.clear()
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
   useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
@@ -996,10 +1022,21 @@ export function __resetGraphSaveQueuesForTests(): void {
 function getCampusSaveQueue(mapId: string): CampusSaveQueue {
   let queue = campusSaveQueues.get(mapId)
   if (!queue) {
-    queue = { running: false, hasPending: false, pendingForce: false, pendingTrigger: 'manual', waiters: [] }
+    queue = { running: false, hasPending: false, pendingForce: false, pendingTrigger: 'manual', waiters: [], idleWaiters: [] }
     campusSaveQueues.set(mapId, queue)
   }
   return queue
+}
+
+function waitForCampusSavesToSettle(mapId: string): Promise<void> {
+  const queue = campusSaveQueues.get(mapId)
+  if (!queue?.running) return Promise.resolve()
+  return new Promise<void>((resolve) => queue.idleWaiters.push(resolve))
+}
+
+function resolveCampusQueueIdle(queue: CampusSaveQueue): void {
+  const waiters = queue.idleWaiters.splice(0)
+  for (const resolve of waiters) resolve()
 }
 
 function enqueueCampusSave(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
@@ -1026,6 +1063,7 @@ function enqueueCampusSave(mapId: string, force: boolean, trigger: SaveTrigger =
     (error: unknown) => {
       rejectQueuedSaves(queue, error)
       queue.running = false
+      resolveCampusQueueIdle(queue)
     },
   )
   return firstRun
@@ -1048,6 +1086,7 @@ async function drainCampusSaveQueue(mapId: string, queue: CampusSaveQueue): Prom
     }
   }
   queue.running = false
+  resolveCampusQueueIdle(queue)
 }
 
 function rejectQueuedSaves(

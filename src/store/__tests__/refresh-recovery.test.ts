@@ -199,11 +199,13 @@ describe('refresh-during-save recovery', () => {
     useGraphStore.setState({ syncStatus: 'idle', syncError: null })
     const saveA = useGraphStore.getState().save()
     const saveB = useGraphStore.getState().save()
+    const queuedSaveRejection = expect(saveB).rejects.toThrow(/Superseded by authoritative server adoption/i)
 
-    await useGraphStore.getState().adoptServerSnapshot()
+    const adoption = useGraphStore.getState().adoptServerSnapshot()
     releaseGate?.()
+    await adoption
 
-    await expect(saveB).rejects.toThrow(/Superseded by authoritative server adoption/i)
+    await queuedSaveRejection
     await saveA.catch(() => {})
     expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Other Writer Hall')
     expect(readMarker().serverTimestamp).toBe('R9')
