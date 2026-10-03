@@ -3027,3 +3027,9 @@
 - Git transport credential safely tested in memory; authenticated API has admin permission. Default switched master -> release/navi-canonical-2026-10-03: PATCH 200 and verification GET 200.
 - All nine original remote tips unchanged; original branch/HEAD unchanged; full primary porcelain snapshots match exactly (12940 entries). All original worktrees retained.
 - Production smoke server stopped. Report: progress/NAVI-CANONICAL-RECOVERY-2026-10-03.md. Next: push documentation-only audit and verify final SHA/default root.
+
+## 2026-10-03: T4 verified and workflow closed
+- Documentation tip 08480494a93cb69b4f5eaa4c1a919aac30af51a2 equals origin and GitHub API ref; fresh default-root API exposes Next.js package, src/public, lockfile/config at root. Default is release/navi-canonical-2026-10-03.
+- Application tree is byte-identical in Git to tested source 2488ea57ce79d6149c629a1b500d14861e8dcce2. All nine original remote tips and primary 12940-entry dirty snapshot unchanged; all original worktrees preserved.
+- T1–T4 complete within repository-readiness scope. Actual Hostinger import and authenticated Studio editing remain unverified; baseline tests/typecheck limitations documented.
+- This closing commit changes task records only. After its push, final-verify.cjs rechecks final origin/API SHA, default root and preservation gates; final-verification.json in task evidence holds the resulting exact tip.
