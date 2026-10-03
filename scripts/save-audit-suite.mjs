@@ -93,7 +93,9 @@ function loadEnv() {
 const ENV = loadEnv()
 const SUPABASE_URL = ENV.SUPABASE_URL || ENV.NEXT_PUBLIC_SUPABASE_URL || 'https://oltfaepqcktrumfhadzb.supabase.co'
 const SERVICE_KEY = ENV.SUPABASE_SERVICE_ROLE_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9sdGZhZXBxY2t0cnVtZmhhZHpiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjAxMTYwOCwiZXhwIjoyMDk3NTg3NjA4fQ.xqF9_0TJguoSmxl_HjvghVem4TarKUZ3xOV6hL-4QrM'
+if (!SERVICE_KEY) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in the local environment; no fallback secret is embedded in source.')
+}
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY)
 
