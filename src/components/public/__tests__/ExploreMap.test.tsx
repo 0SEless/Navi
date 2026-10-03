@@ -2,14 +2,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { NavigationProvider } from '@/components/map/NavigationContext'
+import type { NavigationMapSceneState } from '@/components/map/NavigationMap'
 import { usePublicStore } from '@/store/public-store'
-import { buildFromCampusBundle } from '@/components/map/NavigationRenderModel'
 import type { CampusBundle } from '@/types/nav-types'
 import type { NavRoute } from '@/types/route-types'
 import ExploreMap from '../ExploreMap'
 
 const navigationCameraProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
-const routeLineProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+const sceneFixture = vi.hoisted(() => ({
+  current: null as NavigationMapSceneState | null,
+  owner: null as symbol | null,
+  publish: vi.fn((owner: symbol, state: NavigationMapSceneState) => {
+    sceneFixture.owner = owner
+    sceneFixture.current = state
+  }),
+  clear: vi.fn((owner: symbol) => {
+    if (sceneFixture.owner === owner) {
+      sceneFixture.owner = null
+      sceneFixture.current = null
+    }
+  }),
+}))
 
 vi.mock('@/components/map/NavigationMap', () => ({
   default: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
@@ -17,19 +30,17 @@ vi.mock('@/components/map/NavigationMap', () => ({
     return <div data-testid="navigation-map">{children}</div>
   },
   useNavigationMap: () => ({ map: null }),
+  useNavigationMapScene: () => ({
+    state: sceneFixture.current,
+    publish: sceneFixture.publish,
+    clear: sceneFixture.clear,
+  }),
 }))
 
 vi.mock('@/components/map/NavigationCamera', () => ({
   default: (props: { surface: string; mode: string }) => (
     <output data-testid="navigation-camera" data-surface={props.surface} data-mode={props.mode} />
   ),
-}))
-
-vi.mock('@/components/map/RouteLine', () => ({
-  RouteLine: (props: Record<string, unknown>) => {
-    routeLineProps.current = props
-    return null
-  },
 }))
 
 vi.mock('@/components/map/FloorSelector', () => ({
@@ -40,40 +51,6 @@ vi.mock('@/components/map/FloorSelector', () => ({
       data-active-floor={String(activeFloor)}
     />
   ) : null,
-}))
-
-vi.mock('@/components/map/layers/BuildingLayer', () => ({
-  BuildingLayer: ({ selectedBuildingId }: { selectedBuildingId?: string }) => (
-    <output data-testid="building-layer-selection" data-selected-building={selectedBuildingId ?? ''} />
-  ),
-}))
-
-vi.mock('@/components/map/NavigationRenderModel', () => ({
-  buildFromCampusBundle: vi.fn(() => ({
-    buildings: [],
-    entrances: [],
-    indoor: {
-      rooms: [],
-      hallways: [],
-      walls: [],
-      stairs: [],
-      elevators: [],
-      doors: [],
-      openings: [],
-      pois: [],
-    },
-  })),
-}))
-
-vi.mock('@/components/map/layers/RoomLayer', () => ({
-  RoomLayer: ({ indoorContext }: { indoorContext?: { active: boolean; buildingId?: string; floorId?: number } }) => (
-    <output
-      data-testid="room-layer-context"
-      data-active={String(indoorContext?.active ?? false)}
-      data-building={indoorContext?.buildingId ?? ''}
-      data-floor={String(indoorContext?.floorId ?? '')}
-    />
-  ),
 }))
 
 const route: NavRoute = {
@@ -130,7 +107,8 @@ afterEach(() => {
     activeFloor: 0,
   })
   vi.clearAllMocks()
-  routeLineProps.current = null
+  sceneFixture.current = null
+  sceneFixture.owner = null
 })
 
 const buildingBundle = {
@@ -170,14 +148,13 @@ describe('ExploreMap public navigation context boundary', () => {
       </NavigationProvider>,
     )
 
-    expect(document.querySelector('[data-nav-segment]')?.getAttribute('data-nav-segment')).toBe('entrance')
-    expect(screen.getByTestId('room-layer-context')).toHaveAttribute('data-active', 'true')
-    expect(screen.getByTestId('room-layer-context')).toHaveAttribute('data-building', 'b1')
-    expect(screen.getByTestId('room-layer-context')).toHaveAttribute('data-floor', '3')
+    expect(sceneFixture.current?.bundle).toBe(bundle)
+    expect(sceneFixture.current?.navigationContext).toMatchObject({
+      navigationSegment: 'entrance',
+      location: { lat: 11.821, lng: 122.168 },
+    })
+    expect(sceneFixture.current?.route).toEqual({ path: route.path, cost: route.totalDistance })
     expect(screen.queryByTestId('explore-floor-selector')).toBeNull()
-    expect(vi.mocked(buildFromCampusBundle)).toHaveBeenCalledWith(expect.objectContaining({
-      floorGeometry: bundle.floorGeometry,
-    }))
   })
 
   it('does not render a permanent floor selector outdoors', () => {
@@ -201,7 +178,6 @@ describe('ExploreMap public navigation context boundary', () => {
 
     expect(screen.getByTestId('explore-floor-selector')).toHaveAttribute('data-floors', '3,2,1')
     expect(screen.getByTestId('explore-floor-selector')).toHaveAttribute('data-active-floor', '2')
-    expect(screen.getByTestId('building-layer-selection')).toHaveAttribute('data-selected-building', 'b1')
   })
 
   it('emphasizes a route target building without activating its indoor context', () => {
@@ -214,17 +190,9 @@ describe('ExploreMap public navigation context boundary', () => {
 
     render(<ExploreMap bundle={buildingBundle} navigationTargetBuildingId="b1" />)
 
-    expect(screen.getByTestId('building-layer-selection')).toHaveAttribute('data-selected-building', 'b1')
-    expect(screen.getByTestId('room-layer-context')).toHaveAttribute('data-active', 'false')
+    expect(sceneFixture.current?.navigationTargetBuildingId).toBe('b1')
+    expect(sceneFixture.current?.navigationContext).toMatchObject({ navigationSegment: 'outdoor' })
     expect(usePublicStore.getState().indoorContext.active).toBe(false)
-  })
-
-  it('passes an absent floorGeometry artifact through safely', () => {
-    render(<ExploreMap bundle={buildingBundle} />)
-
-    expect(vi.mocked(buildFromCampusBundle)).toHaveBeenCalledWith(expect.objectContaining({
-      floorGeometry: undefined,
-    }))
   })
 
   it('exposes only the minimal map controls', () => {
@@ -261,7 +229,7 @@ describe('ExploreMap public navigation context boundary', () => {
     expect(screen.getByTestId('navigation-camera')).toHaveAttribute('data-surface', 'active')
     expect(screen.queryByRole('button', { name: 'Reset map view' })).toBeNull()
     expect(navigationCameraProps.current).toMatchObject({ fitBoundsOnChange: false })
-    expect(routeLineProps.current).toMatchObject({ fitCamera: false })
+    expect(sceneFixture.current).toMatchObject({ fitCamera: false })
     expect(navigationCameraProps.current).toMatchObject({ maxPitch: 85 })
   })
 
