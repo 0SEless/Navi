@@ -5,7 +5,12 @@ import { StudioCanvas } from '../StudioCanvas'
 
 const probe = vi.hoisted(() => ({
   map: null as MockMap | null,
-  studioState: { tool: 'vertex', positionEditTarget: null },
+  studioState: { tool: 'vertex', isVertexEditing: true, positionEditTarget: null },
+  toolRegistry: {
+    activeToolId: 'route',
+    activate: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+  },
   graphState: { graph: { buildings: [] }, rotateBuilding: vi.fn() },
 }))
 
@@ -55,7 +60,7 @@ vi.mock('maplibre-gl', () => ({
 
 vi.mock('@navi/editor', () => {
   const dispatcher = { execute: vi.fn() }
-  const toolRegistry = { activeToolId: 'vertex', activate: vi.fn() }
+  const toolRegistry = probe.toolRegistry
   const services = { get: (id: string) => id === 'dispatcher' ? dispatcher : id === 'toolRegistry' ? toolRegistry : undefined }
   return {
     CAMPUS_TOOL_GROUPS: [],
@@ -110,7 +115,8 @@ vi.mock('../PositionEditHint', () => ({ PositionEditHint: () => null }))
 describe('StudioCanvas pointer-move work', () => {
   afterEach(() => {
     probe.map = null
-    probe.studioState = { tool: 'vertex', positionEditTarget: null }
+    probe.studioState = { tool: 'vertex', isVertexEditing: true, positionEditTarget: null }
+    probe.toolRegistry.activeToolId = 'route'
     vi.clearAllMocks()
   })
 
@@ -153,7 +159,8 @@ describe('StudioCanvas pointer-move work', () => {
   })
 
   it('keeps route snap preview cursor updates active during route authoring', async () => {
-    probe.studioState = { tool: 'route', positionEditTarget: null }
+    probe.studioState = { tool: 'route', isVertexEditing: false, positionEditTarget: null }
+    probe.toolRegistry.activeToolId = 'route'
     const commits: Array<{ phase: string; actualDuration: number }> = []
     render(
       <Profiler id="studio-canvas-route" onRender={(_id, phase, actualDuration) => commits.push({ phase, actualDuration })}>

@@ -59,6 +59,7 @@ import { RotationHandle } from './RotationHandle'
 import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { PositionEditHint } from './PositionEditHint'
+import { useCurrentTool } from './useCurrentTool'
 
 interface StudioCanvasProps {
   center?: { lat: number; lng: number }
@@ -73,7 +74,8 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
   const [altHeld, setAltHeld] = useState(false)
 
   const drawing = useDrawingSession()
-  const activeTool = useStudioStore(s => s.tool)
+  const activeTool = useCurrentTool()
+  const isVertexEditing = useStudioStore(s => s.isVertexEditing)
 
   useVertexEditor(mapInstance)
   useMarkerDrag(mapInstance)
@@ -81,14 +83,7 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
 
   // Phase 3C: Track cursor position and Alt state for snap preview
   useEffect(() => {
-    if (!mapInstance) return
-    if (activeTool !== 'route') return
-    let current = true
-    queueMicrotask(() => {
-      if (!current) return
-      setCursorPos(null)
-      setAltHeld(false)
-    })
+    if (!mapInstance || activeTool !== 'route' || isVertexEditing) return
     const handleMove = (e: maplibregl.MapMouseEvent) => {
       setCursorPos({ lat: e.lngLat.lat, lng: e.lngLat.lng })
     }
@@ -102,12 +97,11 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     return () => {
-      current = false
       mapInstance.off('mousemove', handleMove)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [mapInstance, activeTool])
+  }, [activeTool, isVertexEditing, mapInstance])
 
   useEffect(() => {
     if (mapRef.current) return
@@ -200,7 +194,7 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
       <DrawingSessionProvider value={drawing}>
         {mapInstance && <DrawingOverlay map={mapInstance} />}
         {mapInstance && <PreviewOverlay map={mapInstance} />}
-        {mapInstance && activeTool === 'route' && (
+        {mapInstance && activeTool === 'route' && !isVertexEditing && (
           <SnapPreviewOverlay
             map={mapInstance}
             isActive={true}

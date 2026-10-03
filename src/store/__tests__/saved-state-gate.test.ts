@@ -91,6 +91,8 @@ describe('graph store false-saved gate', () => {
   })
 
   it('case 5: an ACK without a revision and a failed read-back can never show Saved', async () => {
+    vi.useFakeTimers()
+    try {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if (isPost(init)) return jsonResponse({ success: true })
@@ -98,7 +100,10 @@ describe('graph store false-saved gate', () => {
     }))
 
     setClientGraph('Edit A')
-    await expect(useGraphStore.getState().save()).rejects.toThrow(/could not be confirmed/i)
+    const savePromise = useGraphStore.getState().save()
+    const rejection = expect(savePromise).rejects.toThrow(/could not be confirmed/i)
+    await vi.advanceTimersByTimeAsync(47_000)
+    await rejection
 
     const state = useGraphStore.getState()
     expect(state.syncStatus).toBe('error')
@@ -108,9 +113,14 @@ describe('graph store false-saved gate', () => {
       syncStatus: 'error',
       syncError: state.syncError,
     }).label).not.toBe('All changes saved')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('case 6: a malformed ACK can never show Saved', async () => {
+    vi.useFakeTimers()
+    try {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if (isPost(init)) return jsonResponse({ success: true, updatedAt: 42 })
@@ -118,10 +128,50 @@ describe('graph store false-saved gate', () => {
     }))
 
     setClientGraph('Edit A')
-    await expect(useGraphStore.getState().save()).rejects.toThrow(/could not be confirmed/i)
+    const savePromise = useGraphStore.getState().save()
+    const rejection = expect(savePromise).rejects.toThrow(/could not be confirmed/i)
+    await vi.advanceTimersByTimeAsync(47_000)
+    await rejection
 
     expect(useGraphStore.getState().syncStatus).toBe('error')
     expect(deriveFloorHeaderStatus('error', 'saved')).toBe('error')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an A → B → A switch during legacy revision readback cannot relabel or clear the new A session', async () => {
+    let releaseReadback!: (response: Response) => void
+    const readback = new Promise<Response>((resolve) => { releaseReadback = resolve })
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (isPost(init)) return jsonResponse({ success: true })
+      return readback
+    }))
+
+    setClientGraph('Old A edit')
+    const oldSave = useGraphStore.getState().save()
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+
+    useGraphStore.getState().setCurrentMapId('map-b')
+    useGraphStore.setState({ graph: makeGraph('Map B'), syncStatus: 'idle', syncError: null })
+    useGraphStore.getState().setCurrentMapId(MAP_ID)
+    useGraphStore.setState({
+      graph: makeGraph('Reopened A edit'),
+      syncStatus: 'idle',
+      syncError: null,
+      pendingAuthoredMutations: [],
+      campusReady: true,
+    })
+    useGraphStore.getState().recordAuthoredMutation('building', 'reopened-building', null)
+    releaseReadback(jsonResponse({ error: 'read failed' }, 500))
+
+    await oldSave
+
+    expect(useGraphStore.getState().currentMapId).toBe(MAP_ID)
+    expect(useGraphStore.getState().syncStatus).toBe('idle')
+    expect(useGraphStore.getState().syncError).toBeNull()
+    expect(useGraphStore.getState().pendingAuthoredMutations).toHaveLength(1)
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Reopened A edit')
   })
 
   it('case 7: a transport failure can never show Saved', async () => {
@@ -135,7 +185,7 @@ describe('graph store false-saved gate', () => {
       setClientGraph('Offline edit')
       const savePromise = useGraphStore.getState().save()
       const rejection = expect(savePromise).rejects.toThrow(/Offline/)
-      await vi.advanceTimersByTimeAsync(4000)
+      await vi.advanceTimersByTimeAsync(47_000)
       await rejection
 
       const state = useGraphStore.getState()

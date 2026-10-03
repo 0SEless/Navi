@@ -44,17 +44,17 @@ function closestPointOnSegment(
   return { point, distanceMeters: haversine(target, point) }
 }
 
-function movePointOnRoad(
+function moveRoadJunctionPosition(
   points: Array<{ lat: number; lng: number }>,
   junctionPosition: { lat: number; lng: number },
   nextPosition: { lat: number; lng: number },
 ) {
   const previousPoints = points.map((point) => ({ ...point }))
   const movedPoints = points.map((point) => ({ ...point }))
-  const matchRadius = ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
+  const radius = ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
   const matchingVertices = movedPoints
     .map((point, index) => ({ point, index }))
-    .filter(({ point }) => haversine(point, junctionPosition) <= matchRadius)
+    .filter(({ point }) => haversine(point, junctionPosition) <= radius)
 
   if (matchingVertices.length > 0) {
     for (const { index } of matchingVertices) movedPoints[index] = { ...nextPosition }
@@ -69,22 +69,19 @@ function movePointOnRoad(
     }
   }
 
-  if (!closestSegment || closestSegment.distanceMeters > matchRadius) return null
+  if (!closestSegment || closestSegment.distanceMeters > radius) return null
   movedPoints.splice(closestSegment.index + 1, 0, { ...nextPosition })
   return { previousPoints, points: movedPoints }
 }
 
-/**
- * Build one transient or authored move for every road participating in a
- * stored junction. Roads that meet the junction inside a segment receive a
- * vertex at the new shared position so the graph remains geometrically joined.
- */
+/** Build a reversible shared-geometry move for every road in an authored junction. */
 export function buildRoadJunctionMovePlan(
   document: Pick<CampusDocument, 'roads' | 'roadJunctions'>,
   request: RoadJunctionMoveRequest,
 ): RoadJunctionMovePlan | null {
   const junction = (document.roadJunctions ?? []).find((candidate) => candidate.id === request.junctionId)
-  if (!junction || junction.roadIds.length < 2) return null
+  if (!junction || junction.roadIds.length < 2 ||
+      !Number.isFinite(request.position.lat) || !Number.isFinite(request.position.lng)) return null
 
   const previousPosition = { ...junction.position }
   const roadIds = [...new Set(junction.roadIds)]
@@ -93,8 +90,7 @@ export function buildRoadJunctionMovePlan(
   if (request.roadGeometry) {
     const suppliedIds = request.roadGeometry.map((geometry) => geometry.roadId)
     if (new Set(suppliedIds).size !== suppliedIds.length ||
-        suppliedIds.length !== roadIds.length ||
-        roadIds.some((roadId) => !suppliedIds.includes(roadId))) return null
+        suppliedIds.length !== roadIds.length || roadIds.some((roadId) => !suppliedIds.includes(roadId))) return null
 
     roads = []
     for (const roadId of roadIds) {
@@ -114,7 +110,7 @@ export function buildRoadJunctionMovePlan(
     for (const roadId of roadIds) {
       const road = document.roads.find((candidate) => candidate.id === roadId)
       if (!road) return null
-      const geometry = movePointOnRoad(road.polyline.points, previousPosition, request.position)
+      const geometry = moveRoadJunctionPosition(road.polyline.points, previousPosition, request.position)
       if (!geometry) return null
       roads.push({ roadId, ...geometry })
     }
