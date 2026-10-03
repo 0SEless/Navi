@@ -1,0 +1,51 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "location": null,
+    "bytes": 11842,
+    "fatal": false
+  },
+  {
+    "path": "/studio",
+    "status": 307,
+    "location": "/login",
+    "bytes": 6,
+    "fatal": false
+  },
+  {
+    "path": "/map/explore",
+    "status": 200,
+    "location": null,
+    "bytes": 19153,
+    "fatal": false
+  },
+  {
+    "path": "/map/navigate",
+    "status": 200,
+    "location": null,
+    "bytes": 19640,
+    "fatal": false
+  },
+  {
+    "path": "/studio/smoke/edit/building/smoke/floor/0",
+    "status": 307,
+    "location": "/login",
+    "bytes": 6,
+    "fatal": false
+  },
+  {
+    "path": "/api/graph",
+    "status": 400,
+    "location": null,
+    "bytes": 33,
+    "fatal": false
+  },
+  {
+    "path": "/api/panorama-resolve",
+    "status": 400,
+    "location": null,
+    "bytes": 41,
+    "fatal": false
+  }
+]

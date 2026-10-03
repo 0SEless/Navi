@@ -1,0 +1,65 @@
+{
+  "originalHead": "46fee09e26fb488940648d009b219b2cd1dc20ae",
+  "originalBranch": "feature/voicecode",
+  "originalDirtyStatusUnchanged": true,
+  "beforeStatusEntries": 12940,
+  "afterStatusEntries": 12940,
+  "originalBranches": [
+    {
+      "branch": "master",
+      "before": "3244020ae1b204805c3c00bc3d0ab386e8a9ac29",
+      "after": "3244020ae1b204805c3c00bc3d0ab386e8a9ac29",
+      "unchanged": true
+    },
+    {
+      "branch": "feature/voicecode",
+      "before": "46fee09e26fb488940648d009b219b2cd1dc20ae",
+      "after": "46fee09e26fb488940648d009b219b2cd1dc20ae",
+      "unchanged": true
+    },
+    {
+      "branch": "release/navi-phase3a1-2026-09-22",
+      "before": "f14b8be31c6b60ba20a472a99c0b0543c8fa45dd",
+      "after": "f14b8be31c6b60ba20a472a99c0b0543c8fa45dd",
+      "unchanged": true
+    },
+    {
+      "branch": "release/navi-modern-baseline-2026-09-19",
+      "before": "306d5ebec33d0064f5774a8b1cd52c7e07a616b4",
+      "after": "306d5ebec33d0064f5774a8b1cd52c7e07a616b4",
+      "unchanged": true
+    },
+    {
+      "branch": "release/navi-auth-fix-2026-09-19",
+      "before": "0b4a3b5ea7d0fb6d3378b6ea62ffcb53bef553a9",
+      "after": "0b4a3b5ea7d0fb6d3378b6ea62ffcb53bef553a9",
+      "unchanged": true
+    },
+    {
+      "branch": "recovery/deployment-provenance-2026-09-15",
+      "before": "404c37bb9985c304b7aaaa89be25adf79ff59a03",
+      "after": "404c37bb9985c304b7aaaa89be25adf79ff59a03",
+      "unchanged": true
+    },
+    {
+      "branch": "codex/building-delete-persistence",
+      "before": "5193355b1706aa811bac7c8b151d49e706d02744",
+      "after": "5193355b1706aa811bac7c8b151d49e706d02744",
+      "unchanged": true
+    },
+    {
+      "branch": "codex/building-creation-confirmation",
+      "before": "a0c5f072582c6a3a111151b24808ac413503c2ea",
+      "after": "a0c5f072582c6a3a111151b24808ac413503c2ea",
+      "unchanged": true
+    },
+    {
+      "branch": "fix/floor-editor-persistence-2026-09-27",
+      "before": "bead5101fc853959f99f7aabcdba72423f48f839",
+      "after": "bead5101fc853959f99f7aabcdba72423f48f839",
+      "unchanged": true
+    }
+  ],
+  "canonicalLocalSha": "2488ea57ce79d6149c629a1b500d14861e8dcce2",
+  "canonicalRemoteSha": "2488ea57ce79d6149c629a1b500d14861e8dcce2"
+}

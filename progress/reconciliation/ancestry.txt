@@ -1,0 +1,483 @@
+* bead510 (HEAD -> release/navi-canonical-2026-10-03, origin/fix/floor-editor-persistence-2026-09-27, fix/floor-editor-persistence-2026-09-27) fix(studio): make server adoption atomic and invalidate stale editor state
+| * 46fee09 (origin/feature/voicecode, feature/voicecode) docs(floor-editor): log floor-plan deletion guard and alignment callback fix
+* | 473bbbb fix(floor-editor): shared floor-plan deletion guard and alignment commit callback
+* | b72ffd1 docs(progress): log full saving module stabilization and live vercel verification
+* | 00556cf fix(audit): disambiguate ToolDock Door tool button selector from Outliner group header
+* | 8092a8a feat(editor): export FLOOR_PRESENTATION_DATUM in wall-to-polygon
+* | 1cc29d8 fix(floor-editor): register DoorTool on canonical controller and sync viewport active scope
+* | 5b28ea6 fix(persistence): serialize and expose authoredDocument in /api/graph and graph-snapshot-serializer
+* | c30a793 fix(persistence): unconditionally hydrate authoredDocument and prevent empty snapshot overwrite
+* | 62cc69f fix(persistence): resolve save conflicts, keepalive quota, and mount freshness gating
+* | dfa226a fix(persistence): ship authored-snapshot module chain so clean deploys resolve setAuthoredDocument
+* | 6951930 fix(floor-editor): persist doors and interior edits across reload with keepalive and manual save
+* | 1d0546d docs(persistence): log review outcome, push, and production deploy evidence
+* | 37539b6 fix(persistence): harden floor/interior persistence with scope-strict identity reuse
+* | 0c20e02 fix(floor-editor): unblock persistence with hydration readiness and authored save intent
+* | a2cb9ef docs(360): record independent Cloudflare verification of the ingested object
+* | 766f4c7 docs(360): log panorama ingestion readiness (commit, deploy, live E2E evidence)
+* | cce7628 feat(360): add presigned panorama ingestion API (sign/complete/resolve)
+* | 3946e85 docs(r2): log R2 endpoint deployment and production verification
+* | b56743d feat(r2): add server-side R2 connectivity test endpoint
+| * 3c037f0 docs(360): record phase 3 data contract hardening
+* | 3db675b fix(360): harden panorama data contracts
+| * 33287ef docs(360): record live publish acceptance gate
+* | 048fb6b fix(360): preserve panorama hotspot data and artifact contracts
+| | * f14b8be (origin/release/navi-phase3a1-2026-09-22) fix(studio): keep road vertex drags responsive
+| | * 469e3d9 fix(editor): preserve stable route projection identities
+| | * 05c4750 fix(editor): recover legacy route graph before projection
+| | * c20e91b diag(save-sync): add safety guard provenance logging
+| | * 36981f0 test(studio): cover normal save acknowledgement lifecycle
+| | * 42eea82 fix(studio): finalize save recovery lifecycle
+| | | * 306d5eb (origin/release/navi-modern-baseline-2026-09-19) perf(map): persist campus scene across map routes
+| | | *   646a023 Merge commit 'd4a1ccb1e5af907aa43cf2b3c285a699c246d52d' into release/navi-modern-baseline-2026-09-19
+| | | |\
+| | | |/
+| | |/|
+| | * | d4a1ccb fix(studio): guard stale recovery results after save
+| | | * 605a9de perf(map): persist runtime and cache explore render model
+| | |/
+* | | 8cfad38 fix: keep road vertex drags under pointer
+| | * 3f5277d fix: recover transient save acknowledgements automatically
+| | * 867c535 fix(studio): preserve canonical reload status
+| | * 564c157 fix(studio): classify canonical reload convergence
+| | * a634a13 fix(studio): record authored intent for normal autosave
+| | * b13a46a refactor(studio): persist canonical authored campus snapshots
+| | * 92ac9f0 fix(studio): finalize building creation confirmation
+| | * 5193355 (origin/codex/building-delete-persistence, integration/navi-save-sync-canonical) fix(studio): persist building deletes through graph sync
+* | | a0c5f07 (origin/codex/building-creation-confirmation) fix(studio): finalize building footprint after save
+| | * 91e56a5 fix(studio): make sync recovery converge after reload
+| | * 0b4a3b5 (origin/release/navi-auth-fix-2026-09-19) docs: close post-recovery convergence workflow
+| | * 4468444 fix(studio): preserve authoritative graph during mount hydration
+| | * 8e3309c fix(studio): skip hydration-only teardown projection
+| | * d7e8bc4 fix(studio): keep document and graph state converged across reload
+| | * add0a7b fix(studio): wire autosave gate to drag interactions
+| | * f0bcd7e fix(studio): auto-resume safe local-ahead sync
+| | * 0ee95ec fix(studio): wire autosave gate to editor interactions
+| | * ad8739e fix(studio): gate autosave on transient interaction (phase 3C part 1: unified 5s/30s eligibility)
+| | * 1dd36c0 fix(studio): separate local draft persistence from server sync
+| | * 3954efb fix(studio): compose recovery supersession with session guards
+* | | e25b2f4 fix(studio): make sync recovery converge after reload
+| | * d4921c0 fix(studio): move sync recovery into view issues
+* | | a60b934 fix(studio): move sync recovery into view issues
+| | * 7747268 fix(studio): keep recovery actions visible in header
+| | * 0b5b530 fix(studio): expose safe re-sync for preserved local changes
+| |/
+|/|
+* | 567ef2b fix(studio): refresh-during-save recovery — safe 'Sync Changes' retry reusing the existing guarded save path (no force overwrite, no new endpoint); CASE A auto-heal verified, CASE C divergence preserved
+* | 2e0d7b0 fix(studio): campus-bounds traverses array-shaped boundary/point collections — valid campus boundary was ignored (isRecord rejects arrays), falling through to building geometry; boundary-first camera now works generically
+* | c2d0071 P0 final: canonical building-link verification tests A-G against the real findBuilding resolver + exact FloorOutliner route expression (7/7)
+* | 35992a0 P0 final: canonical building route identity — URL-encode buildingId/mapId in the only Studio building/floor route builder (Next decodes params to the exact canonical lookup)
+* | 7839b8a P0.15: readiness lifecycle test matrix A-E (begin/switch/load-failure/not-ready-block/ready-save) pinned against real store lifecycle
+* | ba93bae P0.14: readiness lifecycle as shared store actions (beginCampusHydration/completeCampusHydration) wired at load/switch boundaries + EditorBridge completion; fixtures model the same lifecycle
+* | 75b5af6 P0.13: runtime autosave trigger wiring (EditorBridge persistence adapters) + campusReady READY_CLEAN transition at EditorBridge reconciliation + save() trigger pass-through
+* | 31c4d7b P0.12: CASE E fail-closed with campus-scoped safety isolation + real save-entry attribution test matrix (A/B/C/E)
+* | d253560 P0.11: authored-intent instrumentation at persistent edit boundaries + save-trigger/readiness plumbing + guard wiring (CASE E enforcement suspended pending harness decision)
+* | 4de1b92 P0.10: authored mutation intent module + union-scope save-approval semantics (additive, no behavior change)
+* | ce50eaa test(safety): fix guard test import path to src/lib
+* | 1ade027 feat(safety): identity+scope cross-scope destructive-save guard (not count-based) with matrix tests
+* | c0bdd8d test(editor): isolated reconciliation matrix (idempotence, scope preservation, delete/add, dangle diagnostics)
+* | 8167642 fix(editor): scope-aware canonical reconciliation wrapper prevents scoped sync from deleting/duplicating out-of-scope graph content (P0.5)
+* | e885320 fix(editor): scope-aware door merge prevents partial projections from replacing canonical doors (P0)
+* | 058822e feat(studio): generic one-shot campus auto-framing (boundary -> buildings -> route nodes)
+* | a4e39bf feat(import): reference-aware entity-ID namespacing for canonical campus import
+* | ac0296f fix(persistence): normalize legacy outdoor route-node sentinel to NULL at relational boundary
+* | f6abc95 test(auth): use synchronous client mock in middleware authorization matrix
+* | 7134094 test(auth): cover non-admin/admin route authorization matrix
+* | 08aaf76 fix(auth): enforce canonical admin authorization on protected pages
+* | a26488e fix: preserve runtime fixture bytes on checkout
+* | 1c425d6 test: store runtime fixtures byte-exact (CRLF) for checksum verification
+* | 66d67a7 test: repair canonical runtime fixture contract (byte-stable fixtures; remove generated demo-output residue)
+* | 19c8398 test: remove obsolete unguarded e2e/debug scripts (superseded by campus-guard hardened scripts)
+* | 0d635e7 test: add referenced e2e guard scripts and canonical pipeline fixture outputs
+* | 62b8693 test: close test-infrastructure inputs (ci-compat workflow, e2e guard scripts, runtime fixtures)
+* | bc19163 stabilize: remove superseded (admin)/login route replaced by /login
+* | 92879a6 stabilize: root workspace configuration and dependencies
+* | 6853dbe stabilize: migrations
+* | 1682f16 stabilize: tests
+* | abe43ec stabilize: src app+lib+engine+components+store+services
+* | c8a6b5c stabilize: packages/editor
+* | 1850c0f stabilize: packages/publisher
+* | 4ca9d98 stabilize: packages/runtime
+* | f903bcb stabilize: packages/compiler
+* | 6f4f977 stabilize: packages/core
+| | * 404c37b (origin/recovery/deployment-provenance-2026-09-15) chore(recovery): close clean P0 deployment source graph
+| |/
+|/|
+| * 597a07a docs(p0): record stabilization deployment, external blockers, and clean-tree deploy limitation
+| * c943794 docs(p0): record production sync stabilization and guard bulk SQL cleanup
+* | 6e3ed5b fix(studio): stabilize graph sync and isolate production tests
+* | 0eb37e8 fix(floor-editor): guard no-op reconcile, copy door angle, ignore Ctrl+Shift+D
+* | c0d8856 fix(editor): heal stale door ownership and add reconcile predicate
+* | 0820454 fix(editor): ignore degenerate ring edges in room containment
+* | c532f80 test(e2e): verify room hierarchy, reconcile and door duplication
+* | d243d48 feat(floor-editor): duplicate door via panel and Ctrl+D
+* | 41547a5 feat(editor): door.duplicate with room-ownership re-evaluation
+* | b84301e fix(floor-editor): restore Hallways group in floor outliner
+* | a79adbc feat(floor-editor): room-first outliner hierarchy
+* | b437565 feat(floor-editor): auto and manual room-ownership reconcile
+* | c897a2f feat(editor): door.ownership.reconcile command
+* | 63ed7d7 fix(floor-editor): canonical room identity in projection and inspector
+* | 771ec3b fix(editor): canonical room ids in ownership and door validation
+* | b6e8e3e feat(core): canonical room identity helpers
+* | 7faba85 test(e2e): target a non-connector edge in the route junction proof
+* | b2721f3 fix(floor-editor): surface rejected junction commits via onRouteStartRejected
+* | 61b595e fix(editor): reject door connector edges as junction targets
+* | 0e37f95 fix(floor-editor): reveal route layers on door pick and pass clicks through the route toast
+* | 8bec805 test(e2e): verify route junctions and door segment connects in the browser
+* | 5174260 fix(compiler): narrow PrimitiveEdge union in junction BFS test
+* | b8a2312 test(compiler): prove traversal through junction topology
+* | 7e202a0 test(editor): round-trip junction topology and door route connections
+* | b958839 fix(floor-editor): restore anchor Entrance access when a direct-assign finish fails
+* | 5bccba4 fix(floor-editor): restore anchor Entrance access when a finish hand-off is cancelled
+* | 9eee883 feat(floor-editor): finish routes at Entrances with explicit access assignment
+* | 64ca8ed fix(floor-editor): pass building-local segment position to door.route.connect
+* | 03fcd98 feat(floor-editor): door connects to route line through junction pick mode
+* | 6eb3e10 fix(floor-editor): consume route connection prompt when route commits
+* | 395f433 feat(floor-editor): confirm route segment connections in canvas
+* | 130e491 feat(floor-editor): route finish targets with segment confirmation
+* | 53e3d5e fix(editor): guard door.route.disconnect rejoin against authored corners and live references
+* | c335935 feat(editor): door.route.disconnect with orphan junction rejoin
+* | 3380fe8 feat(editor): door.route.connect supports segment junctions
+* | f15ad36 fix(editor): route.path.create failure rollback covers journal and version
+* | 9bcf16a feat(editor): route.path.create connects through shared junctions
+* | de823a4 feat(editor): add atomic route edge split helper
+* | df14c8d fix: keep drag-pan guard when a Route drawing is cancelled
+* | c00c088 fix: disable drag-pan while Route authoring keeps presses as clicks
+* | 71faaf0 fix: stop dropping fast Route corner clicks on detail>1
+* | 573fbca test: reproduce dropped Route vertex on fast corner clicks
+* | a16ba2d feat(floor-editor): stabilize indoor authoring workflows
+* | aa7ed14 fix: FOV cone replaces arrow, green theme color, view mode toggle, compass permission always available, dev simulation removed
+| * 727975f fix: FOV cone replaces arrow, green theme color, view mode toggle cycles, compass permission always available, dev simulation removed
+* | 2c405c4 fix: navigation camera - error handler, POV/FOLLOW pitch, zoom per mode, recenter fix
+* | 8329208 docs: specify Phase 4 Capture Library
+* | 6b23b65 feat(editor): mint Staircase/Elevator feature entities from legacy per-floor records in createDocument
+* | c86212d fix(core): rename level-geometry polygonCentroid to vertexCentroid, register module in core index
+* | ca272e4 feat(editor,core): resolveLevelGeometry bridge + parametric-types relocation to @navi/editor
+* | 3b89842 feat(core): serialize Staircase/Elevator feature entities with dual-shape read and write
+* | 4e14666 feat(core): add Staircase/Elevator feature entities with per-level geometry
+* | d78d085 refactor(inspector): remove Navigate tab, Routing and Diagnostics only
+* | 8b4ebf1 refactor(inspector): move search fields to Routing tab, simplify Navigate to directions-only
+* | c87bee6 refactor(inspector): unify layout — always-visible sidebar with Navigate/Routing/Diagnostics tabs
+* | ab10cd2 fix(inspector): remove style tag that caused parse error in RouteTesting.tsx
+* | 16def66 fix(map): wait for style load before adding sources/layers
+* | 137c797 feat(inspector): add Navigation Preview mode with buildings, search, and directions
+* | f118387 feat(map): extract BoundaryLayer and EntranceLayer
+* | 7bcf6a7 feat(map): create NavigationMap composable shell with context
+* | bc1ec4e feat(map): extract BuildingLayer as reusable MapLibre layer
+* | 6e9768b feat(inspector): polish — edge labels, empty state, sync status, keyboard shortcuts
+* | d8168d5 feat(inspector): add node inspector, hover tooltips, click-to-inspect with pan/zoom
+* | 4a42da2 feat(inspector): auto-route on pin change, remove manual Run button
+* | 5f873de feat(inspector): add draggable pins with snap visualization
+* | 2d0b4f1 feat(inspector): add route inspector with graph traversal display
+* | 5699bf2 feat(inspector): add graph overlay with degree-based node sizing and type colors
+* | b049f14 feat(inspector): add graph health, validation banner, and published snapshot
+* | bd121cf feat(inspector): rename RouteTesting to NavigationInspector with tab skeleton
+| * 8c7c313 chore: update navi-next submodule (public map app — explore/search/navigate/QR/runtime, hydration fixes)
+* | 4f99e4a docs: log public map app completion (T1-T8) and hydration/stale-server errors
+* | 01db75c fix(public): gate onboarding overlay behind hydration to stop SSR mismatch
+* | db609fb fix(public): gate localStorage-derived recents behind hydration to stop SSR mismatch
+* | 0085734 style(public): mobile polish pass on explore/search/navigate
+* | 58b448d fix(runtime): route-from-here nearestEntrance fallback + artifact test hardening
+* | cfbbacb fix(runtime): wire RuntimeMapShell to current engine API and harden artifacts route
+* | 177c37b fix(public): QR cross-campus guard and stable scanner handlers
+* | 4489a40 fix(public): floor switching now highlights active floor on map (review F1-F3)
+* | a5a19fc feat(public): navigate page with route planning, deep-link params, and campus store migration
+* | eea6737 feat(public): campus map components for route planning (route line, floor selector, QR scanner, location share)
+* | 3639ed5 feat(public): campus route-planning helpers (search, location resolver, QR payload)
+* | 8922eab feat(public): search page with building-grouped results
+* | 2f0da68 fix(public): close building footprint rings so outlines render fully
+* | 0b38c5a feat(public): explore campus map with building footprints and detail panel
+* | 3c756be chore: regenerate demo artifacts from asu-ibajay campus document (36 nodes, 69 edges, 27 search entries)
+* | ad053f8 feat(public): add campus data layer to public store (fetch/search/route)
+* | a70ba4e fix(editor): repair 7 pre-existing test failures (properties panels + FloorEditor185)
+* | a44aad6 chore: remove as any casts in ToolDock tests
+* | 8ca09e6 fix(studio): add toolId dep to CampusBoundary main effect
+* | d80b6b9 fix(studio): only report success when buildings actually dispatched
+* | 8702552 fix(studio): fix toast timer race in showImportToast
+* | 54c3fbb fix(editor): remove phantom I shortcut on import parent tool
+* | 43a1354 fix(studio): narrow map type in CampusBoundary completePolygon closure
+* | 3e2b9c4 feat(editor): add import parent tool with drop-up sub-tools in ToolDock
+* | b1d46b2 feat(studio): wire OSM import and boundary tools with auto-confirm + toast
+* | 6af19c6 feat(studio): add ImportToast notification component
+* | ff77228 feat(studio): add useOsmImportTool hook for OSM building import
+* | eb65d83 feat(studio): add autoConfirm mode to useCampusBoundary
+| * c30565c fix: review findings — import placement, test coverage, click-away behavior
+* | b6e1b33 fix: review findings — import placement, test coverage, click-away behavior
+| * 68e00a4 feat: road entity UX redesign — color, bridge, width, select/edit, properties
+* | fb0e8dc feat: add color picker and Edit Road button to RoadProperties
+* | 369e402 feat: single-click selects road, double-click enters vertex editing
+* | cc3e337 feat: add centralized roadWidthExpression() with zoom-dependent rendering
+* | fb50392 fix: bridge selectedTraceId to SelectionManager for Properties Panel
+* | 1198317 fix: persist road metadata (color) on creation
+| * f16161d docs: add road entity UX redesign spec
+* | 4a8c1e4 revert: all cursor SVG experiments, back to native OS cursors
+* | f9cbf25 Revert "feat: custom SVG grab cursor with 5-finger hand + black outline, visible against any background"
+* | 2de00bc feat: custom SVG grab cursor with 5-finger hand + black outline, visible against any background
+* | a69b829 fix: use default (arrow) cursor instead of MapLibre grab cursor in select mode — the OS grab cursor is invisible against white/yellow backgrounds
+* | 93f7c88 Revert "feat: custom SVG pointer cursor with black outline (visible against any background)"
+* | 90a3643 feat: custom SVG pointer cursor with black outline (visible against any background)
+* | 712fdd9 fix: default to select (Navigate) tool on Studio mount so cursor/entity hover works immediately
+* | 6639c8d fix: cursor now changes to pointer when hovering any entity in select mode (buildings, nodes, traces)
+* | 972bd0e fix: remove data expression from fill-extrusion-opacity (not supported by MapLibre)
+* | b79a467 chore: remove unused s-building-hover source/layers (replaced by setFeatureState)
+* | 0b21b08 fix: use setFeatureState for building hover highlight + selection overlay in Studio
+* | affd02f feat: add building hover highlight and selection overlay to Studio canvas
+* | 01265bf fix: add floor-buildings-fill to selectable/hover layers for building click and hover feedback
+* | 713e3f7 test: update ToolDock expectations to match merged select+pan tool groups
+* | c3cfc14 feat: add click-to-select and hover highlight to FloorEditorCanvas
+* | 3926cd3 feat: remove panMode state and Space bar pan from FloorEditor
+* | b664273 feat: merge select+pan into single navigate tool in tool groups
+* | f6f6eab Floor Editor: Point Entity Editing & Core UX
+* | 84da2bf docs: update PROGRESS.md with RC-POLYGON-ENGINE completion
+* | 80b601d feat(polygon): freeze EditablePolygon API — breaking changes require ADR
+* | 23ec913 feat(polygon): add polygon constraints module (vertex validation, min edge, min area, deduplicate)
+* | d5bfd2f feat(polygon): add PolygonOverlay with MapLibre GL vertex/edge/midpoint rendering
+* | 049b5f3 feat(polygon): add PolygonRenderer with configurable SVG style
+* | 10969d5 feat(polygon): add useEditablePolygonEditor hook with session state, operations, undo/redo history
+* | 2e43a22 feat(polygon): add editing operations (setVertex, moveVertex, insertVertex, deleteVertex, closePolygon)
+* | 656a640 feat(polygon): add PolygonEngine.normalize() — dedup, winding normalization, invariant guarantee
+* | 48452ed feat(polygon): add EditablePolygon types + pure PolygonEngine (create, clone, edges, area, perimeter, boundingBox, centroid, winding)
+* | 70bbc73 docs: apply 10 spec refinements — ring/vertex IDs, edge abstraction, pure analysis, hard/soft constraints, undo/redo AC, compatibility, future integration
+* | ab71c49 docs: add ADR-016 Geometry Engine Principles and RC-POLYGON-ENGINE spec
+* | fa9660c docs: update PROGRESS.md with RC-3 Diagnostic Engine
+* | b14c60f feat(diagnostics): add useDiagnostics hook and DiagnosticsPanel UI
+* | e09fe80 feat(diagnostics): add DiagnosticEngine with provider orchestration
+* | b89fe19 feat(diagnostics): add topology rules (stair, elevator, entrance)
+* | a0c84ef feat(diagnostics): add parameter diagnostics provider
+* | 218a907 feat(diagnostics): extract evaluateConstraints, delegate from ParametricEngine
+* | 8687ad5 feat(diagnostics): add topology thresholds config
+* | 374ac35 feat(diagnostics): add Diagnostic types and interfaces
+* | 5297b81 RC milestone: Linear Geometry Engine verified
+* | 08f9df1 fix: make FloorPlanAlignment crash-proof
+* | 6547ddf fix: guard alignment mode on floor plan presence
+* | 223b958 P2: Floor plan alignment mode
+| * e16487d chore: update navi-next submodule (P1 — Unified Selection System)
+* | d068381 fix: P1 — Unified Selection System (canvas + inspector reactivity)
+| * 20a5b71 chore: update navi-next submodule (boundary rendering)
+* | d763ad7 fix: render saved boundary on the editor map
+| * fd0cdec chore: update navi-next submodule (road delete node cleanup)
+* | 69975a6 fix: clean up graph nodes on road delete
+* | f2f1f9d docs: update PROGRESS.md with all 3 bug fixes live-verified
+| * 88b20f4 chore: update navi-next submodule (building save fix)
+* | e572bf2 fix: add missing connectorStops and height to floor in ConfirmOverlay building handler
+| * b0ebbea chore: update navi-next (road color fix + ConfirmBar fix)
+* | b031f9e fix: road color defaults and ConfirmBar Road Width visibility
+| * 81768ca chore: update navi-next submodule (road rendering + bug fixes)
+* | 2ae7875 fix: shared road paint definitions + two-layer rendering + color inheritance
+* | 3a39a00 Fix BuildingTracer/CampusBoundary loop: remove drawing from useEffect deps
+* | 7ac6f0a Fix stale closure: use drawingRef.current for all drawing.* calls in event handlers
+* | 2ca073d T5b-f: Road rendering improvements — RoadStyle, two-layer rendering, width clamping
+* | ecaad2c T3: Keyboard shortcuts — wire useToolDockShortcuts, add Ctrl+Z/Enter handlers
+* | 24d0648 T2: Auto-close polygons — first-vertex snap detection in BuildingTracer and CampusBoundary
+* | 0654e8d T1: Unify drawing state — InteractionController/BuildingTracer/CampusBoundary use drawing context instead of zustand
+* | 511fd41 fix: complete CurrentToolStore migration, boundary persistence, road->route naming
+| * 277b6dd fix(editor): <label> pattern for floor plan upload
+* | dd756c3 fix(editor): use <label> pattern for floor plan upload
+| * 4d4c8c1 feat: building height control, cursor fix, floor plan upload, state tracking
+* | 243729e feat(editor): floor plan upload with lifecycle state tracking per spec
+* | cc5331d fix(editor): whole floor row clicks to expand, not just the arrow
+* | 711a248 feat(editor): add floor plan upload to Manage Floors dialog
+* | 6d754a1 fix(studio): use OS-native cursors instead of custom SVGs
+* | 209e9d9 fix(studio): improve cursor visibility on any map background
+* | 3e7343d feat(editor): replace roof height with editable building extrusion height
+* | b547a1d feat: floor height model — Floor.height, Building.roofHeight, computed elevation
+* | 712ef8d fix(FloorManagerDialog): sort floors descending by level
+* | ab939ec fix: pass buildingId prop to FloorManagerDialog, fix campus ToolDock staleness
+* | a1b22b4 RC1: T1-T3 - floor.reorder, dead UI actions, Building->Interior entry
+| * 2b88031 fix: register missing building.editInterior command handler
+* | 93803b8 fix: register missing building.editInterior command handler
+| * 981ebdc (tag: v0.12-adr011-accepted) docs: accept ADR-010 and ADR-011, draft Publisher Architecture
+| * 57600fd (tag: milestone/m1-studio-core-verified, tag: checkpoint/pre-stabilization, tag: checkpoint/m1-1-recovery-verified) checkpoint: update navi-next submodule to pre-stabilization state
+* | 4b0153d checkpoint/pre-stabilization: uncommitted compatibility fixes
+* | a0a2f91 docs: product vision and completion roadmap
+* | bb99a14 fix(walking-skeleton): integration test mock fetch URL parsing and manifest schema version
+* | b9205a5 feat(web): add Runtime Verification Page at /demo/navigate
+* | 02bff2e feat(editor): wire CampusCompilerAdapter and add Publish button to toolbar
+* | 3a71cdb feat(editor): add CampusCompilerAdapter for editor→compiler bridge
+* | 8a52a9b feat(scripts): add E2E walking skeleton verification script
+* | e1d8fac feat(editor): add Golden Campus factory for E2E testing
+* | 89cc2ed test(editor): add incremental validation tests
+* | 121dacf feat(editor): implement incremental validation with affinity filtering and snapshot merge
+* | 167e44c feat(editor): add affinity to AnalysisPass, add rulesReused to statistics
+* | 786cae1 feat(editor): record EntityChange on every command handler mutation
+* | 2e0ecf9 fix(editor): add version: 0 to all test document factories
+* | 1f4c1fe feat(core): add version and change journal to CampusDocument
+| | * 71b199d (refs/stash) WIP on feature/voicecode: 18711b5 M2.9 remaining FloorEditor review findings (4 fixed)
+| |/|
+| | * 1ddbef8 index on feature/voicecode: 18711b5 M2.9 remaining FloorEditor review findings (4 fixed)
+| |/
+* | d206e09 spec: freeze M3.4.1 as Accepted with final polish items
+* | 659af74 spec: incorporate M3.4.1 review refinements (contexts, session lifecycle, overlay priority, invariants)
+* | 2e5ca19 spec: M3.4.1 Editor Interaction & Workspace Specification
+* | 1e68539 test(publish): add integration tests for publish pipeline
+* | 43ba508 feat(publish): add usePublish hook and integrate WorkflowCard
+* | e7239c3 refactor(workflow): remove publish() from WorkflowService, move to PublishService
+* | ee4734f feat(publish): wire PublishStore and PublishService into editor context
+* | c15c284 fix: add publish.completed and workflow.saved to EditorEventType
+* | 96525f2 feat(publish): add PublishService with state machine
+* | bd53fa0 feat(publish): add PublishStore with reactive state
+* | 35c6e53 test: add validation integration tests with all validators wired
+* | e32c253 feat: wire ValidationService into editor context, deprecate old WorkflowService.validate()
+* | 0d9c3ad feat: add Problems Panel component with severity grouping and entity focus
+* | 4635a96 feat: add ValidationService with reactive debounced validation
+* | 82329e0 feat: update existing validators with cost, new issue fields, and expanded entity coverage
+* | 909c90e feat: add entrance-connectivity, floor-metadata, road-connectivity, and reference validators
+* | b76ff43 feat: extend ValidationRegistry with cost, groups, and updated ValidationIssue contract
+* | a5040cb feat: add ValidationStore with snapshot API and summary computation
+* | 536a30b spec: M3.3.3 validation engine + problems panel design
+| * 18711b5 (tag: p1.1-complete, tag: architecture-validation-baseline) M2.9 remaining FloorEditor review findings (4 fixed)
+* | 75bc9b4 fix(floor-editor): M2.9 — fix 4 remaining review findings
+| * 15d15d8 M2.8 FloorEditorCanvas bugfixes (7 findings fixed)
+* | 318dba5 fix(floor-editor): M2.8 — fix 7 FloorEditorCanvas bugs from component review
+* | e5e6db4 feat(studio): M2.7 migrate FloorEditor UI state to editor services
+* | cf9ab52 refactor(studio): M2.6 decompose StudioCanvas into editor subsystems
+* | 05c70d8 feat(studio): M2.1 re-enable StudioToolbar in StudioWorkspace
+* | 06a2565 refactor(studio): M2.1 migrate StudioToolbar to editor architecture (unmounted)
+* | 4fdb3d6 refactor(studio): T8 extract InteractionController — all pointer and keyboard event handling
+* | 0366fe9 feat(studio): T7 add useToolController hook — bridges tool completion to CommandDispatcher
+* | f0591ef refactor(studio): T6 extract ViewportController — sole owner of MapLibre camera methods
+* | 001e488 refactor(studio): T5 extract DrawingOverlay + PreviewOverlay from StudioCanvas
+* | 452d23a refactor(studio): T4 extract SelectionOverlay — sole owner of map.setFeatureState()
+* | a61091b refactor(studio): T3 extract ConfirmBar from StudioCanvas inline JSX
+* | 36eb2e6 feat(studio): T2 create DrawingSession hook + context for ephemeral editing state
+* | 61079b0 feat(editor): extend Viewport service with camera command API (flyTo, fitBounds, easeTo, reset, zoomToSelection)
+* | 085a83e chore(studio): T0 freeze current StudioCanvas as StudioCanvas.legacy.tsx (896-line reference)
+* | ea84c42 docs: M2.6 StudioCanvas implementation plan (12 tasks)
+* | c8faf6e docs: M2.6 StudioCanvas migration design (approved v1)
+* | d1efa49 feat(editor): M2.5 WorkflowCard — persistent workflow orchestration panel
+| * 5e68342 chore: update submodule + progress for M2.4 Selection Integration
+* | 280c573 feat(editor): complete M2.4 Selection Integration — click→select→inspect triangle
+| * c289d7d feat: M2.1 selection architecture + M2.2 projections (6 commits)
+* | 7d2eda7 docs: add M2.1 UI Integration Layer spec and plan
+* | cbac53d feat(core): add SelectionBridge (two-way sync) and WorkspaceContext
+* | 268d577 feat(core): add useSelection React hook wrapping SelectionManager
+* | 9428d6b feat(core): upgrade SelectionManager with EntitySelector, mode, origin, onChange
+* | 38694ca feat(explorer): add CampusDocument to ExplorerNode tree projection
+* | e84c961 feat(core): add EntityId brand and EntitySelector discriminated union types
+| * 4d31512 docs: M2.3 Inspector Migration complete; Phase 4 reframed as Navigation Compiler
+* | 17b741c docs(explorer): M2.3 Inspector Migration spec + plan (approved v3)
+* | 3fd2a8f test(explorer): M2.3 T6 integration tests for Inspector + full verification
+* | 2189430 refactor(explorer): M2.3 T5 relocate legacy inspector cluster to studio/legacy
+* | 9e8e663 feat(explorer): M2.3 T4 mount PropertiesPanel inside single EditorBridge
+* | 9aa3555 feat(explorer): M2.3 T3 connect SelectionBridge (canvas ↔ SelectionManager)
+* | a20bc0c feat(explorer): M2.3 T2 version-driven re-render for Explorer + Inspector
+* | 00b3784 feat(explorer): M2.3 T1 wire DocumentStore + dispatcher + history into EditorBridge
+* | 9ae78cd feat(explorer): wire Explorer into StudioWorkspace via EditorBridge
+* | 33fbac1 fix(explorer): fix T9 review issues - campus Delete removal + outside-click handler order
+* | 9c642b6 feat(explorer): add context menu with rename/delete actions
+* | 5dd1444 fix(explorer): include Explorer.tsx onRename forwarding in T8 commit
+* | 2c917db feat(explorer): add inline rename with double-click
+* | 3836c46 feat(explorer): add ExplorerAdapter + ExplorerPanel container
+* | 5ad358c feat(explorer): add Explorer root component with search and tree
+* | d7104fd feat(explorer): add useExplorerView hook for UI state
+* | bdedd4e feat(explorer): add ExplorerSearch component
+* | b1a6328 feat(explorer): add ExplorerTree recursive component
+* | 3e7289f feat(explorer): add ExplorerItem component
+| * a96d13e feat(explorer): submodule update — export ExplorerNode types from editor package
+* | 3427c0f feat(explorer): export ExplorerNode types from editor package
+* | 252f22e feat(editor): M1.2 — EditorService framework with typed registry and service lifecycle
+| * 6c5ba85 feat: submodule update — M1.1 scoped validation (7 files, 20 new tests)
+* | 7d7da30 feat(editor): M1.1 — scoped validation with ValidationEngine + ScopeRouter
+| * f8eb67b feat(compiler): milestone — CompilerStagePlugin system + architecture checkpoint
+* | 4ce0097 feat(compiler): add CompilerStagePlugin system with 6 pipeline stages
+* | 9762d63 fix(db): graph sync FK null building_id, RLS read policies, function search paths
+* | bd912e5 test(compiler,runtime): Waves 2-6 coverage — 51 new tests
+* | 2b2aa84 fix(compiler,runtime): B8/B9/B10 compiler bugs + turn detection fix
+* | de4db0e fix(api): B1 — OSM default radius 0.02, B2 — campus-maps POST body normalization
+* | c86dcf8 release: v1.0.0 — release notes, checklist, version bump
+* | b0f58e8 feat(m6): Wave 4 — End-to-End Demonstration
+* | d39a6b1 feat(m6): Wave 2 — Deployment Pipeline
+* | 17134fb feat(m6): Wave 1 — Production Hardening
+* | a3c190e feat(runtime): implement Wave 5 - Presentation components
+* | dc6c685 feat(runtime): implement Wave 4 - Positioning Engine
+* | 397b8d9 feat(runtime): implement Wave 3 - Routing Engine
+* | 85d0dcf feat(runtime): implement Wave 2 - Search Engine
+* | 8ffaafd feat(runtime): implement M5 Wave 1 Foundation
+* | 32e5364 feat(runtime): scaffold @navi/runtime package
+* | 76724f9 chore(compiler): restructure package for pipeline architecture
+* | 850b3c0 fixup: address architectural feedback on M4 plan
+* | c3be5d2 feat(compiler): add extractor interface, coordinator, and compile context
+* | de954f7 feat(compiler): add package scaffolding and shared types
+* | 4d4f2ab feat: add Phase 2 HomeDashboard with greeting, quick actions, recents, emergency overlay
+* | 7315e81 chore: add public components barrel export
+* | 70ab2f1 feat: replace (public)/map with mobile shell route group
+* | 21ee697 feat: add AdaptiveShell layout wrapper with URL sync
+* | 0b47f8e fix: change duration-400 to duration-500 (valid Tailwind class)
+* | b02f53d feat: add SplashOnboarding 3-step carousel overlay
+* | 5dce1f4 feat: add AdaptiveNav with bottom nav and sidebar variants
+* | aa59718 feat: add public-store with tab, sheet, and onboarding state
+| * c9accaa docs: add mobile UI design spec from Stitch prototype
+| * fbd965b fix(route): address review findings across all route tasks
+* | 53bf3c3 fix(route): address review findings - stale traceId, edge cleanup test, layer snapshot, extend adjacent ref, midpoint size
+| * 8e98c52 feat(route): endpoint drag extends route instead of moving vertex
+* | 0070452 feat(route): endpoint drag extends route instead of moving vertex
+| * caa8f51 feat(route): auto-show node layers during vertex editing
+* | 63565fd feat(route): auto-show node layers during vertex editing
+| * 7e7e24f fix(route): removeTrace handles shared junction nodes via traceIds
+* | c123199 fix(route): removeTrace handles shared junction nodes via traceIds
+| * f67c466 fix(route): fix vertex midpoint filter and enlarge handles to 8px
+* | c1ec7ed fix(route): fix vertex midpoint filter and enlarge handles to 8px
+| * 3244020 (origin/master, origin/HEAD, master) fix(voicecode): thread safety, error handling, and cleanup
+| * 4b04bc9 docs(voicecode): add usage README
+| * c291324 feat(voicecode): add tray app with hotkey
+| * 3427c30 fix(voicecode): protect _audio_frames with threading.Lock
+| * 78a9e73 scaffold VoiceCode task 1: VoiceTranscriber module
+* 6b9b6ac fix: enable Nodes layer by default, apply visibility toggles to map layers
+* 0b83893 feat: NodePropertiesPanel — select a node on map, click Edit Vertices to edit its route
+* 562a746 Revert "fix: prevent map click handler from deselecting trace in vertex edit mode"
+* 289bf9e fix: prevent map click handler from deselecting trace in vertex edit mode
+* 0d478b4 feat: route intersection auto-connect, vertex recompile, node selection highlight
+* 5f8cf5a feat: replace building adjust with drag-to-move
+* f948aa2 feat: add Adjust button to re-trace building footprints
+* f5e522f fix: building tool vertex visibility, style-switch survival, delete persistence
+* e537a05 fix: vertex editing dragPan conflict, save without exiting
+* e1b3269 fix: route width, white color, immediate render, vertex editor integration
+* a0ea860 fix: patch 10 bugs across studio, store, and figma components
+* 44a39ef fix: move fallbackBuilding setState to useEffect to prevent render-time setState
+* 8b8dffb fix: add missing useRef import in MetadataPanel
+* a2fbe56 feat: floor editor canvas with layer toggles, vertex drag, 90 tests
+* f199bc9 fix(studio): wire satellite toggle via layers store, fix route tool to use trace engine
+* 4a56201 fix(studio): resolve create→edit crash, disable supabase sync, use saved map center
+* 886f976 fix: resolve type system rot and studio component bugs
+* 0083841 fix: add fallback style for MapLibre when OSM tiles fail
+* fd3e045 fix: add MapLibre error handling for style load failures
+* ec745a9 fix: stable selectors for landmarkTypes/Instances to prevent infinite renders
+* 14daa07 fix: repair corrupted MetadataPanel syntax
+* 6e2a8b1 fix: use Graph internal Map size instead of getter arrays to prevent infinite renders
+* a64dbca debug: add console logs to trace React error #185
+* 1004c92 fix: RightPanel missing activeBuildingId and buildings destructuring
+* 1d0ae13 fix: addTrace destructure, campus-map Supabase sync, StoreInitializer, login hydration
+* 70d4da6 fix: remove center from Building per spec, patch downstream callers
+* e819b23 fix: remove unauthorized Building fields, make center optional
+* 22377bf feat: add canonical type definitions
+* 0583c6c chore: baseline commit before plan execution
+* 125a593 fix: address review findings - hook tests, Building type, PanoramaViewer CSS
+* 29f2a03 feat: add geolocation hook for GPS positioning
+* 58072ab feat: add route line visualization with glow + core + flow
+* 2aa51b2 feat: add 360 panorama viewer component
+* f9ed682 feat: add QR scanner component
+* 4d13269 feat: add 2.5D building extrusion on CampusMap
+* 31be134 feat: add spatial resolver for GPS and QR snapping
+* c66a596 feat: add canonical type definitions
+* 108f7a1 chore: initial scaffold from create-next-app
+* a805af2 fix: resolve lint errors - type Graph and Building instead of any
+* 3595bfd feat: add NAVI Studio route under admin
+* 3032745 feat: add NAVI Studio workspace layout, canvas, panels, and toolbar
+* 3d0a3fd feat: add public map view with routing
+* 22dd538 feat: add studio Zustand store for NAVI Studio state
+* a905e6b feat: add floor plan upload API endpoint
+* 8af1906 feat: extend graph store with trace and polygon room operations
+* b0b8cb0 feat: extend Graph with trace operations and new edge types
+* e3ac381 feat: component compiler emits polygon geometry for rooms
+* 3ce732d feat: add trace compiler for polyline-to-graph conversion
+* e530552 feat: add intersection engine for trace auto-node generation
+* 5584f1f fix: remove unrequested panoramaUrl field from NavNode
+* 26035da feat: extend types for NAVI Studio - TracePath, FloorPlan, new edge types, polygon rooms
+* 527f742 docs(auth): add Google OAuth setup guide for Supabase
+* 4d372f9 refactor(auth): remove client-side auth redirect from admin layout (middleware handles it)
+* 232dd67 feat(auth): replace login form with Google OAuth, delete mock data files
+* 87a0e54 feat(auth): rewrite AuthProvider with Supabase session, update useAuth and types
+* 24afbff feat(auth): create OAuth callback route at /auth/callback for code exchange
+* 10410f1 feat(auth): create middleware.ts with Supabase session-based route protection
+* 245e038 feat(auth): install @supabase/ssr, create browser/server clients, fix API route inline
+* e758250 chore: initial commit — current project state before Supabase Auth

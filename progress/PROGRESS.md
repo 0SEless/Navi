@@ -2981,3 +2981,49 @@
 - **Errors hit and logged:** `renderTable()` reading a non-existent field (report/exit-code crash), a batch edit dropping `const deduped = []`, and a C2 evidence note printing `undefined` - all three appended to `errors/ERRORS.md`.
 - **Next:** dispatch the app-fix workstream against the C1/C2/F1/F6 evidence (deployment of the pending persistence fix is the leading hypothesis), then re-run `node scripts/save-audit-suite.mjs` expecting C1/C2 to flip to PASS.
 
+
+## 2026-10-03: Canonical recovery T1 inventory
+- Repository: C:/Users/Administrator/Desktop/CODEme/Navi; primary feature/voicecode at 46fee09, dirty and preserved.
+- Safe fetch completed; exact tips/root packages/merge-bases/cherry classifications in reconciliation/matrix.json; ancestry in reconciliation/ancestry.txt.
+- New native worktree created; canonical branch created from bead510 for audit, subject to final base selection.
+- Verification: remote fetch exit 0; root app present on modern branches; wrapper master/voicecode lack root package.json; two unrelated roots confirmed.
+- Next: finish per-feature disposition and reconcile missing functionality.
+
+## 2026-10-03: T2 map-runtime caching import
+- Cherry-picked 605a9de as 4d6d684; no conflicts and no overlapping base edits.
+- Verification: 4 suites, 27 tests passed, exit 0 (reconciliation/map-cache-tests.log).
+- Next: preserve the dependent persistent campus-scene commit, then port persistence with newer floor safeguards.
+- Baseline: full untouched suite 6071 passed / 34 failed / 8 skipped, exit 1; public-only production build exit 0.
+
+## 2026-10-03: T2 persistent scene import
+- Cherry-picked 306d5eb as 3844780; six suites and 34 tests pass, exit 0 (reconciliation/map-scene-tests.log).
+- Missing persistence/legacy route functionality identified commit-by-commit in matrix.json. Preview: 13 identical files, 41 clean ports, 16 conflicting files explicitly resolved in resolved-port.json.
+- Resolution preserves floor-session invalidation, authored hydration, keepalive size guard, scoped floor graph reconciliation, scope-strict prior trace identities, and atomic adoption. Road drag uses the release's coherent newer handler/helper/test contract.
+- Next: apply exact resolved source/test paths, run the affected regression suites, and compare to baseline failures.
+
+## 2026-10-03: T2 compatibility evidence
+- Atomic-adoption fixtures updated to release active saves before awaiting adoption, preserving the stale queue/marker assertions.
+- Dirty-floor lifecycle and bounded-retry suites: 10 tests passed, exit 0.
+- Production-road fixture also fails against the untouched bead510 GraphAdapter: expected 3 redundant edges, observed 0. Classified KNOWN BASELINE FAILURE; original strict fixture assertion retained, not weakened.
+- Next: complete-suite comparison and final build/runtime verification. TypeScript parse failure remains verified baseline; no new type-check success claim.
+
+## 2026-10-03: T2 verified reconciliation and T3 verification evidence
+- Complete suite: 6188 passed, 34 failed, 8 skipped. 33 failures match bead510; the additional imported production-road fixture was separately reproduced with unchanged bead510 GraphAdapter. Three collection failures match baseline exactly (two absent golden-campus imports and routing fixture setup).
+- Original floor-plan deletion guard failure now passes. No introduced functional regression found in the executed complete suite.
+- Publisher: 108/2 under jsdom; server-side Node run 110/0, exit 0. Classified TEST INFRASTRUCTURE FAILURE for the jsdom realm equality issue.
+- Build: npm ci exit 0; npm run build with public-only child inputs exit 0. Public values never copied into source or logs.
+- Lint: exact base comparison shows the same 14 errors (refs/legacy any); obsolete new backup helper warning removed. Baseline TypeScript parse error remains, so type checking is not certified.
+- Runtime read-only GET: /, /map/explore, /map/navigate 200; Studio/floor routes 307 login; invalid API GETs 400, no fatal response. Authenticated Studio acceptance remains outside available localhost session.
+- Graph update exit 0: 12574 nodes, 27513 edges; graph HTML skipped automatically due size.
+- Next: final source checks, source/document commit, push exact verified SHA, remote and default-branch gate.
+
+## 2026-10-03: T3 final verification gate
+- Final production build exit 0; final store/editor selection 219 passed, 1 verified baseline fixture failure; exact lint comparison unchanged (14 existing errors), exit 0 for comparison. Graph update exit 0 (12577 nodes, 27516 edges).
+- Full executed failure classifications saved individually in reconciliation/failure-classification.json; no new functional regression found. Authenticated Studio and complete TypeScript validation remain unverified for the documented reasons.
+- T3 verified; T4 active. Preventing: unstaged store dependencies, unverified remote SHA, and independent Git/API authentication failures.
+
+## 2026-10-03: T4 publish/default/safety verification
+- Source commit 2488ea57ce79d6149c629a1b500d14861e8dcce2 pushed without force; freshly fetched origin SHA matches and root framework verified.
+- Git transport credential safely tested in memory; authenticated API has admin permission. Default switched master -> release/navi-canonical-2026-10-03: PATCH 200 and verification GET 200.
+- All nine original remote tips unchanged; original branch/HEAD unchanged; full primary porcelain snapshots match exactly (12940 entries). All original worktrees retained.
+- Production smoke server stopped. Report: progress/NAVI-CANONICAL-RECOVERY-2026-10-03.md. Next: push documentation-only audit and verify final SHA/default root.

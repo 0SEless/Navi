@@ -1,33 +1,29 @@
-# PLAN: Floor Editor Door & Interior Persistence Across Reload and Tab Close
+# NAVI canonical reconciliation plan
 
-## Tasks
+Goal: Add a verified canonical deployment branch while preserving every recovery point.
+Execution: Sequential native execution, as explicitly requested. Spec: spec/SPEC.md.
+Global constraints: no force-push, reset, branch/tag/worktree deletion, production data mutation, or primary-tree edits.
 
-### T1: Harden Graph Store Network Transport & Commit Store Dependencies
-- **Description**: Add `keepalive: true` to `fetch('/api/graph', ...)` in `performSyncToSupabase` (`src/store/graph-store.ts`). This allows unload/exit requests to finish even when the user closes the tab or window immediately. Confirm `src/store/graph-store.ts` has `setAuthoredDocument` and full serialization so Vercel builds cleanly without runtime TypeErrors.
-- **Files to touch**: `src/store/graph-store.ts`
-- **Acceptance check**: `fetch('/api/graph')` includes `keepalive: true`. Vitest graph store tests pass.
-- **Error prevention**: "Preventing: In-flight network aborts on tab unload dropping un-synced edits; preventing missing export runtime TypeError on production deployment."
+T1 — Forensic inventory and relationship audit.
+Files: progress/reconciliation/*, progress/PROGRESS.md, errors/ERRORS.md.
+Acceptance: fetched tips; ancestry and patch-equivalence; root package versions; every unique commit classified; primary dirty-state snapshot.
+Preventing: duplicated patches, lost dirty state, misleading evidence summaries.
 
-### T2: Attribute Authored Mutations on `document.changed` in `FloorEditorBridge`
-- **Description**: In `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`, update the `document.changed` event listener in `FloorEditorBridge` to call `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)`. This ensures that any autosave or exit flush triggered after an edit has its mutation attributed before the P0.11 guard evaluates the candidate.
-- **Files to touch**: `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`
-- **Acceptance check**: `document.changed` listener attributes floor mutation intent.
-- **Error prevention**: "Preventing: P0.11 save guard blocking un-attributed floor mutations during autosave; preventing empty pending intent array from dropping autosave."
+T2 — Reconcile missing relevant work.
+Files: exact source/test paths from each reviewed commit recorded in progress/reconciliation/matrix.json; spec/SPEC.md; plan/PLAN.md; TODO-CANONICAL.md; progress/*; errors/ERRORS.md.
+Acceptance: deliberate cherry-pick or port with individual verification; no blind merge; preserve floor/wall/routing/persistence contracts. Before each import, read ERRORS.md.
+Preventing: reverting newer authored persistence, incomplete store dependencies, obsolete topology changes.
 
-### T3: Add Explicit Save Button and Keyboard Shortcut in `FloorEditor`
-- **Description**: In `src/components/floor-editor/FloorEditor.tsx`, add an explicit Save button in the header toolbar next to the status badge, and attach a `Ctrl+S` / `Cmd+S` keyboard shortcut. When clicked/triggered, it invokes `workflow.save('manual')`.
-- **Files to touch**: `src/components/floor-editor/FloorEditor.tsx`
-- **Acceptance check**: Save button renders with active status (`Save`, `Saving...`, `Saved`), and `Ctrl+S` triggers `workflow.save('manual')`.
-- **Error prevention**: "Preventing: User confusion over whether changes are saved before closing the tab; preventing unhandled keyboard events."
+T3 — Install and verification.
+Files: generated node_modules/.next; progress/reconciliation/*; progress/PROGRESS.md; errors/ERRORS.md.
+Acceptance: npm ci, build, full existing Vitest suite plus omitted relevant suites, operational lint, production GET smoke checks. Compare failures to untouched base. No production writes.
+Preventing: skipped TypeScript validation, baseline failure misclassification, unverified runtime readiness.
 
-### T4: Verification Test for Door Placement and Server Round-Trip
-- **Description**: Add / run an automated test that places a door in `floor.doors`, synchronizes via `GraphAdapter`, serializes snapshot with authored document, and validates that `authored_document` retains the door and the P0.11 guard approves the save.
-- **Files to touch**: `packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts`
-- **Acceptance check**: Vitest test passes 100%.
-- **Error prevention**: "Preventing: Regressions in door serialization or coordinate transformations."
+T4 — Commit, push, remote/default/Hostinger readiness and safety audit.
+Files: documentation and graph update outputs only; amend source plan before any necessary repair.
+Acceptance: pushed SHA equals tested SHA; root app verified from origin; change default only with all prior gates passed and authenticated supported path; every original branch survives; original dirty-state comparison; explicit Hostinger detection scope.
+Preventing: claiming remote operations succeeded without evidence, stale SHA, CLI auth confusion.
 
-### T5: E2E and End-to-End Persistence Verification
-- **Description**: Run test battery to verify that door persistence, floor creation, and graph store methods operate correctly.
-- **Files to touch**: Test logs and verification scripts.
-- **Acceptance check**: All targeted vitest suites pass.
-- **Error prevention**: "Preventing: False positive verification; verifying with concrete output."
+T2 repair scope amendment: src/components/studio/__tests__/InspectorMigration.test.tsx (reset authored fixture/session); imported src/store/__tests__/recovery-supersession.test.ts, refresh-recovery.test.ts, local-ahead-auto-resume.test.ts, local-draft.test.ts (adapt to atomic wait/retry/guarded floor unload contracts); packages/editor/src/__tests__/phase3a-authored-state.test.ts (correct explicitly lossy characterization); building-color-routing-persistence.test.tsx (assert current deduplicated projection).
+
+T2 diagnostic amendment: temporary packages/editor/src/graph-adapter.baseline.ts and src/store/__tests__/canonical-baseline-diagnostic.test.tsx compare the imported production-road fixture against unmodified bead510 GraphAdapter. These temporary diagnostic files must not enter the release commit.

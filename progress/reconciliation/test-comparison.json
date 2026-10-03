@@ -1,0 +1,33 @@
+{
+  "baseline": {
+    "passed": 6071,
+    "failed": 34
+  },
+  "canonical": {
+    "passed": 6188,
+    "failed": 34,
+    "skipped": 8
+  },
+  "oldFailureCount": 33,
+  "newFailures": [
+    {
+      "file": "src/store/__tests__/building-color-routing-persistence.test.tsx",
+      "name": "legacy route graph survives ordinary building edits and normal save keeps production-shaped trace-road IDs stable through a building color edit",
+      "message": "AssertionError: expected +0 to be 3 // Object.is equality"
+    }
+  ],
+  "collections": [
+    {
+      "file": "__tests__/walking-skeleton.test.ts",
+      "message": "Failed to resolve import \"../packages/editor/src/demo/golden-campus\" from \"__tests__/walking-skeleton.test.ts\". Does the file exist?"
+    },
+    {
+      "file": "src/engine/__tests__/routing-runtime-validation.test.ts",
+      "message": "expected false to be true // Object.is equality"
+    },
+    {
+      "file": "src/services/__tests__/compiler-adapter.test.ts",
+      "message": "Failed to resolve import \"../../../packages/editor/src/demo/golden-campus\" from \"src/services/__tests__/compiler-adapter.test.ts\". Does the file exist?"
+    }
+  ]
+}

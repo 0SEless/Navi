@@ -1,0 +1,36 @@
+
+> navi@1.0.0 test
+> vitest run src/store/__tests__/canonical-baseline-diagnostic.test.tsx -t production-shaped trace-road IDs --maxWorkers=1
+
+
+ RUN  v4.1.9 C:/Users/Administrator/.codex/worktrees/navi-canonical-2026-10-03/Navi
+
+ ❯ src/store/__tests__/canonical-baseline-diagnostic.test.tsx (2 tests | 1 failed | 1 skipped) 67ms
+     × keeps production-shaped trace-road IDs stable through a building color edit 66ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/store/__tests__/canonical-baseline-diagnostic.test.tsx > legacy route graph survives ordinary building edits and normal save > keeps production-shaped trace-road IDs stable through a building color edit
+AssertionError: expected +0 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 0
+
+ ❯ src/store/__tests__/canonical-baseline-diagnostic.test.tsx:440:46
+    438|     graph.campusId = MAP_ID
+    439|     new GraphAdapter(graph).sync(document)
+    440|     expect(removeRedundantEdges(graph, 218)).toBe(3)
+       |                                              ^
+    441|
+    442|     expect(document.roads).toHaveLength(19)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 skipped (2)
+   Start at  12:23:52
+   Duration  4.21s (transform 2.16s, setup 225ms, import 2.62s, tests 67ms, environment 768ms)

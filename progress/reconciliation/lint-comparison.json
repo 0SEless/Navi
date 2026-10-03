@@ -1,0 +1,183 @@
+[
+  {
+    "file": "src/store/graph-store.ts",
+    "base": [],
+    "current": []
+  },
+  {
+    "file": "packages/editor/src/graph-adapter.ts",
+    "base": [],
+    "current": []
+  },
+  {
+    "file": "src/components/studio/EditorBridge.tsx",
+    "base": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 165,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 176,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 350,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 362,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 365,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 377,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 378,
+        "severity": 2
+      }
+    ],
+    "current": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 267,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 283,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 491,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 503,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 506,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 518,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 519,
+        "severity": 2
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/InteractionController.tsx",
+    "base": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 25,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 27,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 29,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 31,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 55,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 588,
+        "severity": 2
+      }
+    ],
+    "current": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 25,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 27,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 29,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 31,
+        "severity": 2
+      },
+      {
+        "rule": "react-hooks/refs",
+        "line": 59,
+        "severity": 2
+      },
+      {
+        "rule": "@typescript-eslint/no-explicit-any",
+        "line": 660,
+        "severity": 2
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/StudioCanvas.tsx",
+    "base": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 144,
+        "severity": 2
+      }
+    ],
+    "current": [
+      {
+        "rule": "react-hooks/refs",
+        "line": 138,
+        "severity": 2
+      }
+    ]
+  },
+  {
+    "file": "src/components/studio/useVertexEditor.ts",
+    "base": [],
+    "current": []
+  },
+  {
+    "file": "src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx",
+    "base": [],
+    "current": []
+  }
+]

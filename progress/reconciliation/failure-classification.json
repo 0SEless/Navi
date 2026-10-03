@@ -1,0 +1,258 @@
+[
+  {
+    "file": "__tests__/e2e-safety.test.ts",
+    "test": "automated test safety guards requires every playwright-driven .mjs script to import the environment guard",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: scripts missing the environment guard import: scripts\\save-audit-suite.mjs: expected [ 'scripts\\save-audit-suite.mjs' ] to deeply equal []"
+  },
+  {
+    "file": "src/engine/__tests__/legacy-campus-recovery.test.ts",
+    "test": "legacy campus recovery (fixture copy) detects the legacy contacts, recovers high-confidence ones, routes and persists",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected 18 to be 20 // Object.is equality"
+  },
+  {
+    "file": "src/engine/__tests__/persisted-junction-topology.test.ts",
+    "test": "persisted junction topology routes through a persisted junction after reload",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "src/engine/__tests__/shared-junctions.test.ts",
+    "test": "Phase 2 — Explicit Shared Junctions four-road junction creates junction(s) connecting all four roads",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected 0 to be greater than or equal to 1"
+  },
+  {
+    "file": "src/store/__tests__/building-color-routing-persistence.test.tsx",
+    "test": "legacy route graph survives ordinary building edits and normal save keeps production-shaped trace-road IDs stable through a building color edit",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Imported production-road fixture separately reproduces expected 3 / actual 0 with untouched bead510 GraphAdapter; road-baseline-diagnostic.log.",
+    "message": "AssertionError: expected +0 to be 3 // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/compile-v2-integration.test.ts",
+    "test": "compileV2 integration completes the full pipeline and returns CompileResultV2 with all fields",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/compile-v2-integration.test.ts",
+    "test": "P1-T9: levels-based stair/elevator emission (R8.4) emits one node per floor present in levels (F0/F2, no F1) at per-level positions",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/compile-v2-integration.test.ts",
+    "test": "P1-T10: floor-geometry artifact (R6.1/R6.3/R6.4) emits a versioned floor-geometry artifact with the building world anchor (R6.1/R6.3)",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/compile-v2-integration.test.ts",
+    "test": "P1-T13: QR index artifact (R10.2) emits a versioned qrIndex mapping every checkpoint to its building/floor/position",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/compile-v2-regression.test.ts",
+    "test": "compile regression (pre-M5 compatibility) compileV2 also succeeds on pre-M5 document",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/phase-6-cross-producer-parity.test.ts",
+    "test": "Phase 6 — Cross-producer topology parity FIXTURE 9: legacy unmarked document — both producers preserve compatibility",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/phase-6b-canonical-contract.test.ts",
+    "test": "Phase 6B — Canonical contract correction FIXTURE 2: legacy geometry-only — both producers infer from geometry",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/phase-6b-canonical-contract.test.ts",
+    "test": "Phase 6B — Canonical contract correction FIXTURE 3B: legacy geometry infers P2 when the same road pair is separated at P1",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected [] to have a length of 1 but got +0"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/published-artifacts-pipeline.test.ts",
+    "test": "Published Artifacts Pipeline Integration compileV2 produces complete buildingIndex with footprint and floorPlanUrls",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/published-artifacts-pipeline.test.ts",
+    "test": "Published Artifacts Pipeline Integration compileV2 searchIndex includes building and room entries",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/reconstructed-pipeline.test.ts",
+    "test": "Reconstructed pipeline: compiler → publisher compiler output compiles successfully",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/reconstructed-pipeline.test.ts",
+    "test": "Reconstructed pipeline: compiler → publisher publisher output writes all expected artifact files",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/reconstructed-pipeline.test.ts",
+    "test": "Reconstructed pipeline: compiler → publisher publisher output no fields disappear between compiler and publisher",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "Error: ENOENT: no such file or directory, open 'C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\navi-pipeline-test-8MJr5n\\test-campus\\building.json'"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 1. Compiler pipeline produces a valid NavigationGraph compilation succeeds",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 4. Entrance bridge edges connect outdoor to indoor Building A has a walk edge from outdoor node to entrance node",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected undefined to be defined"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 6. A* finds a path: Outdoor → Entrance → Floor 1 → Stair → Floor 2 → Room A* path exists from Building A outdoor node to Room 201 (Floor 2)",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected null not to be null"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 6. A* finds a path: Outdoor → Entrance → Floor 1 → Stair → Floor 2 → Room A* path crosses floors (contains nodes on both Floor 1 and Floor 2)",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "TypeError: Cannot read properties of null (reading 'path')"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 6. A* finds a path: Outdoor → Entrance → Floor 1 → Stair → Floor 2 → Room A* path includes a stairs edge type",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "TypeError: Cannot read properties of null (reading 'path')"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 6. A* finds a path: Outdoor → Entrance → Floor 1 → Stair → Floor 2 → Room A* path produces valid route with distance > 0",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected null not to be null"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 7. A* finds a path: Building A → Building B via outdoor road A* path exists from Building A outdoor to Building B outdoor",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected null not to be null"
+  },
+  {
+    "file": "packages/compiler/src/__tests__/w11c-navigation-compiler-gate.test.ts",
+    "test": "W11C — Navigation Compiler Compatibility Gate 8. Gap analysis — W10/W11 entities NOT processed by compiler compiler works WITHOUT RouteNetwork, EntranceAccess, VerticalTransition",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "packages/editor/src/__tests__/routing-validation.test.ts",
+    "test": "R1 | Outdoor → Building → Room R1.1: entrance nodes connect to BOTH the road network and the hallway",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected [] to include 'hallway'"
+  },
+  {
+    "file": "packages/editor/src/__tests__/routing-validation.test.ts",
+    "test": "R1 | Outdoor → Building → Room R1.3: route road node → Room 101 door passes through the entrance",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected null not to be null"
+  },
+  {
+    "file": "packages/editor/src/__tests__/routing-validation.test.ts",
+    "test": "R2 | Room → Another Building (indoor↔outdoor isolation) R2.1: route Room 101 → Room B101 exists and bridges via road network",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected null not to be null"
+  },
+  {
+    "file": "packages/editor/src/__tests__/topology-audit.test.ts",
+    "test": "Audit: Graph Structure INV-1: no orphan nodes",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected [ 'N0012', 'N0030' ] to deeply equal []"
+  },
+  {
+    "file": "packages/editor/src/__tests__/topology-audit.test.ts",
+    "test": "Audit: Graph Structure INV-6: entrances have connecting edges",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected 0 to be greater than or equal to 1"
+  },
+  {
+    "file": "src/components/floor-editor/__tests__/route-network-maplibre.test.ts",
+    "test": "Case 3: Endpoint snapping multi-click Route reuses a nearby endpoint to create a branch",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected [ …(4) ] to have a length of 3 but got 4"
+  },
+  {
+    "file": "src/components/floor-editor/__tests__/semantic-room-interaction.test.ts",
+    "test": "production semantic Room interaction contract uses derived room layers and excludes the internal space tool from polygon authoring",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "AssertionError: expected false to be true // Object.is equality"
+  },
+  {
+    "file": "src/app/(public)/map/navigate/page.test.tsx",
+    "test": "Navigate setup and route preview renders the development simulator only behind the explicit non-production flag",
+    "classification": "KNOWN BASELINE FAILURE",
+    "evidence": "Same test fails in untouched bead510 baseline.",
+    "message": "TestingLibraryElementError: Unable to find an element by: [data-testid=\"navigation-dev-panel\"]"
+  },
+  {
+    "file": "__tests__/walking-skeleton.test.ts",
+    "classification": "TEST INFRASTRUCTURE FAILURE",
+    "message": "Failed to resolve import \"../packages/editor/src/demo/golden-campus\" from \"__tests__/walking-skeleton.test.ts\". Does the file exist?",
+    "evidence": "Identical collection failure in untouched baseline."
+  },
+  {
+    "file": "src/engine/__tests__/routing-runtime-validation.test.ts",
+    "classification": "TEST INFRASTRUCTURE FAILURE",
+    "message": "expected false to be true // Object.is equality",
+    "evidence": "Identical collection failure in untouched baseline."
+  },
+  {
+    "file": "src/services/__tests__/compiler-adapter.test.ts",
+    "classification": "TEST INFRASTRUCTURE FAILURE",
+    "message": "Failed to resolve import \"../../../packages/editor/src/demo/golden-campus\" from \"src/services/__tests__/compiler-adapter.test.ts\". Does the file exist?",
+    "evidence": "Identical collection failure in untouched baseline."
+  }
+]

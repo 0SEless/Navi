@@ -1,0 +1,12 @@
+{
+  "sourceSha": "2488ea57ce79d6149c629a1b500d14861e8dcce2",
+  "remoteSha": "2488ea57ce79d6149c629a1b500d14861e8dcce2",
+  "rootNextVersion": "16.2.9",
+  "rootReactVersion": "19.2.4",
+  "rootStructureVerified": true,
+  "beforeDefault": "master",
+  "patchStatus": 200,
+  "verificationStatus": 200,
+  "afterDefault": "release/navi-canonical-2026-10-03",
+  "changed": true
+}

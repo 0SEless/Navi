@@ -1,0 +1,12 @@
+
+> navi@1.0.0 test
+> vitest run src/components/map/__tests__/NavigationMap.test.tsx src/components/map/__tests__/NavigationRenderModelCache.test.ts src/components/map/__tests__/RouteLine.test.tsx src/components/map/layers/__tests__/BuildingLayer.test.ts src/components/public/__tests__/ExploreMap.test.tsx src/components/public/__tests__/MapRuntimePersistence.test.tsx --maxWorkers=2
+
+
+ RUN  v4.1.9 C:/Users/Administrator/.codex/worktrees/navi-canonical-2026-10-03/Navi
+
+
+ Test Files  6 passed (6)
+      Tests  34 passed (34)
+   Start at  12:15:13
+   Duration  5.27s (transform 1.69s, setup 1.28s, import 2.46s, tests 765ms, environment 4.57s)

@@ -1,0 +1,5 @@
+
+> navi@1.0.0 test
+> vitest run --config progress/reconciliation/publisher-vitest.config.ts --environment node --maxWorkers=4 --reporter=json --outputFile=progress/reconciliation/publisher-node-tests.json
+
+JSON report written to C:/Users/Administrator/.codex/worktrees/navi-canonical-2026-10-03/Navi/progress/reconciliation/publisher-node-tests.json

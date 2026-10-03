@@ -2667,3 +2667,87 @@ Track every error encountered during implementation. Each entry includes:
 - **Related tasks**: Floor Editor Door & Interior Persistence Hardening (T1, T2, T3, T4, T5)
 
 
+
+## 2026-10-03: GitHub CLI authentication failed during repository inventory
+- **Error**: gh repo view returned HTTP 401 Bad credentials.
+- **Cause**: GitHub CLI credential is invalid even though Git fetch succeeds.
+- **Fix**: Continue authorized local/Git work; use a supported authenticated alternative for default-branch change if available, otherwise report the manual action.
+- **Prevention**: Verify Git transport and API authentication independently.
+- **Related tasks**: canonical T1, T4
+
+## 2026-10-03: Optional files absent in recovered root
+- **Error**: AGENTS.md and wrapper .gitmodules reads returned missing-path errors.
+- **Cause**: Modern root has no AGENTS.md; voicecode wrapper contains a gitlink without .gitmodules.
+- **Fix**: Honor user-pasted AGENTS instructions; inspect Git trees directly rather than assuming files exist.
+- **Prevention**: Check exact tree paths before optional reads.
+- **Related tasks**: canonical T1
+
+## 2026-10-03: Inventory output exceeded tool display budget
+- **Error**: Combined status/branch output was truncated.
+- **Cause**: Large dirty working tree and commit descriptions.
+- **Fix**: Save full raw evidence to files and inspect bounded summaries.
+- **Prevention**: Persist large inventories before displaying compact results.
+- **Related tasks**: canonical T1
+
+## 2026-10-03: Canonical baseline verification and preview harness repairs
+- **Error**: First build failed on missing public Supabase inputs; first child build wrapper failed Windows quoting; initial port-preview resolver asserted a missing indentation anchor.
+- **Cause**: Clean worktree intentionally lacked env files; cmd quoting and exact-text preview anchor mismatches.
+- **Fix**: Build with public-only child environment through native Node/npm CLI; baseline build exit 0. Correct preview anchor before source application. No secrets printed or source replaced by failed preview.
+- **Prevention**: Keep inputs process-local; use native argument arrays; assert preview anchors before writing source.
+- **Related tasks**: canonical T2, T3
+
+## 2026-10-03: First scoped persistence port failed regression gate
+- **Error**: Focused run: 700 passed, 44 failed, plus collection failures. Duplicate bridge helper; mixed road implementations retained incompatible variables; adoption/retry tests disagree with newer safeguards; ambiguous projection identity reused.
+- **Cause**: Three-way text reconciliation combined overlapping implementations without fully matching their contracts.
+- **Fix**: Do not commit or push the port. Replace coherent road modules from reviewed release, remove duplicate bridge helpers, preserve newer atomic-adoption semantics, then rerun affected tests.
+- **Prevention**: Resolve coherent modules as units, inspect clean merge regions as well as conflict markers, and use regression gates before certification.
+- **Related tasks**: canonical T2
+
+## 2026-10-03: Untouched baseline TypeScript parse failure
+- **Error**: tsc --noEmit stops at packages/runtime/src/__tests__/data-identity-comparison.test.ts:255 (missing closing brace).
+- **Cause**: Existing unmodified runtime test is syntactically incomplete; Next config intentionally ignores build type errors.
+- **Fix**: Record as pre-existing baseline failure; verify port syntax via build and regression tests. No claim of type-check success.
+- **Prevention**: Keep TypeScript validation distinct from Next build verification.
+- **Related tasks**: canonical T2, T3
+
+## 2026-10-03: Imported regression fixtures assumed older persistence contracts
+- **Error**: Imported adoption tests await adoption before releasing an in-flight save, causing deadlock with bead510's atomic wait; retry test expects terminal state before bounded retries finish; legacy road fixture expects redundant edges already eliminated by newer compiler; authored fixture leaks across Inspector tests.
+- **Cause**: Historical tests target older contracts and incomplete fixture reset. A recovery catch also swallowed the queued child save failure after the child advanced operation generation.
+- **Fix**: Preserve atomic wait and adapt tests to release in-flight requests before waiting for adoption; retain strict topology/count assertions with no duplicate edges; reset fixture authored state; propagate child failure while preserving stale-status protection.
+- **Prevention**: Compare test assumptions to retained contracts before importing; pin actual invariants and keep fixture state isolated.
+- **Related tasks**: canonical T2
+
+## 2026-10-03: Evidence comparison needed worktree write permission
+- **Error**: compare-tests.cjs run through the read-only shell sandbox failed EPERM when saving test-comparison.json.
+- **Cause**: Native managed worktree is outside the primary writable root.
+- **Fix**: Re-ran through reviewed worktree write permission; comparison saved successfully.
+- **Prevention**: Use reviewed permission for task-owned evidence writes in native worktrees.
+- **Related tasks**: canonical T3
+
+## 2026-10-03: Server publisher tests used browser test environment
+- **Error**: Two PackageWriter Uint8Array equality assertions failed under root jsdom configuration despite matching bytes.
+- **Cause**: Server filesystem values and browser test globals use different realms.
+- **Fix**: Run the publisher suite with --environment node: 110 tests pass, exit 0; source unchanged.
+- **Prevention**: Use Node for filesystem publisher suites; do not classify realm mismatches as application regressions.
+- **Related tasks**: canonical T3
+
+## 2026-10-03: Literal paths and CRLF require explicit verification handling
+- **Error**: A floor-page read treated bracketed path as glob; a diff check with core.autocrlf disabled treated CRLF as trailing whitespace.
+- **Cause**: PowerShell wildcard path handling and a diagnostic config override that disagreed with stored line endings.
+- **Fix**: Use Get-Content -LiteralPath; final diff check with cr-at-eol passes, exit 0.
+- **Prevention**: Use literal Next route paths and preserve the repository's CRLF policy.
+- **Related tasks**: canonical T2, T3
+
+## 2026-10-03: Final inventory diagnostics exceeded child-process buffer
+- **Error**: Node status capture returned ENOBUFS; sandboxed remote probe could not reach GitHub.
+- **Cause**: Primary tree has over 1 MB of untracked path output; network verification requires reviewed network access.
+- **Fix**: Increase capture buffer and retain raw snapshots; rerun origin checks through reviewed access.
+- **Prevention**: Persist large inventories with bounded display and explicit network permission.
+- **Related tasks**: canonical T4
+
+## 2026-10-03: Raw verification transcripts contain whitespace
+- **Error**: Staged documentation diff check flagged Git graph padding, Next progress padding and trailing blank lines.
+- **Cause**: Raw command output preserves terminal formatting.
+- **Fix**: Keep original raw transcripts in external evidence; trim formatting in committed audit copies.
+- **Prevention**: Normalize report copies before staged whitespace checks.
+- **Related tasks**: canonical T4

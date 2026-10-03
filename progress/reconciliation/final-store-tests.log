@@ -1,0 +1,5 @@
+
+> navi@1.0.0 test
+> vitest run src/store packages/editor/src/graph-adapter.test.ts --maxWorkers=6 --reporter=json --outputFile=progress/reconciliation/final-store-tests.json
+
+JSON report written to C:/Users/Administrator/.codex/worktrees/navi-canonical-2026-10-03/Navi/progress/reconciliation/final-store-tests.json
