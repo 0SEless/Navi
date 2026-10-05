@@ -3,6 +3,10 @@ import type { CampusDocument, CoordinateTransformer } from '@navi/core'
 import { ServiceRegistry } from './service-registry'
 
 export interface EditorContext {
+  /** Start services once; Map waits for the committed React effect. */
+  initialize?: () => Promise<void>
+  /** Dispose owned services after initialization settles. */
+  dispose?: () => Promise<void>
   document: CampusDocument
   services: ServiceRegistry
   transformer?: CoordinateTransformer

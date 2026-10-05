@@ -1,3 +1,4 @@
+import { ackForRequest } from '../test-utils/persistence-ack'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
@@ -31,7 +32,7 @@ describe('graph store mutation idempotency', () => {
     vi.restoreAllMocks()
     __resetGraphSaveQueuesForTests()
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
-    localStorage.setItem(MARKER_KEY, JSON.stringify({ snapshotFingerprint: 'seed', syncedAt: '2026-09-16T00:00:00.000Z', serverTimestamp: 'R0' }))
+    localStorage.setItem(MARKER_KEY, JSON.stringify({ formatVersion: 2, snapshotFingerprint: 'seed', syncedAt: '2026-09-16T00:00:00.000Z', serverTimestamp: 'R0' }))
   })
 
   it('sends a mutationId with every save and keeps it stable across transport retries', async () => {
@@ -43,7 +44,7 @@ describe('graph store mutation idempotency', () => {
       calls += 1
       bodies.push(String(init?.body ?? ''))
       if (calls === 1) throw new TypeError('Failed to fetch')
-      return json({ success: true, campus_id: MAP_ID, updatedAt: 'R1' })
+      return json(ackForRequest(init, 'R1'))
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -69,7 +70,7 @@ describe('graph store mutation idempotency', () => {
       if (method !== 'POST') return json({})
       bodies.push(String(init?.body ?? ''))
       if (hold) { hold = false; await gate }
-      return json({ success: true, campus_id: MAP_ID, updatedAt: `R${bodies.length}` })
+      return json(ackForRequest(init, `R${bodies.length}`))
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -91,7 +92,7 @@ describe('graph store mutation idempotency', () => {
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const method = init?.method ?? 'GET'
       if (method !== 'POST') return json({})
-      return json({ success: true, campus_id: MAP_ID, updatedAt: 'R7', idempotent_replay: true })
+      return json({ ...ackForRequest(init, 'R7'), idempotent_replay: true })
     }))
 
     setClientGraph('Edit A')

@@ -36,7 +36,7 @@ export const PROTECTED_CAMPUS_WRITE_OVERRIDE_VAR = "NAVI_PROTECTED_CAMPUS_WRITES
 /** Supabase SSR auth cookies, including chunked (.0, .1) and verification cookies. */
 const SUPABASE_AUTH_COOKIE_PATTERN = /^sb-.*-auth-token/;
 
-export type MutationAuthMethod = "supabase" | "mock";
+export type MutationAuthMethod = "supabase" | "mock" | "test";
 
 export function isProtectedCampusId(campusId: unknown): boolean {
   return (
@@ -181,6 +181,8 @@ type SupabaseLike = {
 export type VerifyOptions = {
   /** Test seam: inject a client whose auth.getUser() is cryptographically authoritative. */
   supabaseFactory?: (request: NextRequest) => Promise<SupabaseLike>;
+  /** Called only after the actor has passed server-side administrator authorization. */
+  onVerified?: (user: VerifiedMutationUser) => void;
 };
 
 function isProductionRuntime(): boolean {
@@ -236,6 +238,7 @@ export async function requireVerifiedMutationAuth(
         if (!isAdminUser({ role: user.role, email: user.email, app_metadata: { role: user.role } })) {
           return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
         }
+        options.onVerified?.(user);
         return null;
       }
     }
@@ -250,6 +253,7 @@ export async function requireVerifiedMutationAuth(
   // injected (security tests always inject one, so they exercise the real path).
   // Production always executes the cryptographic verification below.
   if (process.env.NODE_ENV === "test" && !isProductionRuntime() && !options.supabaseFactory) {
+    options.onVerified?.({ id: "test-verified-actor", email: null, role: "super_admin", method: "test" });
     return null;
   }
 
@@ -282,5 +286,7 @@ export async function requireVerifiedMutationAuth(
   if (!isAdminUser(user)) {
     return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
   }
+  const verifiedRole = typeof user.app_metadata?.role === "string" ? user.app_metadata.role : "admin";
+  options.onVerified?.({ id: user.id, email: user.email ?? null, role: verifiedRole, method: "supabase" });
   return null;
 }

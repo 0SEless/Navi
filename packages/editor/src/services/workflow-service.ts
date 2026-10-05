@@ -134,7 +134,7 @@ export class WorkflowService extends BaseEditorService {
       const snapshot = validationEngine.validate(this.document, 'publish')
       result = {
         passed: snapshot.statistics.totalIssues - snapshot.statistics.errors - snapshot.statistics.warnings,
-        failed: snapshot.statistics.errors + snapshot.statistics.warnings,
+        failed: snapshot.statistics.errors,
         errors: snapshot.issues.filter(i => i.severity === 'error').map(i => i.message),
         timestamp: Date.now(),
       }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
+import { committedAck } from '../test-utils/persistence-ack'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from './graph-store'
 
 const MAP_ID = 'queue-map'
@@ -74,7 +75,7 @@ function createMockServer(options: MockServerOptions = {}) {
         delete stored.expectedServerUpdatedAt
         delete stored.forceServerOverwrite
         graph = stored
-        return json(returnUpdatedAt ? { success: true, campus_id: MAP_ID, updatedAt: revision } : { success: true, campus_id: MAP_ID })
+        return json(returnUpdatedAt ? committedAck(stored, revision) : { success: true, campus_id: MAP_ID })
       } finally {
         inFlight -= 1
       }
@@ -134,6 +135,7 @@ describe('graph store per-campus save serialization and revision contract', () =
     localStorage.setItem(
       MARKER_KEY,
       JSON.stringify({
+        formatVersion: 2,
         snapshotFingerprint: 'seed',
         syncedAt: '2026-09-13T00:00:00.000Z',
         serverTimestamp: 'R0',

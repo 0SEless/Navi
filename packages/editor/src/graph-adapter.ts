@@ -2,7 +2,7 @@ import type { CampusDocument, LatLng as CoreLatLng, EntranceAccess, RoadJunction
 import { CoordinateTransformer, haversine, collectFloorDoors, explicitEntranceAccessNodeId, CONNECTIVITY_CONTRACT_VERSION, normalizeRoadRouting, ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { compileComponent } from '@/engine/component-compiler'
-import type { CompileContext } from '@/engine/component-compiler'
+import type { CompileContext, CompileResult } from '@/engine/component-compiler'
 import type { Component, ComponentType, DoorData, TracePath, Building as LegacyBuilding, NavNode, NavEdge, LatLng as LegacyLatLng } from '@/types/nav-types'
 import { pointToSegmentDistance } from '@/engine/geo-utils'
 import { resolveLevelGeometry } from './geometry/resolve-level-geometry'
@@ -11,10 +11,84 @@ function coreLatLngToLegacy(p: CoreLatLng): LegacyLatLng {
   return { lat: p.lat, lng: p.lng }
 }
 
+/** Preserve canonical identities when rebuilding generated legacy components.
+ * Geometry, eligibility, connectivity and weights still come from the compiler.
+ * Explicit modern IDs (route networks, features, connector stops) pass through.
+ */
+function retainComponentProjectionIds(
+  result: CompileResult,
+  component: Component,
+  previous: { nodes?: NavNode[]; edges?: NavEdge[] } | undefined,
+  usedNodeIds: Set<string>,
+  usedEdgeIds: Set<string>,
+): CompileResult {
+  const generatedNodeId = /^N\d+(?:-projection-\d+)?$/
+  const previousNodes = previous?.nodes ?? []
+  const previousEdges = previous?.edges ?? []
+  const reservedNodeIds = new Set(previousNodes.map(node => node.id))
+  const reservedEdgeIds = new Set(previousEdges.map(edge => edge.id))
+  const remapped = new Map<string, string>()
+  const candidatesFor = (node: NavNode) => previousNodes.filter(candidate =>
+    generatedNodeId.test(candidate.id) && candidate.componentId === component.id
+    && candidate.buildingId === node.buildingId && candidate.floor === node.floor
+    && candidate.type === node.type && !usedNodeIds.has(candidate.id),
+  )
+  // Match all unchanged geometry first, so an inserted/moved point cannot
+  // consume the identity of a different point that remains exactly in place.
+  for (const node of result.nodes) {
+    if (!generatedNodeId.test(node.id)) { usedNodeIds.add(node.id); continue }
+    const exact = candidatesFor(node).find(candidate =>
+      candidate.position.lat === node.position.lat && candidate.position.lng === node.position.lng,
+    )
+    if (exact) { remapped.set(node.id, exact.id); usedNodeIds.add(exact.id) }
+  }
+  for (const node of result.nodes) {
+    if (!generatedNodeId.test(node.id) || remapped.has(node.id)) continue
+    // Within the same component/floor/type, compiler occurrence is the stable
+    // fallback for a geometry edit. Never borrow another component's identity.
+    const prior = candidatesFor(node)[0]
+    let id = prior?.id ?? node.id
+    if (!prior) {
+      let suffix = 0
+      while (reservedNodeIds.has(id) || usedNodeIds.has(id)) id = `${node.id}-projection-${++suffix}`
+    }
+    remapped.set(node.id, id)
+    usedNodeIds.add(id)
+  }
+  const nodes = result.nodes.map(node => ({ ...node, id: remapped.get(node.id) ?? node.id }))
+  const edges = result.edges.map(edge => {
+    const from = remapped.get(edge.from) ?? edge.from
+    const to = remapped.get(edge.to) ?? edge.to
+    if (!/^E\d+(?:-projection-\d+)?$/.test(edge.id)) {
+      usedEdgeIds.add(edge.id)
+      return { ...edge, from, to }
+    }
+    // Keep direction exact; reversed edges can have different route semantics.
+    const prior = previousEdges.find(candidate => candidate.from === from && candidate.to === to
+      && candidate.type === edge.type && !usedEdgeIds.has(candidate.id))
+    let id = prior?.id ?? edge.id
+    if (!prior) {
+      let suffix = 0
+      while (reservedEdgeIds.has(id) || usedEdgeIds.has(id)) id = `${edge.id}-projection-${++suffix}`
+    }
+    usedEdgeIds.add(id)
+    return { ...edge, id, from, to }
+  })
+  return { ...result, nodes, edges }
+}
+
 function computeCentroid(points: LegacyLatLng[]): LegacyLatLng {
+  const lastPoint = points[points.length - 1]
+  const isClosedRing = points.length > 1
+    && points[0].lat === lastPoint.lat
+    && points[0].lng === lastPoint.lng
+  const pointCount = isClosedRing ? points.length - 1 : points.length
   let lat = 0, lng = 0
-  for (const p of points) { lat += p.lat; lng += p.lng }
-  return { lat: lat / points.length, lng: lng / points.length }
+  for (let index = 0; index < pointCount; index++) {
+    lat += points[index].lat
+    lng += points[index].lng
+  }
+  return { lat: lat / pointCount, lng: lng / pointCount }
 }
 
 function computeBBox(points: LegacyLatLng[]): { width: number; height: number } {
@@ -388,6 +462,8 @@ export class GraphAdapter {
     this.graph.setTraces([])
     const allCompiledNodes: NavNode[] = []
     const allCompiledEdges: NavEdge[] = []
+    const usedComponentNodeIds = new Set<string>()
+    const usedComponentEdgeIds = new Set<string>()
     const allProjectedDoors: DoorData[] = []
 
     // 1. Buildings
@@ -727,7 +803,10 @@ export class GraphAdapter {
               componentId: comp.id,
               campusId: this.graph.campusId,
             }
-            const result = compileComponent(comp, context)
+            const result = retainComponentProjectionIds(
+              compileComponent(comp, context), comp, previous,
+              usedComponentNodeIds, usedComponentEdgeIds,
+            )
             for (const node of result.nodes) {
               this.graph.addNode(node)
               allCompiledNodes.push(node)
@@ -1033,36 +1112,30 @@ export class GraphAdapter {
     // its explicit or legacy-derived connectivity.
     this.graph.setConnectivitySemanticsVersion(document.connectivitySemanticsVersion)
 
-    // 11. Panoramas → Nodes
-    // P1-T4 (D9): document positions are building-local — derive world for the
-    // graph node when the panorama is anchored to a known building. A panorama
-    // without buildingId (or a legacy world-stored one) passes through verbatim
-    // (R15.8: entity data is never dropped).
-    for (const pano of document.panoramas ?? []) {
-      const legacyWorld = 'lat' in pano.position
-        ? pano.position
-        : (pano.buildingId && this.transformer
-          ? this.transformer.buildingLocalToWorld(pano.position, pano.buildingId)
-          : null)
-      if (!legacyWorld) continue
-      const node: NavNode = {
-        id: `N-pano-${pano.id}`,
-        label: `Panorama: ${pano.label}`,
-        name: `Panorama: ${pano.label}`,
-        type: 'intersection',
-        buildingId: pano.buildingId ?? '',
-        campusId: this.graph.campusId,
-        floor: pano.floor ?? 0,
-        position: coreLatLngToLegacy(legacyWorld),
-        hasPanorama: true,
-        metadata: { panoramaId: pano.id },
-      }
-      this.graph.addNode(node)
-    }
+    // 11. Panoramas — NOT projected (VT-1 / ADR 024).
+    //
+    // Navigation and Virtual Tour are separate systems. `CampusDocument.panoramas`
+    // is a Virtual Tour scene collection; it has no authored AND no derived
+    // navigation-node requirement. Panoramas therefore contribute NO NavNode to
+    // the routing graph — they are not A* nodes, not route anchors, and not
+    // routing destinations.
+    //
+    // A panorama's `position` remains meaningful Virtual Tour context (scene
+    // placement, map visualisation, building/floor organisation). It simply does
+    // not imply navigation membership.
+    //
+    // Consumers of the 360 tour read `document.panoramas` (and the published
+    // `panoramaIndex`) directly — see TourViewer and
+    // buildPanoramaIndex(document) in packages/compiler. No graph node is needed.
+    //
+    // NOTE: connector-stop *anchors* (`floor.connectorStops[].anchors`) are a
+    // separate authored navigation feature and are still projected below. Their
+    // panorama-flavoured variant is a connector anchor, not a `document.panoramas`
+    // scene, so it is intentionally unaffected by this separation.
 
-    // 11. QR Checkpoints → Nodes
+    // 11b. QR Checkpoints → Nodes
     // P1-T4 (D9): QR positions are building-local — same world derivation as
-    // entrances/panoramas, with verbatim pass-through for legacy world records.
+    // entrances, with verbatim pass-through for legacy world records.
     for (const qr of document.qrCheckpoints ?? []) {
       const legacyWorld = (qr.position as unknown as { lat?: number }).lat !== undefined
         ? (qr.position as unknown as { lat: number; lng: number })

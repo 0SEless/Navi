@@ -1,7 +1,7 @@
 ﻿import type { LatLng, LocalCoord, LocalPolygon, LocalPolyline } from './coordinates'
 import type { QrIndex } from './qr'
 import type { RouteNetwork } from './routing'
-import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, RoadRouting, WorldPOIGeometry } from './entities'
+import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, Road, RoadRouting, WorldPOIGeometry } from './entities'
 import type { PlanAlignment } from './coordinates'
 
 export interface BoundingBox {
@@ -195,6 +195,8 @@ export interface NavigationArtifacts {
   spatialIndex: SpatialIndex
   buildingIndex: BuildingIndex
   poiIndex: POIIndex
+  /** Authored campus Roads, kept separate from navigation graph edges. */
+  traces?: Road[]
   panoramaIndex?: PanoramaIndex
   /** Indoor components (rooms, hallways, staircases, elevators, entrances).
    *  Produced from the same CampusDocument as the other Compiler V2 artifacts. */

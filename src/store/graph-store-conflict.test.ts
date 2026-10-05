@@ -1,3 +1,4 @@
+import { ackForRequest } from '../test-utils/persistence-ack'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
@@ -75,7 +76,7 @@ function stubServer(
     if (method === 'POST') {
       if (options?.postCounter) options.postCounter.count += 1
       if (typeof init?.body === 'string') options?.postedBodies?.push(init.body)
-      return new Response(JSON.stringify(options?.postUpdatedAt ? { updatedAt: options.postUpdatedAt } : {}), { status: 200 })
+      return new Response(JSON.stringify(options?.postUpdatedAt ? ackForRequest(init, options.postUpdatedAt) : {}), { status: 200 })
     }
     if (options?.failGet) throw new TypeError('Failed to fetch')
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -110,7 +111,7 @@ describe('graph store stale-local conflict handling', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     __resetGraphSaveQueuesForTests()
-    useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
+    useGraphStore.setState({ graph: new Graph(), authoredDocument: null, currentMapId: null, syncStatus: 'idle', syncError: null })
   })
 
   it('stamps the sync marker only with a server-confirmed revision, never the local clock', async () => {
@@ -137,7 +138,7 @@ describe('graph store stale-local conflict handling', () => {
     expect(marker.serverTimestamp).toBe('2026-09-12T10:00:00.000Z')
   })
 
-  it('keeps a clean local snapshot when a stale server response is older than the last server revision', async () => {
+  it('uses current server content rather than a clean cache with a later local marker', async () => {
     await seedCleanLocal('Local Hall')
     const marker = JSON.parse(localStorage.getItem(MARKER_KEY) ?? '{}')
     localStorage.setItem(MARKER_KEY, JSON.stringify({ ...marker, serverTimestamp: '2026-09-12T10:00:00.000Z' }))
@@ -146,7 +147,7 @@ describe('graph store stale-local conflict handling', () => {
     await loadFresh()
     await new Promise((resolve) => setTimeout(resolve, 20))
 
-    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Local Hall')
+    expect(useGraphStore.getState().graph.buildings[0]?.name).toBe('Older Server Hall')
     expect(useGraphStore.getState().syncStatus).toBe('synced')
   })
 
@@ -285,9 +286,9 @@ describe('graph store stale-local conflict handling', () => {
     await seedCleanLocal('Local Hall')
     rewriteLocalCache('Local Hall Edited')
     const postCounter = { count: 0 }
-    stubServer(serverPayload('Server Hall', '2026-09-12T10:00:00.000Z'), { postCounter })
+    stubServer(serverPayload('Server Hall', '2026-09-12T10:00:00.000Z'), { postCounter, postUpdatedAt: '2026-09-12T11:00:00.000Z' })
 
-    useGraphStore.setState({ graph: new Graph(), currentMapId: MAP_ID, syncStatus: 'idle', syncError: null })
+    useGraphStore.setState({ graph: makeGraph('Local Hall Edited'), currentMapId: MAP_ID, syncStatus: 'idle', syncError: null })
     await expect(useGraphStore.getState().reSync()).rejects.toThrow(/refused/)
     expect(postCounter.count).toBe(0)
     expect(useGraphStore.getState().syncStatus).toBe('conflict')

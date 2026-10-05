@@ -5,6 +5,101 @@ import { Graph } from '@/engine/graph'
 import { GraphAdapter } from './graph-adapter'
 import { createDocument } from './context/create-editor-context'
 
+describe('Stable legacy component projection identity', () => {
+  it('preserves a derived Room C corridor edge when an equivalent polygon gains its closing vertex', () => {
+    const document = createTestDocument()
+    const floor = document.buildings[0].floors[0]
+    floor.entrances = []
+    floor.rooms = [{
+      id: 'room-c', name: 'Room C', polygon: { points: [
+        { x: 20, y: 0 }, { x: 26, y: 0 }, { x: 26, y: 5 }, { x: 20, y: 5 },
+      ] }, roomDoors: [],
+    }] as never
+    floor.hallways = [{
+      id: 'hall-b', name: 'Hall B', width: 2,
+      polyline: { points: [{ x: 20, y: 6 }, { x: 26, y: 6 }] },
+    }] as never
+
+    const graph = new Graph()
+    graph.campusId = document.metadata.campusId
+    const adapter = new GraphAdapter(graph, new CoordinateTransformer())
+    adapter.sync(document)
+
+    const access = graph.nodes.find(node => node.type === 'room_door' && node.componentId === 'room-c')!
+    const originalEdge = graph.edges.find(edge => edge.type === 'corridor' && (edge.from === access.id || edge.to === access.id))!
+    expect(originalEdge).toBeDefined()
+    expect(originalEdge.id).toMatch(/^E\d+/)
+    const originalAccessPosition = { ...access.position }
+
+    const ring = floor.rooms[0].polygon.points
+    ring.push({ ...ring[0] })
+    adapter.sync(document)
+
+    const projectedAccess = graph.nodes.find(node => node.id === access.id)!
+    expect(projectedAccess.position).toEqual(originalAccessPosition)
+    expect(graph.edges.some(edge => edge.id === originalEdge.id)).toBe(true)
+  })
+
+  it('removes a projected edge when its explicitly authored route relationship is deleted', () => {
+    const document = createTestDocument()
+    const floor = document.buildings[0].floors[0]
+    floor.routeNetwork = {
+      nodes: [
+        { id: 'route-a', type: 'waypoint', position: { x: 2, y: 2 }, floor: 0 },
+        { id: 'route-b', type: 'waypoint', position: { x: 8, y: 2 }, floor: 0 },
+      ],
+      edges: [{ id: 'authored-edge', from: 'route-a', to: 'route-b', type: 'walk', distance: 6 }],
+    }
+    const graph = new Graph()
+    graph.campusId = document.metadata.campusId
+    const adapter = new GraphAdapter(graph, new CoordinateTransformer())
+    adapter.sync(document)
+    expect(graph.edges.some(edge => edge.id === 'E-route-authored-edge')).toBe(true)
+
+    floor.routeNetwork.edges = []
+    adapter.sync(document)
+
+    expect(graph.edges.some(edge => edge.id === 'E-route-authored-edge')).toBe(false)
+  })
+
+  it('retains hallway, room and entrance node/edge identities over repeated projection and label-only edits', () => {
+    const document = createTestDocument()
+    document.roads = []
+    const floor = document.buildings[0].floors[0]
+    floor.hallways = [{ id: 'stable-hall', name: 'Hall', polyline: { points: [{ x: 1, y: 1 }, { x: 5, y: 1 }] }, width: 2 }] as never
+    floor.rooms = [{ id: 'stable-room', name: 'Room', polygon: { points: [{ x: 1, y: 2 }, { x: 3, y: 2 }, { x: 3, y: 4 }] }, roomDoors: [] }] as never
+    floor.routeNetwork = { nodes: [{ id: 'authored-node', type: 'waypoint', position: { x: 3, y: 3 }, floor: 0 }], edges: [] }
+    const graph = new Graph()
+    graph.campusId = document.metadata.campusId
+    const adapter = new GraphAdapter(graph, new CoordinateTransformer())
+    adapter.sync(document, { kind: 'authoring' })
+    const ids = () => ({ nodes: graph.nodes.map(node => node.id).sort(), edges: graph.edges.map(edge => edge.id).sort() })
+    const firstIds = ids()
+    const firstEdges = graph.edges.map(edge => ({ ...edge })).sort((a, b) => a.id.localeCompare(b.id))
+    for (let pass = 0; pass < 3; pass++) adapter.sync(document, { kind: 'authoring' })
+    expect(ids()).toEqual(firstIds)
+    expect(graph.edges.map(edge => ({ ...edge })).sort((a, b) => a.id.localeCompare(b.id))).toEqual(firstEdges)
+    floor.label = 'Renamed floor'
+    floor.hallways[0].name = 'Renamed hallway'
+    adapter.sync(document, { kind: 'floor', buildingId: document.buildings[0].id, floor: 0 })
+    expect(ids()).toEqual(firstIds)
+    expect(graph.nodes.some(node => node.id === 'N-route-authored-node')).toBe(true)
+    expect(graph.nodes.filter(node => node.componentId === 'stable-hall').every(node => node.label.startsWith('Renamed hallway'))).toBe(true)
+    expect(new Set(graph.nodes.map(node => node.id)).size).toBe(graph.nodes.length)
+    const hallwayNodes = graph.nodes.filter(node => node.componentId === 'stable-hall')
+    const hallwayEdge = graph.edges.find(edge => edge.from === hallwayNodes[0].id && edge.to === hallwayNodes[1].id)!
+    floor.hallways[0].polyline.points[0] = { x: 2, y: 1 }
+    adapter.sync(document, { kind: 'floor', buildingId: document.buildings[0].id, floor: 0 })
+    expect(ids()).toEqual(firstIds)
+    expect(graph.nodes.find(node => node.id === hallwayNodes[0].id)!.position).not.toEqual(hallwayNodes[0].position)
+    const editedEdge = graph.edges.find(edge => edge.id === hallwayEdge.id)!
+    expect(editedEdge.from).toBe(hallwayEdge.from)
+    expect(editedEdge.to).toBe(hallwayEdge.to)
+    expect(editedEdge.distance).toBeLessThan(hallwayEdge.distance)
+    expect(editedEdge.weight).toBe(editedEdge.distance)
+  })
+})
+
 function createTestDocument(extraBuilding?: Building): CampusDocument {
   const buildings: Building[] = [
     {
@@ -318,9 +413,12 @@ describe('GraphAdapter', () => {
     expect(building.name).toBe('Test Building')
     expect(building.floors).toEqual([0])
 
+    // VT-1 / ADR 024: panoramas are Virtual Tour scenes and are NOT projected
+    // into the navigation graph. The document still owns them.
     const panoNodes = graph.nodes.filter(n => n.label.startsWith('Panorama:'))
-    expect(panoNodes.length).toBe(1)
-    expect(panoNodes[0].label).toBe('Panorama: Front Gate')
+    expect(panoNodes.length).toBe(0)
+    expect(doc.panoramas).toHaveLength(1)
+    expect(doc.panoramas[0].label).toBe('Front Gate')
 
     const qrNodes = graph.nodes.filter(n => n.type === 'qr_marker')
     expect(qrNodes.length).toBe(1)

@@ -226,4 +226,30 @@ describe('PublishService', () => {
     expect(states).toContain('uploading')
     expect(states).toContain('success')
   })
+
+  // ── Phase 5C-B: a durable publication failure must never look successful ──
+  it('durable publish failure (503 body) yields an error state, no completed event and no revision advance', async () => {
+    // Exactly the body /api/publish now returns when the canonical
+    // published_maps write fails (see durable-write-semantics.test.ts).
+    const durableFailure = {
+      success: false,
+      message:
+        'Publication failed. No new version was published. Your existing live ' +
+        'version, if any, was not changed. Please retry.',
+    }
+    const { context } = createMockContext({ publishResult: durableFailure })
+    const eventBus = context.get('eventBus') as { emit: ReturnType<typeof vi.fn> }
+
+    await service.init(context)
+    await service.publish()
+
+    const snap = service.getSnapshot()
+    expect(snap.publishState).toBe('error')
+    expect(snap.publishError).toContain('Publication failed')
+    // No false success bookkeeping of any kind.
+    expect(snap.publishResult).toBeNull()
+    expect(snap.lastPublishedRevision ?? 0).toBe(0)
+    expect(snap.lastPublishedAt ?? 0).toBe(0)
+    expect(eventBus.emit).not.toHaveBeenCalledWith('publish.completed', expect.anything())
+  })
 })

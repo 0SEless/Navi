@@ -132,4 +132,27 @@ describe('validateConnectivity', () => {
     expect(report.diagnostics.filter(d => d.severity === 'error')).toEqual([])
     expect(report.metrics.reachableWaypoints).toBe(2)
   })
+
+  it('starts reachability from the indoor endpoint of a canonical entrance bridge', () => {
+    const outdoor = makeWaypoint('outdoor-access', 'road-main', 0, '__outdoor__')
+    const indoor = makeWaypoint('indoor-route', 'rn-a2')
+    const next = makeWaypoint('next-route', 'rn-a1')
+    const entranceBridge = {
+      id: 'CA-EA-ent-main',
+      kind: 'access' as const,
+      from: outdoor.id,
+      to: indoor.id,
+      distance: 10,
+      accessType: 'entrance_bridge',
+      source: { entityId: 'ent-main', entityType: 'entrance', field: 'distance', generatorId: 'builtin:canonical-access-compiler' },
+    }
+    const routeEdge = makeSkeletonEdge('route-edge', indoor.id, next.id)
+    const graph = makeGraph({ nodes: [outdoor, indoor, next], edges: [entranceBridge, routeEdge] })
+
+    const report = validateConnectivity(graph)
+
+    expect(report.diagnostics.filter(d => d.code === 'HALLWAY_DISCONNECTED')).toEqual([])
+    expect(report.metrics.reachableWaypoints).toBe(3)
+    expect(report.metrics.disconnectedComponents).toBe(0)
+  })
 })

@@ -7,6 +7,7 @@ import type { CompilerAdapter } from '../navigation-compiler'
 import type { PersistenceAdapter } from '../persistence-service'
 import type { EditorServiceContext } from '../../context/service-registry'
 import { DocumentEventBus } from '../../eventbus'
+import { computeProgress } from '../../panels/workflow/workflow-progress'
 
 describe('WorkflowService', () => {
   let service: WorkflowService
@@ -121,6 +122,27 @@ describe('WorkflowService', () => {
       const result = await service.validate()
       expect(result.failed).toBe(1)
       expect(result.errors).toContain('Missing name')
+    })
+
+    it('keeps warning-only findings non-blocking for Publish readiness', async () => {
+      const ctx = buildContext()
+      const originalGet = ctx.get.bind(ctx)
+      ctx.get = (id: string) => {
+        if (id === 'validationEngine') return {
+          validate: () => ({
+            issues: [{ severity: 'warning', message: 'Navigation graph has disconnected components', ruleId: 'disconnected-graph' }],
+            statistics: { totalIssues: 1, errors: 0, warnings: 1, infos: 0, duration: 0, rulesExecuted: 1, rulesPassed: 0, rulesFailed: 0 },
+          }),
+        } as any
+        return originalGet(id as any)
+      }
+      await service.init(ctx as EditorServiceContext)
+
+      const result = await service.validate()
+
+      expect(result.failed).toBe(0)
+      expect(result.errors).toEqual([])
+      expect(computeProgress(workflowStore.getSnapshot()).steps.validation.status).toBe('success')
     })
   })
 

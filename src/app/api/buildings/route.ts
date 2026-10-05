@@ -25,15 +25,19 @@ async function getClient(auth: "publishable" | "secret") {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await getClient("publishable");
   const { searchParams } = new URL(request.url);
   const campusId = searchParams.get("campus_id");
   const buildingId = searchParams.get("id");
 
   if (buildingId) {
+    if (!campusId) {
+      return NextResponse.json({ error: "campus_id is required when id is provided" }, { status: 400 });
+    }
+    const supabase = await getClient("publishable");
     const { data, error } = await supabase
       .from("buildings")
       .select("id, campus_id, name, code, description, floors, color, floor_plan_url, created_at, updated_at")
+      .eq("campus_id", campusId)
       .eq("id", buildingId)
       .maybeSingle();
 
@@ -52,6 +56,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "campus_id is required" }, { status: 400 });
   }
 
+  const supabase = await getClient("publishable");
   const { data, error } = await supabase
     .from("buildings")
     .select("id, campus_id, name, code, description, floors, color, floor_plan_url, created_at, updated_at")
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
       floor_plan_url: floor_plan_url ?? null,
     };
 
-    const { error } = await supabase.from("buildings").upsert(row, { onConflict: "id" });
+    const { error } = await supabase.from("buildings").upsert(row, { onConflict: "campus_id,id" });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -121,11 +126,15 @@ export async function DELETE(request: NextRequest) {
     const campusId =
       getQueryParam(request, "campus_id", "campusId") ?? getCampusIdFromBody(body);
 
+    if (!campusId) {
+      return NextResponse.json({ error: "campus_id is required" }, { status: 400 });
+    }
+
     const blocked = assertCampusMutationAllowed(campusId);
     if (blocked) return blocked;
 
     const supabase = await getClient("secret");
-    const { error } = await supabase.from("buildings").delete().eq("id", id);
+    const { error } = await supabase.from("buildings").delete().eq("campus_id", campusId).eq("id", id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

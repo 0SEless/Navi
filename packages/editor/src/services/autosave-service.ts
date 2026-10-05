@@ -5,6 +5,7 @@ import type { DocumentStore } from '../context/document-store'
 import type { DocumentEventBus } from '../eventbus'
 
 export interface AutosaveOptions {
+  isCurrent?: () => boolean
   debounceMs?: number
   maxIntervalMs?: number
 }
@@ -93,9 +94,11 @@ export class AutosaveService extends BaseEditorService {
   private maxIntervalTimer: ReturnType<typeof setInterval> | null = null
   private onRevisionCommitted!: () => void
   private queue: SaveQueue
+  private isCurrent: () => boolean
 
   constructor(options?: AutosaveOptions) {
     super()
+    this.isCurrent = options?.isCurrent ?? (() => true)
     this.debounceMs = options?.debounceMs ?? 5000
     this.maxIntervalMs = options?.maxIntervalMs ?? 30000
     this.queue = new SaveQueue(
@@ -129,11 +132,13 @@ export class AutosaveService extends BaseEditorService {
   }
 
   private handleRevisionCommitted(): void {
+    if (!this.isCurrent()) return
     this.clearDebounce()
     this.debounceTimer = setTimeout(() => this.tryAutosave(), this.debounceMs)
   }
 
   private tryAutosave(): void {
+    if (!this.isCurrent()) return
     if (!this.workflow.canAutosave()) return
 
     const currentVersion = this.documentStore.version
@@ -146,6 +151,7 @@ export class AutosaveService extends BaseEditorService {
    * version, skip this save (a newer queued save handles it).
    */
   private async executeSave(version: number): Promise<void> {
+    if (!this.isCurrent()) return
     if (this.documentStore.version > version) {
       // Stale — a newer revision exists; skip and let the pending save handle it
       return

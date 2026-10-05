@@ -48,6 +48,8 @@ export interface RpcBuilding {
 }
 
 export interface RpcPayload {
+  boundary?: unknown
+  connectivitySemanticsVersion?: string
   id: string
   campusId: string
   version: string
@@ -84,6 +86,8 @@ export interface BuildingLike {
 }
 
 export interface GraphSnapshotLike {
+  boundary?: unknown
+  connectivitySemanticsVersion?: string
   id?: string
   campusId?: string
   version?: string
@@ -116,6 +120,8 @@ export function serializeSnapshot(
   }
 
   const payload: RpcPayload = {
+    boundary: snapshot.boundary,
+    connectivitySemanticsVersion: snapshot.connectivitySemanticsVersion,
     id: snapshot.id || campusId,
     campusId,
     version: snapshot.version || '1.0.0',

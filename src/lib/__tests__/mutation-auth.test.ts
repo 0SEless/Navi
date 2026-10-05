@@ -78,6 +78,24 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
     expect(res).toBeNull()
   })
 
+  it('returns the verified actor only after server-side admin verification', async () => {
+    const onVerified = vi.fn()
+    const allowed = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE), {
+      supabaseFactory: factoryWith({ id: 'trusted-actor', email: 'admin@x.test', app_metadata: { role: 'super_admin' } }),
+      onVerified,
+    })
+    expect(allowed).toBeNull()
+    expect(onVerified).toHaveBeenCalledWith(expect.objectContaining({ id: 'trusted-actor', method: 'supabase' }))
+
+    const deniedCallback = vi.fn()
+    const denied = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE, { createdBy: 'spoof' }), {
+      supabaseFactory: factoryWith({ id: 'viewer', app_metadata: { role: 'viewer' } }),
+      onVerified: deniedCallback,
+    })
+    expect(denied?.status).toBe(403)
+    expect(deniedCallback).not.toHaveBeenCalled()
+  })
+
   it('F2: verified user allow-listed via NAVI_ADMIN_EMAILS -> allowed', async () => {
     vi.stubEnv('NAVI_ADMIN_EMAILS', 'ops@x.test, admin@y.test')
     const admin = { id: 'u4', email: 'OPS@x.test', app_metadata: { role: 'viewer' } }
@@ -108,8 +126,10 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
 
   it('mock path (DEV/test only) yields an admin session when explicitly enabled outside production', async () => {
     vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
-    const res = await requireVerifiedMutationAuth(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }))
+    const onVerified = vi.fn()
+    const res = await requireVerifiedMutationAuth(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }), { onVerified })
     expect(res).toBeNull()
+    expect(onVerified).toHaveBeenCalledWith(expect.objectContaining({ id: 'mock-super-admin', method: 'mock' }))
   })
 
   it('H: client-side state / headers cannot grant authorization', () => {

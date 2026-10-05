@@ -180,6 +180,27 @@ describe('POST /api/publish — Phase 7B contract', () => {
     })
   })
 
+  it('persists optional authored-road traces without changing the routing graph', async () => {
+    const fake = makeFakeSupabase()
+    mockClient.mockReturnValue(fake.client)
+    const roadTraces = [{
+      id: 'road-visible',
+      name: 'Library Walk',
+      type: 'pedestrian',
+      polyline: { points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121.002 }] },
+      displayMode: 'visible',
+      metadata: { authoredBy: 'studio' },
+    }]
+    const artifacts = makeArtifacts(7)
+    artifacts.traces = roadTraces
+
+    const response = await POST(requestFor(artifacts, 7))
+
+    expect(response.status).toBe(200)
+    expect(fake.state.row?.artifacts.traces).toEqual(roadTraces)
+    expect(fake.state.row?.artifacts.graph).toEqual(artifacts.navigationGraph)
+  })
+
   it('rejects an older revision without changing the row or writing local artifacts', async () => {
     const fake = makeFakeSupabase(makeRow(8, 'current'))
     mockClient.mockReturnValue(fake.client)

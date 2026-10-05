@@ -23,6 +23,7 @@ export function buildArtifacts(graph: ConnectivityGraph, navGraph: NavigationGra
     spatialIndex: buildSpatialIndex(navGraph),
     buildingIndex: buildBuildingIndex(graph, navGraph, document),
     poiIndex,
+    traces: document.roads ?? [],
     panoramaIndex,
     // P1-T10 (R6.1/D15): dedicated floor-geometry artifact (local meters +
     // building anchor). Throws a clear error on malformed geometry (R6.4).
