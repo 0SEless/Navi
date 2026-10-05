@@ -57,11 +57,15 @@ function makeRow(revision: number, marker = 'old'): PublishedRow {
   }
 }
 
-function makeFakeSupabase(initialRow: PublishedRow | null = null) {
+function makeFakeSupabase(
+  initialRow: PublishedRow | null = null,
+  panoramaRows: Array<Record<string, unknown>> = [],
+) {
   const state: {
     row: PublishedRow | null
     snapshotReads: number
-  } = { row: initialRow, snapshotReads: 0 }
+    panoramaLookups: Array<{ column: string; keys: string[] }>
+  } = { row: initialRow, snapshotReads: 0, panoramaLookups: [] }
 
   function matches(conditions: Array<[string, string, unknown]>, row: PublishedRow | null): boolean {
     if (!row) return false
@@ -119,6 +123,19 @@ function makeFakeSupabase(initialRow: PublishedRow | null = null) {
             eq: () => ({
               maybeSingle: async () => ({ data: null, error: null }),
             }),
+          }),
+        }
+      }
+      if (table === 'panorama_assets') {
+        return {
+          select: () => ({
+            in: async (column: string, keys: string[]) => {
+              state.panoramaLookups.push({ column, keys })
+              return {
+                data: panoramaRows.filter(row => keys.includes(String(row.key))),
+                error: null,
+              }
+            },
           }),
         }
       }
@@ -199,6 +216,37 @@ describe('POST /api/publish — Phase 7B contract', () => {
     expect(response.status).toBe(200)
     expect(fake.state.row?.artifacts.traces).toEqual(roadTraces)
     expect(fake.state.row?.artifacts.graph).toEqual(artifacts.navigationGraph)
+  })
+
+  it('validates multiple panorama assets with one registry batch read before publishing', async () => {
+    const keys = [
+      'panoramas/phase7b-campus/pano-a.jpg',
+      'panoramas/phase7b-campus/pano-b.webp',
+    ]
+    const fake = makeFakeSupabase(null, keys.map((key, index) => ({
+      key,
+      campus_id: 'phase7b-campus',
+      panorama_id: index === 0 ? 'pano-a' : 'pano-b',
+      content_type: index === 0 ? 'image/jpeg' : 'image/webp',
+      byte_size: 2048,
+      status: 'uploaded',
+    })))
+    mockClient.mockReturnValue(fake.client)
+    const artifacts = makeArtifacts(7)
+    artifacts.panoramaIndex = {
+      version: '1.0.0',
+      panoramas: keys.map((imageAssetId, index) => ({
+        id: index === 0 ? 'pano-a' : 'pano-b',
+        title: `Panorama ${index + 1}`,
+        imageAssetId,
+      })),
+    }
+
+    const response = await POST(requestFor(artifacts, 7))
+
+    expect(response.status).toBe(200)
+    expect(fake.state.panoramaLookups).toEqual([{ column: 'key', keys }])
+    expect(fake.state.row?.revision).toBe(7)
   })
 
   it('rejects an older revision without changing the row or writing local artifacts', async () => {

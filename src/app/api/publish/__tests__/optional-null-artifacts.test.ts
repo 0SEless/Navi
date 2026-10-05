@@ -97,15 +97,34 @@ function makeFakeSupabase() {
   }
 
   const client = {
-    from: vi.fn(() => ({
-      select: () => builder('select'),
-      update: (payload: PublishedRow) => builder('update', payload),
-      insert: (payload: PublishedRow) => builder('insert', payload),
-      upsert: async (payload: PublishedRow) => {
-        state.row = payload
-        return { data: state.row, error: null }
-      },
-    })),
+    from: vi.fn((table: string) => {
+      if (table === 'panorama_assets') {
+        return {
+          select: () => ({
+            in: async (_column: string, keys: string[]) => {
+              const row = {
+                key: 'panoramas/phase7b-campus/pano-lobby.jpg',
+                campus_id: CAMPUS_ID,
+                panorama_id: 'pano-lobby',
+                content_type: 'image/jpeg',
+                byte_size: 2048,
+                status: 'uploaded',
+              }
+              return { data: keys.includes(row.key) ? [row] : [], error: null }
+            },
+          }),
+        }
+      }
+      return {
+        select: () => builder('select'),
+        update: (payload: PublishedRow) => builder('update', payload),
+        insert: (payload: PublishedRow) => builder('insert', payload),
+        upsert: async (payload: PublishedRow) => {
+          state.row = payload
+          return { data: state.row, error: null }
+        },
+      }
+    }),
   }
   return { state, client }
 }
@@ -238,7 +257,7 @@ describe('POST /api/publish — explicit `null` optional-artifact contract (T2)'
         {
           id: 'pano-lobby',
           title: 'Lobby',
-          imageAssetId: 'img-1',
+          imageAssetId: 'panoramas/phase7b-campus/pano-lobby.jpg',
           buildingId: 'b1',
           floor: 0,
           lat: 14.5,

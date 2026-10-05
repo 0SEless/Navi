@@ -107,6 +107,36 @@ export async function findPanoramaAsset(
   };
 }
 
+/** Look up many assets in one registry read for the Publish integrity gate. */
+export async function findPanoramaAssets(
+  client: AssetStoreClient,
+  keys: readonly string[],
+): Promise<Map<string, PanoramaAssetRecord>> {
+  const uniqueKeys = [...new Set(keys)];
+  const assets = new Map<string, PanoramaAssetRecord>();
+  if (uniqueKeys.length === 0) return assets;
+
+  const { data, error } = await client
+    .from(PANORAMA_ASSET_TABLE)
+    .select("key, campus_id, panorama_id, content_type, byte_size, status")
+    .in("key", uniqueKeys);
+  if (error) throw new Error(error.message);
+
+  for (const row of data ?? []) {
+    const record: PanoramaAssetRecord = {
+      key: String(row.key),
+      campusId: String(row.campus_id),
+      panoramaId: String(row.panorama_id),
+      contentType: String(row.content_type),
+      byteSize: Number(row.byte_size),
+      status: row.status === "uploaded" ? "uploaded" : "signed",
+    };
+    assets.set(record.key, record);
+  }
+
+  return assets;
+}
+
 /** Flip a row to `uploaded` with the HeadObject-verified size. */
 export async function markPanoramaAssetUploaded(
   client: AssetStoreClient,
