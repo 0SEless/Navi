@@ -68,7 +68,7 @@ describe('POST /api/publish — Phase 4 Road routing metadata', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
+    process.env.SUPABASE_SECRET_KEY = 'secret-key-test-value'
     vi.mocked(writePublishedMap).mockClear()
     vi.mocked(writeFileSync).mockClear()
   })

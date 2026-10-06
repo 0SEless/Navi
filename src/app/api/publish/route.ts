@@ -17,9 +17,9 @@ function sha256(data: string): string {
 
 async function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
-  // SUPABASE_SECRET_KEY, fall back to the legacy SUPABASE_SERVICE_ROLE_KEY during
-  // migration. Publish mutates storage and must keep its RLS-bypassing semantics.
+// Privileged credential selection is centralised in @/lib/supabase-privileged:
+    // SUPABASE_SECRET_KEY is required and has no legacy fallback. Publish mutates
+    // storage and must keep its RLS-bypassing semantics.
   const key = supabaseSecretKeyOrUndefined()
   if (!url || !key) return null
   return createServerClient(url, key, {

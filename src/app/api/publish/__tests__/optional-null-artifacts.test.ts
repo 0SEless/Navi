@@ -156,7 +156,7 @@ describe('POST /api/publish — explicit `null` optional-artifact contract (T2)'
   beforeEach(() => {
     process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-test-key'
+    process.env.SUPABASE_SECRET_KEY = 'secret-key-test-value'
     mockClient.mockReset()
     vi.mocked(writeFileSync).mockClear()
   })

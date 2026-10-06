@@ -41,9 +41,9 @@ function isAbortLike(error: unknown, controller: AbortController): boolean {
 }
 
 export async function getClient(auth: "publishable" | "secret", signal?: AbortSignal) {
-  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
-  // SUPABASE_SECRET_KEY, fall back to the legacy SUPABASE_SERVICE_ROLE_KEY during
-  // migration. RLS-bypassing semantics are unchanged.
+// Privileged credential selection is centralised in @/lib/supabase-privileged:
+    // SUPABASE_SECRET_KEY is required and has no legacy fallback. RLS-bypassing
+    // semantics are unchanged.
   const key = auth === "secret"
     ? supabaseSecretKeyOrUndefined()!
     : supabasePublicKeyOrUndefined()!;

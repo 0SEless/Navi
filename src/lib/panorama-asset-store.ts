@@ -8,8 +8,7 @@
  * Access model: privileged server-only access, matching the established
  * pattern in `src/app/api/graph/route.ts` �?" the resolved key bypasses RLS,
  * and migration 015 grants the table to no client role at all. Credential
- * selection (prefer `SUPABASE_SECRET_KEY`, fall back to the legacy
- * `SUPABASE_SERVICE_ROLE_KEY` during migration) lives in
+* selection (`SUPABASE_SECRET_KEY`, required, with no legacy fallback) lives in
  * `src/lib/supabase-privileged.ts` so it cannot drift between consumers.
  * Missing environment variables are reported by NAME only, never by value,
  * mirroring `readR2Config` in `src/lib/r2.ts`.
@@ -51,10 +50,9 @@ export function getPanoramaAssetStore(
   env: Record<string, string | undefined> = process.env,
 ): AssetStore {
   const url = (env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
-  // SUPABASE_SECRET_KEY (the new sb_secret_... key), fall back to the legacy
-  // SUPABASE_SERVICE_ROLE_KEY during migration. Access model is unchanged: server-only and
-  // RLS-bypassing.
+  // Privileged credential selection is centralised in @/lib/supabase-privileged:
+  // SUPABASE_SECRET_KEY (the sb_secret_... key) is required, with no legacy fallback.
+  // Access model is unchanged: server-only and RLS-bypassing.
   const resolution = resolveSupabaseSecretKey(env);
   const serviceKey = resolution.ok ? resolution.key : "";
 
