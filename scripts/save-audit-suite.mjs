@@ -23,7 +23,11 @@ import { createClient } from '@supabase/supabase-js'
 import { createChunks, stringToBase64URL } from '@supabase/ssr'
 
 // ──────────────────────────────────────────────────────────────── config
-const BASE = process.env.BASE_URL || 'https://navi-next.vercel.app'
+const BASE = (process.env.BASE_URL || '').trim()
+if (!BASE) {
+  console.error('[save-audit-suite] BASE_URL is required; refusing to assume a deployment target.')
+  process.exit(2)
+}
 const CAMPUS_ID = 'map-map-1-repe'
 const BUILDING_ID = 'osm-bldg-801492090'
 const BUILDING_TEXT = 'COLLEGE OF TEACHER EDUCAT'
@@ -33,7 +37,6 @@ const AUTH_EMAIL = 'jepersonsalaver@gmail.com'
 const AUTH_USER_ID = 'b66e6a9d-0e34-4647-a98e-7c61abf2b8dd'
 const COOKIE_DOMAIN = new URL(BASE).hostname
 const COOKIE_SECURE = new URL(BASE).protocol === 'https:'
-const COOKIE_KEY = 'sb-oltfaepqcktrumfhadzb-auth-token'
 
 const ROOT = process.cwd()
 const ART = path.join(ROOT, 'save-audit-artifacts')
@@ -91,11 +94,35 @@ function loadEnv() {
 }
 
 const ENV = loadEnv()
-const SUPABASE_URL = ENV.SUPABASE_URL || ENV.NEXT_PUBLIC_SUPABASE_URL || 'https://oltfaepqcktrumfhadzb.supabase.co'
-const SERVICE_KEY = ENV.SUPABASE_SERVICE_ROLE_KEY
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9sdGZhZXBxY2t0cnVtZmhhZHpiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjAxMTYwOCwiZXhwIjoyMDk3NTg3NjA4fQ.xqF9_0TJguoSmxl_HjvghVem4TarKUZ3xOV6hL-4QrM'
+// Privileged Supabase access for this audit suite.
+//
+// Preferred: the new Supabase secret key (`sb_secret_...`), exposed as SUPABASE_SECRET_KEY.
+// It is rotatable and scoped independently of the legacy JWT.
+// Accepted fallback: SUPABASE_SERVICE_ROLE_KEY, for environments not yet migrated.
+//
+// There is deliberately NO hardcoded default. A credential embedded in source control is
+// a credential leak, so this script fails closed when nothing is configured rather than
+// silently reaching for a built-in key or endpoint.
+const SUPABASE_URL = (ENV.SUPABASE_URL || ENV.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+const SECRET_KEY = (ENV.SUPABASE_SECRET_KEY || ENV.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY)
+if (!SUPABASE_URL) {
+  console.error('[save-audit-suite] SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required.')
+  console.error('  This suite performs privileged reads and writes, so it will not guess an endpoint.')
+  process.exit(2)
+}
+
+if (!SECRET_KEY) {
+  console.error('[save-audit-suite] A privileged Supabase key is required.')
+  console.error('  Set SUPABASE_SECRET_KEY (preferred, sb_secret_...) or SUPABASE_SERVICE_ROLE_KEY in the environment.')
+  console.error('  No credential is embedded in this script by design. Refusing to run.')
+  process.exit(2)
+}
+
+const supabaseAdmin = createClient(SUPABASE_URL, SECRET_KEY)
+
+// Derived from the CONFIGURED project ref rather than a hardcoded production ref.
+const COOKIE_KEY = `sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`
 
 async function authCookies() {
   const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(AUTH_USER_ID)
