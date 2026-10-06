@@ -100,7 +100,30 @@ export function assertNotPublicSecretVars(env: EnvLike = process.env): void {
     // Variable names only â€” never their values.
     throw new Error(
       `Privileged Supabase variables must not be exposed to the browser: ${leakedPublicNames.join(", ")}. ` +
-        `Remove the NEXT_PUBLIC_* alias; only the publishable/anon key may use that prefix.`,
+      `Remove the NEXT_PUBLIC_* alias; only the publishable/anon key may use that prefix.`,
     );
   }
+}
+
+/**
+ * Which privileged credential source the resolver would select, as a closed three-value
+ * indicator: `"secret"` | `"legacy"` | `"missing"`.
+ *
+ * This is deliberately the NARROWEST possible read: it returns one enum word and nothing
+ * else. It exposes no key material and no derivative of it — not the value, not its length,
+ * not a hash or fingerprint, not a prefix, not the environment variable names, and not how
+ * many variables are set. Two different keys that resolve from the same variable are
+ * indistinguishable by design.
+ *
+ * Exists so an operator can confirm, with a single read-only call, that a deployment is
+ * actually using the new Secret API key. Serve it only behind administrator authorization.
+ */
+export type SupabaseSecretSourceIndicator = "secret" | "legacy" | "missing";
+
+export function privilegedCredentialSourceIndicator(
+  env: EnvLike = process.env,
+): SupabaseSecretSourceIndicator {
+  const resolution = resolveSupabaseSecretKey(env);
+  if (!resolution.ok) return "missing";
+  return resolution.source === "SUPABASE_SECRET_KEY" ? "secret" : "legacy";
 }
