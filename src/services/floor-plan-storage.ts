@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-client'
+import { supabasePublicKeyOrUndefined } from '@/lib/supabase-public'
 import { needsRasterization, rasterizePdfToPng } from '@navi/editor'
 import { isOwnedFloorPlanUrl } from './floor-plan-lifecycle'
 import type { FloorPlanStorageScope } from './floor-plan-lifecycle'
@@ -32,7 +33,8 @@ export async function uploadFloorPlanImage(
   // P1-T14: rasterize PDFs first so storage/data-url paths never carry a PDF.
   const uploadFile = await planFileToUploadBlob(file)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Public client: modern publishable key via the centralised public resolver.
+    const supabaseKey = supabasePublicKeyOrUndefined()
 
   if (!supabaseUrl || !supabaseKey) {
     return readFileAsDataUrl(uploadFile)

@@ -2,11 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
 import { __resetGraphSaveQueuesForTests, useGraphStore } from './graph-store'
+import { fullSnapshotFingerprint } from '../services/full-snapshot-identity'
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+function acknowledgedSave(init: RequestInit | undefined, revision: string): Response {
+  const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+  return jsonResponse({
+    success: true,
+    campusId: body.campusId,
+    mutationId: body.mutationId,
+    updatedAt: revision,
+    committedRevision: revision,
+    committedContentFingerprint: fullSnapshotFingerprint(body),
   })
 }
 
@@ -25,8 +38,10 @@ describe('graph store persistence', () => {
 
   it('does not resolve save until the graph API sync resolves', async () => {
     let resolveRequest: ((response: Response) => void) | undefined
+    let pendingRequestInit: RequestInit | undefined
     const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'POST') {
+        pendingRequestInit = init
         return new Promise<Response>((resolve) => {
           resolveRequest = resolve
         })
@@ -53,7 +68,7 @@ describe('graph store persistence', () => {
     await Promise.resolve()
     expect(resolved).toBe(false)
 
-    resolveRequest?.(jsonResponse({ success: true, updatedAt: '2026-09-13T00:00:00.000Z' }))
+    resolveRequest?.(acknowledgedSave(pendingRequestInit, '2026-09-13T00:00:00.000Z'))
     await saveResult
 
     expect(resolved).toBe(true)
@@ -86,7 +101,7 @@ describe('graph store persistence', () => {
     useGraphStore.setState({ graph, currentMapId: mapId })
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'POST') {
-        return jsonResponse({ success: true, updatedAt: '2026-09-13T00:00:00.000Z' })
+        return acknowledgedSave(init, '2026-09-13T00:00:00.000Z')
       }
       return jsonResponse({ buildings: [], nodes: [], edges: [], updatedAt: '2026-09-13T00:00:00.000Z' })
     }))
@@ -100,7 +115,7 @@ describe('graph store persistence', () => {
     const cached = localStorage.getItem(`navi-graph-${mapId}`)
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'POST') {
-        return jsonResponse({ success: true, updatedAt: '2026-09-13T00:00:00.000Z' })
+        return acknowledgedSave(init, '2026-09-13T00:00:00.000Z')
       }
       return jsonResponse(JSON.parse(cached ?? '{}'))
     }))

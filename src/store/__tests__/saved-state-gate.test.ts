@@ -4,6 +4,7 @@ import { Graph } from '../../engine/graph'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from '../graph-store'
 import { deriveFloorHeaderStatus } from '@/hooks/floor-graph-selectors'
 import { getSaveStatusModel } from '@/components/studio/save-status-model'
+import { ackForRequest } from '@/test-utils/persistence-ack'
 
 /**
  * False-saved gate: no surface may claim Saved from a marker, an optimistic
@@ -45,7 +46,7 @@ function isPost(init?: RequestInit): boolean {
 /** Seed a matching cache + marker through a normal acknowledged save. */
 async function seedAcknowledgedSync(): Promise<void> {
   vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    if (isPost(init)) return jsonResponse({ success: true, updatedAt: 'R1' })
+    if (isPost(init)) return jsonResponse(ackForRequest(init, 'R1'))
     return jsonResponse(serverPayload('Seed Hall', 'R1'))
   }))
   setClientGraph('Seed Hall')
@@ -73,13 +74,13 @@ describe('graph store false-saved gate', () => {
   it('case 1/2: a committed local edit cannot keep a Saved badge during the debounce window', async () => {
     await seedAcknowledgedSync()
 
-    // Graph mutators only bump renderVersion: syncStatus alone stays `synced`
-    // across the autosave debounce, which is exactly the previous false-Saved.
+    // The authored edit moves syncStatus to `idle`, and the dirty projection
+    // must remain unsaved throughout the autosave debounce.
     useGraphStore.getState().updateBuilding('building-1', { name: 'Edited Hall' } as never)
-    expect(useGraphStore.getState().syncStatus).toBe('synced')
+    expect(useGraphStore.getState().syncStatus).toBe('idle')
 
-    expect(deriveFloorHeaderStatus('synced', 'dirty')).toBe('unsaved')
-    expect(getSaveStatusModel({ saveState: 'dirty', syncStatus: 'synced' }).label).toBe('Unsaved changes')
+    expect(deriveFloorHeaderStatus('idle', 'dirty')).toBe('unsaved')
+    expect(getSaveStatusModel({ saveState: 'dirty', syncStatus: 'idle' }).label).toBe('Unsaved changes')
   })
 
   it('case 4: a valid authoritative ACK allows Saved', async () => {
@@ -217,7 +218,7 @@ describe('graph store false-saved gate', () => {
       expect(useGraphStore.getState().syncStatus).toBe('error')
     })
     const state = useGraphStore.getState()
-    expect(state.syncError).toMatch(/^Offline — could not verify the server copy/)
+    expect(state.syncError).toBe('Offline or server unavailable. Browser recovery is unverified; edits remain preserved.')
     expect(deriveFloorHeaderStatus('error', 'saved')).toBe('error')
     expect(getSaveStatusModel({
       saveState: 'saved',

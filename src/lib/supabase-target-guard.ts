@@ -5,7 +5,7 @@
  *
  * `next dev` loads `.env.development.local`. NAVI's write path
  * (`src/lib/graph-write-handler.ts`) connects with
- * `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. If that file
+ * `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SECRET_KEY`. If that file
  * carries production credentials, an ordinary local autosave mutates the
  * production database — the service-role key bypasses RLS entirely.
  *
@@ -134,8 +134,8 @@ export function evaluateSupabaseWriteTarget(env: NodeJS.ProcessEnv = process.env
 
   // Split configuration: URL says development, credential says production.
   const keyRef =
-    extractSupabaseKeyProjectRef(env.SUPABASE_SERVICE_ROLE_KEY) ??
-    extractSupabaseKeyProjectRef(env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    extractSupabaseKeyProjectRef(env.SUPABASE_SECRET_KEY) ??
+    extractSupabaseKeyProjectRef(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   if (urlRef && keyRef && urlRef !== keyRef) {
     return {
       ok: false,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { validateNavigationArtifacts, type ArtifactValidationResult } from '@navi/compiler'
+import { supabasePublicKeyOrUndefined } from '@/lib/supabase-public'
 
 // Keep these sequential campus reads in the same Vercel region as Supabase.
 export const preferredRegion = 'hnd1'
@@ -30,7 +31,9 @@ export const preferredRegion = 'hnd1'
 
 async function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // Public/anonymous read path — RLS-bypassing NOT required. Uses the modern
+  // publishable key via the centralised public resolver, never a privileged key.
+  const key = supabasePublicKeyOrUndefined()!
   return createServerClient(url, key, {
     cookies: { getAll: () => [], setAll: () => {} },
   })

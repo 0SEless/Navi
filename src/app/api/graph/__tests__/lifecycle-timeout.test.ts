@@ -30,7 +30,19 @@ describe('api/graph request-lifecycle hardening', () => {
     capturedOptions = null
     mockCreate.mockReset().mockImplementation(async (_url: string, _key: string, opts: Record<string, unknown>) => {
       capturedOptions = opts
-      return { rpc: rpcMock }
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        maybeSingle: vi.fn(async () => ({
+          data: {
+            graph_data: { buildings: [], nodes: [], edges: [] },
+            authored_document: null,
+            revision: 'R1',
+          },
+          error: null,
+        })),
+      }
+      return { rpc: rpcMock, from: vi.fn(() => query) }
     })
   })
 

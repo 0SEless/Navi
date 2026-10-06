@@ -5,6 +5,7 @@ import { Graph } from '../engine/graph'
 import { GraphAdapter } from '../../packages/editor/src/graph-adapter'
 import { createDocument } from '../../packages/editor/src/context/create-editor-context'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from './graph-store'
+import { fullSnapshotFingerprint } from '../services/full-snapshot-identity'
 
 const ROUTING: RoadRouting = {
   feature: 'stairs',
@@ -67,15 +68,25 @@ describe('graph store Road routing persistence', () => {
     const graph = new Graph('phase-3-store')
     new GraphAdapter(graph).sync(makeDocument())
     useGraphStore.setState({ graph, currentMapId: 'phase-3-store' })
+    let serverSnapshot: Record<string, unknown> | null = null
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? 'GET') === 'POST') {
-        return new Response(JSON.stringify({ success: true, updatedAt: '2026-09-13T00:00:00.000Z' }), {
+        const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>
+        serverSnapshot = body
+        return new Response(JSON.stringify({
+          success: true,
+          campusId: body.campusId,
+          mutationId: body.mutationId,
+          updatedAt: '2026-09-13T00:00:00.000Z',
+          committedRevision: '2026-09-13T00:00:00.000Z',
+          committedContentFingerprint: fullSnapshotFingerprint(body),
+        }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
       }
       return new Response(
-        JSON.stringify({ buildings: [], nodes: [], edges: [], updatedAt: '2026-09-13T00:00:00.000Z' }),
+        JSON.stringify({ ...serverSnapshot, updatedAt: '2026-09-13T00:00:00.000Z' }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       )
     })
@@ -96,6 +107,9 @@ describe('graph store Road routing persistence', () => {
 
     useGraphStore.setState({ graph: new Graph(), currentMapId: null, syncStatus: 'idle', syncError: null })
     useGraphStore.getState().loadMapData('phase-3-store')
+    await vi.waitFor(() => {
+      expect(createDocument(useGraphStore.getState().graph).roads[0]?.routing).toEqual(ROUTING)
+    })
 
     const restoredRoad = createDocument(useGraphStore.getState().graph).roads[0]
     expect(restoredRoad.routing).toEqual(ROUTING)

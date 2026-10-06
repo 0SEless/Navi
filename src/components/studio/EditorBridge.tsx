@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   EditorProvider,
   SelectionBridge,
@@ -13,6 +13,7 @@ import {
 } from '@navi/editor'
 import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
 import type { PersistenceSyncState } from '@navi/editor'
+import type { NavigationGraph } from '@navi/core'
 import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
@@ -48,28 +49,44 @@ import { persistStudioGraph } from './studio-persistence'
  * a single EditorProvider context so Explorer + PropertiesPanel share
  * one document, one SelectionManager, one dispatcher, one history.
  *
- * The context (document + services) is created ONCE per bridge mount
+ * The context (document + services) is created ONCE per authoritative generation
  * (lifetime invariant) — never recreated on graph/selection/edit changes.
  */
 
 export function EditorBridge({ children }: { children: ReactNode }) {
-  const contextRef = useRef<EditorContext | null>(null)
+  const campusId = useGraphStore(state => state.currentMapId)
+  const adoption = useGraphStore(state => state.serverAdoptionVersion)
+  return <EditorGenerationBridge key={`${campusId}:${adoption}`} campusId={campusId} adoption={adoption}>{children}</EditorGenerationBridge>
+}
+
+const activeEditorGenerations = new WeakSet<object>()
+const activeEditorContexts = new WeakMap<object, EditorContext>()
+
+function EditorGenerationBridge({ children, campusId, adoption }: { children: ReactNode; campusId: string | null; adoption: number }) {
+  const generationToken = useMemo(() => ({}), [])
+  const isCurrent = useCallback(() => activeEditorGenerations.has(generationToken) && useGraphStore.getState().currentMapId === campusId && useGraphStore.getState().serverAdoptionVersion === adoption, [campusId, adoption, generationToken])
+  const getCurrentContext = useCallback(() => activeEditorContexts.get(generationToken) ?? null, [generationToken])
+  const assertCurrent = useCallback(() => { if (!isCurrent()) throw new Error('Editor generation retired after authoritative adoption or navigation') }, [isCurrent])
+
 
   // GraphAdapter is a projection step. Capture its document only when the
   // campus already has a new-format authored snapshot or a real editor change
   // has advanced the legacy document version; initial legacy hydration remains
   // Graph-only and therefore cannot trigger an automatic rewrite.
-  const syncDocumentAndCapture = () => {
-    const ctx = contextRef.current
+  const syncDocumentAndCapture = useCallback(() => {
+    assertCurrent()
+    const ctx = getCurrentContext()
     if (!ctx) return
     const state = useGraphStore.getState()
     const activeBuildingId = useStudioStore.getState().activeBuildingId
-    const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
+    // Save captures the already-projected authoring document. Only explicit
+    // road commands grant outdoor deletion authority in document.changed.
+    const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : { kind: 'authoring' }
     const ga = new GraphAdapter(state.graph, ctx.transformer)
-    ga.sync(ctx.document, scope)
+    ga.sync(ctx.document, { ...scope, authoritative: true })
     const nextState = useGraphStore.getState()
     nextState.setAuthoredDocument(ctx.document)
-  }
+  }, [assertCurrent, getCurrentContext])
 
   const persistenceAdapter: PersistenceAdapter = {
     save: () => persistStudioGraph({
@@ -77,6 +94,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         syncDocumentAndCapture()
       },
       saveGraph: async () => {
+        assertCurrent()
         try {
           const activeBuildingId = useStudioStore.getState().activeBuildingId
           // Fallback attribution is gated on a real editor change: a document
@@ -84,7 +102,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
           // intent record was missed (e.g. floor.create from the Manage Floors
           // dialog). Hydration/view-only sessions keep version 0, so the P0.11
           // unattributed-mutation guard still fails closed for them.
-          const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+          const hasRealDocumentEdit = (getCurrentContext()?.document.version ?? 0) > 0
           if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
             if (activeBuildingId) {
               useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
@@ -93,6 +111,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
             }
           }
           await useGraphStore.getState().save({ trigger: 'autosave' })
+          assertCurrent()
         } catch (error: unknown) {
           console.warn('EditorBridge adapter save failed:', error)
           throw error
@@ -100,14 +119,16 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       },
       // Bump renderVersion only after graph persistence has completed.
       bumpRenderVersion: () => {
+        assertCurrent()
         useGraphStore.setState((s) => ({ renderVersion: s.renderVersion + 1 }))
       },
     }),
     syncToSupabase: () => {
+      assertCurrent()
       const activeBuildingId = useStudioStore.getState().activeBuildingId
       // Same gate as saveGraph: only a real document version advance may
       // fabricate fallback attribution; version-0 sessions stay fail-closed.
-      const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+      const hasRealDocumentEdit = (getCurrentContext()?.document.version ?? 0) > 0
       if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
         if (activeBuildingId) {
           useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
@@ -118,6 +139,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       return useGraphStore.getState().syncToSupabase({ trigger: 'autosave' })
     },
     getSyncState: (): PersistenceSyncState => {
+      if (!isCurrent()) return { status: 'error', error: 'Editor generation retired' }
       const state = useGraphStore.getState()
       return { status: state.syncStatus, error: state.syncError }
     },
@@ -127,6 +149,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         error: useGraphStore.getState().syncError,
       }
       return useGraphStore.subscribe(() => {
+        if (!isCurrent()) return
         const state = useGraphStore.getState()
         const next = { status: state.syncStatus, error: state.syncError }
         if (next.status === previous.status && next.error === previous.error) return
@@ -135,7 +158,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       })
     },
     publish: async (artifacts) => {
-      const ctx = contextRef.current
+      assertCurrent()
+      const ctx = getCurrentContext()
       const campusId = ctx?.document?.metadata?.campusId
       if (!campusId) {
         return { success: false, message: 'Cannot publish: document has no campusId' }
@@ -146,6 +170,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artifacts, campusId, revision }),
       })
+      assertCurrent()
       if (!response.ok) {
         const err = await response.json().catch(() => null)
         return {
@@ -154,6 +179,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         }
       }
       const data = await response.json()
+      assertCurrent()
       return {
         success: data.success,
         version: data.manifest?.compilerVersion ?? '1.0.0',
@@ -162,33 +188,59 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     },
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
-  const [context] = useState(() => {
-    const ctx = createEditorContext(
-      useGraphStore.getState().graph,
-      persistenceAdapter,
-      navCompiler,
-      useGraphStore.getState().authoredDocument ?? undefined,
-    )
-    return ctx
-  })
-
-  // Ensure contextRef.current is always in sync with the active committed context
-  contextRef.current = context
+  // Construction is pure with deferred initialization. StrictMode may discard
+  // an initializer, but only the committed effect starts services and timers.
+  const [context] = useState(() => createEditorContext(
+    useGraphStore.getState().graph, persistenceAdapter, navCompiler,
+    useGraphStore.getState().authoredDocument ?? undefined, isCurrent,
+    { deferInitialization: true },
+  ))
+  useEffect(() => {
+    activeEditorContexts.set(generationToken, context)
+    activeEditorGenerations.add(generationToken)
+    void context.initialize?.().catch(error => console.warn('EditorBridge service initialization failed:', error))
+    return () => {
+      activeEditorGenerations.delete(generationToken)
+      activeEditorContexts.delete(generationToken)
+      // StrictMode immediately reattaches effects. Cancel destruction in that
+      // case, but fence real unmounts synchronously before disposing timers.
+      queueMicrotask(() => {
+        if (!activeEditorGenerations.has(generationToken)) void context.dispose?.().catch(error => console.warn('EditorBridge service disposal failed:', error))
+      })
+    }
+  }, [context, generationToken])
 
   // Existing map snapshots may predate derived road endpoint markers. Rebuild
   // the legacy graph once at mount so both authored endpoints are immediately
   // visible after load, without inferring any new connection edges.
+  //
+  // Phase 4.6: this is a HYDRATION pass, not an author-deletion intent, so it
+  // must run with an explicit scope. Previously it ran unscoped, and an
+  // unscoped pass derives `outdoorCovered` from `Array.isArray(document.roads)`.
+  // A modern document with `roads: []` therefore granted this pass deletion
+  // authority over every `__outdoor__` entity, deleting route nodes the rebuild
+  // never regenerated — and any edge touching them cascaded away. The next
+  // ordinary save then persisted that reduced campus graph (proven on
+  // scvgulusmutnzasmgysx: 2 nodes / 1 edge -> 1 node / 0 edges).
+  //
+  // `{ kind: 'authoring' }` keeps authored buildings/floors authoritative while
+  // leaving unowned entities intact. Explicit road deletion is unaffected: it
+  // arrives via `document.changed` with no active building, which still runs
+  // unscoped and therefore still revokes outdoor content.
   useEffect(() => {
+    if (!isCurrent()) return
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
-    new GraphAdapter(graph, context.transformer).sync(context.document)
+    // Hydration is a scoped projection, not an authored deletion. Preserve graph-only
+    // outdoor routes that are not represented by this authored document.
+    new GraphAdapter(graph, context.transformer).sync(context.document, { kind: 'authoring' })
     useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
     // reconciliation has completed — the campus is now READY_CLEAN and authored
     // persistence may proceed (P0.14: shared lifecycle action).
     useGraphStore.getState().completeCampusHydration()
-  }, [context])
+  }, [context, isCurrent])
 
   // The editor document is authoritative, but the Studio map still has a
   // legacy Graph projection for areas, navigation nodes, and edges. Keep that
@@ -205,8 +257,11 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     } | undefined
 
     const unsubscribe = eventBus.on('document.changed', (evt?: { entityType?: string; entityId?: string }) => {
+      if (!isCurrent()) return
       const activeBuildingId = useStudioStore.getState().activeBuildingId
-      const entityType = evt?.entityType
+      const entityType = evt?.entityType === 'entity' && evt.entityId
+        ? findEntityById(context.document, evt.entityId)?.path
+        : evt?.entityType
 
       // Record authored mutation so P0.11 save guard attributes the change and permits autosave
       if (entityType === 'floor' || entityType === 'building') {
@@ -220,8 +275,10 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       }
 
       const graph = useGraphStore.getState().graph
-      const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
-      new GraphAdapter(graph, context.transformer).sync(context.document, scope)
+      const scope = activeBuildingId
+        ? { kind: 'building', buildingId: activeBuildingId, floor: null }
+        : entityType === 'road' ? undefined : { kind: 'authoring' }
+      new GraphAdapter(graph, context.transformer).sync(context.document, { ...scope, authoritative: true })
       useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
 
@@ -243,17 +300,26 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     })
 
     return () => unsubscribe()
-  }, [context])
+  }, [context, isCurrent])
 
   // Save on tab close / navigation away — fires even if autosave debounce hasn't
-  // elapsed. Uses synchronous localStorage write (via graphStore.save()) so data
+  // elapsed. Uses a synchronous recovery checkpoint so data
   // survives browser close. The async Supabase sync runs in the background.
   useEffect(() => {
     const handleVisibility = () => {
+      if (!isCurrent()) return
       if (document.visibilityState === 'hidden') {
         syncDocumentAndCapture()
+        const state = useGraphStore.getState()
+        if (state.pendingAuthoredMutations.length === 0 && state.syncStatus === 'synced') {
+          // Visibility changes also happen after a successful ACK. Preserve the
+          // recovery checkpoint, but do not turn an unchanged document into a
+          // new authored mutation/revision.
+          state.persistRecovery()
+          return
+        }
         const activeBuildingId = useStudioStore.getState().activeBuildingId
-        if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
+        if (state.pendingAuthoredMutations.length === 0 && context.document.version > 0) {
           useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
         }
         void useGraphStore.getState().save().catch((error: unknown) => {
@@ -261,15 +327,20 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         })
       }
     }
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isCurrent()) return
       syncDocumentAndCapture()
       const activeBuildingId = useStudioStore.getState().activeBuildingId
-      if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
+      const state = useGraphStore.getState()
+      if (state.pendingAuthoredMutations.length === 0 && state.syncStatus !== 'synced' && context.document.version > 0) {
         useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
       }
-      void useGraphStore.getState().save().catch((error: unknown) => {
+      try { useGraphStore.getState().persistRecovery() }
+      catch (error: unknown) {
+        event.preventDefault()
+        event.returnValue = ''
         console.warn('EditorBridge unload persistence failed:', error)
-      })
+      }
     }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -277,7 +348,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [context])
+  }, [context, isCurrent, syncDocumentAndCapture])
 
   // Wire SelectionBridge once per mount: keep the legacy studio store and the
   // new SelectionManager in sync (selection only, loop-guarded).
@@ -295,6 +366,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     //   Programmatic    → sets activeBuildingId (no map in test, no-op)
     const unsubBridge = bridge.connect({
       onSelectionChanged(state, legacy) {
+        if (!isCurrent()) return
         useStudioStore.setState({
           selectedNodeId: legacy.selectedNodeId,
           // activeBuildingId triggers the camera fly-to effect in StudioCanvas.
@@ -308,6 +380,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
 
     // Direction B — legacy store → SelectionManager (loop-guarded).
     const unsubLegacy = useStudioStore.subscribe(() => {
+      if (!isCurrent()) return
       const s = useStudioStore.getState()
       const legacyId = s.selectedTraceId ?? s.selectedNodeId ?? s.activeBuildingId
       if (!legacyId) {
@@ -343,26 +416,28 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       unsubBridge()
       unsubLegacy()
     }
-  }, [context])
+  }, [context, isCurrent])
 
   // ── Vertex editing bridge: listen for road.edit events from editor package ──
   useEffect(() => {
-    const eventBus = context.services.get('eventBus') as any
+    const eventBus = context.services.get('eventBus') as DocumentEventBus | undefined
     if (!eventBus?.on) return
     const unsub = eventBus.on('road.edit', (payload: { roadId: string }) => {
+      if (!isCurrent()) return
       useStudioStore.getState().setVertexEditing('trace', payload.roadId)
     })
     return () => { unsub?.() }
-  }, [context])
+  }, [context, isCurrent])
 
   // ── Bridge compile result to compiled-graph-store ──
   // After a successful publish, the compile result contains the NavigationGraph
   // which we need for Route Testing and other features.
   useEffect(() => {
-    const eventBus = context.services.get('eventBus') as any
+    const eventBus = context.services.get('eventBus') as DocumentEventBus | undefined
     if (!eventBus?.on) return
 
-    const unsub = eventBus.on('publish.completed', (payload: any) => {
+    const unsub = eventBus.on('publish.completed', (payload: { navigationGraph?: NavigationGraph | null }) => {
+      if (!isCurrent()) return
       // Use the navigation graph from the publish event directly — no recompile needed.
       // The PublishService already compiled the document; recompiling here was fragile
       // and silently swallowed errors, leaving Route Testing on mock data.
@@ -371,15 +446,12 @@ export function EditorBridge({ children }: { children: ReactNode }) {
 
       useCompiledGraphStore.getState().setResult(navGraph)
 
-      // Also push V2 nodes/edges into useGraphStore so NavigationGraphRenderer
-      // shows the real compiled graph on the Studio map (not the legacy graph).
-      const { nodes, edges } = useCompiledGraphStore.getState()
-      useGraphStore.getState().setNodes(nodes as any)
-      useGraphStore.getState().setEdges(edges as any)
+      // Route Testing and Studio rendering consume this derived channel.
+      // Publishing must never replace the draft that a later autosave persists.
     })
 
     return () => { unsub?.() }
-  }, [context])
+  }, [context, isCurrent])
 
   return (
     <EditorProvider context={context}>

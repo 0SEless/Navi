@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../../engine/graph'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from '../graph-store'
+import { ackForRequest } from '../../test-utils/persistence-ack'
 
 /**
  * Refresh-during-save recovery (focused).
@@ -46,7 +47,7 @@ function harness(): Harness {
       posted.push(String(init?.body ?? ''))
       if (state.postStatus !== 200) return jsonResponse({ error: 'server exploded' }, state.postStatus)
       postCount += 1
-      return jsonResponse({ success: true, updatedAt: 'R' + postCount })
+      return jsonResponse(ackForRequest(init, 'R' + postCount))
     }
     return jsonResponse({ ...state.server, updatedAt: state.updatedAt })
   })
@@ -191,7 +192,7 @@ describe('refresh-during-save recovery', () => {
     const gate = new Promise<void>((resolve) => { releaseGate = resolve })
     const originalFetch = globalThis.fetch as ReturnType<typeof vi.fn>
     originalFetch.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if ((init?.method ?? 'GET') === 'POST') { await gate; return jsonResponse({ success: true, updatedAt: 'R10' }) }
+      if ((init?.method ?? 'GET') === 'POST') { await gate; return jsonResponse(ackForRequest(init, 'R10')) }
       return originalFetch(input as RequestInfo, init)
     })
 

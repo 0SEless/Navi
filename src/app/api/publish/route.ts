@@ -13,6 +13,7 @@ import {
   type PanoramaAssetRecord,
 } from '@/lib/panorama-asset-store'
 import { parsePanoramaKey } from '@/lib/panorama-keys'
+import { supabaseSecretKeyOrUndefined } from '@/lib/supabase-privileged'
 
 const DEMO_DIR = join(process.cwd(), 'demo-output')
 
@@ -22,7 +23,7 @@ function sha256(data: string): string {
 
 async function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const key = supabaseSecretKeyOrUndefined()
   if (!url || !key) return null
   return createServerClient(url, key, {
     cookies: { getAll: () => [], setAll: () => {} },

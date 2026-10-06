@@ -8,6 +8,8 @@ import {
   requireVerifiedMutationAuth,
 } from "@/lib/api-guard";
 import { assertSafeSupabaseWriteTarget } from "@/lib/supabase-target-guard";
+import { supabaseSecretKeyOrUndefined } from "@/lib/supabase-privileged";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 
 const RPC_TIMEOUT_MS = 30000
 
@@ -43,8 +45,8 @@ function isAbortLike(error: unknown, controller: AbortController): boolean {
 
 export async function getGraphClient(auth: "publishable" | "secret", signal?: AbortSignal) {
   const key = auth === "secret"
-    ? process.env.SUPABASE_SERVICE_ROLE_KEY!
-    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    ? supabaseSecretKeyOrUndefined()!
+    : supabasePublicKeyOrUndefined()!;
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     key,

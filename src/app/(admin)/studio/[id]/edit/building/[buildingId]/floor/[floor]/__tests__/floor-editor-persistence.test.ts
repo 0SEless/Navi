@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Graph } from '@/engine/graph'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from '@/store/graph-store'
+import { fullSnapshotFingerprint } from '@/services/full-snapshot-identity'
 import { CoordinateTransformer, CampusDocument } from '@navi/core'
 import { GraphAdapter } from '@navi/editor'
 
@@ -15,7 +16,16 @@ function stubServer(): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     if ((init?.method ?? 'GET') === 'POST') {
       n += 1
-      return jsonResponse({ success: true, updatedAt: `2026-09-27T06:30:0${n}.000Z` })
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const revision = `2026-09-27T06:30:0${n}.000Z`
+      return jsonResponse({
+        success: true,
+        campusId: body.campusId,
+        mutationId: body.mutationId,
+        updatedAt: revision,
+        committedRevision: revision,
+        committedContentFingerprint: fullSnapshotFingerprint(body),
+      })
     }
     const graph = new Graph()
     graph.campusId = MAP_ID
