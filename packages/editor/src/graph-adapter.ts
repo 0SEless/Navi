@@ -212,6 +212,21 @@ export interface GraphAdapterScope {
   kind?: string
   buildingId?: string | null
   floor?: number | null
+  /**
+   * Declares that the caller holds the COMPLETE campus document, so an entity that is
+   * absent from it means the author DELETED that entity.
+   *
+   * Without this flag the reconciler cannot tell "deleted" apart from "outside the scope
+   * of a partial document" and restores the entity, silently reverting authored deletions.
+   * That is the deletion-resurrection defect recorded in errors/ERRORS.md (2026-10-06).
+   *
+   * ONLY set this when `document` really is the whole campus. A caller holding a partial
+   * document must leave it false, otherwise unrelated canonical content is deleted.
+   *
+   * It carries no scope of its own: a scope object containing only `authoritative` behaves
+   * exactly like `undefined` for building/floor/outdoor coverage.
+   */
+  authoritative?: boolean
 }
 
 export class GraphAdapter {
@@ -267,12 +282,43 @@ export class GraphAdapter {
     } else {
       for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
     }
+
+    // Authored deletion vs out-of-scope preservation.
+    //
+    // Coverage above is inferred from the incoming document, which makes a building the
+    // author removed indistinguishable from a building merely outside a partial scope --
+    // and the merge-back below would then restore it. When the caller declares the document
+    // complete, treat everything previously present as IN the author's domain, so absence
+    // means deleted and nothing is resurrected.
+    if (scope?.authoritative === true) {
+      for (const b of previous.buildings) coveredBuildings.add(b.id)
+      // A deleted floor leaves no document entry, so widen per-building floor coverage from
+      // the floor levels actually observed on that building's existing nodes.
+      for (const n of previous.nodes) {
+        const bid = (n as { buildingId?: string | null }).buildingId
+        const fl = (n as { floor?: number | null }).floor
+        if (!bid || bid === '__outdoor__') continue
+        if (fl === null || fl === undefined) continue
+        if (!coveredBuildings.has(bid)) continue
+        const set = coveredFloors.get(bid) ?? new Set<number>()
+        set.add(fl)
+        coveredFloors.set(bid, set)
+      }
+    }
     // Outdoor scope is covered only when:
     // - explicit outdoor scope is given, OR
-    // - no scope is specified and document.roads is an array
-    const outdoorCovered = scope
-      ? scope.kind === 'outdoor'
-      : Array.isArray(doc.roads)
+    // - no scope kind is specified and document.roads is an array
+    // An `authoritative`-only scope carries no kind, so it keeps the unscoped behaviour.
+    //
+    // Under a complete document the document enumerates every road, so an authored road
+    // deletion must be honoured even when the edit happened while a building was selected
+    // (EditorBridge gives the building scope precedence). Otherwise traces are treated as
+    // out of scope and merged back, reverting the deletion.
+    const outdoorCovered = scope?.authoritative === true
+      ? Array.isArray(doc.roads)
+      : scope && scope.kind
+        ? scope.kind === 'outdoor'
+        : Array.isArray(doc.roads)
 
     const nodeCovered = (n: NavNode): boolean => {
       const bid = (n as { buildingId?: string | null }).buildingId

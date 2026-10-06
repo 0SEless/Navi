@@ -66,7 +66,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     const activeBuildingId = useStudioStore.getState().activeBuildingId
     const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
     const ga = new GraphAdapter(state.graph, ctx.transformer)
-    ga.sync(ctx.document, scope)
+    // `ctx.document` is the editor's complete campus document, so an entity missing from it
+    // was deleted by the author and must not be resurrected by the reconciler.
+    ga.sync(ctx.document, scope ? { ...scope, authoritative: true } : { authoritative: true })
     const nextState = useGraphStore.getState()
     nextState.setAuthoredDocument(ctx.document)
   }
@@ -181,7 +183,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   useEffect(() => {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
-    new GraphAdapter(graph, context.transformer).sync(context.document)
+    new GraphAdapter(graph, context.transformer).sync(context.document, { authoritative: true })
     useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
     // P0.13 CAMPUS_READY_FOR_AUTHORED_SAVE: the initial GraphAdapter/EditorBridge
@@ -221,7 +223,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
 
       const graph = useGraphStore.getState().graph
       const scope = activeBuildingId ? { kind: 'building', buildingId: activeBuildingId, floor: null } : undefined
-      new GraphAdapter(graph, context.transformer).sync(context.document, scope)
+      new GraphAdapter(graph, context.transformer).sync(context.document, { ...scope, authoritative: true })
       useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
 
