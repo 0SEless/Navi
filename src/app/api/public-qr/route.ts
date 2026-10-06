@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { isStableQrId } from '@/lib/qr-payload'
+import { supabasePublicKeyOrUndefined } from '@/lib/supabase-public'
 
 const PUBLIC_QR_READ_FAILED = 'PUBLIC_QR_READ_FAILED'
 
@@ -24,7 +25,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // Public/anonymous read path — uses the modern publishable key via the centralised
+    // public resolver, never a privileged key.
+    const key = supabasePublicKeyOrUndefined()!
   return createServerClient(url, key, {
     cookies: { getAll: () => [], setAll: () => {} },
   })

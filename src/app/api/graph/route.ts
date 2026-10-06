@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseSecretKeyOrUndefined } from "@/lib/supabase-privileged";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 import {
   assertCampusMutationAllowed,
   getCampusIdFromBody,
@@ -45,7 +46,7 @@ export async function getClient(auth: "publishable" | "secret", signal?: AbortSi
   // migration. RLS-bypassing semantics are unchanged.
   const key = auth === "secret"
     ? supabaseSecretKeyOrUndefined()!
-    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    : supabasePublicKeyOrUndefined()!;
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     key,

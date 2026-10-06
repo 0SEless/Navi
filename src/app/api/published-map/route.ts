@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { supabasePublicKeyOrUndefined } from '@/lib/supabase-public'
 
 /**
  * GET /api/published-map?campus_id=asu-ibajay
@@ -11,7 +12,9 @@ import { createServerClient } from '@supabase/ssr'
  */
 async function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Public/anonymous read path — uses the modern publishable key via the centralised
+  // public resolver, never a privileged key.
+  const key = supabasePublicKeyOrUndefined()
   if (!url || !key) return null
   return createServerClient(url, key, {
     cookies: { getAll: () => [], setAll: () => {} },

@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decodeMockSession, isMockAuthEnabled, MOCK_COOKIE } from "@/lib/mock-auth";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 import { isAdminIdentity } from "@/lib/admin-authz";
 
 /** Campuses whose data is the live production source of truth. */
@@ -259,8 +260,8 @@ export async function requireVerifiedMutationAuth(
       ? await options.supabaseFactory(request)
       : await Promise.resolve(
           createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    supabasePublicKeyOrUndefined() ?? "",
             {
               cookies: {
                 getAll: () => cookies.map((cookie) => ({ name: cookie.name, value: cookie.value })),

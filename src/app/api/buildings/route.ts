@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseSecretKeyOrUndefined } from "@/lib/supabase-privileged";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 import {
   assertCampusMutationAllowed,
   getCampusIdFromBody,
@@ -11,8 +12,8 @@ import {
 
 async function getClient(auth: "publishable" | "secret") {
   const key = auth === "secret"
-    ? supabaseSecretKeyOrUndefined()!
-    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+? supabaseSecretKeyOrUndefined()!
+      : supabasePublicKeyOrUndefined()!;
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     key,
