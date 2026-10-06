@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { supabaseSecretKeyOrUndefined } from "@/lib/supabase-privileged";
 import {
   assertCampusMutationAllowed,
   getCampusIdFromBody,
@@ -39,8 +40,11 @@ function isAbortLike(error: unknown, controller: AbortController): boolean {
 }
 
 export async function getClient(auth: "publishable" | "secret", signal?: AbortSignal) {
+  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
+  // SUPABASE_SECRET_KEY, fall back to the legacy SUPABASE_SERVICE_ROLE_KEY during
+  // migration. RLS-bypassing semantics are unchanged.
   const key = auth === "secret"
-    ? process.env.SUPABASE_SERVICE_ROLE_KEY!
+    ? supabaseSecretKeyOrUndefined()!
     : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

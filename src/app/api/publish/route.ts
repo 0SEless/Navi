@@ -7,6 +7,7 @@ import { MANIFEST_SCHEMA_VERSION, MANIFEST_FORMAT_VERSION } from '@navi/core'
 import { validateNavigationArtifacts } from '@navi/compiler'
 import { writePublishedMap, type PublishedMapRow } from '@/services/published-map-writer'
 import { assertCampusMutationAllowed, requireVerifiedMutationAuth } from '@/lib/api-guard'
+import { supabaseSecretKeyOrUndefined } from '@/lib/supabase-privileged'
 
 const DEMO_DIR = join(process.cwd(), 'demo-output')
 
@@ -16,7 +17,10 @@ function sha256(data: string): string {
 
 async function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
+  // SUPABASE_SECRET_KEY, fall back to the legacy SUPABASE_SERVICE_ROLE_KEY during
+  // migration. Publish mutates storage and must keep its RLS-bypassing semantics.
+  const key = supabaseSecretKeyOrUndefined()
   if (!url || !key) return null
   return createServerClient(url, key, {
     cookies: { getAll: () => [], setAll: () => {} },

@@ -5,17 +5,21 @@
  * bucket: the durable R2 key, its origin (campus/panorama), the approved
  * media type, the byte size, and whether the upload has been verified.
  *
- * Access model: service-role only (`SUPABASE_SERVICE_ROLE_KEY`), matching the
- * established pattern in `src/app/api/graph/route.ts` — the service role
- * bypasses RLS, and migration 015 grants the table to no client role at all.
+ * Access model: privileged server-only access, matching the established
+ * pattern in `src/app/api/graph/route.ts` �?" the resolved key bypasses RLS,
+ * and migration 015 grants the table to no client role at all. Credential
+ * selection (prefer `SUPABASE_SECRET_KEY`, fall back to the legacy
+ * `SUPABASE_SERVICE_ROLE_KEY` during migration) lives in
+ * `src/lib/supabase-privileged.ts` so it cannot drift between consumers.
  * Missing environment variables are reported by NAME only, never by value,
  * mirroring `readR2Config` in `src/lib/r2.ts`.
  *
  * Errors thrown from the write/read helpers carry the database error message
- * (table/column detail, no credentials) and are logged server-side only —
+ * (table/column detail, no credentials) and are logged server-side only �?"
  * callers map them to generic `{ error: "registry_*_failed" }` responses.
  */
 import { createServerClient } from "@supabase/ssr";
+import { missingSupabaseSecretKeyVars, resolveSupabaseSecretKey } from "@/lib/supabase-privileged";
 
 export const PANORAMA_ASSET_TABLE = "panorama_assets";
 
@@ -47,11 +51,16 @@ export function getPanoramaAssetStore(
   env: Record<string, string | undefined> = process.env,
 ): AssetStore {
   const url = (env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-  const serviceKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  // Privileged credential selection is centralised in @/lib/supabase-privileged: prefer
+  // SUPABASE_SECRET_KEY (the new sb_secret_... key), fall back to the legacy
+  // SUPABASE_SERVICE_ROLE_KEY during migration. Access model is unchanged: server-only and
+  // RLS-bypassing.
+  const resolution = resolveSupabaseSecretKey(env);
+  const serviceKey = resolution.ok ? resolution.key : "";
 
   const missing: string[] = [];
   if (url === "") missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (serviceKey === "") missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceKey === "") missing.push(...missingSupabaseSecretKeyVars(env));
   if (missing.length > 0) return { ok: false, missing };
 
   return {
