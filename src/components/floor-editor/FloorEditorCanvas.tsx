@@ -29,6 +29,7 @@ import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
 import { wallsToExtrusionCollection, FLOOR_PRESENTATION_DATUM } from '@navi/editor/src/geometry/wall-to-polygon'
 import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src/geometry/opening-position'
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
+import { createFloorEditorToolContext } from './floor-editor-tool-context'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
 import { buildFloorRectangleEditCommand, rectangleRotationHandleScreenPoint } from './floor-rectangle-authoring'
 import { resolveRouteTargetHit, type DoorRouteConnectTarget } from './route-target-authoring'
@@ -2738,13 +2739,14 @@ function CanvasFloorView({ building, floorIndex, floorComponents, pathProj, tran
   const editor = useEditor()
   const dispatcher = editor.services.get('dispatcher')!
   const toolRegistry = editor.services.get('toolRegistry')!
+  const toolContext = createFloorEditorToolContext(editor.services, editor.document)
 
   // 12A.2: Canonical InteractionController for event routing/tool delegation
   const canonicalControllerRef = useRef<CanonicalInteractionController | null>(null)
   if (!canonicalControllerRef.current) {
     canonicalControllerRef.current = new CanonicalInteractionController({
       toolRegistry,
-      toolContext: { services: editor.services },
+      toolContext,
       screenToBuildingLocal: (screen) => {
         // Convert Canvas screen pixels to building-local meters
         // using the Canvas viewport's camera state
