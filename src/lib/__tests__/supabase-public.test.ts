@@ -11,7 +11,10 @@
  * credential.
  */
 
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   SUPABASE_PUBLIC_KEY_VAR,
@@ -24,7 +27,44 @@ import {
 const PUBLISHABLE = "sb_publishable_fake-value-for-tests";
 const LEGACY_ANON = "eyJfake.legacy.anon.jwt-for-tests";
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("supabase-public: final contract selects the publishable key", () => {
+  it("reads the default publishable key through the statically referenced process env", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", PUBLISHABLE);
+
+    expect(resolveSupabasePublicKey()).toEqual({
+      ok: true,
+      key: PUBLISHABLE,
+      source: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    });
+    expect(supabasePublicKeyOrUndefined()).toBe(PUBLISHABLE);
+    expect(missingSupabasePublicKeyVars()).toEqual([]);
+  });
+
+  it("reports the default key as missing when blank", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "  ");
+
+    expect(resolveSupabasePublicKey()).toEqual({
+      ok: false,
+      missing: ["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"],
+    });
+    expect(supabasePublicKeyOrUndefined()).toBeUndefined();
+    expect(missingSupabasePublicKeyVars()).toEqual(["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"]);
+  });
+
+  it("keeps an explicit static reference for Next.js client substitution", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/lib/supabase-public.ts"), "utf8");
+
+    expect(source).toMatch(/env === undefined\s*\?\s*process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+    expect(source).toMatch(/:\s*env\[SUPABASE_PUBLIC_KEY_VAR\]/);
+    expect(source).not.toMatch(
+      /(?:resolveSupabasePublicKey|supabasePublicKeyOrUndefined|missingSupabasePublicKeyVars)\(env:\s*EnvLike\s*=\s*process\.env/,
+    );
+  });
+
   it("resolves the publishable key", () => {
     expect(resolveSupabasePublicKey({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE })).toEqual({
       ok: true,
@@ -128,6 +168,14 @@ describe("supabase-public: never selects a privileged key", () => {
         NEXT_PUBLIC_SUPABASE_SECRET_KEY: "sb_secret_fake",
       }),
     ).toThrowError(/NEXT_PUBLIC_SUPABASE_SECRET_KEY/);
+  });
+
+  it("checks the default process environment for privileged public aliases", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_SECRET_KEY", "sb_secret_fake");
+
+    expect(() => assertNoPrivilegedSupabaseKeyInPublicVars()).toThrowError(
+      /NEXT_PUBLIC_SUPABASE_SECRET_KEY/,
+    );
   });
 
   it("the leaked-alias error names the variable but not its value", () => {

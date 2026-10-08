@@ -41,20 +41,31 @@ export type SupabasePublicKeyResolution =
 
 type EnvLike = Record<string, string | undefined>;
 
-const configured = (env: EnvLike, name: string): boolean =>
-  typeof env[name] === "string" && (env[name] as string).trim() !== "";
+const configured = (value: string | undefined): value is string =>
+  typeof value === "string" && value.trim() !== "";
+
+/**
+ * Use a literal process.env reference on the normal path so Next.js can inline the
+ * publishable key into browser bundles. Explicit environment objects remain available
+ * for tests and callers that intentionally inject configuration.
+ */
+const publishableKey = (env?: EnvLike): string | undefined =>
+  env === undefined
+    ? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    : env[SUPABASE_PUBLIC_KEY_VAR];
 
 /**
  * Resolve the public key. Returns the resolved VALUE plus the variable NAME it came
  * from. The name is safe to log; the value must never be.
  */
-export function resolveSupabasePublicKey(env: EnvLike = process.env): SupabasePublicKeyResolution {
-  if (!configured(env, SUPABASE_PUBLIC_KEY_VAR)) {
+export function resolveSupabasePublicKey(env?: EnvLike): SupabasePublicKeyResolution {
+  const key = publishableKey(env);
+  if (!configured(key)) {
     return { ok: false, missing: [SUPABASE_PUBLIC_KEY_VAR] };
   }
   return {
     ok: true,
-    key: (env[SUPABASE_PUBLIC_KEY_VAR] as string).trim(),
+    key: key.trim(),
     source: SUPABASE_PUBLIC_KEY_VAR,
   };
 }
@@ -66,14 +77,14 @@ export function resolveSupabasePublicKey(env: EnvLike = process.env): SupabasePu
  * non-null-asserted environment value straight through. Use
  * {@link resolveSupabasePublicKey} when you need to report which variable is missing.
  */
-export function supabasePublicKeyOrUndefined(env: EnvLike = process.env): string | undefined {
+export function supabasePublicKeyOrUndefined(env?: EnvLike): string | undefined {
   const resolution = resolveSupabasePublicKey(env);
   return resolution.ok ? resolution.key : undefined;
 }
 
 /** Name of the public key variable when absent or blank. Name only, no value. */
-export function missingSupabasePublicKeyVars(env: EnvLike = process.env): SupabasePublicKeyVar[] {
-  return configured(env, SUPABASE_PUBLIC_KEY_VAR) ? [] : [SUPABASE_PUBLIC_KEY_VAR];
+export function missingSupabasePublicKeyVars(env?: EnvLike): (typeof SUPABASE_PUBLIC_KEY_VAR)[] {
+  return configured(publishableKey(env)) ? [] : [SUPABASE_PUBLIC_KEY_VAR];
 }
 
 /**
@@ -84,11 +95,17 @@ export function missingSupabasePublicKeyVars(env: EnvLike = process.env): Supaba
  * privileged variable names, reporting only VARIABLE NAMES. Exists so the public module
  * is self-contained for client-side callers that must not import server-only code.
  */
-export function assertNoPrivilegedSupabaseKeyInPublicVars(env: EnvLike = process.env): void {
+export function assertNoPrivilegedSupabaseKeyInPublicVars(env?: EnvLike): void {
+  const secretKey = env === undefined
+    ? process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY
+    : env.NEXT_PUBLIC_SUPABASE_SECRET_KEY;
+  const serviceRoleKey = env === undefined
+    ? process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    : env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
   const leakedPublicNames = [
-    "NEXT_PUBLIC_SUPABASE_SECRET_KEY",
-    "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
-  ].filter((name) => configured(env, name));
+    ...(configured(secretKey) ? ["NEXT_PUBLIC_SUPABASE_SECRET_KEY"] : []),
+    ...(configured(serviceRoleKey) ? ["NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY"] : []),
+  ];
 
   if (leakedPublicNames.length > 0) {
     // Variable names only — never their values.
