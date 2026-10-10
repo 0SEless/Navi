@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Graph } from '../engine/graph'
+import { committedAck } from '../test-utils/persistence-ack'
 import { useGraphStore, __resetGraphSaveQueuesForTests } from './graph-store'
 
 const MAP_ID = 'queue-map'
@@ -74,7 +75,7 @@ function createMockServer(options: MockServerOptions = {}) {
         delete stored.expectedServerUpdatedAt
         delete stored.forceServerOverwrite
         graph = stored
-        return json(returnUpdatedAt ? { success: true, campus_id: MAP_ID, updatedAt: revision } : { success: true, campus_id: MAP_ID })
+        return json(returnUpdatedAt ? committedAck(stored, revision) : { success: true, campus_id: MAP_ID })
       } finally {
         inFlight -= 1
       }
@@ -134,6 +135,7 @@ describe('graph store per-campus save serialization and revision contract', () =
     localStorage.setItem(
       MARKER_KEY,
       JSON.stringify({
+        formatVersion: 2,
         snapshotFingerprint: 'seed',
         syncedAt: '2026-09-13T00:00:00.000Z',
         serverTimestamp: 'R0',
@@ -220,22 +222,14 @@ describe('graph store per-campus save serialization and revision contract', () =
   })
 
   it('never reports synchronized when the revision cannot be confirmed', async () => {
-    vi.useFakeTimers()
-    try {
     createMockServer({ returnUpdatedAt: false, failGet: true })
 
     setClientGraph('Edit A')
-    const savePromise = useGraphStore.getState().save()
-    const rejection = expect(savePromise).rejects.toThrow(/could not be confirmed|revision/i)
-    await vi.advanceTimersByTimeAsync(47_000)
-    await rejection
+    await expect(useGraphStore.getState().save()).rejects.toThrow(/could not be confirmed|revision/i)
 
     expect(useGraphStore.getState().syncStatus).toBe('error')
     expect(useGraphStore.getState().syncStatus).not.toBe('synced')
     expect(readMarker().serverTimestamp).toBe('R0')
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('uses the POST response revision directly (migration 009 path, no GET confirmation)', async () => {
@@ -281,20 +275,12 @@ describe('graph store per-campus save serialization and revision contract', () =
   })
 
   it('never reports synchronized when the save request fails', async () => {
-    vi.useFakeTimers()
-    try {
     createMockServer({ postStatus: 500 })
 
     setClientGraph('Edit A')
-    const savePromise = useGraphStore.getState().save()
-    const rejection = expect(savePromise).rejects.toThrow(/server exploded/)
-    await vi.advanceTimersByTimeAsync(47_000)
-    await rejection
+    await expect(useGraphStore.getState().save()).rejects.toThrow(/server exploded/)
 
     expect(useGraphStore.getState().syncStatus).toBe('error')
     expect(useGraphStore.getState().syncStatus).not.toBe('synced')
-    } finally {
-      vi.useRealTimers()
-    }
   })
 })

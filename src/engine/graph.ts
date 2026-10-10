@@ -350,6 +350,7 @@ export class Graph {
     trace: TracePath,
     roomNodesOrConnectivityRadius: NavNode[] | number = [],
     allowGeometricInference = this._allowGeometricInference,
+    stableReference?: { nodes?: NavNode[]; edges?: NavEdge[] },
   ): void {
     // Preserve the pre-Phase-6 array call shape while allowing the editor
     // adapter to pass an explicit connectivity radius. The current
@@ -363,6 +364,7 @@ export class Graph {
       trace,
       this.nodes,
       this.edges,
+      stableReference,
     )
     this.addTrace(trace)
     for (const node of result.nodes) {

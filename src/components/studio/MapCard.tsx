@@ -3,9 +3,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, MoreVertical, Building2, MapPin, Route, Trash2, Eye, Pencil, MapPinned } from 'lucide-react'
 import type { CampusMap } from '@/types/campus-map'
+import type { CampusDisplayStats } from './studio-display-stats'
 
 interface MapCardProps {
   map?: CampusMap
+  /** Optional display-accurate statistics override; map.stats remains the fallback. */
+  displayStats?: CampusDisplayStats
   onCreate?: () => void
   onView?: (id: string) => void
   onEdit?: (id: string) => void
@@ -13,7 +16,7 @@ interface MapCardProps {
   onCaptureLibrary?: (id: string) => void
 }
 
-export function MapCard({ map, onCreate, onView, onEdit, onDelete, onCaptureLibrary }: MapCardProps) {
+export function MapCard({ map, displayStats, onCreate, onView, onEdit, onDelete, onCaptureLibrary }: MapCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -65,13 +68,13 @@ export function MapCard({ map, onCreate, onView, onEdit, onDelete, onCaptureLibr
             </div>
             <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 11, color: 'var(--navi-text-secondary)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Building2 size={11} /> {map.stats?.buildings ?? 0}
+                <Building2 size={11} /> {displayStats?.buildings ?? map.stats?.buildings ?? 0}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <MapPin size={11} /> {map.stats?.nodes ?? 0}
+                <MapPin size={11} /> {displayStats?.nodes ?? map.stats?.nodes ?? 0}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Route size={11} /> {map.stats?.edges ?? 0}
+                <Route size={11} /> {displayStats?.edges ?? map.stats?.edges ?? 0}
               </span>
             </div>
           </div>

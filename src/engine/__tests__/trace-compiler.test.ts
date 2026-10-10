@@ -77,4 +77,18 @@ describe('compileTrace', () => {
     ).length
     expect(duplicateCount).toBe(0)
   })
+
+  it('reuses stable node and edge IDs from stableReference across recompilation', () => {
+    const initial = compileTrace(hallway, [], [])
+    expect(initial.nodes.length).toBe(3)
+    expect(initial.edges.length).toBe(2)
+
+    const recompiled = compileTrace(hallway, [], [], {
+      nodes: initial.nodes,
+      edges: initial.edges,
+    })
+
+    expect(recompiled.nodes.map(n => n.id)).toEqual(initial.nodes.map(n => n.id))
+    expect(recompiled.edges.map(e => e.id)).toEqual(initial.edges.map(e => e.id))
+  })
 })

@@ -666,6 +666,31 @@ export interface PanoramaHotspot {
   content?: HotspotContent
 }
 
+/**
+ * A 360° panorama — the single AUTHORED panorama contract.
+ *
+ * ADR 024 — Virtual Tour is INDEPENDENT of the navigation graph.
+ * This type has NO `nodeId` / `routeNodeId` / `anchorNodeId` field, no join
+ * table, and no derived route-node representation either. A Panorama is a
+ * Virtual Tour **scene**: it is not a navigation node, an A* node, a
+ * route-network anchor, or a routing destination. `GraphAdapter.sync()` does not
+ * project it into the routing graph, and a NavNode is never promoted to one.
+ * (ADR 023 correctly rejected an *authored* link; its *derived* projection is
+ * superseded by ADR 024.)
+ *
+ * A Panorama is positioned, and its coordinates are Virtual Tour context — used
+ * for scene placement, map visualisation, organisation, building/floor filtering
+ * and tour context. They do NOT imply navigation membership.
+ *
+ * Consequences that callers must respect:
+ * - Do not add a node reference here, and do not build a link/unlink UI.
+ * - Do not derive a NavNode from this entity, and do not reconstruct one from a
+ *   NavNode in canonical document construction.
+ * - `imageAssetId` is the R2 object key and MAY be '' before an upload
+ *   completes ("created but imageless" is a normal state).
+ * - `floor` is undefined for an outdoor panorama. For a building panorama, 0 is
+ *   real ground-floor data — never a stand-in for "unset".
+ */
 export interface Panorama {
   id: string
   label: string
@@ -675,9 +700,9 @@ export interface Panorama {
   // - Legacy documents may store LatLng directly (detected via `lat` property)
   position: LocalCoord | LatLng
   heading: number           // degrees, 0-360, initial camera heading
-  imageAssetId: string      // asset ID of the panorama image
+  imageAssetId: string      // R2 object key; '' until an upload completes
   buildingId?: string       // undefined = outdoor/campus-wide panorama
-  floor?: number
+  floor?: number            // undefined when outdoor; 0 is valid ground floor
   hotspots: PanoramaHotspot[]
 }
 

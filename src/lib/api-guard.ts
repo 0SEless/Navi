@@ -6,6 +6,8 @@
  * reachable by any HTTP client. This module is the single place that decides
  * whether a mutating request may proceed:
  *
+ *  0. Supabase write target: the configured project must match the deployment
+ *     class before any Supabase auth verification or mutation runs.
  *  1. Session requirement (`requireMutationSession`): a Supabase auth cookie
  *     (`sb-<ref>-auth-token*`) OR the dev mock cookie (`navi-mock-session`
  *     while `NEXT_PUBLIC_MOCK_AUTH=true` and not production). Fail closed:
@@ -25,10 +27,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decodeMockSession, isMockAuthEnabled, MOCK_COOKIE } from "@/lib/mock-auth";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 import { isAdminIdentity } from "@/lib/admin-authz";
+import { assertSafeSupabaseWriteTarget } from "@/lib/supabase-target-guard";
 
 /** Campuses whose data is the live production source of truth. */
-export const PROTECTED_CAMPUS_IDS = ["map-map-1-k6bv"] as const;
+export const PROTECTED_CAMPUS_IDS = ["map-map-1-k6bv", "map-map-1-repe"] as const;
 
 /** Server-only escape hatch for a deliberately approved protected write. */
 export const PROTECTED_CAMPUS_WRITE_OVERRIDE_VAR = "NAVI_PROTECTED_CAMPUS_WRITES";
@@ -36,7 +40,7 @@ export const PROTECTED_CAMPUS_WRITE_OVERRIDE_VAR = "NAVI_PROTECTED_CAMPUS_WRITES
 /** Supabase SSR auth cookies, including chunked (.0, .1) and verification cookies. */
 const SUPABASE_AUTH_COOKIE_PATTERN = /^sb-.*-auth-token/;
 
-export type MutationAuthMethod = "supabase" | "mock";
+export type MutationAuthMethod = "supabase" | "mock" | "test";
 
 export function isProtectedCampusId(campusId: unknown): boolean {
   return (
@@ -50,6 +54,8 @@ export function isProtectedCampusId(campusId: unknown): boolean {
  * Returns null when allowed, or the `423 Locked` response to return as-is.
  */
 export function assertCampusMutationAllowed(campusId: unknown): NextResponse | null {
+  const unsafeTarget = assertSafeSupabaseWriteTarget();
+  if (unsafeTarget) return unsafeTarget;
   if (!isProtectedCampusId(campusId)) return null;
   if (process.env[PROTECTED_CAMPUS_WRITE_OVERRIDE_VAR] === "1") return null;
   return NextResponse.json(
@@ -181,6 +187,8 @@ type SupabaseLike = {
 export type VerifyOptions = {
   /** Test seam: inject a client whose auth.getUser() is cryptographically authoritative. */
   supabaseFactory?: (request: NextRequest) => Promise<SupabaseLike>;
+  /** Called only after the actor has passed server-side administrator authorization. */
+  onVerified?: (user: VerifiedMutationUser) => void;
 };
 
 function isProductionRuntime(): boolean {
@@ -194,6 +202,34 @@ function serverAdminEmails(): string[] {
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value !== "");
+}
+
+/**
+ * Apply the explicitly enabled local mock identity. Undefined means no usable
+ * mock session was present; null means it was authorized; a response means a
+ * mock identity was present but lacked the administrator role.
+ */
+function tryDevelopmentMockAuth(
+  cookies: Array<{ name: string; value: string }>,
+  onVerified?: VerifyOptions["onVerified"],
+): NextResponse | null | undefined {
+  if (isProductionRuntime() || !isMockAuthEnabled()) return undefined;
+  const raw = cookies.find((cookie) => cookie.name === MOCK_COOKIE)?.value ?? "";
+  if (!raw) return undefined;
+
+  const mock = decodeMockSession(raw) as { id?: string; email?: string | null; role?: string } | null;
+  if (!mock?.id) return undefined;
+  const user: VerifiedMutationUser = {
+    id: mock.id,
+    email: mock.email ?? null,
+    role: mock.role ?? "viewer",
+    method: "mock",
+  };
+  if (!isAdminUser({ role: user.role, email: user.email, app_metadata: { role: user.role } })) {
+    return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
+  }
+  onVerified?.(user);
+  return null;
 }
 
 /** Server-side authorization: verified user must carry an admin role or be allow-listed. */
@@ -215,6 +251,9 @@ export async function requireVerifiedMutationAuth(
   request: NextRequest,
   options: VerifyOptions = {},
 ): Promise<NextResponse | null> {
+  const unsafeTarget = assertSafeSupabaseWriteTarget();
+  if (unsafeTarget) return unsafeTarget;
+
   let cookies: Array<{ name: string; value: string }> = [];
   try {
     cookies = request.cookies?.getAll?.() ?? [];
@@ -227,18 +266,9 @@ export async function requireVerifiedMutationAuth(
 
   // DEV/TEST mock: explicit enable flag AND non-production runtime only. If the
   // environment cannot be established as non-production, mock is refused.
-  if (!hasSupabaseSession && !isProductionRuntime() && isMockAuthEnabled()) {
-    const raw = cookies.find((cookie) => cookie.name === MOCK_COOKIE)?.value ?? "";
-    if (raw) {
-      const mock = decodeMockSession(raw) as { id?: string; email?: string | null; role?: string } | null;
-      if (mock?.id) {
-        const user: VerifiedMutationUser = { id: mock.id, email: mock.email ?? null, role: mock.role ?? "viewer", method: "mock" };
-        if (!isAdminUser({ role: user.role, email: user.email, app_metadata: { role: user.role } })) {
-          return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
-        }
-        return null;
-      }
-    }
+  if (!hasSupabaseSession) {
+    const mockResult = tryDevelopmentMockAuth(cookies, options.onVerified);
+    if (mockResult !== undefined) return mockResult;
   }
 
   if (!hasSupabaseSession) {
@@ -250,6 +280,7 @@ export async function requireVerifiedMutationAuth(
   // injected (security tests always inject one, so they exercise the real path).
   // Production always executes the cryptographic verification below.
   if (process.env.NODE_ENV === "test" && !isProductionRuntime() && !options.supabaseFactory) {
+    options.onVerified?.({ id: "test-verified-actor", email: null, role: "super_admin", method: "test" });
     return null;
   }
 
@@ -259,8 +290,8 @@ export async function requireVerifiedMutationAuth(
       ? await options.supabaseFactory(request)
       : await Promise.resolve(
           createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    supabasePublicKeyOrUndefined() ?? "",
             {
               cookies: {
                 getAll: () => cookies.map((cookie) => ({ name: cookie.name, value: cookie.value })),
@@ -270,17 +301,27 @@ export async function requireVerifiedMutationAuth(
           ) as unknown as SupabaseLike,
         );
     const { data, error } = await supabase.auth.getUser();
-    if (error) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    if (error) {
+      const mockResult = tryDevelopmentMockAuth(cookies, options.onVerified);
+      return mockResult !== undefined
+        ? mockResult
+        : NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
     user = data?.user ?? null;
   } catch {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
   if (!user?.id) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    const mockResult = tryDevelopmentMockAuth(cookies, options.onVerified);
+    return mockResult !== undefined
+      ? mockResult
+      : NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
   if (!isAdminUser(user)) {
     return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
   }
+  const verifiedRole = typeof user.app_metadata?.role === "string" ? user.app_metadata.role : "admin";
+  options.onVerified?.({ id: user.id, email: user.email ?? null, role: verifiedRole, method: "supabase" });
   return null;
 }

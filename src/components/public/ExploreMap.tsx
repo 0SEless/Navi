@@ -5,6 +5,7 @@ import { Compass, LocateFixed, Navigation } from 'lucide-react'
 import NavigationMap, { useNavigationMap, useNavigationMapScene, type NavigationMapSceneState } from '@/components/map/NavigationMap'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import NavigationCamera, { type NavigationCameraConfig } from '@/components/map/NavigationCamera'
+import type { NavigationHeadingStatus } from '@/components/map/NavigationCameraControls'
 import {
   NavigationProvider,
   useOptionalNavigationContext,
@@ -28,6 +29,24 @@ export interface ExploreMapProps {
   navigationTargetBuildingId?: string
   /** Opt-in canonical camera bridge; absent keeps the legacy Explore controls. */
   camera?: NavigationCameraConfig
+}
+
+function navigationHeadingStatus(status: string, source: string): NavigationHeadingStatus {
+  switch (status) {
+    case 'available': return source === 'device' ? 'device' : source === 'gps' ? 'gps' : 'none'
+    case 'gps-fallback': return 'gps'
+    case 'unreliable': return 'stale'
+    case 'location-only': return 'none'
+    case 'permission-required':
+    case 'denied':
+    case 'unsupported':
+    case 'none':
+    case 'stale':
+    case 'device':
+    case 'gps':
+      return status
+    default: return 'none'
+  }
 }
 
 function ExploreScenePublisher({
@@ -126,7 +145,7 @@ function ExploreMapControls({
   ]
 
   return (
-    <div className="absolute right-4 top-20 z-20 flex flex-col gap-1.5">
+    <div className="pointer-events-auto absolute right-4 top-20 z-20 flex flex-col gap-1.5">
       <button
         type="button"
         onClick={cycleView}
@@ -193,7 +212,10 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     ? {
         ...camera,
         heading: camera.heading ?? parentNavigationContext.heading,
-        headingStatus: camera.headingStatus ?? parentNavigationContext.headingStatus,
+        headingStatus: camera.headingStatus ?? navigationHeadingStatus(
+          parentNavigationContext.headingStatus,
+          parentNavigationContext.headingSource,
+        ),
         canRequestHeadingPermission: camera.canRequestHeadingPermission
           ?? parentNavigationContext.canRequestHeadingPermission,
         onRequestHeadingPermission: camera.onRequestHeadingPermission

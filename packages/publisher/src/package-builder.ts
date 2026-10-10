@@ -224,6 +224,10 @@ function buildPanoramaFile(artifacts: NavigationArtifacts, schemaVersion: string
       yaw: h.yaw,
       pitch: h.pitch,
       label: h.label,
+      // 360 Tour (R6.1/R6.2): information-hotspot fidelity — these were
+      // previously dropped by this mapping, breaking authored content.
+      ...(h.hotspotType !== undefined ? { hotspotType: h.hotspotType } : {}),
+      ...(h.content !== undefined ? { content: structuredClone(h.content) } : {}),
     })) as HotspotFile[],
   }))
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import maplibregl, { type ExpressionSpecification } from 'maplibre-gl'
 import { splitRouteByFloor } from '@/lib/route-floors'
 import { cssVar } from '@/components/map/mapTheme'
@@ -40,10 +40,8 @@ const ACTIVE_COLOR: ExpressionSpecification = [
   ROUTE_DIM,
 ]
 
-const lastFittedPathByMap = new WeakMap<maplibregl.Map, string>()
-const EMPTY_ROUTE_DATA: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
-
-function removeRouteLayers(map: maplibregl.Map) {
+function removeRouteLayers(map: maplibregl.Map | null | undefined) {
+  if (!map) return
   for (const id of LAYER_IDS) {
     if (map.getLayer(id)) map.removeLayer(id)
   }
@@ -51,131 +49,110 @@ function removeRouteLayers(map: maplibregl.Map) {
 }
 
 export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
-  const initializedRef = useRef(false)
-  const routePathRef = useRef<string[]>(route?.path ?? [])
-  const pathKey = route?.path.join('\u0000') ?? ''
-
-  useLayoutEffect(() => {
-    routePathRef.current = route?.path ?? []
-  }, [route])
+  // Re-fit the camera only when the route itself changes, not on floor switches.
+  const fittedPathRef = useRef('')
 
   useEffect(() => {
     if (!map) return
-    const initialize = () => {
-      if (initializedRef.current) return
-      if (!map.getSource(SOURCE_ID)) {
-        map.addSource(SOURCE_ID, { type: 'geojson', data: EMPTY_ROUTE_DATA })
-      }
 
-      const layers: maplibregl.LayerSpecification[] = [
-        {
-          id: 'route-glow',
-          type: 'line',
-          source: SOURCE_ID,
-          paint: {
-            'line-color': ACTIVE_COLOR,
-            'line-width': 12,
-            'line-opacity': ['case', ['==', ['get', 'active'], 1], 0.3, 0.08],
-            'line-blur': 4,
-          },
-        },
-        {
-          id: 'route-core',
-          type: 'line',
-          source: SOURCE_ID,
-          paint: {
-            'line-color': ACTIVE_COLOR,
-            'line-width': ['case', ['==', ['get', 'active'], 1], 4, 2.5],
-            'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.45],
-          },
-        },
-        {
-          id: 'route-flow',
-          type: 'line',
-          source: SOURCE_ID,
-          paint: {
-            'line-color': ROUTE_FLOW,
-            'line-width': 2,
-            'line-dasharray': [0.5, 2],
-            'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.2],
-          },
-        },
-      ]
-      for (const layer of layers) {
-        if (!map.getLayer(layer.id)) map.addLayer(layer)
-      }
-      initializedRef.current = true
-    }
+    removeRouteLayers(map)
 
-    if (map.isStyleLoaded()) initialize()
-    else map.on('load', initialize)
+    if (!route || route.path.length < 2) return
 
-    return () => {
-      try {
-        map.off('load', initialize)
-        removeRouteLayers(map)
-      } catch { /* map may be gone */ }
-      initializedRef.current = false
-    }
-  }, [map])
-
-  useEffect(() => {
-    if (!map || !initializedRef.current) return
-    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
-    if (!source) return
-
-    const path = routePathRef.current
-    if (path.length < 2) {
-      source.setData(EMPTY_ROUTE_DATA)
-      return
+    const posById = new Map<string, [number, number]>()
+    for (const nodeId of route.path) {
+      const pos = getNodePosition(nodeId)
+      if (pos) posById.set(nodeId, [pos.lng, pos.lat] as [number, number])
     }
 
     const segments = getNodeFloor
-      ? splitRouteByFloor(path, getNodeFloor)
-      : [{ floor: undefined, nodes: path }]
-    const floorSet = new Set(segments.map((segment) => segment.floor))
-    const multiFloor = getNodeFloor !== undefined && floorSet.size > 1
-    const features: GeoJSON.Feature[] = []
+      ? splitRouteByFloor(route.path, getNodeFloor)
+      : [{ floor: undefined, nodes: route.path }]
 
-    for (const segment of segments) {
-      const coordinates: [number, number][] = []
-      for (const nodeId of segment.nodes) {
-        const position = getNodePosition(nodeId)
-        if (position) coordinates.push([position.lng, position.lat])
+    const floorSet = new Set(segments.map((s) => s.floor))
+    const multiFloor = getNodeFloor !== undefined && floorSet.size > 1
+
+    const features: GeoJSON.Feature[] = []
+    const allCoords: [number, number][] = []
+    for (const seg of segments) {
+      const coords: [number, number][] = []
+      for (const nodeId of seg.nodes) {
+        const c = posById.get(nodeId)
+        if (c) coords.push(c)
       }
-      if (coordinates.length < 2) continue
+      if (coords.length < 2) continue
+      allCoords.push(...coords)
+      // Emphasis: floor-based when multi-floor; otherwise driven by the
+      // navigation phase (loud indoors, quiet outdoor/entrance). Same `active`
+      // channel as always — emphasis, never a restyle.
       const active = multiFloor
-        ? (segment.floor === activeFloor ? 1 : 0)
+        ? (seg.floor === activeFloor ? 1 : 0)
         : (navigationSegment === 'indoor' || navigationSegment === 'floor-transition' ? 1 : 0)
       features.push({
         type: 'Feature',
         properties: { active },
-        geometry: { type: 'LineString', coordinates },
+        geometry: { type: 'LineString', coordinates: coords },
       })
     }
+    if (features.length === 0) return
 
-    source.setData({ type: 'FeatureCollection', features })
-  }, [activeFloor, getNodeFloor, getNodePosition, map, navigationSegment, pathKey])
+    map.addSource(SOURCE_ID, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features },
+    })
 
-  useEffect(() => {
-    if (!map || !fitCamera || routePathRef.current.length < 2 || !pathKey) return
-    if (lastFittedPathByMap.get(map) === pathKey) return
+    map.addLayer({
+      id: 'route-glow',
+      type: 'line',
+      source: SOURCE_ID,
+      paint: {
+        'line-color': ACTIVE_COLOR,
+        'line-width': 12,
+        'line-opacity': ['case', ['==', ['get', 'active'], 1], 0.3, 0.08],
+        'line-blur': 4,
+      },
+    })
 
-    const coordinates: [number, number][] = []
-    for (const nodeId of routePathRef.current) {
-      const position = getNodePosition(nodeId)
-      if (position) coordinates.push([position.lng, position.lat])
+    map.addLayer({
+      id: 'route-core',
+      type: 'line',
+      source: SOURCE_ID,
+      paint: {
+        'line-color': ACTIVE_COLOR,
+        'line-width': ['case', ['==', ['get', 'active'], 1], 4, 2.5],
+        'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.45],
+      },
+    })
+
+    map.addLayer({
+      id: 'route-flow',
+      type: 'line',
+      source: SOURCE_ID,
+      paint: {
+        'line-color': ROUTE_FLOW,
+        'line-width': 2,
+        'line-dasharray': [0.5, 2],
+        'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.2],
+      },
+    })
+
+    const pathKey = route.path.join('\u0000')
+    if (fitCamera && pathKey !== fittedPathRef.current) {
+      fittedPathRef.current = pathKey
+      if (allCoords.length > 0) {
+        const first = allCoords[0]
+        const bounds = allCoords.reduce(
+          (b, c) => b.extend(c),
+          new maplibregl.LngLatBounds(first, first),
+        )
+        map.fitBounds(bounds, { padding: 80 })
+      }
     }
-    if (coordinates.length < 2) return
 
-    const first = coordinates[0]
-    const bounds = coordinates.reduce(
-      (current, coordinate) => current.extend(coordinate),
-      new maplibregl.LngLatBounds(first, first),
-    )
-    lastFittedPathByMap.set(map, pathKey)
-    map.fitBounds(bounds, { padding: 80 })
-  }, [fitCamera, getNodePosition, map, pathKey])
+    return () => {
+      try { removeRouteLayers(map) } catch { /* map may be gone */ }
+    }
+  }, [activeFloor, fitCamera, getNodeFloor, getNodePosition, map, navigationSegment, route])
 
   return null
 }

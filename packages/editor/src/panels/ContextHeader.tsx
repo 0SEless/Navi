@@ -11,6 +11,8 @@ export interface ContextHeaderProps {
   selectedCount?: number
   /** Resolve an unresolved server conflict by loading the server snapshot. */
   onResolveConflict?: () => void
+  /** Explicit manual save action. */
+  onSave?: () => void
 }
 
 const STATUS_CONFIG: Record<ContextHeaderProps['status'], { color: string; label: string }> = {
@@ -22,7 +24,7 @@ const STATUS_CONFIG: Record<ContextHeaderProps['status'], { color: string; label
   checking: { color: '#64748B', label: 'Checking\u2026' },
 }
 
-export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, selectedCount, onResolveConflict }: ContextHeaderProps) {
+export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, selectedCount, onResolveConflict, onSave }: ContextHeaderProps) {
   const cfg = STATUS_CONFIG[status]
 
   return (
@@ -61,6 +63,30 @@ export function ContextHeader({ mapId, buildingName, floorLabel, status, statusM
       <span style={{ fontSize: 10, color: cfg.color }} title={statusMessage ?? ''}>
         {'\u25CF'} {cfg.label}
       </span>
+
+      {onSave ? (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={status === 'saving'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            fontWeight: 500,
+            color: '#fff',
+            background: status === 'saving' ? '#64748B' : '#2563EB',
+            border: 'none',
+            borderRadius: 4,
+            padding: '3px 10px',
+            cursor: status === 'saving' ? 'default' : 'pointer',
+            marginLeft: 8,
+          }}
+        >
+          {status === 'saving' ? 'Saving…' : 'Save'}
+        </button>
+      ) : null}
 
       {status === 'conflict' && onResolveConflict ? (
         <button

@@ -23,6 +23,91 @@ Track every error encountered during implementation. Each entry includes:
 
 (Errors will be logged here as implementation proceeds)
 
+## 2026-10-10: Phase 5 ripgrep path wildcard was interpreted literally
+- **Error**: A search passed `src/lib/panorama*` as a path and ripgrep rejected the Windows path syntax.
+- **Cause**: PowerShell did not expand that wildcard for the native ripgrep executable.
+- **Fix**: Repeated the search with explicit source paths.
+- **Prevention**: Use `rg --files` or explicit paths for Windows-native ripgrep searches.
+- **Related tasks**: T5.1
+
+## 2026-10-10: Phase 5 Vitest default temporary directory denied atomic rename
+- **Error**: The first targeted Dataset/Panorama run failed before test collection with `EPERM` while renaming Vitest's generated directory under the sandbox-managed Windows Temp path.
+- **Cause**: The default OS Temp path does not allow Vitest's atomic SSR transform-cache rename in this sandbox context.
+- **Fix**: Directed process-local `TEMP` and `TMP` to a unique task-local directory under `node_modules/.cache`; all requested suites then collected and passed.
+- **Prevention**: On Windows sandbox `EPERM` before collection, use a new worktree-local `TEMP`/`TMP` path and confirm the collected test count is nonzero.
+- **Related tasks**: T5.2, T7
+
+## 2026-10-10: Panorama key unit test retained a pre-migration rejection case
+- **Error**: The focused Panorama suite failed because `panorama-keys.test.ts` expected `panoramas/c1/sub/p1.jpg` to be rejected, while the canonical parser accepts that shape as an immutable asset key.
+- **Cause**: The test case predates migration 016's documented optional asset-ID segment; the SQL check, parser, and upload contract consistently accept the three-segment shape.
+- **Fix**: Updated only the test: explicitly assert an immutable key is accepted and use a four-segment path as the invalid-depth case. No runtime key, upload, resolver, or database contract changed.
+- **Prevention**: Keep key fixtures aligned with migration 016 and test both valid immutable keys and over-depth rejection.
+- **Related tasks**: T5.2
+
+## 2026-10-10: Phase 6 public-store regression suite has six failing assertions
+- **Error**: The combined Dataset/Panorama/public-map run passed 39/41 files and 581/587 tests. `phase-9b-public-store.test.ts` had three failures for the expected `poi`/cache-origin bundle fields; `public-store-visibility.test.ts` had three failures because search left `revealedPoiIds` empty.
+- **Cause**: The Phase 9B fixture's id-only POI has no valid world position, so `normalizePoi` drops it. Its simplified cached bundle is not structurally equal to the parsed network bundle, while the same-revision optimization requires exact JSON equality and therefore correctly selects network state. Separately, the store `search()` action returns matching entries but does not update `revealedPoiIds`, although the unchanged tests expect that side effect; the renderer consumes reveal state, and no production setter call site was found in the inspected app paths.
+- **Fix**: No source change made. Both failing test files and all code paths behind these assertions are unchanged from the integration base except the unrelated addition of `buildingId` to graph-snapshot search entries. Treat the reveal behavior as an existing gap requiring a separately scoped decision; do not weaken cache equality or POI validation to satisfy malformed fixtures.
+- **Prevention**: Build cache/network fixtures from the same normalized bundle contract, include valid POI geometry/positions, and keep search-to-render reveal behavior explicit in the UI/API contract before changing it.
+- **Related tasks**: T6.3, T7
+
+## 2026-10-10: Phase 5 Graphify refresh remains unavailable
+- **Error**: Required `graphify update .` after the Panorama key-test correction failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows uv trampoline cannot canonicalize the graphify script path in this nested integration worktree.
+- **Fix**: No graph output was modified; source and test verification continued using focused evidence.
+- **Prevention**: Repair the local graphify launcher before a later refresh; keep generated graph files untouched meanwhile.
+- **Related tasks**: T5.2, T7
+
+## 2026-10-09: Test-only Studio opt-in caused hydration mismatch
+- **Error**: The development editor's test-campus opt-in control and resolver produced React hydration mismatches.
+- **Cause**: The control and resolver used browser-only localStorage state during the first client render, while the server had no browser storage and initially rendered "Map not found".
+- **Fix**: Keep the opt-in control's initial state deterministic and defer the editor test-map resolution until after hydration.
+- **Prevention**: Browser-only state must not affect server or first-client markup; defer it to an effect and verify the real route in a browser.
+- **Related tasks**: P3A-T2
+
+## 2026-10-09: Graphify query and refresh trampoline failure
+- **Error**: `graphify query` and the required post-edit `graphify update .` failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows uv trampoline could not canonicalize its script path in this worktree.
+- **Fix**: Used focused source inspection and tests; graph output was not manually modified.
+- **Prevention**: Repair the local graphify/uv launcher before the next graph refresh; use a graph query before code searches when available.
+- **Related tasks**: P3A-T1, P3A-T2
+
+## 2026-10-09: Sandboxed production build could not canonicalize candidate path
+- **Error**: The first Next production build failed before compilation with SWC `Access is denied` while canonicalizing the nested candidate worktree.
+- **Cause**: The sandboxed SWC subprocess could not canonicalize the candidate path.
+- **Fix**: Re-ran the authorized local build with workspace access; Webpack build completed using only validated development public configuration.
+- **Prevention**: Run Windows Next production builds with a canonicalizable workspace path and the least access required; do not copy credentials into command arguments.
+- **Related tasks**: P3A-T3
+
+## 2026-10-09: Development Studio UI save rejected by API authorization
+- **Error**: The controlled Map Editor metadata edit remained local and `/api/graph` POST returned HTTP 401; the UI reported `Save failed — changes preserved`.
+- **Cause**: The browser could open the admin route with the development mock session, but the write endpoint rejected that request. The exact request-authentication discrepancy is not established.
+- **Fix**: Stopped UI persistence attempts; a read-only graph GET confirmed the authoritative snapshot name and `updatedAt` were unchanged. No retry or auth change was made.
+- **Prevention**: Confirm that the approved development session is accepted by the write endpoint before another UI save; keep local recovery pending until a controlled resolution is chosen.
+- **Related tasks**: P3A-T3
+
+## 2026-09-27: W3C Fetch Quota Exceeded on Graph Snapshots with keepalive
+- **Error**: Graph autosave failed in browser with `TypeError: Failed to fetch`, displaying "Sync failed".
+- **Cause**: `performSyncToSupabase` passed `keepalive: true` unconditionally. The W3C fetch specification enforces a strict 64 KiB buffer quota across all in-flight keepalive requests, whereas campus graph payloads are ~290 KB.
+- **Fix**: Guarded `keepalive: true` in `performSyncToSupabase` to only attach when `body.length < 60000`.
+- **Prevention**: Never attach `keepalive: true` to full document or graph serialization requests exceeding 60 KB.
+- **Related tasks**: P1 Save Stabilization
+
+## 2026-09-27: Post-Mount Normalization Triggered False Destructive Save Blocks
+- **Error**: Editor rejected building property edits (C1) and floor additions (C2) with `Cross-scope destructive save blocked: no pending authored intent covers edges[...]`.
+- **Cause**: On mount, `GraphAdapter.sync()` cleans and normalizes orphan road junctions in memory. Because `completeCampusHydration` did not update `lastAcknowledgedCollections` with the normalized collections, the save guard compared against raw server JSON and interpreted the initial cleanup as an unauthorized destructive deletion.
+- **Fix**: Updated `completeCampusHydration()` to establish `lastAcknowledgedCollections = collectionsOf(currentJson)`.
+- **Prevention**: Always re-establish the acknowledged collections baseline after initial lifecycle hydration and adapter synchronization.
+- **Related tasks**: P1 Save Stabilization
+
+## 2026-09-27: Post-Mount Normalization Fingerprint Triggered False Conflict Status
+- **Error**: On page reload, the editor displayed `● Outdated [Load server version]` despite zero user conflicts.
+- **Cause**: In `checkServerFreshness()`, comparing the in-memory normalized graph fingerprint against the server's raw JSON fingerprint caused `storeAhead = true`. Even when `incomingServerTime <= lastServerTime` and no local authored mutations were pending, it fell through to mark `syncStatus = 'conflict'`.
+- **Fix**: Updated freshness gate so that when `!localDirty && (!storeAhead || state.pendingAuthoredMutations.length === 0)` and `incomingServerTime <= lastServerTime`, the clean state is preserved with `syncStatus = 'synced'`.
+- **Prevention**: Do not treat derived in-memory projection divergence as an uncommitted local user conflict when no authored mutations are pending.
+- **Related tasks**: P1 Save Stabilization
+
+
 ## 2026-09-06: Phase8A planning skill path lookup
 - **Error**: The first read-only lookup for the superpowers skill files used an old `.agents/skills/superpowers/...` location and returned `PathNotFound`.
 - **Cause**: The available skill-root mapping points superpowers to the bundled curated-remote cache in this session.
@@ -508,7 +593,30 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Retry graph refresh after checkout permissions/state change and never hand-edit generated graph output.
 - **Related tasks**: T9 (final verification)
 
+## 2026-09-21: Building confirmation Save allows duplicate submissions
+- **Error**: The new RED confirmation tests show that two rapid Save clicks dispatch `building.create` twice, and a rejected `workflow.save('manual')` escapes as an unhandled rejection with no visible failure state.
+- **Cause**: `ConfirmOverlay.handleSave` has no synchronous in-flight guard, awaits workflow persistence before clearing the confirmation, and has no catch/failure UI for the building path.
+- **Fix**: Pending in the focused implementation task; add a ref-backed submit lock, stable per-confirmation building identity, success-only finalization, and caught retryable errors.
+- **Prevention**: Keep rapid double-click, pending-save, and rejected-persistence tests in the confirmation regression suite; do not clear the draft until command and workflow save succeed.
+- **Related tasks**: Building creation confirmation T1-T2
+
 ---
+
+## 2026-09-21: Graphify refresh denied after building confirmation fix
+
+- **Error**: The required `graphify update .` run after the confirmation fix reported `Nothing to update or rebuild failed` and `WinError 5: Access is denied` during code re-extraction.
+- **Cause**: The managed Windows checkout cannot write the generated graph output during refresh.
+- **Fix**: Left generated graph files untouched; relied on the required graph query plus focused tests, lint, and production build verification.
+- **Prevention**: Treat generated graph output as read-only when refresh permissions fail; do not hand-edit or delete graph artifacts.
+- **Related tasks**: Building confirmation T3
+
+## 2026-09-21: Sandboxed Next build worker spawn denied
+
+- **Error**: The first sandboxed `npm run build` compiled successfully but failed during Next page-data generation with `Error: spawn EPERM`.
+- **Cause**: Managed sandbox process restrictions prevented the Next worker from starting.
+- **Fix**: Re-ran the unchanged build with the required elevated execution approval; the build completed and generated all 41 static pages.
+- **Prevention**: Keep the compile result and worker-boundary failure distinct, then verify the same build command in the approved execution environment.
+- **Related tasks**: Building confirmation T3
 
 ## 2026-08-30: Repository-wide diff check includes unrelated dirty whitespace
 
@@ -2398,195 +2506,830 @@ Track every error encountered during implementation. Each entry includes:
 - **Prevention**: Inspect production read-only before rollout, deploy code and migration deliberately, and diagnose/repair live referential data without overwriting an unsynced browser snapshot.
 - **Related tasks**: Floor Editor Stabilization T7, production verification
 
-## 2026-09-20: Focused sync baseline Vitest worker blocked by sandbox
-- **Error**: The first focused conflict/recovery baseline run failed while loading `vitest.config.ts` with `Error: spawn EPERM`.
-- **Cause**: The managed Windows sandbox blocked Vite/Vitest child-process startup before any test was collected.
-- **Fix**: Re-run the identical focused command with the approved elevated process permission; do not change application code or test expectations for this environment error.
-- **Prevention**: Classify config-load `spawn EPERM` separately from test failures and use the established elevated Vitest runner on Windows.
-- **Recurrence**: The final post-review sandbox run hit the same config-load error; the unchanged elevated matrix then passed 58/58.
-- **Related tasks**: Production Studio conflict recovery T1, T2, T4
+## 2026-09-13: Door follow-up inspection regex was malformed
+- **Error**: A focused `rg` command for Floor Editor status rendering failed with an unclosed-group parser error.
+- **Cause**: PowerShell consumed the escaped quote inside a double-quoted regular expression.
+- **Fix**: Use separate single-quoted literal patterns or fixed-string searches for the follow-up inspection.
+- **Prevention**: Keep PowerShell `rg` expressions single-quoted when they contain quotes or grouping metacharacters.
+- **Related tasks**: Floor Editor Door feedback follow-up
 
-## 2026-09-20: Nested worktree confused Next/Turbopack project-root inference
-- **Error**: The first `npm run build` selected the parent checkout's `package-lock.json` and Turbopack panicked with `Expected process result to be a module` while processing middleware.
-- **Cause**: The isolated worktree was placed under the parent checkout's ignored `node_modules`, so Next detected nested lockfiles and inferred the wrong workspace root.
-- **Fix**: Move the same Git worktree to the system temporary directory, link the existing dependency directory there, and rerun the unchanged normal production build.
-- **Prevention**: Do not place a Next.js worktree beneath another checkout's `node_modules`; isolate it outside every project root before running Turbopack.
-- **Related tasks**: Production Studio conflict recovery T4
+## 2026-09-13: Ripgrep Windows wildcard was passed as a literal path
+- **Error**: A follow-up search using `src/components/floor-editor/__tests__/*.test.ts*` failed with Windows error 123.
+- **Cause**: `rg` received a wildcard in a positional Windows path instead of a glob filter.
+- **Fix**: Search the directory and pass `--glob '*.test.ts*'` when filtering filenames.
+- **Prevention**: On Windows, use `rg --glob` rather than shell-style wildcards in path arguments.
+- **Related tasks**: Floor Editor Door feedback follow-up
+## 2026-09-13: Focused Door lint blocked by existing Floor Editor violations
+- **Error**: `npm run lint -- src/components/floor-editor/useFloorDrawing.ts src/components/floor-editor/FloorEditorCanvas.tsx src/components/floor-editor/__tests__/door-gesture-feedback.test.tsx` exited with 64 problems (38 errors, 26 warnings).
+- **Cause**: The two existing Floor Editor files already contain repository-wide strict-rule violations, including render-time ref access, effect-driven state resets, explicit `any`, and unused declarations. The Door change appears inside the same files, so ESLint reports the full existing file debt.
+- **Fix**: Used focused RED/GREEN behavioral tests, the shared rectangle-tool regression suite, `git diff --check`, and browser verification as the scoped quality gates; did not broaden this bug fix into a risky whole-file lint refactor.
+- **Prevention**: Establish a clean lint baseline or ratchet for the Floor Editor files so future scoped patches can distinguish newly introduced violations from legacy debt.
+- **Related tasks**: T8
+## 2026-09-13: Door browser suite could not launch Chromium in sandbox
+- **Error**: `node e2e-floor-editor-stabilization.mjs` failed with `browserType.launch: spawn EPERM` before any scenario ran.
+- **Cause**: The workspace sandbox blocks the Playwright Chromium child process.
+- **Fix**: Re-ran the same disposable-fixture browser suite with the required elevated process permission.
+- **Prevention**: Run Playwright browser-launching verification outside the restricted sandbox when the test requires a real Chromium process.
+- **Related tasks**: T8
+## 2026-09-13: Verification lookup used an invalid working-directory string
+- **Error**: A read-only `rg` lookup could not start because the generated working directory contained stray Unicode characters and Windows returned error 267.
+- **Cause**: The tool-call argument was accidentally transformed instead of using the known literal repository path.
+- **Fix**: Reissued the lookup with the exact literal `C:\Users\Administrator\Desktop\CODEme\Navi\navi-next` working directory.
+- **Prevention**: Reuse verified literal Windows paths in tool arguments; do not construct or transform a known working-directory value.
+- **Related tasks**: T8
 
-## 2026-09-20: Turbopack rejected an external dependency junction
-- **Error**: The second `npm run build` used the correct project root but Turbopack stopped with `Symlink [project]/node_modules is invalid, it points out of the filesystem root`.
-- **Cause**: The temporary worktree reused the primary checkout's dependencies through a Windows junction outside the Turbopack filesystem root.
-- **Fix**: Remove only the verified junction (leaving its target untouched), install the exact lockfile dependencies inside the isolated worktree, and rerun the normal build.
-- **Prevention**: Use a worktree-local dependency installation for Turbopack production builds; shared external junctions are acceptable for Vitest but not for this build pipeline.
-- **Related tasks**: Production Studio conflict recovery T4
+## 2026-09-13: Door rectangle gesture could fail silently
+- **Error**: With Door active, clicking the floor appeared to do nothing; a very quick drag could also fail to create a Door even when its geometry should have been valid.
+- **Cause**: `mousedown` wrote rectangle state asynchronously, while `mousemove` and `mouseup` read a ref that was only updated in a later React effect. Degenerate geometry, missing coordinate context, missing floor context, and dispatcher rejection all returned without user-visible feedback.
+- **Fix**: Added one synchronous state/ref update boundary for the shared Door/Stair/Elevator gesture and an accessible canvas status that reports instructions, progress, explicit rejection reasons, command errors, and success.
+- **Prevention**: Test gesture handlers in a single `act`/event frame as well as normal paced input, and require every authoring boundary to either create/select an object or expose a visible explanation.
+- **Related tasks**: T8
+## 2026-09-13: Door fix Graphify rebuild denied in sandbox
+- **Error**: `graphify update .` reached the rebuild step but failed with Windows access denied.
+- **Cause**: Graphify's incremental rebuild needs child-process/file access not available in the restricted sandbox.
+- **Fix**: Re-ran the required graph update with elevated execution permission.
+- **Prevention**: Use the approved elevated path for Graphify updates after code modifications when the sandbox denies its worker.
+- **Related tasks**: T8
+## 2026-09-13: Progress-log patch context mismatched twice
+- **Error**: Two documentation-only `apply_patch` attempts failed verification before changing files.
+- **Cause**: The first expected line contained an extra period; the second used a cause sentence as though it were an existing heading.
+- **Fix**: Re-read the exact progress tail and applied the graph-result line against literal existing context while appending this ledger entry independently.
+- **Prevention**: Copy exact context from the latest file read and avoid combining unrelated patch hunks until every anchor is verified.
+- **Related tasks**: T8
+## 2026-09-13: Duplicate closing brace in spatial-door-handlers test after append
+- **Error**: `vite:oxc` PARSE_ERROR at `spatial-door-handlers.test.ts:339:1` (`Unexpected token`); the suite failed to load.
+- **Cause**: The append edit's replacement block ended with the describe's closing `})` while the original file already ended with one, leaving an extra brace.
+- **Fix**: Removed the duplicate `})` and re-ran the suite (16/16 green).
+- **Prevention**: After appending to the end of a file, re-read the final lines and verify brace balance before running.
+- **Related tasks**: Final review fix (C1)
+## 2026-09-13: Root tsc blocked by pre-existing parse error
+- **Error**: `npx tsc --noEmit -p tsconfig.json` fails with `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3): error TS1005: '}' expected.`
+- **Cause**: Pre-existing syntax error in an unrelated untracked test file, not in this fix pass.
+- **Fix**: Not fixed (out of scope); changed files were validated with vitest and scoped eslint instead.
+- **Prevention**: Treat root tsc as blocked until that file is repaired; use targeted suites for verification.
+- **Related tasks**: Final review fix (C1/I1/M4)
+## 2026-09-13: Scoped core tsc hits pre-existing ParametricComponent type-name drift
+- **Error**: `npx tsc --noEmit --strict packages/core/src/room-identity.ts packages/core/src/__tests__/room-identity.test.ts` reports `packages/core/src/types/entities.ts(114,25): error TS2552: Cannot find name 'ParametricComponent'. Did you mean 'ParametricComponentEntity'?`
+- **Cause**: Pre-existing `Floor.parametricComponents` field references a type name that no longer exists (interface renamed to `ParametricComponentEntity`); unrelated to the new room-identity files, which report zero errors.
+- **Fix**: Not fixed (out of scope); the new helper was verified with vitest (16/16) and the serializer regression suite (10/10).
+- **Prevention**: Treat the root/core tsc gate as blocked until `entities.ts` type drift is repaired; use targeted suites for task verification.
+- **Related tasks**: ROU Task 1 (canonical room identity helpers)
 
-## 2026-09-20: Clean production build lacked the existing local Supabase env file
-- **Error**: The third `npm run build` compiled successfully but failed prerendering `/demo/navigate` because `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` were unset.
-- **Cause**: The clean temp worktree intentionally excludes ignored `.env.production.local`; the primary checkout already has the normal local production env file.
-- **Fix**: Load the existing file into the single build process without printing, copying, committing, or persistently changing any environment value, then rerun the unchanged build.
-- **Prevention**: Clean worktree builds must explicitly inherit the checkout's existing ignored build environment without persisting secrets or modifying Vercel settings.
-- **Related tasks**: Production Studio conflict recovery T4
+## 2026-09-13: Semantic door ownership always resolves ambiguous on multi-room floors
 
-## 2026-09-20: Sync-fix Graphify incremental rebuild denied in sandbox
-- **Error**: `graphify update .` detected code-only changes but its rebuild worker failed with `[WinError 5] Access is denied`.
-- **Cause**: The managed Windows sandbox denied the child-process/file access Graphify needs for incremental extraction.
-- **Fix**: Re-run the exact incremental update with the established elevated execution boundary.
-- **Prevention**: Use the approved elevated Graphify path after source changes when the first sandboxed update reports access denied.
-- **Related tasks**: Production Studio conflict recovery T4
+- **Error**: Browser verification (ROU Task 9) created Doors inside two wall-derived semantic Rooms; both Doors were placed at the correct positions inside their faces but were stored with `ownership: { status: 'ambiguous', candidateRoomIds: [<Room A>, <Room B>] }` and no `roomId`. The same run re-evaluated the pre-existing unassigned Segment Door and assigned it ambiguous candidates instead of resolving it.
+- **Cause**: `deriveRooms()` emits closed rings that repeat the first vertex as the last point (`packages/editor/src/geometry/room-ownership.ts` consumes them via `collectFloorRoomOwnershipPolygons`). In `containsPoint`, the final loop iteration pairs that duplicated vertex with itself; `pointOnSegment` then computes `cross = 0` and `dot = 0`, and the guard `dot >= 0 && dot <= lengthSq` (0 ≤ 0) returns `true`. Every derived face therefore "contains" every point, so any floor with ≥2 declared semantic Rooms reports `ambiguous`; a single-face floor would falsely report `assigned` outside its bounds. Offline reproduction: `resolveUniqueRoomOwner({x:11.94,y:4.02}, …)` → ambiguous `[room-1-…, semantic-room-face-97xrm4]` although the point is inside face A only; `{x:25.42,y:-19.54}` (outside both) also ambiguous.
+- **Fix**: FIXED (fix wave 1, commit `0820454` — `fix(editor): ignore degenerate ring edges in room containment`). `pointOnSegment` in `packages/editor/src/geometry/room-ownership.ts` now computes the squared segment length up front and returns `false` for (near-)zero-length segments (`lengthSq <= 1e-18`) before the cross/dot math, so the duplicated closing vertex of derived rings can no longer satisfy the dot-product bounds and "contain" every point. Non-degenerate edge semantics are unchanged: a point on a real shared wall (and on its shared vertices) is still detected through the adjacent edges, preserving the door-on-boundary → `ambiguous` behavior.
+- **Verification**: RED first on `packages/editor/src/geometry/__tests__/room-ownership.test.ts` — the two-adjacent-semantic-rooms case resolved `ambiguous [room-a, room-b]` and a far point resolved `assigned` through the repeated closing vertex; after the fix 11/11 pass (new cases: adjacent-room interior ownership, shared-wall ambiguity, shared-corner ambiguity, far point outside a closed ring). Regressions `packages/editor/src/commands/__tests__/door-ownership-reconcile.test.ts` + `packages/editor/src/commands/__tests__/spatial-door-handlers.test.ts` → 24/24. Browser: fresh `npm run dev` + `node e2e-floor-editor-stabilization.mjs` → `FLOOR EDITOR BROWSER VALIDATION — PASS (57/57)`; the two previously failing semantic checks now report `{status:'assigned'}` with `room-1-zu4b` and `semantic-room-face-97xrm4`.
+- **Prevention**: Any point-in-polygon consumer of `deriveRooms()` output must be tested with ≥2 derived faces and the repeated closing vertex. Existing `room-ownership.test.ts` cases used hand-authored open rings (legacy Rooms) or a single derived face, which kept the defect latent.
+- **Related tasks**: ROU Task 9 (found); ROU Task 2 (first fed derived rings into `containsPoint`).
 
-## 2026-09-20: Recovery controls were painted underneath the Studio map pane
-- **Error**: The deployed conflict banner exposed `Re-sync` in the DOM/accessibility tree, but the owner's screenshot showed only the warning text; all four recovery controls were visually absent.
-- **Cause**: `SaveStatus` becomes a 76px multi-row block during conflict, while `StudioWorkspace` hard-fixed its header to 32px. Live measurements placed the buttons at y=84.8–101.3, below the header bottom at y=80, where the following overflow-hidden map pane painted over them.
-- **Fix**: Replace the header's fixed height with a 32px minimum and contained vertical padding so flex layout expands the header and moves the map pane below the complete recovery block.
-- **Prevention**: For responsive controls, verify visual bounding-box containment at the reported viewport; DOM presence and accessibility visibility alone do not prove a control can be seen or clicked.
-- **Related tasks**: Production Studio conflict recovery T5
+## 2026-09-15: Route tests broke nothing, but a new session guard must ship with cookie-bearing fixtures
 
-## 2026-09-20: StudioWorkspace whole-file lint has a pre-existing effect finding
-- **Error**: Scoped ESLint on `StudioWorkspace.tsx` reports `react-hooks/set-state-in-effect` at line 196.
-- **Cause**: An existing publish-state effect synchronously opens validation dialogs; the finding predates and is unrelated to the header height change.
-- **Fix**: Keep this blocker scoped: lint the new regression file, run the focused test matrix and production build, and do not refactor publish behavior as part of the recovery-visibility fix.
-- **Prevention**: Distinguish changed-line regressions from legacy whole-file findings and record the baseline instead of expanding a one-blocker production patch.
-- **Related tasks**: Production Studio conflict recovery T5
+- **Error**: (Prevented before failure) Adding `requireMutationSession` to the mutating API routes would have returned `401` for every existing route test, because they built `NextRequest`s and fake `{ json }` request objects with no cookies.
+- **Cause**: Route handlers previously had no auth surface, so their focused suites never modeled session cookies. Two publish suites pass hand-rolled request doubles, not `NextRequest`.
+- **Fix**: Adapted the tests minimally: real `NextRequest`s gained a `navi-mock-session` cookie header, and the fake doubles gained `cookies: { getAll: () => [SESSION_COOKIE] }`; no assertion was weakened, and new 401/423 tests were added for `/api/graph` and `/api/publish`.
+- **Prevention**: When a new server guard reads request state, update every request double in the same change and prove the guard runs before the client/write (assert the client/write was never called).
+- **Related tasks**: Phase 3 mutation gate (P1-4)
 
-## 2026-09-21: Sync-fix Graphify incremental rebuild denied in sandbox (recurrence)
-- **Error**: The required `graphify update .` first attempt again failed with
-  `[WinError 5] Access is denied` before rebuilding the graph.
-- **Cause**: The managed Windows sandbox still blocks the Graphify worker's
-  child-process/file access even though the source worktree is valid.
-- **Fix**: Re-ran the identical update with the documented elevated boundary;
-  it completed with 11,968 nodes, 26,367 edges, and 579 communities.
-- **Prevention**: Treat this known environment failure separately from source
-  regressions and use the approved elevated Graphify command after code edits.
-- **Related tasks**: Harmonious autosave building/vertex drag lifecycle T8
+---
 
-## 2026-09-21: Recovery left the mounted CampusDocument stale across reload
-- **Error**: After recovery reported `All changes saved`, a no-edit reload
-  recreated a server/local conflict. Production logs showed repeated
-  `EditorBridge adapter save failed` warnings because the graph-store was
-  already in conflict during the post-reload save attempt.
-- **Cause**: Authoritative recovery replaced the graph/cache/marker/server but
-  the long-lived EditorBridge document remained at the pre-recovery snapshot.
-  Its visibility/beforeunload `GraphAdapter.sync(document)` then rewrote the
-  recovered graph and local cache with stale document state.
-- **Fix**: Add an explicit authoritative document replacement that preserves
-  object identity, notifies document subscribers without `revision.committed`,
-  clears stale history/selection, and runs whenever the mounted bridge observes
-  an authoritative graph-object replacement.
-- **Prevention**: Treat graph→document reconciliation as a required recovery
-  boundary; test all five fingerprints before/after reload and assert that
-  hydration/adoption never emits an authored revision or network save.
-- **Related tasks**: Production Studio post-recovery reload convergence T9–T12
+## 2026-09-25: Interrupted npm install zero-filled package-lock.json and node_modules
 
-## 2026-09-21: EditorBridge lint baseline rechecked during convergence fix
-- **Error**: Targeted ESLint still reports the existing `react-hooks/refs`
-  findings around the bridge's context ref and existing `no-explicit-any`
-  findings; no new finding was introduced by the convergence boundary.
-- **Cause**: Those patterns predate this task and are outside the single
-  post-recovery reload blocker.
-- **Fix**: Left unrelated baseline code unchanged; verified the new regression,
-  focused matrix, build, and diff checks instead.
-- **Prevention**: Keep future convergence patches scoped and distinguish
-  changed-line findings from the known bridge baseline.
-- **Related tasks**: Production Studio post-recovery reload convergence T10–T12
+- **Error**: The first `npm install @aws-sdk/client-s3` run was interrupted mid-write. `package-lock.json` became 530,652 bytes of NUL characters (0 valid JSON), and 177 files inside `node_modules/@aws-sdk/core` and `node_modules/@smithy/core` were also all-NUL. `tsc --noEmit` reported 142 `TS1127: Invalid character` errors from those corrupted `.d.ts` files.
+- **Cause**: The installer preallocates/extends files before writing them; killing it mid-write leaves the extended region zero-filled. Git already treated `package-lock.json` as binary before this, so the corruption was invisible to a normal `git diff`.
+- **Fix**: Restored the lockfile with `git checkout -- package-lock.json` (HEAD copy parsed clean, 917 packages), regenerated it with `npm install --package-lock-only` (942 packages, 396 pure insertions, 0 removals), deleted only the two all-NUL package directories, and re-ran `npm install`. Verified with a byte-level scan (3,316 files, 0 corrupted) and re-ran `tsc` (145 lines -> 3, all pre-existing `data-identity-comparison.test.ts` parse errors).
+- **Prevention**: Never interrupt `npm install`; after any interrupted install, (a) confirm the lockfile parses as JSON and contains no NUL bytes, (b) byte-scan the newly added package trees for all-NUL files before trusting lint/tsc/tests, and (c) prefer `--package-lock-only` first so the lock is written separately from `node_modules`.
+- **Related tasks**: T1
 
-## 2026-09-21: Hydration-only teardown projection recreated divergence after recovery
-- **Error**: Production `Load server version` changed the banner to `All changes saved`, but the next no-edit reload recreated the red server/local divergence warning. The reload made GET requests only; no stale POST was emitted.
-- **Cause**: The unload/visibility handlers always called `GraphAdapter.sync(document)`. Even after authoritative graph→document replacement, that document had not received an authored commit; projecting it back during teardown could canonicalize or migrate production data before the cache was persisted, so the next server-vs-cache fingerprint comparison diverged.
-- **Fix**: Track the last document version projected into the legacy graph. Teardown persists the current graph but only runs document→graph projection when the document version advanced through an authored commit.
-- **Prevention**: Test recovery, no-edit unload/reload, and authored-edit unload separately; hydration replacement must never be treated as an authored projection.
-- **Related tasks**: Production Studio post-recovery reload convergence T13
 
-## 2026-09-21: Authoritative route mount rebuilt the graph before freshness settled
-- **Error**: After the teardown guard, a clean production reload still recreated the warning even though the cache and server had been reconciled. The initial route mount had no user edit and no POST.
-- **Cause**: `EditorBridge` unconditionally ran its initial `GraphAdapter.sync(document)` while `loadMapData` had already marked a cached/server snapshot as `checking` (or `synced`). The document→legacy rebuild changed the in-memory graph fingerprint before `checkServerFreshness` compared it with the canonical cache.
-- **Fix**: Skip the initial legacy rebuild for authoritative `checking`/`synced` hydration; retain the rebuild for `idle` local-ahead/legacy drafts.
-- **Prevention**: Treat authoritative graph hydration as a read boundary and test route mount plus freshness settlement, not only teardown and unload.
-- **Related tasks**: Production Studio post-recovery reload convergence T14
+---
 
-## 2026-09-21: Full-document graph reconciliation resurrected a building delete
-- **Error**: Deleting a building in Studio removed it from the active document,
-  but the next graph projection could restore the old canonical building.
-- **Cause**: `GraphAdapter.sync(document)` merged previous out-of-scope
-  canonical collections even when the document was the complete authoritative
-  Studio state.
-- **Fix**: Full-document sync now rebuilds authoritative collections; scoped
-  preservation is explicit for legacy callers.
-- **Prevention**: Keep a regression that deletes one building, syncs, and
-  round-trips through `Graph.fromJSON`/`createDocument` while asserting all
-  other buildings survive.
-- **Related tasks**: Building delete persistence T1–T2
+## 2026-09-25: Lowercase R2 secret env var name blocked the live connectivity test
 
-## 2026-09-21: Building delete lacked authored autosave intent
-- **Error**: The delete remained local because autosave's authored-mutation
-  guard saw no pending mutation even though `entity.deleted` had fired.
-- **Cause**: CampusDocument commands emit the delete event but do not call the
-  graph-store mutation recorder.
-- **Fix**: `EditorBridge` records building-delete intent with the canonical ID
-  and null payload before the existing autosave path evaluates its guard.
-- **Prevention**: Assert the pending intent, save payload, and post-ack marker
-  in the integration regression.
-- **Related tasks**: Building delete persistence T1–T3
+- **Error**: The authenticated production `POST /api/r2-connectivity-test` returned `500 {"error":"missing_configuration","missing":["R2_SECRET_ACCESS_KEY"]}` even though all four `R2_*` variables existed in Vercel Shared env linked to `navi-next`. The other three (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`) were resolved; only the secret was not.
+- **Cause**: Vercel/Linux environment variable names are case-sensitive. The Shared variable had been created as `r2_secret_access_key` (lowercase) while `R2_REQUIRED_ENV_VARS` in `src/lib/r2.ts` looks up `R2_SECRET_ACCESS_KEY`. A second, benign mismatch also exists: `R2_region` (lowercase `r`) is ignored because the code reads `R2_REGION` and falls back to `auto`.
+- **Fix**: The variable was renamed to `R2_SECRET_ACCESS_KEY` in the Vercel dashboard and re-linked to `navi-next` for Production + Preview, then the project was redeployed because env changes only reach a running function on a fresh deployment. Verified by `vercel env pull` (all four `R2_*` keys present) and by the endpoint returning `200`.
+- **Prevention**: When adding server env vars, paste the exact uppercase name from the source constant. Remember (a) case matters, (b) a redeploy is mandatory after any env change, and (c) the `missing: [name]` array from `readR2Config` pinpoints the mismatch - never guess which variable is wrong.
+- **Related tasks**: R2 connectivity test (deployment phase)
 
-## 2026-09-21: Empty local delete draft was treated as missing
-- **Error**: When the last building was deleted during debounce, reload fetched
-  the old server graph and lost the local delete evidence.
-- **Cause**: `loadMapData` used an empty-building-array check as a proxy for
-  missing local cache.
-- **Fix**: Only an absent cache record triggers server fallback; an existing
-  empty graph remains the local draft and is freshness-checked normally.
-- **Prevention**: Test an empty local graph against a non-empty server snapshot
-  and require conflict visibility without clearing the cache.
-- **Related tasks**: Building delete persistence T2–T3
+## 2026-09-25: `vercel env pull` cannot export sensitive credentials, blocking independent object read-back
 
-## 2026-09-21: Worktree package junction blocked source-focused test resolution
-- **Error**: Integration tests initially resolved `@navi/editor` through the
-  base checkout's junction instead of this worktree's package source.
-- **Cause**: The shared `node_modules` junction points outside the isolated
-  worktree.
-- **Fix**: Tests were run with a temporary Vitest alias to the worktree source;
-  the alias was removed before commit and is not a product change.
-- **Prevention**: Verify aliases are absent from `vitest.config.ts` and keep the
-  protected no-alias matrix green.
-- **Related tasks**: Building delete persistence T3
+- **Error**: After the upload succeeded, an independent read of `_navi-tests/r2-connectivity-test.txt` failed with `400 InvalidArgument`. Diagnosis showed `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` were written as `""` (2 bytes each) in the pulled env file while `R2_ENDPOINT` and `R2_BUCKET` pulled normally, so any S3 client built from that file had empty credentials.
+- **Cause**: `vercel env pull` (CLI 54.15.0) redacts those two write-only/sensitive values and offers no `--decrypt` option, so the local environment can never be reconstructed from a pull. The AWS SDK rejects empty credentials with `InvalidArgument` before any request is signed.
+- **Fix**: Abandoned the local read-back route, deleted the pulled file immediately (it also held Supabase/Cloudinary/Mapbox secrets) plus the helper scripts, and verified the object through the Cloudflare dashboard instead: `navi-360` (Public Access Disabled) -> `_navi-tests/` -> `r2-connectivity-test.txt`, `text/plain`, 25 B - byte-exact for `NAVI R2 connectivity test`.
+- **Prevention**: Never treat `vercel env pull` output as a complete secret dump - check parsed value lengths before trusting it, keep pulled files in a temp path outside the repo, and delete them in the same command. For bucket verification, plan on the Cloudflare dashboard/API unless real credentials are supplied out-of-band, and never print a credential value to recover.
+- **Related tasks**: R2 connectivity test (verification phase）
 
-## 2026-09-21: Graphify sandbox access required elevated retry
-- **Error**: Initial `graphify update .` returned Windows `WinError 5` access
-  denied while writing graph output.
-- **Cause**: The sandbox could not write the graphify output directory.
-- **Fix**: Retried the same update with approved elevated access; it completed
-  with 11,933 nodes and 26,315 edges.
-- **Prevention**: Treat Graphify access as an environment boundary and record
-  the elevated result rather than changing source to work around it.
-- **Related tasks**: Building delete persistence T4
+## 2026-09-25: Chrome Private Network Access blocked the loopback file fetch during live E2E
 
-## 2026-09-21: Release build needed Webpack and production env
-- **Error**: Turbopack could not traverse the external node_modules junction;
-  Webpack prerender initially lacked required production environment values.
-- **Cause**: Isolated worktree dependency layout and absent env injection in the
-  first build invocation.
-- **Fix**: Ran the release build with `--webpack`, the existing production env
-  loaded in-process, and a temporary source alias; all 41 pages generated.
-  Temporary config changes were removed afterward.
-- **Prevention**: Keep build workarounds ephemeral and verify `next.config.ts`
-  and its index state match HEAD before committing.
-- **Related tasks**: Building delete persistence T4
+- **Error**: In the authenticated production page, fetch('http://127.0.0.1:8765/pano-ingest-test.jpg') was rejected four times with "Access to fetch ... blocked by CORS policy: Permission was denied for this request to access the loopback address space" / net::ERR_FAILED; two wrapper page.evaluate calls hit the MCP timeout instead of returning the caught TypeError.
+- **Cause**: The temp file server itself was healthy (local HEAD 200; OPTIONS 204 with Access-Control-Allow-Origin: * and Access-Control-Allow-Private-Network: true). Chrome's Private Network Access permission gate denies public-origin -> loopback requests regardless of the target's CORS response, and the rejection did not surface cleanly through the evaluate bridge.
+- **Fix**: Bypassed loopback entirely: copied the test JPEG into .playwright-mcp/ (an MCP-allowed root), attached a drop handler in the page that read e.dataTransfer.files[0] into an ArrayBuffer, dropped the file with the Playwright drop API, then PUT the in-page buffer to the presigned URL. The E2E then passed all five steps with an exact SHA256 match.
+- **Prevention**: Never route test payloads through a local HTTP server from a production https page. Inject bytes into the page via Playwright drop/setFiles (or chunked transfer), or serve from an origin that is both PNA-permitted and CORS-allowed. Keep the OPTIONS/PNA headers on any temp server anyway - they were not the blocker here.
+- **Related tasks**: T9 (live E2E)
 
-## 2026-09-21: Fetching the release branch required approved network retry
-- **Error**: The sandboxed `git fetch origin` could not reach the remote.
-- **Cause**: Network access is restricted in the default command sandbox.
-- **Fix**: Retried the same fetch with approved elevated network access and
-  rebased onto `origin/release/navi-auth-fix-2026-09-19`.
-- **Prevention**: Record remote provenance and use the minimal elevated retry
-  only when the source-control operation is required.
-- **Related tasks**: Building delete persistence T4
+## 2026-09-25: Bulk string replace dropped closing parens in panorama-resolve tests
 
-## 2026-09-21: Publishing the verified branch was blocked by egress review
-- **Error**: The sandboxed `git push` could not connect to GitHub; the
-  required elevated retry was rejected by the external-egress safety review.
-- **Cause**: This environment requires explicit approval before sending the
-  repository contents to the configured remote.
-- **Fix**: No workaround was attempted. The clean local commit remains ready
-  for the user-authorized push once that approval is granted.
-- **Prevention**: Request explicit destination authorization before retrying the
-  same push; do not route the payload through an indirect command or remote.
-- **Related tasks**: Building delete persistence T4
+- **Error**: npx vitest run src/app/api/panorama-resolve failed to parse: "Expected '}' but found ';'" at line 62 - all eight GET(req(... call sites were mangled (e.g. await GET(req("");).
+- **Cause**: A chained replace (GET(asNext( -> GET(req(, then ) as never) -> )) removed one closing parenthesis from each call: the second pattern consumed the call's own closing paren while collapsing the cast, leaving one unclosed GET(.
+- **Fix**: Repaired mechanically with a targeted regex over lines matching await GET\(req\( ending in ');' -> '));' (8 lines fixed); the suite then passed 8/8.
+- **Prevention**: After any bulk transform of call expressions, run the file's tests (or node --check) before moving on; prefer structured edits or transform one complete pattern at a time, and verify paren balance with a parse, not by eye.
+- **Related tasks**: T6
+
+---
+
+## 2026-09-26: New recalculation test asserted a whole-floor snapshot that included its own sentinel
+
+- **Error**: The first run of the new `packages/editor/src/__tests__/floor-recalculation.test.ts` failed its "does not mutate authored walls or rooms" case: `JSON.stringify(building.floors)` differed before/after `recalculateBuilding`.
+- **Cause**: The snapshot captured `elevation: -1` (the sentinel set so recalculation must overwrite it) - the assertion tested the very field the function is supposed to change.
+- **Fix**: Scoped the snapshot to authored geometry only (walls + rooms JSON), keeping a separate assertion that `walls` still deep-equal the authored wall.
+- **Prevention**: When asserting "no mutation" on a function whose purpose is mutation, snapshot only the fields it must not touch; never snapshot the output field under test alongside them.
+- **Related tasks**: T-A4
+
+## 2026-09-26: Baseline test/tsc failures found while running the Phase A regression matrix (all pre-existing)
+
+- **Error**: The focused matrix and the full `npx vitest run` baseline showed 18 failing files / 34 failing tests (routing-validation 3, topology-audit 2, route-network-maplibre 1, semantic-room-interaction 1, compiler suites ~16, InspectorMigration 3, navigate page.test 1, phase3a-authored-state 1, qr-location 1, plus 3 suite-level import/parse errors); `tsc --noEmit` reports 1 error and `packages/runtime` has 1 parse-broken suite - all matching `data-identity-comparison.test.ts` (TS1005, `Expected '}' but found 'EOF'`).
+- **Cause**: Pre-existing state, not Phase A: several are clean-at-HEAD (`routing-validation`, `topology-audit`, `route-network-maplibre`, `semantic-room-interaction`, `data-identity-comparison`), one is the parallel workstream's untracked test (`phase3a-authored-state.test.ts` ??), and the rest co-locate with that workstream's dirty files (`packages/compiler/src/emitter/artifacts.ts` M, `src/services/graph-snapshot-serializer.ts` M, `src/app/(public)/map/navigate/page.tsx` + test M, studio `EditorBridge/MapCard/StudioDashboard` M, `create-editor-context.ts` M). Phase A's import graph excludes all of them: `wall-to-polygon` importers = FloorEditorCanvas + 2 passing tests; `FloorEditorCanvas` importers = 2 passing tests.
+- **Fix**: None in this program (out of scope; would violate task-file boundaries). Full baseline recorded in `progress/PROGRESS.md` for a before/after comparison at Phase F.
+- **Prevention**: Capture the full-suite baseline before making changes; attribute every failure by import-graph reachability + `git status`, never by assumption; treat `packages/runtime` as its own vitest project (root config does not include it).
+- **Related tasks**: T-A5, F
+
+## 2026-09-27: Cross-scope destructive save blocked during floor interior editing & campus floor creation
+- **Error**: Navi Studio failed to persist second floor creation and interior floor edits (routes, rooms). The browser console logged: `[graph-store] save blocked by safety guard: Cross-scope destructive save blocked: no pending authored intent covers nodes[...] edges[...]`. On reload, client flagged "Outdated / Load server version".
+- **Cause**:
+  1. `GraphAdapter.sync()` regenerated volatile node IDs (`N0001..`) and edge IDs (`E0001..`) on outdoor road traces during reconciliation because `compileTrace()` did not reuse IDs from existing nodes/edges.
+  2. `reconcileCanonicalCollections()` evaluated `outdoorCovered` as true even for floor-scoped syncs, overwriting baseline outdoor nodes.
+  3. The P0.11 safety guard detected baseline outdoor nodes (`N1187..N1193`) missing in candidate graph without an outdoor authored intent, failing closed and aborting the save.
+  4. In Campus Editor, `document.changed` did not register `recordAuthoredMutation`, causing autosave to see `pending.length === 0` and drop the network write.
+- **Fix**:
+  1. Updated `compileTrace()` and `Graph.addTraceWithCompile()` to accept a stable snapshot reference and reuse matching node and edge IDs by coordinates.
+  2. Added `scope?: GraphAdapterScope` to `GraphAdapter.sync()` and `reconcileCanonicalCollections()`, ensuring non-outdoor scopes keep `outdoorCovered = false` and preserve all outdoor entities verbatim.
+  3. Added authored mutation recording in `EditorBridge.tsx` for `document.changed`, `syncDocumentAndCapture`, `persistenceAdapter.save`, and `visibilitychange/beforeunload` flushes.
+- **Prevention**: Always pass the active editor scope to projection synchronizers (`GraphAdapter.sync(document, scope)`), preserve stable identity for entities not owned by the current scope, and attribute mutation intent at command boundaries before network persistence.
+- **Related tasks**: T1, T2, T3, T4
+
+## 2026-09-27: Cross-floor node adoption could silently overwrite another floor's node
+- **Error**: QA review found `findMatchingExistingNode` in `src/engine/trace-compiler.ts` returned `candidates[0]` when no building/floor match existed (and always returned the sole candidate on the single-candidate path), so a trace compiled on one floor could adopt a same-coordinate node owned by a different floor.
+- **Cause**: Coordinate-only matching ignores scope; stacked floors in the same building share identical lat/lng by design. Adoption hands the trace the foreign node's stable id, and `Graph.addNode` persists via `Map.set` upsert, replacing the other floor's node (position + buildingId + floor) with the compiling floor's data - silent cross-floor corruption exactly in the multi-floor scenario the persistence fix targets.
+- **Fix**: Scope-strict reuse - only an exact `(buildingId ?? '', floor ?? 0)` match may donate its id; otherwise return `undefined` and let `genId('N')` mint a fresh node. Duplicate nodes across floors are correct because each floor is a separate graph scope.
+- **Prevention**: Never adopt identity by coordinate alone in multi-scope data; when an id is reused, the adopting entity's scope must equal the donor's scope, and any `Map.set`-style upsert on shared coordinates must be proven scope-safe by a test with two floors at identical coordinates.
+- **Related tasks**: T1
+
+## 2026-09-27: Save-boundary intent injection defeated the P0.11 unattributed-mutation guard
+- **Error**: QA review found `EditorBridge.tsx` `saveGraph` and `syncToSupabase` called `recordAuthoredMutation('building'|'outdoor', ...)` unconditionally whenever `pendingAuthoredMutations.length === 0`.
+- **Cause**: The guard `evaluateAuthoredSave` fails closed precisely when no authored intent covers the candidate delta (CASE A in case-e-attribution: changed candidate with no authored intent). Injecting an intent at the exact `pending.length === 0` precondition made every EditorBridge save pass, defeating the guard for unattributed graph changes. Store-level tests bypassed EditorBridge, so no test covered the interaction.
+- **Fix**: The fallback now also requires `contextRef.current.document.version > 0` (a real authored editor change - the same gate the visibility/beforeunload flush handlers use). Hydration/view-only sessions keep version 0 and remain fail-closed.
+- **Prevention**: Never fabricate authorization at a consumption boundary gated on "authorization missing"; gate any fallback on an independent proof the guarded action was legitimate (mutation counter/version advance), and add an interaction test that runs through the real adapter boundary, not just the store.
+- **Related tasks**: T3, T4
+
+## 2026-09-27: Hardcoded Supabase service-role key in workspace verification script
+- **Error**: `scripts/verify-persistence-fix.ts` (untracked) contained a plaintext production service-role JWT for `https://oltfaepqcktrumfhadzb.supabase.co` - full read/write access to the database if the file were ever committed or shared.
+- **Cause**: Convenience during the earlier end-to-end persistence verification; script was written outside the tracked change set so the secret check never ran on it.
+- **Fix**: Replaced literals with `SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` env reads and a fail-fast error. Verified `git log --all -S <key>` and `git grep` are both empty - the key never entered history; the file stays untracked and excluded from the commit set.
+- **Prevention**: Never paste service-role keys into files; read them from env, and pre-commit `git grep -E "eyJhbGciOi.*(service|role)"`-style scans before any commit; rotate the key if the workspace or repo is ever made public.
+- **Related tasks**: T3
+
+## 2026-09-27: save-audit-suite crashed after all scenarios because the report table read a non-existent field
+- **Error**: `scripts/save-audit-suite.mjs` ran all 8 scenarios, completed the final restore check, then threw `TypeError: Cannot read properties of undefined (reading 'length')` inside `renderTable()` - the results table, the F2 console listing, and the non-zero exit code were never produced (process exited 2 via the `main().catch` FATAL handler instead of 1).
+- **Cause**: `renderTable()` used `r.writes.length`, but per-scenario write results are stored as `result.networkWrites` (the raw `cap.writes` array is never attached to the result). The field-name drift was introduced while refactoring the runner; `node --check` cannot catch it because it is a property access on a defined object, not a syntax error.
+- **Fix**: Changed to `(r.networkWrites || []).length` so a missing array degrades to 0 rather than throwing; verified by a full re-run that prints the table and exits 1.
+- **Prevention**: For any script that must exit non-zero on failure, the final reporting block is part of the critical path - exercise it end-to-end (a full run, or a call with a synthetic results array) before trusting `node --check`; make report rendering tolerant of missing fields so a reporting bug cannot mask real scenario failures.
+- **Related tasks**: QA-AUDIT-1
+
+## 2026-09-27: A batch edit dropped a variable declaration while its usages stayed
+- **Error**: A multi-edit to `scripts/save-audit-suite.mjs` accidentally deleted `const deduped = []` while leaving the `deduped.push` / `deduped.sort` / report usage in place - the next run would have thrown `deduped is not defined` at the F2 block, after every scenario had already mutated production.
+- **Cause**: The `oldText`/`newText` pair for the F2 console-health addition carried the declaration on the "remove" side, so the edit faithfully applied a destructive change. `node --check` passes on undefined variables (syntax only), so the mistake survived the syntax gate.
+- **Fix**: Re-read the edited region, spotted the missing declaration, and restored `const deduped = []` in the same session before the next run.
+- **Prevention**: After any multi-edit touching more than one site in a file, re-read the full edited region rather than trusting the diff summary; exercise the script's reporting path in addition to `node --check`, since reference errors are runtime-only.
+- **Related tasks**: QA-AUDIT-1
+
+## 2026-09-27: Evidence note interpolated a raw snapshot instead of its summary
+- **Error**: C2's verify note printed `inspector after reload showed undefined floors: true` - `after.floorCount` was read from the raw Supabase snapshot object (which has no `floorCount` key) instead of the `summarize()` output.
+- **Cause**: The scenario's `run()` bound a local `const after = summarize(...)`, while `verify()` reused the same name for the raw snapshot; the note line kept the old identifier after the two scopes diverged.
+- **Fix**: Replaced with `a.floorCount` (the `summarize()` result already bound in verify). Pass/fail logic was unaffected - only the human-readable evidence line was wrong.
+- **Prevention**: Never let a raw API payload and its derived summary share a variable name across functions; when a note prints a number, make `undefined` obvious (typed local, or format through `String(...)`) so evidence text cannot silently lie.
+- **Related tasks**: QA-AUDIT-1
+
+---
+
+## 2026-09-27: Floor Editor door & interior edits failed to persist across browser close/reload
+- **Error**: Placing doors or modifying interior entities in the Floor Editor did not persist to Supabase if the user closed the tab or browser shortly after editing, and reopening the URL restored the old floor state or prompted with an outdated-version conflict. Additionally, the Vercel production build threw `TypeError: setAuthoredDocument is not a function` because `src/store/graph-store.ts` was not staged in the git commit.
+- **Cause**:
+  1. The autosave mechanism uses a 2000ms debounce. If the user closes or unloads the tab immediately, `beforeunload` fires a `fetch('/api/graph')`, but the fetch lacked `keepalive: true`, causing the browser to abort the HTTP request on unload.
+  2. In the Floor Editor route (`src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`), the `document.changed` event listener did not call `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)`. As a result, when an immediate unload flush occurred, `pendingAuthoredMutations` was empty, triggering the P0.11 safety guard or failing to treat the save as an authored floor intent.
+  3. The Floor Editor's header (`ContextHeader.tsx`) lacked an explicit Save button or visual indicator (`Saved`, `Saving...`), so users had no visual confirmation of network completion before closing the tab.
+  4. In the previous git commit (`37539b6`), `src/store/graph-store.ts` was left unstaged, so production deployed without `setAuthoredDocument` and `authoredDocument` store actions, causing an immediate runtime crash on Vercel.
+- **Fix**:
+  1. Added `keepalive: true` to the `fetch('/api/graph', ...)` call in `src/store/graph-store.ts` so network writes survive browser tab close.
+  2. In the Floor Editor page, added `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)` upon `document.changed`.
+  3. Added an explicit `Save` button (with `Ctrl+S` / `Cmd+S` shortcut support) and status indicators to `ContextHeader.tsx` and wired it through `FloorEditor.tsx` using `workflow.save('manual')`.
+  4. Added end-to-end Vitest test suite (`packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts`) and unit tests for `ContextHeader.tsx`.
+  5. Staged and committed `src/store/graph-store.ts` along with all modified editor and UI files.
+- **Prevention**: Always use `keepalive: true` for unload-flush HTTP requests; ensure every editor surface binds `recordAuthoredMutation` to document change events; provide user-facing explicit save controls alongside autosave; and enforce pre-commit checks (`git status -s`) to prevent unstaged critical store/model files.
+- **Related tasks**: Floor Editor Door & Interior Persistence Hardening (T1, T2, T3, T4, T5)
+
+
+## 2026-10-09: Vitest temporary-directory rename denied before auth regression collection
+- **Error**: `npx vitest run src/lib/__tests__/mutation-auth.test.ts -t "development mock admin remains usable"` exited before collecting tests with `EPERM` while renaming a generated directory under the Windows sandbox's default Temp path.
+- **Cause**: The test runner's default OS temporary directory does not permit the atomic rename Vitest uses for its SSR transform cache in this sandbox context.
+- **Fix**: Not yet applied; retry with `TEMP`/`TMP` directed to a task-local writable temporary directory and a runner cache under the worktree.
+- **Prevention**: For Windows sandbox test runs, explicitly set task-local temp/cache paths when a pre-collection EPERM occurs; confirm the test count is nonzero before interpreting results.
+- **Related tasks**: P3B-T2
+## 2026-10-09: PowerShell parsed the Studio route-group directory as an expression
+- **Error**: A `Get-Content src/app/(admin)/...` read failed with `admin is not recognized`; the route-group file was not read.
+- **Cause**: PowerShell treated the unquoted parentheses in the path as syntax.
+- **Fix**: Retry with `Get-Content -LiteralPath 'src/app/(admin)/...'`.
+- **Prevention**: Use `-LiteralPath` for repository paths containing parentheses or other PowerShell metacharacters.
+- **Related tasks**: P3B-T1
+## 2026-10-09: In-app browser evaluator did not expose document.cookie
+- **Error**: A read-only browser evaluation intended to return cookie names only failed because `document.cookie` evaluated to `undefined` in the controlled page scope.
+- **Cause**: The browser evaluation sandbox does not expose the document cookie accessor; no cookie values were returned or logged.
+- **Fix**: Use the app's visible authenticated route and actual request outcome for verification; do not attempt to extract browser cookies through another channel.
+- **Prevention**: Treat cookie access from the browser evaluator as unavailable and keep auth evidence limited to server results and sanitized request metadata.
+- **Related tasks**: P3B-T1, P3B-T4
+## 2026-10-09: Prior P3A recovery state blocks a fresh UI save
+- **Error**: The local development editor loaded the disposable campus graph but refused synchronization because the browser held an older unsent P3A edit; it reported a server revision conflict and preserved local changes.
+- **Cause**: Browser-local recovery from the earlier HTTP 401 remained on the shared `127.0.0.1` origin, while the authoritative development snapshot had a newer `updatedAt` value.
+- **Fix**: None applied to that state. Preserve the pending cache; use a separate browser origin/profile for a fresh test and do not choose “Load server version” or overwrite it.
+- **Prevention**: Isolate each persistence attempt by browser origin/profile before editing, and require a clean server revision before any UI mutation.
+- **Related tasks**: P3B-T4
+## 2026-10-09: Login mock sign-in did not navigate away from the login route
+- **Error**: Waiting for the mock sign-in button to navigate to `/dashboard` timed out; the UI remained on `/login` after the client state update.
+- **Cause**: The existing `mockLogin` handler sets browser session state and cookie but does not perform route navigation itself.
+- **Fix**: Continue by navigating to the requested protected development route, which validates middleware recognition of the session.
+- **Prevention**: Do not treat a mock sign-in button click as a navigation event; verify the session by visiting the requested admin page and observing its response.
+- **Related tasks**: P3B-T1, P3B-T4
+## 2026-10-09: PowerShell parsed the auth route-group path during a follow-up read
+- **Error**: A second `Get-Content` command for `src/app/(auth)/login/page.tsx` failed before reading because PowerShell parsed the parenthesized path.
+- **Cause**: The path was not passed as a quoted literal.
+- **Fix**: No source effect; use `-LiteralPath` if this file is needed later.
+- **Prevention**: Always quote parenthesized route-group paths and pass them through `-LiteralPath` in PowerShell.
+- **Related tasks**: P3B-T1
+## 2026-10-09: Browser field inspection snippet used TypeScript syntax in JavaScript
+- **Error**: A read-only `evaluateAll` expression failed to parse at the inline `any` annotation.
+- **Cause**: The browser evaluator accepts JavaScript, not TypeScript syntax.
+- **Fix**: Retry with an unannotated JavaScript callback.
+- **Prevention**: Keep browser evaluation snippets valid plain JavaScript and inspect parser errors before taking UI actions.
+- **Related tasks**: P3B-T4
+## 2026-10-09: Fingerprint helper invocation used top-level await in CommonJS eval
+- **Error**: `npx tsx -e` could not transform a read-only fingerprint script because top-level `await` is unsupported in the default CommonJS output mode.
+- **Cause**: The eval expression was not wrapped in an async function.
+- **Fix**: Retry the read-only helper inside an async IIFE.
+- **Prevention**: Use an async wrapper for `tsx -e` scripts unless the project explicitly configures ESM output.
+- **Related tasks**: P3B-T4
+## 2026-10-09: Graphify update could not run in this Windows worktree
+- **Error**: Required `graphify update .` exited with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The local Graphify launcher cannot canonicalize its script path in this environment; the same failure blocked the mandatory initial graph query.
+- **Fix**: None available in this task; source relationships were traced directly and no graph output was manually changed.
+- **Prevention**: Repair/reinstall the Graphify launcher path before the next codebase task, then rerun query/update through the supported command.
+- **Related tasks**: P3B-T1, P3B-T3
+## 2026-10-09: Floor Editor reported Saved without persisting edited room content
+- **Error**: Editing Floor A room name in the disposable campus and saving through its property UI produced API `POST /api/graph` HTTP 200 responses and the UI later displayed `Saved`, but the authoritative GET still contained the prior room name. Autosave issued repeated requests with the same expected revision; the committed fingerprint remained unchanged.
+- **Cause**: The Floor Editor submitted a revision whose canonical fingerprint matched the prior server snapshot; the room-name edit was not present in the committed authored document. This is a separate Floor Editor serialization/sync defect from the authentication 401.
+- **Fix**: No source change made in this auth task. Preserve the pending browser edit for review; do not manually reload, retry, or overwrite it. The app's automatic requests were limited to the disposable campus and produced no canonical content change.
+- **Prevention**: Require authoritative content/fingerprint readback in addition to HTTP 200; never accept the editor's Saved indicator when the committed fingerprint does not include the requested edit.
+- **Related tasks**: P3B-T4
+## 2026-10-09: First task-level git diff check ran outside Git worktree context
+- **Error**: A combined verification command's initial `git diff --check` printed `fatal: this operation must be run in a work tree`, although the following `git status` and `git rev-parse` succeeded.
+- **Cause**: The initial combined invocation did not resolve the candidate worktree context consistently.
+- **Fix**: Re-ran `git rev-parse --is-inside-work-tree` and `git diff --check -- src/lib/api-guard.ts src/lib/__tests__/mutation-auth.test.ts` from the explicit candidate worktree; it returned true and exit code 0.
+- **Prevention**: Run Git verification as a separate command with an explicit worktree working directory, then confirm its exit code directly.
+- **Related tasks**: P3B-T3
+
+## 2026-10-09: Phase P4 initial graph lookup unavailable
+- **Error**: The required first `graphify query` for the Floor Editor room persistence trace failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows graphify launcher cannot canonicalize its script path in this worktree.
+- **Fix**: Deferred graph-based navigation and continued with direct source tracing; graph output was not changed.
+- **Prevention**: Repair the graphify launcher before the next graph query; record this limitation and do not claim graph context was used.
+- **Related tasks**: P4-T1
+
+## 2026-10-09: Phase P4 focused test launch blocked by candidate node_modules realpath
+- **Error**: `pnpm exec vitest run ...` attempted an automatic dependency install and failed with `EPERM` while resolving the candidate worktree `node_modules` real path; no tests ran and no package files were changed.
+- **Cause**: pnpm could not canonicalize the nested worktree dependency path under the current filesystem restrictions.
+- **Fix**: Pending; inspect the existing local test runner/dependency link and invoke it directly without installation.
+- **Prevention**: Use the already-installed workspace test binary directly and verify the resolved node_modules target before running tests; do not run install or relink dependencies.
+- **Related tasks**: P4-T2, P4-T4
+
+## 2026-10-09: Floor Editor duplicate context can overwrite a committed room edit
+- **Error**: A room name edit was committed in an immutable revision, then a later successful write restored the earlier room name. Read-only revision history shows the changed name followed by the old name; Floor B remained empty. Multiple independent autosave request pairs continued about every 30 seconds until the local dev server was stopped.
+- **Cause**: `FloorEditorBridgeSession` creates `createEditorContext()` inside a React state initializer, while `createEditorContext()` initializes services immediately by default. Under development Strict Mode, initializer replay can create a discarded context whose autosave timer remains active; that context can later save its stale authored document.
+- **Fix**: Floor Editor context construction now passes `deferInitialization: true` and initializes only the retained context in an effect. A Strict Mode regression verifies the discarded instance remains uninitialized.
+- **Prevention**: Keep render-time context construction side-effect free; initialize timer-owning editor services from an effect and test the route under Strict Mode. Treat HTTP 200 as transport evidence only; verify authoritative content and revision.
+- **Related tasks**: P4-T1, P4-T2, P4-T3, P4-T5
+
+## 2026-10-09: Floor Editor route regression initially suspended outside Suspense
+- **Error**: The first P4 Strict Mode test run failed before reaching its lifecycle assertions because the route suspends while resolving promised route parameters.
+- **Cause**: The test harness rendered the App Router page without a Suspense boundary and did not await the render in `act`.
+- **Fix**: Wrapped the page under test in Suspense and awaited render inside async `act`.
+- **Prevention**: Route tests using React `use()` for promised params must render under Suspense and await async `act` before inspecting mounted effects.
+- **Related tasks**: P4-T2
+
+## 2026-10-09: Floor Editor route test mock omitted context lifecycle contracts
+- **Error**: After adding Suspense, the test reached the route but failed in cleanup because mocked event-bus unsubscribe, service registry destroy, workflow, and pending-mutation fields were missing.
+- **Cause**: The page cleanup and exit-flush effects use these runtime contracts; the minimal route mock did not model them.
+- **Fix**: Added the event-bus unsubscribe callback, service registry `destroy`, workflow `isDirty`, and pending mutation list to the mock.
+- **Prevention**: Test route lifecycle through the same interface consumed by effects, and keep mock implementations explicit rather than returning generic placeholders.
+- **Related tasks**: P4-T2
+
+## 2026-10-09: Development server preflight used PowerShell's reserved Host variable
+- **Error**: A read-only port/configuration preflight failed when assigning a local value to `$Host`; PowerShell rejected the assignment and the subsequent project check failed. The server was not started.
+- **Cause**: `$Host` is an automatic read-only PowerShell variable, and variable names are case-insensitive.
+- **Fix**: Reran with `$supabaseHostName`; development project and free port were verified.
+- **Prevention**: Avoid PowerShell automatic variables (`$Host`, `$HOME`, etc.) for task data; use descriptive, non-reserved identifiers.
+- **Related tasks**: P4-T5
+
+## 2026-10-09: Browser readback evaluator lacks encodeURIComponent
+- **Error**: The first browser-side read-only API readback snippet failed because the evaluator did not expose `encodeURIComponent`; no request was sent.
+- **Cause**: The restricted page evaluation context does not provide that global.
+- **Fix**: Retried with the fixed disposable campus ID; the evaluator then exposed a separate missing `fetch` limitation, so no browser request was sent.
+- **Prevention**: Keep browser evaluation to simple supported primitives and verify request results before interpreting them.
+- **Related tasks**: P4-T5
+
+## 2026-10-09: Browser readback evaluator lacks fetch
+- **Error**: The follow-up read-only browser API readback failed because the restricted evaluator does not expose `fetch`; no request was sent.
+- **Cause**: Page evaluation is limited and omits browser network APIs.
+- **Fix**: Use the previously validated development publishable key in a local PowerShell process for a filtered REST GET; do not use the service secret in a browser context.
+- **Prevention**: Use the appropriate local read-only API client for verification when page evaluation does not expose fetch.
+- **Related tasks**: P4-T5
+
+## 2026-10-09: Phase P4 Vitest blocked by restricted Windows temp rename
+- **Error**: Invoking the installed Vitest binary directly reached test startup, but all four suites failed before collection when Vitest tried renaming its temporary client directory under the sandboxed Windows Temp location (`EPERM`).
+- **Cause**: The default OS temp directory blocks Vitest's atomic rename operation in this nested worktree context.
+- **Fix**: Set process-local `TEMP` and `TMP` to `node_modules/.cache/p4-vitest-temp`; all 11 focused files then collected and passed.
+- **Prevention**: Set process-local `TEMP` and `TMP` to an ignored writable workspace temp folder for Vitest; do not change system temp settings.
+- **Related tasks**: P4-T2, P4-T4
+
+## 2026-10-09: Phase P4 graphify update remains unavailable
+- **Error**: Required `graphify update .` after the source change failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows graphify launcher cannot canonicalize its script path in this worktree.
+- **Fix**: No graph output was modified. Direct source/test evidence was used; graphify output remains stale.
+- **Prevention**: Repair the graphify launcher before the next graph query/update; do not hand-edit generated graph files.
+- **Related tasks**: P4-T3, P4-T4
+
+## 2026-10-09: P4 diff-check invocation does not resolve the worktree
+- **Error**: `git diff --check` exited with “this operation must be run in a work tree” from the candidate path, while `git status` and `git rev-parse --is-inside-work-tree` succeeded.
+- **Cause**: The Git invocation is not resolving the nested worktree context consistently in this shell.
+- **Fix**: Pending; retry with an explicit `--work-tree` path and record the resulting exit code.
+- **Prevention**: Pass the candidate's absolute worktree path explicitly to Git verification commands when cwd-based resolution fails.
+- **Related tasks**: P4-T4
+
+## 2026-10-09: P4 route regression test lint rejected explicit any
+- **Error**: Focused ESLint reported one `@typescript-eslint/no-explicit-any` error in the new test's mock state declaration.
+- **Cause**: The test used a broad `Record<string, any>` rather than relying on the mock object's inferred field types.
+- **Fix**: Removed the broad `Record<string, any>` annotation and reran focused ESLint plus the route regression; both passed.
+- **Prevention**: Keep test doubles typed to the fields the component actually consumes.
+- **Related tasks**: P4-T2, P4-T4
+
+## 2026-10-09: Final P4 test rerun omitted local TEMP override
+- **Error**: A final focused-suite rerun failed before collecting tests because Vitest attempted atomic renames under the restricted OS Temp directory (`EPERM`).
+- **Cause**: The repeat command omitted the previously successful process-local `TEMP`/`TMP` override.
+- **Fix**: Reran with process-local `TEMP` and `TMP` set to `node_modules/.cache/p4-vitest-temp`; all 11 focused files / 91 tests passed.
+- **Prevention**: Preserve the known-good Windows Vitest invocation including `TEMP` and `TMP` on every run; confirm nonzero collected test count.
+- **Related tasks**: P4-T4
+
+## 2026-10-09: P5 focused typecheck found Floor Editor lifecycle contract issues
+- **Error**: TypeScript flagged the new Floor Editor effect calling an optional initializer and the Strict Mode test's overly broad Vitest mock type.
+- **Cause**: The runtime contract marks initialization optional, and `ReturnType<typeof vi.fn>` erased the callable mock signature.
+- **Fix**: Guard the initializer before calling it and type the test double as `Mock<() => Promise<void>>`; focused type diagnostics for the Floor Editor files cleared.
+- **Prevention**: Match route lifecycle tests to the actual optional API contract and retain typed mock signatures when methods are invoked.
+- **Related tasks**: P5-T2, P5-T3
+
+## 2026-10-09: P5 full lint/typecheck exposed excluded baseline diagnostics
+- **Error**: Lint found two `react-hooks/set-state-in-effect` errors in the P3A test-only route/opt-in files; repository typecheck reported 1,139 diagnostics including a test-runtime `method: "test"` type mismatch already present at candidate base.
+- **Cause**: The temporary catalog implementation synchronously hydrates localStorage into component state, while the repository already has broad type debt and an unchanged auth test-seam method outside the P5 repair.
+- **Fix**: Excluded the temporary catalog resolver, route wiring, and opt-in control from the focused P5 commit. Recorded the unchanged auth type diagnostic as pre-existing; no broad type repair was attempted.
+- **Prevention**: Lint and typecheck the exact commit allowlist separately, compare diagnostics with base source, and keep temporary test UI out of release commits.
+- **Related tasks**: P5-T1, P5-T3, P5-T4
+
+## 2026-10-09: P5 required Graphify query unavailable
+- **Error**: The initial mandatory `graphify query` failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows launcher cannot canonicalize its script path from this nested worktree.
+- **Fix**: Used the full dirty-file inventory, direct source review, and focused tests; generated graph files were not modified.
+- **Prevention**: Repair the local Graphify launcher before the next codebase query; do not hand-edit graph output.
+- **Related tasks**: P5-T1
+
+## 2026-10-09: P6D Graphify query trampoline failure
+- **Error**: The required P6D `graphify query` failed with `uv trampoline failed to canonicalize script path` before returning graph results.
+- **Cause**: The installed Windows uv trampoline cannot canonicalize this nested candidate worktree path, matching the existing Graphify tooling issue.
+- **Fix**: Left generated graph output untouched and continued with focused source inspection after recording the repeated failure.
+- **Prevention**: Repair the local Graphify/uv launcher before a future graph query; do not edit graph output manually.
+- **Related tasks**: P6D-T1
+
+## 2026-10-09: Panorama key regression used a valid immutable key as malformed
+- **Error**: The first P6D route-test RED run had a second failure because a three-segment immutable panorama key was listed as malformed.
+- **Cause**: The existing key grammar intentionally accepts `panoramas/<campus>/<panorama>/<asset>.<ext>` after migration 016.
+- **Fix**: Changed only the malformed-key test fixture to a four-segment key, which the canonical parser rejects.
+- **Prevention**: Keep route test cases aligned with `isPanoramaKey` and cover immutable keys as valid inputs.
+- **Related tasks**: P6D-T2
+
+## 2026-10-09: Panorama upload client test fixtures masked intended failures
+- **Error**: The first upload-client test run reported two assertion failures: the invalid-dimensions mock was replaced by the valid-file helper, and the completion error assertion expected different copy.
+- **Cause**: The test installed its dimension stub before calling a helper that reinstalled the default stub, and the assertion wording did not match the implementation's fixed safe error.
+- **Fix**: Create the file before installing the invalid-dimension mock and assert against the existing non-sensitive verification message.
+- **Prevention**: Set browser API stubs after helpers that configure defaults, and keep tests aligned with the user-facing error contract.
+- **Related tasks**: P6D-T3
+
+## 2026-10-09: P6D focused lint found untyped dispatcher and dead handlers
+- **Error**: Focused ESLint reported an explicit `any` for the editor dispatcher and unused hotspot/node update handlers after the upload UI stopped mutating legacy graph nodes.
+- **Cause**: The Panorama panel used a generic service lookup despite the registry's typed `ServiceMap`; its add-hotspot callback was superseded by the placement tool, and the legacy page's node update callback was left behind after removing data-URL upload.
+- **Fix**: Use the typed dispatcher accessor and remove only the unreachable callback declarations.
+- **Prevention**: Run focused lint after UI integration changes; follow the service registry's concrete type map and remove handlers made unreachable by the UI path change.
+- **Related tasks**: P6D-T3, P6D-T4
+
+## 2026-10-09: P6D repository typecheck remains blocked by baseline diagnostics
+- **Error**: `tsc --noEmit` reports 1,593 diagnostic lines across the repository; the panorama-filtered output contains one error in the unchanged `panorama-props.test.tsx` mock, whose partial services object does not satisfy `ServiceRegistry`.
+- **Cause**: Existing repository-wide type debt and a pre-existing incomplete test context mock; the P6D implementation source files produced no filtered diagnostics.
+- **Fix**: Recorded as a baseline limitation; no unrelated test infrastructure or repository-wide types were changed.
+- **Prevention**: Keep future type checks scoped to changed files where possible and update test context mocks when they are next edited.
+- **Related tasks**: P6D-T5
+
+## 2026-10-09: P6D Graphify refresh trampoline failure
+- **Error**: Required post-change `graphify update .` failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The installed Windows Graphify/uv launcher cannot canonicalize this nested candidate worktree path.
+- **Fix**: Left generated graph output untouched; verification used source review, focused tests, lint, and `git diff --check`.
+- **Prevention**: Repair the local Graphify launcher before a future refresh; do not hand-edit generated graph output.
+- **Related tasks**: P6D-T5
+
+## 2026-10-09: P6D local verification command and log patch needed correction
+- **Error**: A PowerShell preflight used the reserved automatic variable `$Host`, and the first progress-log patch used a stale header anchor.
+- **Cause**: PowerShell variables are case-insensitive and `$Host` is read-only; the progress file's actual section heading differed from the assumed text.
+- **Fix**: Renamed the local variable to `$supabaseUri`; re-read the progress-file tail and applied the update against its current ending. No target configuration or application data changed.
+- **Prevention**: Avoid PowerShell automatic variable names and inspect the current append location before patching long-running progress logs.
+- **Related tasks**: P6D-T5
+
+## 2026-10-09: Development Studio admin role absent from accepted claims
+- **Error**: A signed-in development user was redirected from `/studio` to `/`; Studio UI persistence testing could not proceed.
+- **Cause**: Read-only aggregate auth metadata showed no `super_admin` claim in `app_metadata` or `user_metadata` for the recognized development account, and the candidate environment has no `NAVI_ADMIN_EMAILS` allowlist. Middleware and API guards use the same server-side admin predicate.
+- **Fix**: No auth setting or role was changed. Diagnosis recorded; an authorized development project administrator must verify and correct the intended development role or allowlist separately.
+- **Prevention**: Before browser persistence testing, verify a legitimate server-recognized development admin session. Never treat client metadata or mock auth as authorization.
+- **Related tasks**: P6D-T5, Studio authorization diagnosis T1-T3
+
+## 2026-10-10: P6E target identity unavailable in signed-out local app
+- **Error**: The requested Development `super_admin` restoration could not pass the target-identity gate because localhost showed the signed-out homepage and no stable Auth user ID was available.
+- **Cause**: The prior task's authenticated session was no longer present in the current local browser state.
+- **Fix**: No role was changed. Stop pending sign-in through the intended existing Development account and verify its stable Auth ID before any update.
+- **Prevention**: Recheck the live session and exact project immediately before a privileged Auth update; never rely on an earlier session or account-count inference.
+- **Related tasks**: P6E-T1, P6E-T2
+
+## 2026-10-10: Initial PowerShell environment probe had a parser error
+- **Error**: The first read-only environment inspection command failed to parse due to nested quoting in an inline expression.
+- **Cause**: Compound PowerShell command text included ambiguous quote and subexpression boundaries.
+- **Fix**: Rewrote the probe as separate multiline statements; it then reported only the environment file presence, project host, mock-auth setting, and ignore status.
+- **Prevention**: Prefer simple multiline PowerShell statements over nested inline expressions in tool command arguments.
+- **Related tasks**: P6E-T1
+
+## 2026-10-10: Candidate Next.js routes returned 404 during P6D
+- **Error**: With the approved candidate server running, requests to `/`, `/login`, `/dashboard`, and `/studio` all returned 404; source route files and the generated app-path manifest contain those routes.
+- **Cause**: Not established. The mismatch is within candidate local route resolution and occurs before Studio authentication or panorama upload.
+- **Fix**: No source or configuration changes made. Stopped the E2E flow before upload and preserved Development data and browser recovery state.
+- **Prevention**: Verify candidate route resolution and legitimate Studio access before any object upload or asset/scene mutation.
+- **Related tasks**: NAVI Phase P6D T1–T3
+
+## 2026-10-10: Stale candidate Next.js output caused route 404s
+- **Error**: The candidate `next dev` process returned 404 for `/`, `/login`, `/dashboard`, `/studio`, and `/panoramas` despite source routes and manifest entries.
+- **Cause**: The candidate `.next` directory contained generated `BUILD_ID`, manifests, and compiled route chunks timestamped 2026-10-09, predating this server start; clearing that candidate-only output restored the routes.
+- **Fix**: Stopped only the verified candidate server, confirmed the exact `.next` target was an ordinary directory within the candidate worktree and no competing candidate Next process or listener remained, removed only that cache, and restarted from the candidate worktree.
+- **Prevention**: When routes all 404 despite source/manifest entries, compare generated artifact age and server checkout before changing route code; clear only a verified, unused candidate build cache.
+- **Related tasks**: NAVI Phase P6F T1–T4
+
+## 2026-10-10: P6H approved management-page design baseline unavailable
+- **Error**: The request identifies Dataset Management and Panorama Management as visually regressed, but available repository history and screenshots do not establish which prior visual implementation was explicitly approved.
+- **Cause**: The latest historical Panorama UI includes a data-URL upload path that the current persistence requirements prohibit restoring; Dataset Management has not changed since its last relevant historical revision, and no approval-tagged screenshot/reference for either management page was found.
+- **Fix**: No source changes made. Stop pending a reliable approved screenshot or commit/reference; adapt historical visual elements only after approval is established and keep canonical panorama asset persistence.
+- **Prevention**: Record approved page screenshots or commit references with future visual sign-offs; separately evaluate visual structure and persistence behavior.
+- **Related tasks**: NAVI Phase P6H T1-T3
+
+## 2026-10-10: UI source inventory omitted the legacy tools route
+- **Error**: The first allowlisted copy stopped because `navi-next` has no `src/app/(admin)/dataset/tools/page.tsx` source file.
+- **Cause**: The legacy export/import/validation/backup screen existed at `/dataset` as a component, but no dedicated tools route had been created in the UI worktree.
+- **Fix**: The candidate keeps the old component in `DatasetTools.tsx`; the missing route will be a small candidate-only wrapper to expose that preserved component at `/dataset/tools`.
+- **Prevention**: Verify each planned route file exists in the source worktree and distinguish component ports from route wrappers before copying.
+- **Related tasks**: P6I-T2
+
+## 2026-10-10: P6I first integrated test run exposed source-worktree dependencies
+- **Error**: The initial focused run had 12 failed tests across 9 files. Dataset suites could not resolve the source-only shared stats helper or a legacy graph fixture; Dataset 360 assertions still expected Virtual Tour navigation; Panorama checks expected a broader viewer callback API than the candidate provides.
+- **Cause**: The UI source included untracked helper/fixture dependencies and tests for its prior management behavior. The candidate `TourViewer` intentionally owns canonical image-key resolution and exposes a narrower read-only viewer contract.
+- **Fix**: Port only the required stats helper and fixture; update route assertions for the explicit Studio edit destination; keep the Panorama workspace on the candidate viewer contract and remove unsupported standalone hotspot authoring interactions rather than broadening persistence APIs.
+- **Prevention**: Compare transitive imports and component props before porting a UI tree; make tests assert canonical identity, navigation, and non-persistence rather than assumptions from the source worktree.
+- **Related tasks**: P6I-T2, P6I-T3, P6I-T4
+
+## 2026-10-10: P6I test patch context mismatch
+- **Error**: A narrow test patch did not match the copied test's exact text, so the intended assertion update was not applied.
+- **Cause**: The patch combined test title and expectation context that differed from the current source formatting.
+- **Fix**: Re-read the exact candidate test lines and apply targeted replacements to only those assertions.
+- **Prevention**: Inspect the current working copy immediately before patching imported tests; do not assume historical wording is unchanged.
+- **Related tasks**: P6I-T2, P6I-T4
+
+## 2026-10-10: P6I second focused run had stale UI expectations
+- **Error**: After the first compatibility repair, the second focused run had 12 failures: one guard test used an undefined root variable; two 360 header assertions and DatasetWorkspace expected the old `/panoramas` destination; the synthetic projection omitted empty `pois`; and one Dataset test still asserted the former captured campus labels.
+- **Cause**: Assertions were copied from different iterations of the UI source and the new synthetic graph intentionally contains no real campus records.
+- **Fix**: Align tests to the component's current explicit Studio edit link, use a test-local source path, and assert only the synthetic graph contract.
+- **Prevention**: Keep route expectations beside the active component contract and keep test fixtures synthetic and minimal.
+- **Related tasks**: P6I-T2, P6I-T3, P6I-T4
+
+## 2026-10-10: P6I PowerShell test cleanup command syntax
+- **Error**: A test-file cleanup command attempted to pass `-split` as a `Get-Content` parameter, so that one assertion line was not removed.
+- **Cause**: PowerShell operator precedence was applied to the command invocation instead of its returned string.
+- **Fix**: Read the file into a string first, split that variable into lines, filter the stale assertion, and write the candidate file back.
+- **Prevention**: Store command output in a variable before applying PowerShell string operators; verify the changed line after each cleanup.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: P6I broad regression run left two stale UI test suites
+- **Error**: The broad focused run passed 24 of 26 files (433/437 tests). Four assertions remained in Dataset 360, and one campus-card stats assertion timed out.
+- **Cause**: The remaining 360 checks used stale route expectations. The stats selector passed authoritative `displayStats` to `MapCard`, but the candidate card did not accept/render the prop; the failing fixture also identified itself as a protected real campus while the candidate intentionally contained only a synthetic graph with another campus ID.
+- **Fix**: Ported the optional `displayStats` override to the candidate `MapCard`; changed the test to use the synthetic fixture campus ID and its actual 1/0/0 values. Updated the 360 assertions to the current Studio route. Targeted Dataset statistics/360 suites now pass 35/35.
+- **Prevention**: Preserve the campus identity guard, ensure computed display props are consumed by the destination component, and use synthetic fixture IDs/counts in candidate tests.
+- **Related tasks**: P6I-T2, P6I-T4
+
+## 2026-10-10: P6I broad test command parsed a route path as PowerShell syntax
+- **Error**: PowerShell interpreted the unquoted `(admin)` segment in a test path and Vitest did not launch.
+- **Cause**: Parentheses in the bare command argument were parsed by PowerShell.
+- **Fix**: Quote the complete route test path before invoking the test script.
+- **Prevention**: Quote paths containing parentheses or other shell metacharacters in PowerShell commands.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Copied JSX test used a TypeScript-only extension
+- **Error**: The broad Vitest run passed 437 tests but could not transform `dataset-effective-document.test.ts`; its JSX failed parsing at the component render.
+- **Cause**: The source test body contains JSX but was copied with a `.ts` extension.
+- **Fix**: Rename the candidate test to `.tsx` and rerun the focused regression set.
+- **Prevention**: Preserve source test extensions when copying test files, especially when JSX is present.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: P6I diff check found an extra trailing blank line
+- **Error**: `git diff --check` reported a new blank line at EOF in `todo.md`.
+- **Cause**: The P6I checklist append left an empty line after the final item.
+- **Fix**: Removed only that extra final blank line; the checklist content is unchanged.
+- **Prevention**: Run whitespace checks after updating project logs and checklists.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Dataset resolver type guard did not narrow the graph argument
+- **Error**: `tsc` reported that `Graph | null | undefined` was passed to `createDocument`, which requires `Graph`.
+- **Cause**: TypeScript does not infer non-nullness from the separate `graphHasAuthoredContent` boolean helper.
+- **Fix**: Added an explicit null guard before the content check; this keeps the same no-content fallback and narrows the graph for projection.
+- **Prevention**: Use a direct type guard at the projection call boundary when a helper returns a boolean rather than a type predicate.
+- **Related tasks**: P6I-T2, P6I-T4
+
+## 2026-10-10: Source-hash check used a reserved PowerShell variable
+- **Error**: The first source-file comparison script attempted to append to PowerShell's automatic `$Matches` hash table, so it did not count all listed files.
+- **Cause**: The result collection reused an automatic variable populated by regex matching.
+- **Fix**: Re-ran the check with a dedicated list variable and verified each manifest entry individually.
+- **Prevention**: Avoid reserved/automatic PowerShell variable names for collections in verification scripts.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Source-hash check included a manifest status digest as a file path
+- **Error**: The corrected hash script initially reported a mismatch because it parsed the `STATUS_SHA256` metadata line as a file entry.
+- **Cause**: Its record filter matched any line ending in a SHA-256 string, not only source-file paths.
+- **Fix**: Restricted comparison inputs to actual `src/` and `packages/` paths from the manifest.
+- **Prevention**: Validate the path field against the expected repository-root prefixes before hashing.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Source-hash filter overwrote the expected digest capture
+- **Error**: A second source-hash comparison reported false mismatches for all listed files.
+- **Cause**: A later regex filter overwrote PowerShell's automatic regex capture variable before the expected hash was read.
+- **Fix**: Re-parse each line with a delimiter split and keep the path/hash fields in dedicated variables.
+- **Prevention**: Avoid repeated regex use of automatic capture state; parse immutable fields once before filtering.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: P6I Graphify refresh launcher failed
+- **Error**: The required post-edit `graphify update .` failed with `uv trampoline failed to canonicalize script path`.
+- **Cause**: The local Windows uv trampoline could not canonicalize the Graphify launcher path in this checkout.
+- **Fix**: No graph output was edited manually; source verification continued through tests, lint, type diagnostics, and browser route inspection.
+- **Prevention**: Repair the Graphify/uv launcher before the next graph refresh.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Candidate whitespace check needed explicit worktree context
+- **Error**: An initial `git diff --check` call returned `fatal: this operation must be run in a work tree`, despite status commands resolving the candidate.
+- **Cause**: The shell invocation did not consistently resolve the linked worktree context.
+- **Fix**: Ran `git -C <candidate> diff --check HEAD -- .` from the repository root; it completed without whitespace errors.
+- **Prevention**: Use an explicit candidate path for Git checks in linked worktrees.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Diagnostic environment listing exposed a credential-like value
+- **Error**: A diagnostic command enumerated environment variables and its output included a GitHub credential-like value.
+- **Cause**: The command printed all `GIT*` environment variable values while troubleshooting Git context.
+- **Fix**: The value was not copied, used, or repeated. No GitHub operation was performed. Treat the value as exposed and revoke/rotate it through the account's trusted security controls.
+- **Prevention**: Never print environment variable values during Git diagnostics; inspect names or allowlisted non-secret metadata only.
+- **Related tasks**: P6I-T4
+
+## 2026-10-10: Persistent-map test doubles lacked the shared-host interface
+
+- **Error**: The first focused runtime test run failed because the existing ExploreMap mock did not export `useNavigationMapScene`, and the fake MapLibre instance did not implement the host's resize lifecycle.
+- **Cause**: The prior tests modeled route-owned maps and layers, while the reviewed runtime moves map ownership to the shell and publishes route scene state through context.
+- **Fix**: Update the focused tests to model the shared host and scene publisher; verify runtime lifecycle methods through focused unit tests.
+- **Prevention**: Keep the MapLibre test double aligned with the methods used by the shared host and assert the route-to-shell scene publication contract.
+- **Related tasks**: T4.1
+
+## 2026-10-10: Public runtime lacked the render-model cache helper
+
+- **Error**: The restored public runtime readiness tests failed because `getCachedNavigationRenderModel` was absent from the candidate's `NavigationRenderModel` module.
+- **Cause**: The candidate retained the newer floor-geometry-aware builder but omitted the immutable-bundle cache API expected by the public runtime lineage.
+- **Fix**: Add a WeakMap cache keyed by `CampusBundle` identity that delegates to the candidate's existing `buildFromCampusBundle` implementation.
+- **Prevention**: Keep public runtime readiness tests coupled to the candidate render-model API and verify cached rendering preserves floor geometry.
+- **Related tasks**: T4.1, T4.2
+
+## 2026-10-10: Playwright safety setup did not inherit web-server project identity
+
+- **Error**: The browser regression command stopped in global setup because it could not identify the configured Supabase project.
+- **Cause**: Playwright runs global setup before starting the configured web server, so `webServer.env` was not available to the safety guard.
+- **Fix**: Set only the non-secret Development project URL in the test process environment; keep privileged Supabase and R2 variables blank.
+- **Prevention**: Supply the explicit non-production project identity to global setup as well as the isolated web-server process.
+- **Related tasks**: T4.4
+
+## 2026-10-10: Explore search bar intercepted building-sheet controls
+
+- **Error**: Browser regression testing selected a building, then the page-wide Explore search bar intercepted the BuildingSheet close-button click until the test timed out.
+- **Cause**: The search control remains an active pointer target across the full viewport while the selected-building sheet overlays the same region.
+- **Fix**: T4.3 browser verification confirms the shared route overlay passes pointer hits to the map canvas, building selection opens the sheet, and the sheet close button receives a physical click. The overlay retains `pointer-events-none`; the sheet surface is an explicit pointer target.
+- **Prevention**: Keep a browser click-through regression that opens a building and closes its sheet with the real pointer.
+- **Related tasks**: T4.3
+
+## 2026-10-10: Navigate location picker was not pointer-enabled inside the shell overlay
+
+- **Error**: The persistent-map browser test opened Navigate's location picker, but clicking its close control was intercepted by the MapLibre canvas.
+- **Cause**: The public shell marks the route overlay `pointer-events-none`; the picker surface had no explicit `pointer-events-auto` on its positioned root.
+- **Fix**: T4.3 adds `pointer-events-auto` to the positioned picker surface and BuildingSheet panel. The browser regression confirms picker navigation, building-sheet close, and map input work above one persistent canvas.
+- **Prevention**: Exercise actual pointer clicks on modal and sheet controls over the persistent canvas in browser tests.
+- **Related tasks**: T4.3
+
+## 2026-10-10: Public POI renderer omitted authored outdoor geometries
+
+- **Error**: Four restored outdoor POI regression cases failed because `buildPoiGeoJSON` emitted only indoor point markers and ignored the outdoor POI argument.
+- **Cause**: The candidate retained the newer indoor visibility behavior but had removed the shared public rendering path for authored outdoor point, circle, rectangle, and polygon POIs and their appearance metadata.
+- **Fix**: T4.2 added validated outdoor GeoJSON projection and 2D/2.5D layers while preserving the candidate's indoor marker visibility and reveal rules.
+- **Prevention**: Keep focused cases for geometry validation, closed polygon rings, temporary hidden-POI reveal, and marker/2D/2.5D appearance.
+- **Related tasks**: T4.2
+
+## 2026-10-10: Public runtime declared interactive before outdoor sources were ready
+- **Error**: A regression test showed the public map could report `interactive` while authored-road and outdoor-POI sources had no processed features.
+- **Cause**: Readiness checked only the building source after the public layer restoration.
+- **Fix**: T4.2 now adds readiness requirements for nonempty projected POI and road data, including each layer used to render those sources.
+- **Prevention**: Keep readiness tests for every populated public map source and verify missing features keep the loading state active.
+- **Related tasks**: T4.2, T4.4
+
+## 2026-10-10: Scoped lint command had a PowerShell parser error
+- **Error**: The first scoped ESLint wrapper stopped at PowerShell parsing before ESLint launched.
+- **Cause**: A malformed property expression in the output-filtering clause.
+- **Fix**: Corrected the wrapper expression and reran the read-only scoped lint command; ESLint completed and reported 4 inherited errors and 4 warnings.
+- **Prevention**: Keep PowerShell post-processing expressions syntactically simple and confirm the linter process starts before interpreting an exit status.
+- **Related tasks**: T7.2
+
+## 2026-10-10: Cached render model test fixture failed static type checking
+- **Error**: TypeScript rejected the minimal `CampusBundle` test fixture cast because it intentionally omits required fields.
+- **Cause**: The test fixture was incomplete and asserted directly to the full production contract.
+- **Fix**: The isolated fixture now uses an explicit `unknown` bridge before the `CampusBundle` assertion.
+- **Prevention**: Use intentionally incomplete test fixtures only with explicit boundary casts and keep the runtime path under test narrow.
+- **Related tasks**: T4.1, T4.2
+
+## 2026-10-10: Vitest temp client rename denied by sandbox
+- **Error**: Vitest failed before collecting tests with `EPERM` while renaming its temporary client artifact under the sandbox-provided Windows temp directory.
+- **Cause**: The test runner's transform/client cache attempted a rename in a temp path that is not writable by this execution context.
+- **Fix**: Vitest now runs with `TEMP` and `TMP` set to a task-owned directory inside the integration worktree; this T4.2 run passed.
+- **Prevention**: On Windows sandbox runs, direct Vitest temporary output to a workspace-owned directory before starting the process.
+- **Related tasks**: T4.2, T4.4
+
+## 2026-10-10: Diff check found an extra trailing blank line in the error ledger
+- **Error**: `git diff --check` reported a newly added blank line at the end of `ERRORS.md`.
+- **Cause**: The append operation left more than one final newline in the Markdown ledger.
+- **Fix**: Remove trailing blank lines and retain one final newline before rerunning the whitespace check.
+- **Prevention**: Verify append-only Markdown logs with `git diff --check` after each update.
+- **Related tasks**: T4.2
+
+## 2026-10-10: T4.2 repository typecheck remains baseline-blocked
+- **Error**: `npx tsc --noEmit --pretty false` exits nonzero with 1,150 repository diagnostics; four diagnostics remain in unchanged code paths in `NavigationRenderModel.ts` and its existing test fixtures.
+- **Cause**: Existing repository type debt and floor-geometry test fixtures do not satisfy the current runtime model contracts.
+- **Fix**: No T4.2 layer or runtime additions produced a TypeScript diagnostic; record the repository check as blocked and retain focused tests/lint as scoped evidence.
+- **Prevention**: Keep repository-wide typecheck status separate from task-scoped diagnostics; compare errors with unchanged baseline code before attributing them to a recovery patch.
+- **Related tasks**: T4.2, T4.4, T7
+
+## 2026-10-10: Graph snapshot building search entries lost canonical building identity
+- **Error**: Two focused tests failed because both indexed building aliases and generated building search entries omitted `buildingId` after public-campus normalization.
+- **Cause**: The graph snapshot adapter resolved a matching `Building` only to validate or choose its entrance node, then returned the original alias without its canonical ID; synthesized entries also omitted the field.
+- **Fix**: Assign the resolved `Building.id` to indexed entries and generated entries while preserving each entry's search ID, source ID, and node selection.
+- **Prevention**: Test indexed aliases and generated graph snapshot building entries through `fetchCampusData`, and assert canonical `buildingId` survives the final normalized bundle.
+- **Related tasks**: T4.3
+
+## 2026-10-10: Phase 8 output-path guard stopped on PowerShell parsing
+- **Error**: The first Phase 8 Vitest launcher failed while checking whether the unique log and temporary paths already existed; no test process or files were created by that attempt.
+- **Cause**: The `-or` expression was parsed as an argument to `Test-Path` because its two calls were not parenthesized.
+- **Fix**: Parenthesized each `Test-Path` call and reran the full suite. It completed with 595/630 files passing, 6,524 tests passing, 67 failing, and 8 skipped.
+- **Prevention**: Parenthesize command invocations used as operands in PowerShell boolean expressions and confirm a failed preflight had no side effects before retrying.
+- **Related tasks**: T8.2
+
+## 2026-10-10: Navigate simulator opt-in test failed in the broader T4.3 run
+- **Error**: The combined public-store, Explore, Navigate, and BuildingSheet run passed 75 tests but could not find the development-only navigation simulator panel in one Navigate test.
+- **Cause**: The unchanged test explicitly stubs both opt-in flags, but the current `NavigatePage` has no `NavigationDevPanel` or `useNavigationDevSimulation` reference; the test expects a UI the current route does not render. The T4.3 change to that page only adds the picker pointer target.
+- **Fix**: Keep this test/route mismatch documented as an unrelated baseline failure. T4.3 focused store, Explore, and BuildingSheet tests pass 51/51, and the five real-browser Navigate/Explore regression tests pass 5/5. No development simulator or authorization behavior was changed.
+- **Prevention**: Keep opt-in development UI tests explicit about their required environment flags.
+- **Related tasks**: T4.3, T4.4
+
+## 2026-10-10: T4.2 public-map browser runtime remained in loading state
+- **Error**: After the authored-road, outdoor POI, and floor-plan layers were restored, four real-browser map tests could not reach `data-state=interactive`; the deep-linked BuildingSheet stack test passed.
+- **Cause**: `BuildingLayer` mounted while the map style was temporarily not ready and listened only for the one-shot `load` event, which had already fired. After initialization was switched to the reusable style-readiness events, the source still stayed empty because the data-sync effects had already run before delayed initialization.
+- **Fix**: Use `whenMapStyleReady` for building-layer initialization and populate the new source from the latest building props immediately after initialization. Focused tests now require both source/layer creation and initial feature data; the real-browser suite passes 5/5.
+- **Prevention**: Run the actual MapLibre browser smoke tests after changing source/layer requirements, not only unit tests with map doubles.
+- **Related tasks**: T4.2, T4.3, T4.4
+## 2026-10-10: Isolated Playwright diagnostic could not start from integration worktree
+- **Error**: Next.js SWC failed to canonicalize the integration worktree path with access denied, so the temporary browser diagnostic never launched; Playwright also could not create its selected external results directory.
+- **Cause**: Playwright-managed server startup and external output creation failed under this runner invocation; direct startup from the worktree succeeded, so no persistent application-path defect was established.
+- **Fix**: Started the candidate server directly from the integration worktree on isolated port 3001, ran Playwright with server reuse and result folders inside the worktree, then stopped that server. The regression suite completed 5/5.
+- **Prevention**: Validate worktree and output-directory access before starting Playwright, and treat runner startup failures as environment errors rather than application failures.
+- **Related tasks**: T4.2
+
+## 2026-10-10: Temporary diagnostic patch did not match Windows line endings
+- **Error**: A temporary instrumentation script expected LF line endings and stopped before modifying the source; it left an identical one-file backup in the workspace.
+- **Cause**: The PowerShell replacement needle did not account for the source file's newline encoding.
+- **Fix**: Verified the source and temporary backup had identical SHA-256 hashes and removed only the identical diagnostic copy. Later temporary instrumentation was restored from its byte-identical backup and verified against its saved SHA-256; all diagnostic copies were removed.
+- **Prevention**: Match source blocks with newline-tolerant logic and verify the source hash before and after temporary instrumentation.
+- **Related tasks**: T4.2
+
+## 2026-10-10: T4.2 repository-wide typecheck remains baseline-blocked
+- **Error**: `npx tsc --noEmit --pretty false` exits 2 with 1,146 repository diagnostics.
+- **Cause**: Existing repository type errors remain; the only diagnostics in touched T4.2 paths are two unchanged `NavigationRenderModel.test.ts` fixture errors (`faceId` and unsupported `space` node type). The new BuildingLayer test and implementation have no type diagnostics.
+- **Fix**: Corrected the BuildingLayer fixtures and optional paint narrowing; focused tests and lint pass. The unrelated baseline diagnostics remain outside this recovery task.
+- **Prevention**: Filter repository-wide typecheck output by changed paths and compare remaining diagnostics against the recorded baseline before attributing them to a patch.
+- **Related tasks**: T4.2, T4.4, T7
+
+## 2026-10-10: T7 full repository suite remains blocked
+- **Error**: The isolated `vitest run src packages` command exited 1: 595/630 files passed, 6,524 tests passed, 67 failed, and 8 were skipped. The focused mutation-auth boundary suite passed 17/17.
+- **Cause**: The six public-store assertions and stale Navigate simulator expectation already recurred in focused runs; 18 publish-path log notices reflected the intentionally blank Supabase client configuration. Remaining compiler/editor/engine failures were not all compared against a clean baseline.
+- **Fix**: No source or assertions were changed. Preserve the failure evidence and triage the remaining baseline/fixture failures separately before claiming a green repository run.
+- **Prevention**: Keep external service variables blank during broad local runs and maintain focused mocked suites for release-critical persistence paths.
+- **Related tasks**: T7.1
+
+## 2026-10-10: T7 scoped lint reports inherited violations
+- **Error**: ESLint checked 95 changed TypeScript files and exited 1 with 4 errors and 4 warnings.
+- **Cause**: The four error locations are in the preserved candidate checkpoint: two React state-in-effect rules in Studio pages and two explicit `any` annotations in navigation types. The warning set is unused imports/variables in touched tests and render-model code.
+- **Fix**: No source was changed because these findings predate this recovery branch and are outside the approved integration repair scope.
+- **Prevention**: Keep the current lint findings in the final gate and resolve them in separately reviewed changes if they are made release blockers.
+- **Related tasks**: T7.2
+
+## 2026-10-10: T7 repository typecheck matches the recorded baseline
+- **Error**: `tsc --noEmit --pretty false` exited 2 with 1,146 diagnostics.
+- **Cause**: The repository retains the previously recorded TypeScript debt. Nineteen diagnostics appeared in six touched paths, but blame placed those lines in commits predating the integration checkpoint; this run does not establish a clean repository typecheck.
+- **Fix**: No source change was made. Record the baseline and retain typecheck as a release gate.
+- **Prevention**: Compare diagnostics with a clean, matching toolchain baseline before attributing them to the recovery commits.
+- **Related tasks**: T7.2
+
+## 2026-10-10: T7 production build requires public Supabase configuration
+- **Error**: `npm run build` exited 1 during static page generation after the optimized production compilation stage.
+- **Cause**: Public Supabase URL and publishable-key variables were intentionally empty to prevent external project access during the isolated verification run.
+- **Fix**: No credentials were added and no retry against Development or Production was attempted. A separately authorized local build configuration is required for a complete build check.
+- **Prevention**: Keep build verification separate from external credentials and use a documented non-production build configuration when it can be independently established.
+- **Related tasks**: T7.2
+
+## 2026-10-10: Phase 8 baseline dependency isolation was initially contaminated
+- **Error**: The first checkpoint comparison reused the integration worktree node_modules through a junction, so its TypeScript/test module resolution was not an independent baseline.
+- **Cause**: Windows realpath/module resolution followed the shared dependency junction into the candidate worktree.
+- **Fix**: Removed only the junction created for this comparison, installed baseline dependencies independently with offline npm ci and scripts disabled, and reran baseline checks. Discarded contaminated results.
+- **Prevention**: Use independent worktree dependencies for baseline comparisons; do not infer baseline results from a linked node_modules tree.
+- **Related tasks**: T8.3, T8.5
+
+## 2026-10-10: Phase 8 Windows command wrappers required correction
+- **Error**: A Node package-version lookup ran from the parent checkout instead of the target worktree; a focused-test PowerShell parser omitted separators and stopped before launching tests; an initial Git diff summary ran outside the repository.
+- **Cause**: Commands inherited the parent working directory or used malformed PowerShell argument construction.
+- **Fix**: Reran Node from the target worktree, passed explicit comma-separated arguments, and used git -C with the integration path. Failed attempts did not change source or run tests.
+- **Prevention**: Set and verify the working directory explicitly and inspect command argument arrays before test execution.
+- **Related tasks**: T8.2, T8.3, T8.5
+
+## 2026-10-10: Phase 8 optional traces timing metric was not null-safe
+- **Error**: The integration candidate had a TypeScript diagnostic because the public-campus bundle traces field is optional but the development timing metric read its length directly.
+- **Cause**: A diagnostic metric assumed an optional normalized collection was always present.
+- **Fix**: Use an optional length with a zero fallback. Focused public-store tests pass and the integration type diagnostic count decreased by one.
+- **Prevention**: Keep development-only diagnostics tolerant of optional API fields and compare touched-path compiler diagnostics with a clean baseline.
+- **Related tasks**: T8.4, T8.5
+
+## 2026-10-10: Phase 8 local build remained blocked by missing public Supabase configuration
+- **Error**: The app compiled, then static prerendering of /demo/navigate failed because the public Supabase URL and publishable key were absent.
+- **Cause**: The isolated verification environment intentionally had no public Supabase configuration; no safe Development build configuration was available.
+- **Fix**: Do not substitute fake or Production values. Record build verification as blocked.
+- **Prevention**: Supply an independently verified Development-only public configuration before rerunning the build.
+- **Related tasks**: T8.5
+
+## 2026-10-10: Phase 8 Graphify refresh unavailable
+- **Error**: The required graphify query/update commands failed with uv trampoline failed to canonicalize script path.
+- **Cause**: The installed Graphify launcher could not canonicalize its Windows script path in this environment.
+- **Fix**: No graph files were changed; record the limitation and continue with direct Git/test evidence.
+- **Prevention**: Repair the local Graphify launcher before the next graph refresh.
+- **Related tasks**: T8.1, T8.4
+
+## 2026-10-10: Phase 8 failure reporter omitted seven individual assertion blocks
+- **Error**: The full Vitest report recorded all 67 failing test identifiers but omitted an individual assertion/location block for seven rows.
+- **Cause**: The console reporter did not emit those individual blocks in the captured log.
+- **Fix**: Mark the missing assertion details explicitly in the failure matrix; all 67 test identifiers still match the clean baseline.
+- **Prevention**: Capture a JSON reporter or test-file-specific output when assertion-level classification is required.
+- **Related tasks**: T8.3, T8.5
+
+## 2026-10-10: Phase 8 progress closeout replacement missed exact line text
+- **Error**: A literal PowerShell replacement did not match the progress closeout line and stopped without changing the file.
+- **Cause**: The expected line differed from the stored text representation.
+- **Fix**: Replaced the single line using an anchored heading match and verified the resulting line.
+- **Prevention**: Use a narrow anchored match when updating long workflow-log lines.
+- **Related tasks**: T8.5
+
+## 2026-10-10: Phase 8 verification command text failed to parse
+- **Error**: Two local verification command strings were rejected by the command parser before PowerShell ran.
+- **Cause**: Embedded quote and delimiter characters conflicted with the wrapper string syntax.
+- **Fix**: Reissued the checks with simpler strings; staged-file allowlist, diff check, snapshot identity, and secret-pattern scan all completed successfully.
+- **Prevention**: Keep shell scripts and wrapper-language quoting layers separate; avoid nested quoting where a simpler command is available.
+- **Related tasks**: T8.5

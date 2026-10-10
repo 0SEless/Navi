@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildFromCampusBundle, type NavigationRenderModel } from '../NavigationRenderModel'
-import type { Building, NavNode, NavEdge, Component, DoorData } from '@/types/nav-types'
+import { buildFromCampusBundle, getCachedNavigationRenderModel, type NavigationRenderModel } from '../NavigationRenderModel'
+import type { Building, NavNode, NavEdge, Component, DoorData, CampusBundle } from '@/types/nav-types'
 import type { FloorGeometryArtifact } from '@navi/core'
 
 // ── Test fixtures ──────────────────────────────────────────────
@@ -842,5 +842,20 @@ describe('W16B — floorGeometry Runtime Data Wiring', () => {
     expect(wall.end.lng).toBeGreaterThan(wall.start.lng)
     // End should be east of start (positive x offset = east)
     expect(wall.end.lng).toBeGreaterThan(wall.start.lng)
+  })
+
+  it('caches render data by immutable campus bundle identity', () => {
+    const bundle = {
+      buildings: [mockBuilding],
+      nodes: [],
+      edges: [],
+      boundingBox: null,
+    } as unknown as CampusBundle
+
+    const first = getCachedNavigationRenderModel(bundle)
+    const second = getCachedNavigationRenderModel(bundle)
+
+    expect(second).toBe(first)
+    expect(getCachedNavigationRenderModel({ ...bundle })).not.toBe(first)
   })
 })

@@ -34,6 +34,17 @@ function rectangleDimensions(points: LocalCoord[] | undefined, rotation: number)
 
 export const SEMANTIC_ROOM_SOURCE = 'derived-face'
 
+/** Resolve Studio's floor scope by canonical identity when it is available. */
+export function resolveFloorScope<T extends { id: string; level: number }>(
+  floors: readonly T[],
+  floorId?: string,
+  level?: number,
+): T | undefined {
+  if (floorId) return floors.find((floor) => floor.id === floorId)
+  if (level === undefined) return undefined
+  return floors.find((floor) => floor.level === level)
+}
+
 export function isSemanticRoomComponent(component: Component | null | undefined): boolean {
   return component?.type === 'room' && component.metadata?.source === SEMANTIC_ROOM_SOURCE && component.metadata?.semanticRoom === true
 }
@@ -447,16 +458,16 @@ function findOneComponent(doc: CampusDocument, id: string, transformer: Coordina
 
 // ── Floor geometry hooks ──
 
-export function useFloorComponents(buildingId: string, floor: number): Component[] {
+export function useFloorComponents(buildingId: string, floor: number, floorId?: string): Component[] {
   const { transformer } = useEditor()
   const selector = useMemo(() => (doc: CampusDocument) => {
     if (!transformer) return []
     const building = findBuilding(doc, buildingId)
     if (!building) return []
-    const f = building.floors.find((fl) => fl.level === floor)
+    const f = resolveFloorScope(building.floors, floorId, floor)
     if (!f) return []
     return extractFloorComponents(doc, buildingId, f, transformer)
-  }, [buildingId, floor, transformer])
+  }, [buildingId, floor, floorId, transformer])
   return useDocumentSelector(selector)
 }
 

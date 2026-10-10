@@ -5,6 +5,7 @@ import type { DocumentStore } from '../context/document-store'
 import type { DocumentEventBus } from '../eventbus'
 
 export interface AutosaveOptions {
+  isCurrent?: () => boolean
   debounceMs?: number
   maxIntervalMs?: number
 }
@@ -93,16 +94,11 @@ export class AutosaveService extends BaseEditorService {
   private maxIntervalTimer: ReturnType<typeof setInterval> | null = null
   private onRevisionCommitted!: () => void
   private queue: SaveQueue
-  /**
-   * Phase 3C — transient authored interaction gate. TRUE only while an authored
-   * gesture is genuinely incomplete (road/area being drawn, drag in progress).
-   * Tool selection, hover, selection, and idle-with-tool-selected are NOT
-   * transient interactions.
-   */
-  private transientInteractionActive = false
+  private isCurrent: () => boolean
 
   constructor(options?: AutosaveOptions) {
     super()
+    this.isCurrent = options?.isCurrent ?? (() => true)
     this.debounceMs = options?.debounceMs ?? 5000
     this.maxIntervalMs = options?.maxIntervalMs ?? 30000
     this.queue = new SaveQueue(
@@ -136,27 +132,13 @@ export class AutosaveService extends BaseEditorService {
   }
 
   private handleRevisionCommitted(): void {
+    if (!this.isCurrent()) return
     this.clearDebounce()
     this.debounceTimer = setTimeout(() => this.tryAutosave(), this.debounceMs)
   }
 
-  /**
-   * Phase 3C — set by the editing lifecycle while an authored gesture is
-   * incomplete. While TRUE, neither the 5s debounce nor the 30s safety interval
-   * may start a server save; the next committed revision reschedules naturally.
-   */
-  setTransientInteractionActive(active: boolean): void {
-    this.transientInteractionActive = active
-  }
-
-  isTransientInteractionActive(): boolean {
-    return this.transientInteractionActive
-  }
-
   private tryAutosave(): void {
-    // Unified eligibility (Phase 3C): the 5s debounce and the 30s safety
-    // interval share this exact gate.
-    if (this.transientInteractionActive) return
+    if (!this.isCurrent()) return
     if (!this.workflow.canAutosave()) return
 
     const currentVersion = this.documentStore.version
@@ -169,6 +151,7 @@ export class AutosaveService extends BaseEditorService {
    * version, skip this save (a newer queued save handles it).
    */
   private async executeSave(version: number): Promise<void> {
+    if (!this.isCurrent()) return
     if (this.documentStore.version > version) {
       // Stale — a newer revision exists; skip and let the pending save handle it
       return

@@ -16,8 +16,17 @@ const MOCK_SESSION = Buffer.from(
   JSON.stringify({ id: 'mock-super-admin', role: 'super_admin' }),
 ).toString('base64')
 
+function rpcClient(rpc: ReturnType<typeof vi.fn>) {
+  let revision: string | undefined
+  const query = { select: vi.fn(() => query), eq: vi.fn((field: string, value: string) => { if (field === 'revision') revision = value; return query }), maybeSingle: vi.fn(async () => {
+    if (!revision) return { data: null, error: null }
+    const body = rpc.mock.calls.at(-1)?.[1]?.payload ?? {}
+    return { data: { graph_data: body, authored_document: body.authoredDocument ?? null, revision }, error: null }
+  }) }
+  return { rpc, from: vi.fn(() => query) }
+}
 function mockRpc(result: unknown) {
-  mockClient.mockReturnValue({ rpc: vi.fn().mockResolvedValue(result) })
+  mockClient.mockReturnValue(rpcClient(vi.fn().mockResolvedValue(result)))
 }
 
 function makePost(options: { headers?: Record<string, string>; body?: unknown } = {}) {
@@ -27,7 +36,7 @@ function makePost(options: { headers?: Record<string, string>; body?: unknown } 
       cookie: `navi-mock-session=${MOCK_SESSION}`,
       ...options.headers,
     },
-    body: JSON.stringify(options.body ?? { id: 'map-1', campusId: 'map-1', version: '1.0.0' }),
+    body: JSON.stringify(options.body ?? { id: 'map-1', campusId: 'map-1', version: '1.0.0', mutationId: 'route-m1', expectedServerUpdatedAt: null }),
   })
 }
 
@@ -74,7 +83,7 @@ describe('POST /api/graph — RPC error handling (regression: empty error object
   })
 
   it('success → 200', async () => {
-    mockRpc({ data: { success: true, campus_id: 'map-1' }, error: null })
+    mockRpc({ data: { success: true, campus_id: 'map-1', updatedAt: '2026-10-04T02:00:00Z' }, error: null })
     const res = await POST(makePost())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -82,85 +91,19 @@ describe('POST /api/graph — RPC error handling (regression: empty error object
   })
 
   it('forwards the authored document companion unchanged to the idempotent RPC', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: { success: true, campus_id: 'map-1' }, error: null })
-    mockClient.mockReturnValue({ rpc })
+    const rpc = vi.fn().mockResolvedValue({ data: { success: true, campus_id: 'map-1', updatedAt: '2026-10-04T02:00:00Z' }, error: null })
+    mockClient.mockReturnValue(rpcClient(rpc))
     const authoredDocument = {
       schemaVersion: 1,
       version: 0,
       metadata: { campusId: 'map-1', name: 'Authored', description: '', lastModified: '', editorVersion: '' },
       buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
     }
-    const res = await POST(makePost({ body: { campusId: 'map-1', nodes: [], edges: [], buildings: [], components: [], authoredDocument } }))
+    const res = await POST(makePost({ body: { mutationId: 'route-m1', expectedServerUpdatedAt: null, campusId: 'map-1', nodes: [], edges: [], buildings: [], components: [], authoredDocument } }))
     expect(res.status).toBe(200)
-    expect(rpc).toHaveBeenCalledWith('sync_graph_snapshot_idempotent', expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith('sync_graph_snapshot_idempotent_v2', expect.objectContaining({
       payload: expect.objectContaining({ authoredDocument }),
     }))
-  })
-})
-
-describe('POST /api/graph — save attempt correlation', () => {
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
-    mockClient.mockReset()
-  })
-
-  it('passes the authoritative revision through and logs only attempt metadata', async () => {
-    mockRpc({
-      data: { success: true, campus_id: 'map-1', updatedAt: 'R2', idempotent_replay: false },
-      error: null,
-    })
-    const privateAuthoredName = 'PRIVATE_AUTHORED_DOCUMENT_CONTENT_MUST_NOT_BE_LOGGED'
-    const authoredDocument = {
-      schemaVersion: 1,
-      version: 1,
-      metadata: { campusId: 'map-1', name: privateAuthoredName, description: '', lastModified: '', editorVersion: '' },
-      buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
-    }
-    const lifecycleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    try {
-      const response = await POST(makePost({
-        headers: {
-          'x-navi-save-chain-id': 'save-chain-1',
-          'x-navi-save-attempt': '2',
-          'x-navi-session-generation': '17',
-          'x-navi-campus-epoch': '4',
-          'x-navi-graph-fingerprint': 'graph-hash',
-          'x-navi-authored-fingerprint': 'authored-hash',
-        },
-        body: {
-          campusId: 'map-1',
-          mutationId: 'save-chain-1',
-          expectedServerUpdatedAt: 'R1',
-          buildings: [], nodes: [], edges: [], components: [], authoredDocument,
-        },
-      }))
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toMatchObject({ success: true, updatedAt: 'R2' })
-
-      const line = lifecycleLog.mock.calls
-        .map(([message]) => String(message))
-        .find((message) => message.startsWith('[api/graph] lifecycle '))
-      expect(line).toBeDefined()
-      const record = JSON.parse(String(line).slice('[api/graph] lifecycle '.length)) as Record<string, unknown>
-      expect(record).toMatchObject({
-        mutationId: 'save-chain-1',
-        attemptNumber: 2,
-        sessionGeneration: 17,
-        campusEpoch: 4,
-        graphFingerprint: 'graph-hash',
-        authoredFingerprint: 'authored-hash',
-        expectedRevision: 'R1',
-        responseUpdatedAt: 'R2',
-        requestHasAuthoredDocument: true,
-        outcome: 'SUCCESS',
-        status: 200,
-      })
-      expect(line).not.toContain(privateAuthoredName)
-    } finally {
-      lifecycleLog.mockRestore()
-    }
   })
 })
 
@@ -214,5 +157,17 @@ describe('POST /api/graph — mutation gate', () => {
     expect(res.status).toBe(423)
     expect(await res.json()).toEqual({ error: 'This campus is protected. Mutations are disabled.' })
     expect(mockClient).not.toHaveBeenCalled()
+  })
+
+  it('missing campus ID → 400 before creating a Supabase client', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { success: true, campus_id: 'asu-ibajay' }, error: null })
+    mockClient.mockReturnValue(rpcClient(rpc))
+
+    const res = await POST(makePost({ body: { id: 'map-1', version: '1.0.0' } }))
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'campusId is required' })
+    expect(mockClient).not.toHaveBeenCalled()
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

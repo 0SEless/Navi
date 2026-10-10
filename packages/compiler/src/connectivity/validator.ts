@@ -75,6 +75,15 @@ export function validateConnectivity(graph: ConnectivityGraph): ValidationReport
   for (const pe of portalEdges) {
     entranceIds.add(pe.nodeId)
   }
+  // Canonical EntranceAccess replaces the legacy portal edge with one
+  // authored bridge from the outdoor route node to the indoor route node.
+  // Seed from that bridge's indoor endpoint so canonical and legacy entrances
+  // share the same reachability semantics.
+  for (const edge of graph.edges) {
+    if (edge.kind === 'access' && edge.accessType === 'entrance_bridge' && edge.source.entityType === 'entrance') {
+      entranceIds.add(edge.to)
+    }
+  }
 
   const reachable = new Set<string>()
   const adjacency = new Map<string, string[]>()

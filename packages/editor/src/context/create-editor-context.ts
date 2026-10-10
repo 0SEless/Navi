@@ -29,7 +29,7 @@ import { featureLevelUpdateHandler, featureLevelCopyHandler } from '../commands/
 import { wallCreateHandler, wallUpdateHandler, wallDeleteHandler } from '../commands/wall-handlers'
 import { wallJunctionUpdateHandler } from '../commands/wall-junction-handlers'
 import { wallSplitHandler, wallSplitUndoHandler, wallCrossingSplitHandler, wallCrossingSplitUndoHandler, wallTJunctionSplitHandler, wallMergeHandler, wallMergeUndoHandler } from '../commands/wall-topology-handlers'
-import { panoramaCreateHandler, panoramaDeleteHandler } from '../commands/panorama-handlers'
+import { panoramaCreateHandler, panoramaDeleteHandler, panoramaRestoreHandler } from '../commands/panorama-handlers'
 import { hotspotCreateHandler, hotspotUpdateHandler, hotspotDeleteHandler } from '../commands/hotspot-handlers'
 
 import { SelectionManager } from '../selection'
@@ -295,7 +295,21 @@ function mintParametricFeatures(
   return { stairs, elevators }
 }
 
-export function createDocument(graph: any, transformer?: CoordinateTransformer, options?: { stampConnectivityVersion?: boolean }): CampusDocument {
+/**
+ * Build a `CampusDocument` from a legacy Graph projection.
+ *
+ * VT-1 / ADR 024 — panoramas are NOT reconstructed from navigation nodes by
+ * default. `document.panoramas` is the only Virtual Tour scene source, and
+ * canonical document construction must never derive a scene from the routing
+ * graph. `options.legacyPanoramaNodeRecovery` exists solely for the one
+ * supported loader whose input format cannot carry scenes at all (the
+ * graph-only campus backup envelope) and is OFF by default.
+ */
+export function createDocument(
+  graph: any,
+  transformer?: CoordinateTransformer,
+  options?: { stampConnectivityVersion?: boolean; legacyPanoramaNodeRecovery?: boolean },
+): CampusDocument {
   const compsByKey = new Map<string, any[]>()
   for (const c of (graph.components ?? [])) {
     const key = `${c.buildingId}:${c.floor}`
@@ -679,22 +693,41 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer, 
         source: (n.metadata?.junctionSource as 'authored' | 'legacy-inferred') ?? 'legacy-inferred',
       }))
     })(),
-    panoramas: (graph.nodes ?? [])
-      .filter((n: any) => n.hasPanorama && n.metadata?.panoramaId)
-      .map((n: any) => ({
-        id: n.metadata.panoramaId as string,
-        label: (n.label ?? '').replace('Panorama: ', ''),
-        // P1-T4 (D9): graph node positions are world — migrate to building-local
-        // when a building is known; otherwise keep verbatim (R15.8 fallback).
-        position: n.buildingId
-          ? worldToLocalWithFallback(nodePosition(n), n.buildingId, transformer, origins.get(n.buildingId))
-          : nodePosition(n),
-        heading: 0,
-        imageAssetId: '',
-        buildingId: n.buildingId || undefined,
-        floor: n.floor ?? undefined,
-        hotspots: [],
-      })),
+    // VT-1 / ADR 024 — panoramas are NOT reconstructed from navigation nodes.
+    //
+    // Navigation and Virtual Tour are separate systems. A current NavNode must
+    // never become a Panorama: `document.panoramas` is the only Virtual Tour
+    // scene source, and the old `N-pano-*` nodes held only an id — heading,
+    // imageAssetId and hotspots were always lost, so any reconstruction was
+    // fabricated.
+    //
+    // LEGACY ONLY / NOT CANONICAL / NOT USED FOR CURRENT AUTHORING.
+    // Pre-VT-1 graph snapshots may still physically contain `N-pano-*` rows in
+    // `graph_snapshots.data.nodes[]`. They are left untouched on disk (no
+    // destructive cleanup in this phase) and are ignored here unless a caller
+    // explicitly opts in via `legacyPanoramaNodeRecovery` — currently only the
+    // graph-only campus-backup import, whose v1 envelope has no field able to
+    // carry scenes. Everything else gets no panoramas, which is the truth.
+    panoramas: options?.legacyPanoramaNodeRecovery
+      ? (graph.nodes ?? [])
+          .filter((n: any) => n.metadata?.panoramaId)
+          .map((n: any) => ({
+            id: n.metadata.panoramaId as string,
+            label: (n.label ?? '').replace('Panorama: ', ''),
+            // P1-T4 (D9): graph node positions are world — migrate to building-local
+            // when a building is known; otherwise keep verbatim (R15.8 fallback).
+            position: n.buildingId
+              ? worldToLocalWithFallback(nodePosition(n), n.buildingId, transformer, origins.get(n.buildingId))
+              : nodePosition(n),
+            // Unrecoverable from a node: these are real defaults, not data.
+            heading: 0,
+            imageAssetId: '',
+            buildingId: n.buildingId || undefined,
+            floor: n.floor ?? undefined,
+            hotspots: [],
+          }))
+      : [],
+
     qrCheckpoints: (graph.nodes ?? [])
       .filter((n: any) => n.type === 'qr_marker' || (n.hasQr && n.metadata?.qrCode))
       .map((n: any) => ({
@@ -742,6 +775,8 @@ export function createEditorContext(
   persistenceAdapter: PersistenceAdapter,
   navCompiler: NavigationCompiler,
   authoredDocument?: CampusDocument,
+  isCurrent: () => boolean = () => true,
+  options: { deferInitialization?: boolean } = {},
 ): EditorContext {
   const transformer = new CoordinateTransformer()
   // New-format snapshots hydrate the authored document directly. Register
@@ -864,6 +899,10 @@ export function createEditorContext(
   // Panorama handlers
   registryCmd.register(panoramaCreateHandler)
   registryCmd.register(panoramaDeleteHandler)
+  // PM-1: makes panorama deletion reversible. `panorama.restore` reinstates the
+  // exact prior entity (ADR 023 — no route-node link is restored; the projection
+  // regenerates from the entity).
+  registryCmd.register(panoramaRestoreHandler)
   // Hotspot handlers
   registryCmd.register(hotspotCreateHandler)
   registryCmd.register(hotspotUpdateHandler)
@@ -884,6 +923,7 @@ export function createEditorContext(
 
 
   const dispatcher = new CommandDispatcher(registryCmd, document, eventBus)
+  dispatcher.setMutationGuard(isCurrent)
 
   const history = new HistoryStack(dispatcher, document, registryCmd, 200, documentStore)
   dispatcher.addPreHook(history)
@@ -953,7 +993,7 @@ export function createEditorContext(
   registry.register('persistence', persistence)
   registry.register('workflowStore', workflowStore)
   registry.register('workflow', workflow)
-  const autosave = new AutosaveService()
+  const autosave = new AutosaveService({ isCurrent })
   registry.register('autosave', autosave)
   const publishStore = new PublishStore()
   const publishService = new PublishService(publishStore)
@@ -961,7 +1001,12 @@ export function createEditorContext(
   registry.register('publish', publishService)
   registry.register('editingContext', editingContext)
 
-  void registry.init(document)
+  let initialized: Promise<void> | undefined
+  const initialize = () => initialized ??= registry.init(document)
+  if (!options.deferInitialization) void initialize()
 
-  return { document, services: registry, transformer }
+  return { document, services: registry, transformer, initialize, dispose: async () => {
+    if (initialized) await initialized
+    await registry.destroy()
+  } }
 }

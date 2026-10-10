@@ -2,7 +2,7 @@ import type { CampusDocument, LatLng as CoreLatLng, EntranceAccess, RoadJunction
 import { CoordinateTransformer, haversine, collectFloorDoors, explicitEntranceAccessNodeId, CONNECTIVITY_CONTRACT_VERSION, normalizeRoadRouting, ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
 import { Graph } from '@/engine/graph'
 import { compileComponent } from '@/engine/component-compiler'
-import type { CompileContext } from '@/engine/component-compiler'
+import type { CompileContext, CompileResult } from '@/engine/component-compiler'
 import type { Component, ComponentType, DoorData, TracePath, Building as LegacyBuilding, NavNode, NavEdge, LatLng as LegacyLatLng } from '@/types/nav-types'
 import { pointToSegmentDistance } from '@/engine/geo-utils'
 import { resolveLevelGeometry } from './geometry/resolve-level-geometry'
@@ -11,10 +11,84 @@ function coreLatLngToLegacy(p: CoreLatLng): LegacyLatLng {
   return { lat: p.lat, lng: p.lng }
 }
 
+/** Preserve canonical identities when rebuilding generated legacy components.
+ * Geometry, eligibility, connectivity and weights still come from the compiler.
+ * Explicit modern IDs (route networks, features, connector stops) pass through.
+ */
+function retainComponentProjectionIds(
+  result: CompileResult,
+  component: Component,
+  previous: { nodes?: NavNode[]; edges?: NavEdge[] } | undefined,
+  usedNodeIds: Set<string>,
+  usedEdgeIds: Set<string>,
+): CompileResult {
+  const generatedNodeId = /^N\d+(?:-projection-\d+)?$/
+  const previousNodes = previous?.nodes ?? []
+  const previousEdges = previous?.edges ?? []
+  const reservedNodeIds = new Set(previousNodes.map(node => node.id))
+  const reservedEdgeIds = new Set(previousEdges.map(edge => edge.id))
+  const remapped = new Map<string, string>()
+  const candidatesFor = (node: NavNode) => previousNodes.filter(candidate =>
+    generatedNodeId.test(candidate.id) && candidate.componentId === component.id
+    && candidate.buildingId === node.buildingId && candidate.floor === node.floor
+    && candidate.type === node.type && !usedNodeIds.has(candidate.id),
+  )
+  // Match all unchanged geometry first, so an inserted/moved point cannot
+  // consume the identity of a different point that remains exactly in place.
+  for (const node of result.nodes) {
+    if (!generatedNodeId.test(node.id)) { usedNodeIds.add(node.id); continue }
+    const exact = candidatesFor(node).find(candidate =>
+      candidate.position.lat === node.position.lat && candidate.position.lng === node.position.lng,
+    )
+    if (exact) { remapped.set(node.id, exact.id); usedNodeIds.add(exact.id) }
+  }
+  for (const node of result.nodes) {
+    if (!generatedNodeId.test(node.id) || remapped.has(node.id)) continue
+    // Within the same component/floor/type, compiler occurrence is the stable
+    // fallback for a geometry edit. Never borrow another component's identity.
+    const prior = candidatesFor(node)[0]
+    let id = prior?.id ?? node.id
+    if (!prior) {
+      let suffix = 0
+      while (reservedNodeIds.has(id) || usedNodeIds.has(id)) id = `${node.id}-projection-${++suffix}`
+    }
+    remapped.set(node.id, id)
+    usedNodeIds.add(id)
+  }
+  const nodes = result.nodes.map(node => ({ ...node, id: remapped.get(node.id) ?? node.id }))
+  const edges = result.edges.map(edge => {
+    const from = remapped.get(edge.from) ?? edge.from
+    const to = remapped.get(edge.to) ?? edge.to
+    if (!/^E\d+(?:-projection-\d+)?$/.test(edge.id)) {
+      usedEdgeIds.add(edge.id)
+      return { ...edge, from, to }
+    }
+    // Keep direction exact; reversed edges can have different route semantics.
+    const prior = previousEdges.find(candidate => candidate.from === from && candidate.to === to
+      && candidate.type === edge.type && !usedEdgeIds.has(candidate.id))
+    let id = prior?.id ?? edge.id
+    if (!prior) {
+      let suffix = 0
+      while (reservedEdgeIds.has(id) || usedEdgeIds.has(id)) id = `${edge.id}-projection-${++suffix}`
+    }
+    usedEdgeIds.add(id)
+    return { ...edge, id, from, to }
+  })
+  return { ...result, nodes, edges }
+}
+
 function computeCentroid(points: LegacyLatLng[]): LegacyLatLng {
+  const lastPoint = points[points.length - 1]
+  const isClosedRing = points.length > 1
+    && points[0].lat === lastPoint.lat
+    && points[0].lng === lastPoint.lng
+  const pointCount = isClosedRing ? points.length - 1 : points.length
   let lat = 0, lng = 0
-  for (const p of points) { lat += p.lat; lng += p.lng }
-  return { lat: lat / points.length, lng: lng / points.length }
+  for (let index = 0; index < pointCount; index++) {
+    lat += points[index].lat
+    lng += points[index].lng
+  }
+  return { lat: lat / pointCount, lng: lng / pointCount }
 }
 
 function computeBBox(points: LegacyLatLng[]): { width: number; height: number } {
@@ -208,6 +282,27 @@ export function reconcileAuthoredJunctions(input: ReconcileAuthoredJunctionsInpu
   return result
 }
 
+export interface GraphAdapterScope {
+  kind?: string
+  buildingId?: string | null
+  floor?: number | null
+  /**
+   * Declares that the caller holds the COMPLETE campus document, so an entity that is
+   * absent from it means the author DELETED that entity.
+   *
+   * Without this flag the reconciler cannot tell "deleted" apart from "outside the scope
+   * of a partial document" and restores the entity, silently reverting authored deletions.
+   * That is the deletion-resurrection defect recorded in errors/ERRORS.md (2026-10-06).
+   *
+   * ONLY set this when `document` really is the whole campus. A caller holding a partial
+   * document must leave it false, otherwise unrelated canonical content is deleted.
+   *
+   * It carries no scope of its own: a scope object containing only `authoritative` behaves
+   * exactly like `undefined` for building/floor/outdoor coverage.
+   */
+  authoritative?: boolean
+}
+
 export class GraphAdapter {
   private graph: Graph
   private transformer?: CoordinateTransformer
@@ -218,14 +313,14 @@ export class GraphAdapter {
   }
 
   /**
-   * Synchronize a document into the graph.
+   * P0.5 — Scope-aware canonical reconciliation wrapper.
    *
-   * Studio passes the complete CampusDocument, so the default is authoritative
-   * replacement: an authored deletion must stay deleted. A caller holding an
-   * intentionally partial projection must opt into preserving out-of-scope
-   * canonical entities with `preserveOutOfScope: true`.
+   * The legacy sync rebuilds collections from the incoming CampusDocument only.
+   * Before running it we snapshot the canonical collections; afterwards we merge
+   * out-of-scope canonical entities back in so a scoped/partial document can
+   * never delete or duplicate unrelated canonical content.
    */
-  sync(document: CampusDocument, options: { preserveOutOfScope?: boolean } = {}): void {
+  sync(document: CampusDocument, scope?: GraphAdapterScope): void {
     const previous = {
       buildings: (this.graph.buildings ?? []).slice(),
       components: (this.graph.components ?? []).slice(),
@@ -233,9 +328,8 @@ export class GraphAdapter {
       edges: (this.graph.edges ?? []).slice(),
       traces: (this.graph.traces ?? []).slice(),
     }
-    const preserveOutOfScope = options.preserveOutOfScope === true
-    this.syncLegacy(document, { preserveOutOfScope })
-    this.reconcileCanonicalCollections(previous, document, { preserveOutOfScope })
+    this.syncLegacy(document, previous)
+    this.reconcileCanonicalCollections(previous, document, scope)
   }
 
   private reconcileCanonicalCollections(
@@ -247,19 +341,58 @@ export class GraphAdapter {
       traces: TracePath[]
     },
     document: CampusDocument,
-    options: { preserveOutOfScope?: boolean } = {},
+    scope?: GraphAdapterScope,
   ): void {
-    const preserveOutOfScope = options.preserveOutOfScope !== false
     const doc = document as unknown as {
       buildings: Array<{ id: string; floors: Array<{ level: number }> }>
       roads?: unknown
     }
-    const coveredBuildings = new Set(doc.buildings.map((b) => b.id))
+    const coveredBuildings = scope?.buildingId
+      ? new Set([scope.buildingId])
+      : new Set(doc.buildings.map((b) => b.id))
     const coveredFloors = new Map<string, Set<number>>()
-    for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
-    // Outdoor scope is covered only when the document actually carries the
-    // outdoor road collection (a floor/building-scoped view does not).
-    const outdoorCovered = Array.isArray(doc.roads)
+    if (scope?.buildingId && scope.floor !== undefined && scope.floor !== null) {
+      coveredFloors.set(scope.buildingId, new Set([scope.floor]))
+    } else {
+      for (const b of doc.buildings) coveredFloors.set(b.id, new Set(b.floors.map((f) => f.level)))
+    }
+
+    // Authored deletion vs out-of-scope preservation.
+    //
+    // Coverage above is inferred from the incoming document, which makes a building the
+    // author removed indistinguishable from a building merely outside a partial scope --
+    // and the merge-back below would then restore it. When the caller declares the document
+    // complete, treat everything previously present as IN the author's domain, so absence
+    // means deleted and nothing is resurrected.
+    if (scope?.authoritative === true) {
+      for (const b of previous.buildings) coveredBuildings.add(b.id)
+      // A deleted floor leaves no document entry, so widen per-building floor coverage from
+      // the floor levels actually observed on that building's existing nodes.
+      for (const n of previous.nodes) {
+        const bid = (n as { buildingId?: string | null }).buildingId
+        const fl = (n as { floor?: number | null }).floor
+        if (!bid || bid === '__outdoor__') continue
+        if (fl === null || fl === undefined) continue
+        if (!coveredBuildings.has(bid)) continue
+        const set = coveredFloors.get(bid) ?? new Set<number>()
+        set.add(fl)
+        coveredFloors.set(bid, set)
+      }
+    }
+    // Outdoor scope is covered only when:
+    // - explicit outdoor scope is given, OR
+    // - no scope kind is specified and document.roads is an array
+    // An `authoritative`-only scope carries no kind, so it keeps the unscoped behaviour.
+    //
+    // Under a complete document the document enumerates every road, so an authored road
+    // deletion must be honoured even when the edit happened while a building was selected
+    // (EditorBridge gives the building scope precedence). Otherwise traces are treated as
+    // out of scope and merged back, reverting the deletion.
+    const outdoorCovered = scope?.authoritative === true
+      ? Array.isArray(doc.roads)
+      : scope && scope.kind
+        ? scope.kind === 'outdoor'
+        : Array.isArray(doc.roads)
 
     const nodeCovered = (n: NavNode): boolean => {
       const bid = (n as { buildingId?: string | null }).buildingId
@@ -287,45 +420,35 @@ export class GraphAdapter {
     const rebuiltEdges = (this.graph.edges ?? []).slice()
     const rebuiltTraces = (this.graph.traces ?? []).slice()
 
-    const mergedBuildings = preserveOutOfScope
-      ? dedupe([
-        ...rebuiltBuildings,
-        ...previous.buildings.filter((b) => !coveredBuildings.has(b.id) && !rebuiltBuildings.some((r) => r.id === b.id)),
-      ])
-      : rebuiltBuildings
-    const mergedComponents = preserveOutOfScope
-      ? dedupe([
-        ...rebuiltComponents,
-        ...previous.components.filter(
-          (c) => !rebuiltComponents.some((r) => r.id === c.id) && !(coveredBuildings.has((c as { buildingId?: string }).buildingId ?? '')),
-        ),
-      ])
-      : rebuiltComponents
-    const mergedNodes = preserveOutOfScope
-      ? dedupe([
-        ...rebuiltNodes,
-        ...previous.nodes.filter((n) => !nodeCovered(n) && !rebuiltNodes.some((r) => r.id === n.id)),
-      ])
-      : rebuiltNodes
+    const mergedBuildings = dedupe([
+      ...rebuiltBuildings,
+      ...previous.buildings.filter((b) => !coveredBuildings.has(b.id) && !rebuiltBuildings.some((r) => r.id === b.id)),
+    ])
+    const mergedComponents = dedupe([
+      ...rebuiltComponents,
+      ...previous.components.filter(
+        (c) => !rebuiltComponents.some((r) => r.id === c.id) && !(coveredBuildings.has((c as { buildingId?: string }).buildingId ?? '')),
+      ),
+    ])
+    const mergedNodes = dedupe([
+      ...rebuiltNodes,
+      ...previous.nodes.filter((n) => !nodeCovered(n) && !rebuiltNodes.some((r) => r.id === n.id)),
+    ])
     const rebuiltNodeIds = new Set(mergedNodes.map((n) => n.id))
-    const mergedEdges = preserveOutOfScope
-      ? dedupe([
-        ...rebuiltEdges,
-        ...previous.edges.filter(
-          (e) =>
-            !rebuiltEdges.some((r) => r.id === e.id) &&
-            !(nodeCovered({ id: e.from } as NavNode) && nodeCovered({ id: e.to } as NavNode)) &&
-            rebuiltNodeIds.has(e.from) &&
-            rebuiltNodeIds.has(e.to),
-        ),
-      ])
-      : rebuiltEdges
-    const mergedTraces = preserveOutOfScope
-      ? dedupe([
-        ...rebuiltTraces,
-        ...previous.traces.filter((t) => !outdoorCovered && !rebuiltTraces.some((r) => r.id === t.id)),
-      ])
-      : rebuiltTraces
+    const mergedEdges = dedupe([
+      ...rebuiltEdges,
+      ...previous.edges.filter(
+        (e) =>
+          !rebuiltEdges.some((r) => r.id === e.id) &&
+          !(nodeCovered({ id: e.from } as NavNode) && nodeCovered({ id: e.to } as NavNode)) &&
+          rebuiltNodeIds.has(e.from) &&
+          rebuiltNodeIds.has(e.to),
+      ),
+    ])
+    const mergedTraces = dedupe([
+      ...rebuiltTraces,
+      ...previous.traces.filter((t) => !outdoorCovered && !rebuiltTraces.some((r) => r.id === t.id)),
+    ])
 
     this.graph.setBuildings(mergedBuildings)
     this.graph.setComponents(mergedComponents)
@@ -345,7 +468,13 @@ export class GraphAdapter {
     }
   }
 
-  private syncLegacy(document: CampusDocument, options: { preserveOutOfScope?: boolean } = {}): void {
+  private syncLegacy(
+    document: CampusDocument,
+    previous?: {
+      nodes?: NavNode[]
+      edges?: NavEdge[]
+    },
+  ): void {
     // Ordinary editor sync is explicit-only. Existing RoadJunction records are
     // pre-seeded below and reconstructed, but geometry alone never authors new
     // cross-road topology (including for unversioned/legacy documents).
@@ -355,9 +484,19 @@ export class GraphAdapter {
 
     if (!this.transformer) {
       this.transformer = new CoordinateTransformer()
-      for (const b of document.buildings) {
+    }
+    for (const b of document.buildings) {
+      if (!this.transformer.getBuildingSystem(b.id)) {
         const origin = b.footprint.points.length > 0 ? b.footprint.points[0] : { lat: 0, lng: 0 }
-        this.transformer.registerBuilding({ buildingId: b.id, origin, rotation: 0 })
+        this.transformer.registerBuilding({ buildingId: b.id, origin, rotation: b.rotation ?? 0 })
+      }
+      for (const f of b.floors ?? []) {
+        if (!this.transformer.getFloorSystem(b.id, f.level)) {
+          this.transformer.registerFloor(b.id, f.level, {
+            offset: (f.offset as { x: number; y: number } | undefined) ?? { x: 0, y: 0 },
+            rotation: (f.rotation as number | undefined) ?? 0,
+          })
+        }
       }
     }
     this.graph.setBuildings([])
@@ -369,6 +508,8 @@ export class GraphAdapter {
     this.graph.setTraces([])
     const allCompiledNodes: NavNode[] = []
     const allCompiledEdges: NavEdge[] = []
+    const usedComponentNodeIds = new Set<string>()
+    const usedComponentEdgeIds = new Set<string>()
     const allProjectedDoors: DoorData[] = []
 
     // 1. Buildings
@@ -708,7 +849,10 @@ export class GraphAdapter {
               componentId: comp.id,
               campusId: this.graph.campusId,
             }
-            const result = compileComponent(comp, context)
+            const result = retainComponentProjectionIds(
+              compileComponent(comp, context), comp, previous,
+              usedComponentNodeIds, usedComponentEdgeIds,
+            )
             for (const node of result.nodes) {
               this.graph.addNode(node)
               allCompiledNodes.push(node)
@@ -891,22 +1035,18 @@ export class GraphAdapter {
     //   - canonical doors belonging to scopes NOT covered by this document
     //     projection are PRESERVED verbatim (a partially hydrated or scoped
     //     document can never wipe unrelated doors again).
-    if (options.preserveOutOfScope !== true) {
-      this.graph.setDoors(allProjectedDoors)
-    } else {
-      const coveredScopes = new Set<string>()
-      for (const b of document.buildings) {
-        for (const f of b.floors) coveredScopes.add(`${b.id}#${f.level}`)
-      }
-      const doorKey = (d: DoorData) => `${d.id}|${d.buildingId}|${d.floor}`
-      const projectedKeys = new Set(allProjectedDoors.map(doorKey))
-      const preservedDoors = this.graph.doors.filter(
-        (d) => !coveredScopes.has(`${d.buildingId}#${d.floor}`) && !projectedKeys.has(doorKey(d)),
-      )
-      const mergedByKey = new Map<string, DoorData>()
-      for (const d of [...preservedDoors, ...allProjectedDoors]) mergedByKey.set(doorKey(d), d)
-      this.graph.setDoors([...mergedByKey.values()])
+    const coveredScopes = new Set<string>()
+    for (const b of document.buildings) {
+      for (const f of b.floors) coveredScopes.add(`${b.id}#${f.level}`)
     }
+    const doorKey = (d: DoorData) => `${d.id}|${d.buildingId}|${d.floor}`
+    const projectedKeys = new Set(allProjectedDoors.map(doorKey))
+    const preservedDoors = this.graph.doors.filter(
+      (d) => !coveredScopes.has(`${d.buildingId}#${d.floor}`) && !projectedKeys.has(doorKey(d)),
+    )
+    const mergedByKey = new Map<string, DoorData>()
+    for (const d of [...preservedDoors, ...allProjectedDoors]) mergedByKey.set(doorKey(d), d)
+    this.graph.setDoors([...mergedByKey.values()])
 
     // 9. Roads → Traces
     // Traces compile independently from buildings. They deliberately do NOT
@@ -969,7 +1109,7 @@ export class GraphAdapter {
       // Canonical documents use the same 0.5 m radius as discovery and the
       // compiler merge gate — explicit authored junctions only.
       const connectivityRadius = isLegacy ? 5 : ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
-      this.graph.addTraceWithCompile(trace, connectivityRadius, allowGeometricInference)
+      this.graph.addTraceWithCompile(trace, connectivityRadius, allowGeometricInference, previous)
     }
 
     // Phase 4: Clean up pre-seeded junction nodes that are no longer valid
@@ -1018,37 +1158,31 @@ export class GraphAdapter {
     // its explicit or legacy-derived connectivity.
     this.graph.setConnectivitySemanticsVersion(document.connectivitySemanticsVersion)
 
-    // 11. Panoramas → Nodes
-    // P1-T4 (D9): document positions are building-local — derive world for the
-    // graph node when the panorama is anchored to a known building. A panorama
-    // without buildingId (or a legacy world-stored one) passes through verbatim
-    // (R15.8: entity data is never dropped).
-    for (const pano of document.panoramas) {
-      const legacyWorld = 'lat' in pano.position
-        ? pano.position
-        : (pano.buildingId && this.transformer
-          ? this.transformer.buildingLocalToWorld(pano.position, pano.buildingId)
-          : null)
-      if (!legacyWorld) continue
-      const node: NavNode = {
-        id: `N-pano-${pano.id}`,
-        label: `Panorama: ${pano.label}`,
-        name: `Panorama: ${pano.label}`,
-        type: 'intersection',
-        buildingId: pano.buildingId ?? '',
-        campusId: this.graph.campusId,
-        floor: pano.floor ?? 0,
-        position: coreLatLngToLegacy(legacyWorld),
-        hasPanorama: true,
-        metadata: { panoramaId: pano.id },
-      }
-      this.graph.addNode(node)
-    }
+    // 11. Panoramas — NOT projected (VT-1 / ADR 024).
+    //
+    // Navigation and Virtual Tour are separate systems. `CampusDocument.panoramas`
+    // is a Virtual Tour scene collection; it has no authored AND no derived
+    // navigation-node requirement. Panoramas therefore contribute NO NavNode to
+    // the routing graph — they are not A* nodes, not route anchors, and not
+    // routing destinations.
+    //
+    // A panorama's `position` remains meaningful Virtual Tour context (scene
+    // placement, map visualisation, building/floor organisation). It simply does
+    // not imply navigation membership.
+    //
+    // Consumers of the 360 tour read `document.panoramas` (and the published
+    // `panoramaIndex`) directly — see TourViewer and
+    // buildPanoramaIndex(document) in packages/compiler. No graph node is needed.
+    //
+    // NOTE: connector-stop *anchors* (`floor.connectorStops[].anchors`) are a
+    // separate authored navigation feature and are still projected below. Their
+    // panorama-flavoured variant is a connector anchor, not a `document.panoramas`
+    // scene, so it is intentionally unaffected by this separation.
 
-    // 11. QR Checkpoints → Nodes
+    // 11b. QR Checkpoints → Nodes
     // P1-T4 (D9): QR positions are building-local — same world derivation as
-    // entrances/panoramas, with verbatim pass-through for legacy world records.
-    for (const qr of document.qrCheckpoints) {
+    // entrances, with verbatim pass-through for legacy world records.
+    for (const qr of document.qrCheckpoints ?? []) {
       const legacyWorld = (qr.position as unknown as { lat?: number }).lat !== undefined
         ? (qr.position as unknown as { lat: number; lng: number })
         : (this.transformer

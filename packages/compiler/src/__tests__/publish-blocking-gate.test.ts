@@ -1,9 +1,48 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { NextRequest } from 'next/server'
+
+// Phase 5C-B: publication success is defined solely by the canonical durable
+// published_maps write, so this suite provides an in-memory store instead of
+// relying on the previous "no credentials -> skip and still succeed" behavior.
+// Its subject (warning-only diagnostics do not block publication) is unchanged.
+vi.mock('@supabase/ssr', () => ({ createServerClient: vi.fn() }))
+vi.mock('fs', () => {
+  const api = {
+    existsSync: vi.fn(() => true),
+    mkdirSync: vi.fn(),
+    writeFileSync: vi.fn(),
+  }
+  return { ...api, default: api }
+})
+
+import { createServerClient } from '@supabase/ssr'
 import { POST as publishRoute } from '../../../../src/app/api/publish/route'
 import { GraphAdapter } from '@navi/editor'
 import { Graph } from '@/engine/graph'
 import type { CampusDocument, Building } from '@navi/core'
+
+beforeAll(() => {
+  process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-test-key'
+
+  const builder = (payload: unknown = null) => {
+    const b: Record<string, unknown> = {}
+    b.eq = () => b
+    b.lt = () => b
+    b.select = async () => ({ data: payload ? [payload] : [], error: null })
+    b.maybeSingle = async () => ({ data: payload, error: null })
+    return b
+  }
+  ;(createServerClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    from: () => ({
+      select: () => builder(null),
+      update: () => builder(null),
+      insert: () => builder(null),
+      upsert: async (payload: Record<string, unknown>) => ({ data: [payload], error: null }),
+    }),
+  })
+})
 
 
 function createSampleDocWithParametricFeature(): CampusDocument {

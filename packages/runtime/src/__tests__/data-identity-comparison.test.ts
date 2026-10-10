@@ -209,7 +209,14 @@ describe.skip('Data identity: Studio -> Publisher -> Runtime', () => {
     it('graph node buildingIds exist in building index', () => { const bi = runtimePkg.package.buildingIndex; if (!bi) return; const bids = new Set(bi.buildings.map(b=>b.id)); for (const n of runtimePkg.package.graph.nodes) { if (n.buildingId !== '__outdoor__') expect(bids.has(n.buildingId)).toBe(true) } })
     it('graph node floors exist in building floor list', () => { const bi = runtimePkg.package.buildingIndex; if (!bi) return; for (const n of runtimePkg.package.graph.nodes) { const b = bi.buildings.find(x=>x.id===n.buildingId); if (b) expect(b.floors.find(f=>f.level===n.floor)).toBeDefined() } })
     it('search nodeIds reference existing graph nodes', () => { const nids = new Set(runtimePkg.package.graph.nodes.map(n=>n.id)); for (const e of runtimePkg.package.searchIndex!.entries) { if (e.nodeId) expect(nids.has(e.nodeId)).toBe(true) } })
-    it('manifest metadata counts are consistent', () => { const m = runtimePkg.package.manifest; expect(m.metadata.nodeCount).toBe(runtimePkg.package.graph.nodes.length); expect(m.metadata.edgeCount).toBe(runtimePkg.package.graph.edges.length); // buildingCount is computed from graph, may differ from buildingIndex in test fixtures; const bi = runtimePkg.package.buildingIndex; if (bi && m.metadata.buildingCount > 0) expect(m.metadata.buildingCount).toBe(bi.buildings.length) })
+    it('manifest metadata counts are consistent', () => {
+      const m = runtimePkg.package.manifest
+      expect(m.metadata.nodeCount).toBe(runtimePkg.package.graph.nodes.length)
+      expect(m.metadata.edgeCount).toBe(runtimePkg.package.graph.edges.length)
+      // Building count is computed from the graph and may differ from the building index in test fixtures.
+      const bi = runtimePkg.package.buildingIndex
+      if (bi && m.metadata.buildingCount > 0) expect(m.metadata.buildingCount).toBe(bi.buildings.length)
+    })
     it('studio/runtime graph node count matches', () => { expect(runtimePkg.package.graph.nodes.length).toBe(studioGraph.nodes.length) })
     it('studio/runtime graph edge count matches', () => { expect(runtimePkg.package.graph.edges.length).toBe(studioGraph.edges.length) })
   })

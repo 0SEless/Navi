@@ -148,7 +148,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
 
   return (
     <section
-      className="absolute inset-x-0 bottom-0 z-30 min-w-0 overflow-y-auto rounded-t-2xl border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-8px_24px_rgba(0,0,0,0.15)] md:inset-y-4 md:bottom-auto md:left-auto md:right-4 md:w-[min(26rem,calc(100%-2rem))] md:rounded-2xl md:border"
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-30 min-w-0 overflow-y-auto rounded-t-2xl border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-8px_24px_rgba(0,0,0,0.15)] md:inset-y-4 md:bottom-auto md:left-auto md:right-4 md:w-[min(26rem,calc(100%-2rem))] md:rounded-2xl md:border"
       style={{ maxHeight: panelMaxHeight }}
       role="dialog"
       aria-label={`${building.name} details`}

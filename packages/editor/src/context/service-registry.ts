@@ -29,7 +29,7 @@ const STATUS_TRANSITIONS: Record<ServiceStatus, readonly ServiceStatus[]> = {
   uninitialized: ['initializing'],
   initializing: ['ready', 'error'],
   ready: ['busy', 'degraded', 'error', 'destroyed'],
-  busy: ['ready', 'error'],
+  busy: ['ready', 'error', 'destroyed'],
   degraded: ['ready', 'error', 'destroyed'],
   error: ['ready', 'destroyed'],
   destroyed: [],
@@ -225,6 +225,9 @@ export class ServiceRegistry {
     const entries = Array.from(this.store.entries()).reverse()
     const errors: Array<{ id: string; error: unknown }> = []
     for (const [id, svc] of entries) {
+      // Document/workflow/publish stores are registered values, not lifecycle
+      // services. Only owned services have resources to destroy.
+      if (typeof svc.destroy !== 'function') continue
       if (svc.status === 'destroyed' || svc.status === 'uninitialized') continue
       try {
         await svc.destroy()

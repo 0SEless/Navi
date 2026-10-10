@@ -1,0 +1,853 @@
+.workspace {
+  --tour-bg: var(--navi-card,#122127);
+  --tour-panel: var(--navi-card,#122127);
+  --tour-text: var(--navi-text,#eef6f4);
+  --tour-muted: var(--navi-text-secondary,#9aafad);
+  --tour-border: var(--navi-border,#2d4348);
+  --tour-field: var(--navi-content,#1d2e35);
+  --tour-green: #00875c;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--tour-bg);
+  color: var(--tour-text);
+  font: 13px/1.45 Arial,sans-serif
+}
+.workspace :is(button,a,select,input,textarea) {
+  font: inherit
+}
+.workspace button,.workspace a,.dialog button,.panelDialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--tour-border,var(--navi-border));
+  border-radius: 6px;
+  background: var(--tour-field,var(--navi-content));
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer
+}
+.workspace button:disabled,.dialog button:disabled {
+  opacity: .5;
+  cursor: not-allowed
+}
+.workspace :is(button,a,input,select):focus-visible,.dialog :is(button,input,textarea,select):focus-visible,.panelDialog button:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 3px
+}
+.workspace .primary,.dialog .primary {
+  background: #00875c;
+  color: white;
+  border-color: #10b981
+}
+.toolbar {
+  height: 58px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--tour-border);
+  padding: 0 14px
+}
+.toolbar .brand {
+  font-size: 24px;
+  font-weight: 750;
+  width: 210px;
+  justify-content: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  letter-spacing: 1px
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0
+}
+.breadcrumb h1 {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap
+}
+.breadcrumb select {
+  max-width: 240px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px
+}
+.breadcrumb option {
+  background: var(--tour-bg);
+  color: var(--tour-text)
+}
+.toolbarActions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto
+}
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0
+}
+.leftPanel {
+  width: 238px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--tour-border);
+  overflow-y: auto
+}
+.rightPanel {
+  width: 288px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--tour-border);
+  overflow-y: auto
+}
+.center {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+  gap: 8px
+}
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #091419
+}
+.viewer {
+  height: 100%;
+  width: 100%
+}
+.dock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 10px 8px 6px
+}
+.dock>div {
+  margin-right: 8px
+}
+.dock strong {
+  font-size: 14px
+}
+.dock p {
+  font-size: 11px;
+  color: var(--tour-muted);
+  margin: 4px 0 0
+}
+.dock .draftNote {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 10px;
+  margin: 0
+}
+.workspace .hotspotChoice {
+  text-align: left;
+  justify-content: flex-start;
+  min-height: 55px;
+  gap: 10px;
+  padding: 7px 13px
+}
+.hotspotChoice[aria-pressed=true] {
+  border-color: #10b981;
+  background: color-mix(in srgb,#00875c 20%,var(--tour-bg))
+}
+.hotspotChoice small,.hotspotRow small {
+  display: block;
+  font-size: 11px;
+  color: var(--tour-muted)
+}
+.markerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #00875c;
+  border: 1px solid #c7fff1;
+  color: white;
+  font-size: 23px
+}
+.markerIcon[data-type=information] {
+  background: #1677ef
+}
+.explorer {
+  padding: 14px 12px
+}
+.panelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px
+}
+.panelHeading h2 {
+  font-size: 14px;
+  font-weight: 650
+}
+.panelHeading button {
+  font-size: 11px;
+  min-height: 32px;
+  padding: 5px 8px
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--tour-border);
+  background: var(--tour-field);
+  border-radius: 5px;
+  padding: 7px 9px
+}
+.search input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  outline: none
+}
+.count {
+  font-size: 11px;
+  color: var(--tour-muted);
+  margin: 9px 0 14px
+}
+.sceneGroups details {
+  margin-bottom: 14px
+}
+.sceneGroups summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 35px
+}
+.sceneGroups summary::after {
+  content: '⌄';
+  margin-left: auto;
+  color: var(--tour-muted)
+}
+.sceneGroups details:not([open]) summary::after {
+  content: '›'
+}
+.floor {
+  margin: 0 0 8px 12px
+}
+.floor h3 {
+  font-size: 12px;
+  font-weight: 500;
+  margin: 6px 0 8px 9px;
+  color: var(--tour-muted)
+}
+:is(.workspace,.panelDialog) .scene {
+  display: flex;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  min-height: 44px;
+  border-radius: 5px;
+  padding: 5px 8px;
+  background: transparent;
+  margin: 2px 0;
+  gap: 9px
+}
+.scene>span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+:is(.workspace,.panelDialog) .scene[aria-pressed=true] {
+  background: color-mix(in srgb,#00875c 25%,var(--tour-bg));
+  color: var(--tour-text);
+  box-shadow: inset 2px 0 #10b981
+}
+.sceneSymbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 28px;
+  background: var(--tour-field);
+  border: 1px solid var(--tour-border);
+  border-radius: 3px;
+  color: var(--tour-muted)
+}
+.healthDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 100%;
+  background: #00ba80
+}
+.healthDot[data-health=missing-image],.healthDot[data-health=needs-attention] {
+  background: #e6a42c
+}
+.panelNote {
+  font-size: 11px;
+  color: var(--tour-muted,var(--navi-text-secondary));
+  line-height: 1.6;
+  margin-top: 20px
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--tour-border);
+  padding: 0 10px
+}
+:is(.workspace,.panelDialog) .tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: 48px
+}
+.tabs button[aria-selected=true] {
+  box-shadow: inset 0 -2px #10b981;
+  color: #00aa74
+}
+.panelBody {
+  padding: 14px
+}
+.imageNotice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 8px;
+  background: var(--tour-field);
+  border: 1px solid var(--tour-border);
+  border-radius: 6px;
+  min-height: 145px;
+  font-size: 12px
+}
+.imageNotice span {
+  color: var(--tour-muted);
+  font-size: 11px
+}
+.fields {
+  margin-top: 18px;
+  display: grid;
+  gap: 13px
+}
+.fields dt {
+  font-size: 11px;
+  margin-bottom: 5px
+}
+.fields dd {
+  margin: 0;
+  background: var(--tour-field);
+  border: 1px solid var(--tour-border);
+  padding: 7px 10px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+  min-height: 33px
+}
+.sceneStatus {
+  border-top: 1px solid var(--tour-border);
+  margin-top: 20px;
+  padding-top: 18px
+}
+.sceneStatus h3 {
+  margin: 0 0 12px;
+  font-size: 12px
+}
+.sceneStatus strong {
+  text-transform: capitalize;
+  color: #00a16d
+}
+.sceneStatus strong[data-health=missing-image],.sceneStatus strong[data-health=needs-attention] {
+  color: #d89930
+}
+.sceneStatus p {
+  font-size: 11px;
+  color: var(--tour-muted);
+  margin: 6px 0
+}
+:is(.workspace,.panelDialog) .hotspotRow {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 10px;
+  padding: 13px 4px;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--tour-border);
+  background: none
+}
+.hotspotRow strong {
+  font-size: 12px
+}
+.hotspotRow[aria-pressed=true] {
+  background: var(--tour-field)
+}
+.hotspotDetail {
+  padding-top: 18px;
+  font-size: 12px
+}
+.hotspotDetail h3 {
+  font-size: 14px
+}
+.empty,.emptyInspector {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 15px;
+  padding: 28px
+}
+.empty h2 {
+  font-size: 18px;
+  font-weight: 500;
+  color: #e5f1ef
+}
+.empty p {
+  color: #aebfbd
+}
+.emptyInspector {
+  height: 250px;
+  color: var(--tour-muted)
+}
+.previewBadge {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: #071719c9;
+  color: white;
+  border-radius: 6px;
+  padding: 9px 14px;
+  pointer-events: none
+}
+.workspace[data-preview=true] .center {
+  padding: 0
+}
+.workspace[data-preview=true] :global([data-tour-title]) {
+  display: none
+}
+.viewer :global([data-tour-controls]) {
+  bottom: 18px;
+  left: 16px;
+  right: 16px;
+  gap: 8px
+}
+.viewer :global([data-tour-controls]>div) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #0d1d24d9;
+  padding: 6px;
+  border: 1px solid #ffffff20;
+  border-radius: 10px;
+  color: white
+}
+.viewer :global([data-tour-controls] button) {
+  background: #203038;
+  color: white;
+  border-color: #ffffff20;
+  width: 34px;
+  min-height: 34px;
+  padding: 6px
+}
+.viewer :global([data-tour-controls] svg) {
+  width: 18px;
+  height: 18px
+}
+.viewer :global([data-tour-loading]),.viewer :global([data-tour-error]) {
+  background: #13252b;
+  color: #e9f2ef
+}
+.viewer :global([data-tour-loading] p),.viewer :global([data-tour-error] p) {
+  color: inherit
+}
+.viewer :global([data-tour-title]) {
+  top: 14px;
+  left: 14px
+}
+.viewer :global([data-tour-title]>div) {
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: #12252ac9;
+  color: white
+}
+.viewer :global(.navi-tour-hotspot) {
+  background: #008c62;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid white;
+  color: white;
+  font-size: 27px;
+  font-weight: 650;
+  box-shadow: 0 0 0 5px #008c6235;
+  cursor: pointer
+}
+.viewer :global(.navi-tour-hotspot-information) {
+  background: #177cff;
+  box-shadow: 0 0 0 5px #177cff35;
+  font-family: Georgia,serif
+}
+.viewer :global(.navi-tour-hotspot-label) {
+  position: absolute;
+  top: 43px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0b191edf;
+  border-radius: 8px;
+  color: white;
+  font: 12px Arial,sans-serif;
+  padding: 6px 12px;
+  white-space: nowrap;
+  opacity: .95
+}
+.viewer :global(.navi-tour-hotspot:focus-visible),.viewer :global(.navi-tour-hotspot[data-selected=true]) {
+  outline: 3px solid #ffda70;
+  outline-offset: 5px
+}
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: #0009;
+  z-index: 1000
+}
+.dialog,.panelDialog {
+  --tour-muted: var(--navi-text-secondary);
+  position: fixed;
+  z-index: 1001;
+  background: var(--navi-card,#122127);
+  color: var(--navi-text,#fff);
+  border: 1px solid var(--navi-border);
+  box-shadow: 0 24px 80px #0006;
+  border-radius: 10px;
+  font: 13px/1.5 Arial,sans-serif;
+  overflow: auto
+}
+.dialog {
+  width: min(440px,calc(100vw - 28px));
+  max-height: calc(100dvh - 32px);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  padding: 22px
+}
+.dialog .panelHeading {
+  font-size: 15px;
+  font-weight: 600
+}
+.steps {
+  display: flex;
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+  margin: 20px 0
+}
+.steps li {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--navi-text-secondary);
+  font-size: 11px
+}
+.steps span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: var(--navi-content)
+}
+.steps [aria-current=step] {
+  color: var(--navi-text)
+}
+.steps [aria-current=step] span {
+  background: #00875c;
+  color: white
+}
+.dialogField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0;
+  font-size: 12px
+}
+.dialogField :is(input,textarea,select) {
+  border: 1px solid var(--navi-border);
+  border-radius: 5px;
+  background: var(--navi-content);
+  padding: 9px;
+  color: var(--navi-text);
+  width: 100%;
+  font: inherit
+}
+.dialogActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--navi-border);
+  padding-top: 18px;
+  margin-top: 20px
+}
+.stylePreview {
+  padding: 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+.confirm p {
+  overflow-wrap: anywhere
+}
+.panelDialog {
+  top: 12px;
+  bottom: 12px;
+  right: 12px;
+  width: min(360px,calc(100vw - 24px));
+  padding: 12px;
+  display: flex;
+  flex-direction: column
+}
+.panelDialog .explorer,.panelDialog .inspector {
+  overflow: auto
+}
+.mobileTools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0
+}
+.mobileTools span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip: rect(0,0,0,0);
+  overflow: hidden
+}
+:global(.navi-admin-shell[data-screen="panoramas"] .navi-admin-header),:global(.navi-admin-shell[data-screen="panoramas"] .navi-admin-sidebar) {
+  display: none!important
+}
+:global(.navi-admin-shell[data-screen="panoramas"] > div > main) {
+  padding: 0!important;
+  overflow: hidden!important
+}
+@media(max-width:1100px) {
+  .toolbar .brand {
+    width: auto;
+    font-size: 20px
+  }
+  .toolbar {
+    gap: 12px
+  }
+  .dock {
+    justify-content: flex-start
+  }
+  .dock>div {
+    flex-basis: 100%;
+    margin: 0
+  }
+  .dock strong {
+    font-size: 12px
+  }
+  .hotspotChoice {
+    flex: 1
+  }
+  .toolbarActions {
+    gap: 7px
+  }
+  .workspace button {
+    min-height: 40px
+  }
+  .center {
+    padding: 8px
+  }
+  .panelDialog button {
+    min-height: 44px
+  }
+}
+@media(max-width:600px) {
+  .toolbar {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px
+  }
+  .toolbar .brand {
+    font-size: 18px
+  }
+  .breadcrumb {
+    gap: 5px;
+    flex: 1
+  }
+  .breadcrumb h1 {
+    font-size: 12px
+  }
+  .breadcrumb select {
+    max-width: 150px;
+    font-size: 12px;
+    padding: 4px
+  }
+  .toolbarActions {
+    flex-basis: 100%;
+    justify-content: flex-end
+  }
+  .toolbarActions a {
+    margin-right: auto
+  }
+  .workspace .toolbarActions :is(a,button) {
+    min-height: 38px;
+    padding: 6px 8px;
+    font-size: 11px
+  }
+  .mobileTools button {
+    padding: 5px 8px;
+    font-size: 11px
+  }
+  .mobileTools span {
+    font-size: 12px
+  }
+  .dock {
+    padding: 6px 2px;
+    gap: 6px
+  }
+  .dock>div p {
+    margin: 2px 0
+  }
+  .workspace .hotspotChoice {
+    padding: 7px;
+    gap: 6px;
+    min-height: 55px
+  }
+  .hotspotChoice strong {
+    font-size: 11px
+  }
+  .hotspotChoice small {
+    font-size: 10px
+  }
+  .markerIcon {
+    width: 27px;
+    height: 27px
+  }
+  .dock .draftNote {
+    font-size: 10px
+  }
+  .viewer :global([data-tour-controls]) {
+    left: 7px;
+    right: 7px;
+    bottom: 12px
+  }
+  .viewer :global([data-tour-controls]>div) {
+    padding: 4px;
+    gap: 4px
+  }
+  .viewer :global([data-tour-controls] button) {
+    width: 29px;
+    min-height: 32px;
+    padding: 4px
+  }
+  .viewer :global([data-tour-controls] span) {
+    font-size: 11px;
+    padding: 2px
+  }
+  .viewer :global(.navi-tour-hotspot) {
+    width: 34px;
+    height: 34px;
+    font-size: 24px
+  }
+  .viewer :global(.navi-tour-hotspot-label) {
+    font-size: 11px
+  }
+}
+.panelDialog {
+  --tour-bg: var(--navi-card,#122127);
+  --tour-panel: var(--navi-card,#122127);
+  --tour-text: var(--navi-text,#eef6f4);
+  --tour-muted: var(--navi-text-secondary,#9aafad);
+  --tour-border: var(--navi-border,#2d4348);
+  --tour-field: var(--navi-content,#1d2e35);
+  --tour-green: #00875c;
+  background: var(--tour-bg);
+  color: var(--tour-text)
+}
+:global(html.dark) :is(.workspace,.panelDialog) {
+  --tour-bg: #102127;
+  --tour-field: #1b2d35;
+  --tour-border: #2d434c;
+  --tour-text: #e7f0ef;
+  --tour-muted: #a6b8bd
+}
+.floor summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tour-muted);
+  min-height: 30px
+}
+.floor details {
+  margin-bottom: 5px
+}
+/* Keep controls clear of the native compass and provide real touch targets. */
+.viewer :global([data-tour-controls]) {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
+  gap: 10px
+}
+@media(max-width:1100px) {
+  .workspace button {
+    min-height: 44px;
+    min-width: 44px
+  }
+  .viewer :global([data-tour-controls] button) {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px
+  }
+  .viewer :global(.navi-tour-hotspot) {
+    width: 44px;
+    height: 44px
+  }
+  .workspace .toolbarActions :is(a,button) {
+    min-height: 44px
+  }
+  .workspace .panelHeading button {
+    min-height: 44px
+  }
+}
+@media(max-width:600px) {
+  .viewer :global(.pnlm-compass) {
+    display: none!important
+  }
+  .workspace .mobileTools button {
+    min-height: 44px
+  }
+  .workspace .toolbarActions :is(a,button) {
+    min-height: 44px
+  }
+}

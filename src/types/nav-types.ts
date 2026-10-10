@@ -1,4 +1,4 @@
-import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing } from '@navi/core'
+import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, PointOfInterestAppearance, PointOfInterestVisibility, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, RoadSurface, RoadType, SeparatedCrossing, WorldPOIGeometry, WorldPolyline } from '@navi/core'
 
 export interface LatLng {
   lat: number;
@@ -145,11 +145,37 @@ export interface SearchEntry {
   sourceId?: string;
 }
 
+/** Public-store POI shape shared by published artifacts and snapshot records. */
+export interface CampusPOI {
+  id: string;
+  label: string;
+  name?: string;
+  category: string;
+  position: LatLng;
+  buildingId?: string;
+  floor?: number;
+  nodeId?: string;
+  properties: Record<string, unknown>;
+  source?: 'authored' | 'graph-derived';
+  sourceId?: string;
+  floorId?: string;
+  geometry?: WorldPOIGeometry;
+  appearance?: PointOfInterestAppearance;
+  scope?: 'outdoor';
+  visibility?: PointOfInterestVisibility;
+  approach?: { mode: 'preferred'; position: LatLng };
+  metadata?: Record<string, unknown>;
+  navigation?: Record<string, unknown>;
+  showOnMap?: boolean;
+}
+
 export interface CampusBundle {
   /** Explicit human-readable display name from the active public contract. */
   campusName?: string;
   nodes: NavNode[];
   edges: NavEdge[];
+  /** Authored public roads; omitted for legacy bundles. */
+  traces?: TracePath[];
   searchEntries: SearchEntry[];
   buildings: Building[];
   /** Indoor components (rooms, hallways, staircases, elevators, entrances).
@@ -273,6 +299,12 @@ export interface TracePath {
   floor: number;
   points: LatLng[];
   type: 'arterial' | 'connector';
+  /** Canonical Road type retained alongside the public renderer's display class. */
+  roadType?: RoadType;
+  surface?: RoadSurface;
+  connectorEntranceId?: string;
+  /** Original canonical geometry container; points is the normalized runtime view. */
+  polyline?: WorldPolyline;
   /** Optional for legacy snapshots; missing is equivalent to `visible`. */
   displayMode?: RoadDisplayMode;
   color?: string;

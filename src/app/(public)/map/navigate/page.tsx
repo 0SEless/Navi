@@ -609,7 +609,7 @@ function NavigatePageContent() {
 
   const pickerSurface = picker ? (
     <div
-      className="absolute inset-x-0 top-0 z-30 border-b border-[var(--navi-border)] bg-[var(--navi-card)] p-4 shadow-xl"
+      className="pointer-events-auto absolute inset-x-0 top-0 z-30 border-b border-[var(--navi-border)] bg-[var(--navi-card)] p-4 shadow-xl"
       style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto w-full max-w-2xl">

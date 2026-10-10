@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import 'pannellum/build/pannellum.css'
 import type { TourPanorama, TourHotspot, TourViewerState } from './types'
 import { InformationCard } from './InformationCard'
+import { resolvePanoramaImageUrl } from '@/lib/panorama-image-resolver'
 
 type PannellumViewer = {
   destroy: () => void
@@ -40,6 +41,7 @@ export function TourViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PannellumViewer | null>(null)
   const scriptLoadedRef = useRef(false)
+  const renderRequestRef = useRef(0)
 
   const [state, setState] = useState<TourViewerState>({
     currentPanoramaIndex: initialIndex,
@@ -64,19 +66,23 @@ export function TourViewer({
   }, [initialIndex, panoramas.length])
 
   // Initialize Pannellum viewer
-  const initViewer = useCallback(() => {
+  const initViewer = useCallback(async () => {
+    const renderRequest = ++renderRequestRef.current
     if (!containerRef.current || !currentPanorama) return
 
-    // Destroy existing viewer
+    setState(prev => ({ ...prev, isLoading: true, error: null }))
     if (viewerRef.current) {
       viewerRef.current.destroy()
       viewerRef.current = null
     }
 
     try {
+      const imageUrl = await resolvePanoramaImageUrl(currentPanorama.imageUrl)
+      if (renderRequest !== renderRequestRef.current || !containerRef.current || !window.pannellum) return
+
       viewerRef.current = window.pannellum!.viewer(containerRef.current, {
         type: 'equirectangular',
-        panorama: currentPanorama.imageUrl,
+        panorama: imageUrl,
         autoLoad: true,
         compass: true,
         hotSpots: currentPanorama.hotspots.map(hotspot => ({
@@ -104,6 +110,7 @@ export function TourViewer({
 
       setState(prev => ({ ...prev, isLoading: false, error: null }))
     } catch (err) {
+      if (renderRequest !== renderRequestRef.current) return
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -116,11 +123,14 @@ export function TourViewer({
   useEffect(() => {
     if (window.pannellum) {
       scriptLoadedRef.current = true
-      initViewer()
+      void initViewer()
     } else if (!scriptLoadedRef.current) {
       const script = document.createElement('script')
       script.src = '/pannellum.js'
-      script.onload = initViewer
+      script.onload = () => {
+        scriptLoadedRef.current = true
+        void initViewer()
+      }
       script.onerror = () => {
         setState(prev => ({
           ...prev,
@@ -132,19 +142,13 @@ export function TourViewer({
     }
 
     return () => {
+      renderRequestRef.current += 1
       if (viewerRef.current) {
         viewerRef.current.destroy()
         viewerRef.current = null
       }
     }
   }, [initViewer])
-
-  // Reinitialize when panorama changes
-  useEffect(() => {
-    if (scriptLoadedRef.current) {
-      initViewer()
-    }
-  }, [state.currentPanoramaIndex, initViewer])
 
   // Handle panorama navigation
   const navigateToPanorama = useCallback((index: number) => {

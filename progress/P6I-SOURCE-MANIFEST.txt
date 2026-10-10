@@ -1,0 +1,71 @@
+P6I pre-edit source manifest
+Captured: 2026-10-10 10:01:05 +08:00
+
+WORKTREE=C:\Users\Administrator\Desktop\CODEme\Navi\navi-next
+BRANCH=fix/floor-editor-persistence-2026-09-27 HEAD=bead5101fc853959f99f7aabcdba72423f48f839
+STATUS_COUNT=720 STATUS_SHA256=49C033AEAF208DF526D1C97C32FA7FA0D14A9B6522B42CEB1CF0FB3BCD4A24F0
+Read-only source worktree; no edits authorized.
+src/components/pages/DatasetManagement.tsx SHA256=725538c4383a2d94de877ca983179145be720d4b70481010e799d370df74b45a
+src/components/pages/DatasetWorkspace.tsx SHA256=9c2a99c9edd3c008abd227f8d676f14fa7443a83b749b92838560650cb5e839d
+src/components/pages/dataset/DatasetExplorer.tsx SHA256=87478f31756d5a9cb6d7344f84854595d18043b9fbdd86a73644e005a39f39c2
+src/components/pages/dataset/DatasetInformationView.tsx SHA256=a712e6dd5e858d2a25a2c6df55de5467a5a9b4c580b56672f3bdb18e0f8f8b14
+src/components/pages/dataset/DatasetImagesView.tsx SHA256=a93ac199bdfb92b7ce90bf73888286e5f218c694e2377507c09c05789c8a1722
+src/components/pages/dataset/DatasetStructuredView.tsx SHA256=6fc38f1f06d06b815c4c2e44b474847028fc80415c9ebd410e1f9c9bc48cedf3
+src/components/pages/dataset/Dataset360View.tsx SHA256=718dd483159bb008c26a6ea301841f19f442dc6910419c9011f189eca8158418
+src/components/pages/dataset/dataset-selectors.ts SHA256=a2f4136d259c4c4ebffccc73421c35812463db326cc6835ee50bce304be70d08
+src/components/pages/dataset/resolve-effective-document.ts SHA256=feb9dd4c63dfbb255e5832887f77bc68d68b5a9493ee8fbf01c42bf569c3a963
+src/components/pages/dataset/types.ts SHA256=eac74dabf8b15a71fdcd500cd5659a03ae8b7407220cd576fb4d61eb152bdfe3
+src/app/(admin)/dataset/[id]/page.tsx SHA256=16c30e23586c7a6ddb9b397d02c57266da678756d4955dd0e67d78cdb3a1d2ce
+src/app/(admin)/layout.tsx SHA256=681ae3d67b07ce94c57401271a34daebd50a5b00a75e124ec8b8cad877909cb0
+src/app/(admin)/panoramas/page.tsx SHA256=fc2cf49d3ba5e36031e17169fcc5324a6d37997236064d66f92126c648002a80
+src/features/panorama-management/selectors.ts SHA256=d46902d7e151ba6c1713d9c004888335e6390375ba5e187044a0ab4de54fabdb
+src/features/panorama-management/state.ts SHA256=8b0e2bf75a859458fc674d22e4c472cffde9b29fdb6e70d81ae03cf3dc7f426f
+src/features/panorama-management/tour-selectors.ts SHA256=ff9cb8d25d16d83713a14b6167160f7b3311cf935199166bce5501b7492698b5
+src/features/panorama-management/components/VirtualTourWorkspace.tsx SHA256=9a5f18b8dcf039cc8d455f3e9b2227a0f834d85844a6b37cf43602d320f45ece
+src/features/panorama-management/components/SceneExplorer.tsx SHA256=22994da971f77d7620eb1c76a4df17a738cb914e77d7581326e2985aed1aaf57
+src/features/panorama-management/components/SceneInspector.tsx SHA256=dad5f5eee2b32cc972d53a977d6940d70c5342400095e3c3f9335104bc996d2a
+src/features/panorama-management/components/HotspotDialog.tsx SHA256=bfc5d9cc39d2bca139b34a085c2c1737a79427060c2e0711695f0c74556555be
+src/features/panorama-management/components/VirtualTourWorkspace.module.css SHA256=b55588a949e86cd33de6a955b8081701c9691d047d9d8d815dbafeadddd96c1e
+src/lib/building-cover-auth.ts SHA256=de4dd0d04ccf68616a9bcc76b5624f7e7fa48905230df56f36dca5b229de0f2c
+src/lib/building-cover-r2.ts SHA256=55c0b8fa6916a7500911db0560a4d0b626769b2253d6af7c2157f0501c94b3cb
+src/lib/building-cover-repository.ts SHA256=7f4f89f38f072fe534ea5d6a3d89b345cffe755ba425aedff1b69310dad6e58b
+src/lib/building-cover-upload-token.ts SHA256=11662fcf700c2fdfa2d958eb19fa40b51e98f0aba071a5fe4a7e76b0653d2dc3
+src/services/building-cover-upload.ts SHA256=66235f12a04a66278a6a66eab336bb103d81f78fd4609f640b02191e7c36733d
+src/app/api/building-cover-upload/route.ts SHA256=8a17228a219e8d355a84d66bf9a1d3a88d9a6daeb29b9b9404dc9951e13b6bdc
+src/app/api/building-cover/route.ts SHA256=3153094c0df7c757e77c09dd5f86738f2c3890e9e25204d444eef5c290b5156d
+
+WORKTREE=C:\Users\Administrator\Desktop\CODEme\Navi\.navi-worktrees\navi-floor-editor-accessor-20261008
+BRANCH=codex/navi-floor-editor-accessor-20261008 HEAD=6d03b14399b26deb8670763450b4ba259b6f5ae5
+STATUS_COUNT=18 STATUS_SHA256=AC279D3BCCCCE281A3C99AE597CE248C6B27F10EDA9B9838A99C687FC6E8A670
+src/components/pages/DatasetManagement.tsx SHA256=b781b0b07560b6b5732b308b91aaa87226d6a447de8596ff4794791f91a0e1b1
+src/components/pages/DatasetWorkspace.tsx ABSENT
+src/components/pages/dataset/DatasetExplorer.tsx ABSENT
+src/components/pages/dataset/DatasetInformationView.tsx ABSENT
+src/components/pages/dataset/DatasetImagesView.tsx ABSENT
+src/components/pages/dataset/DatasetStructuredView.tsx ABSENT
+src/components/pages/dataset/Dataset360View.tsx ABSENT
+src/components/pages/dataset/dataset-selectors.ts ABSENT
+src/components/pages/dataset/resolve-effective-document.ts ABSENT
+src/components/pages/dataset/types.ts ABSENT
+src/app/(admin)/dataset/[id]/page.tsx ABSENT
+src/app/(admin)/layout.tsx SHA256=6f4f9293b2b05007dc03907073492408ca448a2d3ef5d80f5d1aeab32274eb53
+src/app/(admin)/panoramas/page.tsx SHA256=36f5ad521c7b5147d06318336cb1da7a4c64a0ecb0cd173a4d2bd6bb32c6022c
+src/features/panorama-management/selectors.ts ABSENT
+src/features/panorama-management/state.ts ABSENT
+src/features/panorama-management/tour-selectors.ts ABSENT
+src/features/panorama-management/components/VirtualTourWorkspace.tsx ABSENT
+src/features/panorama-management/components/SceneExplorer.tsx ABSENT
+src/features/panorama-management/components/SceneInspector.tsx ABSENT
+src/features/panorama-management/components/HotspotDialog.tsx ABSENT
+src/features/panorama-management/components/VirtualTourWorkspace.module.css ABSENT
+src/lib/building-cover-auth.ts ABSENT
+src/lib/building-cover-r2.ts ABSENT
+src/lib/building-cover-repository.ts ABSENT
+src/lib/building-cover-upload-token.ts ABSENT
+src/services/building-cover-upload.ts ABSENT
+src/app/api/building-cover-upload/route.ts ABSENT
+src/app/api/building-cover/route.ts ABSENT
+
+src/components/studio/studio-display-stats.ts SHA256=0538b9ca2ff3208d9d79a805090f2d9bc9d3c94e59f46633cbcb1141ccd00b8c
+Excluded source data fixture: src/components/pages/__tests__/fixtures/legacy-campus-graph.json (202 KB; not copied)
+Candidate synthetic test helper baseline was absent before P6I edits.

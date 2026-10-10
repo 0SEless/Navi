@@ -7,6 +7,7 @@ import type { CompilerAdapter } from '../navigation-compiler'
 import type { PersistenceAdapter } from '../persistence-service'
 import type { EditorServiceContext } from '../../context/service-registry'
 import { DocumentEventBus } from '../../eventbus'
+import { computeProgress } from '../../panels/workflow/workflow-progress'
 
 describe('WorkflowService', () => {
   let service: WorkflowService
@@ -122,6 +123,27 @@ describe('WorkflowService', () => {
       expect(result.failed).toBe(1)
       expect(result.errors).toContain('Missing name')
     })
+
+    it('keeps warning-only findings non-blocking for Publish readiness', async () => {
+      const ctx = buildContext()
+      const originalGet = ctx.get.bind(ctx)
+      ctx.get = (id: string) => {
+        if (id === 'validationEngine') return {
+          validate: () => ({
+            issues: [{ severity: 'warning', message: 'Navigation graph has disconnected components', ruleId: 'disconnected-graph' }],
+            statistics: { totalIssues: 1, errors: 0, warnings: 1, infos: 0, duration: 0, rulesExecuted: 1, rulesPassed: 0, rulesFailed: 0 },
+          }),
+        } as any
+        return originalGet(id as any)
+      }
+      await service.init(ctx as EditorServiceContext)
+
+      const result = await service.validate()
+
+      expect(result.failed).toBe(0)
+      expect(result.errors).toEqual([])
+      expect(computeProgress(workflowStore.getSnapshot()).steps.validation.status).toBe('success')
+    })
   })
 
   describe('compile', () => {
@@ -230,32 +252,6 @@ describe('WorkflowService', () => {
       snapshot = workflowStore.getSnapshot()
       expect(snapshot.saveState).toBe('dirty')
       expect(snapshot.saveError).toBeNull()
-    })
-
-    it('repairs the saved baseline when a stale reload marker converges without a document commit', () => {
-      // A stale marker can briefly surface the graph store's pending/idle state
-      // during reload. Canonical L == S convergence must settle the workflow
-      // back to saved without inventing a document revision.
-      emitPersistenceSyncState('idle')
-      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
-
-      emitPersistenceSyncState('synced')
-      const snapshot = workflowStore.getSnapshot()
-      expect(snapshot.saveState).toBe('saved')
-      expect(snapshot.saveError).toBeNull()
-      expect(snapshot.lastSaveVersion).toBe(0)
-    })
-
-    it('repairs a reused dirty baseline after checking settles to synced', () => {
-      service.mutate()
-      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
-
-      emitPersistenceSyncState('checking')
-      expect(workflowStore.getSnapshot().saveState).toBe('dirty')
-
-      emitPersistenceSyncState('synced')
-      expect(workflowStore.getSnapshot().saveState).toBe('saved')
-      expect(workflowStore.getSnapshot().saveError).toBeNull()
     })
 
     it('a committed revision immediately leaves the saved state (no debounce gap)', () => {

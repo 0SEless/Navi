@@ -1,467 +1,232 @@
-# PLAN: Fix 3 Campus Interaction Regressions
-
-## Spec Reference
-
-Restore three broken behaviors in the Campus Workspace editor that
-were working before the CurrentToolStore migration.
-
----
-
-## Root Cause Analysis
-
-All three bugs stem from a **two-state problem** introduced during the
-CurrentToolStore migration:
-
-| State source | Used by |
-|---|---|
-| `useDrawingSession()` (React `useState`) | `DrawingOverlay`, `ConfirmBar`, `ConfirmOverlayAdapter` |
-| `useStudioStore` (zustand) | `InteractionController`, `BuildingTracer`, `CampusBoundary` |
-
-`InteractionController.handleClick` writes trace points to **zustand**
-(via `useStudioStore.getState().addTracePoint`). But `DrawingOverlay`
-reads from **React context** (`useDrawingSessionContext`). The two are
-never connected → route polyline is invisible.
-
-Building and Boundary tools work because each has its **own** click
-handler in `BuildingTracer`/`CampusBoundary` that directly renders
-GeoJSON to the map, bypassing the broken overlay.
-
----
-
-## T1 — Unify drawing state: InteractionController → useDrawingSession
-
-**Problem**: `handleClick` writes to zustand. Overlay reads from React.
-
-**Fix**: Replace `useStudioStore.getState().addTracePoint(pos)` in
-`InteractionController.tsx` with the `drawing` prop's `addTracePoint`.
-Similarly for all other trace/draw mutations.
-
-**Files to modify**:
-- `src/components/studio/InteractionController.tsx`
-- `src/components/studio/StudioCanvas.tsx`
-
-**Changes**:
-1. Add `drawing: DrawingSessionValue` prop to `InteractionControllerProps`
-2. Destructure `{ addTracePoint, setTracePoints, setDrawPoints, clearTracePoints, clearDrawPoints, setAdjustBuilding, setVertexEditing }` from `drawing` prop
-3. Replace all `useStudioStore.getState().*` calls with the corresponding
-   drawing session methods
-4. In `StudioCanvas.tsx`, pass `drawing={drawing}` to `<InteractionController>`
-
-**Acceptance**: Route polyline renders immediately after each click.
-
----
-
-## T2 — Restore polygon auto-close for Building + Boundary
-
-**Problem**: `BuildingTracer` and `CampusBoundary` only complete on
-double-click. Clicking near the first vertex does nothing.
-
-**Fix**: Add snap-to-first-vertex detection in each tracer's `handleClick`.
-
-**Files to modify**:
-- `src/components/studio/BuildingTracer.tsx`
-- `src/components/studio/CampusBoundary.tsx`
-
-**Changes**:
-1. In each `handleClick`, before appending a new point, check if the
-   click is within 10px screen distance of the **first** vertex AND
-   `points.length >= 2`
-2. If so, treat as "close polygon" — same logic as `handleDblClick`
-3. Reuse `findNearestVertex` pattern (screen-distance check, not
-   geographic) matching `InteractionController`
-
-**Acceptance**:
-- Building: 4 clicks → A→B→C→click-near-A → completes polygon
-- Boundary: same behavior
-- Double-click still works as before
-
----
-
-## T3 — Restore keyboard shortcuts
-
-### T3a — Wire up `useToolDockShortcuts`
-
-**Problem**: `useToolDockShortcuts` is never called. Tool letter
-shortcuts (B=Building, O=Route, Y=Boundary) don't work.
-
-**Fix**: Call `useToolDockShortcuts` in `StudioCanvas.tsx`.
-
-**File**: `src/components/studio/StudioCanvas.tsx`
-
-**Change**: Add `useToolDockShortcuts(CAMPUS_TOOL_GROUPS, activeToolId, (id) => toolRegistry?.activate(id))` call.
-
-### T3b — Add Ctrl+Z / Ctrl+Y undo/redo shortcuts
-
-**Problem**: No keyboard handler for undo/redo.
-
-**Fix**: Add `e.ctrlKey && e.key === 'z'` → `history.undo()` and
-`e.ctrlKey && e.key === 'y'` → `history.redo()` to
-`InteractionController.handleKeyDown`.
-
-**File**: `src/components/studio/InteractionController.tsx`
-
-**Change**: Add before the `Escape` block:
-```ts
-if ((e.ctrlKey || e.metaKey) && e.key === 'z') { history?.undo(); return }
-if ((e.ctrlKey || e.metaKey) && e.key === 'y') { history?.redo(); return }
-```
-
-### T3c — Add Enter to confirm drawing
-
-**Problem**: No `Enter` handler to confirm a route/building/boundary.
-
-**Fix**: In `handleKeyDown`, check `e.key === 'Enter'` → call
-`drawing.requestConfirm()`.
-
-**File**: `src/components/studio/InteractionController.tsx`
-
-**Change**: Add:
-```ts
-if (e.key === 'Enter') {
-  drawing.requestConfirm()
-  return
-}
-```
-
-**Acceptance**:
-- B / O / Y activate Building / Route / Boundary tools
-- Ctrl+Z undoes last command, Ctrl+Y redoes
-- Enter triggers confirm overlay for current drawing
-- Escape still clears points
-- Delete still removes selected node
-
----
-
-## T4 — Clean up InteractionController dead branches
-
-**Problem**: The `handleClick` and `handleMouseDown` in
-`InteractionController` have branches for tools (`building`, `boundary`,
-`room`, `asset`) that are now handled by dedicated hooks
-(`BuildingTracer`, `CampusBoundary`, `useEntrancePlacer`, etc.). These
-dead branches might conflict or cause double-processing.
-
-**Files**: `src/components/studio/InteractionController.tsx`
-
-**Changes**:
-1. Remove `if (curTool === 'asset')` branch (handled by gizmo system)
-2. Remove `if (curTool === 'room')` from `handleMouseDown`/`handleMouseUp`
-   (handled by `useEntrancePlacer`)
-3. Keep `route` branch (the InteractionController IS the route handler)
-4. Simplify: only handle `route`, `select`, and `vertex` in click/mouse handlers
-
-**Acceptance**: No functional change — building/boundary continue to work
-via their dedicated hooks. `route` click handling works.
-
----
-
----
-
-## T5 — Improve Road Rendering
-
-**Goal**: Roads visible at every zoom. Easy to trace. Published package
-stays lightweight (centerline + width only — no polygons, no buffering).
-
-**Principle**: The Studio authors the **navigation network**, not pretty
-lines. Roads have two representations:
-
-```
-Road Entity
-  ├── Navigation Geometry  (polyline used for routing — lightweight)
-  └── Visual Style          (render-time — outline, width, color)
-```
-
-### T5a — Add `road.width` to entity model
-
-Add `width: number` (meters) to the `Road` entity type. Default `3.0`.
-The routing graph ignores it — it's purely a rendering concern. Clamp
-input to `1.0–10.0` meters to prevent nonsense values.
-
-**Files**:
-- `packages/core/src/types/entities.ts` — add `width?: number` to `Road`
-
-### T5b — Add `RoadStyle` shared config
-
-Define a shared style constants object used by both Studio and Runtime:
-
-```ts
-export const RoadStyle = {
-  fillColor: '#FFFFFF',
-  outlineColor: '#000000',
-  defaultWidthMeters: 3.0,
-  minScreenWidthPx: 4,
-  maxScreenWidthPx: 12,
-  outlineWidthPx: 2,
-  minWidthMeters: 1.0,
-  maxWidthMeters: 10.0,
-}
-```
-
-**File**: `packages/core/src/rendering/road-style.ts` (new)
-
-Both Studio and Runtime import this single source of truth.
-
-### T5c — Update Studio road rendering
-
-Current: roads rendered as a single `line` layer.
-
-Change to **two layers** (outline + fill):
-
-```
-Layer 1 (outline)  line-color: RoadStyle.outlineColor  line-width: base+2
-Layer 2 (fill)     line-color: RoadStyle.fillColor     line-width: base
-```
-
-**Width calculation** at any zoom:
-
-```ts
-const metersPerPixel = 156543 * cos(lat) / 2^zoom
-const screenWidth = road.width / metersPerPixel
-const clampedWidth = clamp(screenWidth, RoadStyle.minScreenWidthPx, RoadStyle.maxScreenWidthPx)
-```
-
-In Studio, roads are rendered by the entity renderer
-(`entity-renderer.ts`). Split the road layer into outline + fill,
-compute width from zoom + entity's `width` property.
-
-**Files**:
-- `packages/editor/src/rendering/entity-renderer.ts` — split road layer
-
-### T5d — Update Runtime road rendering
-
-The Runtime renders the same compiled graph format. Apply identical
-two-layer + width-clamp logic, importing `RoadStyle` from `@navi/core`.
-
-**File**: Find the Runtime's rendering code (app-level, likely in
-`src/app/map/runtime/` or `packages/runtime/`) — apply same pattern.
-
-### T5e — Update road creation commands to accept `width`
-
-The `road.create` handler in `@navi/editor` should accept and store
-`width` in payload, defaulting to `RoadStyle.defaultWidthMeters`.
-Clamp to `[RoadStyle.minWidthMeters, RoadStyle.maxWidthMeters]`.
-
-**File**: `packages/editor/src/commands/road-handlers.ts`
-
-### T5f — Pass width through confirm flow
-
-When confirming a route, pass `routeWidth` (the slider value) as
-`width` in the road creation payload.
-
-**Files**:
-- `src/components/studio/ConfirmOverlay.tsx` — set `payload.width`
-- `src/components/studio/ConfirmBar.tsx` — rename "Route Width" to
-  "Road Width" label
-
-### T5g — Automatic default widths per road type
-
-Let the slider be an **override**, not a requirement:
-
-| Road type | Default width |
-|-----------|--------------|
-| `road` (default) | `RoadStyle.defaultWidthMeters` (3.0m) |
-| `connector` | `2.0` |
-| `service` | `1.5` |
-
-**File**: `packages/editor/src/commands/road-handlers.ts` — select
-default based on payload `type` field.
-
-The ConfirmBar slider remains as "Road Width" override.
-
-### Acceptance
-
-- Roads have visible outline at every zoom
-- Published navigation data still contains only `{ id, points, width }`
-- No polygon generation or buffering anywhere
-- Routing graph unchanged
-- `RoadStyle` shared between Studio and Runtime
-- Width clamped to 1.0–10.0m
-- Default widths vary by road type (road=3.0, connector=2.0, service=1.5)
-
----
-
-## Order (Revised)
-
-```
-T1 ──► T2 ──► T3 ──► T5 ──► RC1 Manual Test ──► T4 Cleanup
-```
-
-Sequential, left to right. T4 (dead branch cleanup) is last — risk-free.
-
----
-
-# 2026-09-20 — Production Studio conflict recovery action
-
-## T1 — Trace the production-rendered banner and recovery path
-
-- **Description:** Prove the exact banner owner, Studio render path, action wiring, autosave conflict gate, and live production state.
-- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md` only.
-- **Error risk:** Stale deployment evidence or an alternate banner assumption.
-- **Preventing:** Use the exact warning text, release commit, authenticated live DOM, and store call chain as evidence.
-- **Acceptance check:** One root-cause hypothesis is supported end to end before implementation.
-
-## T2 — Add failing focused tests
-
-- **Description:** Cover the visible `Re-sync` action plus missed-ack and auth-specific recovery behavior.
-- **Files to touch:** `src/components/studio/__tests__/SaveStatus.test.tsx`, `src/components/studio/__tests__/StudioWorkspace.test.tsx`, `src/store/__tests__/refresh-recovery.test.ts`, `src/store/__tests__/saved-state-gate.test.ts`.
-- **Error risk:** Tests that assert mocks instead of user-visible/store outcomes.
-- **Preventing:** Render the real `SaveStatus`, exercise the real store, and mock only `/api/graph`.
-- **Acceptance check:** New assertions fail against commit `567ef2b` for the intended missing behavior.
-
-## T3 — Implement the minimal recovery correction
-
-- **Description:** Rename the exact banner action to `Re-sync`; auto-heal server-equals-local; preserve conflict on divergence/failure; propagate auth-specific errors.
-- **Files to touch:** `src/components/studio/SaveStatus.tsx`, `src/store/graph-store.ts`.
-- **Error risk:** Unsafe overwrite, duplicate POST, lost local graph, or bypassed queue/CAS.
-- **Preventing:** Reuse `fetchServerSnapshot`, `enqueueCampusSave`, fingerprint checks, marker writes, and the existing conflict gate.
-- **Acceptance check:** Focused tests A–G pass and Road Recovery source is untouched.
-
-## T4 — Verify, log, commit, push, deploy
-
-- **Description:** Run focused suites and production build; update graph/logs; commit only scoped files; push the release branch; verify READY deployment and live banner.
-- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, graph outputs required by `graphify update .`, plus T2/T3 files.
-- **Error risk:** Including unrelated files, claiming an unproven deployment, or mutating production map data during smoke.
-- **Preventing:** Use the isolated clean worktree, inspect the staged diff/tree, verify deployment commit, and keep live checks read-only unless the safe owner smoke is explicitly executable.
-- **Acceptance check:** Focused tests and build exit 0; commit/tree recorded; release push succeeds; deployment is READY; live `Re-sync` visibility is verified.
-
-## T5 — Keep recovery controls inside the responsive Studio header
-
-- **Description:** Reproduce the owner's screenshot dimensions, prove the recovery controls are painted below the fixed header, and let the header grow to contain the complete multi-row status block.
-- **Files to touch:** `src/components/studio/StudioWorkspace.tsx`, `src/components/studio/__tests__/StudioWorkspace.test.tsx`, `spec/SPEC.md`, `plan/PLAN.md`, `progress/PROGRESS.md`, `errors/ERRORS.md`.
-- **Error risk:** Moving or hiding Road Recovery, shrinking the map without need, or asserting only DOM presence while the actions remain visually covered.
-- **Preventing:** Add a failing growable-header regression, keep the 32px normal state as a minimum, then measure the deployed header/action/map bounding boxes at the reported viewport.
-- **Acceptance check:** The focused test fails against the fixed-height header, passes after the minimal style change, and production shows every recovery action within the header above the map pane.
-
-## 2026-09-21 — Production Studio harmonious autosave drag lifecycle
-
-### T6 — Add failing real-handler gesture lifecycle tests
-
-- **Description:** Extend the existing Studio `InteractionController` harness
-  to capture the real map handlers and prove building/vertex idle, moved,
-  commit, cancel, pointer-cancel, and teardown transitions of the existing
-  transient autosave signal. Keep Road/Area and autosave timing assertions in
-  the focused matrix.
-- **Files to touch:** `src/components/studio/__tests__/InteractionController.test.tsx`,
-  `src/components/studio/__tests__/useVertexEditor.test.tsx`, and
-  `packages/editor/src/services/__tests__/autosave-transient-gate.test.ts` only
-  if a timing assertion needs to be shared.
-- **Errors from ERRORS.md:** Vitest worker `spawn EPERM` can prevent collection;
-  nested-worktree build-root and env issues are verification setup hazards.
-- **Preventing:** Run the exact focused tests through the approved elevated
-  runner when sandbox collection fails, and assert the real registered
-  handlers rather than a synthetic gate helper.
-- **Acceptance check:** New lifecycle assertions fail before production wiring
-  while existing tests remain unchanged.
-
-### T7 — Wire the existing signal to real building/vertex gestures
-
-- **Description:** In `InteractionController`, activate the existing autosave
-  transient signal on the first non-zero move of an armed building or authored
-  vertex gesture; release it on commit, click/pointer cancellation, Escape,
-  tool-switch cleanup, error-safe cleanup, and unmount. Do not change timing or
-  sync architecture.
-- **Files to touch:** `src/components/studio/InteractionController.tsx`,
-  `src/components/studio/useVertexEditor.ts`.
-- **Errors from ERRORS.md:** Avoid broad source edits while handling the known
-  environment-only Vitest/build failures; preserve the existing map listener
-  cleanup contract.
-- **Preventing:** Keep a single release helper, use `try/finally`-style cleanup
-  at every end path, and treat no-move clicks as inactive.
-- **Acceptance check:** T6 passes, active drags suppress 5s/30s autosave, and
-  post-commit debounce behavior is unchanged.
-
-### T8 — Verify, log, commit, push, and deploy the focused patch
-
-- **Description:** Run the required focused matrix and production build,
-  update progress/errors and Graphify, commit only T6/T7 plus required logs,
-  fetch and push the current release branch normally, deploy the exact pushed
-  SHA to Vercel production, and verify READY/alias/HTTP 200/SHA.
-- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, Graphify
-  outputs required by `graphify update .`, and the T6/T7 files.
-- **Errors from ERRORS.md:** Use the documented elevated commands for Vitest,
-  Graphify, and the clean worktree build environment; do not misclassify these
-  setup failures as regressions.
-- **Preventing:** Inspect the staged diff and remote tip before push; never
-  force-push or mutate production data/configuration.
-- **Acceptance check:** Focused tests/build pass, pushed and deployed SHA match,
-  production responds 200, and the final report contains the requested matrix.
-
-## 2026-09-21 — Production Studio post-recovery reload convergence
-
-### T9 — Prove the first divergent write with a failing regression
-
-- **Description:** Reproduce recovery/server adoption followed by teardown or
-  reload and capture server, marker, cache, graph-store, and CampusDocument
-  fingerprints. Prove whether a stale document is projected back into the
-  graph/cache before the next freshness check.
-- **Files to touch:** `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`,
-  `src/store/__tests__/local-draft.test.ts` only if an existing harness is the
-  smallest fit.
-- **Errors from ERRORS.md:** Vitest `spawn EPERM` can prevent collection;
-  browser storage must remain test-local and no production data may be mutated.
-- **Preventing:** Assert the first write and all five fingerprints rather than
-  inferring the cause from the final red banner.
-- **Acceptance check:** The regression fails before the reconciliation boundary
-  is implemented and identifies the stale document → graph write.
-
-### T10 — Reconcile authoritative graph into the active document
-
-- **Description:** Add the smallest authoritative replacement operation that
-  updates the existing CampusDocument in place, preserves its identity, clears
-  stale editor history/selection as appropriate, notifies document consumers,
-  and does not emit an authored revision or persist a local draft.
-- **Files to touch:** `packages/editor/src/context/document-store.ts`,
-  `src/components/studio/EditorBridge.tsx`, and the focused regression test.
-- **Errors from ERRORS.md:** Avoid broad graph-adapter changes and do not
-  weaken the existing save/conflict gate or 5-second debounce.
-- **Preventing:** Use a named authoritative replacement path, keep
-  `revision.committed` reserved for user-authored commands, and reconcile on
-  graph identity replacement only.
-- **Acceptance check:** Recovery/adoption followed by unload leaves all five
-  fingerprints equal; hydration alone produces no dirty revision or POST.
-
-### T11 — Run the required convergence matrix and round-trip checks
-
-- **Description:** Cover force overwrite + reload, server adoption + reload,
-  normal autosave + reload, hydration-no-edit, interrupted debounce, missed
-  acknowledgement, true divergence, authored local draft, and graph/document
-  round-trip stability. Keep existing gesture/autosave suites in the focused
-  matrix for regression protection.
-- **Files to touch:** Focused convergence tests and required progress/error
-  logs only.
-- **Errors from ERRORS.md:** Classify environment-only Vitest/build failures
-  separately and rerun unchanged commands through the approved elevated path.
-- **Preventing:** Verify POST counts, marker revisions, and fingerprints at
-  each boundary; do not clear storage or auto-force conflicts.
-- **Acceptance check:** Every required scenario passes with no unrelated
-  source changes.
-
-### T12 — Verify, log, commit, push, and deploy the convergence fix
-
-- **Description:** Run focused tests, production build, Graphify update, and
-  diff checks; commit only the convergence implementation/tests/logs; fetch
-  and push normally; deploy the exact pushed SHA; verify READY, alias, HTTP
-  200, and deployment SHA.
-- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md`, Graphify
-  outputs required by `graphify update .`, and T9–T11 files.
-- **Errors from ERRORS.md:** Use the established elevated path for Graphify,
-  Vercel, and any sandbox-blocked test/build command.
-- **Preventing:** Inspect staged files and remote tip before push; never force
-  push or mutate production map data during verification.
-- **Acceptance check:** Exact commit is deployed and the final report uses the
-  requested convergence fields.
-
-### T13 — Guard hydration-only teardown projection
-
-- **Description:** Prevent visibility/beforeunload from projecting an authoritative hydration document back into the legacy graph unless the document has advanced through an authored commit.
-- **Files to touch:** `src/components/studio/EditorBridge.tsx`, `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`, and required progress/error logs.
-- **Errors from ERRORS.md:** The mounted-document stale write-back (T9–T12) and the newly observed hydration-only teardown projection that recreated divergence after `Load server version`.
-- **Preventing:** Track the document version last projected into the graph; treat authoritative replacement as hydration, not an authored revision.
-- **Acceptance check:** A server-adopted graph remains fingerprint-equivalent across no-edit teardown and reload; an authored document commit still projects before teardown; focused regression and build pass.
-
-### T14 — Preserve the authoritative graph during route mount hydration
-
-- **Description:** Do not run the legacy document→graph rebuild on an already authoritative `checking`/`synced` graph before freshness comparison; keep the existing rebuild for `idle` local-ahead or legacy drafts.
-- **Files to touch:** `src/components/studio/EditorBridge.tsx`, `src/components/studio/__tests__/EditorBridgeRecovery.test.tsx`, and required progress/error logs.
-- **Errors from ERRORS.md:** Hydration-only teardown projection (T13) and the newly observed authoritative route-mount rebuild that changed the in-memory fingerprint before freshness settled.
-- **Preventing:** Gate only the initial mount rebuild by the existing sync status; do not change autosave timing, conflict policy, or authored commit projection.
-- **Acceptance check:** A canonical cache/server pair stays `synced` through route mount and no-edit reload; draft/legacy `idle` mounts retain their existing rebuild; focused regression and build pass.
+# PLAN: Floor Editor Door & Interior Persistence Across Reload and Tab Close
+
+## Phase P3A Tasks
+
+### P3A-T1: Add isolated test-campus resolver and explicit opt-in
+- **Description**: Add a development-only resolver that checks the dedicated localStorage opt-in, exact test campus ID, and exact development project URL; construct a valid `CampusMap` separately from the normal map store.
+- **Files to touch**: `src/lib/studio/test-campus-catalog.ts`, its focused unit test.
+- **Acceptance check**: Disabled-by-default, environment/project/ID-gated, and production-disabled tests pass.
+- **Error prevention**: Preventing test-only catalog state from entering synchronized campus catalog state or any shared development catalog write.
+
+### P3A-T2: Resolve the test map only in the editor route
+- **Description**: Keep server-returned maps as the normal source and let the editor resolve the one test ID through the isolated adapter. Show a development-only explicit opt-in control only for that exact ID and project.
+- **Files to touch**: `src/app/(admin)/studio/[id]/edit/page.tsx`, the opt-in component, focused editor resolver tests.
+- **Acceptance check**: A non-empty server refresh preserves all existing server maps while the test editor route resolves only when opted in; no test map is passed to catalog sync or POST.
+- **Error prevention**: Preventing server refresh semantics and current editor authorization from changing; no auth bypass is introduced.
+
+### P3A-T3: Verify and resume isolated browser round trips
+- **Description**: Run focused tests and a local production-build exposure check; only if all isolation gates pass, use a fresh isolated browser profile for map and floor editor save/reload checks on the existing dev test campus.
+- **Files to touch**: Verification evidence only.
+- **Acceptance check**: Record actual `/api/graph` acknowledgments, cold reloads, floor isolation, and test catalog read-only behavior; otherwise report UI checks as not tested.
+- **Error prevention**: Preventing false UI-pass claims and ensuring no production or non-test campus writes.
+
+## Tasks
+
+### T1: Harden Graph Store Network Transport & Commit Store Dependencies
+- **Description**: Add `keepalive: true` to `fetch('/api/graph', ...)` in `performSyncToSupabase` (`src/store/graph-store.ts`). This allows unload/exit requests to finish even when the user closes the tab or window immediately. Confirm `src/store/graph-store.ts` has `setAuthoredDocument` and full serialization so Vercel builds cleanly without runtime TypeErrors.
+- **Files to touch**: `src/store/graph-store.ts`
+- **Acceptance check**: `fetch('/api/graph')` includes `keepalive: true`. Vitest graph store tests pass.
+- **Error prevention**: "Preventing: In-flight network aborts on tab unload dropping un-synced edits; preventing missing export runtime TypeError on production deployment."
+
+### T2: Attribute Authored Mutations on `document.changed` in `FloorEditorBridge`
+- **Description**: In `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`, update the `document.changed` event listener in `FloorEditorBridge` to call `useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)`. This ensures that any autosave or exit flush triggered after an edit has its mutation attributed before the P0.11 guard evaluates the candidate.
+- **Files to touch**: `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`
+- **Acceptance check**: `document.changed` listener attributes floor mutation intent.
+- **Error prevention**: "Preventing: P0.11 save guard blocking un-attributed floor mutations during autosave; preventing empty pending intent array from dropping autosave."
+
+### T3: Add Explicit Save Button and Keyboard Shortcut in `FloorEditor`
+- **Description**: In `src/components/floor-editor/FloorEditor.tsx`, add an explicit Save button in the header toolbar next to the status badge, and attach a `Ctrl+S` / `Cmd+S` keyboard shortcut. When clicked/triggered, it invokes `workflow.save('manual')`.
+- **Files to touch**: `src/components/floor-editor/FloorEditor.tsx`
+- **Acceptance check**: Save button renders with active status (`Save`, `Saving...`, `Saved`), and `Ctrl+S` triggers `workflow.save('manual')`.
+- **Error prevention**: "Preventing: User confusion over whether changes are saved before closing the tab; preventing unhandled keyboard events."
+
+### T4: Verification Test for Door Placement and Server Round-Trip
+- **Description**: Add / run an automated test that places a door in `floor.doors`, synchronizes via `GraphAdapter`, serializes snapshot with authored document, and validates that `authored_document` retains the door and the P0.11 guard approves the save.
+- **Files to touch**: `packages/editor/src/__tests__/floor-door-persistence-roundtrip.test.ts`
+- **Acceptance check**: Vitest test passes 100%.
+- **Error prevention**: "Preventing: Regressions in door serialization or coordinate transformations."
+
+### T5: E2E and End-to-End Persistence Verification
+- **Description**: Run test battery to verify that door persistence, floor creation, and graph store methods operate correctly.
+- **Files to touch**: Test logs and verification scripts.
+- **Acceptance check**: All targeted vitest suites pass.
+- **Error prevention**: "Preventing: False positive verification; verifying with concrete output."
+# Phase P3B — Plan
+
+## T1 — Trace the 401 and confirm the browser/session state
+- **Description:** Trace middleware, mock login, request cookie forwarding, API auth guard, and `/api/graph` response. Compare the observed cookie *names* and response branch without reading cookie values.
+- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md`, `todo.md`, `progress/PROGRESS.md`, `errors/ERRORS.md` (no application source unless T1 proves a bug).
+- **Acceptance:** Root cause is tied to evidence; if the browser evidence is unavailable, record the precise missing fact and do not claim a confirmed cause.
+- **Error prevention:** Stale P0.11/auth assumptions can misattribute a rejected write; preserve pending local edits and do not treat a 401 as a persistence write.
+
+## T2 — Add a regression for the confirmed auth condition
+- **Description:** Reproduce the exact development-only condition with a focused test while preserving real Supabase-admin and production-denial tests.
+- **Files to touch:** `src/lib/api-guard.ts`, `src/lib/__tests__/mutation-auth.test.ts` only if a targeted repair is established.
+- **Acceptance:** Focused test fails before and passes after repair; production mock-denial and verified non-admin behavior remain passing.
+- **Error prevention:** Do not broaden fallback to verified non-admin users or production; do not weaken the admin gate.
+
+## T3 — Apply minimal auth repair
+- **Description:** Correct only the confirmed mock/session forwarding mismatch; no anonymous access or auth middleware bypass.
+- **Files to touch:** `src/lib/api-guard.ts` and its focused test only, if required.
+- **Acceptance:** Focused regressions pass and `git diff --check` passes.
+- **Error prevention:** Preserve P0.11 mutation intent, development project isolation, and production auth behavior.
+
+## T4 — Verify editor round trips or stop at authorization boundary
+- **Description:** With explicit development-only process configuration and a legitimate session, verify Map and Floor UI saves against the disposable campus, then cold-read authoritative state; if authorization is unavailable, stop before writes.
+- **Files to touch:** `progress/PROGRESS.md`, `errors/ERRORS.md` only.
+- **Acceptance:** UI POST acknowledgement, revision/fingerprint, cold readback, floor isolation, and unchanged existing campuses are evidenced; otherwise report NOT TESTED/BLOCKED without claiming persistence.
+- **Error prevention:** A failed save stays pending; never clear recovery or report Saved absent server acknowledgement.
+
+# Phase P4 — Floor Editor Room Persistence Repair
+
+## P4-T1 — Preserve state and trace the full room-save data flow
+- **Description:** Record the original pending edit and server baseline without changing browser state. Trace room input, event handler, editor state, authored document, GraphAdapter, serialization, `/api/graph` request, response, authoritative readback, and Saved status. Identify the first boundary that drops or rejects the new name.
+- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md`, `todo.md`, `progress/PROGRESS.md`, `errors/ERRORS.md`; source files read-only during T1.
+- **Acceptance:** A specific first-loss boundary is evidenced with room/floor IDs and payload or state assertions; if not established, stop before source edits.
+- **Error prevention:** Preventing false Saved status, stale authored-document overwrite, cross-floor mutation, and loss of the pending browser recovery edit.
+
+## P4-T2 — Add regression tests for the confirmed boundary
+- **Description:** Reproduce the Floor Editor context being created inside a React state initializer under Strict Mode. Prove construction does not start an abandoned context's autosave and that only the mounted context initializes.
+- **Files to touch:** `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`, `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.test.tsx`.
+- **Acceptance:** The route-level Strict Mode regression fails before the lifecycle fix and passes after it; Map Editor persistence and authored-intent protections remain unchanged.
+- **Error prevention:** Preventing a test that only asserts transport success or mocks away the real serialization/acknowledgement contract.
+
+## P4-T3 — Apply the minimal root-cause repair
+- **Description:** Defer editor service initialization until the mounted Floor Editor session's effect. Preserve revision, fingerprint, idempotency, auth, and recovery contracts.
+- **Files to touch:** `src/app/(admin)/studio/[id]/edit/building/[buildingId]/floor/[floor]/page.tsx`.
+- **Acceptance:** Focused regression passes and no unrelated source or P3A/P3B work is changed.
+- **Error prevention:** Preventing speculative refactors, weakened auth, synthesized mutation intent, and false success indicators.
+
+## P4-T4 — Verify focused regressions and local diff
+- **Description:** Run focused tests plus relevant existing graph-store/auth/map persistence suites; inspect `git diff --check` and verify no pre-existing P3A/P3B work was lost.
+- **Files to touch:** Verification only; append evidence to `progress/PROGRESS.md` and `errors/ERRORS.md` if needed.
+- **Acceptance:** Test output is clean for applicable suites; any unrelated baseline failures are named explicitly.
+- **Error prevention:** Preventing verification claims unsupported by output and preventing accidental cleanup of inherited dirty state.
+
+## P4-T5 — Verify through a fresh isolated dev browser session
+- **Description:** Only after P4-T1 through T4 pass, start the candidate with the existing development-only config and use a fresh isolated origin/profile to save a uniquely named Floor A room through actual controls. Read back the authoritative document, cold reload without stale recovery, and confirm Floor B remains unchanged. Keep the P3B origin untouched.
+- **Files to touch:** Verification evidence only.
+- **Acceptance:** Real UI request and acknowledgement match authoritative room/floor/room IDs, room name, revision and fingerprint; cold reload agrees; Floor B is unchanged; no other campus changes are observed.
+- **Error prevention:** Preventing old local recovery from masking server state, writes outside the disposable campus, and mistaken API-only claims of UI success.
+
+# Phase P5 — Preserve Verified Persistence Repairs
+
+## P5-T1 — Inventory and classify all dirty files
+- **Description:** Enumerate modified and untracked files, inspect complete diffs, and classify production-safe repairs, regression tests, dev-only infrastructure, temporary workarounds, documentation, or unrelated changes.
+- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md`, `todo.md`, `progress/PROGRESS.md`, `errors/ERRORS.md`; read-only source inspection.
+- **Acceptance:** Every dirty path is accounted for; proposed commit allowlist is explicit.
+- **Error prevention:** Preventing accidental inclusion of the test-campus resolver/opt-in or loss of inherited dirty artifacts.
+
+## P5-T2 — Review production auth and lifecycle boundaries
+- **Description:** Verify mock auth fallback is explicitly enabled and rejected in production; verify verified non-admin Supabase identities cannot fall back; verify only the retained Floor Editor context initializes services.
+- **Files to touch:** Proposed auth guard/test and Floor Editor route/test only.
+- **Acceptance:** Source and tests establish the security/lifecycle conditions; stop if scope is uncertain.
+- **Error prevention:** Preventing an unsigned mock session from reaching production mutation authorization and preventing stale autosave writers.
+
+## P5-T3 — Run focused regressions and hygiene checks
+- **Description:** Run auth, catalog isolation, graph route, and Floor Editor lifecycle tests; lint the proposed commit files; run typecheck where practical; verify whitespace and secret-file tracking status.
+- **Files to touch:** Verification only; record outputs in progress/errors.
+- **Acceptance:** Test and diff checks pass; baseline lint/type failures are identified by path and compared with candidate-base content.
+- **Error prevention:** Preventing transport-only persistence claims, lost local artifacts, and hidden unrelated failures.
+
+## P5-T4 — Stage and commit the reviewed allowlist
+- **Description:** Commit only `api-guard.ts`, its auth regression tests, the Floor Editor route repair, and its Strict Mode test on the existing candidate branch.
+- **Files to touch:** The four allowlisted source/test files; no push or deployment.
+- **Acceptance:** Staged paths exactly match allowlist, cached diff passes checks, local commit is verified, excluded dirty artifacts remain preserved.
+- **Error prevention:** Preventing temporary browser/catalog infrastructure, documentation history, or unrelated changes from entering the candidate commit.
+
+# Phase P6D — Panorama Management R2 Integration
+
+## P6D-T1 — Trace canonical scene, upload, and render contracts
+- **Description:** Confirm development-only target and disposable-campus baseline; trace panorama scene identity/location, upload sign/complete API, asset registry, authoritative document save, and Pannellum consumers. Keep the legacy NavNode/data-URL route separate from canonical Panorama scenes.
+- **Files to touch:** `spec/SPEC.md`, `plan/PLAN.md`, `todo.md`, `errors/ERRORS.md`; source inspection only.
+- **Acceptance:** Every write and render path is mapped to an existing contract; no Production or other-campus target is possible.
+- **Error prevention:** Preventing accidental conversion of a NavNode into a Panorama scene or persisting an ephemeral URL/data URL.
+
+## P6D-T2 — Make the upload API issue immutable asset keys
+- **Description:** Update the existing sign action to generate a server-side unique asset ID and record a fresh `signed` registry row without replacing an existing uploaded asset; retain current auth, protected-campus, type, and size gates.
+- **Files to touch:** `src/app/api/panorama-upload/route.ts`, `src/app/api/panorama-upload/__tests__/route.test.ts`.
+- **Acceptance:** Route test proves unique immutable key generation, exact campus/panorama association, and no completion state before verified R2 object.
+- **Error prevention:** Preventing failed replacement uploads from making a previously referenced image unresolvable.
+
+## P6D-T3 — Add the editor's verified direct-upload flow
+- **Description:** Add a small client helper and canonical Panorama properties control for validation, sign, direct PUT, completion verification, and only then updating `Panorama.imageAssetId` through the existing editor dispatcher.
+- **Files to touch:** `src/lib/panorama-upload-client.ts`, `src/lib/__tests__/panorama-upload-client.test.ts`, `packages/editor/src/panels/properties/panorama-props.tsx`, focused properties test if needed.
+- **Acceptance:** Tests cover accepted/rejected file validation, API/PUT/complete ordering, and failures leaving the canonical scene reference unchanged.
+- **Error prevention:** Preventing false ready state, browser credential exposure, and writes outside the configured development bucket.
+
+## P6D-T4 — Resolve durable keys in Pannellum and remove data-URL authoring
+- **Description:** Resolve canonical R2 keys immediately before Pannellum initialization and remove the legacy Panorama Management data-URL upload control without changing authored graph records.
+- **Files to touch:** `src/components/tour/TourViewer.tsx`, `src/components/tour/TourViewer.test.tsx`, `src/app/(admin)/panoramas/page.tsx`.
+- **Acceptance:** Tests prove keys are resolved for Studio/public tour rendering, legacy URLs remain compatible, resolver failure is visible, and no FileReader/data URL is written.
+- **Error prevention:** Preventing expiring signed URLs from becoming durable fields and retaining unrelated legacy scenes without migration.
+
+## P6D-T5 — Verify regressions and disposable-campus browser round trip
+- **Description:** Run focused route/client/viewer and Map/Floor persistence regressions, lint the touched source, then use only development Supabase/R2 and the designated disposable campus for actual UI upload, authoritative readback, cold reload, and render checks.
+- **Files to touch:** Verification only; append results to `progress/PROGRESS.md` and any new error to `errors/ERRORS.md`.
+- **Acceptance:** Report exact test output and UI/network evidence; stop on auth, isolation, or data mismatch; never change other campuses or delete assets.
+- **Error prevention:** Preventing unverified browser CORS assumptions, unauthorized saves, and test writes to any non-disposable campus.
+
+## Read-only development Studio authorization diagnosis
+- **T1 — Confirm local project and trace admin authorization.** Inspect the running app environment, `/studio` middleware, shared admin authorization helper, API guard, and mock-auth gates. Acceptance: identify the redirect branch without changing source or environment.
+- **T2 — Verify development identity and role evidence.** Use read-only development-only auth metadata and aggregate queries. Acceptance: report account recognition, accepted role claim, and session validity without exposing identifiers or credentials.
+- **T3 — Record diagnosis and next safe action.** Update progress/error logs only. Acceptance: no role, account, database, or Production changes; state whether Studio UI testing can resume.
+- **Error prevention:** Preventing mock-auth bypass and confusing `user_metadata` with the server-accepted `app_metadata.role` or local development allowlist.
+
+## Phase P6E — Restore Development Admin Authorization
+- **T1 — Verify target and active identity.** Confirm the exact development project and obtain the current signed-in Development Auth user ID. Acceptance: identity is linked to the intended existing account without relying on mock auth or stale session evidence.
+- **T2 — Verify approval and make minimal claim update.** Change only the intended user's `app_metadata.role` if the verified operator authorization and user identity both pass the gate. Acceptance: unrelated metadata remains unchanged; no other user or project is touched.
+- **T3 — Refresh session and verify access controls.** Have the user sign in again; verify Studio, an authorized Development API request, an unauthenticated rejection, and ordinary-user denial. Acceptance: all checks pass without Production access.
+- **Error prevention:** Preventing misapplied privilege grants by stopping whenever the target user ID or approval is uncertain.
+
+## NAVI Phase P6D — Panorama Persistence Verification (2026-10-10)
+- T1 Verify candidate runtime, Development Supabase/R2, user authorization, and disposable-camp baseline. Acceptance: exact candidate and targets confirmed; baseline revision/fingerprints recorded.
+- T2 Upload a small panorama through the actual Studio browser. Acceptance: browser PUT, R2 object, and uploaded asset registration verified.
+- T3 Save a scene, then cold-reload and verify authoritative reference and viewer rendering. Acceptance: server readback matches and Pannellum renders.
+- T4 Verify no unrelated campus changes and run relevant focused tests. Acceptance: only disposable-camp test records changed; no Production access.
+- Before T2: relevant errors include stale/missing auth state, wrong-checkout server execution, and incomplete Graphify lookup. Preventing: stop on any target mismatch or unresolved route/auth failure; never test with mock login.
+
+## NAVI Phase P6F — Restore local Next.js routing (2026-10-10)
+- T1 Identify port listener, process ancestry, candidate worktree, route responses, and startup logs. Acceptance: only the verified candidate server owns the target port.
+- T2 Inspect route source, manifest, config, middleware, and generated cache. Acceptance: root cause is supported by timestamps/manifest and process evidence.
+- T3 If stale candidate cache is confirmed, stop only that server, verify exact non-shared `.next` path, clear it, and restart the candidate. Acceptance: source and user recovery state remain unchanged.
+- T4 Verify public routes, auth redirect, signed-in Studio, Panorama Management, Development Supabase, and Development R2. Acceptance: routing gate passes; do not begin uploads.
+- Before T3: relevant errors are the previous all-route 404 and wrong-worktree server. Preventing: match PID/command line to candidate; remove only candidate `.next` after confirming no listener or competing Next process.
+
+## NAVI Phase P6H — Dataset and Panorama UI regression audit
+- T1 — Compare current pages, working-tree diffs, repository history, shared shell/style changes, and available screenshots. Acceptance: distinguish actual recent changes from longstanding layout and identify candidate historical versions.
+- T2 — Establish the previously approved visual baseline. Acceptance: locate a reliable approval reference; otherwise mark blocked and make no UI source changes.
+- T3 — If baseline is proven, restore compatible visual structure while preserving R2/Supabase panorama persistence, then run focused UI checks and lint. Acceptance: before/after evidence and persistence paths remain intact.
+- Error prevention: Do not restore historical data-URL upload behavior or claim an unverified historical version was approved.
+
+# Phase P6I — Controlled UI + persistence reconciliation
+
+## T1 — Inventory and compatibility gate [x]
+- **Description:** Capture both worktree identities, dirty status, hashes of source inputs, and the exact integration allowlist. Confirm the main `navi-next` worktree remains read-only. Compare Dataset document readers and canonical Panorama contracts against the candidate.
+- **Files to touch:** Candidate `spec/SPEC.md`, `plan/PLAN.md`, `todo.md`, `progress/PROGRESS.md`, `errors/ERRORS.md`; read-only source inspection.
+- **Acceptance:** Exact path allowlist and compatibility findings are recorded before source edits; candidate P5/P6 changes are preserved; stop on any unresolved persistence ownership mismatch.
+- **Error prevention:** Preventing wrong-worktree edits, hydration mismatch, and accidentally storing resolved/signed image URLs.
+
+## T2 — Restore campus-first Dataset routes and keep legacy tools [x]
+- **Description:** Port the campus selector and detail workspace from the UI source; add `/dataset/[id]`; preserve the current legacy component at `/dataset/tools`; add a visible selector link to the legacy route; use the candidate’s graph store and document readers. Port only the owner-bound signed building-cover flow that the Images tab imports, with its focused tests.
+- **Files to touch:** `src/app/(admin)/dataset/page.tsx`; `src/app/(admin)/dataset/[id]/page.tsx`; `src/app/(admin)/dataset/tools/page.tsx`; `src/components/pages/DatasetManagement.tsx`; `src/components/pages/DatasetTools.tsx`; `src/components/pages/DatasetWorkspace.tsx`; `src/components/pages/dataset/{DatasetExplorer,DatasetInformationView,DatasetImagesView,DatasetStructuredView,Dataset360View,dataset-selectors,resolve-effective-document,types}`; `src/components/shared/BuildingCoverImage.tsx`; `src/services/building-cover-upload.ts`; `src/app/api/building-cover-upload/{route.ts,__tests__/route.test.ts}`; `src/app/api/building-cover/{route.ts,__tests__/route.test.ts}`; `src/lib/{building-cover-auth,building-cover-r2,building-cover-repository,building-cover-upload-token}.ts`; `src/lib/__tests__/{building-cover-auth,building-cover-r2,building-cover-repository,building-cover-upload-token}.test.ts`; `src/services/building-cover-upload.test.ts`; `src/components/pages/__tests__/{dataset-fixture,dataset-legacy-fixture,dataset-360,dataset-effective-document,dataset-images,dataset-images-upload,dataset-management,dataset-selection-stats,dataset-ux,dataset-workspace}`.
+- **Acceptance:** Selector/detail/tools routes compile and render; candidate store remains authoritative; 360 reads canonical scene summaries; cover uploads remain owner-authorized, immutable-key R2 uploads with server verification before graph reference save.
+- **Error prevention:** Preventing unacknowledged cover references, cross-campus cover ownership, local cache hydration mismatch, and dropping legacy tooling.
+
+## T3 — Restore compatible Panorama scene-management presentation [x]
+- **Description:** Port the read-only scene-management selectors and workspace; adapt its viewer call sites to the candidate `TourViewer` props, which resolves canonical R2 keys itself; add an explicit Studio navigation affordance. Do not add writes or change the candidate upload, asset registration, signed resolver, or renderer implementation.
+- **Files to touch:** `src/app/(admin)/panoramas/page.tsx`; `src/app/(admin)/panoramas/page.test.tsx`; `src/features/panorama-management/{selectors.ts,selectors.test.ts,state.ts,state.test.ts,tour-selectors.ts,tour-selectors.test.ts,non-dependency.test.ts}`; `src/features/panorama-management/components/{HotspotDialog.tsx,SceneExplorer.tsx,SceneInspector.tsx,VirtualTourWorkspace.module.css,VirtualTourWorkspace.test.tsx,VirtualTourWorkspace.tsx}`; existing candidate `src/components/tour/TourViewer.tsx` and `src/lib/panorama-image-resolver.ts` are read-only dependencies.
+- **Acceptance:** Scene identity is `Panorama.id`; durable image reference is `Panorama.imageAssetId`; the existing candidate resolver is used at render time; management does not persist hotspot drafts or scene changes; scene authoring links into Studio.
+- **Error prevention:** Preventing legacy graph-node writes, data-URL storage, signed-URL persistence, and compile-time prop incompatibility.
+
+## T4 — Route/sidebar, focused verification, visual evidence, and log [x]
+- **Description:** Make top-level admin navigation active for nested routes; run the Dataset, cover, Panorama, Map/Floor persistence, and responsive checks; compare route structure with the supplied October 3 design description and capture candidate screenshots where an existing authorized browser session permits. Record limits if the original screenshot artifact is unavailable.
+- **Files to touch:** `src/app/(admin)/layout.tsx`; focused tests only from T2/T3; candidate workflow docs. Do not edit `navi-next`.
+- **Acceptance:** `git diff --check` passes; focused tests and relevant lint/type checks are reported accurately; candidate-only source changes are enumerated; main worktree status and source hashes match baseline; no Supabase/R2 operation occurred.
+- **Error prevention:** Preventing wrong-server visual evidence, unverified E2E claims, and accidental loss of dirty P5/P6 files.
+
+### T2 inventory addendum
+- The campus selector/workspace also depends on the pure read-only `src/components/studio/studio-display-stats.ts`; this file is added to the T2 allowlist.
+- The UI-source legacy test referenced a 202 KB captured campus graph fixture. That data fixture is intentionally excluded; the candidate test helper will use a minimal synthetic graph with equivalent projection coverage.
+- The Studio route has no query-driven `360-tour` mode. “Edit Scenes in Studio” therefore uses the existing `/studio/<campusId>/edit` route; mode selection remains in the Studio UI.
+- Browser access was available on the candidate local server. Accessible route snapshots verified `/dataset`, `/dataset/<campusId>`, `/dataset/tools`, and `/panoramas`; no pixel screenshot was returned by the browser bridge, and the October 3 screenshot was not present as a local reference image.

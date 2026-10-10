@@ -59,6 +59,35 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
     expect(expired?.status).toBe(401)
   })
 
+  it('development mock admin remains usable when a stale Supabase cookie is also present', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
+    const request = makeRequest({
+      ...SUPABASE_COOKIE,
+      'navi-mock-session': MOCK_COOKIE_VALUE,
+    })
+    const onVerified = vi.fn()
+    const response = await requireVerifiedMutationAuth(request, {
+      supabaseFactory: factoryWith(null, { error: true }),
+      onVerified,
+    })
+
+    expect(response).toBeNull()
+    expect(onVerified).toHaveBeenCalledWith(expect.objectContaining({ id: 'mock-super-admin', method: 'mock' }))
+  })
+
+  it('does not fall back to a mock admin when Supabase verifies a non-admin user', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
+    const request = makeRequest({
+      ...SUPABASE_COOKIE,
+      'navi-mock-session': MOCK_COOKIE_VALUE,
+    })
+    const response = await requireVerifiedMutationAuth(request, {
+      supabaseFactory: factoryWith({ id: 'viewer', email: 'viewer@example.test', app_metadata: { role: 'viewer' } }),
+    })
+
+    expect(response?.status).toBe(403)
+  })
+
   it('I: auth verification service failure -> 401 (fail closed, not 500 bypass)', async () => {
     const res = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE), { supabaseFactory: factoryWith(null, { throwErr: true }) })
     expect(res?.status).toBe(401)
@@ -78,6 +107,24 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
     expect(res).toBeNull()
   })
 
+  it('returns the verified actor only after server-side admin verification', async () => {
+    const onVerified = vi.fn()
+    const allowed = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE), {
+      supabaseFactory: factoryWith({ id: 'trusted-actor', email: 'admin@x.test', app_metadata: { role: 'super_admin' } }),
+      onVerified,
+    })
+    expect(allowed).toBeNull()
+    expect(onVerified).toHaveBeenCalledWith(expect.objectContaining({ id: 'trusted-actor', method: 'supabase' }))
+
+    const deniedCallback = vi.fn()
+    const denied = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE, { createdBy: 'spoof' }), {
+      supabaseFactory: factoryWith({ id: 'viewer', app_metadata: { role: 'viewer' } }),
+      onVerified: deniedCallback,
+    })
+    expect(denied?.status).toBe(403)
+    expect(deniedCallback).not.toHaveBeenCalled()
+  })
+
   it('F2: verified user allow-listed via NAVI_ADMIN_EMAILS -> allowed', async () => {
     vi.stubEnv('NAVI_ADMIN_EMAILS', 'ops@x.test, admin@y.test')
     const admin = { id: 'u4', email: 'OPS@x.test', app_metadata: { role: 'viewer' } }
@@ -89,6 +136,8 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
     const res = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE))
     expect(res).toBeNull() // NODE_ENV=test seam (vitest); exercised by route suites
     vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://oltfaepqcktrumfhadzb.supabase.co')
     const prod = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE))
     expect(prod?.status).toBe(401) // production: presence alone is not authentication
   })
@@ -96,6 +145,7 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
   it('K: DEV mock auth cannot activate in production, and fails closed when mock is disabled', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://oltfaepqcktrumfhadzb.supabase.co')
     vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
     const res = await requireVerifiedMutationAuth(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }))
     expect(res?.status).toBe(401)
@@ -108,8 +158,10 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
 
   it('mock path (DEV/test only) yields an admin session when explicitly enabled outside production', async () => {
     vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
-    const res = await requireVerifiedMutationAuth(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }))
+    const onVerified = vi.fn()
+    const res = await requireVerifiedMutationAuth(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }), { onVerified })
     expect(res).toBeNull()
+    expect(onVerified).toHaveBeenCalledWith(expect.objectContaining({ id: 'mock-super-admin', method: 'mock' }))
   })
 
   it('H: client-side state / headers cannot grant authorization', () => {
@@ -124,6 +176,28 @@ describe('privileged mutation auth contract (mutation-auth matrix)', () => {
     expect(res?.status).toBe(423)
     vi.stubEnv('NAVI_PROTECTED_CAMPUS_WRITES', '1')
     expect(assertCampusMutationAllowed('map-map-1-k6bv')).toBeNull()
+  })
+
+  it('blocks campus mutations from Preview when its Supabase URL points at Production', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://oltfaepqcktrumfhadzb.supabase.co')
+
+    expect(assertCampusMutationAllowed('map-map-1-repe')?.status).toBe(409)
+  })
+
+  it('blocks Preview API authorization before contacting Supabase Auth when the target is Production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('VERCEL_ENV', 'preview')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://oltfaepqcktrumfhadzb.supabase.co')
+    const factory = vi.fn()
+
+    const response = await requireVerifiedMutationAuth(makeRequest(SUPABASE_COOKIE), {
+      supabaseFactory: factory as never,
+    })
+
+    expect(response?.status).toBe(409)
+    expect(factory).not.toHaveBeenCalled()
   })
 
   it('L: error responses never contain service-role credentials or secrets', async () => {

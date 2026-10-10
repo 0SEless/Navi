@@ -57,11 +57,15 @@ function makeRow(revision: number, marker = 'old'): PublishedRow {
   }
 }
 
-function makeFakeSupabase(initialRow: PublishedRow | null = null) {
+function makeFakeSupabase(
+  initialRow: PublishedRow | null = null,
+  panoramaRows: Array<Record<string, unknown>> = [],
+) {
   const state: {
     row: PublishedRow | null
     snapshotReads: number
-  } = { row: initialRow, snapshotReads: 0 }
+    panoramaLookups: Array<{ column: string; keys: string[] }>
+  } = { row: initialRow, snapshotReads: 0, panoramaLookups: [] }
 
   function matches(conditions: Array<[string, string, unknown]>, row: PublishedRow | null): boolean {
     if (!row) return false
@@ -122,6 +126,19 @@ function makeFakeSupabase(initialRow: PublishedRow | null = null) {
           }),
         }
       }
+      if (table === 'panorama_assets') {
+        return {
+          select: () => ({
+            in: async (column: string, keys: string[]) => {
+              state.panoramaLookups.push({ column, keys })
+              return {
+                data: panoramaRows.filter(row => keys.includes(String(row.key))),
+                error: null,
+              }
+            },
+          }),
+        }
+      }
       return {
         select: () => publishedBuilder('select'),
         update: (payload: PublishedRow) => publishedBuilder('update', payload),
@@ -154,7 +171,7 @@ describe('POST /api/publish — Phase 7B contract', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_MOCK_AUTH = 'true'
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-test-key'
+    process.env.SUPABASE_SECRET_KEY = 'test-secret-key'
     mockClient.mockReset()
     vi.mocked(writeFileSync).mockClear()
   })
@@ -178,6 +195,58 @@ describe('POST /api/publish — Phase 7B contract', () => {
         revision: '7',
       },
     })
+  })
+
+  it('persists optional authored-road traces without changing the routing graph', async () => {
+    const fake = makeFakeSupabase()
+    mockClient.mockReturnValue(fake.client)
+    const roadTraces = [{
+      id: 'road-visible',
+      name: 'Library Walk',
+      type: 'pedestrian',
+      polyline: { points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121.002 }] },
+      displayMode: 'visible',
+      metadata: { authoredBy: 'studio' },
+    }]
+    const artifacts = makeArtifacts(7)
+    artifacts.traces = roadTraces
+
+    const response = await POST(requestFor(artifacts, 7))
+
+    expect(response.status).toBe(200)
+    expect(fake.state.row?.artifacts.traces).toEqual(roadTraces)
+    expect(fake.state.row?.artifacts.graph).toEqual(artifacts.navigationGraph)
+  })
+
+  it('validates multiple panorama assets with one registry batch read before publishing', async () => {
+    const keys = [
+      'panoramas/phase7b-campus/pano-a.jpg',
+      'panoramas/phase7b-campus/pano-b.webp',
+    ]
+    const fake = makeFakeSupabase(null, keys.map((key, index) => ({
+      key,
+      campus_id: 'phase7b-campus',
+      panorama_id: index === 0 ? 'pano-a' : 'pano-b',
+      content_type: index === 0 ? 'image/jpeg' : 'image/webp',
+      byte_size: 2048,
+      status: 'uploaded',
+    })))
+    mockClient.mockReturnValue(fake.client)
+    const artifacts = makeArtifacts(7)
+    artifacts.panoramaIndex = {
+      version: '1.0.0',
+      panoramas: keys.map((imageAssetId, index) => ({
+        id: index === 0 ? 'pano-a' : 'pano-b',
+        title: `Panorama ${index + 1}`,
+        imageAssetId,
+      })),
+    }
+
+    const response = await POST(requestFor(artifacts, 7))
+
+    expect(response.status).toBe(200)
+    expect(fake.state.panoramaLookups).toEqual([{ column: 'key', keys }])
+    expect(fake.state.row?.revision).toBe(7)
   })
 
   it('rejects an older revision without changing the row or writing local artifacts', async () => {

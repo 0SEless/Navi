@@ -7,6 +7,8 @@ import { POST as campusMapsPOST, DELETE as campusMapsDELETE } from '@/app/api/ca
 import { POST as publishPOST } from '@/app/api/publish/route'
 import { POST as floorPlansPOST } from '@/app/api/floor-plans/route'
 import { POST as compilePOST } from '@/app/api/compile/route'
+import { POST as r2ConnectivityPOST } from '@/app/api/r2-connectivity-test/route'
+import { POST as panoramaUploadPOST } from '@/app/api/panorama-upload/route'
 
 const req = (url: string, method: string, init: RequestInit = {}) =>
   new NextRequest(url, { method, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) }, ...init })
@@ -33,6 +35,9 @@ describe('privileged mutation routes — verified-auth wiring (Phase 7/8)', () =
       ['publish POST', () => publishPOST(req('http://x/api/publish', 'POST', { body: JSON.stringify({}) }))],
       ['floor-plans POST', () => floorPlansPOST(req('http://x/api/floor-plans', 'POST'))],
       ['compile POST', () => compilePOST(req('http://x/api/compile', 'POST', { body: JSON.stringify({}) }))],
+      ['r2-connectivity-test POST', () => r2ConnectivityPOST(req('http://x/api/r2-connectivity-test', 'POST'))],
+      // panorama-upload signs real URLs — the auth gate must precede any signing.
+      ['panorama-upload POST', () => panoramaUploadPOST(req('http://x/api/panorama-upload', 'POST', { body: JSON.stringify({}) }))],
     ]
     for (const [name, call] of cases) {
       const res = await call()

@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type maplibregl from 'maplibre-gl'
@@ -35,32 +35,25 @@ function makeMap() {
   } as unknown as maplibregl.Map
 }
 
-function makeEventMap() {
-  const map = makeMap() as maplibregl.Map & {
-    on: ReturnType<typeof vi.fn>
-    off: ReturnType<typeof vi.fn>
-    setFeatureState: ReturnType<typeof vi.fn>
-  }
-  return map
-}
-
 describe('BuildingLayer selection emphasis', () => {
   it('uses selected outline, width, and opacity emphasis instead of color alone', () => {
     const paint = getBuildingOutlinePaint()
+    expect(paint).toBeDefined()
+    if (!paint) throw new Error('Building outline paint is unavailable')
 
-    expect(paint?.['line-color']).toEqual([
+    expect(paint['line-color']).toEqual([
       'case',
       ['boolean', ['feature-state', 'selected'], false],
       '#0F6B3A',
       ['get', 'color'],
     ])
-    expect(paint?.['line-width']).toEqual([
+    expect(paint['line-width']).toEqual([
       'case',
       ['boolean', ['feature-state', 'selected'], false],
       4,
       2,
     ])
-    expect(paint?.['line-opacity']).toEqual([
+    expect(paint['line-opacity']).toEqual([
       'case',
       ['boolean', ['feature-state', 'selected'], false],
       1,
@@ -91,13 +84,26 @@ describe('BuildingLayer selection emphasis', () => {
     log.mockRestore()
   })
 
-  it('keeps a single click/style handler and dispatches through the latest callback and selection', () => {
-    const map = makeEventMap()
-    const firstClick = vi.fn()
-    const latestClick = vi.fn()
+  it('initializes after a late style-ready event when the map load event has passed', () => {
+    let styleLoaded = false
+    const listeners = new Map<string, Set<() => void>>()
+    const map = makeMap()
+    const delayedMap = map as unknown as {
+      isStyleLoaded: () => boolean
+      on: (event: string, listener: () => void) => void
+      off: (event: string, listener: () => void) => void
+    }
+    delayedMap.isStyleLoaded = () => styleLoaded
+    delayedMap.on = (event, listener) => {
+      const registered = listeners.get(event) ?? new Set<() => void>()
+      registered.add(listener)
+      listeners.set(event, registered)
+    }
+    delayedMap.off = (event, listener) => { listeners.get(event)?.delete(listener) }
+
     const building = {
-      id: 'building-1',
-      name: 'Main Building',
+      id: 'building-late-style',
+      name: 'Late Style Building',
       color: '#0F6B3A',
       height: 10,
       floors: 1,
@@ -109,28 +115,20 @@ describe('BuildingLayer selection emphasis', () => {
         { lat: 10.001, lng: 20.001 },
       ],
     }
-    const view = render(createElement(BuildingLayer, {
-      map,
-      buildings: [building],
-      selectedBuildingId: 'building-1',
-      onBuildingClick: firstClick,
-    }))
-    const initialRegistrationCount = map.on.mock.calls.length
-    const clickRegistration = map.on.mock.calls.find((call) => call[0] === 'click' && call[1] === 'buildings-fill')
-    const clickHandler = clickRegistration?.[2] as ((event: { features: Array<{ properties: { id: string } }> }) => void)
+    render(createElement(BuildingLayer, { map, buildings: [building] }))
+    expect(map.addSource).not.toHaveBeenCalled()
 
-    view.rerender(createElement(BuildingLayer, {
-      map,
-      buildings: [building],
-      selectedBuildingId: 'building-2',
-      onBuildingClick: latestClick,
-    }))
+    styleLoaded = true
+    act(() => { for (const listener of listeners.get('idle') ?? []) listener() })
 
-    expect(map.on.mock.calls).toHaveLength(initialRegistrationCount)
-    expect(map.setFeatureState).toHaveBeenCalledWith({ source: 'buildings', id: 'building-1' }, { selected: false })
-    expect(map.setFeatureState).toHaveBeenCalledWith({ source: 'buildings', id: 'building-2' }, { selected: true })
-    clickHandler({ features: [{ properties: { id: 'building-2' } }] })
-    expect(firstClick).not.toHaveBeenCalled()
-    expect(latestClick).toHaveBeenCalledWith('building-2')
+    expect(map.addSource).toHaveBeenCalledWith('buildings', expect.objectContaining({ type: 'geojson' }))
+    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'buildings-fill' }))
+    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'buildings-outline' }))
+    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'buildings-extrusion' }))
+    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'buildings-labels' }))
+    const source = map.getSource('buildings') as unknown as { setData: ReturnType<typeof vi.fn> }
+    expect(source.setData).toHaveBeenCalledWith(expect.objectContaining({
+      features: [expect.objectContaining({ id: building.id })],
+    }))
   })
 })

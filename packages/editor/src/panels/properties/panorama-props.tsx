@@ -6,18 +6,22 @@ import { useStudioStore } from '@/store/studio-store'
 import { HotspotProperties } from './hotspot-props'
 import { HotspotPlacementTool } from '../HotspotPlacementTool'
 import { validatePanoramaHotspots } from '@navi/core'
+import { uploadPanoramaAsset, type PanoramaUploadStage } from '@/lib/panorama-upload-client'
 
 interface Props { panorama: Panorama }
 
 export function PanoramaProperties({ panorama }: Props) {
   const { services, document } = useEditor()
   const editEngine = useEditingEngine()
-  const dispatcher = services.get<any>('dispatcher')
+  const dispatcher = services.get('dispatcher')!
   const positionEditTarget = useStudioStore((s) => s.positionEditTarget)
   const setPositionEditTarget = useStudioStore((s) => s.setPositionEditTarget)
   const isAdjusting = positionEditTarget?.type === 'panorama' && positionEditTarget?.id === panorama.id
   const [selectedHotspotIndex, setSelectedHotspotIndex] = useState<number | null>(null)
   const [placementTool, setPlacementTool] = useState<{ isOpen: boolean; type: 'navigation' | 'information' }>({ isOpen: false, type: 'navigation' })
+  const [uploadStage, setUploadStage] = useState<PanoramaUploadStage | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadVerified, setUploadVerified] = useState(false)
 
   // Validate hotspots
   const allPanoramaIds = useMemo(() => 
@@ -39,21 +43,27 @@ export function PanoramaProperties({ panorama }: Props) {
     dispatcher.execute({ id: 'entity.update', label: 'Edit Panorama', payload: { entityId: panorama.id, changes } })
   }, [editEngine, dispatcher, panorama.id])
 
-  const addHotspot = useCallback((hotspotType: 'navigation' | 'information') => {
-    dispatcher.execute({
-      id: 'hotspot.create',
-      label: `Add ${hotspotType} hotspot`,
-      payload: {
+  const handleImageUpload = useCallback(async (file: File) => {
+    const campusId = document.metadata.campusId
+    setUploadError(null)
+    setUploadVerified(false)
+    try {
+      const imageAssetId = await uploadPanoramaAsset({
+        campusId,
         panoramaId: panorama.id,
-        hotspotType,
-        label: '',
-        yaw: 0,
-        pitch: 0,
-        targetId: '',
-        content: hotspotType === 'information' ? { title: '' } : undefined,
-      },
-    })
-  }, [dispatcher, panorama.id])
+        file,
+        onStage: setUploadStage,
+      })
+      // Keep the stable scene identity and mutate only its canonical R2 key
+      // after the server has verified both the object and asset registry row.
+      update({ imageAssetId })
+      setUploadVerified(true)
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Panorama upload failed.')
+    } finally {
+      setUploadStage(null)
+    }
+  }, [document.metadata.campusId, panorama.id, update])
 
   const updateHotspot = useCallback((index: number, changes: Record<string, unknown>) => {
     dispatcher.execute({
@@ -117,7 +127,45 @@ export function PanoramaProperties({ panorama }: Props) {
         </div>
       </Field>
       <Field label="Image Asset">
-        <input value={panorama.imageAssetId} onChange={e => update({ imageAssetId: e.target.value })} style={inputStyle} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input value={panorama.imageAssetId || 'No verified image uploaded'} readOnly style={inputStyle} aria-label="Verified panorama asset key" />
+          <label style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: '6px 8px', borderRadius: 4, background: uploadStage ? '#e5e7eb' : tokens.accent,
+            color: uploadStage ? '#6b7280' : '#fff', cursor: uploadStage ? 'wait' : 'pointer',
+            fontSize: 12, opacity: uploadStage ? 0.75 : 1,
+          }}>
+            {uploadStage ? 'Uploading panorama…' : panorama.imageAssetId ? 'Replace panorama image' : 'Upload panorama image'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploadStage !== null}
+              aria-label="Upload panorama image"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void handleImageUpload(file)
+                event.target.value = ''
+              }}
+            />
+          </label>
+          {uploadStage && (
+            <span role="status" aria-live="polite" style={{ color: tokens.textMuted, fontSize: 11 }}>
+              {uploadStage === 'validating' && 'Checking image format and dimensions…'}
+              {uploadStage === 'signing' && 'Requesting a secure upload…'}
+              {uploadStage === 'uploading' && 'Uploading image to development storage…'}
+              {uploadStage === 'verifying' && 'Verifying stored image…'}
+            </span>
+          )}
+          {uploadVerified && (
+            <span role="status" aria-live="polite" style={{ color: '#15803d', fontSize: 11 }}>
+              Image uploaded and verified. Editor sync is pending.
+            </span>
+          )}
+          {uploadError && (
+            <span role="alert" style={{ color: '#b91c1c', fontSize: 11 }}>{uploadError}</span>
+          )}
+        </div>
       </Field>
 
       <SectionHeader>Hotspots ({panorama.hotspots.length})</SectionHeader>

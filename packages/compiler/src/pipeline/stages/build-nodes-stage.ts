@@ -211,28 +211,14 @@ export function buildNodes(document: CampusDocument, parsed: ParsedDocument): Na
     }
   }
 
-  // Panorama nodes
-  // P1-T4 (D9): panorama positions are building-local — derive world via the
-  // owning building's origin; legacy world-stored records pass through verbatim.
-  for (const pano of document.panoramas) {
-    let world: LatLng | null = null
-    if ((pano.position as unknown as { lat?: number }).lat !== undefined) {
-      world = pano.position as unknown as LatLng
-    } else if (pano.buildingId) {
-      const origin = buildingOrigin(parsed, pano.buildingId)
-      if (origin) world = localToLatLng(pano.position.x, pano.position.y, origin.lat, origin.lng)
-    }
-    if (!world) continue
-    nodes.push({
-      id: makeId('node', idx++),
-      label: `Panorama: ${pano.label}`,
-      type: 'intersection',
-      position: world,
-      floor: pano.floor ?? 0,
-      buildingId: pano.buildingId ?? '',
-      properties: { entityType: 'panorama', entityId: pano.id, hasPanorama: true },
-    })
-  }
+  // Panorama nodes — NOT emitted (VT-1 / ADR 024).
+  //
+  // Navigation and Virtual Tour are separate systems. `document.panoramas`
+  // scenes must not become navigation nodes here either: they are not A* nodes,
+  // route anchors, or routing destinations. This legacy stage no longer
+  // projects panoramas; the published `panoramaIndex` is derived directly from
+  // `document.panoramas` by the emitter, so the 360 tour is unaffected.
+  void document.panoramas
 
   // QR Checkpoint nodes
   // P1-T4 (D9): QR positions are building-local — same derivation as panoramas.

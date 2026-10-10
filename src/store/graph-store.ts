@@ -1,9 +1,9 @@
 import { create } from 'zustand'
+import { fullSnapshotFingerprint, SNAPSHOT_IDENTITY_VERSION } from '../services/full-snapshot-identity'
 import { Graph } from '../engine/graph'
 import type { NavNode, NavEdge, Building, Component, GraphSnapshot, TracePath } from '../types/nav-types'
 import { compileComponent } from '../engine/component-compiler'
 import { serializeSnapshot, type GraphSnapshotLike } from '../services/graph-snapshot-serializer'
-import { authoredFingerprint as authoredDocumentFingerprint } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import {
   parseAuthoredGraphPayload,
@@ -11,6 +11,9 @@ import {
 } from '../services/authored-snapshot-persistence'
 import { appendIntent, evaluateAuthoredSave, intentsIncludedInSave, type AuthoredMutationIntent } from './authored-mutation-intent'
 import type { GuardCollections } from '../lib/save-safety-guard'
+import { updateBuildingCoverMetadata } from '../lib/building-cover'
+import { isBuildingCoverReferenceForOwner } from '../lib/building-cover-policy'
+import { readGraphSaveOutbox, writeGraphSaveOutbox, clearGraphSaveOutbox, type PendingGraphSave } from '../services/graph-save-outbox'
 
 const STORAGE_KEY = 'navi-graph'
 const SYNC_STATUS_KEY = 'navi-sync-status'
@@ -19,84 +22,55 @@ function syncStatusKey(mapId: string | null): string {
   return mapId ? `${SYNC_STATUS_KEY}-${mapId}` : SYNC_STATUS_KEY
 }
 
-function snapshotFingerprint(snapshotJson: string): string {
-  // A small synchronous fingerprint keeps the local sync marker tied to the
-  // exact cached snapshot without storing another copy of the graph.
-  let hash = 2166136261
-  for (let i = 0; i < snapshotJson.length; i += 1) {
-    hash ^= snapshotJson.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
+const BUILDING_COVER_METADATA_FIELDS = ['imageUrl', 'photoUrl', 'image'] as const
+
+type BuildingCoverMetadataSnapshot = Record<
+  (typeof BUILDING_COVER_METADATA_FIELDS)[number],
+  { present: boolean; value: unknown }
+>
+
+function snapshotBuildingCoverFields(metadata: Record<string, unknown>): BuildingCoverMetadataSnapshot {
+  const snapshot = {} as BuildingCoverMetadataSnapshot
+  for (const field of BUILDING_COVER_METADATA_FIELDS) {
+    snapshot[field] = {
+      present: Object.prototype.hasOwnProperty.call(metadata, field),
+      value: metadata[field],
+    }
   }
-  return (hash >>> 0).toString(16)
+  return snapshot
+}
+
+function restoreBuildingCoverFields(
+  document: CampusDocument,
+  buildingId: string,
+  snapshot: BuildingCoverMetadataSnapshot,
+): CampusDocument | null {
+  const index = document.buildings.findIndex((building) => building.id === buildingId)
+  if (index < 0) return null
+  const building = document.buildings[index]
+  const metadata: Record<string, unknown> = { ...building.metadata }
+  for (const field of BUILDING_COVER_METADATA_FIELDS) {
+    const prior = snapshot[field]
+    if (prior.present) metadata[field] = prior.value
+    else delete metadata[field]
+  }
+  const buildings = [...document.buildings]
+  buildings[index] = { ...building, metadata }
+  return { ...document, buildings }
 }
 
 type SyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
-
-/**
- * Test/development-only lifecycle trace.  The reload audit needs the exact
- * writer that runs last, including writes made through a function-local
- * Zustand setter.  Keeping the trace here avoids changing sync semantics or
- * exposing it to the production UI.
- */
-export interface SyncStatusTraceEntry {
-  source: string
-  from: SyncStatus | null
-  to: SyncStatus
-  error: string | null
-  at: number
-  stack: string | null
-}
-
-const syncStatusTrace: SyncStatusTraceEntry[] = []
-
-function inferSyncStatusSource(stack: string | undefined): string {
-  const frames = (stack ?? '').split('\n').map((frame) => frame.trim())
-  const known = [
-    'checkServerFreshness',
-    'syncLocalChanges',
-    'performSyncToSupabase',
-    'reSync',
-    'adoptServerSnapshot',
-    'fetchFromSupabase',
-    'loadMapData',
-    'reset',
-  ]
-  for (const name of known) {
-    if (frames.some((frame) => frame.includes(name))) return name
-  }
-  return 'GRAPH_STORE_OTHER'
-}
-
-function recordSyncStatusTrace(next: Partial<Pick<SyncStatusTraceEntry, 'to' | 'error'>>, previous: SyncStatus | null): void {
-  if (process.env.NODE_ENV === 'production') return
-  if (!next.to) return
-  const stack = new Error().stack ?? null
-  syncStatusTrace.push({
-    source: inferSyncStatusSource(stack ?? undefined),
-    from: previous,
-    to: next.to,
-    error: next.error ?? null,
-    at: Date.now(),
-    stack,
-  })
-  // Keep repeated reloads bounded in a long-lived development tab.
-  if (syncStatusTrace.length > 250) syncStatusTrace.splice(0, syncStatusTrace.length - 250)
-}
-
-export function __getSyncStatusTraceForTests(): SyncStatusTraceEntry[] {
-  return syncStatusTrace.slice()
-}
-
-export function __resetSyncStatusTraceForTests(): void {
-  syncStatusTrace.length = 0
-}
 
 interface GraphState {
   graph: Graph
   /** Canonical authored state when the active snapshot uses the new format. */
   authoredDocument: CampusDocument | null
   setAuthoredDocument: (document: CampusDocument | null) => void
+  /** Persist one stable cover reference through the existing guarded save path. */
+  saveBuildingCoverReference: (buildingId: string, reference: string | null) => Promise<void>
   currentMapId: string | null
+  /** Incremented only after a server graph and its local cache are adopted. */
+  serverAdoptionVersion: number
   renderVersion: number
   syncStatus: SyncStatus
   syncError: string | null
@@ -143,12 +117,8 @@ interface GraphState {
   setCurrentMapId: (mapId: string | null) => void
   load: () => void
   save: (options?: { trigger?: SaveTrigger }) => Promise<void>
-  /**
-   * Phase 3B — local draft persistence: make the latest committed graph durable
-   * on this device WITHOUT any server interaction. Never writes the sync
-   * marker, never enqueues a save, never contacts /api/graph.
-   */
-  persistLocalDraft: () => void
+  /** Synchronous recovery checkpoint; never certifies a server save. */
+  persistRecovery: () => void
   reset: () => void
 
   syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
@@ -167,6 +137,19 @@ function storageKey(mapId: string): string {
   return mapId ? `navi-graph-${mapId}` : STORAGE_KEY
 }
 
+function workingFingerprint(state: Pick<GraphState, 'graph' | 'authoredDocument'>): string {
+  return fullSnapshotFingerprint(serializeAuthoredGraphPayload(state.graph.toJSON() as unknown as Record<string, unknown>, state.authoredDocument))
+}
+
+function hasUnsyncedWork(state: GraphState): boolean {
+  if (!state.currentMapId) return false
+  if (state.pendingAuthoredMutations.length) return true
+  const marker = readSyncMarker(state.currentMapId)
+  return marker?.formatVersion === SNAPSHOT_IDENTITY_VERSION
+    ? marker.snapshotFingerprint !== workingFingerprint(state)
+    : state.syncStatus !== 'synced' && state.syncStatus !== 'checking' && state.syncStatus !== 'syncing'
+}
+
 /** One logical save attempt gets one stable mutation id (kept across transport retries). */
 function newMutationId(): string {
   try {
@@ -179,133 +162,36 @@ function newMutationId(): string {
 }
 
 /**
- * Backoff delays (ms) between guarded retries for transient save failures.
- * The sequence is deliberately bounded so an outage never creates a 5-second
- * write loop; after the final delay the online listener provides the next
- * prompt recovery opportunity.
+ * Backoff delays (ms) between sync retries for transient network failures.
+ * Total worst-case added latency before giving up: 1s + 3s = 4s.
  */
-const SYNC_RETRY_DELAYS = [2000, 5000, 10000, 30000]
-
-class RetryableSyncError extends Error {
-  readonly retryable = true
-
-  constructor(message: string) {
-    super(message)
-    this.name = 'RetryableSyncError'
-  }
+const SYNC_RETRY_DELAYS = [1000, 3000]
+const REQUEST_TIMEOUT_MS = 15000
+class GraphRequestError extends Error {
+  constructor(message: string, readonly status: number) { super(message) }
 }
-
-function isRetryableHttpStatus(status: number): boolean {
-  return status === 408 || status === 429 || (status >= 500 && status <= 599)
-}
-
-function isRetryableSyncFailure(error: unknown): boolean {
-  return error instanceof RetryableSyncError || isNetworkError(error instanceof Error ? error.message : String(error))
-}
-
-const AUTH_REQUIRED_MESSAGE = 'Saving failed: authentication required. Sign in again to continue.'
-
-function isAuthenticationFailureStatus(status: number): boolean {
-  return status === 401 || status === 403
-}
-
-function isAuthenticationFailureMessage(message: string): boolean {
-  return message === AUTH_REQUIRED_MESSAGE
-}
-
-/**
- * Per-campus supersession epoch (Phase 3A). Bumped whenever the authoritative
- * base is replaced (server adoption/load) INSIDE the same campus session.
- * Session generation protects across sessions; this protects stale work within
- * the active session. In-flight saves must not stamp an acknowledgement after
- * their base was superseded.
- */
-const campusEpoch = new Map<string, number>()
-const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
-const bumpCampusEpoch = (mapId: string): void => {
-  campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
-}
-
-/**
- * Phase 3C — single-shot safe local-ahead resume. Set when freshness proves
- * server == acknowledged && local newer (server unchanged); drained exactly once
- * after campus readiness through the existing guarded save pipeline.
- */
-let pendingLocalAheadResumeMapId: string | null = null
-
-/**
- * Drain the single-shot local-ahead resume exactly once, only when both the
- * detection happened AND the campus is ready. Order-independent: called from
- * both checkServerFreshness (detection) and completeCampusHydration (readiness).
- */
-function maybeDrainLocalAheadResume(mapId: string): void {
-  if (pendingLocalAheadResumeMapId !== mapId) return
-  if (!useGraphStore.getState().campusReady) return
-  pendingLocalAheadResumeMapId = null
-  // Same trigger semantics as syncLocalChanges CASE B: this is a deliberate,
-  // guarded recovery write of preserved local work — not a blind autosave.
-  void enqueueCampusSave(mapId, false, 'manual').catch((error: unknown) => {
-    console.warn('[graph-store] local-ahead auto-resume failed:', error)
-  })
+async function fetchGraphJson(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch(url, { ...init, signal: controller.signal })
+        const data = await response.json() as Record<string, unknown>
+        return { ok: response.ok, status: response.status, data }
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => { controller.abort(); reject(new Error('Graph request timed out. Pending work is preserved.')) }, REQUEST_TIMEOUT_MS)
+      }),
+    ])
+  } finally { if (timer) clearTimeout(timer) }
 }
 
 let onlineResyncBound = false
 
-/** Monotonic identity for one mounted campus editing session, including A → B → A. */
-let campusSessionGeneration = 0
-
-/**
- * Monotonic ordering for async sync/recovery work in the active editor.
- * Campus/session and epoch checks protect identity; this sequence prevents an
- * older same-session completion from replacing a newer save's final status.
- */
-let syncOperationGeneration = 0
-const latestSaveChainByCampus = new Map<string, string>()
-
-function beginSyncOperation(): number {
-  syncOperationGeneration += 1
-  return syncOperationGeneration
-}
-
-function isCurrentSyncOperation(generation: number): boolean {
-  return syncOperationGeneration === generation
-}
-
-function logSaveLifecycle(entry: Record<string, unknown>): void {
-  console.info(`[graph-store] save lifecycle ${JSON.stringify(entry)}`)
-}
-
 /** P0.11 — monotonic sequence for authored mutation intents. */
 let authoredIntentSeq = 0
-
-function isActiveCampusSession(mapId: string, generation: number): boolean {
-  return campusSessionGeneration === generation && useGraphStore.getState().currentMapId === mapId
-}
-
-/** Test-only lifecycle context for the P0 save trace; never used by the UI. */
-export function __getGraphSaveSessionContextForTests(mapId: string): {
-  sessionGeneration: number
-  campusEpoch: number
-} {
-  return { sessionGeneration: campusSessionGeneration, campusEpoch: getCampusEpoch(mapId) }
-}
-
-function saveWasSuperseded(
-  mapId: string,
-  sessionGeneration: number,
-  epochAtStart: number,
-  snapshotHash: string,
-  authoredHash: string | null,
-  includedUpTo: number,
-): boolean {
-  if (!isActiveCampusSession(mapId, sessionGeneration)) return true
-  if (getCampusEpoch(mapId) !== epochAtStart) return true
-  const state = useGraphStore.getState()
-  if (graphFingerprint(state.graph.toJSON()) !== snapshotHash) return true
-  const currentAuthoredHash = state.authoredDocument ? authoredDocumentFingerprint(state.authoredDocument) : null
-  if (currentAuthoredHash !== authoredHash) return true
-  return state.pendingAuthoredMutations.some((intent) => intent.seq > includedUpTo)
-}
+let intentGeneration = newMutationId()
 
 /**
  * P0.11 — last server-acknowledged canonical collections (guard baseline).
@@ -351,7 +237,7 @@ function edgeScope(
  * These are transient and worth retrying; HTTP/data errors are not.
  */
 function isNetworkError(msg: string): boolean {
-  return /fetch failed|failed to fetch|networkerror|load failed|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(msg)
+  return /fetch failed|failed to fetch|networkerror|load failed|request timed out|aborted|ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(msg)
 }
 
 function sleep(ms: number): Promise<void> {
@@ -367,27 +253,15 @@ function bindOnlineResync() {
   onlineResyncBound = true
   window.addEventListener('online', () => {
     const state = useGraphStore.getState()
-    // Reconcile first so an uncertain acknowledgement that already committed
-    // on the server is adopted without a fresh mutation id/CAS conflict. If
-    // the server still has the acknowledged base, syncLocalChanges funnels the
-    // preserved draft through the guarded save queue.
-    if (state.currentMapId) void state.syncLocalChanges().catch(() => {})
+    if (state.currentMapId) void state.syncToSupabase().catch(() => {})
   })
 }
 
 interface SyncMarker {
+  formatVersion?: number
   snapshotFingerprint?: string
-  /** Phase 3A.1 authored identity; absent means legacy Graph-only marker. */
-  authoredFingerprint?: string | null
   syncedAt?: string
   serverTimestamp?: string | null
-}
-
-interface CanonicalSnapshotIdentity {
-  /** Persistent Graph projection identity (legacy/compatibility fallback). */
-  graphFingerprint: string
-  /** Authored identity when the additive Phase 3A.1 companion is present. */
-  authoredFingerprint: string | null
 }
 
 function readSyncMarker(mapId: string): SyncMarker | null {
@@ -409,121 +283,19 @@ function writeSyncMarker(
   fingerprint: string,
   syncedAt: string,
   serverTimestamp: string | null,
-  authoredFingerprint?: string | null,
-): void {
+): boolean {
   try {
-    const marker: SyncMarker = {
+    localStorage.setItem(syncStatusKey(mapId), JSON.stringify({
+      formatVersion: SNAPSHOT_IDENTITY_VERSION,
       snapshotFingerprint: fingerprint,
       syncedAt,
       serverTimestamp,
-    }
-    // Keep the field absent for untouched legacy markers, but make every new
-    // authored-format acknowledgement explicit (including null for Graph-only
-    // payloads). This preserves the old marker contract for compatibility.
-    if (authoredFingerprint !== undefined) marker.authoredFingerprint = authoredFingerprint
-    localStorage.setItem(syncStatusKey(mapId), JSON.stringify(marker))
+    }))
+    return true
   } catch {
     // Best effort: a missing marker only costs an extra server check.
-  }
-}
-
-function backupKey(mapId: string): string {
-  return `navi-graph-backup-${mapId}`
-}
-
-/** Canonical JSON with sorted keys so JSONB key reordering cannot fake a mismatch. */
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`
-  const record = value as Record<string, unknown>
-  const keys = Object.keys(record).filter((key) => record[key] !== undefined).sort()
-  return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',')}}`
-}
-
-/**
- * Content fingerprint that ignores object key order and the volatile
- * `updatedAt` field that `Graph.toJSON()` regenerates on every call.
- */
-function graphFingerprint(snapshot: unknown): string {
-  const json = Graph.fromJSON(snapshot as GraphSnapshot).toJSON() as unknown as Record<string, unknown>
-  delete json.updatedAt
-  return snapshotFingerprint(stableStringify(json))
-}
-
-/**
- * Build the identity used by the reload/recovery classifier.
- *
- * Authored snapshots are the canonical source whenever both sides carry the
- * Phase 3A.1 companion. The Graph fingerprint remains the compatibility path
- * for legacy payloads and for markers written before the companion existed.
- */
-function canonicalSnapshotIdentity(
-  snapshot: unknown,
-  authoredDocument?: CampusDocument | null,
-): CanonicalSnapshotIdentity {
-  let authored = authoredDocument
-  if (authoredDocument === undefined) {
-    try {
-      authored = parseAuthoredGraphPayload(snapshot).authoredDocument
-    } catch {
-      authored = null
-    }
-  }
-  return {
-    graphFingerprint: graphFingerprint(snapshot),
-    authoredFingerprint: authored ? authoredDocumentFingerprint(authored) : null,
-  }
-}
-
-function markerIdentity(marker: SyncMarker | null): CanonicalSnapshotIdentity | null {
-  if (!marker?.snapshotFingerprint) return null
-  return {
-    graphFingerprint: marker.snapshotFingerprint,
-    authoredFingerprint: marker.authoredFingerprint ?? null,
-  }
-}
-
-/** Authored identity wins when present on both values; otherwise use Graph. */
-function canonicalIdentityEqual(
-  left: CanonicalSnapshotIdentity,
-  right: CanonicalSnapshotIdentity,
-): boolean {
-  if (left.authoredFingerprint !== null && right.authoredFingerprint !== null) {
-    return left.authoredFingerprint === right.authoredFingerprint
-  }
-  return left.graphFingerprint === right.graphFingerprint
-}
-
-function storeMatchesCanonical(
-  store: CanonicalSnapshotIdentity,
-  persisted: CanonicalSnapshotIdentity,
-): boolean {
-  // Authored equality classifies content, but a different persistent Graph
-  // projection still needs reconciliation so the active renderer cannot keep
-  // displaying a stale derived snapshot after a reload race.
-  if (persisted.authoredFingerprint !== null && store.authoredFingerprint !== persisted.authoredFingerprint) {
     return false
   }
-  return canonicalIdentityEqual(store, persisted) && store.graphFingerprint === persisted.graphFingerprint
-}
-
-/**
- * Authored snapshots remain canonical while the legacy Graph projection is
- * rebuilt by EditorBridge. This weaker match is used only for local-ahead
- * classification; strict Graph equality still governs authoritative adoption.
- */
-function storeMatchesAuthoredCanonical(
-  store: CanonicalSnapshotIdentity,
-  persisted: CanonicalSnapshotIdentity,
-): boolean {
-  return persisted.authoredFingerprint !== null
-    && store.authoredFingerprint === persisted.authoredFingerprint
-}
-
-function clearAcknowledgedAuthoredMutations(): void {
-  const pending = useGraphStore.getState().pendingAuthoredMutations
-  const acknowledgedSeq = pending.length > 0 ? Math.max(...pending.map((intent) => intent.seq)) : 0
-  if (acknowledgedSeq > 0) useGraphStore.getState().clearAuthoredMutations(acknowledgedSeq)
 }
 
 type PersistedGraphSnapshot = GraphSnapshot & {
@@ -532,123 +304,40 @@ type PersistedGraphSnapshot = GraphSnapshot & {
   authoredDocumentFormatVersion?: number
 }
 
-type SnapshotReadLifecycleResult = {
-  httpStatus: number | null
-  outcome: 'authentication-required' | 'http-error' | 'success' | 'invalid' | 'response-error' | 'network-error'
-  updatedAt: string | null
-  graphFingerprint: string | null
-  authoredFingerprint: string | null
-  hasAuthoredDocument: boolean
-  error: string | null
-}
-
-function emitSnapshotReadLifecycle(
-  callback: ((entry: SnapshotReadLifecycleResult) => void) | undefined,
-  entry: SnapshotReadLifecycleResult,
-): void {
+async function fetchServerSnapshot(mapId: string): Promise<PersistedGraphSnapshot | null> {
   try {
-    callback?.(entry)
-  } catch {
-    // Diagnostic callbacks must never alter snapshot read behavior.
-  }
-}
-
-async function fetchServerSnapshot(
-  mapId: string,
-  options?: {
-    surfaceAuthenticationFailure?: boolean
-    onLifecycle?: (entry: SnapshotReadLifecycleResult) => void
-  },
-): Promise<PersistedGraphSnapshot | null> {
-  let responseStatus: number | null = null
-  let lifecycleReported = false
-  const report = (entry: SnapshotReadLifecycleResult) => {
-    lifecycleReported = true
-    emitSnapshotReadLifecycle(options?.onLifecycle, entry)
-  }
-  try {
-    const res = await fetch(`/api/graph?campus_id=${encodeURIComponent(mapId)}`, { credentials: 'include' })
-    responseStatus = res.status
-    if (options?.surfaceAuthenticationFailure && isAuthenticationFailureStatus(res.status)) {
-      report({
-        httpStatus: res.status,
-        outcome: 'authentication-required',
-        updatedAt: null,
-        graphFingerprint: null,
-        authoredFingerprint: null,
-        hasAuthoredDocument: false,
-        error: AUTH_REQUIRED_MESSAGE,
-      })
-      throw new Error(AUTH_REQUIRED_MESSAGE)
-    }
-    if (!res.ok) {
-      report({
-        httpStatus: res.status,
-        outcome: 'http-error',
-        updatedAt: null,
-        graphFingerprint: null,
-        authoredFingerprint: null,
-        hasAuthoredDocument: false,
-        error: `HTTP ${res.status}`,
-      })
-      return null
-    }
-    const data = (await res.json()) as PersistedGraphSnapshot
-    if (!data || !Array.isArray(data.nodes)) {
-      report({
-        httpStatus: res.status,
-        outcome: 'invalid',
-        updatedAt: typeof data?.updatedAt === 'string' ? data.updatedAt : null,
-        graphFingerprint: null,
-        authoredFingerprint: null,
-        hasAuthoredDocument: Boolean(data?.authoredDocument),
-        error: 'Server snapshot did not contain a nodes array',
-      })
-      return null
-    }
-    if (options?.onLifecycle) {
-      let identity: CanonicalSnapshotIdentity | null = null
-      try {
-        identity = canonicalSnapshotIdentity(data)
-      } catch {
-        // The existing caller retains responsibility for validating/adopting data.
-      }
-      report({
-        httpStatus: res.status,
-        outcome: 'success',
-        updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
-        graphFingerprint: identity?.graphFingerprint ?? null,
-        authoredFingerprint: identity?.authoredFingerprint ?? null,
-        hasAuthoredDocument: Boolean(data.authoredDocument),
-        error: null,
-      })
-    }
+    const res = await fetchGraphJson(`/api/graph?campus_id=${encodeURIComponent(mapId)}`, { credentials: 'include' })
+    if (!res.ok) return null
+    const data = res.data as unknown as PersistedGraphSnapshot
+    if (!data || typeof data !== 'object') return null
     return data
-  } catch (error) {
-    if (!lifecycleReported) {
-      report({
-        httpStatus: responseStatus,
-        outcome: responseStatus === null ? 'network-error' : 'response-error',
-        updatedAt: null,
-        graphFingerprint: null,
-        authoredFingerprint: null,
-        hasAuthoredDocument: false,
-        error: (error instanceof Error ? error.message : 'Snapshot read failed').slice(0, 240),
-      })
-    }
-    if (error instanceof Error && isAuthenticationFailureMessage(error.message)) throw error
+  } catch {
     return null
   }
 }
 
-function isServerSnapshotEmpty(data: GraphSnapshot): boolean {
-  return (data.buildings?.length ?? 0) === 0 && (data.nodes?.length ?? 0) === 0
+function isServerSnapshotEmpty(data: PersistedGraphSnapshot): boolean {
+  // Row existence/revision, never Graph entity count, determines authority.
+  return !data.updatedAt && !data.authoredDocument && (data.buildings?.length ?? 0) === 0 && (data.nodes?.length ?? 0) === 0
+}
+
+/**
+ * Per-campus supersession epoch: bumped whenever the authoritative base is
+ * replaced (server adoption/load). In-flight saves that started under an older
+ * epoch must not stamp their acknowledgement onto the new base.
+ */
+const campusEpoch = new Map<string, number>()
+const adoptingCampuses = new Set<string>()
+let serverLoadSequence = 0
+const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
+const bumpCampusEpoch = (mapId: string): void => {
+  campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
 }
 
 /**
  * Drop queued (not yet running) saves for a campus whose authoritative base has
- * been replaced. Waiters are rejected with a descriptive reason so callers see
- * the truth instead of silently re-persisting a discarded graph.
+ * been replaced. Waiters are rejected with a descriptive reason so callers can
+ * surface the truth instead of silently re-persisting a discarded graph.
  */
 function invalidateQueuedCampusSaves(mapId: string, reason: string): void {
   const queue = campusSaveQueues.get(mapId)
@@ -661,31 +350,27 @@ function invalidateQueuedCampusSaves(mapId: string, reason: string): void {
 
 /** Replace the active graph with a server snapshot and record the synced marker. */
 function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): void {
+  if (!data.updatedAt) throw new Error('The server snapshot has no authoritative revision.')
   const persisted = parseAuthoredGraphPayload(data)
-  const graph = Graph.fromJSON(data)
+  const graph = Graph.fromJSON({ ...data, buildings: data.buildings ?? [], nodes: data.nodes ?? [], edges: data.edges ?? [] })
   graph.campusId = mapId
   const snapshot = graph.toJSON()
-  const identity = canonicalSnapshotIdentity(data, persisted.authoredDocument)
   try {
     localStorage.setItem(
       storageKey(mapId),
       JSON.stringify(serializeAuthoredGraphPayload(snapshot as unknown as Record<string, unknown>, persisted.authoredDocument)),
     )
-  } catch {
-    // Cache is best effort; the in-memory graph stays authoritative.
+  } catch (error) {
+    throw new Error(`Unable to persist the server version locally: ${error instanceof Error ? error.message : 'storage write failed'}`)
   }
-  writeSyncMarker(
-    mapId,
-    identity.graphFingerprint,
-    data.updatedAt ?? new Date().toISOString(),
-    data.updatedAt ?? null,
-    identity.authoredFingerprint,
-  )
+  const markerWritten = writeSyncMarker(mapId, fullSnapshotFingerprint(data), new Date().toISOString(), data.updatedAt ?? null)
+  if (!markerWritten) throw new Error('Unable to record the adopted server revision locally.')
+  clearGraphSaveOutbox(mapId)
   lastAcknowledgedCollections = collectionsOf(snapshot)
-  // Phase 3A — adopting the authoritative snapshot DISCARDS local edits: their
-  // intents, queued saves, and stale in-flight acknowledgements must not
-  // resurrect the discarded graph.
+  // Adopting the authoritative snapshot DISCARDS local edits: their pending
+  // intents and any queued saves must not resurrect the discarded graph.
   authoredIntentSeq = 0
+  intentGeneration = newMutationId()
   bumpCampusEpoch(mapId)
   invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
   useGraphStore.setState({
@@ -695,6 +380,7 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
     syncStatus: 'synced',
     syncError: null,
     pendingAuthoredMutations: [],
+    serverAdoptionVersion: useGraphStore.getState().serverAdoptionVersion + 1,
   })
 }
 
@@ -706,18 +392,16 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
  * Network failures keep the local snapshot but surface an explicit unverified
  * state; empty server snapshots settle to idle. `synced` requires server data.
  */
-async function checkServerFreshness(mapId: string, sessionGeneration: number): Promise<void> {
+async function checkServerFreshness(mapId: string): Promise<void> {
+  const epoch = getCampusEpoch(mapId)
   const data = await fetchServerSnapshot(mapId)
 
   const state = useGraphStore.getState()
-  // A later reload of the same campus can replace both the in-memory graph
-  // and its local draft while this request is still in flight. Only the
-  // freshness check that belongs to the active load may write a status; an
-  // older response must not re-run the divergence classifier against the new
-  // graph and reassert a false conflict.
-  if (!isActiveCampusSession(mapId, sessionGeneration)) return
+  if (state.currentMapId !== mapId || getCampusEpoch(mapId) !== epoch) return
 
-  const localRaw = localStorage.getItem(storageKey(mapId))
+  let localRaw: string | null
+  try { localRaw = localStorage.getItem(storageKey(mapId)) }
+  catch { useGraphStore.setState({ syncStatus: 'error', syncError: 'Recovery storage is unavailable. Working content remains in memory.' }); return }
 
   if (!data) {
     // The server copy could not be read (offline or HTTP failure). The local
@@ -741,6 +425,20 @@ async function checkServerFreshness(mapId: string, sessionGeneration: number): P
     return
   }
 
+  // An uncertain request is replayable against its original base, including
+  // when the exact content already committed but its ACK was lost. Do not
+  // discard newer local work or invent an ACK from this GET.
+  try {
+    const pending = readGraphSaveOutbox(mapId)
+    if (pending && (data.updatedAt === pending.expectedServerUpdatedAt || fullSnapshotFingerprint(data) === pending.contentFingerprint)) {
+      useGraphStore.setState({ syncStatus: 'idle', syncError: 'Pending save is recoverable. Retry will verify its original mutation acknowledgment.' })
+      return
+    }
+  } catch (error) {
+    useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to read pending save recovery.' })
+    return
+  }
+
   if (!localRaw) return
   let localSnapshot: unknown
   try {
@@ -749,122 +447,148 @@ async function checkServerFreshness(mapId: string, sessionGeneration: number): P
     return
   }
 
-  let localAuthoredDocument: CampusDocument | null = null
+  let localFingerprint: string, serverFingerprint: string, storeFingerprint: string
   try {
-    localAuthoredDocument = parseAuthoredGraphPayload(localSnapshot).authoredDocument
-  } catch {
-    // A malformed companion falls back to the established Graph-only path.
+    localFingerprint = fullSnapshotFingerprint(localSnapshot)
+    serverFingerprint = fullSnapshotFingerprint(data)
+    storeFingerprint = fullSnapshotFingerprint(serializeAuthoredGraphPayload(state.graph.toJSON() as unknown as Record<string, unknown>, state.authoredDocument))
+  } catch (error) {
+    useGraphStore.setState({ syncStatus: 'error', syncError: `Unable to verify complete persisted content: ${error instanceof Error ? error.message : 'invalid snapshot'}` })
+    return
   }
-  const localIdentity = canonicalSnapshotIdentity(localSnapshot, localAuthoredDocument)
-  const serverIdentity = canonicalSnapshotIdentity(data)
-  const storeIdentity = canonicalSnapshotIdentity(state.graph.toJSON(), state.authoredDocument)
-  const marker = readSyncMarker(mapId)
-  const acknowledged = markerIdentity(marker)
-
-  // Three-way CASE 1/I: local and server canonical authored content already
-  // converge. Marker age, updatedAt drift, workflow timing, and a stale active
-  // projection are metadata/runtime concerns—not a user conflict.
-  if (canonicalIdentityEqual(localIdentity, serverIdentity)) {
-    pendingLocalAheadResumeMapId = null
-    if (!storeMatchesCanonical(storeIdentity, localIdentity)) {
-      // Rebuild the active projection and authored companion from the
-      // authoritative converged payload. This closes the reload/hydration race
-      // without issuing a redundant network write.
-      adoptServerSnapshotData(mapId, data)
+  if (data.updatedAt && serverFingerprint === localFingerprint && storeFingerprint === localFingerprint) {
+    if (!writeSyncMarker(mapId, localFingerprint, new Date().toISOString(), data.updatedAt)) {
+      useGraphStore.setState({ syncStatus: 'error', syncError: 'Unable to record the verified server revision locally.' })
       return
     }
-    writeSyncMarker(
-      mapId,
-      serverIdentity.graphFingerprint,
-      new Date().toISOString(),
-      data.updatedAt ?? null,
-      serverIdentity.authoredFingerprint,
-    )
     lastAcknowledgedCollections = collectionsOf(data)
-    clearAcknowledgedAuthoredMutations()
-    useGraphStore.setState({ syncStatus: 'synced', syncError: null })
+    useGraphStore.setState({ syncStatus: state.pendingAuthoredMutations.length ? 'idle' : 'synced', syncError: null })
     return
   }
-
-  const localDirty = acknowledged === null || !canonicalIdentityEqual(localIdentity, acknowledged)
-  const serverDirty = acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)
-  const storeAhead = !storeMatchesCanonical(storeIdentity, localIdentity)
-    && !storeMatchesAuthoredCanonical(storeIdentity, localIdentity)
-
-  // Phase 3C — SAFE LOCAL-AHEAD (not divergence): the server has not changed
-  // since our last acknowledgement; this device holds newer committed work
-  // (Phase 3B local draft). Retain it and auto-resume after readiness.
-  if (acknowledged !== null && !serverDirty && localDirty && !storeAhead) {
-    pendingLocalAheadResumeMapId = mapId
-    useGraphStore.setState({ syncStatus: 'idle', syncError: null })
-    maybeDrainLocalAheadResume(mapId)
-    return
-  }
-
-  // Three-way CASE 3: the local content is still exactly the acknowledged
-  // baseline while the server has advanced. Adopt it; this is not a conflict.
-  if (acknowledged !== null && !localDirty && serverDirty && !storeAhead) {
-    const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
-    const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
-    if (!(Number.isFinite(lastServerTime) && Number.isFinite(incomingServerTime) && incomingServerTime < lastServerTime)) {
-      adoptServerSnapshotData(mapId, data)
+  const marker = readSyncMarker(mapId)
+  const knownBase = marker?.formatVersion === SNAPSHOT_IDENTITY_VERSION
+  const localDirty = !knownBase || marker.snapshotFingerprint !== localFingerprint
+  const storeAhead = storeFingerprint !== localFingerprint || state.pendingAuthoredMutations.length > 0
+  if (!localDirty && !storeAhead) {
+    const previous = marker.serverTimestamp ? Date.parse(marker.serverTimestamp) : NaN
+    const incoming = data.updatedAt ? Date.parse(data.updatedAt) : NaN
+    if (Number.isFinite(previous) && Number.isFinite(incoming) && incoming > previous) {
+      try { adoptServerSnapshotData(mapId, data) }
+      catch (error) { useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to persist server version locally.' }) }
       return
     }
-    // A stale replica/response must not roll a known-newer clean snapshot back.
-    useGraphStore.setState({ syncStatus: 'synced', syncError: null })
+    // Same/older revision with different content is not proof of synchronization.
+    useGraphStore.setState({ syncStatus: 'error', syncError: 'Server revision/content could not be verified. Local content is preserved.' })
     return
-  }
-
-  // Preserve the established legacy timestamp behavior for clean markers when
-  // the authored companion is unavailable or internally inconsistent.
-  if (acknowledged !== null && !localDirty && !storeAhead) {
-    const lastServerTime = marker?.serverTimestamp ? Date.parse(marker.serverTimestamp) : Number.NaN
-    const incomingServerTime = data.updatedAt ? Date.parse(data.updatedAt) : Number.NaN
-    if (Number.isFinite(lastServerTime) && Number.isFinite(incomingServerTime)) {
-      if (incomingServerTime < lastServerTime) {
-        useGraphStore.setState({ syncStatus: 'synced', syncError: null })
-        return
-      }
-      if (incomingServerTime > lastServerTime) {
-        adoptServerSnapshotData(mapId, data)
-        return
-      }
-    } else {
-      adoptServerSnapshotData(mapId, data)
-      return
-    }
   }
 
   const stamp = data.updatedAt ? ` (updated ${data.updatedAt})` : ''
   useGraphStore.setState({
     syncStatus: 'conflict',
-    syncError: `The server has a different version of this map${stamp}. Your unsynced local changes are preserved. Use "Load server version" to replace them, or reSync({ force: true }) to overwrite the server.`,
+    syncError: `The server has a different version of this map${stamp}. Your unsynced local changes are preserved. Use "Load server version" to replace them, or "Sync Changes" to retry against an unchanged base.`,
   })
 }
 
-const graphStore = create<GraphState>((rawSet, get) => {
-  // Capture every internal sync-status mutation without requiring each
-  // production branch to carry audit-only bookkeeping. Function updaters that
-  // do not return a status are intentionally left untouched.
-  const set: typeof rawSet = (partial, replace) => {
-    if (typeof partial !== 'function' && partial && 'syncStatus' in partial) {
-      const next = partial as Partial<GraphState>
-      recordSyncStatusTrace(
-        { to: next.syncStatus, error: next.syncError ?? null },
-        get().syncStatus,
-      )
-    }
-    rawSet(partial, replace)
-  }
-
-  return ({
+export const useGraphStore = create<GraphState>((set, get) => ({
   graph: new Graph(),
   authoredDocument: null,
   setAuthoredDocument: (document) => {
     const snapshot = document ? JSON.parse(JSON.stringify(document)) as CampusDocument : null
     set({ authoredDocument: snapshot })
   },
+  saveBuildingCoverReference: async (buildingId, reference) => {
+    if (typeof window === 'undefined') throw new Error('Building cover persistence requires a browser session.')
+    const initial = get()
+    const mapId = initial.currentMapId
+    if (!mapId) throw new Error('An active campus is required to save a building cover.')
+    if (!initial.campusReady) throw new Error('The active campus is not ready for authored changes.')
+    if (initial.syncStatus === 'conflict') throw new Error('Resolve the current server conflict before changing a building cover.')
+    if (initial.syncStatus === 'syncing' || initial.syncStatus === 'checking') {
+      throw new Error('Wait for the current campus save check to finish before changing a building cover.')
+    }
+    if (initial.pendingAuthoredMutations.length > 0) {
+      throw new Error('Save or resolve the pending authored campus changes before changing a building cover.')
+    }
+
+    const document = initial.authoredDocument
+    if (!document) throw new Error('The active campus has no authored document to update.')
+    if (document.metadata.campusId !== mapId) throw new Error('The authored document does not match the active campus.')
+    const building = document.buildings.find((candidate) => candidate.id === buildingId)
+    if (!building) throw new Error('The selected building does not exist in the authored document.')
+    if (reference !== null && !isBuildingCoverReferenceForOwner(reference, mapId, buildingId)) {
+      throw new Error('The building cover reference is not a stable URL for this building.')
+    }
+
+    const cacheKey = storageKey(mapId)
+    const priorLocalDraft = localStorage.getItem(cacheKey)
+    const previousCoverFields = snapshotBuildingCoverFields(building.metadata)
+    const updated = updateBuildingCoverMetadata(document, buildingId, reference)
+    if (!updated) throw new Error('The selected building no longer exists in the authored document.')
+    // CampusDocument.version is the authored-document change counter; keep it monotonic for metadata-only edits too.
+    const nextDocument = { ...updated, version: document.version + 1 }
+
+    get().setAuthoredDocument(nextDocument)
+    get().recordAuthoredMutation('building', buildingId, null)
+    const pending = get().pendingAuthoredMutations
+    const coverIntent = pending[pending.length - 1]
+    if (!coverIntent) {
+      get().setAuthoredDocument(document)
+      throw new Error('The building cover mutation intent could not be recorded.')
+    }
+
+    try {
+      await get().save({ trigger: 'manual' })
+      const acknowledged = get()
+      if (acknowledged.currentMapId !== mapId) throw new Error('The active campus changed before the building cover save was acknowledged.')
+      if (acknowledged.syncStatus !== 'synced' || acknowledged.pendingAuthoredMutations.some((intent) => intent.seq === coverIntent.seq)) {
+        throw new Error('The building cover save was not confirmed by the server.')
+      }
+    } catch (error) {
+      const current = get()
+      if (current.currentMapId === mapId) {
+        let localRollbackFailed = false
+        if (current.authoredDocument) {
+          const restored = restoreBuildingCoverFields(current.authoredDocument, buildingId, previousCoverFields)
+          get().setAuthoredDocument(restored ?? current.authoredDocument)
+          try {
+            const persisted = serializeAuthoredGraphPayload(
+              get().graph.toJSON() as unknown as Record<string, unknown>,
+              get().authoredDocument,
+            )
+            localStorage.setItem(cacheKey, JSON.stringify(persisted))
+          } catch {
+            localRollbackFailed = true
+          }
+        } else {
+          try {
+            if (priorLocalDraft === null) localStorage.removeItem(cacheKey)
+            else localStorage.setItem(cacheKey, priorLocalDraft)
+          } catch {
+            localRollbackFailed = true
+          }
+        }
+        get().clearAuthoredMutations(coverIntent.seq)
+        if (get().syncStatus !== 'conflict') {
+          set({
+            syncStatus: 'error',
+            syncError: localRollbackFailed
+              ? 'The building cover failed to save and its local rollback could not be written.'
+              : error instanceof Error ? error.message : 'The building cover save failed.',
+          })
+        }
+      } else {
+        try {
+          if (priorLocalDraft === null) localStorage.removeItem(cacheKey)
+          else localStorage.setItem(cacheKey, priorLocalDraft)
+        } catch {
+          // Keep the current campus untouched; its own save state is unrelated.
+        }
+      }
+      throw error
+    }
+  },
   currentMapId: null,
+  serverAdoptionVersion: 0,
   renderVersion: 0,
   syncStatus: 'idle',
   syncError: null,
@@ -875,7 +599,16 @@ const graphStore = create<GraphState>((rawSet, get) => {
     authoredIntentSeq += 1
     set((state) => {
       const next = appendIntent(state.pendingAuthoredMutations, { kind, buildingId, floor }, authoredIntentSeq)
-      return next === state.pendingAuthoredMutations ? {} : { pendingAuthoredMutations: next }
+      // Keep one entry per scope, but advance its sequence on every real edit.
+      // Otherwise an earlier in-flight ACK clears a newer same-scope edit.
+      const latest = appendIntent([], { kind, buildingId, floor }, authoredIntentSeq)[0]
+      const refreshed = next === state.pendingAuthoredMutations ? next.map(intent =>
+        intent.kind === latest.kind && (intent.buildingId ?? null) === (latest.buildingId ?? null) && (intent.floor ?? null) === (latest.floor ?? null)
+          ? latest : intent) : next
+      return {
+        pendingAuthoredMutations: refreshed,
+        syncStatus: state.syncStatus === 'synced' ? 'idle' : state.syncStatus,
+      }
     })
   },
 
@@ -885,9 +618,9 @@ const graphStore = create<GraphState>((rawSet, get) => {
 
   beginCampusHydration: () => set({ campusReady: false }),
   completeCampusHydration: () => {
+    const currentJson = get().graph.toJSON()
+    lastAcknowledgedCollections = collectionsOf(currentJson)
     set({ campusReady: true })
-    const mapId = get().currentMapId
-    if (mapId) maybeDrainLocalAheadResume(mapId)
   },
 
   addNode: (node) => {
@@ -1080,37 +813,43 @@ const graphStore = create<GraphState>((rawSet, get) => {
 
   load: async () => {
     if (typeof window === 'undefined') return
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      await get().fetchFromSupabase()
-      return
-    }
     try {
-      const snapshot = JSON.parse(raw)
-      const persisted = parseAuthoredGraphPayload(snapshot)
-      const graph = Graph.fromJSON(persisted.graphPayload as GraphSnapshot)
-      set({ graph, authoredDocument: persisted.authoredDocument })
-    } catch (e) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[graph-store] Failed to parse localStorage graph:', e)
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const mapId = parsed.campusId || parsed.authoredDocument?.metadata?.campusId
+        if (typeof mapId === 'string' && mapId) {
+          if (!localStorage.getItem(storageKey(mapId))) localStorage.setItem(storageKey(mapId), raw)
+          get().loadMapData(mapId)
+          return
+        }
       }
       await get().fetchFromSupabase()
+    } catch (error) {
+      set({ syncStatus: 'error', syncError: `Unable to read browser recovery: ${error instanceof Error ? error.message : 'invalid cache'}` })
     }
   },
 
   loadMapData: (mapId: string) => {
     if (typeof window === 'undefined') return
-    campusSessionGeneration += 1
-    const sessionGeneration = campusSessionGeneration
+    // Preserve the current campus before retiring its debounce callbacks.
+    if (hasUnsyncedWork(get())) get().persistRecovery()
     // P0.12: a campus load begins — the acknowledged baseline is unknown until
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
     authoredIntentSeq = 0
-    pendingLocalAheadResumeMapId = null
+    intentGeneration = newMutationId()
     // P0.14: not ready while an authoritative campus load is in flight.
+    bumpCampusEpoch(mapId)
     get().beginCampusHydration()
     const key = storageKey(mapId)
-    const raw = localStorage.getItem(key)
+    let raw: string | null = null
+    try { raw = localStorage.getItem(key) } catch { /* server read still proceeds */ }
+    // If only the immutable pending record survived, it is still recoverable.
+    if (!raw) {
+      try { raw = readGraphSaveOutbox(mapId)?.body ?? null }
+      catch (error) { set({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Pending recovery is unreadable.' }); return }
+    }
     let graph = new Graph()
     let authoredDocument: CampusDocument | null = null
     if (raw) {
@@ -1136,46 +875,42 @@ const graphStore = create<GraphState>((rawSet, get) => {
     // Ensure graph identity matches the map being loaded
     graph.campusId = mapId
 
-    // CASE A — No local graph: fetch from Supabase. An existing empty graph is
-    // still a real local draft (for example, deleting the last building during
-    // the autosave debounce), so it must be painted and freshness-checked
-    // rather than replaced by the old server snapshot.
+    // CASE A — No local graph or empty: fetch from Supabase
     if (!raw) {
-      set({ graph, authoredDocument, currentMapId: null })
+      set({ graph, authoredDocument, currentMapId: null, pendingAuthoredMutations: [], syncStatus: 'checking', syncError: null })
       void get().fetchFromSupabase(mapId)
       return
     }
 
-    // CASE B — Local graph exists with buildings.
-    // Fast paint from the local cache, then always check the server. A local
-    // snapshot must never be silently preferred over newer server data. A
-    // matching marker only means "was saved last session" — synchronization is
-    // unconfirmed until checkServerFreshness settles it.
+    // Clean cache is only a fallback: ordinary startup waits for the server.
     let locallySynced = false
     try {
       const marker = readSyncMarker(mapId)
-      const markerCanonical = markerIdentity(marker)
-      locallySynced = markerCanonical !== null && canonicalIdentityEqual(
-        canonicalSnapshotIdentity(JSON.parse(raw), authoredDocument),
-        markerCanonical,
-      )
-    } catch {
-      locallySynced = false
+      locallySynced = marker?.formatVersion === SNAPSHOT_IDENTITY_VERSION && marker.snapshotFingerprint === fullSnapshotFingerprint(JSON.parse(raw))
+    } catch { /* ambiguous content is recovery, never authority */ }
+    if (locallySynced) {
+      const loadingGraph = new Graph(); loadingGraph.campusId = mapId
+      set({ graph: loadingGraph, authoredDocument: null, currentMapId: null, pendingAuthoredMutations: [], syncStatus: 'checking', syncError: null })
+      void get().fetchFromSupabase(mapId)
+    } else {
+      set({ graph, authoredDocument, currentMapId: mapId, pendingAuthoredMutations: [], syncStatus: 'idle', syncError: 'Unverified browser recovery. Checking the server before saving.' })
+      void checkServerFreshness(mapId)
     }
-    set({ graph, authoredDocument, currentMapId: mapId, syncStatus: locallySynced ? 'checking' : 'idle', syncError: null })
-    void checkServerFreshness(mapId, sessionGeneration)
+
   },
 
   setCurrentMapId: (mapId: string | null) => {
     const graph = get().graph
     if (mapId) graph.campusId = mapId
     if (mapId !== get().currentMapId) {
+      const previous = get().currentMapId
+      if (previous) bumpCampusEpoch(previous)
+      if (mapId) bumpCampusEpoch(mapId)
       // P0.12 campus isolation: per-campus authored intents and the
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
-      campusSessionGeneration += 1
-      pendingLocalAheadResumeMapId = null
+      intentGeneration = newMutationId()
       set({ currentMapId: mapId, authoredDocument: null, pendingAuthoredMutations: [], campusReady: false })
     } else {
       set({ currentMapId: mapId })
@@ -1185,29 +920,28 @@ const graphStore = create<GraphState>((rawSet, get) => {
   save: async (options?: { trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
+    if (mapId && adoptingCampuses.has(mapId)) throw new Error('Save paused while the server version is being adopted.')
     // Keep graph identity in sync with the active map
     if (mapId) get().graph.campusId = mapId
-    const key = mapId ? storageKey(mapId) : STORAGE_KEY
-    const json = get().graph.toJSON()
-    const persisted = serializeAuthoredGraphPayload(json as unknown as Record<string, unknown>, get().authoredDocument)
-    localStorage.setItem(key, JSON.stringify(persisted))
+    get().persistRecovery()
     await get().syncToSupabase({ trigger: options?.trigger })
   },
 
-  persistLocalDraft: () => {
+  persistRecovery: () => {
     if (typeof window === 'undefined') return
-    const mapId = get().currentMapId
-    const key = mapId ? storageKey(mapId) : STORAGE_KEY
+    const state = get()
+    const key = state.currentMapId ? storageKey(state.currentMapId) : STORAGE_KEY
     try {
-      // Local-only: the sync marker is intentionally NOT advanced here; the
-      // cache may legitimately be newer than the acknowledged server state.
-      const persisted = serializeAuthoredGraphPayload(
-        get().graph.toJSON() as unknown as Record<string, unknown>,
-        get().authoredDocument,
-      )
+      const previousRaw = localStorage.getItem(key)
+      if (previousRaw && parseAuthoredGraphPayload(JSON.parse(previousRaw)).authoredDocument && !state.authoredDocument) {
+        throw new Error('The local authored document cannot be cleared by a Graph-only save.')
+      }
+      const persisted = serializeAuthoredGraphPayload(state.graph.toJSON() as unknown as Record<string, unknown>, state.authoredDocument)
       localStorage.setItem(key, JSON.stringify(persisted))
-    } catch {
-      // Best effort: draft persistence must never throw into lifecycle handlers.
+    } catch (error) {
+      const message = `Recovery checkpoint failed: ${error instanceof Error ? error.message : 'storage write failed'}. Edits remain in memory.`
+      set({ syncStatus: 'error', syncError: message })
+      throw new Error(message)
     }
   },
 
@@ -1216,12 +950,12 @@ const graphStore = create<GraphState>((rawSet, get) => {
     const mapId = get().currentMapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     localStorage.removeItem(key)
-    campusSessionGeneration += 1
     set({ graph: new Graph(), authoredDocument: null, currentMapId: null, syncStatus: 'idle', syncError: null })
   },
 
   syncToSupabase: async (options?: { force?: boolean; trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
+    if (options?.force) throw new Error('Ordinary saves cannot force overwrite. Use the explicit administrator recovery action.')
     const unresolvedConflict = get().syncStatus === 'conflict' ? get().syncError : null
     if (unresolvedConflict) {
       // Never overwrite a divergent server snapshot from an autosave. The user
@@ -1230,6 +964,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
       throw new Error(unresolvedConflict)
     }
     const mapId = get().currentMapId
+    if (mapId && adoptingCampuses.has(mapId)) throw new Error('Sync paused while the server version is being adopted.')
     if (!mapId) {
       const message = 'Cannot sync without an active map'
       set({ syncStatus: 'error', syncError: message })
@@ -1257,6 +992,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
       console.warn('[graph-store] reSync: no active map')
       return
     }
+    if (adoptingCampuses.has(mapId)) throw new Error('Re-sync paused while the server version is being adopted.')
 
     if (!options?.force) {
       const data = await fetchServerSnapshot(mapId)
@@ -1270,11 +1006,7 @@ const graphStore = create<GraphState>((rawSet, get) => {
             localSnapshot = null
           }
         }
-        const localIdentity = localSnapshot
-          ? canonicalSnapshotIdentity(localSnapshot)
-          : null
-        const serverIdentity = canonicalSnapshotIdentity(data)
-        if (!localIdentity || !canonicalIdentityEqual(localIdentity, serverIdentity)) {
+        if (!localSnapshot || fullSnapshotFingerprint(localSnapshot) !== fullSnapshotFingerprint(data)) {
           const stamp = data.updatedAt ? ` (updated ${data.updatedAt})` : ''
           const message = `The server has a different version of this map${stamp}. reSync refused to overwrite it. Use reSync({ force: true }) to overwrite the server, or adoptServerSnapshot() to load the server version.`
           console.warn('[graph-store] reSync blocked by server conflict:', message)
@@ -1289,199 +1021,89 @@ const graphStore = create<GraphState>((rawSet, get) => {
       set({ syncStatus: 'idle', syncError: null })
     }
 
-    const key = storageKey(mapId)
-    const raw = localStorage.getItem(key)
-    if (raw) {
-      try {
-        const persisted = parseAuthoredGraphPayload(JSON.parse(raw))
-        const graph = Graph.fromJSON(persisted.graphPayload as GraphSnapshot)
-        graph.campusId = mapId
-        set({ graph, authoredDocument: persisted.authoredDocument, currentMapId: mapId })
-      } catch (e) {
-        console.warn('[graph-store] reSync: failed to parse local data', e)
+    // Use the active document; reloading a cache here would rewind newer commands.
+    if (options?.force) {
+      const current = get()
+      const previousRaw = localStorage.getItem(storageKey(mapId))
+      if (previousRaw && parseAuthoredGraphPayload(JSON.parse(previousRaw)).authoredDocument && !current.authoredDocument) {
+        throw new Error('Administrator recovery cannot clear a modern authored document.')
       }
-    }
-    await get().syncToSupabase({ force: options?.force })
+      localStorage.setItem(storageKey(mapId), JSON.stringify(serializeAuthoredGraphPayload(
+        current.graph.toJSON() as unknown as Record<string, unknown>, current.authoredDocument,
+      )))
+      await enqueueCampusSave(mapId, true, 'manual')
+    } else await get().save()
+
   },
 
   /**
    * Resolve a local/server conflict in favour of the server snapshot.
-   * The unsynced local copy is preserved at `navi-graph-backup-<mapId>`
-   * before the server version replaces it.
+   * The unsynced local copy is replaced only after the user confirms. Do not
+   * duplicate large snapshots in localStorage: quota pressure can block the
+   * authoritative replacement itself.
    */
   adoptServerSnapshot: async () => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
     if (!mapId) return
-    const localRaw = localStorage.getItem(storageKey(mapId))
-    if (localRaw) {
-      try {
-        localStorage.setItem(backupKey(mapId), localRaw)
-      } catch {
-        // Backup is best effort; never block the explicit user action on it.
+    if (adoptingCampuses.has(mapId)) throw new Error('Server adoption is already in progress.')
+    adoptingCampuses.add(mapId)
+    bumpCampusEpoch(mapId)
+    try {
+      // Stop queued local snapshots and let any already-running request settle
+      // before fetching the revision to adopt. This prevents an older POST from
+      // racing the authoritative GET.
+      invalidateQueuedCampusSaves(mapId, 'Superseded by authoritative server adoption')
+      await waitForCampusSavesToSettle(mapId)
+      if (get().currentMapId !== mapId) throw new Error('Server adoption cancelled because Studio navigated to another campus.')
+
+      const data = await fetchServerSnapshot(mapId)
+      if (!data || isServerSnapshotEmpty(data)) {
+        throw new Error('Unable to load the server version. Check your connection and try again.')
       }
+      if (get().currentMapId !== mapId) throw new Error('Server adoption cancelled because Studio navigated to another campus.')
+      adoptServerSnapshotData(mapId, data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to adopt the server version.'
+      if (get().currentMapId === mapId) set({ syncStatus: 'conflict', syncError: message })
+      throw error
+    } finally {
+      adoptingCampuses.delete(mapId)
     }
-    const data = await fetchServerSnapshot(mapId)
-    if (!data || isServerSnapshotEmpty(data)) {
-      const message = 'Unable to load the server version. Check your connection and try again.'
-      set({ syncStatus: 'error', syncError: message })
-      throw new Error(message)
-    }
-    adoptServerSnapshotData(mapId, data)
   },
 
   syncLocalChanges: async () => {
     if (typeof window === 'undefined') return
     const mapId = get().currentMapId
     if (!mapId) return
-    if (get().syncStatus !== 'conflict' && get().syncStatus !== 'error') return
-    const sessionGeneration = campusSessionGeneration
-    const operationGeneration = beginSyncOperation()
+    if (get().syncStatus !== 'conflict') return
 
     const marker = readSyncMarker(mapId)
-    const acknowledged = markerIdentity(marker)
-    const localAtRequest = get()
-    const localIdentityAtRequest = canonicalSnapshotIdentity(
-      localAtRequest.graph.toJSON(),
-      localAtRequest.authoredDocument,
-    )
-    const recoveryTrace = {
-      chainIdAtRequest: latestSaveChainByCampus.get(mapId) ?? null,
-      operationGeneration,
-      sessionGeneration,
-      campusEpoch: getCampusEpoch(mapId),
-      expectedServerUpdatedAt: marker?.serverTimestamp ?? null,
-      localGraphFingerprintAtRequest: localIdentityAtRequest.graphFingerprint,
-      localAuthoredFingerprintAtRequest: localIdentityAtRequest.authoredFingerprint,
-      lastAcknowledgedServerGraphFingerprintAtRequest: acknowledged?.graphFingerprint ?? null,
-      lastAcknowledgedServerAuthoredFingerprintAtRequest: acknowledged?.authoredFingerprint ?? null,
-    }
-    logSaveLifecycle({ event: 'recovery-read-request', ...recoveryTrace })
-    let readResult: SnapshotReadLifecycleResult | null = null
-    const logRecoveryDisposition = (outcome: string, statusWriteApplied: boolean) => {
-      const currentState = get()
-      const currentIdentity = canonicalSnapshotIdentity(currentState.graph.toJSON(), currentState.authoredDocument)
-      const latestMarker = readSyncMarker(mapId)
-      logSaveLifecycle({
-        event: 'recovery-read-disposition',
-        ...recoveryTrace,
-        chainIdAtDisposition: latestSaveChainByCampus.get(mapId) ?? null,
-        httpStatus: readResult?.httpStatus ?? null,
-        readOutcome: readResult?.outcome ?? null,
-        outcome,
-        statusWriteApplied,
-        finalClientStatus: currentState.syncStatus,
-        currentLocalGraphFingerprint: currentIdentity.graphFingerprint,
-        currentLocalAuthoredFingerprint: currentIdentity.authoredFingerprint,
-        latestAcknowledgedServerGraphFingerprint: latestMarker?.snapshotFingerprint ?? null,
-        latestAcknowledgedServerAuthoredFingerprint: latestMarker?.authoredFingerprint ?? null,
-        latestAcknowledgedServerUpdatedAt: latestMarker?.serverTimestamp ?? null,
-      })
-    }
-    let data: (GraphSnapshot & { updatedAt?: string }) | null
-    try {
-      data = await fetchServerSnapshot(mapId, {
-        surfaceAuthenticationFailure: true,
-        onLifecycle: (entry) => {
-          readResult = entry
-          logSaveLifecycle({
-            event: 'recovery-read-response',
-            ...recoveryTrace,
-            chainIdAtResponse: latestSaveChainByCampus.get(mapId) ?? null,
-            httpStatus: entry.httpStatus,
-            readOutcome: entry.outcome,
-            serverUpdatedAt: entry.updatedAt,
-            serverGraphFingerprint: entry.graphFingerprint,
-            serverAuthoredFingerprint: entry.authoredFingerprint,
-            serverHasAuthoredDocument: entry.hasAuthoredDocument,
-            error: entry.error,
-          })
-        },
-      })
-    } catch (error) {
-      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) {
-        logRecoveryDisposition('ignored-stale-failure', false)
-        return
-      }
-      const message = error instanceof Error ? error.message : AUTH_REQUIRED_MESSAGE
-      set({ syncStatus: 'error', syncError: message })
-      logRecoveryDisposition('current-read-failure', true)
-      throw error
-    }
-    if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) {
-      logRecoveryDisposition(data ? 'ignored-stale-response' : 'ignored-stale-failure', false)
-      return
-    }
+    const acknowledged = marker?.formatVersion === SNAPSHOT_IDENTITY_VERSION ? marker.snapshotFingerprint ?? null : null
+    const data = await fetchServerSnapshot(mapId)
     if (!data) {
       const message = 'Could not reach the server. Your local work is preserved; try again.'
       set({ syncStatus: 'error', syncError: message })
-      logRecoveryDisposition('current-read-failure', true)
       throw new Error(message)
-    }
-
-    const serverIdentity = canonicalSnapshotIdentity(data)
-    const currentState = get()
-    const localIdentity = canonicalSnapshotIdentity(currentState.graph.toJSON(), currentState.authoredDocument)
-    logSaveLifecycle({
-      event: 'recovery-read-comparison',
-      ...recoveryTrace,
-      chainIdAtComparison: latestSaveChainByCampus.get(mapId) ?? null,
-      httpStatus: readResult?.httpStatus ?? null,
-      serverUpdatedAt: data.updatedAt ?? null,
-      serverGraphFingerprint: serverIdentity.graphFingerprint,
-      serverAuthoredFingerprint: serverIdentity.authoredFingerprint,
-      localGraphFingerprint: localIdentity.graphFingerprint,
-      localAuthoredFingerprint: localIdentity.authoredFingerprint,
-      canonicalMatch: canonicalIdentityEqual(serverIdentity, localIdentity),
-      graphMatch: serverIdentity.graphFingerprint === localIdentity.graphFingerprint,
-      authoredMatch: serverIdentity.authoredFingerprint !== null
-        && serverIdentity.authoredFingerprint === localIdentity.authoredFingerprint,
-    })
-
-    // Missed acknowledgement (CASE A): the server already contains exactly
-    // the preserved local graph. Adopt only its authoritative revision; a
-    // second POST would be redundant and could create a false conflict.
-    if (canonicalIdentityEqual(serverIdentity, localIdentity)) {
-      writeSyncMarker(
-        mapId,
-        serverIdentity.graphFingerprint,
-        new Date().toISOString(),
-        data.updatedAt ?? null,
-        serverIdentity.authoredFingerprint,
-      )
-      lastAcknowledgedCollections = collectionsOf(data)
-      clearAcknowledgedAuthoredMutations()
-      set({ syncStatus: 'synced', syncError: null })
-      logRecoveryDisposition('server-matches-local', true)
-      return
     }
 
     // Genuine divergence (CASE C): the server moved beyond the acknowledged
     // base. Never overwrite; keep the local work and the conflict state.
-    if (acknowledged === null || !canonicalIdentityEqual(serverIdentity, acknowledged)) {
+    if (acknowledged === null || fullSnapshotFingerprint(data) !== acknowledged) {
       const message = 'Server and local changes differ. Your local work is preserved.'
       set({ syncStatus: 'conflict', syncError: message })
-      logRecoveryDisposition('true-divergence', true)
       throw new Error(message)
     }
 
     // Server is still at the acknowledged base (CASE B): retry the preserved
     // local work through the normal guarded save queue with the latest
     // expected revision. Clear conflict only after an authoritative ack.
-    writeSyncMarker(
-      mapId,
-      acknowledged.graphFingerprint,
-      marker?.syncedAt ?? new Date().toISOString(),
-      data.updatedAt ?? marker?.serverTimestamp ?? null,
-      acknowledged.authoredFingerprint,
-    )
     set({ syncStatus: 'idle', syncError: null })
     try {
       await enqueueCampusSave(mapId, false, 'manual')
     } catch (error) {
-      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       const message = error instanceof Error ? error.message : 'Sync failed'
-      set({ syncStatus: isAuthenticationFailureMessage(message) ? 'error' : 'conflict', syncError: message })
+      set({ syncStatus: 'conflict', syncError: message })
       throw error
     }
   },
@@ -1489,96 +1111,102 @@ const graphStore = create<GraphState>((rawSet, get) => {
   fetchFromSupabase: async (mapId?: string) => {
     if (typeof window === 'undefined') return
     const effectiveMapId = mapId || get().currentMapId
+    if (effectiveMapId && effectiveMapId === get().currentMapId && hasUnsyncedWork(get())) {
+      get().persistRecovery()
+      await checkServerFreshness(effectiveMapId)
+      return
+    }
+    const initialFingerprint = workingFingerprint(get())
+    const initialIntentSeq = get().pendingAuthoredMutations.map(i => i.seq).join(',')
+    const requestSequence = ++serverLoadSequence
+    const startingCampus = get().currentMapId
+    const readinessAtStart = get().campusReady
+    const startingEpoch = effectiveMapId ? getCampusEpoch(effectiveMapId) : 0
+    const isCurrentLoad = () => requestSequence === serverLoadSequence && get().currentMapId === startingCampus && (!effectiveMapId || getCampusEpoch(effectiveMapId) === startingEpoch)
     // P0.12: baseline unknown while an authoritative fetch is in flight.
-    lastAcknowledgedCollections = null
-    authoredIntentSeq = 0
+    if (startingCampus !== effectiveMapId) {
+      lastAcknowledgedCollections = null
+      authoredIntentSeq = 0
+      intentGeneration = newMutationId()
+    }
     // P0.14: not ready until the fetched graph is reconciled by the editor.
     get().beginCampusHydration()
-    set({ syncStatus: 'syncing' })
+    set({ syncStatus: 'checking', syncError: null })
     try {
       const url = effectiveMapId ? `/api/graph?campus_id=${encodeURIComponent(effectiveMapId)}` : `/api/graph`
-      const res = await fetch(url, { credentials: 'include' })
+      const res = await fetchGraphJson(url, { credentials: 'include' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as PersistedGraphSnapshot
-      let authoredDocument: CampusDocument | null = null
-      try {
-        authoredDocument = parseAuthoredGraphPayload(data).authoredDocument
-      } catch (error) {
-        console.warn('[graph-store] server authored snapshot could not be hydrated:', error)
+      const data = res.data as unknown as PersistedGraphSnapshot
+      if (!isCurrentLoad()) return
+      if (workingFingerprint(get()) !== initialFingerprint || get().pendingAuthoredMutations.map(i => i.seq).join(',') !== initialIntentSeq) {
+        get().persistRecovery()
+        set({ campusReady: readinessAtStart, syncStatus: 'conflict', syncError: 'Local work changed during the server read. Both versions are preserved; resolve before saving.' })
+        return
       }
+      const authoredDocument = parseAuthoredGraphPayload(data).authoredDocument
       if (!data || !data.nodes) {
         // F3: metadata-only or legacy rows carry an authoritative revision but
         // no graph arrays. Record that revision and mount an empty graph so the
         // editor can open and adopt the row on its first save.
         if (effectiveMapId && data?.updatedAt) {
-          let fingerprint: string
-          try {
-            fingerprint = graphFingerprint(data)
-          } catch {
-            fingerprint = snapshotFingerprint(stableStringify(data))
-          }
-          writeSyncMarker(
-            effectiveMapId,
-            fingerprint,
-            data.updatedAt,
-            data.updatedAt,
-            authoredDocument ? authoredDocumentFingerprint(authoredDocument) : null,
-          )
+          writeSyncMarker(effectiveMapId, fullSnapshotFingerprint(data), data.updatedAt, data.updatedAt)
         }
         const emptyGraph = new Graph()
         if (effectiveMapId) emptyGraph.campusId = effectiveMapId
-        set({ graph: emptyGraph, authoredDocument, currentMapId: effectiveMapId ?? null, syncStatus: 'idle' })
+        if (effectiveMapId) {
+          bumpCampusEpoch(effectiveMapId)
+          invalidateQueuedCampusSaves(effectiveMapId, 'Superseded by authoritative server load')
+        }
+        set({ graph: emptyGraph, authoredDocument, pendingAuthoredMutations: [], currentMapId: effectiveMapId ?? null, syncStatus: 'idle', serverAdoptionVersion: get().serverAdoptionVersion + 1 })
         return
       }
-      const graph = Graph.fromJSON(data)
+      const graph = Graph.fromJSON({ ...data, buildings: data.buildings ?? [], nodes: data.nodes ?? [], edges: data.edges ?? [] })
+      if (effectiveMapId && data.updatedAt) {
+        adoptServerSnapshotData(effectiveMapId, data)
+        return
+      }
       // Keep graph identity in sync with the map we loaded
       if (effectiveMapId) graph.campusId = effectiveMapId
       // Record server freshness for future load comparisons. Only real server
       // timestamps may enter the marker.
       if (effectiveMapId && data.updatedAt) {
-        const identity = canonicalSnapshotIdentity(data, authoredDocument)
-        writeSyncMarker(
-          effectiveMapId,
-          identity.graphFingerprint,
-          data.updatedAt,
-          data.updatedAt,
-          identity.authoredFingerprint,
-        )
+        writeSyncMarker(effectiveMapId, fullSnapshotFingerprint(data), data.updatedAt, data.updatedAt)
       }
       lastAcknowledgedCollections = collectionsOf(data)
       // A fresh authoritative load replaces any retained local edits: discard
       // their intents and queued saves so they cannot resurrect after load.
       if (effectiveMapId) {
         authoredIntentSeq = 0
+        intentGeneration = newMutationId()
         bumpCampusEpoch(effectiveMapId)
         invalidateQueuedCampusSaves(effectiveMapId, 'Superseded by authoritative server load')
       }
       useGraphStore.setState({ pendingAuthoredMutations: [] })
-      set({ graph, authoredDocument, currentMapId: effectiveMapId, syncStatus: 'synced' })
+      set({ graph, authoredDocument, currentMapId: effectiveMapId, syncStatus: data.updatedAt ? 'synced' : 'idle', serverAdoptionVersion: get().serverAdoptionVersion + 1 })
     } catch (e) {
+      if (!isCurrentLoad()) return
       console.warn('[graph-store] fetchFromSupabase failed:', e)
-      set({ syncStatus: 'idle' })
+      if (workingFingerprint(get()) !== initialFingerprint || get().pendingAuthoredMutations.map(i => i.seq).join(',') !== initialIntentSeq) {
+        // Even a failed late read must not restore an older cached document.
+        try { get().persistRecovery() } catch { /* the checkpoint surfaced its error */ }
+        set({ campusReady: readinessAtStart, syncStatus: 'error', syncError: 'Server read failed. Newer working edits remain preserved; retry when connected.' })
+        return
+      }
+      // Read failure may expose a cached snapshot, but never certify it saved.
+      let recovery: Partial<GraphState> = {}
+      try {
+        const raw = effectiveMapId ? localStorage.getItem(storageKey(effectiveMapId)) : null
+        if (raw) {
+          const parsed = parseAuthoredGraphPayload(JSON.parse(raw))
+          const graph = Graph.fromJSON(parsed.graphPayload as GraphSnapshot)
+          graph.campusId = effectiveMapId!
+          recovery = { graph, authoredDocument: parsed.authoredDocument, currentMapId: effectiveMapId }
+        }
+      } catch { /* preserve unreadable cache bytes and current memory */ }
+      set({ ...recovery, syncStatus: 'error', syncError: 'Offline or server unavailable. Browser recovery is unverified; edits remain preserved.' })
     }
   },
-  })
-})
-
-// A few recovery helpers intentionally use the public Zustand API because
-// they run outside the store initializer. Trace those writes as well so the
-// audit cannot miss a late conflict transition.
-const originalGraphSetState = graphStore.setState
-graphStore.setState = ((partial, replace) => {
-  if (typeof partial !== 'function' && partial && 'syncStatus' in partial) {
-    const next = partial as Partial<GraphState>
-    recordSyncStatusTrace(
-      { to: next.syncStatus, error: next.syncError ?? null },
-      graphStore.getState().syncStatus,
-    )
-  }
-  return originalGraphSetState(partial, replace)
-}) as typeof graphStore.setState
-
-export const useGraphStore = graphStore
+}))
 
 // ── Per-campus save serialization ─────────────────────────────────────────
 //
@@ -1603,6 +1231,7 @@ interface CampusSaveQueue {
   pendingForce: boolean
   pendingTrigger: SaveTrigger
   waiters: Array<{ resolve: () => void; reject: (reason: unknown) => void }>
+  idleWaiters: Array<() => void>
 }
 
 const campusSaveQueues = new Map<string, CampusSaveQueue>()
@@ -1610,17 +1239,13 @@ const campusSaveQueues = new Map<string, CampusSaveQueue>()
 /** Test-only: clears queued/running save state between test cases. */
 export function __resetGraphSaveQueuesForTests(): void {
   campusSaveQueues.clear()
-  latestSaveChainByCampus.clear()
   // P0.12: module-level safety state must not leak across test cases (the
   // acknowledged baseline and authored sequence are per-campus runtime state).
   lastAcknowledgedCollections = null
   authoredIntentSeq = 0
-  campusSessionGeneration = 0
-  // Invalidate any unresolved async work from the previous test boundary.
-  syncOperationGeneration += 1
+  intentGeneration = newMutationId()
   campusEpoch.clear()
-  pendingLocalAheadResumeMapId = null
-  campusEpoch.clear()
+  adoptingCampuses.clear()
   // P0.14: fixtures start from a fully hydrated campus; tests that exercise the
   // load lifecycle call beginCampusHydration()/completeCampusHydration() explicitly.
   useGraphStore.setState({ pendingAuthoredMutations: [], campusReady: true })
@@ -1629,10 +1254,21 @@ export function __resetGraphSaveQueuesForTests(): void {
 function getCampusSaveQueue(mapId: string): CampusSaveQueue {
   let queue = campusSaveQueues.get(mapId)
   if (!queue) {
-    queue = { running: false, hasPending: false, pendingForce: false, pendingTrigger: 'manual', waiters: [] }
+    queue = { running: false, hasPending: false, pendingForce: false, pendingTrigger: 'manual', waiters: [], idleWaiters: [] }
     campusSaveQueues.set(mapId, queue)
   }
   return queue
+}
+
+function waitForCampusSavesToSettle(mapId: string): Promise<void> {
+  const queue = campusSaveQueues.get(mapId)
+  if (!queue?.running) return Promise.resolve()
+  return new Promise<void>((resolve) => queue.idleWaiters.push(resolve))
+}
+
+function resolveCampusQueueIdle(queue: CampusSaveQueue): void {
+  const waiters = queue.idleWaiters.splice(0)
+  for (const resolve of waiters) resolve()
 }
 
 function enqueueCampusSave(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
@@ -1659,6 +1295,7 @@ function enqueueCampusSave(mapId: string, force: boolean, trigger: SaveTrigger =
     (error: unknown) => {
       rejectQueuedSaves(queue, error)
       queue.running = false
+      resolveCampusQueueIdle(queue)
     },
   )
   return firstRun
@@ -1681,6 +1318,7 @@ async function drainCampusSaveQueue(mapId: string, queue: CampusSaveQueue): Prom
     }
   }
   queue.running = false
+  resolveCampusQueueIdle(queue)
 }
 
 function rejectQueuedSaves(
@@ -1695,14 +1333,13 @@ function rejectQueuedSaves(
 }
 
 async function performSyncToSupabase(mapId: string, force: boolean, trigger: SaveTrigger = 'manual'): Promise<void> {
-  const sessionGeneration = campusSessionGeneration
   const unresolvedConflict =
     useGraphStore.getState().syncStatus === 'conflict' ? useGraphStore.getState().syncError : null
   if (unresolvedConflict) {
     console.warn('[graph-store] syncToSupabase blocked while a server conflict is unresolved:', unresolvedConflict)
     throw new Error(unresolvedConflict)
   }
-  if (!isActiveCampusSession(mapId, sessionGeneration)) {
+  if (useGraphStore.getState().currentMapId !== mapId) {
     // The editor moved to another map while this save was queued; the graph
     // for `mapId` is no longer the active one. Its local cache is intact.
     console.warn(`[graph-store] syncToSupabase skipped: map "${mapId}" is no longer active`)
@@ -1716,20 +1353,29 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
     console.warn(`[graph-store] save refused: campus not ready (trigger=${trigger})`)
     return
   }
-  const operationGeneration = beginSyncOperation()
+  // Direct sync/reconnect uses the same synchronous recovery contract as save.
+  preState.persistRecovery()
   const candidateSnapshot = preState.graph.toJSON()
-  const candidateHash = graphFingerprint(candidateSnapshot)
+  const candidateHash = fullSnapshotFingerprint(serializeAuthoredGraphPayload(candidateSnapshot as unknown as Record<string, unknown>, preState.authoredDocument))
   const acknowledgedFingerprint = readSyncMarker(mapId)?.snapshotFingerprint ?? null
+  let existing: PendingGraphSave | null
+  try { existing = readGraphSaveOutbox(mapId) }
+  catch (error) {
+    useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to read pending save.' })
+    throw error
+  }
   const pending = preState.pendingAuthoredMutations
   const candidateUnchanged = acknowledgedFingerprint !== null && acknowledgedFingerprint === candidateHash
   let includedUpTo = 0
 
-  if (trigger === 'autosave' && pending.length === 0) {
+  if (!existing && trigger === 'autosave' && pending.length === 0) {
     // CASE A: nothing authored to persist — no POST.
     return
   }
 
-  if (pending.length === 0) {
+  if (existing) {
+    // This immutable candidate already passed the guard before its first POST.
+  } else if (pending.length === 0) {
     // CASE D/E: clean manual save = explicit revision refresh (POST).
     // CASE E: a changed candidate with no authored intent is an unattributed
     // persistent mutation and fails closed — but only once this session has an
@@ -1757,227 +1403,113 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   }
 
   useGraphStore.setState({ syncStatus: 'syncing', syncError: null })
-  const snapshot = useGraphStore.getState().graph.toJSON()
-  const snapshotHash = graphFingerprint(snapshot)
-  const authoredHash = preState.authoredDocument ? authoredDocumentFingerprint(preState.authoredDocument) : null
-  // Serialize through the mapping layer to ensure RPC-compatible format
-  // and inject the correct campusId from currentMapId
+  const snapshot = preState.graph.toJSON()
   const payload = serializeSnapshot(snapshot as unknown as GraphSnapshotLike, mapId, preState.authoredDocument)
-  const expectedServerUpdatedAt = readSyncMarker(mapId)?.serverTimestamp ?? null
-  // One logical save attempt keeps one mutation id for every transport retry.
-  const mutationId = newMutationId()
-  latestSaveChainByCampus.set(mapId, mutationId)
-  const body = JSON.stringify({ ...payload, expectedServerUpdatedAt, forceServerOverwrite: force, mutationId })
+  const marker = readSyncMarker(mapId)
+  let expectedServerUpdatedAt = marker?.formatVersion === SNAPSHOT_IDENTITY_VERSION ? marker.serverTimestamp ?? null : null
   const epochAtStart = getCampusEpoch(mapId)
-  const traceContext = {
-    chainId: mutationId,
-    mutationId,
-    operationGeneration,
-    sessionGeneration,
-    campusEpoch: epochAtStart,
-    expectedServerUpdatedAt,
-    graphFingerprint: snapshotHash,
-    authoredFingerprint: authoredHash,
-  }
-
-  for (let attempt = 0; ; attempt++) {
-    if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
-    if (attempt > 0 && saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
-      // A newer authored revision owns the next queue turn. Never let a
-      // delayed retry write the older snapshot over that newer local state.
-      useGraphStore.setState({ syncStatus: 'idle', syncError: null })
-      return
+  const stillCurrent = () => getCampusEpoch(mapId) === epochAtStart && useGraphStore.getState().currentMapId === mapId && !adoptingCampuses.has(mapId)
+  if (force) {
+    const recoveryBase = await fetchServerSnapshot(mapId)
+    if (!stillCurrent()) return
+    if (!recoveryBase?.updatedAt) {
+      const message = 'Administrator recovery requires a verified current server revision.'
+      useGraphStore.setState({ syncStatus: 'error', syncError: message })
+      throw new Error(message)
     }
-    let responseStatus: number | null = null
-    let responseUpdatedAt: string | null = null
-    let responseSuccess: boolean | null = null
-    let responseReplay: boolean | null = null
-    let responseError: string | null = null
+    expectedServerUpdatedAt = recoveryBase.updatedAt
+    // An explicit recovery choice replaces an ordinary failed candidate.
+    if (existing && !existing.recovery) { clearGraphSaveOutbox(mapId); existing = null }
+  }
+  const mutationId = existing?.mutationId ?? newMutationId()
+  const body = existing?.body ?? JSON.stringify({ ...payload, expectedServerUpdatedAt, mutationId,
+    ...(force ? { recoveryPurpose: 'Explicit Studio conflict recovery' } : {}) })
+  const snapshotHash = existing?.contentFingerprint ?? fullSnapshotFingerprint(payload)
+  const entry: PendingGraphSave = existing ?? { version: 1, campusId: mapId, mutationId, body,
+    expectedServerUpdatedAt, contentFingerprint: snapshotHash, includedUpTo, intentGeneration, recovery: force }
+  const resumedOlderContent = Boolean(existing && existing.contentFingerprint !== candidateHash)
+  try { writeGraphSaveOutbox(entry) }
+  catch (error) {
+    const message = `Pending save recovery could not be recorded: ${error instanceof Error ? error.message : 'storage unavailable'}. Edits remain preserved.`
+    useGraphStore.setState({ syncStatus: 'error', syncError: message })
+    throw new Error(message)
+  }
+  for (let attempt = 0; ; attempt++) {
+    if (!stillCurrent()) return
     try {
-      const requestHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-navi-save-chain-id': mutationId,
-        'x-navi-save-attempt': String(attempt + 1),
-        'x-navi-session-generation': String(sessionGeneration),
-        'x-navi-campus-epoch': String(epochAtStart),
-        'x-navi-graph-fingerprint': snapshotHash,
-      }
-      if (authoredHash !== null) requestHeaders['x-navi-authored-fingerprint'] = authoredHash
-      logSaveLifecycle({ event: 'request', ...traceContext, attemptNumber: attempt + 1 })
-      const res = await fetch('/api/graph', {
+      const res = await fetchGraphJson(entry.recovery ? '/api/graph/recovery' : '/api/graph', {
         method: 'POST',
-        headers: requestHeaders,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body,
       })
-      responseStatus = res.status
-      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       if (!res.ok) {
-        if (isAuthenticationFailureStatus(res.status)) {
-          responseError = AUTH_REQUIRED_MESSAGE
-          throw new Error(AUTH_REQUIRED_MESSAGE)
-        }
-        const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        const msg = errBody.error ?? `HTTP ${res.status}`
-        responseError = typeof msg === 'string' ? msg : String(msg)
-        if (isRetryableHttpStatus(res.status)) throw new RetryableSyncError(msg)
-        throw new Error(msg)
+        const msg = res.status === 401 || res.status === 403
+          ? 'Your session expired or lacks permission. Sign in again; pending work is preserved.'
+          : String(res.data.error ?? `HTTP ${res.status}`)
+        throw new GraphRequestError(msg, res.status)
       }
-      const serverResult = (await res.json().catch(() => ({}))) as {
-        success?: boolean
-        updatedAt?: string | null
-        idempotent_replay?: boolean
-      }
-      responseUpdatedAt = typeof serverResult.updatedAt === 'string' ? serverResult.updatedAt : null
-      responseSuccess = typeof serverResult.success === 'boolean' ? serverResult.success : null
-      responseReplay = typeof serverResult.idempotent_replay === 'boolean' ? serverResult.idempotent_replay : null
-      const acknowledgedRevision = await resolveAcknowledgedRevision(
-        mapId,
-        responseUpdatedAt,
-        () => isActiveCampusSession(mapId, sessionGeneration)
-          && getCampusEpoch(mapId) === epochAtStart
-          && isCurrentSyncOperation(operationGeneration),
-      )
-      if (!isCurrentSyncOperation(operationGeneration)) return
-      if (getCampusEpoch(mapId) !== epochAtStart) {
-        // Phase 3A: the authoritative base was replaced while this save was in
-        // flight; its acknowledgement must not be stamped onto the new base.
+      const serverResult = res.data as SaveAcknowledgment
+      if (!stillCurrent()) return
+      const acknowledgedRevision = await resolveAcknowledgedRevision(mapId, serverResult, mutationId, snapshotHash)
+      if (!stillCurrent()) {
+        // The authoritative base was replaced while this save was in flight;
+        // its acknowledgement must not be stamped onto the new base.
         console.warn('[graph-store] save superseded by authoritative adoption — ack discarded')
         return
       }
-      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
       if (!acknowledgedRevision) {
         // No authoritative revision means the next save would claim a stale
         // expectedServerUpdatedAt. Never report synchronized in that state.
         const message =
           'The save reached the server, but the authoritative revision could not be confirmed. Local changes remain cached; retry when the server is reachable.'
         console.warn('[graph-store] syncToSupabase could not confirm the server revision.')
-        // The write itself already returned success. Do not issue another
-        // mutation here: legacy RPC deployments may not have idempotency and
-        // would turn a committed write into a false CAS conflict. The online
-        // recovery path will reconcile the server before attempting anything
-        // new if this final read-back remains unavailable.
+        useGraphStore.setState({ syncStatus: 'error', syncError: message })
         throw new Error(message)
       }
       // A confirmed server revision always becomes the marker's revision. The
       // fingerprint records the exact content the server acknowledged, while
       // newer local edits remain tracked as unsynced by the fingerprint mismatch.
-      writeSyncMarker(
-        mapId,
-        snapshotHash,
-        new Date().toISOString(),
-        acknowledgedRevision,
-        preState.authoredDocument ? authoredDocumentFingerprint(preState.authoredDocument) : null,
-      )
+      if (!writeSyncMarker(mapId, snapshotHash, new Date().toISOString(), acknowledgedRevision)) throw new Error('Unable to record the authoritative save acknowledgment locally.')
       // P0.11: the acknowledged snapshot is the new canonical guard baseline;
       // clear ONLY the intents included in this save (newer edits stay pending).
-      lastAcknowledgedCollections = collectionsOf(snapshot)
+      clearGraphSaveOutbox(mapId, mutationId)
+      lastAcknowledgedCollections = collectionsOf(JSON.parse(body))
+      includedUpTo = entry.intentGeneration === intentGeneration ? entry.includedUpTo : 0
       lastAcknowledgedSeq = Math.max(lastAcknowledgedSeq, includedUpTo)
       if (includedUpTo > 0) useGraphStore.getState().clearAuthoredMutations(includedUpTo)
-      useGraphStore.setState({ syncStatus: 'synced', syncError: null })
-      logSaveLifecycle({
-        event: 'response',
-        ...traceContext,
-        attemptNumber: attempt + 1,
-        httpStatus: responseStatus,
-        serverResponse: {
-          success: responseSuccess,
-          updatedAt: responseUpdatedAt,
-          idempotentReplay: responseReplay,
-        },
-        acknowledgedUpdatedAt: acknowledgedRevision,
-        retryable: false,
-        retryScheduled: false,
-        retryDelayMs: null,
-        finalClientStatus: 'synced',
-      })
+      const current = useGraphStore.getState()
+      const currentHash = fullSnapshotFingerprint(serializeAuthoredGraphPayload(current.graph.toJSON() as unknown as Record<string, unknown>, current.authoredDocument))
+      useGraphStore.setState({ syncStatus: currentHash === snapshotHash && current.pendingAuthoredMutations.length === 0 ? 'synced' : 'idle', syncError: null })
+      // A later candidate owns its own retry budget and error classification.
+      if (resumedOlderContent && currentHash !== snapshotHash) return performSyncToSupabase(mapId, false, 'manual')
       return
     } catch (e) {
-      if (!isActiveCampusSession(mapId, sessionGeneration) || !isCurrentSyncOperation(operationGeneration)) return
+      if (!stillCurrent()) return
       const msg = e instanceof Error ? e.message : 'Sync failed'
-      if (isRetryableSyncFailure(e)) {
-        if (saveWasSuperseded(mapId, sessionGeneration, epochAtStart, snapshotHash, authoredHash, includedUpTo)) {
-          useGraphStore.setState({ syncStatus: 'idle', syncError: null })
-          return
-        }
+      if ((isNetworkError(msg) || (e instanceof GraphRequestError && e.status >= 500)) && attempt < SYNC_RETRY_DELAYS.length) {
+        await sleep(SYNC_RETRY_DELAYS[attempt])
+        continue
+      }
+      if (isNetworkError(msg)) {
+        // Transient network failure — the graph is already safe in
+        // localStorage, so surface a calm status and resume automatically
+        // when the connection comes back.
         bindOnlineResync()
-        if (attempt < SYNC_RETRY_DELAYS.length) {
-          const retryDelayMs = SYNC_RETRY_DELAYS[attempt]
-          logSaveLifecycle({
-            event: 'response',
-            ...traceContext,
-            attemptNumber: attempt + 1,
-            httpStatus: responseStatus,
-            serverResponse: {
-              success: responseSuccess,
-              updatedAt: responseUpdatedAt,
-              idempotentReplay: responseReplay,
-              error: responseError?.slice(0, 240) ?? null,
-            },
-            retryable: true,
-            retryScheduled: true,
-            retryDelayMs,
-            finalClientStatus: 'syncing',
-          })
-          // Keep the active request in a single retry chain. The final error
-          // remains truthful if every guarded attempt is exhausted, while the
-          // online listener can recover without a page reload.
-          useGraphStore.setState({ syncStatus: 'syncing', syncError: 'Save failed — retrying automatically' })
-          await sleep(retryDelayMs)
-          continue
-        }
         const offlineMessage = 'Offline — changes saved locally. Will retry when back online.'
-        const finalMessage = isNetworkError(msg) ? offlineMessage : msg
-        console.warn('[graph-store] syncToSupabase retry chain exhausted:', msg)
-        logSaveLifecycle({
-          event: 'response',
-          ...traceContext,
-          attemptNumber: attempt + 1,
-          httpStatus: responseStatus,
-          serverResponse: {
-            success: responseSuccess,
-            updatedAt: responseUpdatedAt,
-            idempotentReplay: responseReplay,
-            error: responseError?.slice(0, 240) ?? msg.slice(0, 240),
-          },
-          retryable: true,
-          retryScheduled: false,
-          retryDelayMs: null,
-          finalClientStatus: 'error',
-        })
-        useGraphStore.setState({ syncStatus: 'error', syncError: finalMessage })
-        throw new Error(finalMessage)
-      } else if (/server changed|snapshot conflict/i.test(msg)) {
-        logSaveLifecycle({
-          event: 'response', ...traceContext, attemptNumber: attempt + 1,
-          httpStatus: responseStatus,
-          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
-          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'conflict',
-        })
+        console.warn('[graph-store] syncToSupabase offline — saved locally, will retry when back online:', msg)
+        useGraphStore.setState({ syncStatus: 'error', syncError: offlineMessage })
+        throw new Error(offlineMessage)
+      } else if (!/mutation[_ ]?id[_ ]collision/i.test(msg) && ((e instanceof GraphRequestError && e.status === 409) || /server changed|snapshot conflict/i.test(msg))) {
         useGraphStore.setState({ syncStatus: 'conflict', syncError: msg })
         throw new Error(msg)
       } else if (/mutation[_ ]?id[_ ]collision/i.test(msg)) {
         // Same mutation id reused with different content: never silently treat as a retry.
         console.error('[graph-store] syncToSupabase mutation id collision:', msg)
-        logSaveLifecycle({
-          event: 'response', ...traceContext, attemptNumber: attempt + 1,
-          httpStatus: responseStatus,
-          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
-          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'error',
-        })
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       } else {
-        if (/^The save reached the server, but the authoritative revision could not be confirmed/i.test(msg)) {
-          bindOnlineResync()
-        }
         console.error('[graph-store] syncToSupabase failed:', msg)
-        logSaveLifecycle({
-          event: 'response', ...traceContext, attemptNumber: attempt + 1,
-          httpStatus: responseStatus,
-          serverResponse: { success: responseSuccess, updatedAt: responseUpdatedAt, error: responseError?.slice(0, 240) ?? msg.slice(0, 240) },
-          retryable: false, retryScheduled: false, retryDelayMs: null, finalClientStatus: 'error',
-        })
         useGraphStore.setState({ syncStatus: 'error', syncError: msg })
         throw new Error(msg)
       }
@@ -1985,30 +1517,34 @@ async function performSyncToSupabase(mapId: string, force: boolean, trigger: Sav
   }
 }
 
-/**
- * Resolve the revision the save must acknowledge.
- *
- * Migration 009 returns `updatedAt`; the deployed 004/005 RPC does not. When
- * the POST response carries no revision, read the authoritative value back so
- * the next save never claims a revision the server has already advanced past.
- */
+interface SaveAcknowledgment {
+  updatedAt?: unknown
+  campusId?: unknown
+  mutationId?: unknown
+  committedRevision?: unknown
+  committedContentFingerprint?: unknown
+}
+
 async function resolveAcknowledgedRevision(
   mapId: string,
-  responseUpdatedAt: string | null,
-  isCurrent?: () => boolean,
+  ack: SaveAcknowledgment,
+  mutationId: string,
+  intendedFingerprint: string,
 ): Promise<string | null> {
-  if (typeof responseUpdatedAt === 'string' && responseUpdatedAt.length > 0) {
-    return responseUpdatedAt
+  const modern = ['campusId', 'mutationId', 'committedRevision', 'committedContentFingerprint'].some(key => key in ack)
+  if (modern) {
+    if (ack.campusId !== mapId || ack.mutationId !== mutationId ||
+        typeof ack.committedRevision !== 'string' || !ack.committedRevision ||
+        ack.committedContentFingerprint !== intendedFingerprint ||
+        (ack.updatedAt !== undefined && ack.updatedAt !== ack.committedRevision)) {
+      throw new Error('Server acknowledgment does not confirm the intended campus, mutation and complete content.')
+    }
+    return ack.committedRevision
   }
-  // A successful POST without an echoed revision is an acknowledgement
-  // uncertainty, not a second mutation opportunity. Retry only the read-back;
-  // this is safe for both idempotent and legacy RPC deployments.
-  for (let attempt = 0; ; attempt += 1) {
-    if (isCurrent && !isCurrent()) return null
-    const data = await fetchServerSnapshot(mapId, { surfaceAuthenticationFailure: true })
-    if (isCurrent && !isCurrent()) return null
-    if (data?.updatedAt) return data.updatedAt
-    if (attempt >= SYNC_RETRY_DELAYS.length) return null
-    await sleep(SYNC_RETRY_DELAYS[attempt])
-  }
+  // Compatibility readback must prove the complete intended content. A GET
+  // timestamp by itself never certifies a save, nor a newer unrelated revision.
+  const data = await fetchServerSnapshot(mapId)
+  if (!data?.updatedAt || data.campusId !== mapId || fullSnapshotFingerprint(data) !== intendedFingerprint) return null
+  if (ack.updatedAt !== undefined && ack.updatedAt !== null && ack.updatedAt !== data.updatedAt) return null
+  return data.updatedAt
 }

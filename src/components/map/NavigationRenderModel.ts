@@ -717,28 +717,14 @@ export function buildFromCampusBundle(bundle: {
   }
 }
 
-/**
- * Cache pure campus geometry/render data by the published bundle's object identity.
- * Campus bundles are immutable for their in-memory lifetime; WeakMap lets replaced
- * bundles be collected once no store, page, or other consumer retains them.
- */
-export function createNavigationRenderModelCache(
-  builder: (bundle: CampusBundle) => NavigationRenderModel = buildFromCampusBundle,
-): (bundle: CampusBundle) => NavigationRenderModel {
-  const cache = new WeakMap<CampusBundle, NavigationRenderModel>()
-
-  return (bundle) => {
-    const cachedModel = cache.get(bundle)
-    if (cachedModel) return cachedModel
-
-    const model = builder(bundle)
-    cache.set(bundle, model)
-    return model
-  }
-}
-
-const getCachedModelForBundle = createNavigationRenderModelCache()
+/** Cache pure render data while the immutable public-store bundle stays current. */
+const navigationRenderModelCache = new WeakMap<CampusBundle, NavigationRenderModel>()
 
 export function getCachedNavigationRenderModel(bundle: CampusBundle): NavigationRenderModel {
-  return getCachedModelForBundle(bundle)
+  const cached = navigationRenderModelCache.get(bundle)
+  if (cached) return cached
+
+  const model = buildFromCampusBundle(bundle)
+  navigationRenderModelCache.set(bundle, model)
+  return model
 }

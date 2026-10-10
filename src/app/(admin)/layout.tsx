@@ -9,7 +9,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
 
   const segments = pathname.split("/").filter(Boolean);
-  const currentScreen: ScreenName = (segments[segments.length - 1] as ScreenName) || "dashboard";
+  const currentScreen: ScreenName = (segments[0] as ScreenName) || "dashboard";
 
   const handleNavigate = (screen: ScreenName) => {
     router.push(`/${screen}`);

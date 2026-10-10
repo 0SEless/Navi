@@ -40,9 +40,6 @@ export class WorkflowService extends BaseEditorService {
   private saveInFlight = 0
   private graphSyncStartedClean = false
   private blockedSyncDocumentVersion: number | null = null
-  /** Document version captured when a reload freshness check begins. */
-  private freshnessCheckDocumentVersion: number | null = null
-  private lastPersistenceStatus: PersistenceSyncState['status'] | null = null
 
   async init(context: EditorServiceContext): Promise<void> {
     await super.init(context)
@@ -137,7 +134,7 @@ export class WorkflowService extends BaseEditorService {
       const snapshot = validationEngine.validate(this.document, 'publish')
       result = {
         passed: snapshot.statistics.totalIssues - snapshot.statistics.errors - snapshot.statistics.warnings,
-        failed: snapshot.statistics.errors + snapshot.statistics.warnings,
+        failed: snapshot.statistics.errors,
         errors: snapshot.issues.filter(i => i.severity === 'error').map(i => i.message),
         timestamp: Date.now(),
       }
@@ -217,22 +214,11 @@ export class WorkflowService extends BaseEditorService {
   }
 
   private handlePersistenceSyncState(state: PersistenceSyncState): void {
-    const previousPersistenceStatus = this.lastPersistenceStatus
-    this.lastPersistenceStatus = state.status
-
     if (state.status === 'checking') {
       // Freshness verification is still unresolved. Neither mark the document
       // saved nor dirty: the previous state stands until the check settles.
-      this.freshnessCheckDocumentVersion = this.documentStore.version
       return
     }
-
-    const completedFreshnessCheck = previousPersistenceStatus === 'checking'
-      && this.freshnessCheckDocumentVersion === this.documentStore.version
-    const completedFreshnessCheckVersion = completedFreshnessCheck
-      ? this.freshnessCheckDocumentVersion
-      : null
-    this.freshnessCheckDocumentVersion = null
 
     const workflowSyncStatus: SyncStatus = state.status === 'synced' ? 'success' : state.status
     this.workflowStore.setSyncStatus(workflowSyncStatus)
@@ -280,18 +266,8 @@ export class WorkflowService extends BaseEditorService {
     // as a normal save. Only clear dirty state when no new document revision
     // appeared after the conflict/pending state was observed.
     if (state.status === 'synced' && this.saveInFlight === 0) {
-      const expectedVersion = completedFreshnessCheckVersion
-        ?? this.blockedSyncDocumentVersion
-        ?? snapshot.lastSaveVersion
-      const canMarkSaved = (
-        this.graphSyncStartedClean
-        || this.blockedSyncDocumentVersion !== null
-        // A reused editor context can carry a stale dirty baseline across a
-        // client-side reload. A completed freshness check is an authoritative
-        // canonical read, so heal that baseline only when no document revision
-        // occurred while the check was in flight.
-        || completedFreshnessCheck
-      )
+      const expectedVersion = this.blockedSyncDocumentVersion ?? snapshot.lastSaveVersion
+      const canMarkSaved = (this.graphSyncStartedClean || this.blockedSyncDocumentVersion !== null)
         && this.documentStore.version === expectedVersion
         && snapshot.saveState !== 'dirty-while-saving'
 

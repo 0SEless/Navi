@@ -369,6 +369,45 @@ describe('usePublicStore campus data layer', () => {
     expect(state.campusStatus).toBe('ready')
   })
 
+  it('attaches canonical building identity to indexed graph snapshot search aliases', async () => {
+    stubFetch((url) => url.includes('/api/public-campus')
+      ? jsonResponse({
+          campusId: 'test-campus',
+          source: 'graph_snapshots',
+          revision: '14',
+          nodes: graphFixture.nodes,
+          edges: graphFixture.edges,
+          buildings: buildingsFixture.buildings,
+          artifacts: { searchIndex: { entries: [
+            { id: 'main-building-search', label: 'Main Building', type: 'building', sourceId: 'b1' },
+          ] } },
+        })
+      : jsonResponse({ error: 'not found' }, 404))
+
+    await usePublicStore.getState().fetchCampusData('test-campus')
+
+    const entry = usePublicStore.getState().campus?.searchEntries.find((candidate) => candidate.id === 'main-building-search')
+    expect(entry).toMatchObject({ id: 'main-building-search', type: 'building', buildingId: 'b1', sourceId: 'b1' })
+  })
+
+  it('includes canonical building identity on generated graph snapshot search entries', async () => {
+    stubFetch((url) => url.includes('/api/public-campus')
+      ? jsonResponse({
+          campusId: 'test-campus',
+          source: 'graph_snapshots',
+          revision: '14',
+          nodes: graphFixture.nodes,
+          edges: graphFixture.edges,
+          buildings: buildingsFixture.buildings,
+        })
+      : jsonResponse({ error: 'not found' }, 404))
+
+    await usePublicStore.getState().fetchCampusData('test-campus')
+
+    const entry = usePublicStore.getState().campus?.searchEntries.find((candidate) => candidate.id === 'b1')
+    expect(entry).toMatchObject({ id: 'b1', type: 'building', buildingId: 'b1', sourceId: 'b1' })
+  })
+
   it('preserves authored POI search identity and finds normalized category tokens', async () => {
     stubFetch((url) => {
       if (url.includes('/api/public-campus')) {

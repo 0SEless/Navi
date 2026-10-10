@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase-client'
+import { supabasePublicKeyOrUndefined } from '@/lib/supabase-public'
+import { evaluateSupabaseWriteTarget } from '@/lib/supabase-write-policy'
 import { needsRasterization, rasterizePdfToPng } from '@navi/editor'
 import { isOwnedFloorPlanUrl } from './floor-plan-lifecycle'
 import type { FloorPlanStorageScope } from './floor-plan-lifecycle'
@@ -32,7 +34,19 @@ export async function uploadFloorPlanImage(
   // P1-T14: rasterize PDFs first so storage/data-url paths never carry a PDF.
   const uploadFile = await planFileToUploadBlob(file)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Public client: modern publishable key via the centralised public resolver.
+  const supabaseKey = supabasePublicKeyOrUndefined()
+
+  if (supabaseUrl) {
+    const target = evaluateSupabaseWriteTarget({
+      NODE_ENV: process.env.NODE_ENV,
+      NEXT_PUBLIC_NAVI_DEPLOYMENT_ENV: process.env.NEXT_PUBLIC_NAVI_DEPLOYMENT_ENV,
+      NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+    })
+    if (!target.ok) {
+      throw new Error('Floor-plan Storage writes are disabled for this deployment target.')
+    }
+  }
 
   if (!supabaseUrl || !supabaseKey) {
     return readFileAsDataUrl(uploadFile)
@@ -66,11 +80,39 @@ export async function uploadFloorPlanImage(
   }
 }
 
-export async function deleteFloorPlanImage(url: string, scope?: FloorPlanStorageScope): Promise<void> {
+export interface DeleteFloorPlanImageOptions {
+  /**
+   * Authoritative floor-plan URLs still referenced after the update that
+   * triggered this deletion (see `collectBuildingFloorPlanReferences`).
+   * If the target URL appears here the asset is SHARED: deletion is skipped
+   * safely (return, no throw — a shared asset is an expected condition, not
+   * an error). Reference existence takes precedence over storage-path
+   * ownership: a `floor-N-` prefix proves namespace, never exclusivity.
+   */
+  referencedUrls?: readonly (string | null | undefined)[]
+}
+
+export async function deleteFloorPlanImage(
+  url: string,
+  scope?: FloorPlanStorageScope,
+  options?: DeleteFloorPlanImageOptions,
+): Promise<void> {
+  // Reference guard FIRST: a floor-plan asset may only be physically deleted
+  // when NO authoritative floor-plan reference resolves to it.
+  if (options?.referencedUrls?.some((referenced) => referenced != null && referenced === url)) {
+    return
+  }
   // Destructive storage cleanup is allowed only after ownership is proven.
   if (!scope || !isOwnedFloorPlanUrl(url, scope)) return
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!supabaseUrl) return
+
+  const target = evaluateSupabaseWriteTarget({
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_NAVI_DEPLOYMENT_ENV: process.env.NEXT_PUBLIC_NAVI_DEPLOYMENT_ENV,
+    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+  })
+  if (!target.ok) return
 
   try {
     const supabase = createClient()

@@ -98,6 +98,12 @@ describe('requireMutationSession', () => {
 })
 
 describe('assertCampusMutationAllowed', () => {
+  it('protects both the existing and newly protected canonical campus ids', () => {
+    expect(PROTECTED_CAMPUS_IDS).toEqual(['map-map-1-k6bv', 'map-map-1-repe'])
+    expect(assertCampusMutationAllowed('map-map-1-k6bv')?.status).toBe(423)
+    expect(assertCampusMutationAllowed('map-map-1-repe')?.status).toBe(423)
+  })
+
   it('protects every id in PROTECTED_CAMPUS_IDS with 423 and the exact body', async () => {
     expect(PROTECTED_CAMPUS_IDS.length).toBeGreaterThan(0)
     for (const campusId of PROTECTED_CAMPUS_IDS) {
@@ -131,6 +137,11 @@ describe('assertCampusMutationAllowed', () => {
       vi.stubEnv(PROTECTED_CAMPUS_WRITE_OVERRIDE_VAR, value)
       expect(assertCampusMutationAllowed('map-map-1-k6bv')?.status).toBe(423)
     }
+  })
+
+  it('override does not change either campus id in the protected set', () => {
+    expect(PROTECTED_CAMPUS_IDS).toContain('map-map-1-k6bv')
+    expect(PROTECTED_CAMPUS_IDS).toContain('map-map-1-repe')
   })
 })
 

@@ -22,7 +22,7 @@ describe('RoundTripVerifier', () => {
     revision: 'abc',
     artifacts: {
       graph: { path: 'graph.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
-      building: { path: 'building.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
+      buildings: { path: 'buildings.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
       poi: { path: 'poi.json', checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' },
     },
     metadata: {
@@ -83,7 +83,7 @@ describe('RoundTripVerifier', () => {
 
   it('passes for a valid package', async () => {
     await writeWithChecksum('graph', graphFile)
-    await writeWithChecksum('building', buildingFile)
+    await writeWithChecksum('buildings', buildingFile)
     await writeWithChecksum('poi', poiFile)
 
     const result = await verifier.verify(manifest, stagingDir)
@@ -122,7 +122,7 @@ describe('RoundTripVerifier', () => {
       edges: [{ id: 'e1', from: 'n1', to: 'nonexistent', type: 'walk' as const, distance: 100, weight: 100 }],
     }
     await writeWithChecksum('graph', badGraph)
-    await writeWithChecksum('building', buildingFile)
+    await writeWithChecksum('buildings', buildingFile)
     await writeWithChecksum('poi', poiFile)
 
     const result = await verifier.verify(manifest, stagingDir)
@@ -139,7 +139,7 @@ describe('RoundTripVerifier', () => {
         entrances: [{ id: 'bad-ent', label: 'Bad', nodeId: 'no-such-node' }],
       }],
     }
-    await writeWithChecksum('building', badBuilding)
+    await writeWithChecksum('buildings', badBuilding)
     await writeWithChecksum('poi', poiFile)
 
     const result = await verifier.verify(manifest, stagingDir)
@@ -149,7 +149,7 @@ describe('RoundTripVerifier', () => {
 
   it('reports POI references to unknown nodes', async () => {
     await writeWithChecksum('graph', graphFile)
-    await writeWithChecksum('building', buildingFile)
+    await writeWithChecksum('buildings', buildingFile)
 
     const badPoi = {
       ...poiFile,
@@ -164,7 +164,7 @@ describe('RoundTripVerifier', () => {
 
   it('accepts authored POIs without a navigation node reference', async () => {
     await writeWithChecksum('graph', graphFile)
-    await writeWithChecksum('building', buildingFile)
+    await writeWithChecksum('buildings', buildingFile)
 
     const authoredPoi = {
       schemaVersion: '1.0.0',
@@ -208,5 +208,132 @@ describe('RoundTripVerifier', () => {
     }
     const result = await verifier.verify(empty, stagingDir)
     expect(result.ok).toBe(true)
+  })
+})
+
+// ── Regression: published packages key the building index `buildings`
+// (ARTIFACT_NAMES in publisher.ts); a legacy `building` lookup is dead code.
+describe('RoundTripVerifier — published `buildings` key contract', () => {
+  let stagingDir: string
+  let verifier: RoundTripVerifier
+
+  const graph: NavigationGraphFile = {
+    schemaVersion: '1.0.0',
+    campusId: 'campus-1',
+    checksum: '',
+    nodes: [
+      { id: 'n1', type: 'waypoint', lat: 0, lng: 0, floor: 0, buildingId: 'b1' },
+      { id: 'n3', type: 'entrance', lat: 0.5, lng: 0.5, floor: 0, buildingId: 'b1' },
+    ],
+    edges: [{ id: 'e1', from: 'n1', to: 'n3', type: 'walk', distance: 50, weight: 50 }],
+  }
+
+  const brokenBuilding: BuildingIndexFile = {
+    schemaVersion: '1.0.0',
+    buildings: [{
+      id: 'b1', name: 'Building One', code: 'B1',
+      position: { lat: 0, lng: 0 },
+      floors: [{ level: 0, label: 'G', elevation: 0, nodeIds: ['n1', 'n3'] }],
+      entrances: [{ id: 'bad-ent', label: 'Bad', nodeId: 'no-such-node' }],
+    }],
+  }
+
+  function makeManifest(
+    artifacts: NavigationPackageManifest['artifacts'],
+  ): NavigationPackageManifest {
+    return {
+      schemaVersion: '1.0.0',
+      formatVersion: '0',
+      campusId: 'campus-1',
+      campusName: 'Test',
+      publishedAt: '2026-07-17T12:00:00Z',
+      compilerVersion: '1.0.0',
+      revision: '1',
+      artifacts,
+      metadata: {
+        nodeCount: 2, edgeCount: 1, buildingCount: 1, floorCount: 1,
+        boundingBox: { minLat: 0, maxLat: 1, minLng: 0, maxLng: 1 },
+        routeable: true,
+      },
+    }
+  }
+
+  async function stage(
+    manifest: NavigationPackageManifest,
+    entries: Array<[string, object]>,
+  ): Promise<void> {
+    for (const [name, data] of entries) {
+      const bytes = serialize(data)
+      writeFileSync(join(stagingDir, manifest.artifacts[name]!.path), bytes)
+      manifest.artifacts[name]!.checksum = hash(bytes)
+      manifest.artifacts[name]!.size = bytes.byteLength
+    }
+  }
+
+  function artifact(path: string): NavigationPackageManifest['artifacts'][string] {
+    return { path, checksum: '', size: 0, schemaVersion: '1.0.0', formatVersion: '0' }
+  }
+
+  beforeEach(async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'rtv-key-'))
+    stagingDir = join(tmp, 'staging')
+    await mkdir(stagingDir, { recursive: true })
+    verifier = new RoundTripVerifier(
+      { hash, hashFile: async () => '' },
+      { serialize, deserialize: <T>(b: Uint8Array) => JSON.parse(new TextDecoder().decode(b)) as T },
+    )
+  })
+
+  afterEach(() => {
+    rmSync(stagingDir, { recursive: true, force: true })
+  })
+
+  it('runs entrance-integrity against the published `buildings` key', async () => {
+    const manifest = makeManifest({
+      graph: artifact('graph.json'),
+      buildings: artifact('buildings.json'),
+    })
+    // No legacy `building` key exists anywhere in a published package.
+    expect(manifest.artifacts['buildings']).toBeDefined()
+    expect(manifest.artifacts['building']).toBeUndefined()
+
+    await stage(manifest, [
+      ['graph', graph],
+      ['buildings', brokenBuilding],
+    ])
+
+    const result = await verifier.verify(manifest, stagingDir)
+
+    // The entrance check must actually run (old `building` lookup never did).
+    expect(result.ok).toBe(false)
+    expect(
+      result.errors.some(
+        e =>
+          e.includes('Building b1 entrance bad-ent') &&
+          e.includes('no-such-node'),
+      ),
+    ).toBe(true)
+  })
+
+  it('does not fall back to the legacy `building` key (no alias)', async () => {
+    const manifest = makeManifest({
+      graph: artifact('graph.json'),
+      building: artifact('building.json'),
+    })
+
+    await stage(manifest, [
+      ['graph', graph],
+      ['building', brokenBuilding],
+    ])
+
+    const result = await verifier.verify(manifest, stagingDir)
+
+    // A stray `building` key is an unrecognized artifact: checksum-only.
+    // Entrance-integrity must NOT consult it (that would be an alias).
+    expect(
+      result.errors.some(e => e.includes('Building b1 entrance')),
+    ).toBe(false)
+    expect(result.ok).toBe(true)
+    expect(result.errors).toEqual([])
   })
 })

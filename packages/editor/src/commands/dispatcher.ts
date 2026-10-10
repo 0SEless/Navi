@@ -20,6 +20,10 @@ export class CommandDispatcher extends BaseEditorService {
   private documentStore?: DocumentStore
   private preHooks: PreHook[] = []
   private postHooks: PostHook[] = []
+  private canMutate: () => boolean = () => true
+
+  /** Host generation fence also applies to skipHooks (undo/redo) and batches. */
+  setMutationGuard(canMutate: () => boolean): void { this.canMutate = canMutate }
 
   constructor(registry?: CommandRegistry, document?: CampusDocument, eventBus?: DocumentEventBus) {
     super()
@@ -52,6 +56,7 @@ export class CommandDispatcher extends BaseEditorService {
   }
 
   execute(command: Command, options?: ExecuteOptions): any {
+    if (!this.canMutate()) return { success: false, error: 'Editor generation retired' }
     const handler = this.registry.get(command.id)
     if (!handler) {
       throw new Error(`Unknown command: ${command.id}`)
@@ -103,6 +108,7 @@ export class CommandDispatcher extends BaseEditorService {
    * execute() semantics are unchanged.
    */
   executeBatch(commands: Command[], options?: ExecuteOptions): BatchMutationResult {
+    if (!this.canMutate()) return { success: false, results: [], error: 'Editor generation retired' }
     if (commands.length === 0) return { success: true, results: [] }
 
     for (const [index, command] of commands.entries()) {

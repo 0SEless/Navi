@@ -1,6 +1,26 @@
 import type { Wall, LocalCoord } from '@navi/core'
 
 /**
+ * VERTICAL CONTRACT (floor-elevation audit, Phase A)
+ * See spec/FLOOR-ELEVATION-ACTIVE-FLOW.md.
+ *
+ * - `Floor.elevation` is the authoritative STACKING datum: meters above the
+ *   building ground plane, derived by `recalculateBuilding` (lowest level = 0,
+ *   accumulating floor heights). It is consumed by multi-floor stacking
+ *   contexts only (publisher package builder, runtime floor geometry,
+ *   published POI extrusion `base_elevation = baseElevation + elevation`).
+ * - A view that renders exactly one floor (Studio floor editor, Navigate's
+ *   active floor) presents that floor in its own base plane, so the plane
+ *   every renderable is pinned to — wall extrusion base, room / derived-room /
+ *   door / route extrusions, floor-plan raster, 2D overlays — is this
+ *   presentation datum. Passing `FLOOR_PRESENTATION_DATUM` to
+ *   `wallsToExtrusionCollection` keeps wall bases aligned with the rest of the
+ *   floor representation. Never compensate with ad-hoc Z offsets (+3m,
+ *   level*3, base slabs) and never mutate `Floor.elevation` for rendering.
+ */
+export const FLOOR_PRESENTATION_DATUM = 0
+
+/**
  * W13A: Convert a Wall (building-local meters) into a 4-corner GeoJSON Polygon
  * representing the wall footprint for fill-extrusion rendering.
  *
@@ -53,7 +73,9 @@ export function wallToPolygon(wall: Wall): GeoJSON.Polygon {
 
 /**
  * W13A: Convert a Wall to a GeoJSON Feature with fill-extrusion properties.
- * Properties include `base` (floor elevation) and `height` (elevation + wall.height)
+ * Properties include `base` (the caller-supplied floor datum — stacking floors
+ * pass `floor.elevation`, single-floor views pass `FLOOR_PRESENTATION_DATUM`,
+ * see the vertical contract above) and `height = base + wall.height`
  * for MapLibre fill-extrusion-base / fill-extrusion-height.
  */
 export function wallToExtrusionFeature(

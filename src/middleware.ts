@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { supabasePublicKeyOrUndefined } from "@/lib/supabase-public";
 import { MOCK_COOKIE, decodeMockSession, isMockAuthEnabled } from "@/lib/mock-auth";
 import { isAdminIdentity } from "@/lib/admin-authz";
 
@@ -18,7 +19,7 @@ export async function middleware(request: NextRequest) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabasePublicKeyOrUndefined()!,
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
