@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { PRIMARY_NAV_ITEMS, type PrimaryNavId } from '@/lib/public-app-contracts'
 import { useRouter } from 'next/navigation'
+import { NaviBrandLockup } from './PublicBranding'
 
 interface NavItem {
   id: PrimaryNavId
@@ -88,11 +89,13 @@ export function AdaptiveNav() {
 
       {/* Sidebar: tablet landscape & desktop (>=1024px) */}
       <aside className="hidden lg:flex lg:w-56 lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:border-r lg:border-[var(--navi-border)] lg:bg-[var(--navi-card)] lg:pt-4">
-        <div className="flex items-center gap-2 px-4 pb-4 mb-2 border-b border-[var(--navi-border)]">
-          <div className="h-8 w-8 rounded-lg bg-[var(--navi-primary)] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">N</span>
-          </div>
-          <span className="font-semibold text-[var(--navi-text)]">NAVI</span>
+        <div className="mb-2 border-b border-[var(--navi-border)] px-4 pb-4">
+          <NaviBrandLockup
+            className="flex w-fit items-center gap-2"
+            symbolClassName="h-6 w-[1.85rem]"
+            wordmarkClassName="h-[1.1rem] w-[3.6rem]"
+            testId="navi-sidebar-brand"
+          />
         </div>
         <div className="flex-1 px-2 space-y-1">
           {navItems.map((item) => (

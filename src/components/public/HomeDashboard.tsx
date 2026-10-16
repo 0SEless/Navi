@@ -25,6 +25,7 @@ import {
   type HomeAnnouncementPriority,
 } from '@/lib/home-content'
 import { HomeHeroCarousel } from './HomeHeroCarousel'
+import { NaviBrandLockup } from './PublicBranding'
 
 const ANNOUNCEMENT_TONE: Record<
   HomeAnnouncementPriority,
@@ -115,18 +116,12 @@ export function HomeDashboard() {
     <div className="mx-auto flex min-h-full w-full min-w-0 max-w-6xl flex-col overflow-x-hidden px-4 pb-10 pt-5 sm:px-6 sm:pt-8 lg:px-10">
       <header data-home-section="welcome" className="mb-7 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="mb-4 flex items-center gap-2.5">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--navi-primary)] text-sm font-bold text-white shadow-sm"
-              aria-hidden="true"
-            >
-              N
-            </div>
-            <div>
-              <p className="text-sm font-semibold tracking-wide text-[var(--navi-text)]">NAVI</p>
-              <p className="text-[11px] text-[var(--navi-text-secondary)]">Student campus guide</p>
-            </div>
-          </div>
+          <NaviBrandLockup
+            className="mb-4 flex w-fit items-center gap-2.5"
+            symbolClassName="h-8 w-10"
+            wordmarkClassName="h-6 w-[4.875rem]"
+            testId="navi-home-brand"
+          />
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--navi-primary)]">
             Your campus, in one place
           </p>
