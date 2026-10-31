@@ -39,6 +39,11 @@ describe('PersistenceService', () => {
     expect(adapter.save).toHaveBeenCalledOnce()
   })
 
+  it('passes the explicit save trigger through to the adapter', async () => {
+    await service.save('autosave')
+    expect(adapter.save).toHaveBeenCalledWith('autosave')
+  })
+
   it('save propagates adapter error', async () => {
     adapter.save = vi.fn().mockRejectedValue(new Error('Save failed'))
     await expect(service.save()).rejects.toThrow('Save failed')

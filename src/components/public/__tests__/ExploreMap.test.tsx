@@ -10,6 +10,7 @@ import ExploreMap from '../ExploreMap'
 
 const navigationCameraProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 const routeLineProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+const terrainLayerProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 
 vi.mock('@/components/map/NavigationMap', () => ({
   default: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
@@ -46,6 +47,13 @@ vi.mock('@/components/map/layers/BuildingLayer', () => ({
   BuildingLayer: ({ selectedBuildingId }: { selectedBuildingId?: string }) => (
     <output data-testid="building-layer-selection" data-selected-building={selectedBuildingId ?? ''} />
   ),
+}))
+
+vi.mock('@/components/map/layers/TerrainLayer', () => ({
+  TerrainLayer: (props: Record<string, unknown>) => {
+    terrainLayerProps.current = props
+    return <output data-testid="terrain-layer" />
+  },
 }))
 
 vi.mock('@/components/map/NavigationRenderModel', () => ({
@@ -131,6 +139,7 @@ afterEach(() => {
   })
   vi.clearAllMocks()
   routeLineProps.current = null
+  terrainLayerProps.current = null
 })
 
 const buildingBundle = {
@@ -152,6 +161,20 @@ const buildingBundle = {
 } satisfies CampusBundle
 
 describe('ExploreMap public navigation context boundary', () => {
+  it('passes published terrain and datum into the common Explore/Navigate map layer', () => {
+    const terrainAreas = [{
+      id: 'terrain-1', name: 'North lawn', color: '#22aa66', elevationMeters: 3.25,
+      points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121 }, { lat: 14.001, lng: 121.001 }],
+    }]
+    const terrainVerticalDatum = {
+      kind: 'campus-local' as const, name: 'Campus benchmark', zeroReference: 'Local mark',
+      elevationStatus: 'authored-not-surveyed' as const,
+    }
+    render(<ExploreMap bundle={{ ...bundle, terrainAreas, terrainVerticalDatum }} />)
+
+    expect(terrainLayerProps.current).toMatchObject({ areas: terrainAreas, datum: terrainVerticalDatum })
+  })
+
   it('keeps the parent live context and passes indoor context/floorGeometry to layers', () => {
     usePublicStore.setState({
       indoorContext: { active: true, buildingId: 'b1', floorId: 3 },

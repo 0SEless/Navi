@@ -40,6 +40,25 @@ describe('Public campus transport contract', () => {
     expect(normalizePublicCampusResult({ campusId: 'campus-1', source: 'published_maps', bundle: { ...bundle, nodes: [null] } }, 'campus-1')).toBeNull()
   })
 
+  it('accepts legacy bundles without terrain and rejects malformed published terrain', () => {
+    const legacy = normalizePublicCampusResult(
+      { campusId: 'campus-1', source: 'published', revision: '1', bundle }, 'campus-1',
+    )
+    expect(legacy?.bundle).toBe(bundle)
+
+    const malformed = normalizePublicCampusResult({
+      campusId: 'campus-1', source: 'published', revision: '2',
+      bundle: {
+        ...bundle,
+        terrainAreas: [{ id: 'terrain-bad', name: 'Bad', color: '#00ff00', elevationMeters: Infinity, points: [] }],
+        terrainVerticalDatum: {
+          kind: 'campus-local', name: 'Test', zeroReference: '0 m', elevationStatus: 'authored-not-surveyed',
+        },
+      },
+    }, 'campus-1')
+    expect(malformed).toBeNull()
+  })
+
   it('preserves canonical Road routing metadata by reference', () => {
     const routing = {
       sourceRoadId: 'road-1',

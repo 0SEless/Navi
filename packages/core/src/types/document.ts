@@ -1,4 +1,4 @@
-import type { Building, Road, Panorama, QRCheckpoint, Area, OutdoorPointOfInterest } from './entities'
+import type { Building, Road, Panorama, QRCheckpoint, Area, OutdoorPointOfInterest, TerrainArea, TerrainVerticalDatum } from './entities'
 
 export interface DocumentMetadata {
   /** Authoritative campus identity — immutable once created. Used as the canonical
@@ -67,6 +67,10 @@ export interface CampusDocument {
   panoramas: Panorama[]
   qrCheckpoints: QRCheckpoint[]
   areas?: Area[]
+  /** Campus-level authored terrain polygons, separate from legacy areas and POIs. */
+  terrainAreas?: TerrainArea[]
+  /** Explicit campus-local elevation reference for authored terrain areas. */
+  terrainVerticalDatum?: TerrainVerticalDatum
   /**
    * Outdoor/campus POIs authored directly on the campus map (world LatLng
    * geometry, no building/floor context). Indoor POIs remain on

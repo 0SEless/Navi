@@ -171,6 +171,51 @@ function realCompilerCampus(): CampusDocument {
 }
 
 describe('validateNavigationArtifacts', () => {
+  it('accepts a valid optional terrain projection and remains compatible with old artifacts', () => {
+    const legacy = validateNavigationArtifacts(artifact())
+    expect(legacy.valid).toBe(true)
+
+    const result = validateNavigationArtifacts(artifact({
+      terrainAreas: [{
+        id: 'terrain-1', name: 'North lawn', color: '#22aa66', elevationMeters: 3.25,
+        points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121 }, { lat: 14.001, lng: 121.001 }],
+      }],
+      terrainVerticalDatum: {
+        kind: 'campus-local', name: 'Synthetic datum', zeroReference: 'Point at 0 m',
+        elevationStatus: 'authored-not-surveyed',
+      },
+    }))
+
+    expect(result.valid).toBe(true)
+  })
+
+  it.each([
+    ['non-finite elevation', [{ id: 'terrain-1', name: 'Bad', color: '#22aa66', elevationMeters: Number.NaN, points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121 }, { lat: 14.001, lng: 121.001 }] }]],
+    ['self-intersecting boundary', [{ id: 'terrain-1', name: 'Bad', color: '#22aa66', elevationMeters: 1, points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121.001 }, { lat: 14.001, lng: 121 }, { lat: 14, lng: 121.001 }] }]],
+  ])('rejects published terrain with %s', (_name, terrainAreas) => {
+    const result = validateNavigationArtifacts(artifact({
+      terrainAreas,
+      terrainVerticalDatum: {
+        kind: 'campus-local', name: 'Synthetic datum', zeroReference: 'Point at 0 m',
+        elevationStatus: 'authored-not-surveyed',
+      },
+    }))
+
+    expect(result.valid).toBe(false)
+    expect(result.errors.map((error) => error.code)).toContain('ARTIFACT_INVALID_TERRAIN')
+  })
+
+  it('rejects terrain data without its shared campus datum', () => {
+    const result = validateNavigationArtifacts(artifact({
+      terrainAreas: [{
+        id: 'terrain-1', name: 'North lawn', color: '#22aa66', elevationMeters: 1,
+        points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121 }, { lat: 14.001, lng: 121.001 }],
+      }],
+    }))
+    expect(result.valid).toBe(false)
+    expect(result.errors.map((error) => error.code)).toContain('ARTIFACT_INVALID_TERRAIN')
+  })
+
   it('passes NavigationArtifacts emitted by Compiler V2', () => {
     const compiled = new CampusCompiler({ nodeInterval: 10 }).compileV2(realCompilerCampus())
 

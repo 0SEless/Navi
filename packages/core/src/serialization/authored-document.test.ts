@@ -62,7 +62,7 @@ function makeDocument(): CampusDocument {
     boundary: { points: [{ lat: 1, lng: 2 }, { lat: 2, lng: 3 }] },
     connectivitySemanticsVersion: 'phase3',
     _changeJournal: [{ entityId: 'x', entityType: 'building', operation: 'updated' }],
-  } as CampusDocument
+  } as unknown as CampusDocument
 }
 
 describe('authored CampusDocument serialization', () => {
@@ -115,5 +115,25 @@ describe('authored CampusDocument serialization', () => {
     expect(restored.buildings[0].verticalConnectors?.[0].id).toBe('connector-1')
     expect(restored.panoramas[0].id).toBe('panorama-1')
     expect(restored.qrCheckpoints[0].id).toBe('qr-1')
+  })
+
+  it('round-trips terrain authoring exactly while legacy documents keep terrain fields absent', () => {
+    const legacy = makeDocument()
+    const legacyRoundTrip = deserializeAuthoredDocument(serializeAuthoredDocument(legacy))
+    expect(legacyRoundTrip.terrainAreas).toBeUndefined()
+    expect(legacyRoundTrip.terrainVerticalDatum).toBeUndefined()
+
+    const document = makeDocument()
+    document.terrainVerticalDatum = {
+      kind: 'campus-local', name: 'Synthetic campus datum', zeroReference: 'Local zero marker', elevationStatus: 'authored-not-surveyed',
+    }
+    document.terrainAreas = [{
+      id: 'terrain-stable-1', name: 'East lawn', points: [{ lat: 1.000000123, lng: 2 }, { lat: 1, lng: 2.001 }, { lat: 1.001, lng: 2.001 }], color: '#22aa66', elevationMeters: 4.125,
+    }]
+    const restored = deserializeAuthoredDocument(serializeAuthoredDocument(document))
+
+    expect(restored.terrainAreas).toEqual(document.terrainAreas)
+    expect(restored.terrainVerticalDatum).toEqual(document.terrainVerticalDatum)
+    expect(restored.terrainAreas?.[0].points[0].lat).toBe(1.000000123)
   })
 })

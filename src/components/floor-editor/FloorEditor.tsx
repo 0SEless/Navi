@@ -40,7 +40,8 @@ import {
 import type { FloorPlanStorageScope } from '@/services/floor-plan-lifecycle'
 import { FloorPlanTransformInspector } from './FloorPlanTransformInspector'
 import { Eye, EyeOff, Upload, Trash2, RefreshCw, Box, Layers } from 'lucide-react'
-import { useGraphStore } from '@/store/graph-store'
+import { isStudioLocalDraftModeEnabled, useGraphStore } from '@/store/graph-store'
+import { SaveStatus } from '@/components/studio/SaveStatus'
 import { canonicalRoomIds } from '@navi/core'
 import type { PlanAlignment } from '@navi/core'
 
@@ -672,6 +673,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         floorLabel={floorLabel}
         status={headerStatus}
         statusMessage={headerStatusMessage}
+        statusIndicator={isStudioLocalDraftModeEnabled() ? <SaveStatus /> : undefined}
         selectedCount={selectedCount}
         onSave={handleManualSave}
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}

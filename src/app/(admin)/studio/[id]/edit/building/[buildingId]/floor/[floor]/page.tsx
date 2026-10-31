@@ -11,7 +11,13 @@ import {
 } from '@navi/editor'
 import type { PersistenceAdapter, EditorContext, DocumentEventBus, PersistenceSyncState } from '@navi/editor'
 import { useGraphStore } from '@/store/graph-store'
+import { isStudioLocalDraftModeEnabled } from '@/store/graph-store'
+import { StudioLocalDraftRecoveryGate } from '@/components/studio/EditorBridge'
+import { StudioScopedHistoryBridge } from '@/components/studio/StudioScopedHistoryBridge'
+import { isStudioDurableScopedSaveEnabled } from '@/services/studio-scoped-history-flag'
+import { flushScopedSaveBoundary } from '@/services/scoped-save-boundary'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
+import { adoptRecoveredEditorDocument } from '@/components/studio/adopt-recovered-editor-document'
 
 export default function FloorEditorPage({ params }: { params: Promise<{ id: string; buildingId: string; floor: string }> }) {
   const { id: mapId, buildingId, floor: floorStr } = use(params)
@@ -33,7 +39,11 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     )
   }
 
-  return <FloorEditorBridge mapId={mapId} buildingId={buildingId} floor={floor} />
+  return (
+    <StudioLocalDraftRecoveryGate>
+      <FloorEditorBridge mapId={mapId} buildingId={buildingId} floor={floor} />
+    </StudioLocalDraftRecoveryGate>
+  )
 }
 
 function FloorEditorBridge({ mapId, buildingId, floor }: { mapId: string; buildingId: string; floor: number }) {
@@ -83,15 +93,25 @@ function FloorEditorBridgeSession({
     }
 
     const persistenceAdapter: PersistenceAdapter = {
-      save: async () => {
+      save: async (reason = 'manual') => {
         syncDocumentAndCapture()
         useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
-        await useGraphStore.getState().save({ trigger: 'manual' })
+        const trigger = isStudioLocalDraftModeEnabled() ? reason : 'manual'
+        if (isStudioDurableScopedSaveEnabled()) {
+          await useGraphStore.getState().save({ trigger: 'manual', localOnly: true })
+          await flushScopedSaveBoundary(currentCtx!.document)
+        } else {
+          await useGraphStore.getState().save({ trigger })
+        }
       },
       syncToSupabase: async () => {
         syncDocumentAndCapture()
         useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
-        await useGraphStore.getState().syncToSupabase({ trigger: 'manual' })
+        if (isStudioDurableScopedSaveEnabled()) {
+          await useGraphStore.getState().save({ trigger: 'manual', localOnly: true })
+          await flushScopedSaveBoundary(currentCtx!.document)
+        } else if (isStudioLocalDraftModeEnabled()) await useGraphStore.getState().save({ trigger: 'manual' })
+        else await useGraphStore.getState().syncToSupabase({ trigger: 'manual' })
       },
       publish: async () => ({ success: true, version: '1.0.0' }),
       getSyncState: (): PersistenceSyncState => {
@@ -118,8 +138,8 @@ function FloorEditorBridgeSession({
       useGraphStore.getState().graph,
       persistenceAdapter,
       navCompiler,
-      useGraphStore.getState().authoredDocument ?? undefined,
     )
+    adoptRecoveredEditorDocument(currentCtx, useGraphStore.getState())
     return currentCtx
   })
 
@@ -204,6 +224,7 @@ function FloorEditorBridgeSession({
   return (
     <ErrorBoundary>
       <EditorProvider context={context}>
+        <StudioScopedHistoryBridge context={context} campusId={mapId} />
         <FloorEditor mapId={mapId} buildingId={buildingId} floor={floor} />
       </EditorProvider>
     </ErrorBoundary>

@@ -40,6 +40,20 @@ export class DocumentStore {
   }
 
   /**
+   * Adopt a server-reconstructed baseline into the editor-owned document.
+   * This advances the render/version token so selectors refresh, but does not
+   * emit a user-edit revision event or enter the undo history.
+   */
+  adoptSnapshot(snapshot: CampusDocument): void {
+    for (const key of Object.keys(this.document)) {
+      Reflect.deleteProperty(this.document, key)
+    }
+    Object.assign(this.document, structuredClone(snapshot))
+    this.version++
+    this.listeners.forEach((listener) => listener())
+  }
+
+  /**
    * Restore an editor-owned snapshot without creating a new revision.
    *
    * This is intentionally limited to transaction rollback. Callers must not

@@ -78,4 +78,43 @@ describe('GET /api/public-campus — Phase 7B contract', () => {
     expect(body.components).toEqual([])
     expect(body.doors).toEqual([])
   })
+
+  it('returns validated additive terrain from a newly published artifact', async () => {
+    const terrain = {
+      terrainAreas: [{
+        id: 'terrain-1', name: 'North lawn', color: '#22aa66', elevationMeters: 3.25,
+        points: [{ lat: 14, lng: 121 }, { lat: 14.001, lng: 121 }, { lat: 14.001, lng: 121.001 }],
+      }],
+      terrainVerticalDatum: {
+        kind: 'campus-local', name: 'Synthetic datum', zeroReference: 'Synthetic point at zero',
+        elevationStatus: 'authored-not-surveyed',
+      },
+    }
+    mockPublished({
+      graph: { nodes: [], edges: [] },
+      buildingIndex: { buildings: [] },
+      ...terrain,
+    })
+
+    const response = await GET(request())
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.artifacts).toMatchObject(terrain)
+  })
+
+  it('rejects corrupt terrain instead of serving it as published data', async () => {
+    mockPublished({
+      graph: { nodes: [], edges: [] },
+      buildingIndex: { buildings: [] },
+      terrainAreas: [{ id: 'bad', name: 'Bad', color: '#22aa66', elevationMeters: Number.NaN, points: [] }],
+      terrainVerticalDatum: {
+        kind: 'campus-local', name: 'Synthetic datum', zeroReference: 'Synthetic point at zero',
+        elevationStatus: 'authored-not-surveyed',
+      },
+    })
+
+    const response = await GET(request())
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ error: 'PUBLIC_CAMPUS_ARTIFACT_INVALID' })
+  })
 })

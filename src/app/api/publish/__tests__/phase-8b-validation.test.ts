@@ -283,15 +283,15 @@ describe('POST /api/publish — Phase 8B structural validation', () => {
     expect(writeFileSync).not.toHaveBeenCalled()
   })
 
-  it('rejects request/source revision mismatch before mutation', async () => {
+  it('keeps publication revision independent from source document version', async () => {
     const fake = makeFakeSupabase(null)
     mockClient.mockReturnValue(fake.client)
 
     const response = await POST(requestFor(bodyFor(makeArtifacts(2), 3)))
 
-    expect(response.status).toBe(400)
-    expect(fake.state.row).toBeNull()
-    expect(writeFileSync).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(fake.state.row?.revision).toBe(3)
+    expect(fake.state.row?.artifacts.metadata).toMatchObject({ revision: '3', sourceDocumentVersion: '2' })
   })
 
   it('rejects an empty R+1 replacement and preserves the non-empty R', async () => {

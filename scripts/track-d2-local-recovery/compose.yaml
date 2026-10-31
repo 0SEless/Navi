@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgis/postgis:17-3.6
+    container_name: ${D2_CONTAINER_NAME:?Set via approved local config}
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set via approved local config}
+      POSTGRES_USER: ${POSTGRES_USER:?Set via approved local config}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set via approved local config}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - synthetic_data:/var/lib/postgresql/data
+    networks:
+      - isolated
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    init: true
+
+volumes:
+  synthetic_data:
+    name: ${D2_VOLUME_NAME:?Set via approved local config}
+
+networks:
+  isolated:
+    name: ${D2_NETWORK_NAME:?Set via approved local config}
+    internal: true

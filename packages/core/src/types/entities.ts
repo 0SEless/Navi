@@ -698,6 +698,35 @@ export interface Area {
   color: string             // hex color for map rendering
 }
 
+/** Campus-local elevation reference. This records author intent, not survey control. */
+export interface TerrainVerticalDatum {
+  kind: 'campus-local'
+  name: string
+  zeroReference: string
+  elevationStatus: 'authored-not-surveyed'
+}
+
+/** Campus-relative elevation shared by future site features. Unknown height is
+ * explicit and must never be treated as zero. */
+export type CampusElevation =
+  | { kind: 'specified'; meters: number; reference: 'campus-local-datum'; status: 'authored-not-surveyed' }
+  | { kind: 'unspecified' }
+
+/** Presentation-only height; it never participates in navigation topology. */
+export interface VisualRenderHeight {
+  meters: number
+  purpose: 'visual-only'
+}
+
+/** Authored campus terrain polygon; elevation is uniform metadata, not a mesh. */
+export interface TerrainArea {
+  id: string
+  name: string
+  points: LatLng[]
+  color: string
+  elevationMeters: number
+}
+
 /**
  * W11: Vertical transition connecting route nodes across floors through a
  * physical staircase or elevator feature. Stored on Building (spans floors).

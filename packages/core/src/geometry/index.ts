@@ -1,4 +1,5 @@
 export * from './polygon'
+export * from './terrain-polygon'
 export * from './polyline'
 export * from './level-geometry'
 export * from './world-poi'

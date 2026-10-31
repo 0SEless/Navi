@@ -6,6 +6,7 @@ import {
   isAdminUser,
   requireVerifiedMutationAuth,
 } from '../api-guard'
+import * as apiGuard from '../api-guard'
 
 type FakeUser = { id?: string; email?: string | null; app_metadata?: Record<string, unknown> | null } | null
 
@@ -33,6 +34,111 @@ const factoryWith = (user: FakeUser, opts: { throwErr?: boolean; error?: boolean
 
 const SUPABASE_COOKIE = { 'sb-abcdefgh-auth-token': 'some-opaque-token' }
 const MOCK_COOKIE_VALUE = Buffer.from(JSON.stringify({ id: 'mock-super-admin', name: 'Dr. Admin', email: 'admin@asu.edu', role: 'super_admin' })).toString('base64')
+
+function getPrincipalVerifier() {
+  const verifier = (apiGuard as unknown as Record<string, unknown>).verifyMutationPrincipal as ((
+    request: NextRequest,
+    options?: unknown,
+  ) => Promise<{
+    ok: boolean
+    principal?: { id: string; email: string | null; role: string; method: 'supabase' | 'mock' }
+    response?: { status: number }
+  }>) | undefined
+  expect(verifier).toBeTypeOf('function')
+  return verifier!
+}
+
+function getScopedAuthorizer() {
+  const authorize = (apiGuard as unknown as Record<string, unknown>).authorizeScopedSave as ((
+    principal: { id: string; email: string | null; role: string; method: 'supabase' | 'mock' },
+    campusId: string,
+    env?: Record<string, string | undefined>,
+  ) => { authorized: boolean; code?: string }) | undefined
+  expect(authorize).toBeTypeOf('function')
+  return authorize!
+}
+
+describe('verified mutation principal', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('returns the server-verified global administrator identity', async () => {
+    const verify = getPrincipalVerifier()
+    const principal = { id: 'u-global', email: 'global@example.test', app_metadata: { role: 'super_admin' } }
+    const result = await verify(makeRequest(SUPABASE_COOKIE), { supabaseFactory: factoryWith(principal) })
+    expect(result).toEqual({
+      ok: true,
+      principal: { id: 'u-global', email: 'global@example.test', role: 'super_admin', method: 'supabase' },
+    })
+  })
+
+  it('returns 401 for no session and for invalid or expired sessions', async () => {
+    const verify = getPrincipalVerifier()
+    const noSession = await verify(makeRequest(), { supabaseFactory: factoryWith({ id: 'must-not-be-used', app_metadata: { role: 'super_admin' } }) })
+    expect(noSession.ok).toBe(false)
+    expect(noSession.response?.status).toBe(401)
+    const invalid = await verify(makeRequest(SUPABASE_COOKIE), { supabaseFactory: factoryWith(null, { error: true }) })
+    expect(invalid.ok).toBe(false)
+    expect(invalid.response?.status).toBe(401)
+  })
+
+  it('fails closed when the auth verifier throws', async () => {
+    const verify = getPrincipalVerifier()
+    const result = await verify(makeRequest(SUPABASE_COOKIE), { supabaseFactory: factoryWith(null, { throwErr: true }) })
+    expect(result.ok).toBe(false)
+    expect(result.response?.status).toBe(401)
+  })
+
+  it('returns the enabled development mock principal only outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('VERCEL_ENV', '')
+    vi.stubEnv('NEXT_PUBLIC_MOCK_AUTH', 'true')
+    const verify = getPrincipalVerifier()
+    const result = await verify(makeRequest({ 'navi-mock-session': MOCK_COOKIE_VALUE }))
+    expect(result).toEqual({
+      ok: true,
+      principal: { id: 'mock-super-admin', email: 'admin@asu.edu', role: 'super_admin', method: 'mock' },
+    })
+  })
+})
+
+describe('scoped save authorization policy', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('allows a Supabase-verified global administrator', () => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'admin-1', email: 'admin@example.test', role: 'super_admin', method: 'supabase' }, 'synthetic-campus')).toEqual({ authorized: true })
+  })
+
+  it('allows the server allowlist without trusting a client role', () => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'allowlisted-1', email: 'OPS@example.test', role: 'viewer', method: 'supabase' }, 'synthetic-campus', { NAVI_ADMIN_EMAILS: 'ops@example.test' })).toEqual({ authorized: true })
+  })
+
+  it.each(['campus_admin', 'mapping_staff', 'viewer'])('denies scoped role %s until a campus ACL exists', (role) => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'scoped-user', email: 'user@example.test', role, method: 'supabase' }, 'synthetic-campus')).toMatchObject({ authorized: false, code: 'AUTHORIZATION_DENIED' })
+  })
+
+  it('denies development mock sessions for durable scoped saves', () => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'mock-admin', email: 'admin@example.test', role: 'super_admin', method: 'mock' }, 'synthetic-campus')).toMatchObject({ authorized: false, code: 'AUTHORIZATION_DENIED' })
+  })
+
+  it('always denies protected campus identities, even if the legacy override is enabled', () => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'admin-1', email: null, role: 'super_admin', method: 'supabase' }, 'map-map-1-k6bv', { NAVI_PROTECTED_CAMPUS_WRITES: '1' })).toMatchObject({ authorized: false, code: 'PROTECTED_CAMPUS' })
+  })
+
+  it('rejects malformed campus IDs', () => {
+    const authorize = getScopedAuthorizer()
+    expect(authorize({ id: 'admin-1', email: null, role: 'super_admin', method: 'supabase' }, ' campus-1')).toMatchObject({ authorized: false, code: 'INVALID_CAMPUS' })
+  })
+})
 
 describe('privileged mutation auth contract (mutation-auth matrix)', () => {
   afterEach(() => {

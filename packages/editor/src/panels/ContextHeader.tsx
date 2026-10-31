@@ -8,6 +8,8 @@ export interface ContextHeaderProps {
   floorLabel: string
   status: 'saved' | 'saving' | 'unsaved' | 'error' | 'conflict' | 'checking'
   statusMessage?: string
+  /** Optional route-specific status UI, such as a confirmed local-draft state. */
+  statusIndicator?: React.ReactNode
   selectedCount?: number
   /** Resolve an unresolved server conflict by loading the server snapshot. */
   onResolveConflict?: () => void
@@ -24,7 +26,7 @@ const STATUS_CONFIG: Record<ContextHeaderProps['status'], { color: string; label
   checking: { color: '#64748B', label: 'Checking\u2026' },
 }
 
-export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, selectedCount, onResolveConflict, onSave }: ContextHeaderProps) {
+export function ContextHeader({ mapId, buildingName, floorLabel, status, statusMessage, statusIndicator, selectedCount, onResolveConflict, onSave }: ContextHeaderProps) {
   const cfg = STATUS_CONFIG[status]
 
   return (
@@ -60,9 +62,11 @@ export function ContextHeader({ mapId, buildingName, floorLabel, status, statusM
         </span>
       ) : null}
 
-      <span style={{ fontSize: 10, color: cfg.color }} title={statusMessage ?? ''}>
-        {'\u25CF'} {cfg.label}
-      </span>
+      {statusIndicator ?? (
+        <span style={{ fontSize: 10, color: cfg.color }} title={statusMessage ?? ''}>
+          {'\u25CF'} {cfg.label}
+        </span>
+      )}
 
       {onSave ? (
         <button

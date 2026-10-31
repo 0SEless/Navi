@@ -1,7 +1,7 @@
 ﻿import type { LatLng, LocalCoord, LocalPolygon, LocalPolyline } from './coordinates'
 import type { QrIndex } from './qr'
 import type { RouteNetwork } from './routing'
-import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, RoadRouting, WorldPOIGeometry } from './entities'
+import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, RoadRouting, WorldPOIGeometry, TerrainArea, TerrainVerticalDatum } from './entities'
 import type { PlanAlignment } from './coordinates'
 
 export interface BoundingBox {
@@ -209,6 +209,10 @@ export interface NavigationArtifacts {
   /** P1-T13 (R10.2/D16): published QR index â€” ID â†’ building/floor/position.
    *  The ONLY resolution source for opaque QR checkpoint codes. */
   qrIndex?: QrIndex
+  /** Optional authored terrain projection. Missing means a legacy artifact. */
+  terrainAreas?: TerrainArea[]
+  /** Shared campus-local reference for all authored terrain elevations. */
+  terrainVerticalDatum?: TerrainVerticalDatum
 }
 
 // â”€â”€ P1-T10 (R6.1/R6.3): floor-geometry.json artifact contract â”€â”€

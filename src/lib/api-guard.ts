@@ -183,14 +183,18 @@ export type VerifyOptions = {
   supabaseFactory?: (request: NextRequest) => Promise<SupabaseLike>;
 };
 
+export type VerifiedPrincipalResult =
+  | { ok: true; principal: VerifiedMutationUser }
+  | { ok: false; response: NextResponse };
+
 function isProductionRuntime(): boolean {
   if (process.env.NODE_ENV === "production") return true;
   const vercelEnv = process.env.VERCEL_ENV ?? "";
   return vercelEnv.startsWith("production");
 }
 
-function serverAdminEmails(): string[] {
-  return (process.env.NAVI_ADMIN_EMAILS ?? "")
+function serverAdminEmails(env: Record<string, string | undefined> = process.env): string[] {
+  return (env.NAVI_ADMIN_EMAILS ?? "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value !== "");
@@ -199,6 +203,43 @@ function serverAdminEmails(): string[] {
 /** Server-side authorization: verified user must carry an admin role or be allow-listed. */
 export function isAdminUser(user: { email?: string | null; app_metadata?: Record<string, unknown> | null; role?: string } | null | undefined): boolean {
   return isAdminIdentity(user);
+}
+
+export type ScopedSaveAuthorizationResult =
+  | { authorized: true }
+  | { authorized: false; code: "INVALID_CAMPUS" | "PROTECTED_CAMPUS" | "AUTHORIZATION_DENIED" };
+
+/**
+ * First-iteration scoped-save policy: only verified global administrators are
+ * eligible until a trusted campus-membership source is available. This path
+ * deliberately does not honor the legacy protected-campus override.
+ */
+export function authorizeScopedSave(
+  principal: VerifiedMutationUser,
+  campusId: string,
+  env: Record<string, string | undefined> = process.env,
+): ScopedSaveAuthorizationResult {
+  if (
+    typeof campusId !== "string" ||
+    campusId.length === 0 ||
+    campusId.length > 256 ||
+    campusId !== campusId.trim() ||
+    /[\u0000-\u001f\u007f]/.test(campusId)
+  ) {
+    return { authorized: false, code: "INVALID_CAMPUS" };
+  }
+  if ((PROTECTED_CAMPUS_IDS as readonly string[]).includes(campusId)) {
+    return { authorized: false, code: "PROTECTED_CAMPUS" };
+  }
+  if (!principal?.id || principal.method !== "supabase") {
+    return { authorized: false, code: "AUTHORIZATION_DENIED" };
+  }
+  if (principal.role === "super_admin") return { authorized: true };
+
+  const email = typeof principal.email === "string" ? principal.email.toLowerCase() : "";
+  const allowlistedEmails = serverAdminEmails(env);
+  if (email !== "" && allowlistedEmails.includes(email)) return { authorized: true };
+  return { authorized: false, code: "AUTHORIZATION_DENIED" };
 }
 
 /**
@@ -211,10 +252,10 @@ export function isAdminUser(user: { email?: string | null; app_metadata?: Record
  *  - DEV mock auth only when explicitly enabled AND never in production
  * Never inspects request bodies for roles. Returns null when authorized.
  */
-export async function requireVerifiedMutationAuth(
+export async function verifyMutationPrincipal(
   request: NextRequest,
   options: VerifyOptions = {},
-): Promise<NextResponse | null> {
+): Promise<VerifiedPrincipalResult> {
   let cookies: Array<{ name: string; value: string }> = [];
   try {
     cookies = request.cookies?.getAll?.() ?? [];
@@ -234,23 +275,15 @@ export async function requireVerifiedMutationAuth(
       if (mock?.id) {
         const user: VerifiedMutationUser = { id: mock.id, email: mock.email ?? null, role: mock.role ?? "viewer", method: "mock" };
         if (!isAdminUser({ role: user.role, email: user.email, app_metadata: { role: user.role } })) {
-          return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
+          return { ok: false, response: NextResponse.json({ error: "Administrator authorization required." }, { status: 403 }) };
         }
-        return null;
+        return { ok: true, principal: user };
       }
     }
   }
 
   if (!hasSupabaseSession) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  }
-
-  // Test-runtime seam: vitest route doubles model the SSR client as `{ rpc }`.
-  // Only active outside production AND only when no verification factory was
-  // injected (security tests always inject one, so they exercise the real path).
-  // Production always executes the cryptographic verification below.
-  if (process.env.NODE_ENV === "test" && !isProductionRuntime() && !options.supabaseFactory) {
-    return null;
+    return { ok: false, response: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
   }
 
   let user: { id?: string; email?: string | null; app_metadata?: Record<string, unknown> | null } | null = null;
@@ -270,17 +303,43 @@ export async function requireVerifiedMutationAuth(
           ) as unknown as SupabaseLike,
         );
     const { data, error } = await supabase.auth.getUser();
-    if (error) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    if (error) return { ok: false, response: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
     user = data?.user ?? null;
   } catch {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return { ok: false, response: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
   }
 
   if (!user?.id) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return { ok: false, response: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
   }
+  const principal: VerifiedMutationUser = {
+    id: user.id,
+    email: user.email ?? null,
+    role: typeof user.app_metadata?.role === "string" ? user.app_metadata.role : "viewer",
+    method: "supabase",
+  };
   if (!isAdminUser(user)) {
-    return NextResponse.json({ error: "Administrator authorization required." }, { status: 403 });
+    return { ok: false, response: NextResponse.json({ error: "Administrator authorization required." }, { status: 403 }) };
   }
-  return null;
+  return { ok: true, principal };
+}
+
+/**
+ * Compatibility wrapper for existing routes. The test-only cookie seam is
+ * retained for route doubles; production always uses verified getUser().
+ */
+export async function requireVerifiedMutationAuth(
+  request: NextRequest,
+  options: VerifyOptions = {},
+): Promise<NextResponse | null> {
+  if (
+    process.env.NODE_ENV === "test" &&
+    !isProductionRuntime() &&
+    !options.supabaseFactory &&
+    getMutationSessionMethod(request) === "supabase"
+  ) {
+    return null;
+  }
+  const result = await verifyMutationPrincipal(request, options);
+  return result.ok ? null : result.response;
 }

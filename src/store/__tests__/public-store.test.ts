@@ -335,6 +335,14 @@ describe('usePublicStore campus data layer', () => {
   // server-side. Its guard — full bundle parsing (searchIndex, poiIndex,
   // buildings) — is preserved here at the current contract.
   it('parses the full bundle from /api/public-campus artifacts', async () => {
+    const terrainVerticalDatum = {
+      kind: 'campus-local' as const, name: 'Synthetic datum', zeroReference: 'Point at zero',
+      elevationStatus: 'authored-not-surveyed' as const,
+    }
+    const terrainAreas = [{
+      id: 'terrain-public-1', name: 'North lawn', color: '#22aa66', elevationMeters: 3.25,
+      points: [{ lat: 10, lng: 20 }, { lat: 10.001, lng: 20 }, { lat: 10.001, lng: 20.001 }],
+    }]
     const fetchMock = stubFetch((url) => {
       if (url.includes('/api/public-campus')) {
         return jsonResponse({
@@ -345,7 +353,7 @@ describe('usePublicStore campus data layer', () => {
           nodes: graphFixture.nodes,
           edges: graphFixture.edges,
           buildings: buildingsFixture.buildings,
-          artifacts: { searchIndex: searchFixture, poiIndex: poiFixture, qrIndex: qrIndexFixture },
+          artifacts: { searchIndex: searchFixture, poiIndex: poiFixture, qrIndex: qrIndexFixture, terrainAreas, terrainVerticalDatum },
         })
       }
       return jsonResponse({ error: 'not found' }, 404)
@@ -366,6 +374,8 @@ describe('usePublicStore campus data layer', () => {
     expect(state.campus!.campusName).toBe('North Campus')
     expect(state.campus!.poi).toHaveLength(1)
     expect(state.campus!.qrIndex).toEqual(qrIndexFixture)
+    expect(state.campus!.terrainAreas).toEqual(terrainAreas)
+    expect(state.campus!.terrainVerticalDatum).toEqual(terrainVerticalDatum)
     expect(state.campusStatus).toBe('ready')
   })
 

@@ -130,4 +130,47 @@ describe('Studio save status model', () => {
     expect(model.detail).toBeNull()
     expect(model.diagnostic).toBeNull()
   })
+
+  it('distinguishes an IndexedDB draft from an acknowledged cloud save', () => {
+    const localOnly = getSaveStatusModel({ ...base, localDraftMode: true, localDraftStatus: 'saved', syncStatus: 'idle' })
+    expect(localOnly.label).toBe('Saved locally')
+    expect(localOnly.detail).toContain('has not been saved to the cloud')
+
+    const cloudSaved = getSaveStatusModel({ ...base, localDraftMode: true, localDraftStatus: 'saved', syncStatus: 'synced' })
+    expect(cloudSaved.label).toBe('Saved locally and to cloud')
+    expect(cloudSaved.detail).toContain('server acknowledged')
+
+    const localSavedWhileCloudWorkflowRemainsDirty = getSaveStatusModel({
+      ...base,
+      saveState: 'dirty',
+      localDraftMode: true,
+      localDraftStatus: 'saved',
+      syncStatus: 'idle',
+    })
+    expect(localSavedWhileCloudWorkflowRemainsDirty.label).toBe('Saved locally')
+  })
+
+  it('keeps the durable local copy visible while a manual cloud save is pending or fails', () => {
+    const syncing = getSaveStatusModel({ ...base, localDraftMode: true, localDraftStatus: 'saved', syncStatus: 'syncing' })
+    expect(syncing.label).toBe('Saved locally; syncing to cloud…')
+
+    const failed = getSaveStatusModel({
+      ...base,
+      localDraftMode: true,
+      localDraftStatus: 'saved',
+      syncStatus: 'error',
+      syncError: 'HTTP 500 from private endpoint',
+    })
+    expect(failed.label).toBe('Cloud save failed; local draft is safe')
+    expect(failed.detail).not.toContain('HTTP 500')
+    expect(failed.diagnostic).toContain('HTTP 500')
+
+    const newerEditNotYetStored = getSaveStatusModel({
+      ...base,
+      localDraftMode: true,
+      localDraftStatus: 'dirty',
+      syncStatus: 'syncing',
+    })
+    expect(newerEditNotYetStored.label).toBe('Unsaved local changes')
+  })
 })

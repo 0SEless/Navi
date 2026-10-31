@@ -32,6 +32,12 @@ describe('ContextHeader', () => {
     expect(screen.getByText((c) => c.includes('Saved'))).toBeDefined()
   })
 
+  it('renders an injected status indicator in place of the default cloud status', () => {
+    renderHeader({ status: 'unsaved', statusIndicator: <div role="status">Saved locally</div> })
+    expect(screen.getByRole('status').textContent).toBe('Saved locally')
+    expect(screen.queryByText(/Unsaved/)).toBeNull()
+  })
+
   it('shows saving status', () => {
     renderHeader({ status: 'saving' })
     expect(screen.getByText((c) => c.includes('Saving'))).toBeDefined()

@@ -63,6 +63,8 @@ interface PublishedArtifacts {
   panoramaIndex?: unknown
   floorGeometry?: unknown
   qrIndex?: unknown
+  terrainAreas?: unknown
+  terrainVerticalDatum?: unknown
   components?: unknown[]
   doors?: unknown[]
 }

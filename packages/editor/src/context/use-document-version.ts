@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import { useEditor } from './editor-context'
-import type { DocumentStore } from './document-store'
+
+const noopSubscribe = () => () => undefined
+const zeroVersion = () => 0
 
 export function useDocumentVersion(): number {
   const { services } = useEditor()
   const store = services.get('documentStore')
-  if (!store) return 0
-  return useSyncExternalStore(store.subscribe, store.getVersion)
+  return useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.getVersion ?? zeroVersion)
 }

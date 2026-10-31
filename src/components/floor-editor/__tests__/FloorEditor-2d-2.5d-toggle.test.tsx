@@ -104,6 +104,7 @@ vi.mock('@navi/editor', async () => {
 })
 
 vi.mock('@/store/graph-store', () => ({
+  isStudioLocalDraftModeEnabled: () => false,
   useGraphStore: (selector: (s: Record<string, unknown>) => unknown) => {
     const mockStore = {
       graph: {

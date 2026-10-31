@@ -2667,3 +2667,587 @@ Track every error encountered during implementation. Each entry includes:
 - **Related tasks**: Floor Editor Door & Interior Persistence Hardening (T1, T2, T3, T4, T5)
 
 
+# 2026-10-27: Full baseline Vitest run has inherited failures
+- **Error**: `npm test -- --reporter=verbose` exited 1 with 20 failing files and 34 failing tests (6,071 passed, 8 skipped); the persistence-focused subset passed 68/68.
+- **Cause**: Existing baseline failures span compiler/routing/topology integration, a navigation page assertion, an E2E safety guard, and compiler-adapter transforms/imports. The separate runtime data-identity TS1005 is documented in the prior ledger and is outside this Track B change scope.
+- **Fix**: None in T1; preserve as the before-change baseline. Full output is `reports/navi-studio-1.5-track-b/logs/baseline-vitest.log`.
+- **Prevention**: Compare post-change results to this captured baseline and repair only failures introduced by the Track B files; do not attribute the inherited set to local draft work.
+- **Related tasks**: T1, T6
+
+# 2026-10-27: First IndexedDB failure test exposed an unobserved transaction rejection
+- **Error**: The first local-draft test run passed record creation/round-trip but had one assertion mismatch and an unhandled IndexedDB transaction error during the simulated quota failure.
+- **Cause**: The corrupt fixture changed the authored document's campus identity, so identity validation correctly rejected it before checksum validation. The repository awaited the individual request before observing the transaction-completion promise; a failed request aborted the transaction and left that rejection unhandled.
+- **Fix**: Corrupt only authored content while preserving campus identity, and await the request and transaction together while consuming the transaction abort after a failed request. Focused suite now passes 4/4 with no unhandled errors.
+- **Prevention**: Integrity tests should mutate only the field under test; IndexedDB durability must await transaction completion and drain both request and transaction failures.
+- **Related tasks**: T3
+
+## 2026-10-27: Vitest parallel transform cache rename was denied
+- **Error**: A focused five-suite Vitest invocation failed before test collection with Windows `EPERM` while renaming a temporary Vite transform-cache directory; no tests ran.
+- **Cause**: Parallel workers attempted cache updates in the sandbox temporary directory, where the atomic rename was denied.
+- **Fix**: The first retry used unsupported Vitest flag `--minWorkers`; supported single-worker options still hit the same sandbox-temp rename denial. Next retry will use a task-scoped temp directory under the candidate. No tests have run in these failed invocations.
+- **Prevention**: Use single-worker focused verification on Windows sandbox runs when Vite reports temporary cache rename failures.
+- **Related tasks**: T4, T6
+
+## 2026-10-27: Recovery gate initially omitted the Studio editor session
+- **Error**: The first scoped lint after adding the reusable recovery gate reported `EditorBridgeSession` as unused; inspection showed the general Studio route gate returned children without mounting the context session.
+- **Cause**: The gate was extracted for reuse by standalone Floor Editor and its caller was changed without nesting the editor session back under `EditorBridge`.
+- **Fix**: Restored `EditorBridgeSession` as the child of the gated `EditorBridge`; the standalone Floor Editor continues to use the gate directly.
+- **Prevention**: Verify the post-recovery render path for each consumer of shared gates, especially providers that were previously created by the wrapper.
+- **Related tasks**: T5, T6
+
+## 2026-10-27: Scoped lint includes inherited diagnostics
+- **Error**: Linting the changed-file set returned existing `@typescript-eslint/no-explicit-any` and `react-hooks/refs` errors in `EditorBridge.tsx`, editor persistence/workflow services, and the existing persistence-service test; two underscore-parameter warnings remain in the fake IndexedDB harness.
+- **Cause**: These diagnostics predate the Track B edits in the affected implementation sections; the only new recovery-gate unused-symbol warning was fixed by restoring `EditorBridgeSession` under the gate.
+- **Fix**: No broad lint cleanup. Review new files and changed hunks separately; preserve inherited baseline debt.
+- **Prevention**: Compare lint by exact changed location and report historical findings separately from new Track B diagnostics.
+- **Related tasks**: T5, T6
+
+## 2026-10-27: PowerShell baseline-lint capture command did not parse
+- **Error**: A PowerShell `foreach` output pipeline used an empty pipeline element and exited before running the baseline lint or TypeScript check.
+- **Cause**: The shell parser does not accept piping a completed `foreach` statement in that form.
+- **Fix**: Rerun the baseline lint with the output tee inside the loop, then run TypeScript separately.
+- **Prevention**: Keep PowerShell pipeline expressions inside statement blocks when collecting per-file diagnostics.
+- **Related tasks**: T6
+
+## 2026-10-27: Stale-ACK regression fixture was not campus-ready
+- **Error**: The new manual-save ACK race test did not reach the pending request because GraphStore refused to save while `campusReady` was false.
+- **Cause**: The test setup inherited readiness state from other tests and did not establish a hydrated campus fixture.
+- **Fix**: Set `campusReady: true` in the test fixture before exercising the ACK race.
+- **Prevention**: Each persistence regression must set both map identity and hydration readiness explicitly.
+- **Related tasks**: T6
+
+## 2026-10-27: Manual Cloud Save ACK falsely certified a newer local draft
+- **Error**: A regression test showed that an edit made while a manual cloud request was pending remained in IndexedDB but the store still reported `syncStatus: synced` after the older snapshot was acknowledged.
+- **Cause**: The local-draft path refreshed the IndexedDB copy after the request but did not distinguish the acknowledged generation from edits created during the request.
+- **Fix**: Compare the draft generation captured before the guarded Cloud Save with the generation after the ACK; persist the latest draft, and leave cloud sync pending when the generation changed.
+- **Prevention**: Treat a server acknowledgement as applying only to the exact immutable candidate submitted; never use it to certify mutations made after candidate capture.
+- **Related tasks**: T4, T6
+
+## 2026-10-28: Track B TypeScript verification stopped at inherited syntax error
+- **Error**: `npx tsc --noEmit --pretty false` exited with TS1005 at `packages/runtime/src/__tests__/data-identity-comparison.test.ts(255,3)` before checking the candidate.
+- **Cause**: The tracked baseline test file already has an unmatched closing brace defect; Track B did not modify it.
+- **Fix**: No unrelated syntax repair was made. The blocker and exact compiler output are recorded in `reports/navi-studio-1.5-track-b/07-TEST-RESULTS.md` and `logs/trackb-typescript.log`.
+- **Prevention**: Keep this baseline parse failure separate from Track B diagnostics; rerun TypeScript after the owning test defect is repaired in a separately scoped task.
+- **Related tasks**: T6
+
+## 2026-10-28: Production build reached prerender but lacked isolated Supabase public configuration
+- **Error**: `npm run build -- --webpack` compiled, then exited during static prerender of `/demo/navigate` because `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` were absent.
+- **Cause**: The isolated local candidate has no verified Development Supabase credentials; credentials/placeholders were intentionally not introduced.
+- **Fix**: No environment or source change. The build blocker is documented with the final log at `reports/navi-studio-1.5-track-b/logs/trackb-production-build-final.log`.
+- **Prevention**: Run full browser/build acceptance only after an isolated Development environment is independently configured; never borrow Production credentials or use inert placeholders as functional credentials.
+- **Related tasks**: T6
+
+## 2026-10-28: Parallel full-suite run had one additional isolated test failure
+- **Error**: The candidate full Vitest run had 35 failing tests versus 34 in the baseline. The extra `OutdoorRoutePicker` hit-surface preview test passed when run alone (1 file / 6 tests).
+- **Cause**: Failure appeared only during the parallel full-suite run; isolated execution did not reproduce it. It remains an unresolved concurrency/flakiness observation.
+- **Fix**: No product change. Focused persistence matrix was rerun after the final stale-ACK repair and passed 17 files / 113 tests; report the full-suite result as incomplete, not green.
+- **Prevention**: Characterize the additional test in an isolated repeat before attributing it to a source change; do not mask the difference in full-suite reporting.
+- **Related tasks**: T6
+
+## 2026-10-28: PowerShell snapshot hash comparison command did not parse
+- **Error**: A compound PowerShell command intended to compare the test snapshot with its HEAD blob failed during parsing before running the hash comparison.
+- **Cause**: Nested command substitution and `Set-Content` parentheses were quoted incorrectly.
+- **Fix**: No files were changed by the failed command. Use Git's blob/object hashes and separate simple commands for the follow-up comparison.
+- **Prevention**: Keep shell verification commands small and independently parseable; inspect command exit status before treating a verification attempt as evidence.
+- **Related tasks**: T6
+
+## 2026-10-28: First TS1005 source patch context did not match
+- **Error**: The initial `apply_patch` could not find the expected one-line manifest metadata test, so the source correction was not applied.
+- **Cause**: The patch context omitted the actual `const m = runtimePkg.package.manifest` expression present in that test line.
+- **Fix**: No source changed; inspect and patch the exact line from the worktree.
+- **Prevention**: Copy complete current-line context before applying a narrow patch, especially in compressed test files.
+- **Related tasks**: C1 T1
+
+## 2026-10-28: TypeScript log capture target directory was missing
+- **Error**: PowerShell could not redirect the TypeScript command output because `reports/navi-studio-1.5-track-c1/logs` had not been created.
+- **Cause**: T1 began before the C1 report artifact directory existed.
+- **Fix**: No TypeScript command ran in that attempt. Create the required report/log directory first, then rerun and inspect the exit code.
+- **Prevention**: Create and verify log parent directories before starting long-running checks with redirected output.
+- **Related tasks**: C1 T1, T5
+
+## 2026-10-28: Runtime test was first invoked from the root Vitest config
+- **Error**: Running the runtime test path from the repository root returned "No test files found" because the root Vitest include list excludes `packages/runtime/src`.
+- **Cause**: The runtime workspace has its own `vitest.config.ts` and `test` script.
+- **Fix**: Reran from `packages/runtime`; before the source fix it reproduced the missing-brace parse error, and after the fix the suite parsed but reported 61 skipped tests.
+- **Prevention**: Run workspace-specific suites from their package directory when the root test include list does not cover that package.
+- **Related tasks**: C1 T1
+
+## 2026-10-28: C1 editor hook contract tests failed before implementation
+- **Error**: `use-document-selector.test.tsx` had 2 failing tests: the public barrel's `useBuildingFloors` and `useFloor` exports were undefined at call time; the pre-existing `useDocumentSelector` test passed.
+- **Cause**: `context/index.ts` listed the hooks as exports, but `use-document-selector.ts` did not define either function.
+- **Fix**: RED evidence captured before implementation; next add hooks using the existing workspace/selection and building/floor selectors, then rerun the exact test.
+- **Prevention**: Exercise public-barrel exports in tests rather than validating only direct module imports.
+- **Related tasks**: C1 T2
+
+## 2026-10-28: Existing editor hook test fixture omitted CampusDocument.version
+- **Error**: The pre-T2 full TypeScript check reported TS2741 in `packages/editor/src/context/use-document-selector.test.tsx`: its CampusDocument fixture lacked required `version`.
+- **Cause**: The existing fixture predated the currently required `CampusDocument` version field.
+- **Fix**: Add the required version value while extending the fixture for `useFloor`/`useBuildingFloors` tests; this is a test-data correction, not an API behavior change.
+- **Prevention**: Keep shared CampusDocument fixtures aligned with the core type and re-run the focused package test after fixture edits.
+- **Related tasks**: C1 T2, T5
+
+## 2026-10-28: C1 browser harness discovery commands hit Windows environment issues
+- **Error**: PowerShell parsed the `(admin)` segment in an unquoted source path instead of treating it as a literal folder; Playwright's browser inventory failed because its sandbox `.links` directory was unavailable.
+- **Cause**: Parentheses in PowerShell paths require literal/single-quoted handling. The installed Playwright package has no accessible managed-browser registration in this sandbox.
+- **Fix**: No source or dependency changes. Retry source inspection with quoted literal paths and check for an already installed system browser; do not download a browser without approval.
+- **Prevention**: Use `-LiteralPath` or quote route-group paths in PowerShell, and inspect browser availability before selecting a test strategy.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: ripgrep did not accept PowerShell's LiteralPath option
+- **Error**: `rg` rejected `-LiteralPath` as an unknown file type option during auth-route discovery.
+- **Cause**: `-LiteralPath` is a PowerShell parameter, not a ripgrep flag.
+- **Fix**: No files changed. Pass the quoted route-group path as a positional argument to `rg` or use PowerShell `Select-String -LiteralPath`.
+- **Prevention**: Keep PowerShell and ripgrep option syntax distinct when searching paths containing parentheses.
+- **Related tasks**: C1 T3
+
+## 2026-10-28: C1 auth inspection guessed a nonexistent Studio route file
+- **Error**: Reading `src/app/(admin)/studio/[id]/edit/page.tsx` failed because that exact route file does not exist.
+- **Cause**: The Studio route tree uses nested building/floor pages rather than the guessed generic edit page.
+- **Fix**: No files changed. Locate actual route files under the Studio subtree and inspect the shared middleware/auth guard first.
+- **Prevention**: Enumerate the route group with `Get-ChildItem -LiteralPath` before reading a guessed App Router page path.
+- **Related tasks**: C1 T3
+
+## 2026-10-28: PowerShell treated bracketed App Router parameters as wildcard syntax
+- **Error**: `Get-Content` could not read the Floor Editor page path containing `[id]`, `[buildingId]`, and `[floor]` as typed.
+- **Cause**: PowerShell path expansion treated square brackets as wildcard character classes.
+- **Fix**: No files changed. Read App Router parameterized paths with `Get-Content -LiteralPath`.
+- **Prevention**: Use literal-path mode for paths containing route-group parentheses or dynamic-segment brackets.
+- **Related tasks**: C1 T3
+
+## 2026-10-28: C1 minimal TS1005 syntax repair exposed existing repository type errors
+- **Error**: After correcting the swallowed closure in the manifest metadata test, full `npx tsc --noEmit --pretty false` proceeds but exits 1 with 1,131 diagnostics. This includes the two documented missing-hook re-exports and Track B local-draft type errors, among extensive pre-existing errors.
+- **Cause**: The original syntax error stopped parsing before TypeScript could report the repository's broader type state. The candidate already contains unrelated and Track B diagnostics.
+- **Fix**: Preserved the existing test and assertions, separated the line comment, and closed the test callback. Full output captured at `reports/navi-studio-1.5-track-c1/logs/typescript-after-syntax.log`; the root cause is repaired but typecheck is not green.
+- **Prevention**: Re-run the full checker after parser blockers are removed, then compare diagnostics against base before attributing them to a new patch. Do not mass-fix unrelated diagnostics.
+- **Related tasks**: C1 T1, T2, T5
+
+## 2026-10-28: C1 browser-control discovery referenced a nonexistent toolbar filename
+- **Error**: A combined inspection command attempted to read `src/components/floor-editor/FloorEditorToolbar.tsx`, which does not exist, and the broad fallback search returned more output than could be reviewed.
+- **Cause**: The toolbar filename was guessed and the search scope included a large component tree.
+- **Fix**: No files changed. Narrow discovery to exact file lists and known components before reading.
+- **Prevention**: Enumerate filenames before selecting a component path; limit search output to one focused file or query.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 synthetic fixture inspection guessed a geometry type filename
+- **Error**: The inspection command could not read `packages/core/src/types/geometry.ts`; geometry types are not defined in that file.
+- **Cause**: The type file name was inferred instead of located from the package's actual type exports.
+- **Fix**: No files changed. Locate the existing geometry interfaces via the type index and entity declarations before writing the fixture.
+- **Prevention**: Search the narrow type directory for declarations or imports rather than guessing file names.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 development server did not answer the first browser startup request
+- **Error**: The localhost Studio request timed out after 15 seconds while the Playwright webServer and both loopback listeners remained active.
+- **Cause**: The Next.js dev process had not yet served the synthetic Studio route; startup/compilation was still pending or stalled.
+- **Fix**: No source change made in response yet. Inspect the active Playwright/Next output and request readiness before retrying; do not direct the app to any external backend.
+- **Prevention**: Validate the local server route before browser acceptance and retain the fail-closed backend stub and browser network guard.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: Sandboxed process could not connect to the localhost browser harness
+- **Error**: With the test Next server and loopback stub listening, a direct localhost request timed out and `curl.exe --noproxy "*"` reported that it could not connect to port 3187.
+- **Cause**: The default command sandbox isolates local networking from the spawned dev-server process; the evidence does not establish an application startup failure.
+- **Fix**: Stopped only the isolated Playwright/dev-server processes. Retry the same localhost-only Playwright command in the authorized local execution boundary; do not use a cloud backend.
+- **Prevention**: Check loopback reachability from the same execution boundary that launches the browser before interpreting app logs.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 browser fixture omitted the legacy building projection
+- **Error**: The synthetic Studio route rendered `Building not found`; the browser assertion for `[data-editor-ready="true"]` timed out.
+- **Cause**: The seeded `CampusDocument` contained the synthetic building, but the parallel legacy Graph snapshot had `buildings: []`; the Floor Editor resolves its active building from that graph projection.
+- **Fix**: Updated the fixture to produce a Graph projection with `GraphAdapter.sync`, but the same browser result remains. Additional instrumentation is required to locate the missing hydration boundary.
+- **Prevention**: Keep canonical authored-document and legacy Graph identities aligned in browser fixtures, as the app reads both representations during Studio startup.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: Generated Graph projection did not resolve the Studio fixture failure
+- **Error**: After replacing the empty Graph fixture with a `GraphAdapter.sync` projection, the browser still showed `Building not found` and did not render the editor-ready marker.
+- **Cause**: Not yet established; browser localStorage contents and generated Graph IDs have not yet been captured at navigation time.
+- **Fix**: Instrument only the Playwright test to record the actual serialized cache, generated Graph IDs, and page errors. No app source behavior changed.
+- **Prevention**: Separate fixture generation from browser storage seeding and verify both with explicit precondition assertions before changing application code.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 browser readiness selector belonged to a different Studio route
+- **Error**: The Floor Editor screenshot showed the synthetic building and room, but `[data-editor-ready="true"]` was absent and caused a 60-second timeout.
+- **Cause**: That readiness marker is rendered by the map Studio workspace, not by the standalone Floor Editor route; the Floor Editor also presents its normal no-floor-plan setup gate.
+- **Fix**: Wait for the building header, click `Continue without floor plan`, and target the room property input after selection.
+- **Prevention**: Derive browser readiness selectors from the exact route's rendered UI, and include required onboarding/setup actions in acceptance flows.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 browser readiness text matched both the outliner and header
+- **Error**: Playwright strict mode found two exact `Synthetic Building A` matches (the floor outliner and page header).
+- **Cause**: The readiness locator assumed the text appeared only once on the Floor Editor route.
+- **Fix**: Select the first exact visible match and retain the explicit setup-gate action.
+- **Prevention**: Use role- or region-scoped locators, or `.first()` where repeated identity text is expected.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: C1 Floor Editor does not render the map workspace role=status element
+- **Error**: After a room edit, Playwright could not find `getByRole('status')` on the Floor Editor page; the screenshot instead showed the route's `Unsaved` header.
+- **Cause**: The assertion reused the `SaveStatus` role from the map Studio workspace, while the Floor Editor uses `ContextHeader` and a separate workflow status model.
+- **Fix**: Verify the IndexedDB record contents directly and inspect the visible Floor Editor header independently; do not infer local persistence from the workspace-only status element.
+- **Prevention**: Use route-specific UI contracts and assert storage acknowledgement separately from presentation text.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Broad API source search exceeded output budget
+- **Error**: A combined recursive search over `src/components` and `src/app` returned more output than the tool budget and was truncated.
+- **Cause**: The search scope included many unrelated references when only one route and one caller were needed.
+- **Fix**: Re-ran targeted searches for `src/app/api/campus-maps/route.ts` and `src/store/campus-map-store.ts`; the read-only GET contract returns `{ maps: [] }` when empty.
+- **Prevention**: Search the exact API path first, then inspect its direct caller instead of combining broad trees.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: Local browser harness reported the expected empty campus-map bootstrap as an API failure
+- **Error**: The browser harness blocked `GET /api/campus-maps` with 403 and counted it as unexpected.
+- **Cause**: The editor's legacy campus-map store performs a read-only bootstrap fetch; the isolated harness had not provided its normal empty response.
+- **Fix**: Add a synthetic `{ maps: [] }` response for that GET only; continue blocking all other unmocked API routes and all non-local traffic.
+- **Prevention**: Inventory startup reads for the exact page before setting a fail-closed API policy, then allow only explicit inert local fixtures.
+- **Related tasks**: C1 T3, T4
+
+## 2026-10-28: pnpm exec attempted project registration in the sandbox
+- **Error**: `pnpm exec vitest` failed before launching Vitest because pnpm could not create its project-registration symlink in the sandbox package cache (`EPERM`).
+- **Cause**: The sandboxed pnpm wrapper attempted an install/register lifecycle despite using the existing worktree dependencies.
+- **Fix**: Check for the repository-local `node_modules/.bin` executables and invoke those directly; do not reinstall or modify the lockfile.
+- **Prevention**: Prefer the worktree's existing package-manager-independent executable shims for verification when present.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Floor Editor local-draft status remained unsaved after IndexedDB acknowledgement
+- **Error**: The synthetic browser edit was present in IndexedDB, but the status model continued to display `Unsaved local changes` instead of `Saved locally`.
+- **Cause**: In local-draft mode `getSaveStatusModel` let WorkflowService's still-dirty cloud-save state override the dedicated local-draft `saved` acknowledgement.
+- **Fix**: Make the explicit local-draft state authoritative: `dirty` means not yet stored, `saved/recovered` means locally persisted, while cloud sync status remains separately reported.
+- **Prevention**: Keep device durability and cloud acknowledgement as independent state dimensions; verify the visible status against the actual IndexedDB record in browser tests.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Isolated browser run logged editor service teardown AggregateErrors
+- **Error**: Next dev-server output logged `Editor context cleanup failed: AggregateError: 3 service(s) failed to destroy` during Floor Editor navigation, although the focused browser acceptance completed successfully.
+- **Cause**: Not yet established; the browser test does not currently identify the individual service destroy failures.
+- **Fix**: Treat as an unresolved runtime warning; inspect test output and relevant service diagnostics during final verification without broadening the repair unless a C1 scenario is affected.
+- **Prevention**: Capture individual teardown errors and confirm navigation/unmount scenarios do not leak or corrupt editor state.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Manual-save browser scenario reused the original room-name locator
+- **Error**: The delayed cloud-ack browser test timed out when making its second edit because the helper searched for the original room name after the first edit had renamed it.
+- **Cause**: The test helper hard-coded the fixture's initial room label and was reused for a sequential edit.
+- **Fix**: Allow the helper to receive the expected current label and pass the first edit's name for the second edit.
+- **Prevention**: Make stateful UI helpers parameterize both the current and target values in multi-step scenarios.
+- **Related tasks**: C1 T4
+
+## 2026-10-28: Sequential browser edit toggled the already-selected room off
+- **Error**: The second edit attempt clicked the same selected room row, closing its properties panel; the assertion then timed out waiting for the property input.
+- **Cause**: Floor Outliner intentionally toggles a selected row to deselected when clicked again. The helper assumed every edit starts with no selection.
+- **Fix**: Reuse the already-open property input when it contains the expected current value, and click the row only when the editor is not open for that room.
+- **Prevention**: Browser helpers should inspect current UI state before clicking toggle controls in multi-step flows.
+- **Related tasks**: C1 T4
+
+## 2026-10-28: A second edit during pending Cloud Save was not durably captured
+- **Error**: The Floor Editor accepted a second edit while the first Cloud Save was awaiting acknowledgement, but IndexedDB still held the earlier document and the banner showed the old draft as syncing.
+- **Cause**: Local draft persistence was coupled to WorkflowService autosave; that autosave cannot run while a manual save is in flight. The graph store marked the new edit dirty but did not independently queue its IndexedDB write.
+- **Fix**: Queue the local draft write from the editor's committed-document bridge in exact-opt-in local-draft mode, and prioritize `localDraftStatus: dirty` over cloud syncing in the status model.
+- **Prevention**: Keep local recovery writes independent of cloud save lifecycle and assert the newest document is present in IndexedDB before releasing a delayed cloud acknowledgement.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Delayed-ack test asserted cloud-pending label before local transaction completed
+- **Error**: The test expected `Saved locally; syncing to cloud…` immediately after the second edit, while the correct status was temporarily `Unsaved local changes`.
+- **Cause**: The assertion did not wait for the second IndexedDB transaction to acknowledge the new document version.
+- **Fix**: Wait for the updated room value in IndexedDB first, then assert the pending-cloud status while the mocked server response is still held.
+- **Prevention**: Assert each persistence boundary in order: edit → IndexedDB acknowledgement → cloud acknowledgement.
+- **Related tasks**: C1 T4
+
+## 2026-10-28: Local-draft autosave timer ran in jsdom without IndexedDB
+- **Error**: The new authored-mutation autosave hook attempted repository persistence in jsdom, where IndexedDB is unavailable; one existing serialization test also observed an unexpected in-flight status.
+- **Cause**: The Development opt-in was true in the test environment, but timer scheduling did not require a browser IndexedDB implementation.
+- **Fix**: Schedule mutation-driven local persistence only when `indexedDB` exists; the focused mocked-repository test supplies an IndexedDB sentinel.
+- **Prevention**: Gate browser-only persistence on browser storage capability as well as the Development feature flag.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Delayed-ack browser test expected the wrong post-ack status for a newer local edit
+- **Error**: After the pending cloud request acknowledged its captured older version, the test expected `Saved locally and to cloud` while a later edit remained unacknowledged.
+- **Cause**: The expected state incorrectly treated an earlier server acknowledgement as covering the newer local draft generation.
+- **Fix**: Expect `Saved locally`, assert the latest version remains in IndexedDB and the mocked server retains the earlier version, and ensure the UI does not claim the latest edit reached cloud.
+- **Prevention**: Bind acknowledgement checks to the captured save generation and distinguish server-confirmed content from edits made in flight.
+- **Related tasks**: C1 T4
+
+## 2026-10-28: Drafts-disabled browser fixture correctly stopped at its synthetic revision conflict
+- **Error**: The flag-disabled browser check expected a mocked graph POST, but the editor displayed `Outdated` and refused to write because the synthetic cache/server pair had no matching acknowledged revision marker.
+- **Cause**: The fixture seeds a synthetic graph without asserting a pre-existing server acknowledgement; the no-draft path correctly preserves the existing conflict guard.
+- **Fix**: Assert the flag-off outcome as no IndexedDB draft, no locally claimed save state, visible conflict protection, and no mocked write; do not alter conflict semantics to force this fixture through.
+- **Prevention**: Browser fixtures must explicitly seed revision markers when exercising a successful cloud save; feature-flag isolation tests should verify the protected behavior independently.
+- **Related tasks**: C1 T4, T5
+
+## 2026-10-28: Flag-off conflict assertion missed the status marker prefix
+- **Error**: Playwright exact-text lookup did not match the visible `● Outdated` header status.
+- **Cause**: The `ContextHeader` renders a bullet marker and label in one text node, so exact text `Outdated` is not the full node content.
+- **Fix**: Match the visible `Outdated` label with a regular expression while retaining the same conflict-state expectation.
+- **Prevention**: Use a role/aria label or non-exact text matcher for status badges that include decorative symbols.
+- **Related tasks**: C1 T4
+
+
+
+## 2026-10-29: Track C1 Floor Editor mocks missed local-draft flag selector
+- **Error**: After the C1 flag-off UI path was integrated, FloorEditor-2d-2.5d-toggle.test.tsx and FloorEditor185.test.tsx failed at render because their graph-store mocks did not export isStudioLocalDraftModeEnabled.
+- **Cause**: The new UI reads the feature-flag selector while preserving the legacy save status; old mocks modeled only the graph store API.
+- **Fix**: Added isStudioLocalDraftModeEnabled: () => false to both test mocks. Production behavior and auth guards were not changed.
+- **Verification**: The two files pass 12/12 tests; final full Vitest returns to the saved baseline of 34 failing tests. See reports/navi-studio-1.5-track-c1/05-REGRESSION-RESULTS.md.
+- **Prevention**: Update component mocks whenever the component starts reading a new store-level selector, then run the component suite individually before the full suite.
+- **Related tasks**: C1 continuation, Floor Editor local draft status
+
+
+## 2026-10-30: D6 source archive PowerShell path handling required correction
+- **Error**: Initial archive-verification scripts hit PowerShell parsing/null errors, and `Test-Path` treated route-parameter brackets as wildcard syntax. The archive was not created by those attempts and the worktree was unchanged.
+- **Cause**: Conditional expressions were embedded in a hashtable, `Split-Path` parameters were combined incorrectly, and wildcard-aware path APIs were used for literal file names.
+- **Fix**: Rebuilt the package with separate scalar conditionals and .NET literal-path file operations. The final archive contains 157 snapshots; 161 file hashes verified after extraction; extraction rehearsal passed.
+- **Prevention**: Use literal-path/.NET file APIs for Windows paths containing brackets and keep packaging script stages independently verifiable.
+- **Related tasks**: D6 T1
+
+## 2026-10-30: Existing Graphify index did not answer the C2 contract query
+- **Error**: The first Graphify query ran from the session directory and could not find the repository graph. After setting the worktree as the command directory, the existing index returned unrelated `apps/studio-new` and demo manifest nodes instead of the C2 scoped-save contract.
+- **Cause**: The cached graph is stale or mismatched to the current worktree.
+- **Fix**: Read the Track C2 contract, revision design, and current source directly. Refresh the graph after D6 implementation as the repository instructions require.
+- **Prevention**: Validate graph query source paths before relying on results; use current source/tests as authority when index nodes do not match.
+- **Related tasks**: D6 T3-T5
+
+## 2026-10-30: D6 baseline Vitest ran outside the worktree
+- **Error**: Vitest 4.1.9 reported “No test files found” for the scoped-save path; no tests ran.
+- **Cause**: The command referenced the worktree runner but omitted the command working directory, so Vitest evaluated the path from the session directory.
+- **Fix**: Rerun with the worktree as `exec_command.workdir` and a task-local TEMP/TMP directory.
+- **Prevention**: Always set the repo working directory for package test commands, even when invoking an absolute binary path.
+- **Related tasks**: D6 T3, T5
+
+## 2026-10-30: D6 scoped-save tests exposed outdated mock transaction fixtures
+- **Error**: The focused scoped-save suite reported three failures after transaction results became atomic: the no-op fake store compared against its original state, and dependency fixtures used non-SHA-256 placeholder strings.
+- **Cause**: Existing test helpers modeled preflight state separately from the atomic store and did not encode the stricter candidate checksum contract.
+- **Fix**: Align the fake store's initial state with its read state and use valid deterministic SHA-256 dependency fixtures.
+- **Prevention**: Keep mock preflight and atomic state backed by the same state object; validate test candidates using production input invariants.
+- **Related tasks**: D6 T3
+
+## 2026-10-30: D6 isolated source subdirectory could not be created
+- **Error**: Creating `src/services/__local__` failed with Windows “Access to the path is denied” after the filesystem permission request was granted.
+- **Cause**: The worktree's directory ACL prevented creation of a new child folder in that location.
+- **Fix**: Kept the local-only adapter and tests as explicitly named `.local.ts` files in the existing `src/services` directory. They remain unreferenced from runtime code.
+- **Prevention**: Reuse an authorized existing source directory when an isolated child folder cannot be created; keep the module path and import graph local/test-only.
+- **Related tasks**: D6 T4
+
+## 2026-10-30: D6 TypeScript recheck confirms inherited baseline
+- **Error**: `tsc --noEmit --pretty false --incremental false` exited 2 with 1,128 diagnostics during D6 verification.
+- **Cause**: The repository has an established non-green TypeScript baseline of 1,128 diagnostics from Track C1; the D6 files produced no matching diagnostics.
+- **Fix**: No unrelated TypeScript cleanup was made. Full output is preserved at `C:\Users\Administrator\Documents\Codex\NAVI-Track-D6-Backups\typescript-d6-final.log`; the focused D6 lint and tests passed.
+- **Prevention**: Compare future checks with the saved baseline and investigate only new diagnostics in changed files before claiming a regression.
+- **Related tasks**: D6 T5
+
+## 2026-10-30: E1 multi-scope history type used invalid readonly syntax
+- **Error**: The first E1 batch/history Vitest run stopped during transformation because TypeScript permits `readonly` only directly on array and tuple types; `readonly Array<T>` was rejected.
+- **Cause**: The new batch history interface used an unsupported readonly modifier form.
+- **Fix**: Changed the field type to `ReadonlyArray<T>` before rerunning.
+- **Prevention**: Prefer `ReadonlyArray<T>` for generic collection declarations and execute the focused transform/test slice immediately after adding new interfaces.
+- **Related tasks**: E1 T2
+
+## 2026-10-30: E1 endpoint test requests omitted loopback host headers
+- **Error**: Initial scoped-history client tests returned error states because the in-process Request fixtures did not include the Host/Origin headers required by the loopback-only endpoint.
+- **Cause**: Constructing a Web `Request` in Vitest does not synthesize the server Host header that a real localhost HTTP request carries.
+- **Fix**: Added explicit `localhost:3000` Host and same-origin Origin headers to the client-to-handler test adapter.
+- **Prevention**: Keep security-gate test adapters faithful to HTTP request metadata and assert the rejection path separately for non-loopback hosts.
+- **Related tasks**: E1 T3, T5
+
+## 2026-10-30: E1 local endpoint stale-check preceded retry receipt replay
+- **Error**: The exact retry after a simulated lost local acknowledgment received `STALE_REVISION` because the endpoint compared campus revision before checking the committed mutation id.
+- **Cause**: The client retained the correct immutable request, but the route's early revision preflight bypassed the in-memory idempotency receipt.
+- **Fix**: The loopback route now caches each completed request signature and local-only response by session mutation id, replays only an exact match, and rejects a changed body under the same id.
+- **Prevention**: Resolve idempotency before compare-and-swap rejection on retries; test lost responses through the real route handler.
+- **Related tasks**: E1 T3
+
+## 2026-10-30: E1 batch assertion compared extra operation payload fields exactly
+- **Error**: The first full focused regression rerun failed one client test because the batch history's operations contained integrity-checked replace-scope payloads in addition to scope identities.
+- **Cause**: The matcher treated each operation as an exact object instead of checking the scope fields relevant to the assertion.
+- **Fix**: Changed the assertion to use partial object matchers for the expected building and campus-routing scopes. The rerun passed 15 files / 101 tests.
+- **Prevention**: Assert stable public contract fields when records intentionally carry additional checksums/content.
+- **Related tasks**: E1 T2, T5
+
+## 2026-10-30: E1 scoped-history TypeScript checks found five new type errors
+- **Error**: A whole-project comparison excluding transient `.next/dev/types` reported five diagnostics in E1 sources: an undeclared projection-map alias and missing discriminants on local single/batch history records.
+- **Cause**: The client projection map used an outdated type name, and the local history union lacked a `kind` discriminant needed by reconstruction and tamper-test narrowing.
+- **Fix**: Use `ScopedDocumentProjection` for the projection map and add `kind: 'scoped-change'` to single-scope history entries. The final comparison returned to the D6 baseline of 1,128 diagnostics with zero E1-source diagnostics.
+- **Prevention**: Run whole-project TypeScript comparison before finalizing new discriminated unions and type aliases.
+- **Related tasks**: E1 T2, T5
+
+## 2026-10-30: E1 browser harness did not return an HTTP response
+- **Error**: The Track C1 Playwright edit/reload suite and an isolated retry did not produce a test result. Requests to the harness URL `http://127.0.0.1:3187/` timed out while its Next development process remained unresponsive.
+- **Cause**: The local app harness did not serve its readiness/page request in this environment; the browser result could not be established from the available run.
+- **Fix**: Stopped only the two E1-owned Playwright/local harness runs after confirming the local endpoint still timed out; no unrelated processes or resources were modified. Browser acceptance is reported as unverified.
+- **Prevention**: Diagnose local Next harness readiness before retrying browser scenarios; do not report a browser pass without a completed Playwright result.
+- **Related tasks**: E1 T5
+
+## 2026-10-30: E2 flag-on browser test found the floor editor was not connected to scoped history
+- **Error**: The flag-on Studio floor-editor browser scenario loaded the synthetic building but rendered no scoped-history status and sent no scoped-history request.
+- **Cause**: The floor editor route mounts its own `FloorEditorBridgeSession` and only reuses `StudioLocalDraftRecoveryGate`; E1's scoped-history observer lived inside the separate `EditorBridgeSession`, which this route does not render.
+- **Fix**: Extract the scoped-history observer into a reusable bridge and mount it alongside the existing editor context in both editor paths; surface its local-only status in the Floor Editor's existing status row.
+- **Prevention**: Browser acceptance must exercise the actual floor-editor route as well as service/client unit tests; assert both the endpoint request and visible status.
+- **Related tasks**: E2 T3, T5
+
+## 2026-10-30: E2 development Strict Mode initialized two scoped-history sessions
+- **Error**: After connecting the actual Floor Editor route, the flag-on browser test observed two scoped-history initialize requests on one initial page load.
+- **Cause**: React Development Strict Mode ran the bridge effect setup/cleanup/setup sequence; the first setup sent its POST before cleanup, and the second setup created another page session.
+- **Fix**: Defer scoped-client start to a microtask guarded by an effect-generation token, so Strict Mode's abandoned first setup is skipped and only the active mount initializes.
+- **Prevention**: Test first-mount request counts under Next Development and guard effect-triggered network side effects against Strict Mode replay.
+- **Related tasks**: E2 T3, T5
+
+## 2026-10-30: E2 synthetic route-node browser click missed the rendered node
+- **Error**: The first E2 route-scope browser test clicked a fixed map-canvas coordinate but the Floor Editor did not select the seeded route node.
+- **Cause**: The fixture's geographic camera/layout does not guarantee the route node is at the chosen pixel.
+- **Fix**: Inspect the saved screenshot and map dimensions; derive the click from the actual rendered route-node feature or use an existing accessible selection surface, then rerun the route scenario.
+- **Prevention**: Avoid fixed pixel assumptions for geospatial map features; anchor interaction to actual rendered geometry or a stable accessible target.
+- **Related tasks**: E2 T3, T5
+
+## 2026-10-30: E2 route-node browser test matched two Delete controls
+- **Error**: After the canvas-relative click selected the synthetic waypoint, Playwright found two exact `Delete` buttons and refused to choose one.
+- **Cause**: The editor shows a map action and a selected-node property-panel action with the same accessible name.
+- **Fix**: Keep the geometry-anchored selection and click the last exact Delete button, which is the selected waypoint's property-panel action.
+- **Prevention**: Scope repeated action names to the selected entity or its property panel; rerun the interaction to establish behavior.
+- **Related tasks**: E2 T3, T5
+
+## 2026-10-30: E2 parallel Vitest startup hit sandbox temp rename denial
+- **Error**: The first six-file Vitest invocation failed before collecting tests when concurrent workers could not rename temporary Vite client cache entries under the sandbox temporary directory (`EPERM`).
+- **Cause**: Parallel test-worker cache initialization collided with the sandbox's temporary-directory rename policy.
+- **Fix**: Retry the same focused files with one worker and `TEMP`/`TMP` directed to the existing repository-local `.tmp-vitest` directory. The same 6 files then passed, 41 tests total; no source or cache cleanup was performed.
+- **Prevention**: In this restricted Windows environment, direct test temp-file creation into the writable repository temp directory when OS temp rename is denied.
+- **Related tasks**: E2 T4, T6
+
+## 2026-10-30: E3 Supabase migration generator telemetry write was denied
+- **Error**: `supabase migration new navi_scoped_persistence_foundation --workdir .` exited before creating a migration because the CLI could not write its telemetry temp file under `C:\Users\Administrator\.supabase` (`EPERM`). No database connection or migration execution occurred.
+- **Cause**: The CLI telemetry path is outside the authorized worktree.
+- **Fix**: Used the documented `SUPABASE_TELEMETRY_DISABLED=1` and `DO_NOT_TRACK=1` environment settings, then reran the file generator successfully. It created only `supabase/migrations/20261030045317_navi_scoped_persistence_foundation.sql`; no database command was run.
+- **Prevention**: Disable CLI telemetry for local-only migration-file generation in restricted environments.
+- **Related tasks**: E3 T2
+
+## 2026-10-30: E3 transaction-fake first run exposed four contract-test mismatches
+- **Error**: The first adapter test run had 4 failures: checksum validation used an unstructured error; the fake kept a stale transaction snapshot after the campus lock; identity mismatch test had no stored campus row; and rollback SQL's safety comment tripped a naive `CASCADE` substring assertion.
+- **Cause**: Adapter validation did not preserve `ScopedCommitError`; the fake did not model READ COMMITTED visibility after waiting on a lock; the test fixture did not reach identity comparison; the assertion included SQL comments.
+- **Fix**: Use `ScopedCommitError('INVALID_CANDIDATE')`, refresh the fake snapshot after lock grant, seed the test with a valid head before using the wrong resolver, and assert no executable `DROP ... CASCADE` statement.
+- **Prevention**: Keep controlled fakes aligned with PostgreSQL transaction visibility and ensure failure-injection asserts the behavior under test rather than fixture setup.
+- **Related tasks**: E3 T3, T4
+
+## 2026-10-30: E3 focused lint found unused imports and a mutable binding
+- **Error**: The first focused ESLint run returned one `prefer-const` error and two unused-import warnings in the new adapter/test.
+- **Cause**: A checkpoint reconstruction scope binding was never reassigned; imports remained after implementation/test changes.
+- **Fix**: Made the binding constant and removed unused imports. Also removed a redundant checksum comparison that recomputed the same snapshot-derived value on both sides; checkpoint payload checksum and reconstructed head checks remain validated.
+- **Prevention**: Run focused lint after the final adapter/test edits and keep checkpoint integrity checks tied to independently stored values.
+- **Related tasks**: E3 T3, T4
+
+## 2026-10-30: E4 authorization red tests exposed unguarded adapter reads and writes
+- **Error**: The first E4 authorization test run had three expected failures: read APIs accepted a missing server principal, writes accepted an actor ID that differed from the trusted server principal, and reads did not verify canonical campus/document identity.
+- **Cause**: E3 enforced authorization only on write entry points and did not bind read methods or explicit actor arguments to an independently resolved server principal.
+- **Fix**: Required trusted-principal resolution and permission-specific authorization at every adapter entry point, bound explicit write actor IDs to the trusted principal, and validated stored campus/document identities on reads and writes. Added simulated tests for each boundary.
+- **Prevention**: Require trusted principal resolution and permission-specific authorization on every adapter entry point; verify stored document identity for reads as well as writes.
+- **Related tasks**: E4 T2
+
+## 2026-10-30: E4 authorization hardening exposed fixture and replay-order gaps
+- **Error**: The first post-implementation E4 run failed seven tests: a bootstrap test's trusted-principal fixture remained set to a denied principal; fake campus identity/read fixtures failed the newly required identity assertion; and changed-content mutation reuse was reported as batch substitution before the more specific mutation reuse error.
+- **Cause**: The authorization resolver is now authoritative and the fake must seed/store the same canonical document identity. Replay validation checked the aggregate batch checksum before validating each receipt against its requested mutation checksum.
+- **Fix**: Corrected the trusted-principal and canonical document fixtures. Replay now validates each mutation receipt before aggregate batch identity so changed mutation content keeps its specific rejection; no database was used.
+- **Prevention**: Assert fake bootstrap identity at the fixture boundary and test both reused mutation IDs and valid same-member receipts from a different original batch as distinct error cases.
+- **Related tasks**: E4 T2, T3
+
+## 2026-10-30: E4 authorized reads increased simulated transaction count
+- **Error**: One adapter test expected one committed transaction but observed four after `commitScopedBatch`.
+- **Cause**: The contract wrapper first performs two authorized mutation-receipt reads and a consistent campus-state read; E4 now wraps those reads in repeatable-read transactions before the durable write transaction.
+- **Fix**: Update the assertion to account for the three read-only transactions plus one write transaction, while preserving the one-revision/one-change-set atomicity assertions.
+- **Prevention**: Tests should distinguish transaction purpose when authorization and snapshot consistency require additional read transactions.
+- **Related tasks**: E4 T2
+
+## 2026-10-30: E4 batch replay contract tests found missing schema binding
+- **Error**: The first batch-integrity test run had two failures: partial receipt replay returned the generic history-integrity code, and the migration proposal lacked `batch_checksum` columns and the composite batch foreign key.
+- **Cause**: E3 represented receipts only by individual mutation checksums; it had no durable original-batch identity or dedicated partial-replay classification.
+- **Fix**: Added a canonical batch checksum to change sets and receipts, a composite foreign key binding receipts to their original batch, and explicit partial/cross-batch replay rejection. SQL remains unapplied.
+- **Prevention**: Test database constraints and adapter replay behavior together, including partial receipt sets and a full set whose stored batch identity differs.
+- **Related tasks**: E4 T3
+
+## 2026-10-30: E4 schema review found ownership assumptions were undocumented
+- **Error**: The expanded static security review failed because the proposed schema did not state who owns it after migration or that the owner must remain a server-side migration role.
+- **Cause**: E3 documented privacy and grants but left ownership implicit as PostgreSQL's migration-executor default.
+- **Fix**: Documented migration-executor/server-side ownership and prohibited client-role access in the schema proposal; static tests cover ownership, RLS, grants/revokes, composite keys, and rollback safety. No SQL was executed.
+- **Prevention**: Keep ownership, exposure-schema exclusion, client-role revocations, RLS, indexes, and composite campus/batch keys explicit in proposal comments and static tests.
+- **Related tasks**: E4 T4
+
+## 2026-10-30: E4 malformed checkpoint test surfaced an unstructured integrity error
+- **Error**: A checkpoint with `snapshot_json = null` caused a generic `DATABASE_FAILURE` during reconstruction instead of `HISTORY_INTEGRITY_FAILURE`.
+- **Cause**: Reconstruction cast JSONB to the snapshot interface before validating its runtime shape.
+- **Fix**: Added runtime checkpoint-shape, scope identity, checksum, and revision validation before reconstruction reads fields; malformed stored state is classified as history integrity failure. No PostgreSQL database was used.
+- **Prevention**: Validate untrusted stored JSONB shape, scope identities/checksums, and revision bounds before accessing fields.
+- **Related tasks**: E4 T4
+
+## 2026-10-30: E4 contract wrapper replay bypassed durable batch binding
+- **Error**: Final path tracing found that `commitScopedBatch` can replay existing `findMutation` acknowledgments before calling `commitBatchAtomically`, bypassing the adapter's in-transaction batch-checksum validation.
+- **Cause**: The E1/E2 acknowledgment contract contained only per-mutation identity/checksums, and the durable adapter discarded the stored batch checksum during receipt lookup.
+- **Fix**: Propagated the persisted batch checksum through the backward-compatible optional acknowledgment field and validated both single- and batch-wrapper replay paths, including partial receipt sets.
+- **Prevention**: Trace durable replay end-to-end through the existing E1/E2 orchestration wrapper, not only direct store calls.
+- **Related tasks**: E4 T3, T6
+
+## 2026-10-30: E4 PowerShell search command used POSIX path and utility syntax
+- **Error**: A read-only `rg` search with a POSIX-style `src/services/*test.ts` path was rejected by Windows path parsing, and the chained `head` command was unavailable in PowerShell.
+- **Cause**: The command was written with Bash wildcard/pipeline assumptions while the active shell is PowerShell.
+- **Fix**: Reissue searches with `rg --glob` and use `Select-Object -First` for output slicing.
+- **Prevention**: Keep shell-specific command syntax native to the active PowerShell environment.
+- **Related tasks**: E4 T3
+
+## 2026-10-30: E4 local batch implementation path was inferred from the test filename
+- **Error**: A read-only attempt to open `src/services/scoped-campus-batch.local.ts` failed because the implementation is defined elsewhere.
+- **Cause**: The test filename was mistaken for a matching implementation module.
+- **Fix**: The batch test imports `InMemoryScopedCommitStore` from `scoped-campus-history.local`; no file was created or changed by the failed read.
+- **Prevention**: Follow the test's import declaration instead of inferring a companion filename.
+- **Related tasks**: E4 T3
+
+## 2026-10-30: E4 wrapper replay test initially lacked its contract import
+- **Error**: The first focused wrapper-path test run stopped with `ReferenceError: commitScopedCandidate is not defined` instead of reaching the replay assertion.
+- **Cause**: The adapter test imported the batch wrapper but not the single-candidate wrapper used by the new path test.
+- **Fix**: Add the existing exported contract helper to the test import, then rerun to establish the expected failing behavior.
+- **Prevention**: Check the test's imported public contract symbols when adding focused tests to an existing adapter suite.
+- **Related tasks**: E4 T3
+
+## 2026-10-30: E4 contract-level replay test confirmed cross-shape receipt reuse
+- **Error**: The focused contract test replayed a receipt from a two-member PostgreSQL batch as a successful single-candidate commit.
+- **Cause**: `findMutation` discarded the persisted batch checksum, and the source-compatible contract wrapper had no way to validate original batch shape.
+- **Fix**: Added optional batch checksum propagation to preserve legacy contracts while enforcing bound single/batch replay identity in the wrappers.
+- **Prevention**: Verify replay at both the durable store boundary and the higher-level E1/E2 orchestration APIs.
+- **Related tasks**: E4 T3, T6
+
+## 2026-10-30: E4 TypeScript baseline comparison found replay error in the wrong union
+- **Error**: Full `tsc` returned 1,134 diagnostics, including six new errors in `scoped-campus-save.ts` around `BATCH_REPLAY_INTEGRITY_FAILURE`.
+- **Cause**: The new contract replay error was accidentally added to the atomic conflict union, but the throw sites require it in `ScopedCommitErrorCode`; the misplaced union member also expanded a conflict-message record.
+- **Fix**: Move the code to the commit-error union and restore the atomic conflict union to its original scope.
+- **Prevention**: Recheck discriminated-union placement and rerun TypeScript against the E3 baseline after public contract changes.
+- **Related tasks**: E4 T3, T6
+
+## 2026-10-30: E4 campus-head identity test found campus id was only implicit in SQL filtering
+- **Error**: A simulated read returning a head row for a different campus was classified as generic history checksum failure rather than explicit identity mismatch.
+- **Cause**: Adapter checks compared the stored document id but relied solely on the SQL `WHERE campus_id = $1` predicate for campus identity.
+- **Fix**: Added explicit stored campus-id checks alongside canonical document-id checks for campus head reads, including receipt lookup and reconstruction paths.
+- **Prevention**: Verify both campus and document identity at the adapter boundary even when the query is parameter-scoped.
+- **Related tasks**: E4 T2, T6
+
+## 2026-10-30: E5 synthetic SQL fixture used non-hex checksums
+- **Error**: A new source-only regression failed because the E4 SQL seed used `repeat('g', 64)` and `repeat('h', 64)` for checksums, which violate the migration's lowercase hexadecimal SHA-256 constraints.
+- **Cause**: The fixture had been reviewed for campus isolation but its synthetic sentinels were not validated against the actual SQL check constraints.
+- **Fix**: Changed the sentinels to valid hexadecimal `8` and `9` strings and added a static test that verifies every repeated checksum character in the seed is lowercase hexadecimal. The red test failed before the fixture correction and passed afterward.
+- **Prevention**: Validate synthetic SQL fixtures against migration `CHECK` expressions before enabling any live harness; keep these validations connection-free.
+- **Related tasks**: E5 T2
+
+## 2026-10-30: E5 harness lacked a positive synthetic database marker
+- **Error**: E4 preflight fixed host/database/role names and rejected Supabase roles, but it could still accept an unrelated loopback cluster if it happened to contain matching names.
+- **Cause**: Database identity was inferred from connection parameters rather than independently checking database ownership and an explicit synthetic marker.
+- **Fix**: Preflight now requires `navi_e4_runner` to own `navi_e4_test` and requires the exact database comment `navi-e4-synthetic-v1` before applying SQL. Added source regression assertions. This safeguard has not yet been exercised against PostgreSQL.
+- **Prevention**: Require explicit target identity, owner, and marker checks before any migration SQL; preserve fail-closed behavior on mismatch.
+- **Related tasks**: E5 T2, T4
+
+## 2026-10-30: E5 Docker startup did not make the engine available
+- **Error**: The authorized `docker desktop start` invocation remained pending through repeated readiness checks. `com.docker.service` remained stopped and `docker info` could not open `dockerDesktopLinuxEngine`.
+- **Cause**: Not established. Docker Desktop processes were present, but this execution context did not bring the service/engine online.
+- **Fix**: Interrupted only the waiting CLI command. No container, image, volume, network, or database operation was performed. Reported the blocker and retained the approval boundary.
+- **Prevention**: Verify `docker info` and service readiness before attempting inventory or provisioning; do not retry startup or alter unrelated resources after a failed attempt without a new owner-directed recovery step.
+- **Related tasks**: E5 T1, T3
+
+## 2026-10-30: E5 Docker container counts disagree across read-only inventory commands
+- **Error**: Elevated `docker info` repeatedly reports `total=1 running=1 stopped=0`, while `docker ps` returns no rows and `docker ps -a` plus `docker system df` show only the D2 container in `Exited (255)` state.
+- **Cause**: Unknown; the discrepancy persists across repeated commands against the `desktop-linux` context.
+- **Fix**: No corrective Docker action taken. Preserved the D2 container/volume/network and all anonymous volumes; blocked E5 provisioning pending reconciliation.
+- **Prevention**: Cross-check Docker summary counts against `docker ps`, `docker ps -a`, and `docker system df` before creating resources; do not resolve a mismatch by restarting or modifying protected workloads.
+- **Related tasks**: E5 T1, T3
+
+## 2026-10-30: E5 sandboxed Docker CLI could not access the engine pipe
+- **Error**: Initial read-only Docker commands from the ordinary execution context returned `permission denied` for `npipe:////./pipe/dockerDesktopLinuxEngine` after the owner had started Docker.
+- **Cause**: The non-elevated process could not access the Docker Desktop named pipe.
+- **Fix**: Used an elevated read-only inspection command authorized by the user. No Docker resource was started or modified by that inspection.
+- **Prevention**: Check Docker named-pipe access separately from engine state; if ordinary access is denied, use only explicitly authorized read-only elevated inventory and keep its scope narrow.
+- **Related tasks**: E5 T1

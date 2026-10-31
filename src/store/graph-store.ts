@@ -10,6 +10,13 @@ import {
 } from '../services/authored-snapshot-persistence'
 import { appendIntent, evaluateAuthoredSave, intentsIncludedInSave, type AuthoredMutationIntent } from './authored-mutation-intent'
 import type { GuardCollections } from '../lib/save-safety-guard'
+import { useStudioStore } from './studio-store'
+import {
+  createStudioDraftRecord,
+  studioDraftContentFingerprint,
+  studioDraftRepository,
+  verifyStudioDraftRecord,
+} from '../services/studio-local-drafts'
 
 const STORAGE_KEY = 'navi-graph'
 const SYNC_STATUS_KEY = 'navi-sync-status'
@@ -30,6 +37,16 @@ function snapshotFingerprint(snapshotJson: string): string {
 }
 
 type SyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
+export type LocalDraftStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'recovered' | 'conflict' | 'error'
+export type LocalDraftRecoveryStatus = 'idle' | 'loading' | 'ready' | 'recovered' | 'conflict' | 'error'
+export type StudioScopedHistoryStatus = 'disabled' | 'session-only' | 'validating' | 'validated' | 'rejected' | 'conflict' | 'error' | 'local-draft' | 'saving' | 'durably-committed-local' | 'failed'
+
+export function isStudioLocalDraftModeEnabled(env: {
+  nodeEnv?: string
+  flag?: string
+} = { nodeEnv: process.env.NODE_ENV, flag: process.env.NEXT_PUBLIC_NAVI_STUDIO_LOCAL_DRAFTS }): boolean {
+  return env.nodeEnv === 'development' && env.flag === 'true'
+}
 
 interface GraphState {
   graph: Graph
@@ -42,6 +59,15 @@ interface GraphState {
   renderVersion: number
   syncStatus: SyncStatus
   syncError: string | null
+  localDraftStatus: LocalDraftStatus
+  localDraftError: string | null
+  localDraftUpdatedAt: string | null
+  localDraftBaseServerRevision: string | null
+  localDraftRecoveryStatus: LocalDraftRecoveryStatus
+  localDraftGeneration: number
+  scopedHistoryStatus: StudioScopedHistoryStatus
+  scopedHistoryDetail: string | null
+  setScopedHistoryStatus: (status: StudioScopedHistoryStatus, detail?: string | null) => void
   /**
    * P0.11 — CAMPUS_READY_FOR_AUTHORED_SAVE. False while an authoritative load
    * or hydration is in flight; saves are refused until it settles true.
@@ -84,7 +110,10 @@ interface GraphState {
   loadMapData: (mapId: string) => void
   setCurrentMapId: (mapId: string | null) => void
   load: () => void
-  save: (options?: { trigger?: SaveTrigger }) => Promise<void>
+  save: (options?: { trigger?: SaveTrigger; localOnly?: boolean }) => Promise<void>
+  saveLocalDraft: () => Promise<void>
+  recoverLocalDraft: (mapId: string) => Promise<void>
+  discardLocalDraft: (mapId?: string) => Promise<void>
   reset: () => void
 
   syncToSupabase: (options?: { force?: boolean; trigger?: SaveTrigger }) => Promise<void>
@@ -185,7 +214,10 @@ function bindOnlineResync() {
   onlineResyncBound = true
   window.addEventListener('online', () => {
     const state = useGraphStore.getState()
-    if (state.currentMapId) void state.syncToSupabase().catch(() => {})
+    if (state.currentMapId) {
+      if (isStudioLocalDraftModeEnabled()) void state.save({ trigger: 'autosave' }).catch(() => {})
+      else void state.syncToSupabase().catch(() => {})
+    }
   })
 }
 
@@ -276,6 +308,8 @@ function isServerSnapshotEmpty(data: GraphSnapshot): boolean {
  */
 const campusEpoch = new Map<string, number>()
 const adoptingCampuses = new Set<string>()
+const localDraftSaveQueues = new Map<string, Promise<void>>()
+const localDraftAutosaveTimers = new Map<string, number>()
 const getCampusEpoch = (mapId: string): number => campusEpoch.get(mapId) ?? 0
 const bumpCampusEpoch = (mapId: string): void => {
   campusEpoch.set(mapId, getCampusEpoch(mapId) + 1)
@@ -301,13 +335,15 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
   const graph = Graph.fromJSON(data)
   graph.campusId = mapId
   const snapshot = graph.toJSON()
-  try {
-    localStorage.setItem(
-      storageKey(mapId),
-      JSON.stringify(serializeAuthoredGraphPayload(snapshot as unknown as Record<string, unknown>, persisted.authoredDocument)),
-    )
-  } catch (error) {
-    throw new Error(`Unable to persist the server version locally: ${error instanceof Error ? error.message : 'storage write failed'}`)
+  if (!isStudioLocalDraftModeEnabled()) {
+    try {
+      localStorage.setItem(
+        storageKey(mapId),
+        JSON.stringify(serializeAuthoredGraphPayload(snapshot as unknown as Record<string, unknown>, persisted.authoredDocument)),
+      )
+    } catch (error) {
+      throw new Error(`Unable to persist the server version locally: ${error instanceof Error ? error.message : 'storage write failed'}`)
+    }
   }
   const markerWritten = writeSyncMarker(mapId, graphFingerprint(snapshot), data.updatedAt ?? new Date().toISOString(), data.updatedAt ?? null)
   if (!markerWritten) throw new Error('Unable to record the adopted server revision locally.')
@@ -324,6 +360,7 @@ function adoptServerSnapshotData(mapId: string, data: PersistedGraphSnapshot): v
     syncStatus: 'synced',
     syncError: null,
     pendingAuthoredMutations: [],
+    ...(isStudioLocalDraftModeEnabled() ? { localDraftStatus: 'idle' as const, localDraftError: null } : {}),
     serverAdoptionVersion: useGraphStore.getState().serverAdoptionVersion + 1,
   })
 }
@@ -438,15 +475,46 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   renderVersion: 0,
   syncStatus: 'idle',
   syncError: null,
+  localDraftStatus: 'idle',
+  localDraftError: null,
+  localDraftUpdatedAt: null,
+  localDraftBaseServerRevision: null,
+  localDraftRecoveryStatus: 'idle',
+  localDraftGeneration: 0,
+  scopedHistoryStatus: 'disabled',
+  scopedHistoryDetail: null,
   campusReady: true,
   pendingAuthoredMutations: [],
+
+  setScopedHistoryStatus: (scopedHistoryStatus, scopedHistoryDetail = null) => set({ scopedHistoryStatus, scopedHistoryDetail }),
 
   recordAuthoredMutation: (kind, buildingId, floor) => {
     authoredIntentSeq += 1
     set((state) => {
       const next = appendIntent(state.pendingAuthoredMutations, { kind, buildingId, floor }, authoredIntentSeq)
-      return next === state.pendingAuthoredMutations ? {} : { pendingAuthoredMutations: next }
+      return {
+        ...(next === state.pendingAuthoredMutations ? {} : { pendingAuthoredMutations: next }),
+        ...(isStudioLocalDraftModeEnabled() ? {
+          localDraftStatus: 'dirty' as const,
+          localDraftError: null,
+          localDraftGeneration: state.localDraftGeneration + 1,
+        } : {}),
+      }
     })
+    const mapId = get().currentMapId
+    if (isStudioLocalDraftModeEnabled() && mapId && typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
+      const previousTimer = localDraftAutosaveTimers.get(mapId)
+      if (previousTimer) window.clearTimeout(previousTimer)
+      const timer = window.setTimeout(() => {
+        localDraftAutosaveTimers.delete(mapId)
+        if (get().currentMapId === mapId) {
+          void get().saveLocalDraft().catch((error: unknown) => {
+            console.warn('Local Studio draft autosave failed:', error)
+          })
+        }
+      }, 0)
+      localDraftAutosaveTimers.set(mapId, timer)
+    }
   },
 
   clearAuthoredMutations: (ackedSeq) => {
@@ -674,6 +742,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     // the load settles, so it must not authorize or block saves meanwhile.
     lastAcknowledgedCollections = null
     authoredIntentSeq = 0
+    set({
+      localDraftStatus: 'idle',
+      localDraftError: null,
+      localDraftUpdatedAt: null,
+      localDraftBaseServerRevision: null,
+      localDraftRecoveryStatus: 'idle',
+      localDraftGeneration: 0,
+      scopedHistoryStatus: 'disabled',
+      scopedHistoryDetail: null,
+    })
     // P0.14: not ready while an authoritative campus load is in flight.
     get().beginCampusHydration()
     const key = storageKey(mapId)
@@ -702,6 +780,23 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
     // Ensure graph identity matches the map being loaded
     graph.campusId = mapId
+
+    if (isStudioLocalDraftModeEnabled()) {
+      // Local-draft mode never auto-syncs a cached campus to the server. Hold
+      // the editor until the IndexedDB draft (or clean server base) is chosen.
+      set({
+        graph,
+        authoredDocument,
+        currentMapId: mapId,
+        syncStatus: 'idle',
+        syncError: null,
+        localDraftStatus: 'idle',
+        localDraftError: null,
+        localDraftRecoveryStatus: 'loading',
+      })
+      void get().recoverLocalDraft(mapId)
+      return
+    }
 
     // CASE A — No local graph or empty: fetch from Supabase
     if (!raw || !graph.buildings.length) {
@@ -734,14 +829,50 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       // acknowledged baseline must never carry across campuses.
       lastAcknowledgedCollections = null
       authoredIntentSeq = 0
-      set({ currentMapId: mapId, authoredDocument: null, pendingAuthoredMutations: [], campusReady: false })
+      set({
+        currentMapId: mapId,
+        authoredDocument: null,
+        pendingAuthoredMutations: [],
+        campusReady: false,
+        localDraftStatus: 'idle',
+        localDraftError: null,
+        localDraftUpdatedAt: null,
+        localDraftBaseServerRevision: null,
+        localDraftRecoveryStatus: 'idle',
+        localDraftGeneration: 0,
+        scopedHistoryStatus: 'disabled',
+        scopedHistoryDetail: null,
+      })
     } else {
       set({ currentMapId: mapId })
     }
   },
 
-  save: async (options?: { trigger?: SaveTrigger }) => {
+  save: async (options?: { trigger?: SaveTrigger; localOnly?: boolean }) => {
     if (typeof window === 'undefined') return
+    const trigger = options?.trigger ?? 'manual'
+    if (isStudioLocalDraftModeEnabled() && trigger === 'autosave') {
+      await get().saveLocalDraft()
+      return
+    }
+    if (isStudioLocalDraftModeEnabled()) {
+      if (get().localDraftStatus === 'conflict') {
+        throw new Error('Cloud Save is paused because the recovered local draft has a stale known server base. Resolve the conflict first.')
+      }
+      // Keep the complete recovery snapshot in IndexedDB only. The existing
+      // cloud writer still performs its normal authored-intent and CAS checks.
+      await get().saveLocalDraft()
+      if (options?.localOnly) return
+      const cloudCandidateGeneration = get().localDraftGeneration
+      await get().syncToSupabase({ trigger })
+      if (get().syncStatus === 'synced') {
+        await get().saveLocalDraft()
+        if (get().localDraftGeneration !== cloudCandidateGeneration) {
+          set({ syncStatus: 'idle', syncError: null })
+        }
+      }
+      return
+    }
     const mapId = get().currentMapId
     if (mapId && adoptingCampuses.has(mapId)) throw new Error('Save paused while the server version is being adopted.')
     // Keep graph identity in sync with the active map
@@ -751,7 +882,174 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const currentAuthored = get().authoredDocument ?? useGraphStore.getState().authoredDocument
     const persisted = serializeAuthoredGraphPayload(json as unknown as Record<string, unknown>, currentAuthored)
     localStorage.setItem(key, JSON.stringify(persisted))
-    await get().syncToSupabase({ trigger: options?.trigger })
+    await get().syncToSupabase({ trigger })
+  },
+
+  saveLocalDraft: async () => {
+    if (!isStudioLocalDraftModeEnabled()) throw new Error('Local Studio drafts are disabled outside opted-in development.')
+    const mapId = get().currentMapId
+    if (!mapId) throw new Error('Cannot save a local draft without an active campus id.')
+    const previousSave = localDraftSaveQueues.get(mapId) ?? Promise.resolve()
+    const saveAttempt = previousSave.catch(() => undefined).then(async () => {
+      const state = get()
+      if (state.currentMapId !== mapId) return
+      if (!state.authoredDocument) throw new Error('The authored campus document is not ready; local draft was not stored.')
+      const generation = state.localDraftGeneration
+      const studio = useStudioStore.getState()
+      set({ localDraftStatus: 'saving', localDraftError: null })
+      try {
+        const previous = await studioDraftRepository.get(mapId)
+        let createdAt: string | undefined
+        let verifiedPrevious: Awaited<ReturnType<typeof verifyStudioDraftRecord>> | null = null
+        if (previous) {
+          verifiedPrevious = await verifyStudioDraftRecord(previous, mapId)
+          createdAt = verifiedPrevious.createdAt
+        }
+        const record = await createStudioDraftRecord({
+          campusId: mapId,
+          graph: state.graph.toJSON(),
+          authoredDocument: state.authoredDocument,
+          scope: { buildingId: studio.activeBuildingId, floor: studio.activeFloor },
+          baseServerRevision: readSyncMarker(mapId)?.serverTimestamp ?? null,
+          createdAt,
+        })
+        if (verifiedPrevious) {
+          const [previousContent, nextContent] = await Promise.all([
+            studioDraftContentFingerprint(verifiedPrevious),
+            studioDraftContentFingerprint(record),
+          ])
+          if (previousContent === nextContent) {
+            if (get().currentMapId === mapId && get().localDraftGeneration === generation) {
+              set({
+                localDraftStatus: 'saved',
+                localDraftError: null,
+                localDraftUpdatedAt: verifiedPrevious.updatedAt,
+                localDraftBaseServerRevision: verifiedPrevious.baseServerRevision,
+              })
+            }
+            return
+          }
+        }
+        await studioDraftRepository.put(record)
+        if (get().currentMapId === mapId && get().localDraftGeneration === generation) {
+          set({
+            localDraftStatus: 'saved',
+            localDraftError: null,
+            localDraftUpdatedAt: record.updatedAt,
+            localDraftBaseServerRevision: record.baseServerRevision,
+          })
+        } else if (get().currentMapId === mapId) {
+          set({ localDraftStatus: 'dirty' })
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Local IndexedDB draft write failed.'
+        if (get().currentMapId === mapId) set({ localDraftStatus: 'error', localDraftError: message })
+        throw error
+      }
+    })
+    localDraftSaveQueues.set(mapId, saveAttempt)
+    try {
+      await saveAttempt
+    } finally {
+      if (localDraftSaveQueues.get(mapId) === saveAttempt) localDraftSaveQueues.delete(mapId)
+    }
+  },
+
+  recoverLocalDraft: async (mapId: string) => {
+    if (!isStudioLocalDraftModeEnabled()) return
+    if (get().currentMapId !== mapId) return
+    set({ localDraftRecoveryStatus: 'loading', localDraftError: null })
+    try {
+      const stored = await studioDraftRepository.get(mapId)
+      if (get().currentMapId !== mapId) return
+      if (stored) {
+        const record = await verifyStudioDraftRecord(stored, mapId)
+        const currentRevision = readSyncMarker(mapId)?.serverTimestamp ?? null
+        const hasStaleKnownBase = record.baseServerRevision !== currentRevision
+        const graph = Graph.fromJSON(record.graph)
+        graph.campusId = mapId
+        set({
+          graph,
+          authoredDocument: record.authoredDocument,
+          localDraftStatus: hasStaleKnownBase ? 'conflict' : 'recovered',
+          localDraftError: hasStaleKnownBase
+            ? 'This local draft was based on a different known server revision. It is preserved; review the server version before saving.'
+            : null,
+          localDraftUpdatedAt: record.updatedAt,
+          localDraftBaseServerRevision: record.baseServerRevision,
+          localDraftRecoveryStatus: hasStaleKnownBase ? 'conflict' : 'recovered',
+          syncStatus: hasStaleKnownBase ? 'conflict' : 'idle',
+          syncError: hasStaleKnownBase ? 'A recovered local draft has a stale server base.' : null,
+          localDraftGeneration: 0,
+        })
+        return
+      }
+
+      // Migrate an unsynced legacy localStorage cache into IndexedDB rather
+      // than replacing it with a server copy. A graph-only cache is retained
+      // and surfaced for manual recovery instead of being rewritten.
+      const raw = localStorage.getItem(storageKey(mapId))
+      const marker = readSyncMarker(mapId)
+      let localCacheDirty = false
+      if (raw) {
+        try {
+          localCacheDirty = !marker || marker.snapshotFingerprint !== graphFingerprint(JSON.parse(raw))
+        } catch {
+          localCacheDirty = true
+        }
+      }
+      if (raw && localCacheDirty) {
+        const current = get()
+        if (!current.authoredDocument) {
+          throw new Error('An unsynced legacy Graph cache has no authored document. It remains preserved in local storage and was not replaced.')
+        }
+        const studio = useStudioStore.getState()
+        const migrated = await createStudioDraftRecord({
+          campusId: mapId,
+          graph: current.graph.toJSON(),
+          authoredDocument: current.authoredDocument,
+          scope: { buildingId: studio.activeBuildingId, floor: studio.activeFloor },
+          baseServerRevision: marker?.serverTimestamp ?? null,
+        })
+        await studioDraftRepository.put(migrated)
+        if (get().currentMapId === mapId) {
+          set({
+            localDraftStatus: 'recovered',
+            localDraftUpdatedAt: migrated.updatedAt,
+            localDraftBaseServerRevision: migrated.baseServerRevision,
+            localDraftRecoveryStatus: 'recovered',
+          })
+        }
+        return
+      }
+
+      // A clean cache may be checked against the server as a read-only load.
+      // Local edits after this point use IndexedDB and make no automatic POST.
+      await get().fetchFromSupabase(mapId)
+      if (get().currentMapId === mapId && get().syncStatus === 'error') {
+        throw new Error(get().syncError ?? 'The server version could not be verified; local draft recovery is paused.')
+      }
+      if (get().currentMapId === mapId) set({ localDraftRecoveryStatus: 'ready' })
+    } catch (error) {
+      if (get().currentMapId === mapId) {
+        const message = error instanceof Error ? error.message : 'Unable to recover the local campus draft.'
+        set({ localDraftStatus: 'error', localDraftError: message, localDraftRecoveryStatus: 'error' })
+      }
+    }
+  },
+
+  discardLocalDraft: async (mapId = get().currentMapId ?? '') => {
+    if (!mapId) return
+    await studioDraftRepository.delete(mapId)
+    if (get().currentMapId === mapId) {
+      set({
+        localDraftStatus: 'idle',
+        localDraftError: null,
+        localDraftUpdatedAt: null,
+        localDraftBaseServerRevision: null,
+        localDraftRecoveryStatus: 'ready',
+      })
+    }
   },
 
   reset: () => {
@@ -759,11 +1057,29 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const mapId = get().currentMapId
     const key = mapId ? storageKey(mapId) : STORAGE_KEY
     localStorage.removeItem(key)
-    set({ graph: new Graph(), authoredDocument: null, currentMapId: null, syncStatus: 'idle', syncError: null })
+    set({
+      graph: new Graph(), authoredDocument: null, currentMapId: null, syncStatus: 'idle', syncError: null,
+      localDraftStatus: 'idle', localDraftError: null, localDraftUpdatedAt: null,
+      localDraftBaseServerRevision: null, localDraftRecoveryStatus: 'idle', localDraftGeneration: 0,
+      scopedHistoryStatus: 'disabled', scopedHistoryDetail: null,
+    })
   },
 
   syncToSupabase: async (options?: { force?: boolean; trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
+    const trigger = options?.trigger ?? 'manual'
+    if (isStudioLocalDraftModeEnabled() && trigger === 'autosave') {
+      await get().saveLocalDraft()
+      return
+    }
+    if (
+      isStudioLocalDraftModeEnabled() &&
+      trigger === 'manual' &&
+      !options?.force &&
+      get().localDraftStatus === 'conflict'
+    ) {
+      throw new Error('Cloud Save is paused because the recovered local draft has a stale known server base. Resolve the conflict first.')
+    }
     const unresolvedConflict = get().syncStatus === 'conflict' ? get().syncError : null
     if (unresolvedConflict) {
       // Never overwrite a divergent server snapshot from an autosave. The user
@@ -780,7 +1096,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
     // Per-campus queue: overlapping autosave/visibility/manual writes must not
     // race each other with the same expectedServerUpdatedAt.
-    await enqueueCampusSave(mapId, options?.force === true, options?.trigger ?? 'manual')
+    await enqueueCampusSave(mapId, options?.force === true, trigger)
   },
 
   /**
@@ -870,6 +1186,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       }
       if (get().currentMapId !== mapId) throw new Error('Server adoption cancelled because Studio navigated to another campus.')
       adoptServerSnapshotData(mapId, data)
+      if (isStudioLocalDraftModeEnabled()) {
+        await studioDraftRepository.delete(mapId)
+        set({
+          localDraftStatus: 'idle',
+          localDraftError: null,
+          localDraftUpdatedAt: null,
+          localDraftBaseServerRevision: data.updatedAt ?? null,
+          localDraftRecoveryStatus: 'ready',
+        })
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to adopt the server version.'
       if (get().currentMapId === mapId) set({ syncStatus: 'conflict', syncError: message })
@@ -972,7 +1298,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       set({ graph, authoredDocument, currentMapId: effectiveMapId, syncStatus: 'synced' })
     } catch (e) {
       console.warn('[graph-store] fetchFromSupabase failed:', e)
-      set({ syncStatus: 'idle' })
+      if (isStudioLocalDraftModeEnabled()) {
+        set({ syncStatus: 'error', syncError: e instanceof Error ? e.message : 'Unable to read the server campus.' })
+      } else {
+        set({ syncStatus: 'idle' })
+      }
     }
   },
 }))

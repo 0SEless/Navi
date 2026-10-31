@@ -165,7 +165,7 @@ export class WorkflowService extends BaseEditorService {
     this.workflowStore.updateLifecycle({ saveState: 'saving' })
     this.saveInFlight += 1
     try {
-      await this.persistence.save()
+      await this.persistence.save(reason)
       this.saveComplete(reason)
     } catch (err: any) {
       this.saveFailed(err)

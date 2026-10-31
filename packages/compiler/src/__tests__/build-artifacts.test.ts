@@ -61,6 +61,40 @@ function makePe(id: string, nodeId: string, distance = 1): PortalEdge {
 }
 
 describe('buildArtifacts', () => {
+  it('projects authored terrain without changing polygon coordinates or semantic datum', () => {
+    const terrainDoc: CampusDocument = {
+      ...emptyDoc,
+      terrainAreas: [{
+        id: 'terrain-authored-1',
+        name: 'North lawn',
+        color: '#22aa66',
+        points: [
+          { lat: 14.601480195049547, lng: 121.0529741824862 },
+          { lat: 14.601554786948284, lng: 121.05364864506254 },
+          { lat: 14.600892782960344, lng: 121.05364864506254 },
+        ],
+        elevationMeters: 3.25,
+      }],
+      terrainVerticalDatum: {
+        kind: 'campus-local',
+        name: 'Synthetic campus datum',
+        zeroReference: 'Synthetic point at 0 m',
+        elevationStatus: 'authored-not-surveyed',
+      },
+    }
+    const arts = buildArtifacts(makeConnGraph(), makeNavGraph(), terrainDoc)
+
+    expect(arts.terrainAreas).toEqual(terrainDoc.terrainAreas)
+    expect(arts.terrainVerticalDatum).toEqual(terrainDoc.terrainVerticalDatum)
+  })
+
+  it('omits both terrain fields for legacy documents with no authored terrain', () => {
+    const arts = buildArtifacts(makeConnGraph(), makeNavGraph(), emptyDoc)
+
+    expect(Object.hasOwn(arts, 'terrainAreas')).toBe(false)
+    expect(Object.hasOwn(arts, 'terrainVerticalDatum')).toBe(false)
+  })
+
   it('returns all NavigationArtifacts fields', () => {
     const cg = makeConnGraph()
     const ng = makeNavGraph()

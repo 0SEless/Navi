@@ -2981,3 +2981,148 @@
 - **Errors hit and logged:** `renderTable()` reading a non-existent field (report/exit-code crash), a batch edit dropping `const deduped = []`, and a C2 evidence note printing `undefined` - all three appended to `errors/ERRORS.md`.
 - **Next:** dispatch the app-fix workstream against the C1/C2/F1/F6 evidence (deployment of the pending persistence fix is the leading hypothesis), then re-run `node scripts/save-audit-suite.mjs` expecting C1/C2 to flip to PASS.
 
+# 2026-10-27 — NAVI Studio 1.5 Track B, T1 baseline
+
+- Verified isolated candidate branch `codex/navi-studio-1.5-track-a-20261027` at `bead5101fc853959f99f7aabcdba72423f48f839`; no original dirty checkout was modified.
+- Installed dependencies in the isolated worktree after lockfile dry-run and disk check. `node_modules` is present; C: had 15.86 GiB free after install.
+- Full baseline `npm test -- --reporter=verbose`: 576 files passed, 20 failed; 6,071 tests passed, 34 failed, 8 skipped. Output: `reports/navi-studio-1.5-track-b/logs/baseline-vitest.log`.
+- Focused persistence baseline (11 suites): 68/68 tests passed. Output: `reports/navi-studio-1.5-track-b/logs/baseline-persistence-vitest.log`.
+- Added `reports/navi-studio-1.5-track-b/01-FEATURE-BASELINE.md` with the 13 requested capabilities, evidence, and verification limits.
+- Verification result: T1 acceptance met; no source implementation edits made. Next: T2 environment, backup/restore, and security proposals; no cloud actions.
+
+# 2026-10-27 — NAVI Studio 1.5 Track B, T2 plans
+
+- Inspected candidate-only environment variable contracts, Auth callback construction, Supabase server/public clients, R2 configuration, publisher route authorization, and migration 006's `published_maps` grants/policies.
+- Prepared `02-DEVELOPMENT-ENVIRONMENT-PLAN.md`, `03-BACKUP-RESTORE-PROCEDURE.md`, and `04-SECURITY-REPAIR-PROPOSAL.md` under `reports/navi-studio-1.5-track-b/`.
+- Checked current Supabase docs for grants/RLS, CLI logical backup coverage, and Storage object limits. No cloud credentials were read, no external service was contacted, and no cloud/DB change occurred.
+- Verification result: T2 review acceptance met as documentation. Next: T3 local draft store; before code, read current ledger and confirm applicable error prevention.
+
+# 2026-10-27 — NAVI Studio 1.5 Track B, T3 IndexedDB draft service
+
+- Added `src/services/studio-local-drafts.ts`: one versioned full Graph + authored-document draft per campus, canonical SHA-256 checksum, campus/document identity validation, scoped context, base server revision, IndexedDB repository, serialized writes, and explicit corruption/schema errors that preserve records.
+- Added `src/services/studio-local-drafts.test.ts`: stable identity/checksum, native-repository contract round-trip, campus isolation, tamper/schema rejection without deletion, and quota-write failure.
+- TDD evidence: initial test run failed because the service was absent (expected RED); first implementation run exposed a transaction rejection and test-fixture mismatch, both logged in `errors/ERRORS.md`; corrected focused run passes **4/4 tests** with no unhandled errors.
+- No API/cloud/data changes. Next: T4 GraphStore feature gate, autosave interception, recovery, and no-cloud-write tests.
+
+# 2026-10-27 — NAVI Studio 1.5 Track B, T4 GraphStore local drafts
+
+- Added the exact development-only opt-in gate, IndexedDB draft autosave/recovery, campus-scoped serialized draft saves, stale-base Cloud Save guard, and default-off behavior. In opted-in mode, manual Cloud Save first writes the recovery draft to IndexedDB and then uses the existing authored-intent/CAS server writer; it does not duplicate complete documents into localStorage.
+- Focused store/service/status verification passed: 45 tests across 5 files. Coverage includes flag gating, local autosave without cloud requests, localStorage quota avoidance, verified recovery, corruption/schema protection, quota failure, stale in-flight generation, and campus write serialization.
+- Verification result: T4 acceptance met. T5 editor lifecycle/status integration remains in progress. Next: validate both Studio and standalone Floor Editor recovery gating and manual save routing.
+
+# 2026-10-27 — NAVI Studio 1.5 Track B, T5 persistence lifecycle
+
+- Added a shared local-draft recovery gate around Studio and standalone Floor Editor context creation; errors offer retry or an explicit, confirmed server-version adoption. Updated local-mode statuses so the UI distinguishes local durability from cloud acknowledgement and cloud failure.
+- Manual cloud saves in opted-in Development first persist the complete recoverable draft in IndexedDB, then call the existing guarded cloud save. Save-trigger propagation is covered; default behavior remains on the existing persistence path.
+- Recovery fails closed if no draft exists and the read-only server check fails. Added tests for this behavior and the shared gate.
+- Verification: 54 tests passed across 8 files, including existing graph-store, workflow, and Sync status suites. Scoped lint and typecheck are recorded in T6.
+- Outcome: T5 complete. Next: T6 full baseline comparison, focused regressions, lint/typecheck/build evidence, and disk recheck.
+
+# 2026-10-28 — NAVI Studio 1.5 Track B, T6 verification and T7 closeout
+
+- Re-ran the final focused persistence matrix after stale-ACK generation handling: **17 files / 113 tests passed**. After the final immutable-request-body assertion, the local draft service/store slice passed **2 files / 14 tests**. Logs are in `reports/navi-studio-1.5-track-b/logs/`.
+- Full-suite comparison remains **PARTIAL**: baseline 34 failing tests; candidate run 35, with the additional `OutdoorRoutePicker` test passing alone. The candidate full-suite run preceded the final stale-ACK patch, so it is not represented as a final full-suite pass.
+- TypeScript is blocked before candidate checking by the inherited `data-identity-comparison.test.ts` TS1005. Scoped ESLint has the same 12 inherited errors as baseline; new files lint clean. Webpack compilation succeeds, but prerender fails because isolated Development Supabase public variables are absent. No placeholder values were added.
+- No browser acceptance was run because an isolated Development Supabase/browser environment was not verified. No cloud, campus, deployment, migration, publication or credential operation occurred.
+- Completed reports 00–08, the scoped cloud persistence proposal, and the error ledger updates. Final status: **PARTIAL**; stop before external configuration or deployment.
+
+# 2026-10-28 — NAVI Studio 1.5 Track C1 closeout
+
+- Completed C1 T5 evidence and reports under `reports/navi-studio-1.5-track-c1/` (00–06). The final local production Webpack build passed and generated the Studio Floor Editor route. Graphify update completed (12,528 nodes, 27,241 edges, 608 communities).
+- Local Playwright acceptance passed six enabled-draft scenarios (one flag-off case skipped in that run) plus a separate flag-disabled run (1/1). Coverage included refresh/process-restart recovery, floor/building scope, offline behavior, quota failure, corrupt draft handling, and edit-during-delayed-cloud-ack. All used synthetic localhost fixtures and blocked external network access.
+- Focused persistence/editor regressions passed (latest matrix 10 files / 84 tests; broader focused matrix 17 files / 113 tests). New harness lint is clean (0 errors/warnings). Wider scoped lint reports 28 inherited errors and 11 warnings.
+- Full TypeScript remains nonzero at 1,128 diagnostics versus 1,129 baseline. The changed runtime test now parses but remains `describe.skip` (61 tests skipped). Some dev-server teardown paths log an unresolved service cleanup AggregateError; recorded as a limitation.
+- Completed `plan/NAVI-STUDIO-1.5-TRACK-C1-TODO.md`. No cloud, campus data, credentials, Supabase/R2, deployment, or publication actions occurred. Final status: **PARTIAL**; stop before external configuration or deployment.
+
+
+
+## NAVI Studio 1.5 Track C1 continuation - 2026-10-29
+
+- Verified the intended isolated worktree, branch, base commit and existing Track B changes; preserved all dirty files.
+- Renamed the hook-calling selector helper to useActiveBuildingId; added the Development-off flag selector to two Floor Editor test mocks.
+- Focused persistence: 17 files / 114 tests passed. Editor context: 12 files / 153 passed. Repaired Floor Editor mocks: 2 files / 12 passed.
+- Localhost browser: enabled 6 passed / 1 skipped; disabled 1 passed / 6 skipped. Synthetic-only; no cloud services used.
+- Production Webpack build passed with inert localhost configuration. TypeScript remains at 1,128 diagnostics. Final full Vitest: 34 failed / 6,094 passed / 8 skipped, matching the recorded baseline failure count.
+- Browser interrupted-write scenario remains not verified; runtime identity file is still describe.skip. Overall Track C1 status: PARTIAL.
+- Reports: reports/navi-studio-1.5-track-c1/01-WORKSPACE-AND-TRACK-B-VERIFICATION.md through 07-NEXT-PHASE-GATES.md.
+
+
+## NAVI Studio 1.5 Track D6 — 2026-10-30 (Asia/Manila)
+
+- Source protection completed before implementation: verified versioned archive at `C:\Users\Administrator\Documents\Codex\NAVI-Track-D6-Backups\NAVI-Studio-1.5-Track-D6-20261030-100950-verified.zip`; 157 changed/untracked files snapshotted; 161 SHA-256 entries verified in extraction rehearsal. Dependencies, caches, generated outputs, environment/credential files, database dumps, and browser artifacts excluded. Worktree HEAD/branch recorded.
+- Docker evidence package prepared locally and secret-pattern scan passed; no external upload. Docker service could not be started in the medium-integrity execution context. Existing error 1920 remains; no socket/ACL/WSL changes.
+- Native PG/PostGIS executables/services absent; ports 5432/55432 free; C: has about 13.67 GiB free after archive. Ubuntu WSL is stopped; no WSL launch or installation performed.
+- Current work: harden the local scoped persistence contract and add isolated in-memory revision/checkpoint tests. No API route, migration, cloud config, or Production behavior will be changed.
+
+## NAVI Studio 1.5 Track D6 — 2026-10-30 (Asia/Manila)
+
+- Completed Track D6 source protection, preserving the verified pre-implementation archive and local sanitized Docker diagnostic bundle. No Docker retry or resource change occurred.
+- Documented local Windows/WSL PostgreSQL/PostGIS feasibility, cost assumptions, version compatibility limits and the owner approvals needed before install or real Development backup.
+- Hardened scoped-save candidate validation, campus-scoped idempotency receipts, atomic CAS/dependency/no-op results, and exact revision acknowledgments. Added an isolated in-memory scoped revision/checkpoint history rehearsal; application routes do not import it.
+- Re-ran focused tests: 5 files / 44 tests passed, including `/api/graph` and graph-store compatibility. ESLint passed on all four D6 files. TypeScript remains at the inherited 1,128 diagnostics; zero name the D6 modules.
+- Graphify code update completed (13,474 nodes, 28,374 edges, 762 communities; HTML visualization skipped above the 5,000-node limit). The full suite was not run and is not claimed green.
+- Reports: `reports/navi-studio-1.5-track-d6/00-SUMMARY.md` through `06-REMAINING-CLOUD-GATES.md`. D6 is complete for local scoped work only. Real Development recovery remains blocked on approved source/target details, a supported local DB path, and an authorized real backup/restore rehearsal.
+
+
+## NAVI Studio 1.5 Track E1 — 2026-10-30 (Asia/Manila)
+
+- Verified the expected worktree/branch/base, preserved the pre-existing Track B–D6 state, and rechecked the D6 source archive SHA-256 (`dc9327641f30c0b498f327d84075cccba7679f2ab2b7926f98ef77b5d33e0c8e`).
+- Added deterministic, client-safe scoped projections for building, building/campus routing, terrain and campus settings; explicit atomic multi-scope batches; a default-off Development loopback endpoint using the D6 in-memory store; and a per-page client that preserves exact retry bodies and never maps local receipts to cloud acknowledgment.
+- Connected the optional side channel to `EditorBridge` and the existing Studio status UI. IndexedDB recovery remains separate; existing manual `/api/graph` save queue and publish path were not redirected.
+- Focused Vitest: **15 files / 101 tests passed**. Focused ESLint for scoped services, API route, SaveStatus, graph store and tests: **0 errors / 0 warnings**. Full selected lint including `EditorBridge.tsx` reports 7 inherited hook-ref/explicit-`any` findings outside the E1 additions.
+- TypeScript comparison: **1,128 diagnostics**, matching D6; zero E1-source diagnostics. Standard `tsc` still encounters TS1434 in generated `.next/dev/types/validator.ts`; the comparison excluded only that generated dev-types directory. No full TypeScript success is claimed.
+- Attempted the existing synthetic Playwright edit/reload flow twice (full suite, then isolated scenario). The local Next harness did not respond on `127.0.0.1:3187`, so browser acceptance is **unverified**; only the E1-owned harness processes were stopped. No browser pass is claimed.
+- Graphify index refreshed after source changes: **13,632 nodes / 28,601 edges / 787 communities**. No full Vitest suite, cloud operation, migration, Docker operation, deployment, push or Production change was performed.
+- Reports: `reports/navi-studio-1.5-track-e1/00-SUMMARY.md` through `05-REMAINING-PERSISTENCE-GATES.md`. Overall status: **PARTIAL** due to browser acceptance not being completed in this environment; real Development backup recoverability remains unproven.
+
+
+## NAVI Studio 1.5 Track E2 — 2026-10-30 (Asia/Manila)
+
+- Reverified the existing D6 archive checksum from the E2 handoff before source changes. Preserved the worktree's prior Track B–E1 modifications and left the unrelated port-3000 checkout untouched.
+- Recovered the local Playwright harness with configurable loopback ports and HTTP readiness polling. Root and health endpoints returned HTTP 200 before browser execution; proxy variables were unset and no unrelated process was stopped.
+- Mounted a shared scoped-history bridge in the Studio and Floor Editor paths. Scoped history remains Development-only, opt-in behind both flags, in-memory and clearly labeled local-only. Existing IndexedDB recovery and `/api/graph` Cloud Save path remain separate.
+- Playwright: flag OFF **8 passed / 3 skipped**; flag ON **9 passed / 2 skipped**; no failures. Coverage includes building and route edits, local reload/process-restart recovery, no scoped calls when off, and mocked Cloud Save pending/confirmed states.
+- Focused Vitest: **15 files / 103 tests passed**. Selected ESLint: **0 errors / 0 warnings**. TypeScript: **1,128 diagnostics**, unchanged from E1/D6; no new E2 diagnostics. Final Graphify update: 13,709 nodes / 28,685 edges / 772 communities.
+- Reports and result logs: `reports/navi-studio-1.5-track-e2/00-SUMMARY.md` through `06-NEXT-PERSISTENCE-GATE.md`. Synthetic local E2 gate passes. Terrain authoring and a multi-scope UI gesture were not exercised; the client/route tests verify atomic two-scope batching. Real Development database backup/restore remains unproven. No cloud, migration, Docker, deployment, push or Production operation occurred.
+
+
+## NAVI Studio 1.5 Track E3 — 2026-10-30 (Asia/Manila)
+
+- Preflight: branch `codex/navi-studio-1.5-track-a-20261027`, HEAD `bead5101fc853959f99f7aabcdba72423f48f839`, D6 archive SHA-256 matched (`dc9327641f30c0b498f327d84075cccba7679f2ab2b7926f98ef77b5d33e0c8e`), C: free space about 11.6 GiB. No local `psql` or installed `pg` module; no package was installed.
+- T2: generated `supabase/migrations/20261030045317_navi_scoped_persistence_foundation.sql` with the documented telemetry opt-out and added `supabase/rollback/20261030045317_navi_scoped_persistence_foundation.rollback.sql`. Static checks found all required objects, no forward destructive/legacy statements, and correct reverse dependency order. The migration was not executed.
+- E3 source guidance: followed current official Supabase docs for private schemas/RLS and PostGIS extension ownership. Previous migrations 001–015, live routes and existing dirty source changes remain untouched by T2.
+- Implemented `src/services/scoped-postgres-adapter.ts` with an injected typed query pool, trusted server authorization/document identity callbacks, campus transaction lock, parameterized SQL, atomic batch writes, receipt replay, rollback and checkpoint reconstruction. It remains disconnected from all application routes.
+- Simulated transaction/efficiency suite: **19 tests passed**. E1/E2 scoped regression matrix: **8 files / 77 tests passed**. Focused ESLint: **0 errors / 0 warnings**. `tsc`: **1,128 diagnostics**, same as the E2 baseline. Synthetic JSON fixture: full campus 140,726 bytes/revision; representative scoped payload set 98,407 bytes; 20-revision comparison 2,814,520 bytes full-campus versus 688,849 bytes scoped; interval-5 checkpoint reconstruction of revision 19 replayed 4 operations (about 53 ms in the fake).
+- Route search found no imports of the adapter from `src/app` or `src/components`. Graphify refresh was run after source edits. See `reports/navi-studio-1.5-track-e3/00-SUMMARY.md` through `07-REAL-DATABASE-READINESS.md` and `logs/`.
+- E3 local code-only synthetic gate is complete. PostgreSQL execution/integration, real Development backup/restore, and recoverability claims remain open. No database, cloud, migration, route, deployment, push, or Production operation occurred.
+
+
+## NAVI Studio 1.5 Track E4 — 2026-10-30 (Asia/Manila)
+
+- Completed E4 authorization and identity hardening: all adapter reads and writes require trusted server-side authorization with separate read/write permissions, and explicit campus/document identity checks. The adapter remains disconnected from application routes.
+- Added canonical batch checksums to durable receipts/change sets and the additive schema proposal. Exact retry remains supported; changed mutation content, cross-batch substitution, and partial receipt replay are rejected. The E1/E2 scoped-save acknowledgment remains source-compatible through an optional batch checksum.
+- Expanded simulated transaction tests for campus locking/concurrent CAS, lock/deadlock/serialization failures, rollback, unknown COMMIT acknowledgment and exact retry, no-op/mixed batches, invalid stored values, revision exhaustion, and reconstruction integrity. These are fake-backed tests, not PostgreSQL transaction proof.
+- Prepared a disabled-by-default, opt-in PostgreSQL 17 synthetic harness with loopback/database/role/version/schema preflight, migration/rollback, concurrent writer, dump/restore, reconstruction, and owned-resource cleanup checks. PowerShell AST and refusal-path checks passed. PostgreSQL client tools were unavailable, so the enabled harness and all SQL remain unexecuted.
+- Final scoped/E1/E2 regression matrix: **12 files / 120 tests passed**. Focused ESLint: **0 errors / 0 warnings**. TypeScript remains at **1,128 diagnostics**, matching the established baseline; no diagnostics name E4 adapter/contract modules. Route search found no adapter references under `src/app` or `src/components`.
+- Graphify refreshed after source changes: **13,881 nodes / 28,946 edges / 807 communities**; HTML visualization skipped because the graph exceeds the configured 5,000-node visualization limit. Logs and eight reports are in `reports/navi-studio-1.5-track-e4/`.
+- E4 local code gate passes. Actual PostgreSQL migration, concurrency, logical dump/restore, rollback, and adapter integration remain unverified. No cloud, database, migration, Docker/WSL, deployment, push, or Production operation occurred.
+
+
+## NAVI Studio 1.5 Track E5 — 2026-10-30 (Asia/Manila)
+
+- Reverified D6 archive SHA-256 (`dc9327641f30c0b498f327d84075cccba7679f2ab2b7926f98ef77b5d33e0c8e`), branch `codex/navi-studio-1.5-track-a-20261027`, and HEAD `bead5101fc853959f99f7aabcdba72423f48f839`; retained all existing dirty work.
+- Read-only preflight found C: free space 11.40 GiB, ports 5432/55432 without listeners, no local PostgreSQL clients or Node `pg` package, and Docker service `com.docker.service` stopped. `docker desktop start` remained pending; repeated `docker info` could not reach the daemon. Interrupted only the CLI wait. Docker resource inventory and ownership remain unknown.
+- Reviewed the E4 SQL, harness and D2 Compose. The E4 seed contained `g`/`h` checksum strings that fail the migration's hex constraints; a focused source test failed before correction and passed after valid `8`/`9` sentinels were used.
+- Added fail-closed database identity checks requiring owner `navi_e4_runner` and exact comment `navi-e4-synthetic-v1`; the static regression checks these guards. PowerShell AST parse and default refusal pass. These checks have not been tested against a live database.
+- Existing local/scoped regressions: **12 files / 120 tests passed**. Focused ESLint: **0 errors / 0 warnings**. TypeScript: **1,128 diagnostics**, unchanged from baseline; no diagnostics in E4 adapter/contract modules. No route references to the adapter.
+- E5 remains **BLOCKED at the approval/environment boundary**. Real SQL ACID, real adapter, and dump/restore gates are **NOT RUN**. No database or SQL connection, Docker resource creation, Supabase operation, or database provisioning occurred. Reports: `reports/navi-studio-1.5-track-e5/00-SUMMARY.md` and `01-PREFLIGHT-AND-APPROVAL.md`.
+
+
+## NAVI Studio 1.5 Track E5 — Docker recovery inventory — 2026-10-30 (Asia/Manila)
+
+- Owner restored Docker. Elevated read-only inspection confirmed Engine 29.8.1 and captured `docker info`, `ps`, protected D2 container/volume/network, image, system disk use, all volumes, proposed names, and port conflicts. No resources were changed.
+- D2 container remains `Exited (255)`, restart policy `no`, and its 132.7 MB named volume remains mounted at PostgreSQL PGDATA. A read-only copy of `PG_VERSION` confirmed major 17; prior fixtures were not queried and may still be present.
+- Seven anonymous volumes are unattached to listed containers, with only the anonymous label and unknown ownership. All are preserved.
+- E5 names are available. Port 55432 has no listener but is reserved in the protected D2 container configuration; E5 proposal uses free 127.0.0.1:55433. The local `postgres:17-alpine` image is PostgreSQL 17.11 and needs no pull.
+- **Blocker:** `docker info` repeatedly reports one running container while `docker ps` is empty and `docker ps -a` shows only the exited D2 container. The discrepancy is unresolved; no provisioning or SQL will run until reconciled and explicitly approved.
+- The E5 approval package, exact proposed isolated resource commands, role/database procedure, test dependency, dump/restore, and cleanup boundaries are in `reports/navi-studio-1.5-track-e5/01-PREFLIGHT-AND-APPROVAL.md`.

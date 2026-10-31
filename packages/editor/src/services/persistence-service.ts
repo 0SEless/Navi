@@ -5,6 +5,7 @@ import type { CompiledArtifacts } from './navigation-compiler'
 // ── Types ─────────────────────────────────────────────────────
 
 export type PersistenceSyncStatus = 'idle' | 'syncing' | 'checking' | 'synced' | 'error' | 'conflict'
+export type PersistenceTrigger = 'manual' | 'autosave'
 
 export interface PersistenceSyncState {
   status: PersistenceSyncStatus
@@ -12,7 +13,7 @@ export interface PersistenceSyncState {
 }
 
 export interface PersistenceAdapter {
-  save(): Promise<void>
+  save(trigger?: PersistenceTrigger): Promise<void>
   syncToSupabase(): Promise<void>
   publish(artifacts: CompiledArtifacts): Promise<PublishResult>
   /** Optional reactive bridge for adapters backed by a remote sync store. */
@@ -70,10 +71,10 @@ export class PersistenceService extends BaseEditorService {
    * Pure persist — no events, no UI feedback.
    * Use reason parameter at the WorkflowService layer.
    */
-  async save(): Promise<void> {
+  async save(trigger: PersistenceTrigger = 'manual'): Promise<void> {
     await this.transitionTo('busy')
     try {
-      await this._adapter.save()
+      await this._adapter.save(trigger)
       await this.transitionTo('ready')
     } catch (err: any) {
       await this.transitionTo('ready')

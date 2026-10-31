@@ -68,6 +68,8 @@ interface PublishArtifactsPayload {
   panoramaIndex?: unknown
   floorGeometry?: unknown
   qrIndex?: unknown
+  terrainAreas?: unknown
+  terrainVerticalDatum?: unknown
   components?: unknown
   doors?: unknown
   metadata?: unknown
@@ -141,14 +143,10 @@ export async function POST(request: NextRequest) {
         message: 'Invalid revision: must be a non-negative integer',
       }, { status: 400 })
     }
-    if (sourceRevision !== null && requestRevision !== sourceRevision) {
-      return NextResponse.json({
-        success: false,
-        message: 'Revision does not match compiler source provenance',
-        sourceDocumentVersion: String(sourceRevision),
-        revision: requestRevision,
-      }, { status: 400 })
-    }
+    // `revision` is the published bundle sequence; sourceDocumentVersion is
+    // immutable compiler provenance. E5 scoped-save revisions can advance
+    // without changing CampusDocument.version, so these values must not be
+    // forced to match.
     if (typeof artifactMetadata.campusId === 'string' && artifactMetadata.campusId !== campusId) {
       return NextResponse.json({
         success: false,
@@ -166,6 +164,8 @@ export async function POST(request: NextRequest) {
       floorGeometry: artifacts.floorGeometry,
       panoramaIndex: artifacts.panoramaIndex,
       qrIndex: artifacts.qrIndex,
+      terrainAreas: artifacts.terrainAreas,
+      terrainVerticalDatum: artifacts.terrainVerticalDatum,
     })
     if (!artifactValidation.valid) {
       return NextResponse.json({
@@ -195,6 +195,8 @@ export async function POST(request: NextRequest) {
       panoramaIndex: artifacts.panoramaIndex ?? null,
       floorGeometry: artifacts.floorGeometry ?? null,
       qrIndex: artifacts.qrIndex ?? null,
+      ...(artifacts.terrainAreas !== undefined ? { terrainAreas: artifacts.terrainAreas } : {}),
+      ...(artifacts.terrainVerticalDatum !== undefined ? { terrainVerticalDatum: artifacts.terrainVerticalDatum } : {}),
       components: Array.isArray(artifacts.components) ? artifacts.components : [],
       doors: Array.isArray(artifacts.doors) ? artifacts.doors : [],
       metadata: {
@@ -290,6 +292,14 @@ export async function POST(request: NextRequest) {
       'doors.json': JSON.stringify(artifacts.doors ?? [], null, 2),
     }
 
+    const includesTerrain = artifacts.terrainAreas !== undefined || artifacts.terrainVerticalDatum !== undefined
+    if (includesTerrain) {
+      files['terrain.json'] = JSON.stringify({
+        terrainAreas: artifacts.terrainAreas,
+        terrainVerticalDatum: artifacts.terrainVerticalDatum,
+      }, null, 2)
+    }
+
     for (const [filename, content] of Object.entries(files)) {
       writeFileSync(join(DEMO_DIR, filename), content)
     }
@@ -315,6 +325,7 @@ export async function POST(request: NextRequest) {
         panorama: { path: 'panorama-index.json', checksum: sha256(files['panorama-index.json']), size: Buffer.byteLength(files['panorama-index.json'], 'utf-8'), schemaVersion: '1.0.0', formatVersion: '0' },
         floorGeometry: { path: 'floor-geometry.json', checksum: sha256(files['floor-geometry.json']), size: Buffer.byteLength(files['floor-geometry.json'], 'utf-8'), schemaVersion: '1.0.0', formatVersion: '0' },
         qrIndex: { path: 'qr-index.json', checksum: sha256(files['qr-index.json']), size: Buffer.byteLength(files['qr-index.json'], 'utf-8'), schemaVersion: '1.0.0', formatVersion: '0' },
+        ...(includesTerrain ? { terrain: { path: 'terrain.json', checksum: sha256(files['terrain.json']), size: Buffer.byteLength(files['terrain.json'], 'utf-8'), schemaVersion: MANIFEST_SCHEMA_VERSION, formatVersion: MANIFEST_FORMAT_VERSION } } : {}),
       },
       metadata: {
         nodeCount: publishedNodeCount,

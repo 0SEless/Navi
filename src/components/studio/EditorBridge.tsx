@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, type ReactNode } from 'react'
 import {
   EditorProvider,
   SelectionBridge,
@@ -13,11 +13,18 @@ import {
 } from '@navi/editor'
 import type { EntitySelector, PersistenceAdapter, EditorContext, DocumentEventBus } from '@navi/editor'
 import type { PersistenceSyncState } from '@navi/editor'
-import { useGraphStore } from '@/store/graph-store'
+import { isStudioLocalDraftModeEnabled, useGraphStore } from '@/store/graph-store'
+import { StudioScopedHistoryBridge } from './StudioScopedHistoryBridge'
+import { isStudioDurableScopedSaveEnabled } from '@/services/studio-scoped-history-flag'
+import { flushScopedSaveBoundary } from '@/services/scoped-save-boundary'
+import { traceScopedSaveDevelopment } from '@/services/scoped-save-diagnostics'
 import { useStudioStore } from '@/store/studio-store'
 import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 import { persistStudioGraph } from './studio-persistence'
+import { adoptRecoveredEditorDocument } from './adopt-recovered-editor-document'
+
+let activeEditorContext: EditorContext | null = null
 
 /**
  * ── Selection Ownership Invariant ─────────────────────────────────
@@ -53,14 +60,58 @@ import { persistStudioGraph } from './studio-persistence'
  */
 
 export function EditorBridge({ children }: { children: ReactNode }) {
-  const contextRef = useRef<EditorContext | null>(null)
+  return (
+    <StudioLocalDraftRecoveryGate>
+      <EditorBridgeSession>{children}</EditorBridgeSession>
+    </StudioLocalDraftRecoveryGate>
+  )
+}
+
+export function StudioLocalDraftRecoveryGate({ children }: { children: ReactNode }) {
+  const localDraftMode = isStudioLocalDraftModeEnabled()
+  const mapId = useGraphStore((state) => state.currentMapId)
+  const recoveryStatus = useGraphStore((state) => state.localDraftRecoveryStatus)
+  const localDraftError = useGraphStore((state) => state.localDraftError)
+  const recoverLocalDraft = useGraphStore((state) => state.recoverLocalDraft)
+  const adoptServerSnapshot = useGraphStore((state) => state.adoptServerSnapshot)
+  const [recoveryActionError, setRecoveryActionError] = useState<string | null>(null)
+
+  if (localDraftMode && recoveryStatus !== 'ready' && recoveryStatus !== 'recovered' && recoveryStatus !== 'conflict') {
+    if (recoveryStatus === 'error') {
+      return (
+        <section role="alert" aria-label="Local draft recovery" style={{ margin: 'auto', maxWidth: 520, padding: 24, color: 'var(--navi-text-primary)' }}>
+          <h2>Local draft needs a recovery choice</h2>
+          <p>{localDraftError ?? 'The local draft could not be verified. It has been preserved.'}</p>
+          <p>Retry recovery, or explicitly discard this local version and load the server copy.</p>
+          {recoveryActionError && <p role="alert">{recoveryActionError}</p>}
+          <button type="button" onClick={() => {
+            if (mapId) void recoverLocalDraft(mapId).catch((error: unknown) => setRecoveryActionError(error instanceof Error ? error.message : 'Recovery failed.'))
+          }}>Retry recovery</button>
+          <button type="button" onClick={() => {
+            if (!window.confirm('Discard the preserved local version and load the server version?')) return
+            void adoptServerSnapshot().catch((error: unknown) => setRecoveryActionError(error instanceof Error ? error.message : 'Unable to load the server version.'))
+          }}>Discard local version and load server</button>
+        </section>
+      )
+    }
+    return <div role="status" aria-live="polite" style={{ margin: 'auto', padding: 24 }}>Recovering local Studio draft…</div>
+  }
+
+  // Recovery status can advance from `recovered` to `ready` after hydration.
+  // Keep the editor session mounted across that transition so its adopted
+  // authored snapshot is not rebuilt from the legacy graph cache.
+  return <div key={mapId ?? 'no-campus'} style={{ display: 'contents' }}>{children}</div>
+}
+
+function EditorBridgeSession({ children }: { children: ReactNode }) {
+  const currentMapId = useGraphStore((state) => state.currentMapId)
 
   // GraphAdapter is a projection step. Capture its document only when the
   // campus already has a new-format authored snapshot or a real editor change
   // has advanced the legacy document version; initial legacy hydration remains
   // Graph-only and therefore cannot trigger an automatic rewrite.
   const syncDocumentAndCapture = () => {
-    const ctx = contextRef.current
+    const ctx = activeEditorContext
     if (!ctx) return
     const state = useGraphStore.getState()
     const activeBuildingId = useStudioStore.getState().activeBuildingId
@@ -71,8 +122,9 @@ export function EditorBridge({ children }: { children: ReactNode }) {
     nextState.setAuthoredDocument(ctx.document)
   }
 
+
   const persistenceAdapter: PersistenceAdapter = {
-    save: () => persistStudioGraph({
+    save: (reason = 'manual') => persistStudioGraph({
       syncDocument: () => {
         syncDocumentAndCapture()
       },
@@ -84,7 +136,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
           // intent record was missed (e.g. floor.create from the Manage Floors
           // dialog). Hydration/view-only sessions keep version 0, so the P0.11
           // unattributed-mutation guard still fails closed for them.
-          const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+          const hasRealDocumentEdit = (activeEditorContext?.document.version ?? 0) > 0
           if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
             if (activeBuildingId) {
               useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
@@ -92,7 +144,20 @@ export function EditorBridge({ children }: { children: ReactNode }) {
               useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
             }
           }
-          await useGraphStore.getState().save({ trigger: 'autosave' })
+          const trigger = isStudioLocalDraftModeEnabled() ? reason : 'autosave'
+          const durableEnabled = isStudioDurableScopedSaveEnabled()
+          traceScopedSaveDevelopment('editor.adapter.save', { trigger, durableEnabled, documentVersion: activeEditorContext?.document.version ?? null })
+          if (durableEnabled) {
+            await useGraphStore.getState().save({ trigger: 'manual', localOnly: true })
+            traceScopedSaveDevelopment('indexeddb.draft.persisted', { localDraftStatus: useGraphStore.getState().localDraftStatus })
+            if (activeEditorContext) {
+              traceScopedSaveDevelopment('scoped.boundary.flush.start', { documentVersion: activeEditorContext.document.version })
+              await flushScopedSaveBoundary(activeEditorContext.document)
+              traceScopedSaveDevelopment('scoped.boundary.flush.resolved')
+            }
+          } else {
+            await useGraphStore.getState().save({ trigger })
+          }
         } catch (error: unknown) {
           console.warn('EditorBridge adapter save failed:', error)
           throw error
@@ -104,10 +169,15 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       },
     }),
     syncToSupabase: () => {
+      if (isStudioDurableScopedSaveEnabled()) {
+        return useGraphStore.getState().save({ trigger: 'manual', localOnly: true }).then(async () => {
+          if (activeEditorContext) await flushScopedSaveBoundary(activeEditorContext.document)
+        })
+      }
       const activeBuildingId = useStudioStore.getState().activeBuildingId
       // Same gate as saveGraph: only a real document version advance may
       // fabricate fallback attribution; version-0 sessions stay fail-closed.
-      const hasRealDocumentEdit = (contextRef.current?.document.version ?? 0) > 0
+      const hasRealDocumentEdit = (activeEditorContext?.document.version ?? 0) > 0
       if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && hasRealDocumentEdit) {
         if (activeBuildingId) {
           useGraphStore.getState().recordAuthoredMutation('building', activeBuildingId, null)
@@ -115,6 +185,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
           useGraphStore.getState().recordAuthoredMutation('outdoor', null, null)
         }
       }
+      if (isStudioLocalDraftModeEnabled()) return useGraphStore.getState().save({ trigger: 'manual' })
       return useGraphStore.getState().syncToSupabase({ trigger: 'autosave' })
     },
     getSyncState: (): PersistenceSyncState => {
@@ -135,7 +206,7 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       })
     },
     publish: async (artifacts) => {
-      const ctx = contextRef.current
+      const ctx = activeEditorContext
       const campusId = ctx?.document?.metadata?.campusId
       if (!campusId) {
         return { success: false, message: 'Cannot publish: document has no campusId' }
@@ -163,24 +234,30 @@ export function EditorBridge({ children }: { children: ReactNode }) {
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
   const [context] = useState(() => {
-    const ctx = createEditorContext(
-      useGraphStore.getState().graph,
+    const graphState = useGraphStore.getState()
+    return createEditorContext(
+      graphState.graph,
       persistenceAdapter,
       navCompiler,
-      useGraphStore.getState().authoredDocument ?? undefined,
     )
-    return ctx
   })
 
-  // Ensure contextRef.current is always in sync with the active committed context
-  contextRef.current = context
+  // Keep mutable editor context access outside render for persistence callbacks.
+  useEffect(() => {
+    activeEditorContext = context
+    return () => { if (activeEditorContext === context) activeEditorContext = null }
+  }, [context])
+
 
   // Existing map snapshots may predate derived road endpoint markers. Rebuild
   // the legacy graph once at mount so both authored endpoints are immediately
   // visible after load, without inferring any new connection edges.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const graph = useGraphStore.getState().graph
     if (typeof graph?.setBuildings !== 'function') return
+    // Verified IndexedDB recovery is authoritative for this editor session.
+    // Adopt it before the initial graph projection and before browser paint.
+    adoptRecoveredEditorDocument(context, useGraphStore.getState())
     new GraphAdapter(graph, context.transformer).sync(context.document)
     useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
@@ -256,7 +333,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
         if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
           useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
         }
-        void useGraphStore.getState().save().catch((error: unknown) => {
+        const trigger = isStudioLocalDraftModeEnabled() ? 'autosave' : undefined
+        void useGraphStore.getState().save({ trigger }).catch((error: unknown) => {
           console.warn('EditorBridge visibility persistence failed:', error)
         })
       }
@@ -267,7 +345,8 @@ export function EditorBridge({ children }: { children: ReactNode }) {
       if (useGraphStore.getState().pendingAuthoredMutations.length === 0 && context.document.version > 0) {
         useGraphStore.getState().recordAuthoredMutation(activeBuildingId ? 'building' : 'outdoor', activeBuildingId, null)
       }
-      void useGraphStore.getState().save().catch((error: unknown) => {
+      const trigger = isStudioLocalDraftModeEnabled() ? 'autosave' : undefined
+      void useGraphStore.getState().save({ trigger }).catch((error: unknown) => {
         console.warn('EditorBridge unload persistence failed:', error)
       })
     }
@@ -383,6 +462,10 @@ export function EditorBridge({ children }: { children: ReactNode }) {
 
   return (
     <EditorProvider context={context}>
+      <StudioScopedHistoryBridge
+        context={context}
+        campusId={currentMapId ?? context.document.metadata?.campusId ?? ''}
+      />
       {children}
     </EditorProvider>
   )

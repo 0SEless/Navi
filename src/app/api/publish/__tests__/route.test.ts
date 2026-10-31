@@ -214,15 +214,15 @@ describe('POST /api/publish — Phase 7B contract', () => {
     expect((fake.state.row?.artifacts.components as Array<{ id: string }>)[0].id).toBe('room-new')
   })
 
-  it('rejects a request revision that conflicts with compiler source provenance', async () => {
+  it('accepts a published revision independent from compiler source provenance', async () => {
     const fake = makeFakeSupabase()
     mockClient.mockReturnValue(fake.client)
 
     const response = await POST(requestFor(makeArtifacts(7), 8))
 
-    expect(response.status).toBe(400)
-    expect(fake.state.row).toBeNull()
-    expect(writeFileSync).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(fake.state.row?.revision).toBe(8)
+    expect(fake.state.row?.artifacts.metadata).toMatchObject({ revision: '8', sourceDocumentVersion: '7' })
   })
 
   it('no session → 401 and no Supabase client or disk write', async () => {

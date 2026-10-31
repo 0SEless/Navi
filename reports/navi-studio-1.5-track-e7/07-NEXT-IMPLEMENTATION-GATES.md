@@ -1,0 +1,8 @@
+# Next Implementation Gates
+
+1. **Owner confirms backup target:** acknowledge `scvgulusmutnzasmgysx` as Development and resolve the `navi-next` Preview Production-ref mapping through the Vercel owner. Keep current Vercel settings unchanged until separately approved.
+2. **Approve backup plan:** name the storage/retention destination, independent encryption-key custodian, exact PostgreSQL 17/PostGIS 3.3.7 restore target, and disk budget. Only then prepare and execute a real Development export/restore under explicit approval.
+3. **Build the authenticated durable boundary:** replace the development fixed-actor in-memory route with a server endpoint that resolves the signed-in user and campus from trusted server state, enforces administrator authorization, validates acknowledgments, and delegates to durable persistence. Preserve `/api/graph` and keep the new path disabled by default.
+4. **Connect actual editor actions:** wire building/floor, route, terrain, and settings changes to scoped candidates while storing offline edits in IndexedDB. Keep coalescing and atomic multi-scope dependency validation; never mark cloud-saved before authoritative acknowledgment.
+5. **Verify browser-to-store flow:** test authenticated editor save, IndexedDB recovery after rejection/offline interruption, competing sessions, route dependency refresh, full document reconstruction, and publishing compatibility against the durable local store.
+6. **Enable only after gates:** require the isolated restore proof, authorization review, focused tests, and an explicit rollout decision. No production switch is part of E7.

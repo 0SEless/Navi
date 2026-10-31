@@ -1,6 +1,6 @@
 import type { ConnectivityGraph, NavigationGraph, NavigationArtifacts, SearchEntry, BuildingEntry, FloorEntry } from '../types'
 import type { CampusDocument, PanoramaIndex, PanoramaEntry, FloorGeometryArtifact, RoomAttributes } from '@navi/core'
-import { collectFloorDoors, encodeQrCode, CoordinateTransformer } from '@navi/core'
+import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication } from '@navi/core'
 import { COMPILER_VERSION } from '../version'
 import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projection'
 
@@ -15,6 +15,11 @@ import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projectio
  * floor-geometry emitter, which fails loudly on malformed geometry — R6.4).
  */
 export function buildArtifacts(graph: ConnectivityGraph, navGraph: NavigationGraph, document: CampusDocument): NavigationArtifacts {
+  const terrainAreas = document.terrainAreas
+  const terrainVerticalDatum = document.terrainVerticalDatum
+  if (!isValidTerrainPublication(terrainAreas, terrainVerticalDatum)) {
+    throw new Error('Authored terrain requires valid polygons and one shared campus-local datum.')
+  }
   const panoramaIndex = buildPanoramaIndex(document)
   const poiIndex = buildPOIIndex(navGraph, document)
   return {
@@ -44,6 +49,8 @@ export function buildArtifacts(graph: ConnectivityGraph, navGraph: NavigationGra
       compiledAt: navGraph.createdAt,
     },
     extensions: {},
+    ...(terrainAreas !== undefined ? { terrainAreas } : {}),
+    ...(terrainVerticalDatum !== undefined ? { terrainVerticalDatum } : {}),
   }
 }
 

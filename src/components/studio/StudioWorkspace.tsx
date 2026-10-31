@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CampusDocument } from '@navi/core'
-import { PropertiesPanel, ProblemsPanel, useEditor, useSelection } from '@navi/editor'
+import { PropertiesPanel, ProblemsPanel, useEditor, useSelection, useWorkflow } from '@navi/editor'
 import type { EntityId, EntitySelector, ValidationIssue } from '@navi/editor'
 import { ExplorerPanel } from './ExplorerPanel'
 import { StudioCanvas } from './StudioCanvas'
@@ -15,6 +15,7 @@ import { useGraphStore } from '@/store/graph-store'
 import { useStudioStore } from '@/store/studio-store'
 import type { LatLng } from '@/types/nav-types'
 import { resolveValidationFocus } from './validation-focus'
+import { traceScopedSaveDevelopment } from '@/services/scoped-save-diagnostics'
 import { SyncIssueCard, deriveSyncIssue } from './SyncIssueCard'
 import type { ValidationFocus } from '@/types/studio-types'
 
@@ -71,7 +72,7 @@ function authoredSelectorForIssue(
     for (const building of document.buildings ?? []) {
       for (const floor of building.floors ?? []) {
         const attributes = (floor.roomAttributes ?? []).find((room) => room.faceId === target.entityId)
-        if (attributes) targetId = attributes.roomId
+        if (typeof attributes?.roomId === 'string') targetId = attributes.roomId
       }
     }
   }
@@ -139,6 +140,7 @@ interface StudioWorkspaceProps {
 
 export function StudioWorkspace({ center }: StudioWorkspaceProps) {
   const { services, document, transformer } = useEditor()
+  const workflow = useWorkflow()
   const publishStore = services.get('publishStore')
   const publishService = services.get('publish')
   const validationEngine = services.get('validationEngine')
@@ -282,6 +284,23 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <SaveStatus />
+          <button
+            type="button"
+            data-testid="studio-manual-save"
+            aria-label="Save campus changes"
+            disabled={workflow.snapshot.saveState === 'saving' || workflow.snapshot.saveState === 'dirty-while-saving'}
+            onClick={() => {
+              traceScopedSaveDevelopment('save.button.handler', { saveState: workflow.snapshot.saveState })
+              void workflow.save().catch(() => undefined)
+            }}
+            style={{
+              padding: '3px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
+              background: 'var(--navi-primary)', color: 'white', fontSize: 11, fontWeight: 600,
+              cursor: workflow.snapshot.saveState === 'saving' ? 'default' : 'pointer',
+            }}
+          >
+            {workflow.snapshot.saveState === 'saving' ? 'Saving…' : 'Save'}
+          </button>
           <button
             onClick={() => setShowRecoveryPanel((visible) => !visible)}
             style={{

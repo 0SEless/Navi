@@ -643,6 +643,8 @@ async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResu
   const floorGeometry = artifacts?.floorGeometry as FloorGeometryArtifact | undefined
   const panoramaIndex = artifacts?.panoramaIndex as PanoramaIndex | undefined
   const qrIndex = artifacts?.qrIndex as QrIndex | undefined
+  const terrainAreas = artifacts?.terrainAreas as CampusBundle['terrainAreas']
+  const terrainVerticalDatum = artifacts?.terrainVerticalDatum as CampusBundle['terrainVerticalDatum']
 
   // Components: indoor geometry (rooms, hallways, staircases, elevators, entrances)
   // delivered from the editor's GraphSnapshot via published artifacts or graph_snapshots.
@@ -670,6 +672,8 @@ async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResu
     floorGeometry,
     panoramaIndex,
     qrIndex,
+    ...(terrainAreas !== undefined ? { terrainAreas } : {}),
+    ...(terrainVerticalDatum !== undefined ? { terrainVerticalDatum } : {}),
   }
   return normalizePublicCampusResult({
     campusId: id,

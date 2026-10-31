@@ -13,6 +13,8 @@ import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
 import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
 import { POILayer } from '@/components/map/layers/POILayer'
+import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
+import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
 import { RouteLine } from '@/components/map/RouteLine'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import NavigationCamera, { type NavigationCameraConfig } from '@/components/map/NavigationCamera'
@@ -123,7 +125,8 @@ function ExploreLayers({
   )
 
   return (
-    <div data-nav-segment={navigationSegment}>
+    <div className="pointer-events-none absolute inset-0 z-10" data-nav-segment={navigationSegment} data-terrain-area-count={bundle.terrainAreas?.length ?? 0}>
+      <TerrainLayer map={map} areas={bundle.terrainAreas} datum={bundle.terrainVerticalDatum} />
       <BuildingLayer
         map={map}
         buildings={model.buildings}
@@ -316,6 +319,10 @@ function ExploreMapControls({
 export default function ExploreMap({ bundle, route, navigationTargetBuildingId, camera }: ExploreMapProps) {
   // Build render model from bundle (memoized)
   const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
+  const mapBounds = useMemo(
+    () => terrainAwareMapBounds(bundle.boundingBox, bundle.terrainAreas ?? []),
+    [bundle.boundingBox, bundle.terrainAreas],
+  )
   const model = useMemo(() => {
     const baseModel = buildFromCampusBundle({
       buildings: bundle.buildings,
@@ -407,7 +414,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
 
   return (
     <NavigationMap
-      bounds={bundle.boundingBox}
+      bounds={mapBounds}
       className="h-full w-full"
       pitch={initialPitch}
       maxPitch={camera ? NAVIGATION_POV_PREFERRED_PITCH : undefined}
@@ -425,7 +432,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         <NavigationCamera
           {...cameraWithContext}
         />
-      ) : <ExploreMapControls bounds={bundle.boundingBox} />}
+      ) : <ExploreMapControls bounds={mapBounds} />}
       <NavigationPositionMarker />
       <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} />
     </NavigationMap>

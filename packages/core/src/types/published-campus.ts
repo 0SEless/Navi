@@ -30,6 +30,7 @@ import type {
   PanoramaEntry,
   BuildingEntry,
 } from './navigation-artifacts'
+import type { TerrainArea, TerrainVerticalDatum } from './entities'
 
 // ── Metadata ──
 
@@ -113,4 +114,9 @@ export interface PublishedCampus {
     /** Grid-cell spatial index for proximity queries. */
     spatial: SpatialIndex
   }
+
+  /** Optional authored elevation polygons; absent in pre-terrain publications. */
+  terrainAreas?: TerrainArea[]
+  /** Shared campus-local reference for authored terrain elevations. */
+  terrainVerticalDatum?: TerrainVerticalDatum
 }

@@ -40,6 +40,7 @@ export { buildRoadJunctionMovePlan, type RoadJunctionMovePlan, type RoadJunction
 export { floorManageHandler, buildingAdjustPositionHandler } from './ui-action-handlers'
 export { boundarySetHandler, boundaryClearHandler } from './boundary-handlers'
 export { areaCreateHandler, areaDeleteHandler } from './area-handlers'
+export { terrainAreaCreateHandler, terrainAreaUpdateHandler, terrainAreaDeleteHandler } from './terrain-area-handlers'
 export { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from './parametric-handlers'
 export { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from './feature-handlers'
 export { poiCreateHandler, poiUpdateHandler, poiDeleteHandler } from './feature-handlers'

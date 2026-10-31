@@ -1,4 +1,4 @@
-import { isValidRoadEdgeRouting } from '@navi/core'
+import { isValidRoadEdgeRouting, isValidTerrainPublication } from '@navi/core'
 
 export interface ArtifactDiagnostic {
   code: string
@@ -330,6 +330,10 @@ export function validateNavigationArtifacts(
   }
 
   validateProvenance(artifacts, graph, requireProvenance, requireGraphCampusId, errors)
+
+  if (!isValidTerrainPublication(artifacts.terrainAreas, artifacts.terrainVerticalDatum)) {
+    pushError(errors, 'ARTIFACT_INVALID_TERRAIN', 'Terrain areas and their shared campus-local datum must form a valid authored terrain projection', 'terrainAreas')
+  }
 
   const nodeIds = new Set<string>()
   if (!Array.isArray(graph.nodes)) {

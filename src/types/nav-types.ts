@@ -1,4 +1,4 @@
-import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing } from '@navi/core'
+import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing, TerrainArea, TerrainVerticalDatum } from '@navi/core'
 
 export interface LatLng {
   lat: number;
@@ -170,6 +170,8 @@ export interface CampusBundle {
   panoramaIndex?: PanoramaIndex;
   /** Opaque QR checkpoint index from the published artifact bundle. */
   qrIndex?: QrIndex;
+  terrainAreas?: TerrainArea[];
+  terrainVerticalDatum?: TerrainVerticalDatum;
 }
 
 export interface PathStep {

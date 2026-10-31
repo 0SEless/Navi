@@ -1,4 +1,5 @@
 import type { CampusBundle } from '@/types/nav-types'
+import { isValidTerrainPublication } from '@navi/core'
 
 export type PublicCampusSource = 'published' | 'graph_snapshot'
 
@@ -67,6 +68,7 @@ export function isUsablePublicCampusBundle(value: unknown): value is CampusBundl
   }
   if (value.components !== undefined && !Array.isArray(value.components)) return false
   if (value.doors !== undefined && !Array.isArray(value.doors)) return false
+  if (!isValidTerrainPublication(value.terrainAreas, value.terrainVerticalDatum)) return false
   return value.nodes.length > 0 || value.buildings.length > 0
 }
 

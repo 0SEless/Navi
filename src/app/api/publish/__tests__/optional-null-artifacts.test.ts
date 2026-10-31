@@ -281,4 +281,48 @@ describe('POST /api/publish — explicit `null` optional-artifact contract (T2)'
     expect(body.manifest.artifacts.floorGeometry!.checksum).toBe(sha256Hex('null'))
     expect(body.manifest.artifacts.qrIndex!.checksum).toBe(sha256Hex('null'))
   })
+
+  it('publishes authored terrain unchanged in the artifact blob with an exact terrain checksum', async () => {
+    const fake = makeFakeSupabase()
+    mockClient.mockReturnValue(fake.client)
+    const terrainAreas = [{
+      id: 'terrain-1', name: 'North lawn', color: '#22aa66', elevationMeters: 3.25,
+      points: [{ lat: 14.601480195049547, lng: 121.0529741824862 }, { lat: 14.601554786948284, lng: 121.05364864506254 }, { lat: 14.600892782960344, lng: 121.05364864506254 }],
+    }]
+    const terrainVerticalDatum = {
+      kind: 'campus-local', name: 'Synthetic datum', zeroReference: 'Synthetic point at zero',
+      elevationStatus: 'authored-not-surveyed',
+    }
+    const artifacts = {
+      ...makeMinimalArtifacts(8),
+      terrainAreas,
+      terrainVerticalDatum,
+    }
+
+    const response = await POST(requestFor(artifacts, 8))
+    expect(response.status).toBe(200)
+    const blob = (fake.state.row as { artifacts: Record<string, unknown> }).artifacts
+    expect(blob.terrainAreas).toEqual(terrainAreas)
+    expect(blob.terrainVerticalDatum).toEqual(terrainVerticalDatum)
+
+    const terrainContent = writtenDemoFiles().get(join(process.cwd(), 'demo-output', 'terrain.json'))!
+    expect(JSON.parse(terrainContent)).toEqual({ terrainAreas, terrainVerticalDatum })
+    const body = await response.json() as { manifest: { artifacts: Record<string, { path: string; checksum: string; size: number }> } }
+    expect(body.manifest.artifacts.terrain).toEqual({
+      path: 'terrain.json', checksum: sha256Hex(terrainContent), size: Buffer.byteLength(terrainContent, 'utf-8'),
+      schemaVersion: '1.0.0', formatVersion: '0',
+    })
+  })
+
+  it('keeps the published bundle revision independent from compiler source document version', async () => {
+    const fake = makeFakeSupabase()
+    mockClient.mockReturnValue(fake.client)
+    const artifacts = makeMinimalArtifacts(8)
+
+    const response = await POST(requestFor(artifacts, 2))
+    expect(response.status).toBe(200)
+    const blob = (fake.state.row as { revision: number; artifacts: Record<string, unknown> })
+    expect(blob.revision).toBe(2)
+    expect(blob.artifacts.metadata).toMatchObject({ revision: '2', sourceDocumentVersion: '8' })
+  })
 })
