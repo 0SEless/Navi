@@ -1085,6 +1085,11 @@ GRANT EXECUTE ON FUNCTION studio.force_release(text, text, text, boolean) TO nav
 -- protected by a milestone or a publication. 0 = nothing pruned yet.
 ALTER TABLE studio.campuses ADD COLUMN IF NOT EXISTS pruned_floor_commit bigint NOT NULL DEFAULT 0;
 
+-- The campus name and settings as they were when the publication was recorded.
+-- NAVI Web reads these, never the live (possibly unpublished) campuses row.
+ALTER TABLE studio.publications ADD COLUMN IF NOT EXISTS campus_name text NOT NULL DEFAULT '';
+ALTER TABLE studio.publications ADD COLUMN IF NOT EXISTS campus_settings jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 -- Helper: one part version as {partKey, versionNo, checksum, sortKey, content,
 -- contentBase64}; exactly one of content / contentBase64 is set unless deleted.
 CREATE OR REPLACE FUNCTION studio.read_part_json(
@@ -1398,6 +1403,9 @@ COMMENT ON FUNCTION studio.parts_at_commit(text, bigint) IS
 
 -- studio.record_publication: insert a publication of a saved commit and point
 -- published_current at it, in one transaction. Owner or super admin only.
+-- The campus name and settings are copied into the publication row. A source
+-- commit whose history was pruned (<= pruned_floor_commit, no milestone and no
+-- existing publication of it) -> pruned, and nothing is written.
 CREATE OR REPLACE FUNCTION studio.record_publication(
   p_campus               text,
   p_source_commit        bigint,
@@ -1411,11 +1419,16 @@ SECURITY DEFINER
 SET search_path = studio, pg_temp
 AS $fn$
 DECLARE
-  v_head bigint;
-  v_role text;
-  v_no   bigint;
+  v_head     bigint;
+  v_floor    bigint;
+  v_name     text;
+  v_settings jsonb;
+  v_role     text;
+  v_no       bigint;
 BEGIN
-  SELECT c.head_commit INTO v_head FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  SELECT c.head_commit, c.pruned_floor_commit, c.name, c.settings
+    INTO v_head, v_floor, v_name, v_settings
+    FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('status', 'campus_not_found');
   END IF;
@@ -1440,12 +1453,23 @@ BEGIN
     RAISE EXCEPTION 'INVALID_ARGUMENT: artifacts must be a JSON object.' USING ERRCODE = '22023';
   END IF;
 
+  IF p_source_commit <= v_floor
+     AND NOT EXISTS (SELECT 1 FROM studio.milestones AS m
+                      WHERE m.campus_id = p_campus AND m.commit_no = p_source_commit)
+     AND NOT EXISTS (SELECT 1 FROM studio.publications AS p
+                      WHERE p.campus_id = p_campus AND p.source_commit = p_source_commit)
+  THEN
+    RETURN jsonb_build_object('status', 'pruned');
+  END IF;
+
   SELECT coalesce(max(p.publication_no), 0) + 1 INTO v_no
     FROM studio.publications AS p WHERE p.campus_id = p_campus;
 
   INSERT INTO studio.publications
-    (campus_id, publication_no, source_commit, artifacts, checksum, status, published_by)
-  VALUES (p_campus, v_no, p_source_commit, p_artifacts, p_checksum, 'published', p_actor);
+    (campus_id, publication_no, source_commit, artifacts, checksum, status, published_by,
+     campus_name, campus_settings)
+  VALUES (p_campus, v_no, p_source_commit, p_artifacts, p_checksum, 'published', p_actor,
+          v_name, v_settings);
 
   INSERT INTO studio.published_current (campus_id, publication_no)
   VALUES (p_campus, v_no)
@@ -1524,6 +1548,8 @@ BEGIN
            'publicationNo', p.publication_no,
            'sourceCommit', p.source_commit,
            'artifacts', p.artifacts,
+           'campusName', p.campus_name,
+           'campusSettings', p.campus_settings,
            'publishedAt', p.published_at)
     INTO v_pub
     FROM studio.published_current AS cur
@@ -1538,7 +1564,8 @@ COMMENT ON FUNCTION studio.current_publication(text) IS
   'The current publication of a campus (what NAVI Web serves), or null when never published.';
 
 -- studio.published_campuses: what NAVI Web lists. Only campuses with a current
--- publication; drafts never appear.
+-- publication; drafts never appear. Name and settings come from the current
+-- publication row (as published), never from the live campuses row.
 CREATE OR REPLACE FUNCTION studio.published_campuses()
 RETURNS jsonb
 LANGUAGE sql
@@ -1550,15 +1577,14 @@ AS $fn$
     'status', 'ok',
     'campuses', coalesce(
       jsonb_agg(jsonb_build_object(
-                  'id', c.id,
-                  'name', c.name,
-                  'settings', c.settings,
+                  'id', p.campus_id,
+                  'name', p.campus_name,
+                  'settings', p.campus_settings,
                   'publicationNo', p.publication_no,
                   'publishedAt', p.published_at)
-                ORDER BY c.name COLLATE "C", c.id COLLATE "C"),
+                ORDER BY p.campus_name COLLATE "C", p.campus_id COLLATE "C"),
       '[]'::jsonb))
     FROM studio.published_current AS cur
-    JOIN studio.campuses AS c ON c.id = cur.campus_id
     JOIN studio.publications AS p
       ON p.campus_id = cur.campus_id AND p.publication_no = cur.publication_no
 $fn$;

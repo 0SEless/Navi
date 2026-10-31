@@ -422,6 +422,85 @@ describe('publications', () => {
     })
   })
 
+  it('published name and settings are a snapshot: settings edits show only after the next publication (R22)', async () => {
+    await withTestDb(async (client, admin) => {
+      const campus = await newCampus(admin, [['alice', 'owner']], 'Before')
+      await call(client, 'update_campus_settings', campus, 'alice', null, JSON.stringify({ schoolName: 'Old' }))
+      await save(client, campus, [put('map/poi:a', { a: 1 })])
+      await publish(client, campus, 1)
+      const entryOf = async () =>
+        (await call(client, 'published_campuses')).campuses.find((c: Json) => c.id === campus)
+
+      expect(await entryOf()).toMatchObject({ name: 'Before', settings: { schoolName: 'Old' }, publicationNo: 1 })
+      expect((await call(client, 'current_publication', campus)).publication).toMatchObject({
+        publicationNo: 1,
+        campusName: 'Before',
+        campusSettings: { schoolName: 'Old' },
+      })
+
+      // An unpublished edit: Studio sees it, NAVI Web does not.
+      expect(await call(client, 'update_campus_settings', campus, 'alice', 'After', JSON.stringify({ schoolName: 'New' }))).toEqual({
+        status: 'ok',
+      })
+      const studioView = (await call(client, 'list_campuses')).campuses.find((c: Json) => c.id === campus)
+      expect(studioView).toMatchObject({ name: 'After', settings: { schoolName: 'New' } })
+      expect(await entryOf()).toMatchObject({ name: 'Before', settings: { schoolName: 'Old' }, publicationNo: 1 })
+      expect((await call(client, 'current_publication', campus)).publication).toMatchObject({
+        campusName: 'Before',
+        campusSettings: { schoolName: 'Old' },
+      })
+
+      // The next publication carries the edit.
+      await publish(client, campus, 1)
+      expect(await entryOf()).toMatchObject({ name: 'After', settings: { schoolName: 'New' }, publicationNo: 2 })
+      expect((await call(client, 'current_publication', campus)).publication).toMatchObject({
+        publicationNo: 2,
+        campusName: 'After',
+        campusSettings: { schoolName: 'New' },
+      })
+
+      // Rolling back serves the older snapshot again.
+      await call(client, 'rollback_publication', campus, 1, 'alice')
+      expect(await entryOf()).toMatchObject({ name: 'Before', settings: { schoolName: 'Old' }, publicationNo: 1 })
+    })
+  })
+
+  it('record_publication refuses a pruned, unprotected source commit and writes nothing (R23)', async () => {
+    await withTestDb(async (client, admin) => {
+      const campus = await newCampus(admin)
+      await save(client, campus, [put('map/poi:a', { v: 1 }), put('map/poi:b', { v: 1 })]) // 1
+      for (let v = 2; v <= 5; v++) await save(client, campus, [put('map/poi:a', { v }, v - 1)]) // 2..5
+      expect(await publish(client, campus, 5)).toEqual({ status: 'ok', publicationNo: 1 })
+      await prune(admin, campus, false, 1)
+      expect((await rowCounts(admin, campus)).floor).toBe(4)
+      expect(await call(client, 'parts_at_commit', campus, 2)).toEqual({ status: 'pruned' })
+
+      expect(await publish(client, campus, 2)).toEqual({ status: 'pruned' })
+      expect(await rowCounts(admin, campus)).toMatchObject({ publications: 1, published_current: 1 })
+      expect((await call(client, 'current_publication', campus)).publication).toMatchObject({ publicationNo: 1, sourceCommit: 5 })
+      expect(await call(client, 'parts_at_commit', campus, 2)).toEqual({ status: 'pruned' })
+    })
+  })
+
+  it('record_publication accepts a source commit at or below the floor that is still protected (R23)', async () => {
+    await withTestDb(async (client, admin) => {
+      const campus = await newCampus(admin)
+      await save(client, campus, [put('map/poi:a', { v: 1 }), put('map/poi:b', { v: 1 })]) // 1
+      for (let v = 2; v <= 5; v++) await save(client, campus, [put('map/poi:a', { v }, v - 1)]) // 2..5
+      await publish(client, campus, 3) // #1 protects commit 3
+      await publish(client, campus, 5) // #2
+      await prune(admin, campus, false, 1)
+      expect((await rowCounts(admin, campus)).floor).toBe(4)
+
+      expect(await publish(client, campus, 3)).toEqual({ status: 'ok', publicationNo: 3 })
+      expect((await call(client, 'current_publication', campus)).publication).toMatchObject({ publicationNo: 3, sourceCommit: 3 })
+      expect((await call(client, 'parts_at_commit', campus, 3)).parts.map((p: Json) => [p.partKey, p.versionNo])).toEqual([
+        ['map/poi:a', 3],
+        ['map/poi:b', 1],
+      ])
+    })
+  })
+
   it('record_publication and studio.save on the same campus serialize on the campus row', async () => {
     await withTestDb(async (client, admin) => {
       const campus = await newCampus(admin)
