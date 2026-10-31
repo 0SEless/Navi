@@ -1072,4 +1072,674 @@ GRANT EXECUTE ON FUNCTION studio.release_zones(text, text, text, text[]) TO navi
 GRANT EXECUTE ON FUNCTION studio.status(text, text, text, text[]) TO navi_studio_api;
 GRANT EXECUTE ON FUNCTION studio.force_release(text, text, text, boolean) TO navi_studio_api;
 
+-- ---------------------------------------------------------------------------
+-- Campuses, load, changes since a commit, publications and pruning
+-- (spec sections 9 and 10). Read functions are STABLE, so every statement in
+-- them sees one snapshot (headCommit always matches the parts returned).
+-- Functions that change a campus take its row lock first, so they serialize
+-- with studio.save and the lock functions.
+-- ---------------------------------------------------------------------------
+
+-- Commits at or below this number may no longer be rebuildable from part_versions
+-- (studio.prune deleted a version that was effective there), unless the commit is
+-- protected by a milestone or a publication. 0 = nothing pruned yet.
+ALTER TABLE studio.campuses ADD COLUMN IF NOT EXISTS pruned_floor_commit bigint NOT NULL DEFAULT 0;
+
+-- Helper: one part version as {partKey, versionNo, checksum, sortKey, content,
+-- contentBase64}; exactly one of content / contentBase64 is set unless deleted.
+CREATE OR REPLACE FUNCTION studio.read_part_json(
+  p_part_key    text,
+  p_version_no  bigint,
+  p_checksum    text,
+  p_sort_key    text,
+  p_content     jsonb,
+  p_content_bin bytea)
+RETURNS jsonb
+LANGUAGE sql
+IMMUTABLE
+SET search_path = studio, pg_temp
+AS $fn$
+  SELECT jsonb_build_object(
+    'partKey', p_part_key,
+    'versionNo', p_version_no,
+    'checksum', p_checksum,
+    'sortKey', p_sort_key,
+    'content', p_content,
+    'contentBase64', CASE WHEN p_content_bin IS NULL THEN NULL
+                          ELSE translate(encode(p_content_bin, 'base64'), E'\n', '') END)
+$fn$;
+
+-- studio.create_campus: a new campus at head_commit 0; the creator becomes its
+-- owner (display name defaults to the actor id). An existing id -> exists.
+CREATE OR REPLACE FUNCTION studio.create_campus(
+  p_campus   text,
+  p_name     text,
+  p_actor    text,
+  p_settings jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_name     text := btrim(p_name);
+  v_settings jsonb := coalesce(p_settings, '{}'::jsonb);
+BEGIN
+  IF p_campus IS NULL OR p_campus = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: campus id is required.' USING ERRCODE = '22023';
+  END IF;
+  IF v_name IS NULL OR v_name = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: campus name is required.' USING ERRCODE = '22023';
+  END IF;
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: actor is required.' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(v_settings) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: settings must be a JSON object.' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO studio.campuses (id, name, head_commit, settings, created_by)
+  VALUES (p_campus, v_name, 0, v_settings, p_actor)
+  ON CONFLICT (id) DO NOTHING;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'exists');
+  END IF;
+
+  INSERT INTO studio.members (campus_id, user_id, display_name, role)
+  VALUES (p_campus, p_actor, p_actor, 'owner');
+
+  RETURN jsonb_build_object('status', 'ok', 'campusId', p_campus);
+END
+$fn$;
+COMMENT ON FUNCTION studio.create_campus(text, text, text, jsonb) IS
+  'Creates a campus (head_commit 0) and makes the creator its owner; exists when the id is taken.';
+
+-- studio.list_campuses: every campus (drafts included) for Studio, ordered by name.
+CREATE OR REPLACE FUNCTION studio.list_campuses()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+  SELECT jsonb_build_object(
+    'status', 'ok',
+    'campuses', coalesce(
+      jsonb_agg(jsonb_build_object(
+                  'id', c.id,
+                  'name', c.name,
+                  'settings', c.settings,
+                  'headCommit', c.head_commit,
+                  'createdAt', c.created_at,
+                  'publishedAt', p.published_at)
+                ORDER BY c.name COLLATE "C", c.id COLLATE "C"),
+      '[]'::jsonb))
+    FROM studio.campuses AS c
+    LEFT JOIN studio.published_current AS cur ON cur.campus_id = c.id
+    LEFT JOIN studio.publications AS p
+      ON p.campus_id = cur.campus_id AND p.publication_no = cur.publication_no
+$fn$;
+COMMENT ON FUNCTION studio.list_campuses() IS
+  'Every campus with its head commit and current publication time (null when never published).';
+
+-- studio.delete_campus: owner or super admin only; everything cascades.
+CREATE OR REPLACE FUNCTION studio.delete_campus(
+  p_campus               text,
+  p_actor                text,
+  p_actor_is_super_admin boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_role text;
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: actor is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF NOT (coalesce(p_actor_is_super_admin, false) OR coalesce(v_role = 'owner', false)) THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  DELETE FROM studio.campuses AS c WHERE c.id = p_campus;
+  RETURN jsonb_build_object('status', 'ok');
+END
+$fn$;
+COMMENT ON FUNCTION studio.delete_campus(text, text, boolean) IS
+  'Owner or super admin deletes a campus with all of its commits, versions, locks and publications.';
+
+-- studio.update_campus_settings: rename (p_name NULL keeps the name) and replace
+-- the settings object. A viewer is forbidden; owner, editor or no row may change
+-- them. No zone lock is needed.
+CREATE OR REPLACE FUNCTION studio.update_campus_settings(
+  p_campus   text,
+  p_actor    text,
+  p_name     text,
+  p_settings jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_role text;
+  v_name text := btrim(p_name);
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: actor is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF v_role = 'viewer' THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  IF p_name IS NOT NULL AND v_name = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: campus name must not be empty.' USING ERRCODE = '22023';
+  END IF;
+  IF p_settings IS NULL OR jsonb_typeof(p_settings) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: settings must be a JSON object.' USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE studio.campuses AS c
+     SET name = coalesce(v_name, c.name),
+         settings = p_settings
+   WHERE c.id = p_campus;
+  RETURN jsonb_build_object('status', 'ok');
+END
+$fn$;
+COMMENT ON FUNCTION studio.update_campus_settings(text, text, text, jsonb) IS
+  'Renames a campus (NULL name keeps it) and replaces its settings; viewers are forbidden.';
+
+-- studio.load: the current version of every live part (tombstones omitted).
+CREATE OR REPLACE FUNCTION studio.load(p_campus text)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_head  bigint;
+  v_parts jsonb;
+BEGIN
+  SELECT c.head_commit INTO v_head FROM studio.campuses AS c WHERE c.id = p_campus;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  SELECT coalesce(
+           jsonb_agg(studio.read_part_json(pv.part_key, pv.version_no, pv.checksum::text, pv.sort_key,
+                                           pv.content, pv.content_bin)
+                     ORDER BY pc.part_key COLLATE "C"),
+           '[]'::jsonb)
+    INTO v_parts
+    FROM studio.parts_current AS pc
+    JOIN studio.part_versions AS pv
+      ON pv.campus_id = pc.campus_id AND pv.part_key = pc.part_key AND pv.version_no = pc.version_no
+   WHERE pc.campus_id = p_campus
+     AND NOT pv.deleted;
+
+  RETURN jsonb_build_object('status', 'ok', 'headCommit', v_head, 'parts', v_parts);
+END
+$fn$;
+COMMENT ON FUNCTION studio.load(text) IS
+  'Head commit and the current version of every live part, ordered by part key.';
+
+-- studio.changes_since: parts whose current version was written after p_since,
+-- tombstones included (deleted = true), with the commit and its author.
+CREATE OR REPLACE FUNCTION studio.changes_since(p_campus text, p_since bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_head  bigint;
+  v_parts jsonb;
+BEGIN
+  SELECT c.head_commit INTO v_head FROM studio.campuses AS c WHERE c.id = p_campus;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_since IS NULL OR p_since < 0 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: since must be a non-negative commit number.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT coalesce(
+           jsonb_agg(studio.read_part_json(pv.part_key, pv.version_no, pv.checksum::text, pv.sort_key,
+                                           pv.content, pv.content_bin)
+                     || jsonb_build_object('deleted', pv.deleted, 'commitNo', pc.commit_no, 'author', cm.author)
+                     ORDER BY pc.part_key COLLATE "C"),
+           '[]'::jsonb)
+    INTO v_parts
+    FROM studio.parts_current AS pc
+    JOIN studio.part_versions AS pv
+      ON pv.campus_id = pc.campus_id AND pv.part_key = pc.part_key AND pv.version_no = pc.version_no
+    JOIN studio.commits AS cm
+      ON cm.campus_id = pc.campus_id AND cm.commit_no = pc.commit_no
+   WHERE pc.campus_id = p_campus
+     AND pc.commit_no > p_since;
+
+  RETURN jsonb_build_object('status', 'ok', 'headCommit', v_head, 'parts', v_parts);
+END
+$fn$;
+COMMENT ON FUNCTION studio.changes_since(text, bigint) IS
+  'Parts changed after a commit (including deletions), for catching up on other admins'' saves.';
+
+-- studio.parts_at_commit: the live parts as of commit p_commit (per part, the
+-- newest version with commit_no <= p_commit; tombstones omitted).
+--   not_found: p_commit < 0 or > head_commit
+--   pruned:    p_commit <= pruned_floor_commit and not a milestone or publication commit
+CREATE OR REPLACE FUNCTION studio.parts_at_commit(p_campus text, p_commit bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_head  bigint;
+  v_floor bigint;
+  v_parts jsonb;
+BEGIN
+  SELECT c.head_commit, c.pruned_floor_commit INTO v_head, v_floor
+    FROM studio.campuses AS c WHERE c.id = p_campus;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_commit IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: commit is required.' USING ERRCODE = '22023';
+  END IF;
+  IF p_commit < 0 OR p_commit > v_head THEN
+    RETURN jsonb_build_object('status', 'not_found');
+  END IF;
+  IF p_commit > 0
+     AND p_commit <= v_floor
+     AND NOT EXISTS (SELECT 1 FROM studio.milestones AS m WHERE m.campus_id = p_campus AND m.commit_no = p_commit)
+     AND NOT EXISTS (SELECT 1 FROM studio.publications AS p WHERE p.campus_id = p_campus AND p.source_commit = p_commit)
+  THEN
+    RETURN jsonb_build_object('status', 'pruned');
+  END IF;
+
+  SELECT coalesce(
+           jsonb_agg(studio.read_part_json(e.part_key, e.version_no, e.checksum::text, e.sort_key,
+                                           e.content, e.content_bin)
+                     ORDER BY e.part_key COLLATE "C"),
+           '[]'::jsonb)
+    INTO v_parts
+    FROM (SELECT DISTINCT ON (pv.part_key) pv.*
+            FROM studio.part_versions AS pv
+           WHERE pv.campus_id = p_campus AND pv.commit_no <= p_commit
+           ORDER BY pv.part_key, pv.version_no DESC) AS e
+   WHERE NOT e.deleted;
+
+  RETURN jsonb_build_object('status', 'ok', 'commitNo', p_commit, 'parts', v_parts);
+END
+$fn$;
+COMMENT ON FUNCTION studio.parts_at_commit(text, bigint) IS
+  'The live parts as they were at a commit; pruned when pruning removed that history.';
+
+-- studio.record_publication: insert a publication of a saved commit and point
+-- published_current at it, in one transaction. Owner or super admin only.
+CREATE OR REPLACE FUNCTION studio.record_publication(
+  p_campus               text,
+  p_source_commit        bigint,
+  p_artifacts            jsonb,
+  p_checksum             char(64),
+  p_actor                text,
+  p_actor_is_super_admin boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_head bigint;
+  v_role text;
+  v_no   bigint;
+BEGIN
+  SELECT c.head_commit INTO v_head FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: actor is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF NOT (coalesce(p_actor_is_super_admin, false) OR coalesce(v_role = 'owner', false)) THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  IF p_source_commit IS NULL OR p_source_commit < 1 OR p_source_commit > v_head THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: source commit must be between 1 and the head commit (%).', v_head
+      USING ERRCODE = '22023';
+  END IF;
+  IF p_checksum IS NULL OR p_checksum::text !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: checksum must be 64 lowercase hex digits.' USING ERRCODE = '22023';
+  END IF;
+  IF p_artifacts IS NULL OR jsonb_typeof(p_artifacts) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: artifacts must be a JSON object.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT coalesce(max(p.publication_no), 0) + 1 INTO v_no
+    FROM studio.publications AS p WHERE p.campus_id = p_campus;
+
+  INSERT INTO studio.publications
+    (campus_id, publication_no, source_commit, artifacts, checksum, status, published_by)
+  VALUES (p_campus, v_no, p_source_commit, p_artifacts, p_checksum, 'published', p_actor);
+
+  INSERT INTO studio.published_current (campus_id, publication_no)
+  VALUES (p_campus, v_no)
+  ON CONFLICT (campus_id) DO UPDATE SET publication_no = EXCLUDED.publication_no;
+
+  RETURN jsonb_build_object('status', 'ok', 'publicationNo', v_no);
+END
+$fn$;
+COMMENT ON FUNCTION studio.record_publication(text, bigint, jsonb, char, text, boolean) IS
+  'Records a publication of a saved commit and makes it the one NAVI Web serves, atomically. See spec section 10.';
+
+-- studio.rollback_publication: point published_current at an earlier publication.
+CREATE OR REPLACE FUNCTION studio.rollback_publication(
+  p_campus               text,
+  p_publication_no       bigint,
+  p_actor                text,
+  p_actor_is_super_admin boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_role text;
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: actor is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF NOT (coalesce(p_actor_is_super_admin, false) OR coalesce(v_role = 'owner', false)) THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  IF p_publication_no IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: publication number is required.' USING ERRCODE = '22023';
+  END IF;
+  PERFORM 1 FROM studio.publications AS p
+   WHERE p.campus_id = p_campus AND p.publication_no = p_publication_no;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'not_found');
+  END IF;
+
+  INSERT INTO studio.published_current (campus_id, publication_no)
+  VALUES (p_campus, p_publication_no)
+  ON CONFLICT (campus_id) DO UPDATE SET publication_no = EXCLUDED.publication_no;
+
+  RETURN jsonb_build_object('status', 'ok', 'publicationNo', p_publication_no);
+END
+$fn$;
+COMMENT ON FUNCTION studio.rollback_publication(text, bigint, text, boolean) IS
+  'Owner or super admin points NAVI Web back at an earlier publication.';
+
+-- studio.current_publication: the publication NAVI Web serves, or null.
+CREATE OR REPLACE FUNCTION studio.current_publication(p_campus text)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_pub jsonb;
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  SELECT jsonb_build_object(
+           'publicationNo', p.publication_no,
+           'sourceCommit', p.source_commit,
+           'artifacts', p.artifacts,
+           'publishedAt', p.published_at)
+    INTO v_pub
+    FROM studio.published_current AS cur
+    JOIN studio.publications AS p
+      ON p.campus_id = cur.campus_id AND p.publication_no = cur.publication_no
+   WHERE cur.campus_id = p_campus;
+
+  RETURN jsonb_build_object('status', 'ok', 'publication', v_pub);
+END
+$fn$;
+COMMENT ON FUNCTION studio.current_publication(text) IS
+  'The current publication of a campus (what NAVI Web serves), or null when never published.';
+
+-- studio.published_campuses: what NAVI Web lists. Only campuses with a current
+-- publication; drafts never appear.
+CREATE OR REPLACE FUNCTION studio.published_campuses()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+  SELECT jsonb_build_object(
+    'status', 'ok',
+    'campuses', coalesce(
+      jsonb_agg(jsonb_build_object(
+                  'id', c.id,
+                  'name', c.name,
+                  'settings', c.settings,
+                  'publicationNo', p.publication_no,
+                  'publishedAt', p.published_at)
+                ORDER BY c.name COLLATE "C", c.id COLLATE "C"),
+      '[]'::jsonb))
+    FROM studio.published_current AS cur
+    JOIN studio.campuses AS c ON c.id = cur.campus_id
+    JOIN studio.publications AS p
+      ON p.campus_id = cur.campus_id AND p.publication_no = cur.publication_no
+$fn$;
+COMMENT ON FUNCTION studio.published_campuses() IS
+  'Campuses NAVI Web may list: only those with a current publication.';
+
+-- studio.prune (spec section 9): report, and unless p_dry_run delete, history no
+-- longer needed. Run by hand by the owner over an admin connection; not granted
+-- to the API role. Keeps:
+--   part versions: the current one; the newest p_keep per part; and for every
+--     protected commit C (milestones and the source commit of every kept
+--     publication) each part's version effective at C (the newest with
+--     commit_no <= C, tombstones included);
+--   publications: the newest 10, the current one, and any whose source commit is
+--     a milestone;
+--   mutation receipts: those from the last 7 days.
+-- Commits are never deleted. Deleting a version raises pruned_floor_commit to
+-- just below the commit of its next version, so parts_at_commit reports pruned
+-- for unprotected commits whose history is gone. A dry run changes nothing.
+CREATE OR REPLACE FUNCTION studio.prune(
+  p_campus  text,
+  p_dry_run boolean DEFAULT true,
+  p_keep    integer DEFAULT 50)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_keep_pubs bigint[];
+  v_drop_pubs bigint[];
+  v_protected bigint[];
+  v_keys      text[];
+  v_versions  bigint[];
+  v_next_max  bigint;
+  v_receipts  integer;
+  v_list      jsonb;
+BEGIN
+  IF p_dry_run IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: dry run must be true or false.' USING ERRCODE = '22023';
+  END IF;
+  IF p_keep IS NULL OR p_keep < 1 THEN
+    RAISE EXCEPTION 'INVALID_ARGUMENT: keep must be at least 1.' USING ERRCODE = '22023';
+  END IF;
+
+  -- Campus row lock: no save or publication changes the campus while we decide.
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  -- Publications to keep and to drop.
+  SELECT coalesce(array_agg(x.publication_no ORDER BY x.publication_no) FILTER (WHERE x.keep), ARRAY[]::bigint[]),
+         coalesce(array_agg(x.publication_no ORDER BY x.publication_no) FILTER (WHERE NOT x.keep), ARRAY[]::bigint[])
+    INTO v_keep_pubs, v_drop_pubs
+    FROM (SELECT p.publication_no,
+                 (row_number() OVER (ORDER BY p.publication_no DESC) <= 10
+                  OR EXISTS (SELECT 1 FROM studio.published_current AS cur
+                              WHERE cur.campus_id = p.campus_id AND cur.publication_no = p.publication_no)
+                  OR EXISTS (SELECT 1 FROM studio.milestones AS m
+                              WHERE m.campus_id = p.campus_id AND m.commit_no = p.source_commit)) AS keep
+            FROM studio.publications AS p
+           WHERE p.campus_id = p_campus) AS x;
+
+  -- Protected commits: milestones and the source commits of kept publications.
+  SELECT coalesce(array_agg(s.commit_no ORDER BY s.commit_no), ARRAY[]::bigint[])
+    INTO v_protected
+    FROM (SELECT m.commit_no FROM studio.milestones AS m WHERE m.campus_id = p_campus
+          UNION
+          SELECT p.source_commit FROM studio.publications AS p
+           WHERE p.campus_id = p_campus AND p.publication_no = ANY (v_keep_pubs)) AS s;
+
+  -- Part versions to delete, ordered by part key and version.
+  WITH v AS (
+    SELECT pv.part_key, pv.version_no,
+           row_number() OVER (PARTITION BY pv.part_key ORDER BY pv.version_no DESC) AS rn,
+           lead(pv.commit_no) OVER (PARTITION BY pv.part_key ORDER BY pv.version_no) AS next_commit
+      FROM studio.part_versions AS pv
+     WHERE pv.campus_id = p_campus
+  ), effective AS (
+    SELECT DISTINCT ON (pc.commit_no, pv.part_key) pv.part_key, pv.version_no
+      FROM unnest(v_protected) AS pc(commit_no)
+      JOIN studio.part_versions AS pv
+        ON pv.campus_id = p_campus AND pv.commit_no <= pc.commit_no
+     ORDER BY pc.commit_no, pv.part_key, pv.version_no DESC
+  ), doomed AS (
+    SELECT v.part_key, v.version_no, v.next_commit
+      FROM v
+     WHERE v.rn > p_keep
+       AND NOT EXISTS (SELECT 1 FROM studio.parts_current AS cur
+                        WHERE cur.campus_id = p_campus AND cur.part_key = v.part_key
+                          AND cur.version_no = v.version_no)
+       AND NOT EXISTS (SELECT 1 FROM effective AS e
+                        WHERE e.part_key = v.part_key AND e.version_no = v.version_no)
+  )
+  SELECT coalesce(array_agg(d.part_key ORDER BY d.part_key COLLATE "C", d.version_no), ARRAY[]::text[]),
+         coalesce(array_agg(d.version_no ORDER BY d.part_key COLLATE "C", d.version_no), ARRAY[]::bigint[]),
+         max(d.next_commit)
+    INTO v_keys, v_versions, v_next_max
+    FROM doomed AS d;
+
+  SELECT count(*) INTO v_receipts
+    FROM studio.mutation_receipts AS r
+   WHERE r.campus_id = p_campus AND r.created_at < now() - interval '7 days';
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object('partKey', u.part_key, 'versionNo', u.version_no) ORDER BY u.ord),
+                  '[]'::jsonb)
+    INTO v_list
+    FROM unnest(v_keys, v_versions) WITH ORDINALITY AS u(part_key, version_no, ord)
+   WHERE u.ord <= 500;
+
+  IF NOT p_dry_run THEN
+    DELETE FROM studio.part_versions AS pv
+     USING unnest(v_keys, v_versions) AS u(part_key, version_no)
+     WHERE pv.campus_id = p_campus AND pv.part_key = u.part_key AND pv.version_no = u.version_no;
+
+    -- Every deleted version has a next version (the current one is never deleted).
+    IF v_next_max IS NOT NULL THEN
+      UPDATE studio.campuses AS c
+         SET pruned_floor_commit = greatest(c.pruned_floor_commit, v_next_max - 1)
+       WHERE c.id = p_campus;
+    END IF;
+
+    DELETE FROM studio.publications AS p
+     WHERE p.campus_id = p_campus AND p.publication_no = ANY (v_drop_pubs);
+
+    DELETE FROM studio.mutation_receipts AS r
+     WHERE r.campus_id = p_campus AND r.created_at < now() - interval '7 days';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'status', 'ok',
+    'dryRun', p_dry_run,
+    'wouldDelete', jsonb_build_object(
+      'partVersions', cardinality(v_keys),
+      'publications', cardinality(v_drop_pubs),
+      'receipts', v_receipts),
+    'partVersions', v_list);
+END
+$fn$;
+COMMENT ON FUNCTION studio.prune(text, boolean, integer) IS
+  'Reports (dry run, the default) or deletes history no longer needed, never breaking a kept publication or milestone. Owner runs it by hand; not granted to the API role. See spec section 9.';
+
+-- Privileges: every function above except the helper and prune is callable by the
+-- API role. prune is for the schema owner (an admin connection) only.
+REVOKE ALL ON FUNCTION studio.read_part_json(text, bigint, text, text, jsonb, bytea) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.create_campus(text, text, text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.list_campuses() FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.delete_campus(text, text, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.update_campus_settings(text, text, text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.load(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.changes_since(text, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.parts_at_commit(text, bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.record_publication(text, bigint, jsonb, char, text, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.rollback_publication(text, bigint, text, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.current_publication(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.published_campuses() FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.prune(text, boolean, integer) FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA studio FROM anon';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA studio FROM authenticated';
+  END IF;
+END
+$$;
+
+GRANT EXECUTE ON FUNCTION studio.create_campus(text, text, text, jsonb) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.list_campuses() TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.delete_campus(text, text, boolean) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.update_campus_settings(text, text, text, jsonb) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.load(text) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.changes_since(text, bigint) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.parts_at_commit(text, bigint) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.record_publication(text, bigint, jsonb, char, text, boolean) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.rollback_publication(text, bigint, text, boolean) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.current_publication(text) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.published_campuses() TO navi_studio_api;
+REVOKE ALL ON FUNCTION studio.prune(text, boolean, integer) FROM navi_studio_api;
+
 COMMIT;
