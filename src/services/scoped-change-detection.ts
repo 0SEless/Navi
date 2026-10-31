@@ -1,4 +1,5 @@
 import type { CampusDocument } from '@navi/core'
+import { canonicalJson } from '../studio-v2/parts/canonical'
 import type { ScopedSaveKind, ScopedSaveScope } from './scoped-campus-save'
 
 export interface ScopedDocumentOperation {
@@ -23,21 +24,6 @@ export type ScopedDocumentProjectionResult =
   | { status: 'rejected'; code: 'CAMPUS_IDENTITY_MISMATCH' | 'AMBIGUOUS_SCOPE'; message: string }
 
 type DocumentRecord = CampusDocument & Record<string, unknown>
-
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize)
-  if (!value || typeof value !== 'object') return value
-  const result: Record<string, unknown> = {}
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    const entry = (value as Record<string, unknown>)[key]
-    if (entry !== undefined) result[key] = canonicalize(entry)
-  }
-  return result
-}
-
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value))
-}
 
 function scopeKey(scope: ScopedSaveScope): string {
   return `${scope.kind}:${scope.id}`
