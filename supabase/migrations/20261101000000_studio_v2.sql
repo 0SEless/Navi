@@ -794,8 +794,9 @@ BEGIN
     END IF;
     BEGIN
       v_zone_of := studio.zone_of(v_zone);
-    EXCEPTION WHEN SQLSTATE '22023' THEN
-      RAISE EXCEPTION 'INVALID_ZONE: "%" is not a lock zone.', v_zone USING ERRCODE = '22023';
+    EXCEPTION WHEN OTHERS THEN
+      -- zone_of raises 22023 (bad shape or percent-encoding) and 22021 (invalid UTF-8).
+      RAISE EXCEPTION 'INVALID_ZONE: "%" is not a lock zone (%).', v_zone, SQLERRM USING ERRCODE = '22023';
     END;
     IF v_zone_of IS DISTINCT FROM v_zone THEN
       RAISE EXCEPTION 'INVALID_ZONE: "%" is not a lock zone.', v_zone USING ERRCODE = '22023';
