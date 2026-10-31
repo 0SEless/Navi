@@ -37,6 +37,21 @@ mkdirSync(rawDir, { recursive: true })
 writeFileSync(path.join(rawDir, 'tsc-last-run.txt'), output)
 
 const errorLines = output.split(/\r?\n/).filter((l) => l.includes('error TS'))
+
+// Fail closed. tsc exits 0 (clean) or 1/2 (ran, found diagnostics; 1 with
+// --noEmit). A crash such as "Cannot find module" also exits 1, so a non-zero
+// status additionally needs at least one parsed "error TS" line.
+if (run.status !== 0 && run.status !== 1 && run.status !== 2) {
+  console.error(`FAIL: tsc did not run to completion (exit status ${run.status}, signal ${run.signal}); gate cannot pass.`)
+  console.error(output.split(/\r?\n/).slice(0, 10).join('\n'))
+  process.exit(2)
+}
+if (run.status !== 0 && errorLines.length === 0) {
+  console.error(`FAIL: tsc exited ${run.status} but no "error TS" diagnostics were parsed; refusing to treat as a pass.`)
+  console.error(output.split(/\r?\n/).slice(0, 10).join('\n'))
+  process.exit(2)
+}
+
 const studioV2 = errorLines.filter((l) => l.replace(/\\/g, '/').startsWith('src/studio-v2/'))
 
 console.log(`tsc errors: ${errorLines.length}  baseline: ${baseline}  under src/studio-v2/: ${studioV2.length}`)

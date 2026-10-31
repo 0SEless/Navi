@@ -15,25 +15,10 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { passedLines } from './vitest-lines.mjs'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
 const MAX_LISTED = 50
-
-function toRelative(file) {
-  const rel = path.isAbsolute(file) ? path.relative(repoRoot, file) : file
-  return rel.split(path.sep).join('/')
-}
-
-export function passedLines(vitestJson) {
-  const lines = []
-  for (const suite of vitestJson.testResults ?? []) {
-    const file = toRelative(suite.name)
-    for (const t of suite.assertionResults ?? []) {
-      if (t.status === 'passed') lines.push(`${file} > ${t.fullName}`)
-    }
-  }
-  return lines.sort()
-}
 
 function usage() {
   console.error(
@@ -95,6 +80,4 @@ function main() {
   return 0
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(main())
-}
+process.exit(main())
