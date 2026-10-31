@@ -15,6 +15,7 @@ const STUDIO_TABLES = [
   'milestones',
   'publications',
   'published_current',
+  'mutation_receipts',
 ]
 
 afterAll(async () => {
