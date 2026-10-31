@@ -764,4 +764,311 @@ $$;
 
 GRANT EXECUTE ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char) TO navi_studio_api;
 
+-- ---------------------------------------------------------------------------
+-- Zone locks (spec section 7). A zone is 'building:<id>' (the building and all of
+-- its floors), 'terrain' or 'campus'. A lock row counts as held only while its
+-- heartbeat is younger than 5 minutes; an older row is free for anyone to take.
+-- Every function that changes zone_locks first takes the campus row lock, so lock
+-- changes serialize with studio.save (which holds the same lock).
+-- ---------------------------------------------------------------------------
+
+-- Helper: validate a zone-key array and return it de-duplicated and ordered by
+-- code point. A valid zone key is its own zone (studio.zone_of(z) = z), so floor
+-- keys, map keys, non-canonical spellings, '' and NULL are rejected. An empty
+-- array is valid; a NULL array is not.
+CREATE OR REPLACE FUNCTION studio.lock_zone_keys(p_zones text[])
+RETURNS text[]
+LANGUAGE plpgsql
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_zone text;
+  v_zone_of text;
+BEGIN
+  IF p_zones IS NULL THEN
+    RAISE EXCEPTION 'INVALID_ZONE: zones must be an array.' USING ERRCODE = '22023';
+  END IF;
+  FOREACH v_zone IN ARRAY p_zones LOOP
+    IF v_zone IS NULL OR v_zone = '' THEN
+      RAISE EXCEPTION 'INVALID_ZONE: a zone key must not be null or empty.' USING ERRCODE = '22023';
+    END IF;
+    BEGIN
+      v_zone_of := studio.zone_of(v_zone);
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      RAISE EXCEPTION 'INVALID_ZONE: "%" is not a lock zone.', v_zone USING ERRCODE = '22023';
+    END;
+    IF v_zone_of IS DISTINCT FROM v_zone THEN
+      RAISE EXCEPTION 'INVALID_ZONE: "%" is not a lock zone.', v_zone USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+  RETURN coalesce(
+    (SELECT array_agg(z.zone ORDER BY z.zone COLLATE "C")
+       FROM (SELECT DISTINCT u.zone FROM unnest(p_zones) AS u(zone)) AS z),
+    ARRAY[]::text[]);
+END
+$fn$;
+
+-- studio.acquire_zones: take all requested zones, or none.
+--   campus_not_found | forbidden (viewer) | ok {granted, denied}
+-- A zone is denied when another live lock (heartbeat < 5 min) is not held by this
+-- actor and session; sameActor tells "you have it open in another tab" apart.
+-- Re-acquiring a live lock of this actor and session only refreshes its heartbeat.
+CREATE OR REPLACE FUNCTION studio.acquire_zones(
+  p_campus     text,
+  p_actor      text,
+  p_actor_name text,
+  p_session    text,
+  p_zones      text[])
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_role   text;
+  v_name   text;
+  v_zones  text[];
+  v_denied jsonb;
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: actor is required.' USING ERRCODE = '22023';
+  END IF;
+  IF p_session IS NULL OR p_session = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: session is required.' USING ERRCODE = '22023';
+  END IF;
+  v_name := btrim(p_actor_name);
+  IF v_name IS NULL OR v_name = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: actor name is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF v_role = 'viewer' THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  v_zones := studio.lock_zone_keys(p_zones);
+
+  SELECT coalesce(
+           jsonb_agg(jsonb_build_object('zoneKey', zl.zone_key,
+                                        'holderName', zl.holder_name,
+                                        'since', zl.acquired_at,
+                                        'sameActor', zl.holder = p_actor)
+                     ORDER BY zl.zone_key COLLATE "C"),
+           '[]'::jsonb)
+    INTO v_denied
+    FROM studio.zone_locks AS zl
+   WHERE zl.campus_id = p_campus
+     AND zl.zone_key = ANY (v_zones)
+     AND zl.heartbeat_at > now() - interval '5 minutes'
+     AND NOT (zl.holder = p_actor AND zl.session_id = p_session);
+
+  IF jsonb_array_length(v_denied) > 0 THEN
+    RETURN jsonb_build_object('status', 'ok', 'granted', '[]'::jsonb, 'denied', v_denied);
+  END IF;
+
+  INSERT INTO studio.zone_locks AS zl
+    (campus_id, zone_key, holder, holder_name, session_id, acquired_at, heartbeat_at, last_edit_at)
+  SELECT p_campus, z.zone, p_actor, v_name, p_session, now(), now(), now()
+    FROM unnest(v_zones) AS z(zone)
+  ON CONFLICT (campus_id, zone_key) DO UPDATE
+    SET holder       = EXCLUDED.holder,
+        holder_name  = EXCLUDED.holder_name,
+        session_id   = EXCLUDED.session_id,
+        acquired_at  = CASE WHEN zl.holder = EXCLUDED.holder AND zl.session_id = EXCLUDED.session_id
+                                 AND zl.heartbeat_at > now() - interval '5 minutes'
+                            THEN zl.acquired_at ELSE EXCLUDED.acquired_at END,
+        heartbeat_at = now(),
+        last_edit_at = CASE WHEN zl.holder = EXCLUDED.holder AND zl.session_id = EXCLUDED.session_id
+                                 AND zl.heartbeat_at > now() - interval '5 minutes'
+                            THEN zl.last_edit_at ELSE EXCLUDED.last_edit_at END;
+
+  RETURN jsonb_build_object('status', 'ok', 'granted', to_jsonb(v_zones), 'denied', '[]'::jsonb);
+END
+$fn$;
+COMMENT ON FUNCTION studio.acquire_zones(text, text, text, text, text[]) IS
+  'Takes every requested zone for (actor, session) or none. See spec section 7.';
+
+-- studio.release_zones: delete the lock rows owned by this actor and session.
+CREATE OR REPLACE FUNCTION studio.release_zones(
+  p_campus  text,
+  p_actor   text,
+  p_session text,
+  p_zones   text[])
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_zones    text[];
+  v_released text[];
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: actor is required.' USING ERRCODE = '22023';
+  END IF;
+  IF p_session IS NULL OR p_session = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: session is required.' USING ERRCODE = '22023';
+  END IF;
+  v_zones := studio.lock_zone_keys(p_zones);
+
+  WITH gone AS (
+    DELETE FROM studio.zone_locks AS zl
+     WHERE zl.campus_id = p_campus
+       AND zl.zone_key = ANY (v_zones)
+       AND zl.holder = p_actor
+       AND zl.session_id = p_session
+    RETURNING zl.zone_key
+  )
+  SELECT coalesce(array_agg(g.zone_key ORDER BY g.zone_key COLLATE "C"), ARRAY[]::text[])
+    INTO v_released FROM gone AS g;
+
+  RETURN jsonb_build_object('status', 'ok', 'released', to_jsonb(v_released));
+END
+$fn$;
+COMMENT ON FUNCTION studio.release_zones(text, text, text, text[]) IS
+  'Releases the zones this actor and session hold; other rows are left alone.';
+
+-- studio.status: the status poll and the heartbeat in one call. Rows in p_held
+-- still owned by (actor, session) get a fresh heartbeat even when it had expired
+-- (nobody took them meanwhile). lostZones = held zones that are now missing or
+-- owned by another holder or session. locks = every live lock after the refresh.
+CREATE OR REPLACE FUNCTION studio.status(
+  p_campus  text,
+  p_actor   text,
+  p_session text,
+  p_held    text[])
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_head  bigint;
+  v_held  text[];
+  v_lost  jsonb;
+  v_locks jsonb;
+BEGIN
+  SELECT c.head_commit INTO v_head FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: actor is required.' USING ERRCODE = '22023';
+  END IF;
+  IF p_session IS NULL OR p_session = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: session is required.' USING ERRCODE = '22023';
+  END IF;
+  v_held := studio.lock_zone_keys(p_held);
+
+  UPDATE studio.zone_locks AS zl
+     SET heartbeat_at = now()
+   WHERE zl.campus_id = p_campus
+     AND zl.zone_key = ANY (v_held)
+     AND zl.holder = p_actor
+     AND zl.session_id = p_session;
+
+  SELECT coalesce(jsonb_agg(to_jsonb(h.zone) ORDER BY h.zone COLLATE "C"), '[]'::jsonb)
+    INTO v_lost
+    FROM unnest(v_held) AS h(zone)
+   WHERE NOT EXISTS (
+           SELECT 1 FROM studio.zone_locks AS zl
+            WHERE zl.campus_id = p_campus
+              AND zl.zone_key = h.zone
+              AND zl.holder = p_actor
+              AND zl.session_id = p_session);
+
+  SELECT coalesce(
+           jsonb_agg(jsonb_build_object('zoneKey', zl.zone_key,
+                                        'holderName', zl.holder_name,
+                                        'holderIsMe', zl.holder = p_actor AND zl.session_id = p_session,
+                                        'since', zl.acquired_at)
+                     ORDER BY zl.zone_key COLLATE "C"),
+           '[]'::jsonb)
+    INTO v_locks
+    FROM studio.zone_locks AS zl
+   WHERE zl.campus_id = p_campus
+     AND zl.heartbeat_at > now() - interval '5 minutes';
+
+  RETURN jsonb_build_object('status', 'ok', 'headCommit', v_head, 'locks', v_locks, 'lostZones', v_lost);
+END
+$fn$;
+COMMENT ON FUNCTION studio.status(text, text, text, text[]) IS
+  'Status poll and heartbeat: refreshes the caller''s held locks and lists every live lock.';
+
+-- studio.force_release: the owner's escape hatch ("Ana went home with the
+-- building locked"). Allowed for the campus owner or a super admin; everyone else
+-- (editor, viewer, non-member) gets forbidden and nothing is released.
+CREATE OR REPLACE FUNCTION studio.force_release(
+  p_campus               text,
+  p_actor                text,
+  p_zone                 text,
+  p_actor_is_super_admin boolean DEFAULT false)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+DECLARE
+  v_role     text;
+  v_zone     text[];
+  v_released integer;
+BEGIN
+  PERFORM 1 FROM studio.campuses AS c WHERE c.id = p_campus FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status', 'campus_not_found');
+  END IF;
+
+  IF p_actor IS NULL OR p_actor = '' THEN
+    RAISE EXCEPTION 'INVALID_ZONE: actor is required.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT m.role INTO v_role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor;
+  IF NOT (coalesce(p_actor_is_super_admin, false) OR coalesce(v_role = 'owner', false)) THEN
+    RETURN jsonb_build_object('status', 'forbidden');
+  END IF;
+
+  v_zone := studio.lock_zone_keys(ARRAY[p_zone]);
+
+  DELETE FROM studio.zone_locks AS zl WHERE zl.campus_id = p_campus AND zl.zone_key = v_zone[1];
+  GET DIAGNOSTICS v_released = ROW_COUNT;
+
+  RETURN jsonb_build_object('status', 'ok', 'released', v_released > 0);
+END
+$fn$;
+COMMENT ON FUNCTION studio.force_release(text, text, text, boolean) IS
+  'Owner or super admin removes any lock on a zone. See spec section 7.3.';
+
+REVOKE ALL ON FUNCTION studio.lock_zone_keys(text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.acquire_zones(text, text, text, text, text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.release_zones(text, text, text, text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.status(text, text, text, text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.force_release(text, text, text, boolean) FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA studio FROM anon';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA studio FROM authenticated';
+  END IF;
+END
+$$;
+
+GRANT EXECUTE ON FUNCTION studio.acquire_zones(text, text, text, text, text[]) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.release_zones(text, text, text, text[]) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.status(text, text, text, text[]) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.force_release(text, text, text, boolean) TO navi_studio_api;
+
 COMMIT;
