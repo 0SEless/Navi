@@ -13,6 +13,7 @@ declare module 'pg' {
     connect(): Promise<Queryable & { release(error?: Error): void }>
     query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]): Promise<QueryResult<Row>>
     end(): Promise<void>
+    on(event: 'error', listener: (error: Error) => void): this
   }
 
   export class Client implements Queryable {

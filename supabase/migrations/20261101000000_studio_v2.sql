@@ -1591,6 +1591,26 @@ $fn$;
 COMMENT ON FUNCTION studio.published_campuses() IS
   'Campuses NAVI Web may list: only those with a current publication.';
 
+-- studio.role_of: the actor's role in a campus for the server routes: members.role,
+-- 'editor' when the campus has no members row for the actor (the route has already
+-- checked that the caller is an admin), NULL when the campus does not exist.
+CREATE OR REPLACE FUNCTION studio.role_of(p_campus text, p_actor text)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = studio, pg_temp
+AS $fn$
+  SELECT CASE
+           WHEN NOT EXISTS (SELECT 1 FROM studio.campuses AS c WHERE c.id = p_campus) THEN NULL
+           ELSE coalesce(
+                  (SELECT m.role FROM studio.members AS m WHERE m.campus_id = p_campus AND m.user_id = p_actor),
+                  'editor')
+         END
+$fn$;
+COMMENT ON FUNCTION studio.role_of(text, text) IS
+  'Role of an actor in a campus: members.role, editor when there is no members row, NULL when the campus does not exist.';
+
 -- studio.prune (spec section 9): report, and unless p_dry_run delete, history no
 -- longer needed. Run by hand by the owner over an admin connection; not granted
 -- to the API role. Keeps:
@@ -1742,6 +1762,7 @@ REVOKE ALL ON FUNCTION studio.record_publication(text, bigint, jsonb, char, text
 REVOKE ALL ON FUNCTION studio.rollback_publication(text, bigint, text, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.current_publication(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.published_campuses() FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.role_of(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.prune(text, boolean, integer) FROM PUBLIC;
 
 DO $$
@@ -1766,6 +1787,7 @@ GRANT EXECUTE ON FUNCTION studio.record_publication(text, bigint, jsonb, char, t
 GRANT EXECUTE ON FUNCTION studio.rollback_publication(text, bigint, text, boolean) TO navi_studio_api;
 GRANT EXECUTE ON FUNCTION studio.current_publication(text) TO navi_studio_api;
 GRANT EXECUTE ON FUNCTION studio.published_campuses() TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.role_of(text, text) TO navi_studio_api;
 REVOKE ALL ON FUNCTION studio.prune(text, boolean, integer) FROM navi_studio_api;
 
 COMMIT;
