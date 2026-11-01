@@ -12,7 +12,7 @@ export interface BuildStatusProps {
 
 export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusProps) {
   const { services } = useEditor()
-  const { steps, percent, validate } = useWorkflow()
+  const { percent, validate, snapshot } = useWorkflow()
   const publishService = services.get('publish') as {
     getSnapshot: () => { publishState: string; publishError: string | null }
     subscribe: (l: () => void) => () => void
@@ -30,12 +30,24 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
     return publishService.subscribe(update)
   }, [publishService])
 
-  const errors = steps.validation.status === 'error'
-  const isReady = steps.validation.status === 'success'
+  // Owner decision (R70): warnings never block publishing; errors still do.
+  const lastValidation = snapshot?.lastValidation ?? null
+  const errorCount = lastValidation?.errors.length ?? 0
+  const warningCount = lastValidation ? Math.max(0, lastValidation.failed - errorCount) : 0
+  const errors = errorCount > 0
+  const isReady = lastValidation !== null && !errors
   const isPublished = publishState === 'success'
 
-  const statusColor = errors ? '#dc2626' : isReady ? '#16a34a' : '#9ca3af'
-  const statusLabel = errors ? 'Issues Found' : isReady ? 'Build Ready' : 'Not Validated'
+  const statusColor = errors ? '#dc2626' : isReady ? (warningCount > 0 ? '#d97706' : '#16a34a') : '#9ca3af'
+  const statusLabel = errors ? 'Issues Found' : isReady ? (warningCount > 0 ? 'Ready with warnings' : 'Build Ready') : 'Not Validated'
+
+  const startPublish = () => {
+    if (warningCount > 0) {
+      const plural = warningCount === 1 ? '' : 's'
+      if (!window.confirm(`${warningCount} warning${plural} found (see View issues). Publish anyway?`)) return
+    }
+    void publishService?.publish().catch(() => undefined)
+  }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -68,7 +80,7 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
           }}
         >{problemCount > 0 ? `⚠ View issues (${problemCount})` : 'View issues'}</button>
       )}
-      <button onClick={() => (v2Session ? void publishService?.publish().catch(() => undefined) : publishService?.publish())}
+      <button onClick={startPublish}
         disabled={!isReady || saveFirst || publishState === 'compiling' || publishState === 'uploading'}
         title={saveFirst ? SAVE_FIRST : undefined}
         style={{
