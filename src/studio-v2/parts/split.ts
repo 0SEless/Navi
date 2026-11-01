@@ -7,7 +7,7 @@
  *
  * Part shapes (rulings R3–R9):
  * - `campus`: schemaVersion, metadata (minus lastModified/editorVersion),
- *   buildingOrder, presentCollections, and when present boundary,
+ *   presentCollections, and when present boundary,
  *   connectivitySemanticsVersion, panoramas, orphanQrCheckpoints/orphanQrSortKeys.
  * - `building:<id>`: { building (without floors), floorOrder, qrCheckpoints, qrSortKeys }.
  * - `floor:<buildingId>:<floorId>`: the Floor minus the local-only fields.
@@ -164,7 +164,6 @@ export function splitDocument(doc: CampusDocument): SplitResult {
 
   // ── Buildings, floors and their QR checkpoints ─────────────────────────────
   const buildings = has(data, 'buildings') ? (requireArray(data.buildings, 'buildings') as Building[]) : []
-  const buildingOrder: string[] = []
   const qrByBuilding = new Map<string, { qrCheckpoints: QRCheckpoint[]; qrSortKeys: string[] }>()
 
   for (let b = 0; b < buildings.length; b++) {
@@ -174,7 +173,6 @@ export function splitDocument(doc: CampusDocument): SplitResult {
     // Filled below once every building id is known; the part holds these same arrays.
     const qrBucket = { qrCheckpoints: [] as QRCheckpoint[], qrSortKeys: [] as string[] }
     qrByBuilding.set(buildingId, qrBucket)
-    buildingOrder.push(buildingId)
 
     const floors = requireArray(building.floors, `building "${buildingId}" floors`) as Floor[]
     const floorOrder: string[] = []
@@ -200,7 +198,7 @@ export function splitDocument(doc: CampusDocument): SplitResult {
     }
 
     delete building.floors // private clone
-    parts.push({ key: partKey('building', buildingId), content: { building, floorOrder, qrCheckpoints: qrBucket.qrCheckpoints, qrSortKeys: qrBucket.qrSortKeys }, sortKey: null })
+    parts.push({ key: partKey('building', buildingId), content: { building, floorOrder, qrCheckpoints: qrBucket.qrCheckpoints, qrSortKeys: qrBucket.qrSortKeys }, sortKey: sortKeyFor(b) })
   }
 
   const orphanQrCheckpoints: QRCheckpoint[] = []
@@ -227,7 +225,6 @@ export function splitDocument(doc: CampusDocument): SplitResult {
     for (const field of STRIPPED_METADATA_FIELDS) delete metadata[field] // private clone
     campus.metadata = metadata
   }
-  campus.buildingOrder = buildingOrder
   campus.presentCollections = presentCollections
   if (has(data, 'boundary')) campus.boundary = data.boundary
   if (has(data, 'connectivitySemanticsVersion')) campus.connectivitySemanticsVersion = data.connectivitySemanticsVersion

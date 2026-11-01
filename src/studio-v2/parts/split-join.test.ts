@@ -157,7 +157,6 @@ describe('splitDocument mapping', () => {
     expect(campus).toEqual({
       schemaVersion: 1,
       metadata: { campusId: 'asu-ibajay', name: 'ASU Ibajay', description: 'Aklan State University, Ibajay campus (test fixture)' },
-      buildingOrder: ['osm:way/123', 'bld-sci'],
       presentCollections: ['areas', 'pois', 'roadJunctions', 'separatedCrossings'],
       boundary: doc.boundary,
       connectivitySemanticsVersion: '1.0.0',
@@ -186,7 +185,7 @@ describe('splitDocument mapping', () => {
     expect(Object.keys(legacyTerrain as object)).toEqual([])
 
     for (const part of parts) {
-      if (part.key.startsWith('map/')) continue
+      if (part.key.startsWith('map/') || part.key.startsWith('building:')) continue // R42: buildings carry an order sortKey
       expect(part.sortKey, part.key).toBeNull()
     }
   })
@@ -388,6 +387,33 @@ describe('splitDocument purity', () => {
     ;(joined.buildings[0].floors[0].planAlignment as unknown as Record<string, unknown>).scale = 0
     expect(partHashes(parts)).toEqual(hashesBefore)
     expect(localReferences).toEqual(localBefore)
+  })
+})
+
+describe('building order (R42)', () => {
+  it('building order travels on the building parts sortKey, not in the campus part', () => {
+    const { parts } = splitDocument(fixtureFull())
+    expect('buildingOrder' in (findPart(parts, partKey('campus')).content as Record<string, unknown>)).toBe(false)
+    expect(findPart(parts, partKey('building', 'osm:way/123')).sortKey).toBe('000000')
+    expect(findPart(parts, partKey('building', 'bld-sci')).sortKey).toBe('000001')
+  })
+
+  it('adding a building changes only its own parts, never the campus part', () => {
+    const doc = fixtureFull()
+    const before = partHashes(splitDocument(doc).parts)
+    const copy = structuredClone(doc.buildings[1])
+    copy.id = 'bld-new'
+    doc.buildings.push(copy)
+    const after = partHashes(splitDocument(doc).parts)
+    const changed = [...after.keys()].filter((key) => before.get(key) !== after.get(key)).sort()
+    expect(changed).toEqual([partKey('building', 'bld-new'), ...copy.floors.map((floor) => partKey('floor', 'bld-new', floor.id))].sort())
+  })
+
+  it('join restores building order from the sortKeys even when parts arrive shuffled', () => {
+    const doc = fixtureFull()
+    const { parts, localReferences } = splitDocument(doc)
+    const joined = joinParts([...parts].reverse(), localReferences)
+    expect(joined.buildings.map((building) => building.id)).toEqual(doc.buildings.map((building) => building.id))
   })
 })
 

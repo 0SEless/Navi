@@ -32,7 +32,7 @@ describe('checkPart: NAVI 1.5 content rules', () => {
     const issues = checkPart({
       key: 'campus',
       sortKey: null,
-      content: { schemaVersion: '1', metadata: {}, buildingOrder: [], presentCollections: [], panoramas: [{ id: 'p' }] },
+      content: { schemaVersion: '1', metadata: {}, presentCollections: [], panoramas: [{ id: 'p' }] },
     })
     expect(issues).toHaveLength(1)
     expect(issues[0]).toMatchObject({ key: 'campus', code: 'NOT_ALLOWED_IN_1_5', path: '/panoramas' })
@@ -42,7 +42,7 @@ describe('checkPart: NAVI 1.5 content rules', () => {
     const issues = checkPart({
       key: 'campus',
       sortKey: null,
-      content: { schemaVersion: '1', metadata: {}, buildingOrder: [], presentCollections: [], panoramas: [] },
+      content: { schemaVersion: '1', metadata: {}, presentCollections: [], panoramas: [] },
     })
     expect(issues).toEqual([])
   })
@@ -149,9 +149,9 @@ describe('checkPart: structure', () => {
     const issues = checkPart({
       key: 'campus',
       sortKey: null,
-      content: { buildingOrder: 'x', presentCollections: [1], metadata: [] },
+      content: { presentCollections: [1], metadata: [] },
     })
-    expect(issues.map((i) => i.path).sort()).toEqual(['/buildingOrder', '/metadata', '/presentCollections'])
+    expect(issues.map((i) => i.path).sort()).toEqual(['/metadata', '/presentCollections'])
   })
 
   it('validates terrain parts', () => {

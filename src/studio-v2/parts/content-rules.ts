@@ -133,7 +133,6 @@ function checkStructure(kind: PartKind, ids: string[], content: unknown, invalid
       return
     }
     case 'campus': {
-      if (!isStringArray(content.buildingOrder)) invalid('/buildingOrder', '"buildingOrder" must be an array of strings.')
       if (!isStringArray(content.presentCollections)) {
         invalid('/presentCollections', '"presentCollections" must be an array of strings.')
       }

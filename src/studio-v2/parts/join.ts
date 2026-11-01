@@ -5,7 +5,7 @@
  *   never recreated.
  * - `metadata.lastModified` / `metadata.editorVersion` come from `opts`,
  *   defaulting to '1970-01-01T00:00:00.000Z' and ''.
- * - Buildings follow campus.buildingOrder, floors follow each building's
+ * - Buildings follow their parts' sortKey (R42), floors follow each building's
  *   floorOrder, QR checkpoints and map items follow their sort keys.
  * - Optional map collections are recreated when listed in
  *   campus.presentCollections (even if empty) and omitted otherwise.
@@ -103,17 +103,21 @@ export function joinParts(parts: PartRecord[], local?: LocalFloorReference[], op
 
   // ── Campus ─────────────────────────────────────────────────────────────────
   const campus = asRecord(take(partKey('campus'), 'campus'), 'campus part')
-  const buildingOrder = asStringArray(campus.buildingOrder, 'campus.buildingOrder')
   const presentCollections = new Set(asStringArray(campus.presentCollections ?? [], 'campus.presentCollections'))
 
   // ── Buildings, floors, QR checkpoints ──────────────────────────────────────
   const qrs: Array<Sorted<unknown>> = []
   const buildings: AnyRecord[] = []
   const floorIndex = new Map<string, AnyRecord>()
-  const seenBuildings = new Set<string>()
-  for (const buildingId of buildingOrder) {
-    if (seenBuildings.has(buildingId)) fail(`campus.buildingOrder lists "${buildingId}" twice.`)
-    seenBuildings.add(buildingId)
+  // R42: building order travels on each building part's sortKey (not in the campus part),
+  // so adding a building never touches the strictly-locked campus zone.
+  const buildingParts: Array<Sorted<string>> = []
+  for (const part of byKey.values()) {
+    const parsed = parsePartKey(part.key)
+    if (parsed.kind === 'building') buildingParts.push({ sortKey: part.sortKey, key: part.key, value: parsed.ids[0] })
+  }
+  buildingParts.sort(bySortKeyThenKey)
+  for (const { value: buildingId } of buildingParts) {
     const key = partKey('building', buildingId)
     const content = asRecord(take(key, 'building'), `part "${key}"`)
     const building = asRecord(content.building, `part "${key}".building`)
