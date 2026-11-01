@@ -4,6 +4,7 @@
 // saved), derives the dirty parts by splitting the editor document and comparing hashes,
 // and sends only those parts on an explicit Save. It never saves on its own.
 import type { CampusDocument } from '@navi/core'
+import { CONNECTIVITY_CONTRACT_VERSION } from '@navi/core'
 import { canonicalJson, fastHash } from '../parts/canonical'
 import type { PartIssue } from '../parts/content-rules'
 import { STUDIO_BODY_MAX_BYTES } from '../parts/limits'
@@ -52,14 +53,18 @@ const UUID_PLACEHOLDER = '00000000-0000-4000-8000-000000000000'
 const encoder = new TextEncoder()
 
 /**
- * The dirty hash of a part. The campus part's `presentCollections` only says whether an
- * empty optional map collection is [] or absent; the editor drops empty ones on load, and
- * that must not dirty the strictly-locked campus part (R52). It is still sent whenever the
- * campus part is saved for a real change.
+ * The dirty hash of a part. Two campus-part fields are normalised so that opening a campus
+ * never dirties the strictly-locked campus part; both are still sent whenever the campus part
+ * is saved for a real change:
+ * - `presentCollections` only says whether an empty optional map collection is [] or absent,
+ *   and the editor drops empty ones on load (R52);
+ * - a missing `connectivitySemanticsVersion` means the current contract: the editor stamps
+ *   it on open (GraphAdapter.sync) (R68).
  */
 export function partHash(key: PartKey, content: unknown): string {
-  if (key === 'campus' && content && typeof content === 'object' && 'presentCollections' in content) {
+  if (key === 'campus' && content && typeof content === 'object') {
     const { presentCollections: _ignored, ...rest } = content as Record<string, unknown>
+    if (rest.connectivitySemanticsVersion === undefined) rest.connectivitySemanticsVersion = CONNECTIVITY_CONTRACT_VERSION
     return fastHash(canonicalJson(rest))
   }
   return fastHash(canonicalJson(content))

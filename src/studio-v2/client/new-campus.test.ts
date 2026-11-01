@@ -67,6 +67,8 @@ describe('saveNewCampus (campus wizard under Save v2)', () => {
     expect(keys).toContain('campus')
     expect(keys).toContain('building:osm-1')
     expect(body.changes.find((change) => change.partKey === 'campus')).toMatchObject({ op: 'put' })
+    // R68: saved with the connectivity stamp the editor adds on open, so it opens clean.
+    expect((body.changes.find((change) => change.partKey === 'campus') as { content: Record<string, unknown> }).content.connectivitySemanticsVersion).toBe('1.0.0')
     expect(session.zones.held()).toEqual([])
   })
 

@@ -29,3 +29,12 @@ TypeScript (`tsc --noEmit -p .`): 1122 diagnostics matching `error TS` (`baselin
 ## Test database
 
 Container `navi-savev2-pg`, image `postgres:17-alpine` (the plan's `postgres:17` is not present locally; nothing was pulled), bound to 127.0.0.1:55434 only, restart policy `no`. Database `navi_savev2_test` carries the comment marker `navi-savev2-synthetic-v1`. The password is generated into `%LOCALAPPDATA%\navi-savev2\pg-password.txt` and is not recorded here.
+
+## 2026-11-01 — Task 20 (owner: "Approve Task 20")
+- Supabase project created: `navi-studio-v2`, ref `ztbnicoiwjghzttchqmp`, region `ap-southeast-1` (Singapore), org `gmikzinflknxypoddaiu`, Free plan — quoted cost $0/month (confirmed under the owner's Task 20 approval).
+- The protected Development project `scvgulusmutnzasmgysx` is untouched.
+- Schema applied to `ztbnicoiwjghzttchqmp` as 4 migrations (studio_v2_part1..4, the file split at top-level statement boundaries; the file's BEGIN/COMMIT dropped because each migration is its own transaction). Verified identical to the local test database: 154 schema objects, fingerprint `db3dd764ac1b10c928affdbda09e1fe3` on both (function bodies, columns, constraints, indexes, RLS, grants).
+- Login role `navi_studio_server` (member of `navi_studio_api`; EXECUTE on the studio functions only, no prune, no table reads) — created WITHOUT a password; the owner sets it in the Supabase dashboard.
+- Owner chose Vercel project `navi-dev-studio` (previews only; live site untouched) and admin login through the new project.
+- `navi-dev-studio`: function region `sin1` (resourceConfig.functionDefaultRegions); Preview env: NEXT_PUBLIC_NAVI_SAVE_V2=1, NAVI_SAVE_V2_PUBLIC_READ=1, NAVI_STUDIO_ALLOWED_DB_REF=ztbnicoiwjghzttchqmp, NEXT_PUBLIC_SUPABASE_URL → https://ztbnicoiwjghzttchqmp.supabase.co (was the Dev project).
+- Waiting on the owner (secrets never pass through tooling): NAVI_STUDIO_DATABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NAVI_STUDIO_DB_CA_PEM, NAVI_ADMIN_EMAILS, the navi_studio_server password, two admin accounts.

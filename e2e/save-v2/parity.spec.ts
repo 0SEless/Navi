@@ -415,6 +415,9 @@ test('P1 — create a campus with the wizard (OSM import stubbed), list it, dele
   expect((await firstSave).status()).toBe(200)
   await ana.page.getByRole('button', { name: /Continue to Editor/ }).click()
   await expect(ana.page.getByRole('treeitem', { name: /Bldg No\. 1/ })).toBeVisible({ timeout: 60_000 })
+  // A campus fresh from the wizard opens clean (R68): nothing to save, status "Saved · #1".
+  await expect(ana.page.getByText(/Saved · #1/).first()).toBeVisible()
+  expect(await ana.page.evaluate(() => (window as unknown as { __naviStudioV2: { session: { isDirty(): boolean } } }).__naviStudioV2.session.isDirty())).toBe(false)
 
   // Fresh context: the campus and its imported building come from Save v2.
   const fresh = await freshDocumentReady(browser, campusId)

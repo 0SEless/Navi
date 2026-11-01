@@ -305,3 +305,23 @@ describe('SaveController.refresh after a failed save', () => {
     expect(states.at(-1)).toBe('clean')
   })
 })
+
+describe('SaveController — connectivity stamp (R68)', () => {
+  it('a campus saved without connectivitySemanticsVersion is not dirty once the editor stamps the current version', () => {
+    const doc = fixtureFull()
+    delete (doc as Partial<CampusDocument>).connectivitySemanticsVersion
+    const controller = controllerFor(doc, fakeApi(async (body) => okReply(body)))
+    const stamped = structuredClone(doc)
+    stamped.connectivitySemanticsVersion = '1.0.0'
+    expect(controller.dirtyParts(stamped)).toEqual([])
+  })
+
+  it('a different connectivity version is still a real change', () => {
+    const doc = fixtureFull()
+    doc.connectivitySemanticsVersion = '1.0.0'
+    const controller = controllerFor(doc, fakeApi(async (body) => okReply(body)))
+    const changed = structuredClone(doc)
+    changed.connectivitySemanticsVersion = '2.0.0'
+    expect(controller.dirtyParts(changed)).toEqual(['campus'])
+  })
+})
