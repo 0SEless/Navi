@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl'
 import { findTerrainElevationConflicts, type TerrainArea, type TerrainVerticalDatum } from '@navi/core'
 import { useEditor } from '@navi/editor'
 import { terrainAreasToGeoJSON } from './terrain-area-geojson'
+import { useEnsureZone } from './v2/ZoneProvider'
 
 const SOURCE_ID = 'navi-authored-terrain-areas'
 const FILL_ID = 'navi-authored-terrain-areas-fill'
@@ -20,6 +21,8 @@ const panelStyle: React.CSSProperties = {
 
 export function TerrainAreaAuthoring({ map }: { map: maplibregl.Map }) {
   const { document, services } = useEditor()
+  // Save v2: the terrain editor is one admin at a time (no-op when Save v2 is off).
+  const ensureZone = useEnsureZone()
   const dispatcher = services.get('dispatcher')
   const areas = document.terrainAreas ?? EMPTY_TERRAIN_AREAS
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -152,6 +155,7 @@ export function TerrainAreaAuthoring({ map }: { map: maplibregl.Map }) {
       marker.getElement().dataset.testid = 'terrain-vertex-handle'
       marker.getElement().setAttribute('aria-label', `Terrain boundary vertex ${index + 1}`)
       marker.on('dragstart', () => {
+        void ensureZone(['terrain'])
         gestureEventsRef.current = 0
         gestureActiveRef.current = true
         setGestureCommands(0)
@@ -184,6 +188,12 @@ export function TerrainAreaAuthoring({ map }: { map: maplibregl.Map }) {
   }, [dispatcher, editingBoundary, map, selectedArea])
 
   const beginDrawing = () => {
+    void ensureZone(['terrain']).then((granted) => {
+      if (granted) startDrawing()
+    })
+  }
+
+  const startDrawing = () => {
     setSelectedId(null)
     selectedIdRef.current = null
     setName('')

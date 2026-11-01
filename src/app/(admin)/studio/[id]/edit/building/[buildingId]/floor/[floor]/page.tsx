@@ -18,6 +18,9 @@ import { isStudioDurableScopedSaveEnabled } from '@/services/studio-scoped-histo
 import { flushScopedSaveBoundary } from '@/services/scoped-save-boundary'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 import { adoptRecoveredEditorDocument } from '@/components/studio/adopt-recovered-editor-document'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { ZoneProvider } from '@/components/studio/v2/ZoneProvider'
+import { FloorZoneGate } from '@/components/studio/v2/FloorZoneGate'
 
 export default function FloorEditorPage({ params }: { params: Promise<{ id: string; buildingId: string; floor: string }> }) {
   const { id: mapId, buildingId, floor: floorStr } = use(params)
@@ -39,10 +42,17 @@ export default function FloorEditorPage({ params }: { params: Promise<{ id: stri
     )
   }
 
-  return (
+  const editor = (
     <StudioLocalDraftRecoveryGate>
       <FloorEditorBridge mapId={mapId} buildingId={buildingId} floor={floor} />
     </StudioLocalDraftRecoveryGate>
+  )
+  if (!isSaveV2Enabled()) return editor
+  // Save v2: the floor editor opens the building, so it needs the building lock first.
+  return (
+    <ZoneProvider campusId={mapId} showDenials={false}>
+      <FloorZoneGate buildingId={buildingId}>{editor}</FloorZoneGate>
+    </ZoneProvider>
   )
 }
 

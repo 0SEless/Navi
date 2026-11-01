@@ -8,6 +8,9 @@ import type { ExplorerNode, EntityId, EntitySelector } from '@navi/editor'
 import { ExplorerContextMenu } from './ExplorerContextMenu'
 import type { ContextMenuAction } from './ExplorerContextMenu'
 import { getExplorerActions } from './getExplorerActions'
+import { ZoneBadge } from './v2/ZoneBadge'
+import { useForeignLock } from './v2/ZoneProvider'
+import { buildingZone } from '@/studio-v2/client/zone-client'
 
 interface ExplorerItemProps {
   node: ExplorerNode
@@ -50,6 +53,9 @@ function ExplorerItemImpl({
   contextMenuActions,
 }: ExplorerItemProps) {
   const hasChildren = node.children && node.children.length > 0
+  // Save v2: a building another admin is editing shows a lock badge and cannot be deleted
+  // here (no provider = flag off = no lock, unchanged behaviour).
+  const foreignLock = useForeignLock(node.type === 'building' ? buildingZone(String(node.id)) : null)
 
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(node.label)
@@ -88,11 +94,11 @@ function ExplorerItemImpl({
       getExplorerActions(node, {
         onRename: () => handleDoubleClick(),
         onDelete:
-          node.type === 'campus'
+          node.type === 'campus' || foreignLock
             ? undefined
             : (id) => onDelete?.(id as EntityId),
       }),
-    [contextMenuActions, node, onRename, onDelete, handleDoubleClick],
+    [contextMenuActions, node, onRename, onDelete, handleDoubleClick, foreignLock],
   )
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -175,6 +181,7 @@ function ExplorerItemImpl({
           {node.type === 'floor' && (node.meta as any)?.hasPlan && (
             <span title="Floor plan uploaded" style={{ fontSize: 10, opacity: 0.8 }}>🖼</span>
           )}
+          {foreignLock && <ZoneBadge lock={foreignLock} />}
         </span>
       )}
     </div>

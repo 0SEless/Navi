@@ -18,6 +18,9 @@ import { resolveValidationFocus } from './validation-focus'
 import { traceScopedSaveDevelopment } from '@/services/scoped-save-diagnostics'
 import { SyncIssueCard, deriveSyncIssue } from './SyncIssueCard'
 import type { ValidationFocus } from '@/types/studio-types'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { ZoneProvider } from './v2/ZoneProvider'
+import { CampusToolZoneGuard } from './v2/CampusToolZoneGuard'
 
 interface ValidationViewport {
   flyTo: (center: LatLng, options?: { zoom?: number; duration?: number }) => void
@@ -271,7 +274,7 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
     if (bounds) viewport.fitBounds(bounds, { padding: 80, duration: 350 })
   }, [document, resolveFocus, selection, services])
 
-  return (
+  const workspace = (
     <div data-editor-ready="true" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -404,5 +407,13 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
       )}
       <ToolDock />
     </div>
+  )
+  if (!isSaveV2Enabled()) return workspace
+  // Save v2: zone locks (building / terrain / campus) for this campus.
+  return (
+    <ZoneProvider campusId={document.metadata.campusId}>
+      <CampusToolZoneGuard />
+      {workspace}
+    </ZoneProvider>
   )
 }
