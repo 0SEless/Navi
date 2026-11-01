@@ -12,13 +12,12 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
 import { checkPart, checkSettings, STUDIO_PART_MAX_BYTES, type PartIssue } from '../parts/content-rules'
+import { STUDIO_BODY_MAX_BYTES, STUDIO_SESSION_HEADER } from '../parts/limits'
 import { parsePartKey } from '../parts/part-keys'
 import type { StudioRepo } from './studio-repo'
 import type { SaveChange, SaveInput } from './types'
 
-export const STUDIO_SESSION_HEADER = 'x-navi-studio-session'
-/** 4 MiB: Vercel rejects larger request bodies (4.5 MB) before a handler runs. */
-export const STUDIO_BODY_MAX_BYTES = 4 * 1024 * 1024
+export { STUDIO_BODY_MAX_BYTES, STUDIO_SESSION_HEADER }
 
 const SESSION_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MUTATION_CONSTRAINT = 'commits_campus_id_mutation_id_key'
