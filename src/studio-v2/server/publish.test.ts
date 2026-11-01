@@ -510,3 +510,33 @@ describe('route file', () => {
     expect(route.runtime).toBe('nodejs')
   })
 })
+
+describe('server-safe imports (the publish route runs in the react-server layer)', () => {
+  const ROUTE_NETWORK = '@navi/editor/src/validation/rules/modules/route-network'
+  const specifiers = (file: string, typeOnly: boolean) => {
+    const source = readFileSync(file, 'utf8')
+    const found: string[] = []
+    for (const match of source.matchAll(/^\s*(import|export)\s+(type\s+)?[^'"]*?from\s+['"]([^'"]+)['"]/gm)) {
+      if (typeOnly || !match[2]) found.push(match[3])
+    }
+    for (const match of source.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)) found.push(match[1])
+    return found
+  }
+
+  it('publish-handlers.ts never imports the @navi/editor root, the validation barrel or editor context', () => {
+    const imports = specifiers(join(__dirname, 'publish-handlers.ts'), true)
+    expect(imports).toContain(ROUTE_NETWORK)
+    for (const spec of imports) {
+      expect(spec).not.toBe('@navi/editor')
+      expect(spec).not.toMatch(/^@navi\/editor\/src\/context(\/|$)/)
+      expect(spec).not.toMatch(/^@navi\/editor\/src\/validation(\/index)?$/)
+      if (spec.startsWith('@navi/editor/')) expect(spec).toBe(ROUTE_NETWORK)
+      expect(spec).not.toMatch(/(^|\/)packages\//)
+    }
+  })
+
+  it('route-network.ts has no runtime import other than @navi/core', () => {
+    const file = join(__dirname, '../../../packages/editor/src/validation/rules/modules/route-network.ts')
+    expect(specifiers(file, false)).toEqual(['@navi/core'])
+  })
+})

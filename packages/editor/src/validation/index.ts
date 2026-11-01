@@ -9,5 +9,3 @@ export { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass, SpatialInde
 export { ValidationEngine } from './validation-engine'
 export type { ValidationIssuePresentation } from './presentation'
 export { presentValidationIssue } from './presentation'
-// Publish hard gate (route connectivity), shared by PublishService and the Save v2 server publish.
-export { validateRouteNetwork } from './rules/modules/route-network'

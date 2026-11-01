@@ -16,9 +16,10 @@
 // Nothing here logs artifacts, part contents or request bodies.
 import { CampusCompiler, validateNavigationArtifacts } from '@navi/compiler'
 import type { CampusDocument } from '@navi/core'
-// The editor's public validation entry (not the package root, which also pulls the
-// client-only panels into this server route).
-import { validateRouteNetwork } from '@navi/editor/src/validation'
+// Imported from its own module, never the @navi/editor root or the validation barrel:
+// those re-export React context/hooks (createContext) that break the server route layer.
+// route-network.ts imports only @navi/core at runtime (plus type-only imports).
+import { validateRouteNetwork } from '@navi/editor/src/validation/rules/modules/route-network'
 import { assertCampusMutationAllowed } from '../../lib/api-guard'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
 import { joinParts } from '../parts/join'
