@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureFull, fixtureLarge, fixtureWith15Violations } from '../__fixtures__/campus-fixtures'
 import { canonicalJson } from './canonical'
-import { STUDIO_PART_MAX_BYTES, checkPart, type PartIssue } from './content-rules'
+import { STUDIO_PART_MAX_BYTES, checkPart, checkSettings, type PartIssue } from './content-rules'
 import { partKey } from './part-keys'
 import { splitDocument, type PartRecord } from './split'
 
@@ -213,5 +213,26 @@ describe('checkPart: fixtures', () => {
         `floor:${building}:bib%2Fground|/rooms/0/metadata/embeddedImage`,
       ].sort(),
     )
+  })
+})
+
+describe('checkSettings', () => {
+  it('accepts ordinary settings', () => {
+    expect(checkSettings({ theme: 'x', map: { imageUrl: 'https://example.org/a.png' } })).toEqual([])
+  })
+
+  it('flags embedded data URIs with their path', () => {
+    const issues = checkSettings({ map: { imageUrl: 'data:image/png;base64,AAAA' }, list: ['data:text/plain;base64,QQ=='] })
+    expect(issues.map((i) => [i.code, i.path]).sort()).toEqual([
+      ['NOT_ALLOWED_IN_1_5', '/list/0'],
+      ['NOT_ALLOWED_IN_1_5', '/map/imageUrl'],
+    ])
+  })
+
+  it('flags oversize settings and never throws on circular input', () => {
+    expect(checkSettings({ n: 'x'.repeat(STUDIO_PART_MAX_BYTES + 1) })[0].code).toBe('TOO_LARGE')
+    const loop: Record<string, unknown> = {}
+    loop.self = loop
+    expect(checkSettings(loop)[0].code).toBe('INVALID_PART')
   })
 })

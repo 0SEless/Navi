@@ -213,3 +213,30 @@ export function checkPart(record: PartRecord): PartIssue[] {
 
   return issues
 }
+
+/**
+ * Checks campus settings (the studio.campuses.settings object, which published_campuses
+ * later exposes publicly): canonical size within STUDIO_PART_MAX_BYTES and no embedded
+ * data: URI anywhere. Never throws. Shape (a JSON object) is the caller's check.
+ */
+export function checkSettings(settings: unknown): PartIssue[] {
+  const key = 'settings'
+  let json: string | undefined
+  try {
+    json = canonicalJson(settings)
+  } catch {
+    return [{ key, code: 'INVALID_PART', path: '', message: 'Settings are not JSON-serializable.' }]
+  }
+  if (json === undefined) {
+    return [{ key, code: 'INVALID_PART', path: '', message: 'Settings are not JSON-serializable.' }]
+  }
+  const issues: PartIssue[] = []
+  const bytes = utf8Length(json)
+  if (bytes > STUDIO_PART_MAX_BYTES) {
+    issues.push({ key, code: 'TOO_LARGE', path: '', message: `Settings are ${bytes} bytes; the maximum is ${STUDIO_PART_MAX_BYTES}.` })
+  }
+  for (const path of findDataUris(settings)) {
+    issues.push({ key, code: 'NOT_ALLOWED_IN_1_5', path, message: 'Embedded base64 data URIs are not allowed in NAVI 1.5.' })
+  }
+  return issues
+}

@@ -11,13 +11,14 @@
 // part contents or secrets.
 import { createHash } from 'node:crypto'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
-import { checkPart, STUDIO_PART_MAX_BYTES, type PartIssue } from '../parts/content-rules'
+import { checkPart, checkSettings, STUDIO_PART_MAX_BYTES, type PartIssue } from '../parts/content-rules'
 import { parsePartKey } from '../parts/part-keys'
 import type { StudioRepo } from './studio-repo'
 import type { SaveChange, SaveInput } from './types'
 
 export const STUDIO_SESSION_HEADER = 'x-navi-studio-session'
-export const STUDIO_BODY_MAX_BYTES = 8 * 1024 * 1024
+/** 4 MiB: Vercel rejects larger request bodies (4.5 MB) before a handler runs. */
+export const STUDIO_BODY_MAX_BYTES = 4 * 1024 * 1024
 
 const SESSION_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MUTATION_CONSTRAINT = 'commits_campus_id_mutation_id_key'
@@ -131,6 +132,14 @@ function responseForError(error: unknown, route: string): Response {
   return json(500, { code: 'INTERNAL' })
 }
 
+/** Settings must be a JSON object within the size limit with no embedded files (R31). */
+function requireSettings(value: unknown): AnyRecord {
+  if (!isRecord(value)) fail(400, 'INVALID_REQUEST', { message: 'settings must be an object.' })
+  const issues = checkSettings(value)
+  if (issues.length > 0) fail(400, issues[0].code === 'INVALID_PART' ? 'INVALID_REQUEST' : issues[0].code, { details: issues })
+  return value
+}
+
 function sha256OfBytes(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
 }
@@ -164,6 +173,18 @@ function parseChanges(raw: unknown): RawChange[] {
   })
 }
 
+function keyKind(key: string): string | null {
+  try {
+    return parsePartKey(key).kind
+  } catch {
+    return null
+  }
+}
+
+function opIssue(key: string, message: string): PartIssue {
+  return { key, code: 'INVALID_PART', path: '/op', message }
+}
+
 /** Validates every change and builds the server-checksummed changes for studio.save. */
 async function buildSaveChanges(raw: RawChange[]): Promise<SaveChange[]> {
   const issues: PartIssue[] = []
@@ -178,6 +199,16 @@ async function buildSaveChanges(raw: RawChange[]): Promise<SaveChange[]> {
 
     if (change.op === 'delete') {
       built.push({ ...base, op: 'delete' })
+      continue
+    }
+
+    const kind = keyKind(change.partKey)
+    if (kind === 'terrain-tile' && change.op === 'put') {
+      issues.push(opIssue(change.partKey, 'A terrain tile is binary: use put-bin, not put.'))
+      continue
+    }
+    if (kind !== null && kind !== 'terrain-tile' && change.op === 'put-bin') {
+      issues.push(opIssue(change.partKey, 'put-bin is only allowed for terrain-tile parts.'))
       continue
     }
 
@@ -287,10 +318,8 @@ export function createStudioHandlers(deps: StudioHandlerDeps) {
         if (typeof body.name !== 'string' || body.name.trim() === '') {
           fail(400, 'INVALID_REQUEST', { message: 'name is required.' })
         }
-        if (body.settings !== undefined && !isRecord(body.settings)) {
-          fail(400, 'INVALID_REQUEST', { message: 'settings must be an object.' })
-        }
-        const result = await repo.createCampus(campusId, body.name, actor.id, (body.settings as AnyRecord) ?? {})
+        const settings = body.settings === undefined ? {} : requireSettings(body.settings)
+        const result = await repo.createCampus(campusId, body.name, actor.id, settings)
         if (result.status === 'exists') return json(409, { code: 'CAMPUS_EXISTS' })
         return json(201, { campusId: result.campusId })
       })
@@ -304,12 +333,12 @@ export function createStudioHandlers(deps: StudioHandlerDeps) {
         if (body.name !== undefined && body.name !== null && typeof body.name !== 'string') {
           fail(400, 'INVALID_REQUEST', { message: 'name must be a string.' })
         }
-        if (!isRecord(body.settings)) fail(400, 'INVALID_REQUEST', { message: 'settings must be an object.' })
+        const settings = requireSettings(body.settings)
         const result = await repo.updateCampusSettings(
           campusId,
           actor.id,
           typeof body.name === 'string' ? body.name : null,
-          body.settings,
+          settings,
         )
         if (result.status === 'forbidden') return json(403, { code: 'FORBIDDEN' })
         if (result.status === 'campus_not_found') return json(404, { code: 'CAMPUS_NOT_FOUND' })

@@ -431,16 +431,31 @@ describe('authentication, session and body limit', () => {
     expect((await handlers.locks(post('/x', { campusId: 'c1', acquire: ['campus'] }))).status).toBe(403)
   })
 
-  it('413 when the body exceeds 8 MB', async () => {
+  it('the body limit is 4 MiB', () => {
+    expect(STUDIO_BODY_MAX_BYTES).toBe(4_194_304)
+  })
+
+  it('413 when the body is just over 4 MiB, and not 413 when exactly at the limit', async () => {
     const { handlers, repo } = setup()
-    const huge = JSON.stringify(saveBody([], { message: 'x'.repeat(STUDIO_BODY_MAX_BYTES + 1) }))
-    const response = await handlers.save(post('/x', huge))
+    repo.save.mockResolvedValue({ ...okSave, commitNo: null, parts: [] })
+    const sized = (bytes: number) => {
+      const base = JSON.stringify(saveBody([], { message: '' }))
+      return JSON.stringify(saveBody([], { message: 'x'.repeat(bytes - Buffer.byteLength(base)) }))
+    }
+    const over = sized(STUDIO_BODY_MAX_BYTES + 1)
+    expect(Buffer.byteLength(over)).toBe(STUDIO_BODY_MAX_BYTES + 1)
+    const response = await handlers.save(post('/x', over))
     expect(response.status).toBe(413)
     expect(await bodyOf(response)).toEqual({ code: 'BODY_TOO_LARGE' })
     expect(repo.save).not.toHaveBeenCalled()
+
+    const under = sized(STUDIO_BODY_MAX_BYTES)
+    expect(Buffer.byteLength(under)).toBe(STUDIO_BODY_MAX_BYTES)
+    expect((await handlers.save(post('/x', under))).status).toBe(200)
+    expect(repo.save).toHaveBeenCalledTimes(1)
   })
 
-  it('413 early when Content-Length already exceeds 8 MB', async () => {
+  it('413 early when Content-Length already exceeds 4 MiB', async () => {
     const { handlers } = setup()
     const request = post('/x', saveBody([]), {
       'x-navi-studio-session': SESSION,
@@ -452,8 +467,8 @@ describe('authentication, session and body limit', () => {
 
   it('counts UTF-8 bytes, not characters, against the limit', async () => {
     const { handlers } = setup()
-    // 3 bytes per character: fewer than 8M characters but more than 8 MB.
-    const wide = JSON.stringify(saveBody([], { message: '€'.repeat(3_000_000) }))
+    // 3 bytes per character: fewer than 4M characters but more than 4 MiB.
+    const wide = JSON.stringify(saveBody([], { message: '€'.repeat(1_500_000) }))
     expect(wide.length).toBeLessThan(STUDIO_BODY_MAX_BYTES)
     const response = await handlers.save(post('/x', wide))
     expect(response.status).toBe(413)
@@ -491,6 +506,92 @@ describe('authentication, session and body limit', () => {
     expect(body.code).toBe('SAVE_V2_NOT_CONFIGURED')
     expect(JSON.stringify(body)).not.toContain('Save v2 cannot reach')
     expect((await handlers.listCampuses(new Request('http://localhost/x'))).status).toBe(503)
+  })
+})
+
+describe('save: op rules (R30)', () => {
+  const smuggled = Buffer.from(
+    JSON.stringify({ id: 'F1', planImageId: 'img', image: 'data:image/png;base64,AAAA' }),
+  ).toString('base64')
+
+  it.each([
+    ['floor put-bin', { partKey: 'floor:B1:F1', expectedVersion: 0, op: 'put-bin', contentBase64: smuggled }],
+    ['campus put-bin', { partKey: 'campus', expectedVersion: 0, op: 'put-bin', contentBase64: smuggled }],
+    ['map item put-bin', { partKey: 'map/road:r1', expectedVersion: 0, op: 'put-bin', contentBase64: smuggled, sortKey: 'a0' }],
+    ['terrain-tile put', { partKey: 'terrain-tile:t1', expectedVersion: 0, op: 'put', content: { a: 1 } }],
+  ])('%s -> 400 INVALID_PART on /op, repository not called', async (_name, change) => {
+    const { handlers, repo } = setup()
+    const response = await handlers.save(post('/x', saveBody([change])))
+    expect(response.status).toBe(400)
+    const body = await bodyOf(response)
+    expect(body.code).toBe('INVALID_PART')
+    expect(body.details).toEqual([
+      expect.objectContaining({ key: change.partKey, code: 'INVALID_PART', path: '/op' }),
+    ])
+    expect(repo.save).not.toHaveBeenCalled()
+  })
+
+  it('terrain-tile put-bin passes through; deleting any part is unaffected', async () => {
+    const { handlers, repo } = setup()
+    repo.save.mockResolvedValue(okSave)
+    const response = await handlers.save(
+      post(
+        '/x',
+        saveBody([
+          { partKey: 'terrain-tile:t1', expectedVersion: 0, op: 'put-bin', contentBase64: 'AAEC' },
+          { partKey: 'floor:B1:F1', expectedVersion: 2, op: 'delete' },
+        ]),
+      ),
+    )
+    expect(response.status).toBe(200)
+    expect(repo.save).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('campus settings (R31)', () => {
+  const dataUri = 'data:image/png;base64,iVBORw0KGgo='
+  const cases: Array<[string, (h: ReturnType<typeof setup>['handlers'], settings: unknown) => Promise<Response>]> = [
+    ['create', (h, settings) => h.createCampus(post('/x', { campusId: 'c1', name: 'n', settings }, {}))],
+    ['update', (h, settings) => h.updateCampus(post('/x', { campusId: 'c1', settings }, {}))],
+  ]
+
+  describe.each(cases)('%s', (_name, call) => {
+    it('a data: URI anywhere in settings -> 400 NOT_ALLOWED_IN_1_5', async () => {
+      const { handlers, repo } = setup()
+      const response = await call(handlers, { map: { imageUrl: dataUri } })
+      expect(response.status).toBe(400)
+      const body = await bodyOf(response)
+      expect(body.code).toBe('NOT_ALLOWED_IN_1_5')
+      expect(body.details).toEqual([expect.objectContaining({ code: 'NOT_ALLOWED_IN_1_5', path: '/map/imageUrl' })])
+      expect(repo.createCampus).not.toHaveBeenCalled()
+      expect(repo.updateCampusSettings).not.toHaveBeenCalled()
+    })
+
+    it('non-object settings -> 400 INVALID_REQUEST', async () => {
+      const { handlers } = setup()
+      for (const settings of [[], 'x', 5, null]) {
+        const response = await call(handlers, settings)
+        expect(response.status).toBe(400)
+        expect((await bodyOf(response)).code).toBe('INVALID_REQUEST')
+      }
+    })
+
+    it('oversize settings -> 400 TOO_LARGE', async () => {
+      const { handlers, repo } = setup()
+      const response = await call(handlers, { notes: 'x'.repeat(2_097_153) })
+      expect(response.status).toBe(400)
+      expect((await bodyOf(response)).code).toBe('TOO_LARGE')
+      expect(repo.createCampus).not.toHaveBeenCalled()
+      expect(repo.updateCampusSettings).not.toHaveBeenCalled()
+    })
+
+    it('normal settings (an https image URL) are accepted', async () => {
+      const { handlers, repo } = setup()
+      repo.createCampus.mockResolvedValue({ status: 'ok', campusId: 'c1' })
+      repo.updateCampusSettings.mockResolvedValue({ status: 'ok' })
+      const response = await call(handlers, { map: { imageUrl: 'https://example.org/map.png' }, theme: 'x' })
+      expect([200, 201]).toContain(response.status)
+    })
   })
 })
 
