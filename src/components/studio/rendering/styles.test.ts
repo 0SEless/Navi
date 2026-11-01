@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BASE_STYLES,
+  BASE_STYLE_CHOICES,
   BASE_STYLE_NAMES,
   DEFAULT_BASE_STYLE,
   getLegacySatelliteStyle,
@@ -24,7 +25,8 @@ describe('studio basemap registry', () => {
 
   it('keeps OSM as the default and the legacy satellite provider out of the selector', () => {
     expect(DEFAULT_BASE_STYLE).toBe('osm')
-    expect(Object.keys(BASE_STYLE_NAMES)).toEqual(['osm', 'satellite', 'positron', 'dark', 'streets'])
+    // Owner (2026-11-02): only OpenStreetMap and Mapbox satellite are offered; CARTO/Esri have no API agreement.
+    expect(BASE_STYLE_CHOICES).toEqual(['osm', 'satellite'])
 
     const legacySource = getLegacySatelliteStyle().style.sources.satellite
     expect(legacySource.type).toBe('raster')

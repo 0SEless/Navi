@@ -2,7 +2,7 @@
 
 import { useStudioStore } from '@/store/studio-store'
 import type { BaseStyleKey } from '@/types/studio-types'
-import { BASE_STYLE_NAMES } from './rendering/styles'
+import { BASE_STYLE_CHOICES, BASE_STYLE_NAMES } from './rendering/styles'
 
 export function StyleSelector() {
   const baseStyle = useStudioStore((s) => s.baseStyle)
@@ -25,7 +25,7 @@ export function StyleSelector() {
         boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
       }}
     >
-      {(Object.keys(BASE_STYLE_NAMES) as BaseStyleKey[]).map((key) => (
+      {BASE_STYLE_CHOICES.map((key) => (
         <option key={key} value={key}>{BASE_STYLE_NAMES[key]}</option>
       ))}
     </select>

@@ -9,7 +9,7 @@ import { useGraphStore } from '@/store/graph-store'
 import type { Building } from '@/types/nav-types'
 import type { BaseStyleKey } from '@/types/studio-types'
 import { ArrowLeft, Edit, Map } from 'lucide-react'
-import { BASE_STYLES, BASE_STYLE_NAMES, DEFAULT_BASE_STYLE } from './rendering/styles'
+import { BASE_STYLES, BASE_STYLE_CHOICES, BASE_STYLE_NAMES, DEFAULT_BASE_STYLE } from './rendering/styles'
 import { MapboxBrandControl, reportMapError, syncMapboxBrandControl } from './rendering/satellite'
 
 const SRC = 'preview-buildings'
@@ -192,7 +192,7 @@ export function MapPreview({ mapId }: MapPreviewProps) {
             outline: 'none',
           }}
         >
-          {(Object.keys(BASE_STYLE_NAMES) as BaseStyleKey[]).map((key) => (
+          {BASE_STYLE_CHOICES.map((key) => (
             <option key={key} value={key}>{BASE_STYLE_NAMES[key]}</option>
           ))}
         </select>

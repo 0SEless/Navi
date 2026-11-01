@@ -146,3 +146,10 @@ export const BASE_STYLE_NAMES: Record<BaseStyleKey, string> = {
 }
 
 export const DEFAULT_BASE_STYLE: BaseStyleKey = 'osm'
+
+/**
+ * The base maps offered in the style pickers: OpenStreetMap and Mapbox satellite only
+ * (owner, 2026-11-02 — there is no API agreement for CARTO or Esri). The other styles stay
+ * defined so an older selection still renders.
+ */
+export const BASE_STYLE_CHOICES: readonly BaseStyleKey[] = ['osm', 'satellite']
