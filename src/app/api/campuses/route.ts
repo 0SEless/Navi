@@ -7,6 +7,12 @@ import {
   getQueryParam,
   requireVerifiedMutationAuth,
 } from "@/lib/api-guard";
+import {
+  isSaveV2PublicReadEnabled,
+  readCurrentPublication,
+  readPublishedCampuses,
+} from "@/studio-v2/server/public-read";
+import type { PublicationRow } from "@/studio-v2/server/types";
 
 async function getClient(auth: "publishable" | "secret") {
   const key = auth === "secret"
@@ -24,7 +30,77 @@ async function getClient(auth: "publishable" | "secret") {
   );
 }
 
+// ── Save v2 public catalog (server env NAVI_SAVE_V2_PUBLIC_READ=1) ──
+//
+// Same field names and types as the legacy GET below, built from Save v2
+// publications: only campuses with a current publication are listed, in
+// campus_id order, and graph_snapshots / buildings / route_nodes are never read.
+// name, description and address come from the campus as it was when the
+// publication was recorded (ruling R22). Fields whose legacy source was a
+// draft table keep their names and types but now describe the publication:
+//   version         legacy graph_snapshots.version (text, normally "1.0.0");
+//                   here String(publicationNo)
+//   updated_at      legacy draft save time; here the publication time
+//   building_count  legacy count of `buildings` rows; here
+//                   artifacts.buildingIndex.buildings.length
+//   node_count      (single campus) legacy count of `route_nodes` rows; here
+//                   artifacts.graph.nodes.length
+
+function textSetting(settings: Record<string, unknown>, key: string): string {
+  const value = settings[key];
+  return typeof value === "string" ? value : "";
+}
+
+function lengthAt(value: unknown, first: string, second: string): number {
+  const outer = typeof value === "object" && value !== null ? (value as Record<string, unknown>)[first] : undefined;
+  const inner = typeof outer === "object" && outer !== null ? (outer as Record<string, unknown>)[second] : undefined;
+  return Array.isArray(inner) ? inner.length : 0;
+}
+
+function catalogEntry(campusId: string, publication: PublicationRow) {
+  const settings = publication.campusSettings ?? {};
+  return {
+    id: campusId,
+    campus_id: campusId,
+    name: typeof publication.campusName === "string" ? publication.campusName : campusId,
+    description: textSetting(settings, "description"),
+    address: textSetting(settings, "address"),
+    version: String(publication.publicationNo),
+    updated_at: publication.publishedAt,
+    building_count: lengthAt(publication.artifacts, "buildingIndex", "buildings"),
+  };
+}
+
+async function getFromPublications(campusId: string | null) {
+  try {
+    if (campusId) {
+      const publication = await readCurrentPublication(campusId);
+      if (!publication) {
+        return NextResponse.json({ error: "Campus not found" }, { status: 404 });
+      }
+      return NextResponse.json({
+        ...catalogEntry(campusId, publication),
+        node_count: lengthAt(publication.artifacts, "graph", "nodes"),
+      });
+    }
+
+    const entries = [];
+    for (const campus of await readPublishedCampuses()) {
+      const publication = await readCurrentPublication(campus.id);
+      if (publication) entries.push(catalogEntry(campus.id, publication));
+    }
+    return NextResponse.json(entries);
+  } catch {
+    console.warn("[campuses] publication read failed");
+    return NextResponse.json({ error: "Campus catalog is temporarily unavailable" }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
+  if (isSaveV2PublicReadEnabled()) {
+    return getFromPublications(new URL(request.url).searchParams.get("campus_id"));
+  }
+
   const supabase = await getClient("publishable");
   const { searchParams } = new URL(request.url);
   const campusId = searchParams.get("campus_id");

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { isStableQrId } from '@/lib/qr-payload'
+import {
+  isSaveV2PublicReadEnabled,
+  readCurrentPublication,
+  readPublishedCampuses,
+} from '@/studio-v2/server/public-read'
 
 const PUBLIC_QR_READ_FAILED = 'PUBLIC_QR_READ_FAILED'
 
@@ -63,6 +68,20 @@ function sanitizeCheckpoint(raw: unknown, checkpointId: string): PublicQrCheckpo
   return checkpoint
 }
 
+/**
+ * Save v2 (server env NAVI_SAVE_V2_PUBLIC_READ=1): the published_maps rows are
+ * replaced by one { campus_id, artifacts } row per campus with a current
+ * publication, so the resolution below is unchanged.
+ */
+async function readPublicationRows(): Promise<PublishedMapRow[]> {
+  const rows: PublishedMapRow[] = []
+  for (const campus of await readPublishedCampuses()) {
+    const publication = await readCurrentPublication(campus.id)
+    if (publication) rows.push({ campus_id: campus.id, artifacts: publication.artifacts })
+  }
+  return rows
+}
+
 function invalidCheckpointResponse() {
   return NextResponse.json(
     { status: 'invalid', reason: 'malformed-checkpoint' },
@@ -83,17 +102,21 @@ export async function GET(request: NextRequest) {
 
   let data: unknown
   try {
-    const supabase = getClient()
-    const result = await supabase
-      .from('published_maps')
-      .select('campus_id, artifacts') as unknown as { data: unknown; error: unknown | null }
-    if (result.error) {
-      return NextResponse.json(
-        { status: 'unavailable', code: PUBLIC_QR_READ_FAILED },
-        { status: 503 },
-      )
+    if (isSaveV2PublicReadEnabled()) {
+      data = await readPublicationRows()
+    } else {
+      const supabase = getClient()
+      const result = await supabase
+        .from('published_maps')
+        .select('campus_id, artifacts') as unknown as { data: unknown; error: unknown | null }
+      if (result.error) {
+        return NextResponse.json(
+          { status: 'unavailable', code: PUBLIC_QR_READ_FAILED },
+          { status: 503 },
+        )
+      }
+      data = result.data
     }
-    data = result.data
   } catch {
     return NextResponse.json(
       { status: 'unavailable', code: PUBLIC_QR_READ_FAILED },

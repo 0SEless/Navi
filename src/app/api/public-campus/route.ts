@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { validateNavigationArtifacts, type ArtifactValidationResult } from '@navi/compiler'
+import { isSaveV2PublicReadEnabled, readCurrentPublication } from '@/studio-v2/server/public-read'
 
 /**
  * GET /api/public-campus?campus_id=X
@@ -17,6 +18,11 @@ import { validateNavigationArtifacts, type ArtifactValidationResult } from '@nav
  *      Transformed to PublishedCampus shape. Not merged with anything.
  *
  *   3. Empty response.
+ *
+ * Save v2 (server env NAVI_SAVE_V2_PUBLIC_READ=1): source 1 is the campus's
+ * current Save v2 publication instead of published_maps, and source 2 is never
+ * read. The response is unchanged, including source: 'published_maps', so NAVI
+ * Web keeps working without changes.
  *
  * INVARIANT: A runtime request resolves to exactly one authoritative source.
  * No merging. No combining. No partial fill from multiple sources.
@@ -102,6 +108,21 @@ async function readPublishedMaps(campusId: string): Promise<PublishedLookupResul
     return { status: 'found', artifacts: result.data?.artifacts }
   } catch {
     console.warn('[public-campus] published_maps read failed')
+    return { status: 'error' }
+  }
+}
+
+// ── Save v2 (NAVI_SAVE_V2_PUBLIC_READ=1): the current publication, exclusively ──
+// Stands in for published_maps; a campus that is missing or never published is
+// "not_found", and the graph_snapshots fallback below is never consulted.
+
+async function readCurrentPublicationArtifacts(campusId: string): Promise<PublishedLookupResult> {
+  try {
+    const publication = await readCurrentPublication(campusId)
+    if (publication === null) return { status: 'not_found' }
+    return { status: 'found', artifacts: publication.artifacts }
+  } catch {
+    console.warn('[public-campus] publication read failed')
     return { status: 'error' }
   }
 }
@@ -265,7 +286,10 @@ export async function GET(request: NextRequest) {
   // ── Source 1: published_maps (exclusive) ──
   // If a published map exists, the response is produced exclusively from it.
   // No other sources are consulted. No merging.
-  const published = await readPublishedMaps(campusId)
+  const saveV2 = isSaveV2PublicReadEnabled()
+  const published = saveV2
+    ? await readCurrentPublicationArtifacts(campusId)
+    : await readPublishedMaps(campusId)
   if (published.status === 'error') {
     return publicReadError('PUBLIC_CAMPUS_READ_FAILED', 503)
   }
@@ -306,7 +330,10 @@ export async function GET(request: NextRequest) {
 
   // ── Source 2: graph_snapshots (fallback only) ──
   // Used only when the compiler hasn't run. Transformed to PublishedCampus
-  // shape. Not merged with anything.
+  // shape. Not merged with anything. Never under Save v2: NAVI Web reads only
+  // the current publication (spec section 10.6).
+  if (saveV2) return emptyResponse(campusId)
+
   const snapshot = await readGraphSnapshot(campusId)
   if (snapshot.status === 'error') {
     return publicReadError('PUBLIC_CAMPUS_READ_FAILED', 503)
@@ -329,6 +356,10 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Empty ──
+  return emptyResponse(campusId)
+}
+
+function emptyResponse(campusId: string) {
   return NextResponse.json(
     { campusId, campusName: null, source: 'empty', revision: null, buildings: [], components: [], nodes: [], edges: [], boundary: null },
     { status: 200 },

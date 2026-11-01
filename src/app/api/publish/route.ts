@@ -7,6 +7,11 @@ import { MANIFEST_SCHEMA_VERSION, MANIFEST_FORMAT_VERSION } from '@navi/core'
 import { validateNavigationArtifacts } from '@navi/compiler'
 import { writePublishedMap, type PublishedMapRow } from '@/services/published-map-writer'
 import { assertCampusMutationAllowed, requireVerifiedMutationAuth } from '@/lib/api-guard'
+import {
+  buildArtifactsBlob,
+  resolveCompilerVersion,
+  type PublishArtifactsPayload,
+} from '@/studio-v2/server/artifacts-blob'
 
 const DEMO_DIR = join(process.cwd(), 'demo-output')
 
@@ -57,23 +62,6 @@ function graphIsEmpty(value: unknown): boolean {
     graph.nodes.length === 0 &&
     graph.edges.length === 0
   )
-}
-
-interface PublishArtifactsPayload {
-  navigationGraph?: Record<string, unknown>
-  searchIndex?: unknown
-  poiData?: unknown
-  buildingIndex?: unknown
-  spatialIndex?: unknown
-  panoramaIndex?: unknown
-  floorGeometry?: unknown
-  qrIndex?: unknown
-  terrainAreas?: unknown
-  terrainVerticalDatum?: unknown
-  components?: unknown
-  doors?: unknown
-  metadata?: unknown
-  [key: string]: unknown
 }
 
 interface PublishRequestBody {
@@ -176,41 +164,8 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    const compilerVersion = typeof artifactMetadata.compilerVersion === 'string' && artifactMetadata.compilerVersion.length > 0
-      ? artifactMetadata.compilerVersion
-      : typeof artifacts.navigationGraph?.version === 'string'
-        ? artifacts.navigationGraph.version
-        : '1.0.0'
-    const compiledAt = typeof artifactMetadata.compiledAt === 'string' && artifactMetadata.compiledAt.length > 0
-      ? artifactMetadata.compiledAt
-      : typeof artifacts.navigationGraph?.createdAt === 'string'
-        ? artifacts.navigationGraph.createdAt
-        : new Date().toISOString()
-    const artifactsBlob = {
-      graph: artifacts.navigationGraph,
-      searchIndex: artifacts.searchIndex ?? { version: '1.0.0', entries: [] },
-      buildingIndex: artifacts.buildingIndex ?? { version: '1.0.0', buildings: [] },
-      poiIndex: artifacts.poiData ?? { version: '1.0.0', points: [] },
-      spatialIndex: artifacts.spatialIndex ?? null,
-      panoramaIndex: artifacts.panoramaIndex ?? null,
-      floorGeometry: artifacts.floorGeometry ?? null,
-      qrIndex: artifacts.qrIndex ?? null,
-      ...(artifacts.terrainAreas !== undefined ? { terrainAreas: artifacts.terrainAreas } : {}),
-      ...(artifacts.terrainVerticalDatum !== undefined ? { terrainVerticalDatum: artifacts.terrainVerticalDatum } : {}),
-      components: Array.isArray(artifacts.components) ? artifacts.components : [],
-      doors: Array.isArray(artifacts.doors) ? artifacts.doors : [],
-      metadata: {
-        ...artifactMetadata,
-        campusId,
-        ...(typeof artifactMetadata.connectivitySemanticsVersion === 'string'
-          ? { connectivitySemanticsVersion: artifactMetadata.connectivitySemanticsVersion }
-          : {}),
-        compilerVersion,
-        revision: String(requestRevision),
-        sourceDocumentVersion: String(sourceRevision ?? requestRevision),
-        compiledAt,
-      },
-    }
+    const compilerVersion = resolveCompilerVersion(artifacts)
+    const artifactsBlob = buildArtifactsBlob(artifacts, campusId, requestRevision, sourceRevision)
 
     // ── 1. Write to Supabase published_maps (primary store) ──
     let supabaseSuccess = false

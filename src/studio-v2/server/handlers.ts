@@ -37,7 +37,7 @@ export interface StudioHandlerDeps {
 type AnyRecord = Record<string, unknown>
 type Principal = Extract<VerifiedPrincipalResult, { ok: true }>['principal']
 
-interface Actor {
+export interface Actor {
   id: string
   name: string
   isSuperAdmin: boolean
@@ -50,15 +50,15 @@ class HttpError extends Error {
   }
 }
 
-function json(status: number, body: unknown): Response {
+export function json(status: number, body: unknown): Response {
   return Response.json(body, { status })
 }
 
-function fail(status: number, code: string, extra: AnyRecord = {}): never {
+export function fail(status: number, code: string, extra: AnyRecord = {}): never {
   throw new HttpError(json(status, { code, ...extra }))
 }
 
-function isRecord(value: unknown): value is AnyRecord {
+export function isRecord(value: unknown): value is AnyRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -79,7 +79,7 @@ function validCampusId(value: unknown): value is string {
   )
 }
 
-function requireCampusId(value: unknown): string {
+export function requireCampusId(value: unknown): string {
   if (!validCampusId(value)) fail(400, 'INVALID_REQUEST', { message: 'campusId is missing or malformed.' })
   return value
 }
@@ -92,7 +92,7 @@ function requireSession(request: Request): string {
   return session
 }
 
-async function readBody(request: Request): Promise<AnyRecord> {
+export async function readBody(request: Request): Promise<AnyRecord> {
   const declared = Number(request.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > STUDIO_BODY_MAX_BYTES) fail(413, 'BODY_TOO_LARGE')
   const text = await request.text()
@@ -283,22 +283,30 @@ async function buildSaveChanges(raw: RawChange[]): Promise<SaveChange[]> {
   return built
 }
 
+/**
+ * Runs `work` after the admin check; every thrown failure becomes a response.
+ * Shared with the publish handlers (publish-handlers.ts).
+ */
+export async function runGuarded(
+  verifyPrincipal: StudioHandlerDeps['verifyPrincipal'],
+  route: string,
+  request: Request,
+  work: (actor: Actor) => Promise<Response>,
+): Promise<Response> {
+  try {
+    const verified = await verifyPrincipal(request)
+    if (!verified.ok) return verified.response
+    return await work(actorOf(verified.principal))
+  } catch (error) {
+    return responseForError(error, route)
+  }
+}
+
 export function createStudioHandlers(deps: StudioHandlerDeps) {
   const { repo, verifyPrincipal } = deps
 
-  /** Runs `work` after the admin check; every thrown failure becomes a response. */
-  async function guarded(
-    route: string,
-    request: Request,
-    work: (actor: Actor) => Promise<Response>,
-  ): Promise<Response> {
-    try {
-      const verified = await verifyPrincipal(request)
-      if (!verified.ok) return verified.response
-      return await work(actorOf(verified.principal))
-    } catch (error) {
-      return responseForError(error, route)
-    }
+  function guarded(route: string, request: Request, work: (actor: Actor) => Promise<Response>): Promise<Response> {
+    return runGuarded(verifyPrincipal, route, request, work)
   }
 
   return {
