@@ -10,7 +10,7 @@ if (!databaseUrl.includes('@127.0.0.1:55434/navi_savev2_test')) {
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'save-behaviour.spec.ts',
+  testMatch: ['save-behaviour.spec.ts', 'parity.spec.ts'],
   timeout: 240_000,
   expect: { timeout: 20_000 },
   workers: 1,
@@ -41,6 +41,8 @@ export default defineConfig({
         NEXT_PUBLIC_MOCK_AUTH: 'true',
         NEXT_PUBLIC_NAVI_SAVE_V2: '1',
         NEXT_PUBLIC_NAVI_SAVE_V2_TEST_HOOKS: '1',
+        // NAVI Web reads only Save v2 publications (P10, P12).
+        NAVI_SAVE_V2_PUBLIC_READ: '1',
         NAVI_STUDIO_DATABASE_URL: databaseUrl,
         NAVI_PROTECTED_CAMPUS_WRITES: '',
       },

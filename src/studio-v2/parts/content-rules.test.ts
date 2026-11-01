@@ -236,3 +236,22 @@ describe('checkSettings', () => {
     expect(checkSettings(loop)[0].code).toBe('INVALID_PART')
   })
 })
+
+describe('checkPart: floors as the editor creates them (R59)', () => {
+  it('accepts a floor from floor.create, which has no parametricComponents', () => {
+    const record = floorRecord()
+    delete (record.content as Record<string, unknown>).parametricComponents
+    expect(checkPart(record)).toEqual([])
+  })
+
+  it('accepts a floor without metadata (older documents)', () => {
+    const record = floorRecord()
+    delete (record.content as Record<string, unknown>).metadata
+    expect(checkPart(record)).toEqual([])
+  })
+
+  it('still rejects a floor collection or metadata of the wrong type', () => {
+    expect(checkPart(floorRecord({ rooms: 'x' })).map((issue) => issue.path)).toEqual(['/rooms'])
+    expect(checkPart(floorRecord({ metadata: [] })).map((issue) => issue.path)).toEqual(['/metadata'])
+  })
+})

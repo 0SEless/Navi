@@ -6,6 +6,9 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCampusMapStore } from '@/store/campus-map-store'
 import { useGraphStore } from '@/store/graph-store'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { getStudioSession } from '@/studio-v2/client/studio-session'
+import { saveNewCampus } from '@/studio-v2/client/new-campus'
 import { Search, ArrowLeft, Check, X, MapPin, Download, Loader2, Eye, EyeOff, Building2 } from 'lucide-react'
 import type { Building } from '@/types/nav-types'
 import { BuildingMetadataForm } from '@/components/shared/BuildingMetadataForm'
@@ -381,7 +384,15 @@ export function CreateMapWizard() {
       const added = bldgs.length
 
       useGraphStore.getState().setCurrentMapId(id)
-      save()
+      if (isSaveV2Enabled()) {
+        // Save v2: the imported buildings are the campus's first commit (no localStorage, no /api/graph).
+        await saveNewCampus(id, useGraphStore.getState().graph, {
+          session: getStudioSession(id),
+          ensureCampus: () => useCampusMapStore.getState().syncToSupabase(),
+        })
+      } else {
+        save()
+      }
       updateMapStats(id, { buildings: added })
       setImportedCount(added)
       setImportState('success')

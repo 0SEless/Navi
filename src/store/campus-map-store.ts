@@ -12,6 +12,8 @@ const STORAGE_KEY = 'navi-campus-maps'
 // Only campuses whose name/settings changed since the last server answer are written.
 const v2Known = new Set<string>()
 const v2Synced = new Map<string, string>()
+/** One campus-list write at a time, so awaiting a sync also awaits the ones already queued. */
+let v2SyncChain: Promise<void> = Promise.resolve()
 
 export function __resetCampusMapSyncForTests(): void {
   v2Known.clear()
@@ -173,19 +175,23 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
     if (typeof window === 'undefined') return
     const { maps, landmarkTypes, landmarkInstances } = get()
     if (isSaveV2Enabled()) {
-      const api = createStudioApi()
-      for (const map of maps) {
-        const settings = v2SettingsOf(map, landmarkTypes.filter((t) => t.mapId === map.id), landmarkInstances.filter((i) => i.mapId === map.id))
-        const fingerprint = v2Fingerprint(map.name, settings)
-        if (v2Synced.get(map.id) === fingerprint) continue
-        try {
-          if (v2Known.has(map.id)) await api.updateCampus(map.id, map.name, settings)
-          else await api.createCampus(map.id, map.name, settings)
-          v2Known.add(map.id)
-          v2Synced.set(map.id, fingerprint)
-        } catch (e) { console.warn('[campus-map-store] Save v2 campus sync failed:', e) }
+      const run = async () => {
+        const { maps, landmarkTypes, landmarkInstances } = get()
+        const api = createStudioApi()
+        for (const map of maps) {
+          const settings = v2SettingsOf(map, landmarkTypes.filter((t) => t.mapId === map.id), landmarkInstances.filter((i) => i.mapId === map.id))
+          const fingerprint = v2Fingerprint(map.name, settings)
+          if (v2Synced.get(map.id) === fingerprint) continue
+          try {
+            if (v2Known.has(map.id)) await api.updateCampus(map.id, map.name, settings)
+            else await api.createCampus(map.id, map.name, settings)
+            v2Known.add(map.id)
+            v2Synced.set(map.id, fingerprint)
+          } catch (e) { console.warn('[campus-map-store] Save v2 campus sync failed:', e) }
+        }
       }
-      return
+      v2SyncChain = v2SyncChain.then(run, run)
+      return v2SyncChain
     }
     for (const map of maps) {
       const types = landmarkTypes.filter((t) => t.mapId === map.id)

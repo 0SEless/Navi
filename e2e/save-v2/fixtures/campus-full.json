@@ -1,0 +1,1665 @@
+{
+  "schemaVersion": 1,
+  "version": 42,
+  "metadata": {
+    "campusId": "asu-ibajay",
+    "name": "ASU Ibajay",
+    "description": "Aklan State University, Ibajay campus (test fixture)",
+    "lastModified": "2026-10-31T00:00:00.000Z",
+    "editorVersion": "1.5.0"
+  },
+  "buildings": [
+    {
+      "id": "osm:way/123",
+      "name": "Biblioteca Ñoño 😀",
+      "code": "BIB",
+      "category": "library",
+      "description": "Main library with a long description — including “smart quotes”.",
+      "footprint": {
+        "points": [
+          {
+            "lat": 11.68,
+            "lng": 122.37
+          },
+          {
+            "lat": 11.68,
+            "lng": 122.3703669
+          },
+          {
+            "lat": 11.6802156,
+            "lng": 122.3703669
+          },
+          {
+            "lat": 11.6802156,
+            "lng": 122.37
+          },
+          {
+            "lat": 11.68,
+            "lng": 122.37
+          }
+        ]
+      },
+      "baseElevation": 5,
+      "height": 9,
+      "floors": [
+        {
+          "id": "bib/ground",
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "height": 3.5,
+          "rooms": [
+            {
+              "id": "room-g-1",
+              "name": "Reading Room",
+              "number": "101",
+              "category": "classroom",
+              "polygon": {
+                "points": [
+                  {
+                    "x": -18,
+                    "y": -10
+                  },
+                  {
+                    "x": -4,
+                    "y": -10
+                  },
+                  {
+                    "x": -4,
+                    "y": 2
+                  },
+                  {
+                    "x": -18,
+                    "y": 2
+                  },
+                  {
+                    "x": -18,
+                    "y": -10
+                  }
+                ]
+              },
+              "capacity": 40,
+              "roomDoors": [
+                {
+                  "id": "rd-1",
+                  "roomId": "room-g-1",
+                  "ownership": {
+                    "status": "assigned"
+                  },
+                  "connectedToId": "hall-g-1",
+                  "connectedToType": "hallway",
+                  "doorType": "standard",
+                  "position": {
+                    "x": -11,
+                    "y": 2
+                  },
+                  "width": 1.2,
+                  "depth": 0.2,
+                  "rotation": 1.5707963,
+                  "name": "Reading Room door",
+                  "angle": 90,
+                  "routeConnection": {
+                    "anchorNodeId": "rn-g-2",
+                    "targetRouteNodeId": "rn-g-3",
+                    "connectorEdgeId": "re-g-2"
+                  },
+                  "metadata": {
+                    "handedness": "left"
+                  }
+                }
+              ],
+              "metadata": {
+                "floorArea": 168,
+                "tags": [
+                  "quiet",
+                  "ñoño"
+                ],
+                "contact": null
+              },
+              "entrancePosition": {
+                "x": -11,
+                "y": 2
+              }
+            },
+            {
+              "id": "room-g-2",
+              "name": "Archive",
+              "number": "102",
+              "category": "storage",
+              "polygon": {
+                "points": [
+                  {
+                    "x": -4,
+                    "y": -10
+                  },
+                  {
+                    "x": 18,
+                    "y": -10
+                  },
+                  {
+                    "x": 18,
+                    "y": 2
+                  },
+                  {
+                    "x": -4,
+                    "y": 2
+                  },
+                  {
+                    "x": -4,
+                    "y": -10
+                  }
+                ]
+              },
+              "capacity": 30,
+              "roomDoors": [],
+              "metadata": {}
+            }
+          ],
+          "hallways": [
+            {
+              "id": "hall-g-1",
+              "name": "Main Hallway",
+              "polyline": {
+                "points": [
+                  {
+                    "x": -18,
+                    "y": 4
+                  },
+                  {
+                    "x": 18,
+                    "y": 4
+                  }
+                ]
+              },
+              "width": 3,
+              "color": "#dddddd"
+            }
+          ],
+          "staircases": [
+            {
+              "id": "lst-1",
+              "name": "Legacy stair",
+              "position": {
+                "x": 10,
+                "y": -6
+              },
+              "fromLevel": 0,
+              "toLevel": 1,
+              "type": "enclosed"
+            }
+          ],
+          "elevators": [
+            {
+              "id": "lel-1",
+              "name": "Legacy lift",
+              "position": {
+                "x": 14,
+                "y": -6
+              },
+              "fromLevel": 0,
+              "toLevel": 1
+            }
+          ],
+          "entrances": [
+            {
+              "id": "ent-main",
+              "label": "Main Entrance",
+              "position": {
+                "x": 18,
+                "y": 4
+              },
+              "level": 0,
+              "type": "main",
+              "hasQR": true,
+              "hasPanorama": false,
+              "connectorRoadId": "road-main"
+            }
+          ],
+          "connectorStops": [
+            {
+              "id": "stop-g-stair",
+              "connectorId": "conn-stair",
+              "label": "Stair landing",
+              "position": {
+                "x": 8,
+                "y": 4
+              },
+              "rotation": 90,
+              "landingPolygon": {
+                "points": [
+                  {
+                    "x": 6,
+                    "y": 3
+                  },
+                  {
+                    "x": 10,
+                    "y": 3
+                  },
+                  {
+                    "x": 10,
+                    "y": 5
+                  },
+                  {
+                    "x": 6,
+                    "y": 5
+                  },
+                  {
+                    "x": 6,
+                    "y": 3
+                  }
+                ]
+              },
+              "connectedHallwayId": "hall-g-1",
+              "anchors": [
+                {
+                  "id": "anc-qr-1",
+                  "label": "Stair QR",
+                  "position": {
+                    "x": 8,
+                    "y": 4.5
+                  },
+                  "code": "NAVI-ANC-0001",
+                  "metadata": {
+                    "printed": true
+                  }
+                }
+              ],
+              "accessible": true,
+              "metadata": {}
+            },
+            {
+              "id": "stop-g-lift",
+              "connectorId": "conn-lift",
+              "position": {
+                "x": 14,
+                "y": 4
+              },
+              "anchors": [],
+              "accessible": true,
+              "metadata": {}
+            }
+          ],
+          "metadata": {
+            "zoneNote": "Biblioteca ground",
+            "floorStats": {
+              "rooms": 2,
+              "area": 720.5
+            },
+            "ids": [
+              "a:b",
+              "c/d"
+            ]
+          },
+          "shortLabel": "GF",
+          "offset": {
+            "x": 0.5,
+            "y": -0.25
+          },
+          "rotation": 2.5,
+          "planImageId": "asset:plan-ground",
+          "floorPlanState": "locked",
+          "planAlignment": {
+            "offset": {
+              "x": 1.25,
+              "y": -2
+            },
+            "scale": 1.1,
+            "scaleX": 1.05,
+            "scaleY": 0.95,
+            "rotation": 3,
+            "opacity": 0.6,
+            "locked": true
+          },
+          "visible": true,
+          "locked": false,
+          "walls": [
+            {
+              "id": "wall-s",
+              "start": {
+                "x": -18,
+                "y": -10
+              },
+              "end": {
+                "x": 18,
+                "y": -10
+              },
+              "thickness": 0.3,
+              "height": 3.5
+            },
+            {
+              "id": "wall-e",
+              "start": {
+                "x": 18,
+                "y": -10
+              },
+              "end": {
+                "x": 18,
+                "y": 10
+              },
+              "thickness": 0.3,
+              "height": 3.5,
+              "metadata": {
+                "material": "concrete",
+                "note": "load-bearing"
+              }
+            },
+            {
+              "id": "wall-n",
+              "start": {
+                "x": 18,
+                "y": 10
+              },
+              "end": {
+                "x": -18,
+                "y": 10
+              },
+              "thickness": 0.3,
+              "height": 3.5
+            },
+            {
+              "id": "wall-w",
+              "start": {
+                "x": -18,
+                "y": 10
+              },
+              "end": {
+                "x": -18,
+                "y": -10
+              },
+              "thickness": 0.3,
+              "height": 3.5
+            },
+            {
+              "id": "wall-mid",
+              "start": {
+                "x": -4,
+                "y": -10
+              },
+              "end": {
+                "x": -4,
+                "y": 2
+              },
+              "thickness": 0.15,
+              "height": 3.5,
+              "metadata": {}
+            }
+          ],
+          "roomAttributes": [
+            {
+              "faceId": "face-1",
+              "roomId": "room-g-1",
+              "name": "Reading Room",
+              "type": "classroom",
+              "code": "BIB-101",
+              "description": "Quiet reading room",
+              "number": "101",
+              "category": "classroom",
+              "searchable": true,
+              "accessPoints": [
+                {
+                  "openingId": "op-door-1",
+                  "routeNodeId": "rn-g-2",
+                  "primary": true
+                },
+                {
+                  "routeNodeId": "rn-g-3",
+                  "primary": false
+                }
+              ]
+            },
+            {
+              "faceId": "face-2",
+              "name": "Stacks",
+              "searchable": false
+            }
+          ],
+          "parametricComponents": [
+            {
+              "id": "pc-1",
+              "definitionId": "column",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "rotation": 0,
+              "properties": {
+                "radius": 0.3,
+                "finish": "matte"
+              }
+            }
+          ],
+          "pois": [
+            {
+              "id": "poi-g-1",
+              "name": "Water fountain",
+              "category": "water_fountain",
+              "position": {
+                "x": -16,
+                "y": 5.5
+              },
+              "metadata": {
+                "working": true
+              }
+            },
+            {
+              "id": "poi-g-2",
+              "name": "Study corner",
+              "category": "study_area",
+              "geometry": {
+                "type": "rectangle",
+                "min": {
+                  "x": 2,
+                  "y": 5.5
+                },
+                "max": {
+                  "x": 6,
+                  "y": 8
+                },
+                "rotation": 0.25
+              },
+              "appearance": {
+                "mode": "2.5d",
+                "height": 1.2,
+                "color": "#3366cc"
+              },
+              "visibility": {
+                "showOnMap": true,
+                "searchable": false
+              },
+              "navigation": {
+                "approachMode": "preferred",
+                "anchor": {
+                  "kind": "rectangle-edge",
+                  "edge": 2,
+                  "t": 0.5
+                }
+              }
+            }
+          ],
+          "doors": [
+            {
+              "id": "door-1",
+              "roomId": "room-g-2",
+              "ownership": {
+                "status": "assigned"
+              },
+              "connectedToId": "hall-g-1",
+              "connectedToType": "hallway",
+              "doorType": "sliding",
+              "position": {
+                "x": 7,
+                "y": 2
+              },
+              "width": 1.6,
+              "depth": 0.15,
+              "rotation": 0,
+              "geometry": {
+                "type": "rectangle",
+                "min": {
+                  "x": 6.2,
+                  "y": 1.9
+                },
+                "max": {
+                  "x": 7.8,
+                  "y": 2.1
+                },
+                "rotation": 0
+              },
+              "name": "Archive door",
+              "angle": 0,
+              "routeConnection": {
+                "anchorNodeId": "rn-g-2",
+                "targetRouteNodeId": "rn-g-3",
+                "connectorEdgeId": "re-g-2"
+              },
+              "metadata": {}
+            },
+            {
+              "id": "door-2",
+              "ownership": {
+                "status": "ambiguous",
+                "candidateRoomIds": [
+                  "room-g-1",
+                  "room-g-2"
+                ]
+              },
+              "doorType": "fire",
+              "position": {
+                "x": -4,
+                "y": -4
+              },
+              "width": 1,
+              "metadata": {
+                "reviewNeeded": true
+              }
+            }
+          ],
+          "windows": [
+            {
+              "id": "win-1",
+              "wallId": "room:room-g-1:3",
+              "offset": 3,
+              "width": 2,
+              "sillHeight": 0.9,
+              "metadata": {}
+            }
+          ],
+          "openings": [
+            {
+              "id": "op-door-1",
+              "type": "door",
+              "wallId": "wall-mid",
+              "offset": 4,
+              "width": 1.2,
+              "height": 2.1,
+              "sillHeight": 0,
+              "orientation": 90,
+              "metadata": {
+                "leaf": "single"
+              }
+            },
+            {
+              "id": "op-win-1",
+              "type": "window",
+              "wallId": "wall-n",
+              "offset": 10,
+              "width": 2,
+              "height": 1.2,
+              "sillHeight": 0.9
+            }
+          ],
+          "routeNetwork": {
+            "nodes": [
+              {
+                "id": "rn-g-1",
+                "type": "entrance",
+                "position": {
+                  "x": 16,
+                  "y": 4
+                },
+                "floor": 0
+              },
+              {
+                "id": "rn-g-4",
+                "type": "transition",
+                "position": {
+                  "x": 14,
+                  "y": 4
+                },
+                "floor": 0
+              },
+              {
+                "id": "rn-g-3",
+                "type": "transition",
+                "position": {
+                  "x": 8,
+                  "y": 4
+                },
+                "floor": 0
+              },
+              {
+                "id": "rn-g-2",
+                "type": "waypoint",
+                "position": {
+                  "x": 0,
+                  "y": 4
+                },
+                "floor": 0
+              },
+              {
+                "id": "rn-g-5",
+                "type": "poi",
+                "position": {
+                  "x": -16,
+                  "y": 4
+                },
+                "floor": 0
+              }
+            ],
+            "edges": [
+              {
+                "id": "re-g-1",
+                "from": "rn-g-1",
+                "to": "rn-g-4",
+                "type": "walk",
+                "distance": 2
+              },
+              {
+                "id": "re-g-3",
+                "from": "rn-g-4",
+                "to": "rn-g-3",
+                "type": "walk",
+                "distance": 6
+              },
+              {
+                "id": "re-g-2",
+                "from": "rn-g-3",
+                "to": "rn-g-2",
+                "type": "walk",
+                "distance": 8
+              },
+              {
+                "id": "re-g-4",
+                "from": "rn-g-2",
+                "to": "rn-g-5",
+                "type": "walk",
+                "distance": 16
+              }
+            ]
+          },
+          "entranceAccess": [
+            {
+              "entranceId": "ent-main",
+              "outdoorNodeId": "N-entrance-access-ent-main",
+              "indoorRouteNodeId": "rn-g-1",
+              "outdoorRouteId": "road-main",
+              "outdoorPosition": {
+                "lat": 11.6801437,
+                "lng": 122.370422
+              }
+            }
+          ]
+        },
+        {
+          "id": "bib/upper",
+          "level": 1,
+          "label": "Upper Floor",
+          "elevation": 4,
+          "height": 3.2,
+          "rooms": [
+            {
+              "id": "room-u-1",
+              "name": "Study Hall",
+              "number": "201",
+              "category": "classroom",
+              "polygon": {
+                "points": [
+                  {
+                    "x": -18,
+                    "y": -10
+                  },
+                  {
+                    "x": 0,
+                    "y": -10
+                  },
+                  {
+                    "x": 0,
+                    "y": 2
+                  },
+                  {
+                    "x": -18,
+                    "y": 2
+                  },
+                  {
+                    "x": -18,
+                    "y": -10
+                  }
+                ]
+              },
+              "capacity": 30,
+              "roomDoors": [],
+              "metadata": {}
+            }
+          ],
+          "hallways": [
+            {
+              "id": "hall-u-1",
+              "name": "Upper Hallway",
+              "polyline": {
+                "points": [
+                  {
+                    "x": -18,
+                    "y": 4
+                  },
+                  {
+                    "x": 18,
+                    "y": 4
+                  }
+                ]
+              },
+              "width": 3
+            }
+          ],
+          "staircases": [],
+          "elevators": [],
+          "entrances": [],
+          "connectorStops": [
+            {
+              "id": "stop-u-stair",
+              "connectorId": "conn-stair",
+              "label": "Stair landing",
+              "position": {
+                "x": 8,
+                "y": 4
+              },
+              "anchors": [],
+              "accessible": true,
+              "metadata": {}
+            },
+            {
+              "id": "stop-u-lift",
+              "connectorId": "conn-lift",
+              "position": {
+                "x": 14,
+                "y": 4
+              },
+              "anchors": [],
+              "accessible": true,
+              "metadata": {}
+            }
+          ],
+          "metadata": {},
+          "shortLabel": "1F",
+          "planImageId": "asset:plan-upper",
+          "floorPlanState": "active",
+          "planAlignment": {},
+          "visible": false,
+          "locked": true,
+          "parametricComponents": [],
+          "routeNetwork": {
+            "nodes": [
+              {
+                "id": "rn-u-3",
+                "type": "transition",
+                "position": {
+                  "x": 14,
+                  "y": 4
+                },
+                "floor": 1
+              },
+              {
+                "id": "rn-u-1",
+                "type": "transition",
+                "position": {
+                  "x": 8,
+                  "y": 4
+                },
+                "floor": 1
+              },
+              {
+                "id": "rn-u-2",
+                "type": "waypoint",
+                "position": {
+                  "x": -8,
+                  "y": 4
+                },
+                "floor": 1
+              }
+            ],
+            "edges": [
+              {
+                "id": "re-u-1",
+                "from": "rn-u-3",
+                "to": "rn-u-1",
+                "type": "walk",
+                "distance": 6
+              },
+              {
+                "id": "re-u-2",
+                "from": "rn-u-1",
+                "to": "rn-u-2",
+                "type": "walk",
+                "distance": 16
+              }
+            ]
+          }
+        }
+      ],
+      "verticalConnectors": [
+        {
+          "id": "conn-stair",
+          "type": "staircase",
+          "name": "Stairwell A",
+          "stopIds": [
+            "stop-g-stair",
+            "stop-u-stair"
+          ],
+          "accessible": true,
+          "metadata": {}
+        },
+        {
+          "id": "conn-lift",
+          "type": "elevator",
+          "name": "Lift A",
+          "stopIds": [
+            "stop-g-lift",
+            "stop-u-lift"
+          ],
+          "accessible": true,
+          "metadata": {
+            "capacityKg": 630
+          }
+        }
+      ],
+      "color": "#8844aa",
+      "aliases": [
+        "Library",
+        "Biblioteca"
+      ],
+      "metadata": {
+        "yearBuilt": 1998,
+        "accessibleEntrance": true,
+        "nested": {
+          "b": 2,
+          "a": 1
+        }
+      },
+      "department": "Library Services",
+      "rotation": 12,
+      "roofHeight": 2.5,
+      "staircases": [
+        {
+          "id": "stair-1",
+          "buildingId": "osm:way/123",
+          "name": "Stair 1",
+          "type": "enclosed",
+          "accessible": false,
+          "fromLevel": 0,
+          "toLevel": 1,
+          "levels": {
+            "0": {
+              "position": {
+                "x": 8,
+                "y": -6
+              },
+              "rotation": 0,
+              "polygon": {
+                "points": [
+                  {
+                    "x": 6,
+                    "y": -8
+                  },
+                  {
+                    "x": 10,
+                    "y": -8
+                  },
+                  {
+                    "x": 10,
+                    "y": -4
+                  },
+                  {
+                    "x": 6,
+                    "y": -4
+                  },
+                  {
+                    "x": 6,
+                    "y": -8
+                  }
+                ]
+              },
+              "landing": {
+                "position": {
+                  "x": 8,
+                  "y": 4
+                },
+                "rotation": 90,
+                "polygon": {
+                  "points": [
+                    {
+                      "x": 6,
+                      "y": 3
+                    },
+                    {
+                      "x": 10,
+                      "y": 3
+                    },
+                    {
+                      "x": 10,
+                      "y": 5
+                    },
+                    {
+                      "x": 6,
+                      "y": 5
+                    },
+                    {
+                      "x": 6,
+                      "y": 3
+                    }
+                  ]
+                }
+              },
+              "drawing": {
+                "definitionId": "stair",
+                "properties": {
+                  "stepCount": 18,
+                  "stepWidth": 1.2,
+                  "stepDepth": 0.28,
+                  "direction": "north",
+                  "preset": "straight"
+                }
+              }
+            },
+            "1": {
+              "position": {
+                "x": 8,
+                "y": -6
+              },
+              "rotation": 0
+            }
+          }
+        }
+      ],
+      "elevators": [
+        {
+          "id": "elev-1",
+          "buildingId": "osm:way/123",
+          "name": "Elevator 1",
+          "type": "passenger",
+          "accessible": true,
+          "fromLevel": 0,
+          "toLevel": 1,
+          "levels": {
+            "0": {
+              "position": {
+                "x": 14,
+                "y": -6
+              },
+              "rotation": 0,
+              "polygon": {
+                "points": [
+                  {
+                    "x": 13,
+                    "y": -7
+                  },
+                  {
+                    "x": 15,
+                    "y": -7
+                  },
+                  {
+                    "x": 15,
+                    "y": -5
+                  },
+                  {
+                    "x": 13,
+                    "y": -5
+                  },
+                  {
+                    "x": 13,
+                    "y": -7
+                  }
+                ]
+              },
+              "landing": {
+                "position": {
+                  "x": 14,
+                  "y": 4
+                },
+                "polygon": {
+                  "points": [
+                    {
+                      "x": 13,
+                      "y": 3
+                    },
+                    {
+                      "x": 15,
+                      "y": 3
+                    },
+                    {
+                      "x": 15,
+                      "y": 5
+                    },
+                    {
+                      "x": 13,
+                      "y": 5
+                    },
+                    {
+                      "x": 13,
+                      "y": 3
+                    }
+                  ]
+                }
+              },
+              "drawing": {
+                "definitionId": "elevator",
+                "properties": {
+                  "width": 2,
+                  "depth": 2,
+                  "doorSide": "north"
+                }
+              }
+            },
+            "1": {
+              "position": {
+                "x": 14,
+                "y": -6
+              },
+              "rotation": 0
+            }
+          }
+        }
+      ],
+      "verticalTransitions": [
+        {
+          "id": "vt-stair",
+          "featureId": "stair-1",
+          "type": "staircase",
+          "connections": [
+            {
+              "floorId": "bib/ground",
+              "routeNodeId": "rn-g-3"
+            },
+            {
+              "floorId": "bib/upper",
+              "routeNodeId": "rn-u-1"
+            }
+          ]
+        },
+        {
+          "id": "vt-lift",
+          "featureId": "elev-1",
+          "type": "elevator",
+          "connections": [
+            {
+              "floorId": "bib/ground",
+              "routeNodeId": "rn-g-4"
+            },
+            {
+              "floorId": "bib/upper",
+              "routeNodeId": "rn-u-3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bld-sci",
+      "name": "Science Hall",
+      "code": "SCI",
+      "category": "academic",
+      "description": "",
+      "footprint": {
+        "points": [
+          {
+            "lat": 11.68,
+            "lng": 122.3707338
+          },
+          {
+            "lat": 11.68,
+            "lng": 122.371009
+          },
+          {
+            "lat": 11.6801797,
+            "lng": 122.371009
+          },
+          {
+            "lat": 11.6801797,
+            "lng": 122.3707338
+          },
+          {
+            "lat": 11.68,
+            "lng": 122.3707338
+          }
+        ]
+      },
+      "baseElevation": 5,
+      "height": 4,
+      "floors": [
+        {
+          "id": "sci-f1",
+          "level": 0,
+          "label": "Ground Floor",
+          "elevation": 0,
+          "height": 3.5,
+          "rooms": [
+            {
+              "id": "room-s-1",
+              "name": "Chemistry Lab",
+              "number": "S101",
+              "category": "lab",
+              "polygon": {
+                "points": [
+                  {
+                    "x": -12,
+                    "y": -8
+                  },
+                  {
+                    "x": 0,
+                    "y": -8
+                  },
+                  {
+                    "x": 0,
+                    "y": 4
+                  },
+                  {
+                    "x": -12,
+                    "y": 4
+                  },
+                  {
+                    "x": -12,
+                    "y": -8
+                  }
+                ]
+              },
+              "capacity": 30,
+              "roomDoors": [
+                {
+                  "id": "rd-s-1",
+                  "roomId": "room-s-1",
+                  "connectedToId": "hall-s-1",
+                  "connectedToType": "hallway",
+                  "doorType": "standard",
+                  "position": {
+                    "x": -6,
+                    "y": 4
+                  },
+                  "width": 1.2,
+                  "metadata": {}
+                }
+              ],
+              "metadata": {}
+            }
+          ],
+          "hallways": [
+            {
+              "id": "hall-s-1",
+              "name": "Science Hallway",
+              "polyline": {
+                "points": [
+                  {
+                    "x": -14,
+                    "y": 6
+                  },
+                  {
+                    "x": 14,
+                    "y": 6
+                  }
+                ]
+              },
+              "width": 3
+            }
+          ],
+          "staircases": [],
+          "elevators": [],
+          "entrances": [
+            {
+              "id": "ent-sci",
+              "label": "Science Entrance",
+              "position": {
+                "x": -14,
+                "y": 6
+              },
+              "level": 0,
+              "type": "side",
+              "hasQR": false,
+              "hasPanorama": false,
+              "connectorRoadId": "road-sci"
+            }
+          ],
+          "connectorStops": [],
+          "metadata": {},
+          "parametricComponents": []
+        }
+      ],
+      "verticalConnectors": [],
+      "color": "#22aa66",
+      "aliases": [],
+      "metadata": {}
+    }
+  ],
+  "roads": [
+    {
+      "id": "road-main",
+      "name": "Main Avenue",
+      "polyline": {
+        "points": [
+          {
+            "lat": 11.6797305,
+            "lng": 122.370422
+          },
+          {
+            "lat": 11.6801437,
+            "lng": 122.370422
+          },
+          {
+            "lat": 11.6804492,
+            "lng": 122.370422
+          }
+        ]
+      },
+      "width": 8,
+      "surface": "paved",
+      "type": "arterial",
+      "displayMode": "visible",
+      "connectorEntranceId": "ent-main",
+      "routing": {
+        "feature": "normal",
+        "slope": "level",
+        "direction": "both",
+        "walkable": true,
+        "wheelchairAccessible": true
+      },
+      "metadata": {
+        "lanes": 2
+      }
+    },
+    {
+      "id": "road-ramp",
+      "name": "Access Ramp",
+      "polyline": {
+        "points": [
+          {
+            "lat": 11.6797305,
+            "lng": 122.370422
+          },
+          {
+            "lat": 11.6796766,
+            "lng": 122.3705687
+          }
+        ]
+      },
+      "width": 3,
+      "surface": "concrete",
+      "type": "pedestrian",
+      "routing": {
+        "feature": "ramp",
+        "slope": "gentle",
+        "direction": "both",
+        "startElevationMeters": 0,
+        "endElevationMeters": 1.5,
+        "walkable": true,
+        "wheelchairAccessible": true
+      },
+      "metadata": {}
+    },
+    {
+      "id": "road-stairs",
+      "name": "Garden Steps",
+      "polyline": {
+        "points": [
+          {
+            "lat": 11.6796766,
+            "lng": 122.3705687
+          },
+          {
+            "lat": 11.6797844,
+            "lng": 122.3705687
+          }
+        ]
+      },
+      "width": 2,
+      "surface": "brick",
+      "type": "pedestrian",
+      "displayMode": "navigation-only",
+      "routing": {
+        "feature": "stairs",
+        "slope": "steep",
+        "direction": "forward",
+        "startElevationMeters": 1.5,
+        "endElevationMeters": 4,
+        "walkable": true,
+        "wheelchairAccessible": false
+      },
+      "metadata": {}
+    },
+    {
+      "id": "road-bridge",
+      "name": "Footbridge",
+      "polyline": {
+        "points": [
+          {
+            "lat": 11.6797844,
+            "lng": 122.3702752
+          },
+          {
+            "lat": 11.6797844,
+            "lng": 122.3705687
+          }
+        ]
+      },
+      "width": 2.5,
+      "surface": "concrete",
+      "type": "pedestrian",
+      "routing": {
+        "feature": "bridge",
+        "slope": "level",
+        "direction": "reverse",
+        "startElevationMeters": 4,
+        "endElevationMeters": 4,
+        "walkable": true
+      },
+      "metadata": {
+        "clearanceMeters": 4.2
+      }
+    },
+    {
+      "id": "road-sci",
+      "name": "Science Walk",
+      "polyline": {
+        "points": [
+          {
+            "lat": 11.6801437,
+            "lng": 122.370422
+          },
+          {
+            "lat": 11.6801437,
+            "lng": 122.3706972
+          },
+          {
+            "lat": 11.6802695,
+            "lng": 122.3706972
+          }
+        ]
+      },
+      "width": 4,
+      "surface": "gravel",
+      "type": "service",
+      "metadata": {}
+    }
+  ],
+  "panoramas": [],
+  "qrCheckpoints": [
+    {
+      "id": "qr-1",
+      "label": "Library lobby",
+      "position": {
+        "x": 16,
+        "y": 4
+      },
+      "floor": 0,
+      "buildingId": "osm:way/123",
+      "code": "NAVI-QR-0001",
+      "metadata": {
+        "printed": "2026-10-01"
+      }
+    },
+    {
+      "id": "qr-2",
+      "label": "Science entrance",
+      "position": {
+        "x": -14,
+        "y": 6
+      },
+      "floor": 0,
+      "buildingId": "bld-sci",
+      "code": "NAVI-QR-0002",
+      "metadata": {}
+    }
+  ],
+  "areas": [
+    {
+      "id": "area-1",
+      "name": "Parking Lot A",
+      "points": [
+        {
+          "lat": 11.6802695,
+          "lng": 122.3706421
+        },
+        {
+          "lat": 11.6802695,
+          "lng": 122.3708714
+        },
+        {
+          "lat": 11.6804492,
+          "lng": 122.3708714
+        },
+        {
+          "lat": 11.6804492,
+          "lng": 122.3706421
+        }
+      ],
+      "color": "#999999"
+    }
+  ],
+  "terrainAreas": [
+    {
+      "id": "terrain-1",
+      "name": "Garden Mound",
+      "points": [
+        {
+          "lat": 11.6796407,
+          "lng": 122.370477
+        },
+        {
+          "lat": 11.6796407,
+          "lng": 122.370688
+        },
+        {
+          "lat": 11.6797485,
+          "lng": 122.370688
+        },
+        {
+          "lat": 11.6797485,
+          "lng": 122.370477
+        }
+      ],
+      "color": "#66aa55",
+      "elevationMeters": 1.5
+    },
+    {
+      "id": "terrain-2",
+      "name": "Lowland",
+      "points": [
+        {
+          "lat": 11.6797305,
+          "lng": 122.3697248
+        },
+        {
+          "lat": 11.6797305,
+          "lng": 122.3699083
+        },
+        {
+          "lat": 11.6799102,
+          "lng": 122.3699083
+        },
+        {
+          "lat": 11.6799102,
+          "lng": 122.3697248
+        }
+      ],
+      "color": "#aabb88",
+      "elevationMeters": -0.5
+    }
+  ],
+  "terrainVerticalDatum": {
+    "kind": "campus-local",
+    "name": "Campus datum",
+    "zeroReference": "Ground floor slab of the Library",
+    "elevationStatus": "authored-not-surveyed"
+  },
+  "pois": [
+    {
+      "scope": "outdoor",
+      "id": "opoi-1",
+      "name": "Flagpole",
+      "category": "information",
+      "geometry": {
+        "type": "point",
+        "position": {
+          "lat": 11.6800898,
+          "lng": 122.3705045
+        }
+      },
+      "metadata": {
+        "height": 12
+      }
+    },
+    {
+      "scope": "outdoor",
+      "id": "opoi-2",
+      "name": "Fountain plaza",
+      "category": "waiting_area",
+      "geometry": {
+        "type": "circle",
+        "center": {
+          "lat": 11.6801797,
+          "lng": 122.3705504
+        },
+        "radius": 4
+      },
+      "appearance": {
+        "mode": "2d",
+        "color": "#33aadd"
+      },
+      "visibility": {
+        "showOnMap": true,
+        "searchable": true
+      },
+      "navigation": {
+        "approachMode": "preferred",
+        "anchor": {
+          "kind": "circle-angle",
+          "angle": 1.2
+        }
+      }
+    },
+    {
+      "scope": "outdoor",
+      "id": "opoi-3",
+      "name": "Canteen",
+      "category": "food",
+      "geometry": {
+        "type": "rectangle",
+        "points": [
+          {
+            "lat": 11.68,
+            "lng": 122.3705962
+          },
+          {
+            "lat": 11.68,
+            "lng": 122.370688
+          },
+          {
+            "lat": 11.6800719,
+            "lng": 122.370688
+          },
+          {
+            "lat": 11.6800719,
+            "lng": 122.3705962
+          }
+        ]
+      },
+      "appearance": {
+        "mode": "2.5d",
+        "height": 3,
+        "color": "#ee8844"
+      },
+      "visibility": {
+        "showOnMap": false,
+        "searchable": true
+      }
+    },
+    {
+      "scope": "outdoor",
+      "id": "opoi-4",
+      "name": "Bike shed",
+      "category": "other",
+      "geometry": {
+        "type": "polygon",
+        "points": [
+          {
+            "lat": 11.6802695,
+            "lng": 122.3705045
+          },
+          {
+            "lat": 11.6802695,
+            "lng": 122.3705687
+          },
+          {
+            "lat": 11.6803234,
+            "lng": 122.3705687
+          },
+          {
+            "lat": 11.6803414,
+            "lng": 122.370532
+          },
+          {
+            "lat": 11.6803234,
+            "lng": 122.3705045
+          }
+        ]
+      },
+      "navigation": {
+        "approachMode": "preferred",
+        "anchor": {
+          "kind": "polygon-edge",
+          "edge": 1,
+          "t": 0.25
+        }
+      }
+    }
+  ],
+  "roadJunctions": [
+    {
+      "id": "rj-1",
+      "position": {
+        "lat": 11.6797305,
+        "lng": 122.370422
+      },
+      "roadIds": [
+        "road-main",
+        "road-ramp"
+      ],
+      "source": "authored"
+    },
+    {
+      "id": "rj-2",
+      "position": {
+        "lat": 11.6796766,
+        "lng": 122.3705687
+      },
+      "roadIds": [
+        "road-ramp",
+        "road-stairs"
+      ],
+      "source": "authored"
+    },
+    {
+      "id": "rj-3",
+      "position": {
+        "lat": 11.6797844,
+        "lng": 122.3705687
+      },
+      "roadIds": [
+        "road-stairs",
+        "road-bridge"
+      ],
+      "source": "legacy-inferred"
+    },
+    {
+      "id": "rj-4",
+      "position": {
+        "lat": 11.6801437,
+        "lng": 122.370422
+      },
+      "roadIds": [
+        "road-main",
+        "road-sci"
+      ],
+      "source": "authored"
+    }
+  ],
+  "separatedCrossings": [
+    {
+      "id": "sc-1",
+      "roadIds": [
+        "road-main",
+        "road-bridge"
+      ],
+      "position": {
+        "lat": 11.6797844,
+        "lng": 122.370422
+      }
+    }
+  ],
+  "connectivitySemanticsVersion": "1.0.0",
+  "boundary": {
+    "points": [
+      {
+        "lat": 11.6795508,
+        "lng": 122.3696331
+      },
+      {
+        "lat": 11.6795508,
+        "lng": 122.3711008
+      },
+      {
+        "lat": 11.6806288,
+        "lng": 122.3711008
+      },
+      {
+        "lat": 11.6806288,
+        "lng": 122.3696331
+      }
+    ]
+  }
+}

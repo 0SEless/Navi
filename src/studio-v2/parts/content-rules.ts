@@ -108,10 +108,12 @@ function checkStructure(kind: PartKind, ids: string[], content: unknown, invalid
       } else if (content.id !== ids[1]) {
         invalid('/id', `Floor id "${content.id}" does not match the part key floor id "${ids[1]}".`)
       }
+      // R59: the editor's own floor.create omits parametricComponents and older documents may
+      // lack metadata (the legacy save accepted both), so these are checked only when present.
       for (const field of FLOOR_ARRAY_FIELDS) {
-        if (!Array.isArray(content[field])) invalid(pointer(field), `Floor "${field}" must be an array.`)
+        if (content[field] !== undefined && !Array.isArray(content[field])) invalid(pointer(field), `Floor "${field}" must be an array.`)
       }
-      if (!isObject(content.metadata)) invalid('/metadata', 'Floor "metadata" must be an object.')
+      if (content.metadata !== undefined && !isObject(content.metadata)) invalid('/metadata', 'Floor "metadata" must be an object.')
       return
     }
     case 'building': {
