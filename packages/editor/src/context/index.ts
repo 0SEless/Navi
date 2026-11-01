@@ -40,6 +40,7 @@ export { useEditingEngine } from './use-editing-engine'
 export type { EditingEngineValue } from './use-editing-engine'
 export { createEditorContext } from './create-editor-context'
 export { createDocument } from './create-editor-context'
+export { registerBuildingTransforms } from './create-editor-context'
 export type { WorkspaceMode, Workspace } from '../projections/workspace'
 
 export {

@@ -738,13 +738,13 @@ export function createDocument(graph: any, transformer?: CoordinateTransformer, 
   }
 }
 
-export function createEditorContext(
-  graph: any,
-  persistenceAdapter: PersistenceAdapter,
-  navCompiler: NavigationCompiler,
-): EditorContext {
-  const transformer = new CoordinateTransformer()
-  for (const b of (graph.buildings ?? [])) {
+/**
+ * Register each building's origin/rotation and each floor's offset/rotation with the
+ * transformer (floor-local → building-local → world). Shared by createEditorContext and
+ * the Save v2 loader so both build identical coordinate frames.
+ */
+export function registerBuildingTransforms(transformer: CoordinateTransformer, buildings: any[], graph: any): void {
+  for (const b of (buildings ?? [])) {
     // Building.footprint may be either LatLng[] (post-sync format) or
     // { points: LatLng[] } (legacy WorldPolygon format). Handle both.
     const rawFootprint: any = b.footprint
@@ -773,6 +773,15 @@ export function createEditorContext(
       })
     }
   }
+}
+
+export function createEditorContext(
+  graph: any,
+  persistenceAdapter: PersistenceAdapter,
+  navCompiler: NavigationCompiler,
+): EditorContext {
+  const transformer = new CoordinateTransformer()
+  registerBuildingTransforms(transformer, graph.buildings ?? [], graph)
 
   const document = createDocument(graph, transformer)
 
