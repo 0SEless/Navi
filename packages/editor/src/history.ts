@@ -17,7 +17,12 @@ export interface HistoryEntry {
   snapshotBefore?: CampusDocument
   snapshotAfter?: CampusDocument
   estimatedSize: number
+  /** Save v2: part keys this entry changed (set only when a touched-parts resolver is installed). */
+  touchedParts?: string[]
 }
+
+/** Save v2: maps a before/after document pair to the part keys that differ. */
+export type TouchedPartsResolver = (before: CampusDocument, after: CampusDocument) => string[]
 
 function hash(obj: unknown): string {
   const str = JSON.stringify(obj)
@@ -48,6 +53,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   private registry: CommandRegistry
   private documentStore?: DocumentStore
   private eventBus?: DocumentEventBus
+  private touchedPartsResolver: TouchedPartsResolver | null = null
 
   constructor(dispatcher?: CommandDispatcher, document?: CampusDocument, registry?: CommandRegistry, maxMemoryMB = 200, documentStore?: DocumentStore) {
     super()
@@ -97,6 +103,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
       snapshotAfter,
       estimatedSize: estimateSize({ command, snapshotBefore, snapshotAfter }),
     }
+    if (this.touchedPartsResolver) entry.touchedParts = this.touchedPartsResolver(snapshotBefore, snapshotAfter)
 
     this.past.push(entry)
     this.currentMemory += entry.estimatedSize
@@ -128,6 +135,9 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
       snapshotBefore,
       snapshotAfter,
       estimatedSize: estimateSize({ command, inverse, snapshotBefore, snapshotAfter }),
+    }
+    if (this.touchedPartsResolver) {
+      entry.touchedParts = this.touchedPartsResolver(this.pendingSnapshot ?? snapshotBefore ?? this.document, this.document)
     }
 
     this.past.push(entry)
@@ -172,6 +182,33 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     this.past.push(entry)
     this.currentMemory += entry.estimatedSize
     return true
+  }
+
+  /** Save v2: record which parts each new entry touches (null turns it off; flag-off behaviour is unchanged). */
+  setTouchedPartsResolver(fn: TouchedPartsResolver | null): void {
+    this.touchedPartsResolver = fn
+  }
+
+  /**
+   * Save v2: another admin's saved parts were merged into the document.
+   * If any undo/redo entry touched one of those parts (or an entry's touched parts are
+   * unknown), undoing it would overwrite their newer version — clear both stacks.
+   * Otherwise patch every whole-document snapshot with the same remote content, so a
+   * later undo/redo cannot revert the merged change. Command-based entries are id-based
+   * and only touch their own parts, so they are left as they are.
+   */
+  applyRemote(touched: Set<string>, apply: (doc: CampusDocument) => void): 'rebased' | 'cleared' {
+    const entries = [...this.past, ...this.future]
+    const conflicts = entries.some((entry) => !entry.touchedParts || entry.touchedParts.some((key) => touched.has(key)))
+    if (conflicts) {
+      this.clear()
+      return 'cleared'
+    }
+    for (const entry of entries) {
+      if (entry.snapshotBefore) apply(entry.snapshotBefore)
+      if (entry.snapshotAfter) apply(entry.snapshotAfter)
+    }
+    return 'rebased'
   }
 
   clear(): void {
