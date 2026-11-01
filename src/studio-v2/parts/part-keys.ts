@@ -11,7 +11,8 @@ export type PartKind =
   | 'map/poi'
 
 export type PartKey = string
-export type ZoneKey = `building:${string}` | 'terrain' | 'campus'
+/** Lock zones: a building (with its floors) or the terrain. Campus settings are not locked (R69). */
+export type ZoneKey = `building:${string}` | 'terrain'
 
 const ARITY: Record<PartKind, number> = {
   campus: 0,
@@ -57,8 +58,6 @@ export function parsePartKey(key: PartKey): { kind: PartKind; ids: string[] } {
 export function zoneOf(key: PartKey): ZoneKey | null {
   const { kind, ids } = parsePartKey(key)
   switch (kind) {
-    case 'campus':
-      return 'campus'
     case 'building':
     case 'floor':
       return `building:${encodeURIComponent(ids[0])}`

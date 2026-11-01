@@ -43,7 +43,6 @@ export function denialMessage(denial: Pick<ZoneDenial, 'zoneKey' | 'holderName' 
   if (denial.sameActor) return 'You are editing this in another tab.'
   const name = denial.holderName ?? 'Another admin'
   if (denial.zoneKey === 'terrain') return `${name} is using the terrain editor.`
-  if (denial.zoneKey === 'campus') return `${name} is editing campus settings.`
   return `${name} is currently editing this building — try editing other buildings.`
 }
 

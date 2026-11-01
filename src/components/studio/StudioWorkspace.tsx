@@ -20,7 +20,6 @@ import { SyncIssueCard, deriveSyncIssue } from './SyncIssueCard'
 import type { ValidationFocus } from '@/types/studio-types'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { ZoneProvider } from './v2/ZoneProvider'
-import { CampusToolZoneGuard } from './v2/CampusToolZoneGuard'
 import { LeaveBuildingRelease } from './v2/LeaveBuildingRelease'
 import { useExplicitSave, useSaveShortcut, useStudioSession } from './v2/useStudioSession'
 
@@ -415,10 +414,9 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
     </div>
   )
   if (!isSaveV2Enabled()) return workspace
-  // Save v2: zone locks (building / terrain / campus) for this campus.
+  // Save v2: zone locks (building / terrain) for this campus; campus settings are not locked (R69).
   return (
     <ZoneProvider campusId={document.metadata.campusId}>
-      <CampusToolZoneGuard />
       <LeaveBuildingRelease session={v2Session} />
       {workspace}
     </ZoneProvider>

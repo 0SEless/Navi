@@ -269,14 +269,19 @@ describe('studio.save', () => {
 
       await lockZone(admin, campus, 'building:B1', 'bob', 'sb', 'Bob')
       const held = await save(client, { campus, changes: [put('floor:B1:F1', { id: 'F1' }), put('campus', { c: 1 })] })
-      expect(held).toEqual({
-        status: 'zone_not_held',
-        zones: [
-          { zoneKey: 'building:B1', holderName: 'Bob' },
-          { zoneKey: 'campus', holderName: null },
-        ],
-      })
+      // R69: the campus part needs no lock; only the building is reported.
+      expect(held).toEqual({ status: 'zone_not_held', zones: [{ zoneKey: 'building:B1', holderName: 'Bob' }] })
       expect(await counts(admin, campus)).toEqual({ head: 0, commits: 0, versions: 0, current: 0, receipts: 0 })
+    })
+  })
+
+  it('the campus part saves without any lock, even while another admin holds a building (R69)', async () => {
+    await withTestDb(async (client, admin) => {
+      const campus = await newCampus(admin)
+      await lockZone(admin, campus, 'building:B1', 'bob', 'sb', 'Bob')
+      const result = await save(client, { campus, changes: [put('campus', { c: 1 })] })
+      expect(result.status).toBe('ok')
+      expect(result.commitNo).toBe(1)
     })
   })
 

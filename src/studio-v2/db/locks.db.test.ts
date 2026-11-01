@@ -289,6 +289,7 @@ describe('studio.acquire_zones', () => {
       const campus = await newCampus(admin, [['alice', 'editor']])
       await expectInvalidZone(acquire(client, campus, ['floor:B1:F1']))
       await expectInvalidZone(acquire(client, campus, ['map/road:r1']))
+      await expectInvalidZone(acquire(client, campus, ['campus'])) // R69: campus settings are not a lock zone
       await expectInvalidZone(acquire(client, campus, ['building:B1', 'bogus']))
       await expectInvalidZone(acquire(client, campus, ['building:']))
       await expectInvalidZone(acquire(client, campus, ['building:B%31']))
@@ -435,7 +436,7 @@ describe('studio.status', () => {
       await admin.query(`UPDATE studio.campuses SET head_commit = 7 WHERE id = $1`, [campus])
       await lockZone(admin, campus, 'terrain', 'bob', 'sb', 'Bob')
       await lockZone(admin, campus, 'building:B1', 'alice', 's1', 'Alice')
-      await lockZone(admin, campus, 'campus', 'bob', 'sb', 'Bob', '10 minutes') // expired, other holder
+      await lockZone(admin, campus, 'building:B3', 'bob', 'sb', 'Bob', '10 minutes') // expired, other holder
       await lockZone(admin, campus, 'building:B2', 'alice', 's2', 'Alice') // same actor, other session
       const result = await status(client, campus, [])
       expect(result.status).toBe('ok')

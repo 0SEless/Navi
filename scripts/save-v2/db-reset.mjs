@@ -4,7 +4,7 @@
 // Verifies host/port/database/marker, drops schema "studio", then applies
 // supabase/migrations/20261101000000_studio_v2.sql when that file exists.
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
@@ -12,6 +12,12 @@ import { assertSaveV2TestTarget, saveV2ConnectionConfig } from './db-target.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const migrationPath = path.join(repoRoot, 'supabase', 'migrations', '20261101000000_studio_v2.sql')
+
+const LATER_MIGRATION = new RegExp('^[0-9]{14}_studio_v2_[a-z0-9_]+[.]sql$')
+
+function isLaterStudioMigration(name) {
+  return LATER_MIGRATION.test(name)
+}
 
 export async function resetSaveV2Database() {
   const client = new pg.Client(saveV2ConnectionConfig())
@@ -27,6 +33,11 @@ export async function resetSaveV2Database() {
     }
     await client.query(readFileSync(migrationPath, 'utf8'))
     console.log('applied 20261101000000_studio_v2.sql')
+    // Later Save v2 migrations, in file-name order (the same order they reach the cloud project).
+    for (const file of readdirSync(path.dirname(migrationPath)).filter(isLaterStudioMigration).sort()) {
+      await client.query(readFileSync(path.join(path.dirname(migrationPath), file), 'utf8'))
+      console.log(`applied ${file}`)
+    }
   } finally {
     await client.end()
   }

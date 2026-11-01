@@ -72,7 +72,6 @@ describe('ZoneClient', () => {
   it('sameActor denial uses "You are editing this in another tab."', () => {
     expect(denialMessage({ zoneKey: 'building:B1', holderName: 'Ana', since: null, sameActor: true })).toBe('You are editing this in another tab.')
     expect(denialMessage({ zoneKey: 'terrain', holderName: 'Ben', since: null, sameActor: false })).toBe('Ben is using the terrain editor.')
-    expect(denialMessage({ zoneKey: 'campus', holderName: 'Ana', since: null, sameActor: false })).toBe('Ana is editing campus settings.')
   })
 
   it('ensure skips the network for zones already held', async () => {

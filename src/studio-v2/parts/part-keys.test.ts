@@ -54,7 +54,8 @@ describe('zoneOf', () => {
     expect(zoneOf('building:B1')).toBe('building:B1')
     expect(zoneOf('terrain-tile:t1')).toBe('terrain')
     expect(zoneOf('terrain')).toBe('terrain')
-    expect(zoneOf('campus')).toBe('campus')
+    // R69 (owner): campus settings are not locked; only buildings and terrain are.
+    expect(zoneOf('campus')).toBeNull()
   })
 
   it('returns null for map parts', () => {
