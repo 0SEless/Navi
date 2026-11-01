@@ -3,7 +3,8 @@
 // with the real compiler on the Task 2 fixtures.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CampusCompiler } from '@navi/compiler'
 import type { CampusDocument } from '@navi/core'
 import { fixtureFull, fixtureMinimal } from '../__fixtures__/campus-fixtures'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
@@ -23,6 +24,19 @@ function danglingDoorRoom(): CampusDocument {
   const doc = fixtureFull()
   const floor = doc.buildings[0].floors[0]
   floor.doors = (floor.doors ?? []).map((door) => (door.id === 'door-1' ? { ...door, roomId: 'room-ghost' } : door))
+  return doc
+}
+
+/** fixtureFull with its entranceAccess naming an entrance that does not exist (compiles cleanly). */
+function danglingEntranceId(): CampusDocument {
+  const doc = fixtureFull()
+  for (const building of doc.buildings) {
+    for (const floor of building.floors) {
+      if (floor.entranceAccess) {
+        floor.entranceAccess = floor.entranceAccess.map((access) => ({ ...access, entranceId: 'ent-missing' }))
+      }
+    }
+  }
   return doc
 }
 
@@ -60,6 +74,7 @@ function fakeRepo(overrides: Record<string, unknown> = {}) {
     recordPublication: vi.fn(async () => ({ status: 'ok', publicationNo: 4 })),
     rollbackPublication: vi.fn(async () => ({ status: 'ok', publicationNo: 2 })),
     currentPublication: vi.fn(async () => ({ status: 'ok', publication: null })),
+    roleOf: vi.fn(async () => 'owner'),
     load: vi.fn(async () => {
       throw new Error('publish must not read the head')
     }),
@@ -199,7 +214,7 @@ describe('publish from a saved commit', () => {
     expect((repo.recordPublication.mock.calls[0] as unknown as RecordCall)[5]).toBe(true)
   })
 
-  it('a document with a dangling entranceAccess gives 422 and records nothing', async () => {
+  it('a dangling entranceAccess indoor route node gives 422 (caught by the route gate, R33) and records nothing', async () => {
     const repo = fakeRepo({
       partsAtCommit: vi.fn(async (_c: string, commitNo: number) => ({
         status: 'ok',
@@ -211,9 +226,25 @@ describe('publish from a saved commit', () => {
     const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
     expect(response.status).toBe(422)
     const body = await bodyOf(response)
-    expect(body.code).toBe('COMPILE_FAILED')
-    expect(Array.isArray(body.diagnostics) && body.diagnostics.length > 0).toBe(true)
+    expect(body.code).toBe('ROUTE_INVALID')
+    expect(body.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('rn-missing') }),
+    ]))
     expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it('a compile that fails gives 422 COMPILE_FAILED with the compiler errors', async () => {
+    const errors = [{ code: 'HALLWAY_DISCONNECTED', message: 'Disconnected component', severity: 'error' }]
+    const compile = vi.spyOn(CampusCompiler.prototype, 'compileV2').mockReturnValue({ success: false, errors } as never)
+    try {
+      const { handlers, repo } = setup()
+      const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+      expect(response.status).toBe(422)
+      expect(await bodyOf(response)).toEqual({ code: 'COMPILE_FAILED', diagnostics: errors })
+      expect(repo.recordPublication).not.toHaveBeenCalled()
+    } finally {
+      compile.mockRestore()
+    }
   })
 
   it('artifacts that fail validateNavigationArtifacts give 422 ARTIFACT_INVALID with diagnostics and warnings', async () => {
@@ -360,5 +391,122 @@ describe('rollback', () => {
     const response = await handlers.publish(post({ campusId: 'asu-ibajay', rollbackTo: 2 }))
     expect(response.status).toBe(http)
     expect((await bodyOf(response)).code).toBe(code)
+  })
+})
+
+const withParts = (doc: CampusDocument) =>
+  fakeRepo({ partsAtCommit: vi.fn(async (_c: string, commitNo: number) => ({ status: 'ok', commitNo, parts: partsOf(doc) })) })
+
+describe('route-network hard gate (R33)', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('a dangling entranceId gives 422 ROUTE_INVALID before compiling; nothing is recorded', async () => {
+    const compile = vi.spyOn(CampusCompiler.prototype, 'compileV2')
+    const repo = withParts(danglingEntranceId())
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+    expect(response.status).toBe(422)
+    const body = await bodyOf(response)
+    expect(body.code).toBe('ROUTE_INVALID')
+    const diagnostics = body.diagnostics as Array<{ severity: string; ruleId: string; message: string }>
+    expect(diagnostics.length).toBeGreaterThan(0)
+    expect(diagnostics.every((issue) => issue.severity === 'error')).toBe(true)
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ ruleId: 'route-entrance-access', message: expect.stringContaining('ent-missing') }),
+    ]))
+    expect(compile).not.toHaveBeenCalled()
+    expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it('a valid fixtureFull passes the gate, compiles once and publishes', async () => {
+    const compile = vi.spyOn(CampusCompiler.prototype, 'compileV2')
+    const { handlers, repo } = setup()
+    const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+    expect(response.status).toBe(200)
+    expect(compile).toHaveBeenCalledTimes(1)
+    expect(repo.recordPublication).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('protected campus gate (R35)', () => {
+  const PROTECTED = 'map-map-1-k6bv'
+  afterEach(() => {
+    delete process.env.NAVI_PROTECTED_CAMPUS_WRITES
+  })
+
+  it.each([
+    [{ campusId: PROTECTED, commitNo: 7 }],
+    [{ campusId: PROTECTED, rollbackTo: 2 }],
+  ])('%j gives 423 and touches nothing', async (body) => {
+    const { handlers, repo } = setup(root)
+    const response = await handlers.publish(post(body))
+    expect(response.status).toBe(423)
+    expect(await bodyOf(response)).toEqual({ error: 'This campus is protected. Mutations are disabled.' })
+    expect(repo.roleOf).not.toHaveBeenCalled()
+    expect(repo.partsAtCommit).not.toHaveBeenCalled()
+    expect(repo.rollbackPublication).not.toHaveBeenCalled()
+    expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it('with NAVI_PROTECTED_CAMPUS_WRITES=1 publish and rollback proceed', async () => {
+    process.env.NAVI_PROTECTED_CAMPUS_WRITES = '1'
+    const { handlers, repo } = setup(root)
+    await handlers.publish(post({ campusId: PROTECTED, commitNo: 7 }))
+    expect(repo.partsAtCommit).toHaveBeenCalledWith(PROTECTED, 7)
+    const rollback = await handlers.publish(post({ campusId: PROTECTED, rollbackTo: 2 }))
+    expect(rollback.status).toBe(200)
+    expect(repo.rollbackPublication).toHaveBeenCalledWith(PROTECTED, 2, 'user-root', true)
+  })
+
+  it('unauthenticated requests are refused before the protected-campus check', async () => {
+    const { handlers } = setup(null)
+    expect((await handlers.publish(post({ campusId: PROTECTED, commitNo: 7 }))).status).toBe(401)
+  })
+})
+
+describe('role pre-check (R36)', () => {
+  it.each([
+    [{ campusId: 'asu-ibajay', commitNo: 7 }],
+    [{ campusId: 'asu-ibajay', rollbackTo: 2 }],
+  ])('an editor gets 403 for %j before any publish work', async (body) => {
+    const repo = fakeRepo({ roleOf: vi.fn(async () => 'editor') })
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post(body))
+    expect(response.status).toBe(403)
+    expect((await bodyOf(response)).code).toBe('FORBIDDEN')
+    expect(repo.roleOf).toHaveBeenCalledWith('asu-ibajay', 'user-owner')
+    expect(repo.partsAtCommit).not.toHaveBeenCalled()
+    expect(repo.rollbackPublication).not.toHaveBeenCalled()
+    expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ campusId: 'asu-ibajay', commitNo: 7 }],
+    [{ campusId: 'asu-ibajay', rollbackTo: 2 }],
+  ])('an unknown campus (roleOf null) gives 404 CAMPUS_NOT_FOUND for %j', async (body) => {
+    const repo = fakeRepo({ roleOf: vi.fn(async () => null) })
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post(body))
+    expect(response.status).toBe(404)
+    expect((await bodyOf(response)).code).toBe('CAMPUS_NOT_FOUND')
+    expect(repo.partsAtCommit).not.toHaveBeenCalled()
+    expect(repo.rollbackPublication).not.toHaveBeenCalled()
+  })
+
+  it('an owner passes; a super_admin skips the role lookup', async () => {
+    const asOwner = setup(owner)
+    expect((await asOwner.handlers.publish(post({ campusId: 'asu-ibajay', rollbackTo: 2 }))).status).toBe(200)
+    expect(asOwner.repo.roleOf).toHaveBeenCalledTimes(1)
+    const asRoot = setup(root)
+    expect((await asRoot.handlers.publish(post({ campusId: 'asu-ibajay', rollbackTo: 2 }))).status).toBe(200)
+    expect(asRoot.repo.roleOf).not.toHaveBeenCalled()
+  })
+})
+
+describe('route file', () => {
+  it('allows up to 60 seconds (maxDuration)', async () => {
+    const route = await import('../../app/api/studio/v2/publish/route')
+    expect(route.maxDuration).toBe(60)
+    expect(route.runtime).toBe('nodejs')
   })
 })

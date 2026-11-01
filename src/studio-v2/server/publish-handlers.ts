@@ -9,17 +9,23 @@
 // route writes to published_maps (buildArtifactsBlob), so NAVI Web reads it unchanged.
 // It never writes demo-output files and never touches published_maps.
 //
-// Ownership (owner or super_admin) is decided by studio.record_publication and
-// studio.rollback_publication; this handler only authenticates and passes isSuperAdmin.
+// Order: auth -> body -> protected-campus gate (R35, as legacy /api/publish) -> role
+// pre-check (R36: owner or super_admin, before any compile work; the SQL functions
+// check again) -> parts at the commit -> join -> route-network hard gate (R33, as
+// PublishService) -> compile -> validate -> record.
 // Nothing here logs artifacts, part contents or request bodies.
 import { CampusCompiler, validateNavigationArtifacts } from '@navi/compiler'
 import type { CampusDocument } from '@navi/core'
+// The editor's public validation entry (not the package root, which also pulls the
+// client-only panels into this server route).
+import { validateRouteNetwork } from '@navi/editor/src/validation'
+import { assertCampusMutationAllowed } from '../../lib/api-guard'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
 import { joinParts } from '../parts/join'
 import { parsePartKey } from '../parts/part-keys'
 import type { PartRecord } from '../parts/split'
 import { buildArtifactsBlob, type PublishArtifactsPayload } from './artifacts-blob'
-import { fail, isRecord, json, readBody, requireCampusId, runGuarded, type StudioHandlerDeps } from './handlers'
+import { fail, isRecord, json, readBody, requireCampusId, runGuarded, type Actor, type StudioHandlerDeps } from './handlers'
 import type { PartRecordWithVersion } from './types'
 
 type AnyRecord = Record<string, unknown>
@@ -89,6 +95,15 @@ function graphHasNodesOrEdges(artifacts: unknown): boolean {
 export function createPublishHandlers(deps: PublishHandlerDeps) {
   const { repo, verifyPrincipal } = deps
 
+  /** R36: owner or super_admin, checked before any work. Null when allowed, else the response. */
+  async function roleRefusal(campusId: string, actor: Actor): Promise<Response | null> {
+    if (actor.isSuperAdmin) return null
+    const role = await repo.roleOf(campusId, actor.id)
+    if (role === null) return json(404, { code: 'CAMPUS_NOT_FOUND' })
+    if (role !== 'owner') return json(403, { code: 'FORBIDDEN' })
+    return null
+  }
+
   return {
     // POST /api/studio/v2/publish
     publish(request: Request): Promise<Response> {
@@ -100,10 +115,18 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         if (hasCommit === hasRollback) {
           fail(400, 'INVALID_REQUEST', { message: 'Send exactly one of commitNo or rollbackTo.' })
         }
+        const publicationNo = hasRollback ? requirePositiveInteger(body.rollbackTo, 'rollbackTo') : 0
+        const commitNo = hasCommit ? requirePositiveInteger(body.commitNo, 'commitNo') : 0
+
+        // R35: the legacy protected-campus gate, returned as-is (423).
+        const blocked = assertCampusMutationAllowed(campusId)
+        if (blocked) return blocked
+
+        const refused = await roleRefusal(campusId, actor)
+        if (refused) return refused
 
         // ── Rollback ──
         if (hasRollback) {
-          const publicationNo = requirePositiveInteger(body.rollbackTo, 'rollbackTo')
           const result = await repo.rollbackPublication(campusId, publicationNo, actor.id, actor.isSuperAdmin)
           switch (result.status) {
             case 'ok':
@@ -118,7 +141,6 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         }
 
         // ── Publish a saved commit ──
-        const commitNo = requirePositiveInteger(body.commitNo, 'commitNo')
         const atCommit = await repo.partsAtCommit(campusId, commitNo)
         switch (atCommit.status) {
           case 'not_found':
@@ -146,6 +168,10 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
             diagnostics: [{ code: 'JOIN_FAILED', message: errorMessage(error, 'The saved parts could not be joined.') }],
           })
         }
+
+        // R33: PublishService's hard gate. Route errors block publishing, even forced.
+        const routeErrors = validateRouteNetwork(document, 'publish').filter((issue) => issue.severity === 'error')
+        if (routeErrors.length > 0) return json(422, { code: 'ROUTE_INVALID', diagnostics: routeErrors })
 
         let compiled: ReturnType<CampusCompiler['compileV2']>
         try {
