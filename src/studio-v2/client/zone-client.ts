@@ -67,7 +67,7 @@ export class ZoneClient {
   private readonly pollMs: number
   private readonly idleMs: number
   private readonly now: () => number
-  private readonly isClean: (zone: ZoneKey) => boolean
+  private isClean: (zone: ZoneKey) => boolean
   private readonly heldZones = new Map<ZoneKey, { lastEditAt: number }>()
   private lockViews: ZoneLockView[] = []
   private role: CampusRole | null = null
@@ -119,6 +119,11 @@ export class ZoneClient {
 
   myRole(): CampusRole | null {
     return this.role
+  }
+
+  /** The Studio session supplies this once it knows which zones have unsaved parts. */
+  setCleanCheck(isClean: (zone: ZoneKey) => boolean): void {
+    this.isClean = isClean
   }
 
   setHeadCommit(headCommit: number): void {

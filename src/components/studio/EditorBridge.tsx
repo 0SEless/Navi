@@ -23,6 +23,10 @@ import { useCompiledGraphStore } from '@/store/compiled-graph-store'
 import { createCompilerAdapter } from '@/services/compiler-adapter'
 import { persistStudioGraph } from './studio-persistence'
 import { adoptRecoveredEditorDocument } from './adopt-recovered-editor-document'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { currentStudioSession, getStudioSession, type StudioSession } from '@/studio-v2/client/studio-session'
+import { createV2PersistenceAdapter } from '@/studio-v2/client/persistence-adapter'
+import { adoptV2Document } from '@/studio-v2/client/adopt-v2-document'
 
 let activeEditorContext: EditorContext | null = null
 
@@ -233,14 +237,22 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
     },
   }
   const navCompiler = new NavigationCompiler(createCompilerAdapter())
+  // Save v2: one session per campus (shared with the floor editor) owns saving.
+  const [v2Session] = useState<StudioSession | null>(() => {
+    if (!isSaveV2Enabled()) return null
+    const mapId = useGraphStore.getState().currentMapId
+    return currentStudioSession(mapId) ?? (mapId ? getStudioSession(mapId) : null)
+  })
   const [context] = useState(() => {
     const graphState = useGraphStore.getState()
     return createEditorContext(
       graphState.graph,
-      persistenceAdapter,
+      v2Session ? createV2PersistenceAdapter(v2Session) : persistenceAdapter,
       navCompiler,
     )
   })
+
+  useEffect(() => (v2Session ? v2Session.attach(context) : undefined), [v2Session, context])
 
   // Keep mutable editor context access outside render for persistence callbacks.
   useEffect(() => {
@@ -258,6 +270,7 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
     // Verified IndexedDB recovery is authoritative for this editor session.
     // Adopt it before the initial graph projection and before browser paint.
     adoptRecoveredEditorDocument(context, useGraphStore.getState())
+    adoptV2Document(context, useGraphStore.getState())
     new GraphAdapter(graph, context.transformer).sync(context.document)
     useGraphStore.getState().setAuthoredDocument(context.document)
     useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
@@ -301,6 +314,7 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
       new GraphAdapter(graph, context.transformer).sync(context.document, scope)
       useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
+      v2Session?.refresh(context.document)
 
       // Undo can remove the currently selected Building through an inverse
       // command without going through the normal canvas selection path. Clear
@@ -326,6 +340,27 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
   // elapsed. Uses synchronous localStorage write (via graphStore.save()) so data
   // survives browser close. The async Supabase sync runs in the background.
   useEffect(() => {
+    if (v2Session) {
+      // Save v2 (spec §6.2): leaving or hiding the tab writes the local draft only.
+      const writeDraft = () => {
+        void v2Session.writeDraft(context.document)
+      }
+      const handleV2Visibility = () => {
+        if (document.visibilityState === 'hidden') writeDraft()
+      }
+      const handleV2BeforeUnload = (event: BeforeUnloadEvent) => {
+        writeDraft()
+        if (!v2Session.isDirty(context.document)) return
+        event.preventDefault()
+        event.returnValue = ''
+      }
+      document.addEventListener('visibilitychange', handleV2Visibility)
+      window.addEventListener('beforeunload', handleV2BeforeUnload)
+      return () => {
+        document.removeEventListener('visibilitychange', handleV2Visibility)
+        window.removeEventListener('beforeunload', handleV2BeforeUnload)
+      }
+    }
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         syncDocumentAndCapture()
@@ -356,7 +391,7 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [context])
+  }, [context, v2Session])
 
   // Wire SelectionBridge once per mount: keep the legacy studio store and the
   // new SelectionManager in sync (selection only, loop-guarded).

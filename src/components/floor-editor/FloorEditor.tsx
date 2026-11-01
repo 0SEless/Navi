@@ -30,7 +30,9 @@ import type { Point2D } from '@/lib/two-point-calibration'
 import { getFootprintFrameMeters } from '@/lib/floor-plan-transform'
 import { normalizePlanAlignmentForWrite } from '@/lib/floor-plan-inspector'
 import { commitFloorPlanAlignment } from '@/lib/floor-plan-commit'
-import { uploadFloorPlanImage, deleteFloorPlanImage } from '@/services/floor-plan-storage'
+import { uploadFloorPlanImage, deleteFloorPlanImage, storeFloorPlanLocally, removeLocalFloorPlan } from '@/services/floor-plan-storage'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { useExplicitSave, useSaveShortcut, useStudioSession } from '@/components/studio/v2/useStudioSession'
 import {
   buildFloorPlanReplaceAlignment,
   collectBuildingFloorPlanReferences,
@@ -402,14 +404,18 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     }
   }, [viewMode, activeTool, activateTool, CREATION_TOOLS_2_5D])
 
+  const v2Session = useStudioSession()
+  const explicitSave = useExplicitSave(v2Session)
+  useSaveShortcut(v2Session ? explicitSave : null)
   const handleManualSave = useCallback(async () => {
     const workflow = services.get('workflow') as any
     try {
-      await workflow?.save('manual')
+      if (v2Session) await explicitSave()
+      else await workflow?.save('manual')
     } catch (error: unknown) {
       console.warn('Manual save failed in FloorEditor:', error)
     }
-  }, [services])
+  }, [services, v2Session, explicitSave])
 
   const historyRef = useRef(services.get('history'))
   const dispatcher = services.get('dispatcher')
@@ -477,7 +483,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     const existingUrl = planImageUrl
     setIsUploading(true)
     try {
-      const publicUrl = await uploadFloorPlanImage(file, mapId, buildingId, currentLevel)
+      const v2 = isSaveV2Enabled()
+      const publicUrl = v2
+        ? await storeFloorPlanLocally(file, mapId, buildingId, currentFloorId)
+        : await uploadFloorPlanImage(file, mapId, buildingId, currentLevel)
       if (publicUrl) {
         const dispatcher = services.get('dispatcher') as any
         if (!dispatcher?.execute) return
@@ -500,7 +509,8 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         })
         if (updateResult?.success === false) return
         setEditorAlignment(nextAlignment)
-        if (existingUrl && existingUrl !== publicUrl) {
+        // Save v2: the image lives only in this browser; there is no uploaded asset to clean up.
+        if (!v2 && existingUrl && existingUrl !== publicUrl) {
           const scope: FloorPlanStorageScope = {
             supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
             mapId,
@@ -546,7 +556,12 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     })
     if (updateResult?.success === false) return
     setEditorAlignment(undefined)
-    if (existingUrl) {
+    if (isSaveV2Enabled()) {
+      // Object URLs are not revoked: undo may bring the plan back in this session.
+      await removeLocalFloorPlan(mapId, buildingId, currentFloorId).catch((error: unknown) => {
+        console.warn('Failed to remove the local floor plan:', error)
+      })
+    } else if (existingUrl) {
       const scope: FloorPlanStorageScope = {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
         mapId,

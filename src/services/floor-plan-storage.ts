@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase-client'
 import { needsRasterization, rasterizePdfToPng } from '@navi/editor'
 import { isOwnedFloorPlanUrl } from './floor-plan-lifecycle'
 import type { FloorPlanStorageScope } from './floor-plan-lifecycle'
+import { localReferenceStore, type LocalReferenceStore } from '@/studio-v2/client/local-reference-store'
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -15,7 +16,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
 /** P1-T14 (R4.3): PDFs are rasterized client-side (lazy PDF.js) into a PNG
  *  BEFORE upload — the reference layer is always a raster so alignment and
  *  publish flow through the existing pipeline unchanged (D5). */
-async function planFileToUploadBlob(file: File): Promise<File> {
+export async function planFileToUploadBlob(file: File): Promise<File> {
   if (!needsRasterization(file)) return file
   const pngDataUrl = await rasterizePdfToPng(file)
   const base64 = pngDataUrl.split(',')[1] ?? ''
@@ -64,6 +65,33 @@ export async function uploadFloorPlanImage(
     console.warn('Storage exception, falling back to data URL:', String(err))
     return readFileAsDataUrl(uploadFile)
   }
+}
+
+/**
+ * Save v2 (spec §6.6): the floor plan is a private tracing reference. The image stays in
+ * this browser (IndexedDB) and the floor shows it through an object URL; nothing is uploaded.
+ */
+export async function storeFloorPlanLocally(
+  file: File,
+  campusId: string,
+  buildingId: string,
+  floorId: string,
+  store: LocalReferenceStore = localReferenceStore,
+  objectUrl: (blob: Blob) => string = (blob) => URL.createObjectURL(blob),
+): Promise<string> {
+  const image = await planFileToUploadBlob(file)
+  await store.put(campusId, buildingId, floorId, { blob: image })
+  return objectUrl(image)
+}
+
+/** Save v2: forget this computer's floor-plan reference for one floor. */
+export async function removeLocalFloorPlan(
+  campusId: string,
+  buildingId: string,
+  floorId: string,
+  store: LocalReferenceStore = localReferenceStore,
+): Promise<void> {
+  await store.remove(campusId, buildingId, floorId)
 }
 
 export interface DeleteFloorPlanImageOptions {

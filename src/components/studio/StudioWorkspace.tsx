@@ -21,6 +21,8 @@ import type { ValidationFocus } from '@/types/studio-types'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { ZoneProvider } from './v2/ZoneProvider'
 import { CampusToolZoneGuard } from './v2/CampusToolZoneGuard'
+import { LeaveBuildingRelease } from './v2/LeaveBuildingRelease'
+import { useExplicitSave, useSaveShortcut, useStudioSession } from './v2/useStudioSession'
 
 interface ValidationViewport {
   flyTo: (center: LatLng, options?: { zoom?: number; duration?: number }) => void
@@ -144,6 +146,9 @@ interface StudioWorkspaceProps {
 export function StudioWorkspace({ center }: StudioWorkspaceProps) {
   const { services, document, transformer } = useEditor()
   const workflow = useWorkflow()
+  const v2Session = useStudioSession()
+  const explicitSave = useExplicitSave(v2Session)
+  useSaveShortcut(v2Session ? explicitSave : null)
   const publishStore = services.get('publishStore')
   const publishService = services.get('publish')
   const validationEngine = services.get('validationEngine')
@@ -294,7 +299,8 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
             disabled={workflow.snapshot.saveState === 'saving' || workflow.snapshot.saveState === 'dirty-while-saving'}
             onClick={() => {
               traceScopedSaveDevelopment('save.button.handler', { saveState: workflow.snapshot.saveState })
-              void workflow.save().catch(() => undefined)
+              if (v2Session) void explicitSave().catch(() => undefined)
+              else void workflow.save().catch(() => undefined)
             }}
             style={{
               padding: '3px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
@@ -413,6 +419,7 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
   return (
     <ZoneProvider campusId={document.metadata.campusId}>
       <CampusToolZoneGuard />
+      <LeaveBuildingRelease session={v2Session} />
       {workspace}
     </ZoneProvider>
   )

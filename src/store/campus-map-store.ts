@@ -1,8 +1,62 @@
 import { create } from 'zustand'
 import type { CampusMap, LandmarkType, LandmarkInstance } from '../types/campus-map'
 import { genId } from '@navi/editor'
+import { isSaveV2Enabled } from '../studio-v2/client/flag'
+import { createStudioApi } from '../studio-v2/client/api-client'
+import type { CampusRow } from '../studio-v2/server/types'
 
 const STORAGE_KEY = 'navi-campus-maps'
+
+// ── Save v2: the campus list lives in studio.campuses (name + settings) ───────
+// The CampusMap fields and the campus's landmark types/instances travel in `settings`.
+// Only campuses whose name/settings changed since the last server answer are written.
+const v2Known = new Set<string>()
+const v2Synced = new Map<string, string>()
+
+export function __resetCampusMapSyncForTests(): void {
+  v2Known.clear()
+  v2Synced.clear()
+}
+
+function v2SettingsOf(map: CampusMap, types: LandmarkType[], instances: LandmarkInstance[]): Record<string, unknown> {
+  const settings: Record<string, unknown> = {
+    schoolName: map.schoolName,
+    campusName: map.campusName,
+    // Images wait for NAVI 2.0 (no data URIs in saved settings); only a plain URL is kept.
+    imageUrl: map.imageUrl && !map.imageUrl.startsWith('data:') ? map.imageUrl : undefined,
+    boundary: map.boundary,
+    center: map.center,
+    stats: map.stats,
+    updatedAt: map.updatedAt,
+    landmarkTypes: types,
+    landmarkInstances: instances,
+  }
+  return JSON.parse(JSON.stringify(settings)) as Record<string, unknown>
+}
+
+function v2Fingerprint(name: string, settings: Record<string, unknown>): string {
+  return JSON.stringify({ name, settings })
+}
+
+function v2MapOf(row: CampusRow): { map: CampusMap; types: LandmarkType[]; instances: LandmarkInstance[] } {
+  const settings = row.settings as Partial<CampusMap> & { landmarkTypes?: LandmarkType[]; landmarkInstances?: LandmarkInstance[] }
+  return {
+    map: {
+      id: row.id,
+      name: row.name,
+      schoolName: settings.schoolName ?? '',
+      campusName: settings.campusName,
+      imageUrl: settings.imageUrl,
+      boundary: settings.boundary ?? [],
+      center: settings.center ?? { lat: 0, lng: 0 },
+      createdAt: row.createdAt,
+      updatedAt: settings.updatedAt ?? row.createdAt,
+      stats: settings.stats ?? { buildings: 0, nodes: 0, edges: 0 },
+    },
+    types: Array.isArray(settings.landmarkTypes) ? settings.landmarkTypes : [],
+    instances: Array.isArray(settings.landmarkInstances) ? settings.landmarkInstances : [],
+  }
+}
 
 interface CampusMapState {
   maps: CampusMap[]
@@ -118,6 +172,21 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
   syncToSupabase: async () => {
     if (typeof window === 'undefined') return
     const { maps, landmarkTypes, landmarkInstances } = get()
+    if (isSaveV2Enabled()) {
+      const api = createStudioApi()
+      for (const map of maps) {
+        const settings = v2SettingsOf(map, landmarkTypes.filter((t) => t.mapId === map.id), landmarkInstances.filter((i) => i.mapId === map.id))
+        const fingerprint = v2Fingerprint(map.name, settings)
+        if (v2Synced.get(map.id) === fingerprint) continue
+        try {
+          if (v2Known.has(map.id)) await api.updateCampus(map.id, map.name, settings)
+          else await api.createCampus(map.id, map.name, settings)
+          v2Known.add(map.id)
+          v2Synced.set(map.id, fingerprint)
+        } catch (e) { console.warn('[campus-map-store] Save v2 campus sync failed:', e) }
+      }
+      return
+    }
     for (const map of maps) {
       const types = landmarkTypes.filter((t) => t.mapId === map.id)
       const instances = landmarkInstances.filter((i) => i.mapId === map.id)
@@ -134,6 +203,24 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
 
   fetchFromSupabase: async () => {
     if (typeof window === 'undefined') return
+    if (isSaveV2Enabled()) {
+      try {
+        const rows = await createStudioApi().listCampuses()
+        const maps: CampusMap[] = []
+        const landmarkTypes: LandmarkType[] = []
+        const landmarkInstances: LandmarkInstance[] = []
+        for (const row of rows) {
+          const { map, types, instances } = v2MapOf(row)
+          maps.push(map)
+          landmarkTypes.push(...types)
+          landmarkInstances.push(...instances)
+          v2Known.add(map.id)
+          v2Synced.set(map.id, v2Fingerprint(map.name, v2SettingsOf(map, types, instances)))
+        }
+        set({ maps, landmarkTypes, landmarkInstances })
+      } catch (e) { console.warn('[campus-map-store] Save v2 campus list failed:', e) }
+      return
+    }
     try {
       const res = await fetch('/api/campus-maps', { credentials: 'include' })
       if (!res.ok) return
@@ -157,6 +244,14 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
 
   deleteFromSupabase: async (mapId) => {
     if (typeof window === 'undefined') return
+    if (isSaveV2Enabled()) {
+      try {
+        await createStudioApi().deleteCampus(mapId)
+        v2Known.delete(mapId)
+        v2Synced.delete(mapId)
+      } catch (e) { console.warn('[campus-map-store] Save v2 campus delete failed:', e) }
+      return
+    }
     try {
       await fetch(`/api/campus-maps?map_id=${encodeURIComponent(mapId)}`, { method: 'DELETE', credentials: 'include' })
     } catch (e) { console.warn('[campus-map-store] deleteFromSupabase failed:', e) }
@@ -164,6 +259,11 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
 
   load: () => {
     if (typeof window === 'undefined') return
+    // Save v2: the server list is the only source (an old local cache must not be re-created there).
+    if (isSaveV2Enabled()) {
+      void get().fetchFromSupabase()
+      return
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
@@ -184,8 +284,10 @@ export const useCampusMapStore = create<CampusMapState>((set, get) => ({
 
   save: () => {
     if (typeof window === 'undefined') return
-    const { maps, landmarkTypes, landmarkInstances } = get()
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ maps, landmarkTypes, landmarkInstances }))
+    if (!isSaveV2Enabled()) {
+      const { maps, landmarkTypes, landmarkInstances } = get()
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ maps, landmarkTypes, landmarkInstances }))
+    }
     get().syncToSupabase()
   },
 

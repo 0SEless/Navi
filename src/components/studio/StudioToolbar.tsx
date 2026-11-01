@@ -5,8 +5,11 @@ import { useEditor } from '@navi/editor'
 import type { EditorMode } from '@navi/editor'
 import { Tour360Preview } from '@navi/editor'
 import { useStudioStore } from '@/store/studio-store'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 
 const MODES: EditorMode[] = ['campus', 'building', 'floor', '360-tour']
+// NAVI 1.5 has no panoramas: Save v2 hides the 360 tour mode (its handlers stay registered).
+const V2_MODES: EditorMode[] = ['campus', 'building', 'floor']
 
 export function StudioToolbar() {
   const { services } = useEditor()
@@ -35,7 +38,7 @@ export function StudioToolbar() {
         padding: '4px 14px', display: 'flex', alignItems: 'center',
         gap: 2, flexShrink: 0,
       }}>
-        {MODES.map((m) => (
+        {(isSaveV2Enabled() ? V2_MODES : MODES).map((m) => (
           <button key={m} onClick={() => editingContext?.setMode(m)}
             style={{
               padding: '3px 10px', borderRadius: 4, border: 'none',

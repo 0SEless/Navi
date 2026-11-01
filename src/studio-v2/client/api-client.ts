@@ -5,6 +5,7 @@ import { STUDIO_SESSION_HEADER } from '../parts/limits'
 import type { PartKey, ZoneKey } from '../parts/part-keys'
 import type {
   CampusRole,
+  CampusRow,
   ChangesOk,
   LoadOk,
   OtherChangedPart,
@@ -61,6 +62,10 @@ export interface StudioApi {
   forceRelease(campusId: string, zone: ZoneKey): Promise<{ released: boolean }>
   status(campusId: string, held: ZoneKey[]): Promise<StatusReply>
   publish(campusId: string, commitNo: number): Promise<{ publicationNo: number; commitNo: number }>
+  listCampuses(): Promise<CampusRow[]>
+  createCampus(campusId: string, name: string, settings: Record<string, unknown>): Promise<void>
+  updateCampus(campusId: string, name: string | null, settings: Record<string, unknown>): Promise<void>
+  deleteCampus(campusId: string): Promise<void>
 }
 
 export interface StudioApiOptions {
@@ -150,5 +155,11 @@ export function createStudioApi(options: StudioApiOptions = {}): StudioApi {
     forceRelease: (campusId, zone) => call('/locks', { method: 'POST', body: { campusId, forceRelease: zone } }),
     status: (campusId, held) => call('/status', { method: 'POST', body: { campusId, held } }),
     publish: (campusId, commitNo) => call('/publish', { method: 'POST', body: { campusId, commitNo } }),
+    listCampuses: () => call<{ campuses: CampusRow[] }>('/campuses', { method: 'GET' }).then((body) => body.campuses ?? []),
+    createCampus: (campusId, name, settings) => call<unknown>('/campuses', { method: 'POST', body: { campusId, name, settings } }).then(() => undefined),
+    updateCampus: (campusId, name, settings) =>
+      call<unknown>('/campuses', { method: 'PATCH', body: { campusId, name, settings } }).then(() => undefined),
+    deleteCampus: (campusId) =>
+      call<unknown>(`/campuses?campus_id=${encodeURIComponent(campusId)}`, { method: 'DELETE' }).then(() => undefined),
   }
 }

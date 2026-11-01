@@ -113,6 +113,11 @@ export class SaveController {
     return this.diff(doc).length > 0
   }
 
+  /** The changes a save would send now (local drafts store exactly these). */
+  changes(doc: CampusDocument): ClientSaveChange[] {
+    return this.diff(doc).map((entry) => entry.change)
+  }
+
   /** Recompute dirtiness after an edit/undo/redo and tell subscribers (no network). */
   refresh(doc: CampusDocument): void {
     if (this.state.status === 'saving') return

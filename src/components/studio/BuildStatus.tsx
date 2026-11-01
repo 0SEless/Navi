@@ -2,6 +2,8 @@
 
 import { useWorkflow, useEditor } from '@navi/editor'
 import { useEffect, useState } from 'react'
+import { SAVE_FIRST } from '@/studio-v2/client/studio-session'
+import { useStudioSession, useStudioSessionState } from './v2/useStudioSession'
 
 export interface BuildStatusProps {
   onOpenProblems?: () => void
@@ -17,6 +19,9 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
     publish: (force?: boolean) => Promise<void>
   } | null
   const [publishState, setPublishState] = useState('idle')
+  // Save v2: publishing takes the latest saved commit, so unsaved work must be saved first.
+  const v2Session = useStudioSession()
+  const saveFirst = useStudioSessionState(v2Session).dirty
 
   useEffect(() => {
     if (!publishService?.subscribe) return
@@ -63,8 +68,9 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
           }}
         >{problemCount > 0 ? `⚠ View issues (${problemCount})` : 'View issues'}</button>
       )}
-      <button onClick={() => publishService?.publish()}
-        disabled={!isReady || publishState === 'compiling' || publishState === 'uploading'}
+      <button onClick={() => (v2Session ? void publishService?.publish().catch(() => undefined) : publishService?.publish())}
+        disabled={!isReady || saveFirst || publishState === 'compiling' || publishState === 'uploading'}
+        title={saveFirst ? SAVE_FIRST : undefined}
         style={{
           padding: '2px 10px', fontSize: 11, fontWeight: 600,
           border: '1px solid var(--navi-primary)', borderRadius: 4,
@@ -73,7 +79,8 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
           cursor: publishState === 'compiling' ? 'not-allowed' : 'pointer',
         }}
       >
-        {publishState === 'success' ? 'Published' :
+        {saveFirst ? SAVE_FIRST :
+         publishState === 'success' ? 'Published' :
          publishState === 'error' ? 'Failed' :
          publishState === 'compiling' ? 'Compiling...' :
          publishState === 'uploading' ? 'Uploading...' : 'Publish'}

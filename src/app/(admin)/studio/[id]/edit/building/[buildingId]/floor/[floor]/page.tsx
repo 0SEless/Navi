@@ -21,6 +21,9 @@ import { adoptRecoveredEditorDocument } from '@/components/studio/adopt-recovere
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { ZoneProvider } from '@/components/studio/v2/ZoneProvider'
 import { FloorZoneGate } from '@/components/studio/v2/FloorZoneGate'
+import { currentStudioSession, getStudioSession } from '@/studio-v2/client/studio-session'
+import { createV2PersistenceAdapter } from '@/studio-v2/client/persistence-adapter'
+import { adoptV2Document } from '@/studio-v2/client/adopt-v2-document'
 
 export default function FloorEditorPage({ params }: { params: Promise<{ id: string; buildingId: string; floor: string }> }) {
   const { id: mapId, buildingId, floor: floorStr } = use(params)
@@ -87,6 +90,9 @@ function FloorEditorBridgeSession({
     [buildingId, floor],
   )
 
+  // Save v2: the floor editor shares the campus session (baseline, drafts, locks) with the map.
+  const [v2Session] = useState(() => (isSaveV2Enabled() ? currentStudioSession(mapId) ?? getStudioSession(mapId) : null))
+
   const [context] = useState(() => {
     let currentCtx: EditorContext | null = null
 
@@ -146,12 +152,15 @@ function FloorEditorBridgeSession({
     const navCompiler = new NavigationCompiler(createCompilerAdapter())
     currentCtx = createEditorContext(
       useGraphStore.getState().graph,
-      persistenceAdapter,
+      v2Session ? createV2PersistenceAdapter(v2Session) : persistenceAdapter,
       navCompiler,
     )
     adoptRecoveredEditorDocument(currentCtx, useGraphStore.getState())
+    adoptV2Document(currentCtx, useGraphStore.getState())
     return currentCtx
   })
+
+  useEffect(() => (v2Session ? v2Session.attach(context) : undefined), [v2Session, context])
 
   // Destroy autosave timers and other services when this context is replaced.
   // The microtask guard tolerates React Strict Mode's setup/cleanup replay.
@@ -193,15 +202,39 @@ function FloorEditorBridgeSession({
       useGraphStore.getState().setAuthoredDocument(context.document)
       useGraphStore.getState().recordAuthoredMutation('floor', buildingId, floor)
       useGraphStore.setState((state) => ({ renderVersion: state.renderVersion + 1 }))
+      v2Session?.refresh(context.document)
     })
 
     return () => unsubscribe()
-  }, [context, floorScope, buildingId, floor, adoptionVersion])
+  }, [context, floorScope, buildingId, floor, adoptionVersion, v2Session])
 
   // Route transitions and tab exits can unmount the editor without giving the
   // normal command autosave debounce a chance to run. Reuse the existing
   // GraphAdapter/local graph-store path for a synchronous best-effort flush.
   useEffect(() => {
+    if (v2Session) {
+      // Save v2 (spec §6.2): leaving or hiding the floor editor writes the local draft only.
+      const writeDraft = () => {
+        void v2Session.writeDraft(context.document)
+      }
+      const handleV2Visibility = () => {
+        if (document.visibilityState === 'hidden') writeDraft()
+      }
+      const handleV2BeforeUnload = (event: BeforeUnloadEvent) => {
+        writeDraft()
+        if (!v2Session.isDirty(context.document)) return
+        event.preventDefault()
+        event.returnValue = ''
+      }
+      window.addEventListener('beforeunload', handleV2BeforeUnload)
+      document.addEventListener('visibilitychange', handleV2Visibility)
+      return () => {
+        window.removeEventListener('beforeunload', handleV2BeforeUnload)
+        document.removeEventListener('visibilitychange', handleV2Visibility)
+        // The map page adopts this document on return (authoredDocument is kept in lockstep).
+        writeDraft()
+      }
+    }
     const flushLocalPersistence = () => {
       const state = useGraphStore.getState()
       if (state.serverAdoptionVersion !== adoptionVersion) return
@@ -229,7 +262,7 @@ function FloorEditorBridgeSession({
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       flushLocalPersistence()
     }
-  }, [buildingId, floor, context, floorScope, adoptionVersion])
+  }, [buildingId, floor, context, floorScope, adoptionVersion, v2Session])
 
   return (
     <ErrorBoundary>

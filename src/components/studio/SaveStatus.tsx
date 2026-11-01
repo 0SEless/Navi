@@ -3,7 +3,8 @@
 import { useWorkflow } from '@navi/editor'
 import { isStudioLocalDraftModeEnabled, useGraphStore } from '@/store/graph-store'
 import { isStudioDurableScopedSaveEnabled, isStudioScopedHistoryEnabled } from '@/services/studio-scoped-history-flag'
-import { getSaveStatusModel } from './save-status-model'
+import { getSaveStatusModel, getV2SaveStatusModel } from './save-status-model'
+import { useStudioSession, useStudioSessionState } from './v2/useStudioSession'
 
 /**
  * Compact save-state indicator for the Studio toolbar.
@@ -20,8 +21,10 @@ export function SaveStatus() {
   const localDraftError = useGraphStore((state) => state.localDraftError)
   const scopedHistoryStatus = useGraphStore((state) => state.scopedHistoryStatus)
   const scopedHistoryDetail = useGraphStore((state) => state.scopedHistoryDetail)
+  const v2Session = useStudioSession()
+  const v2State = useStudioSessionState(v2Session)
 
-  const status = getSaveStatusModel({
+  const legacyStatus = getSaveStatusModel({
     saveState: snapshot.saveState,
     syncStatus,
     syncError,
@@ -30,6 +33,7 @@ export function SaveStatus() {
     localDraftStatus,
     localDraftError,
   })
+  const status = v2Session ? getV2SaveStatusModel(v2State) : legacyStatus
   const scopedHistoryLabels = {
     'session-only': 'Scoped history: local only; resets on reload',
     validating: 'Validating scoped operation locally…',
@@ -42,7 +46,7 @@ export function SaveStatus() {
     'durably-committed-local': 'Saved to local synthetic E5; not cloud-saved',
     failed: 'Local E5 save failed; IndexedDB draft remains available',
   }
-  const scopedHistoryLabel = (isStudioScopedHistoryEnabled() || isStudioDurableScopedSaveEnabled()) && scopedHistoryStatus !== 'disabled'
+  const scopedHistoryLabel = !v2Session && (isStudioScopedHistoryEnabled() || isStudioDurableScopedSaveEnabled()) && scopedHistoryStatus !== 'disabled'
     ? scopedHistoryLabels[scopedHistoryStatus]
     : null
 

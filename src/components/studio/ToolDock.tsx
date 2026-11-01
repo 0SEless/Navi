@@ -4,6 +4,7 @@ import { Undo2, Redo2 } from 'lucide-react'
 import { useEditor, useDocumentVersion, ToolDock as EditorToolDock, CAMPUS_TOOL_GROUPS, TOUR_360_TOOL_GROUPS } from '@navi/editor'
 import { useCurrentTool } from './useCurrentTool'
 import { useStudioStore } from '@/store/studio-store'
+import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 
 export function ToolDock() {
   const { services } = useEditor()
@@ -18,7 +19,7 @@ export function ToolDock() {
   const showHiddenPois = useStudioStore((s) => s.layers.hidden_pois ?? false)
   const toggleLayer = useStudioStore((s) => s.toggleLayer)
 
-  const toolGroups = editorMode === '360-tour' ? TOUR_360_TOOL_GROUPS : CAMPUS_TOOL_GROUPS
+  const toolGroups = editorMode === '360-tour' && !isSaveV2Enabled() ? TOUR_360_TOOL_GROUPS : CAMPUS_TOOL_GROUPS
 
   return (
     <div style={{

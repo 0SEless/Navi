@@ -204,3 +204,27 @@ export function getSaveStatusModel({
     diagnostic: null,
   }
 }
+
+/** Save v2 status line (spec §6.4), with the exact owner-agreed copy. */
+export interface V2SaveStatusInput {
+  status: 'clean' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict'
+  message: string | null
+  headCommit: number
+  dirty: boolean
+}
+
+export function getV2SaveStatusModel({ status, message, headCommit, dirty }: V2SaveStatusInput): SaveStatusModel {
+  if (status === 'saving') {
+    return { label: 'Saving…', color: COLORS.progress, detail: null, showRecoveryActions: false, diagnostic: null }
+  }
+  if (status === 'conflict') {
+    return { label: message ?? 'Changed by another admin.', color: COLORS.warning, detail: null, showRecoveryActions: false, diagnostic: null }
+  }
+  if (status === 'error') {
+    return { label: message ?? 'Not saved — your work is kept on this computer', color: COLORS.error, detail: null, showRecoveryActions: false, diagnostic: null }
+  }
+  if (dirty || status === 'dirty') {
+    return { label: 'Unsaved changes', color: COLORS.warning, detail: null, showRecoveryActions: false, diagnostic: null }
+  }
+  return { label: `Saved · #${headCommit}`, color: COLORS.success, detail: null, showRecoveryActions: false, diagnostic: null }
+}

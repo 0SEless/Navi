@@ -17,6 +17,9 @@ import {
   studioDraftRepository,
   verifyStudioDraftRecord,
 } from '../services/studio-local-drafts'
+import { isSaveV2Enabled } from '../studio-v2/client/flag'
+import { currentStudioSession, getStudioSession, registerStudioSession } from '../studio-v2/client/studio-session'
+import { buildGraphFromDocument } from '../studio-v2/client/graph-from-document'
 
 const STORAGE_KEY = 'navi-graph'
 const SYNC_STATUS_KEY = 'navi-sync-status'
@@ -754,6 +757,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     })
     // P0.14: not ready while an authoritative campus load is in flight.
     get().beginCampusHydration()
+    if (isSaveV2Enabled()) {
+      // Save v2: the saved parts are the only source; no localStorage cache, no /api/graph.
+      set({ graph: new Graph(), authoredDocument: null, currentMapId: null, pendingAuthoredMutations: [], syncStatus: 'syncing', syncError: null })
+      void loadSaveV2Campus(mapId)
+      return
+    }
     const key = storageKey(mapId)
     const raw = localStorage.getItem(key)
     let graph = new Graph()
@@ -850,6 +859,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   save: async (options?: { trigger?: SaveTrigger; localOnly?: boolean }) => {
     if (typeof window === 'undefined') return
+    // Save v2: every legacy save call (drag end, scoped history, unload) is a local draft write.
+    if (isSaveV2Enabled()) {
+      await currentStudioSession(get().currentMapId)?.writeDraft()
+      return
+    }
     const trigger = options?.trigger ?? 'manual'
     if (isStudioLocalDraftModeEnabled() && trigger === 'autosave') {
       await get().saveLocalDraft()
@@ -1067,6 +1081,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   syncToSupabase: async (options?: { force?: boolean; trigger?: SaveTrigger }) => {
     if (typeof window === 'undefined') return
+    // Save v2: the legacy /api/graph writer is never used; Save goes through the Studio session.
+    if (isSaveV2Enabled()) return
     const trigger = options?.trigger ?? 'manual'
     if (isStudioLocalDraftModeEnabled() && trigger === 'autosave') {
       await get().saveLocalDraft()
@@ -1306,6 +1322,24 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
 }))
+
+// ── Save v2 load ──────────────────────────────────────────────────────────
+
+async function loadSaveV2Campus(mapId: string): Promise<void> {
+  const session = getStudioSession(mapId)
+  try {
+    const document = await session.load()
+    if (useGraphStore.getState().currentMapId !== null && useGraphStore.getState().currentMapId !== mapId) return
+    registerStudioSession(session)
+    // A campus with no saved parts yet opens empty; the editor builds its first document.
+    const graph = document ? buildGraphFromDocument(document) : new Graph()
+    graph.campusId = mapId
+    useGraphStore.setState({ graph, authoredDocument: document, currentMapId: mapId, pendingAuthoredMutations: [], syncStatus: 'synced', syncError: null })
+  } catch (error) {
+    console.warn('[graph-store] Save v2 load failed:', error)
+    useGraphStore.setState({ syncStatus: 'error', syncError: error instanceof Error ? error.message : 'Unable to load the campus.' })
+  }
+}
 
 // ── Per-campus save serialization ─────────────────────────────────────────
 //
