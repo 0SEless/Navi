@@ -27,6 +27,7 @@ import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { currentStudioSession, getStudioSession, type StudioSession } from '@/studio-v2/client/studio-session'
 import { createV2PersistenceAdapter } from '@/studio-v2/client/persistence-adapter'
 import { adoptV2Document } from '@/studio-v2/client/adopt-v2-document'
+import { exposeForBrowserProbe } from '@/studio-v2/client/test-hooks'
 
 let activeEditorContext: EditorContext | null = null
 
@@ -252,7 +253,15 @@ function EditorBridgeSession({ children }: { children: ReactNode }) {
     )
   })
 
-  useEffect(() => (v2Session ? v2Session.attach(context) : undefined), [v2Session, context])
+  useEffect(() => {
+    if (!v2Session) return
+    const detach = v2Session.attach(context)
+    const unexpose = exposeForBrowserProbe(context, v2Session)
+    return () => {
+      unexpose()
+      detach()
+    }
+  }, [v2Session, context])
 
   // Keep mutable editor context access outside render for persistence callbacks.
   useEffect(() => {

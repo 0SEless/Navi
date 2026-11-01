@@ -24,6 +24,7 @@ import { FloorZoneGate } from '@/components/studio/v2/FloorZoneGate'
 import { currentStudioSession, getStudioSession } from '@/studio-v2/client/studio-session'
 import { createV2PersistenceAdapter } from '@/studio-v2/client/persistence-adapter'
 import { adoptV2Document } from '@/studio-v2/client/adopt-v2-document'
+import { exposeForBrowserProbe } from '@/studio-v2/client/test-hooks'
 
 export default function FloorEditorPage({ params }: { params: Promise<{ id: string; buildingId: string; floor: string }> }) {
   const { id: mapId, buildingId, floor: floorStr } = use(params)
@@ -160,7 +161,15 @@ function FloorEditorBridgeSession({
     return currentCtx
   })
 
-  useEffect(() => (v2Session ? v2Session.attach(context) : undefined), [v2Session, context])
+  useEffect(() => {
+    if (!v2Session) return
+    const detach = v2Session.attach(context)
+    const unexpose = exposeForBrowserProbe(context, v2Session)
+    return () => {
+      unexpose()
+      detach()
+    }
+  }, [v2Session, context])
 
   // Destroy autosave timers and other services when this context is replaced.
   // The microtask guard tolerates React Strict Mode's setup/cleanup replay.

@@ -2,7 +2,6 @@
 // explicit Save, local drafts, publish, and merging other admins' saved parts. The map page
 // and the floor editor share it, so a page change never loses the baseline or the locks.
 import type { CampusDocument } from '@navi/core'
-import { canonicalJson, fastHash } from '../parts/canonical'
 import { joinParts } from '../parts/join'
 import { parsePartKey, zoneOf, type PartKey, type ZoneKey } from '../parts/part-keys'
 import { splitDocument, type PartRecord } from '../parts/split'
@@ -11,7 +10,7 @@ import { createStudioApi, type StudioApi } from './api-client'
 import { draftStore as defaultDrafts, planRestore, type DraftStore, type V2DraftPart } from './draft-store'
 import { localReferenceStore as defaultReferences, type LocalReferenceStore } from './local-reference-store'
 import { mergeRemoteParts, withRemoteParts, type MergeContext } from './remote-merge'
-import { SaveController, type SaveControllerState, type SaveOutcome } from './save-controller'
+import { SaveController, partHash, type SaveControllerState, type SaveOutcome } from './save-controller'
 import { clearHistoryForZone, denialMessage, type ZoneClient } from './zone-client'
 import { getZoneClient } from './zone-registry'
 
@@ -90,7 +89,7 @@ export function outcomeMessage(outcome: SaveOutcome): string | null {
 }
 
 function hashParts(doc: CampusDocument): Map<PartKey, string> {
-  return new Map(splitDocument(doc).parts.map((part) => [part.key, fastHash(canonicalJson(part.content))]))
+  return new Map(splitDocument(doc).parts.map((part) => [part.key, partHash(part.key, part.content)]))
 }
 
 /** Part keys whose content differs between two documents (the undo history's touched parts). */

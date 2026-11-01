@@ -88,6 +88,7 @@ interface SaveArgs {
   baseCommit?: number
   message?: string | null
   requestChecksum?: string
+  actorName?: string | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,7 +97,9 @@ type SaveResult = any
 async function save(db: Queryable, args: SaveArgs): Promise<SaveResult> {
   const changesJson = JSON.stringify(args.changes)
   const { rows } = await db.query(
-    `SELECT studio.save($1, $2, $3, $4, $5, $6, $7::jsonb, $8) AS r`,
+    args.actorName === undefined
+      ? `SELECT studio.save($1, $2, $3, $4, $5, $6, $7::jsonb, $8) AS r`
+      : `SELECT studio.save($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) AS r`,
     [
       args.campus,
       args.actor ?? 'alice',
@@ -106,6 +109,7 @@ async function save(db: Queryable, args: SaveArgs): Promise<SaveResult> {
       args.message === undefined ? 'test save' : args.message,
       changesJson,
       args.requestChecksum ?? sha(changesJson),
+      ...(args.actorName === undefined ? [] : [args.actorName]),
     ],
   )
   return rows[0].r
@@ -244,6 +248,16 @@ describe('studio.save', () => {
       expect((await currentOf(admin, campus, 'map/road:r2')).content).toEqual({ v: 1 })
       const receipt = await admin.query(`SELECT 1 FROM studio.mutation_receipts WHERE mutation_id = $1`, [mutationId])
       expect(receipt.rows).toHaveLength(0)
+    })
+  })
+
+  it('a stale part names who saved it by display name (the copy "This road was changed by ana")', async () => {
+    await withTestDb(async (client, admin) => {
+      const campus = await newCampus(admin)
+      await save(client, { campus, actor: 'user-7f3a', actorName: 'ana', changes: [put('map/road:r1', { v: 1 })] })
+      const result = await save(client, { campus, actor: 'bob', changes: [put('map/road:r1', { v: 2 }, 0)] })
+      expect(result.status).toBe('stale')
+      expect(result.parts[0]).toMatchObject({ partKey: 'map/road:r1', savedBy: 'ana' })
     })
   })
 

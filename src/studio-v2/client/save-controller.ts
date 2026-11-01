@@ -51,7 +51,17 @@ const REQUEST_HEADROOM_BYTES = 64 * 1024
 const UUID_PLACEHOLDER = '00000000-0000-4000-8000-000000000000'
 const encoder = new TextEncoder()
 
-function hashOf(content: unknown): string {
+/**
+ * The dirty hash of a part. The campus part's `presentCollections` only says whether an
+ * empty optional map collection is [] or absent; the editor drops empty ones on load, and
+ * that must not dirty the strictly-locked campus part (R52). It is still sent whenever the
+ * campus part is saved for a real change.
+ */
+export function partHash(key: PartKey, content: unknown): string {
+  if (key === 'campus' && content && typeof content === 'object' && 'presentCollections' in content) {
+    const { presentCollections: _ignored, ...rest } = content as Record<string, unknown>
+    return fastHash(canonicalJson(rest))
+  }
   return fastHash(canonicalJson(content))
 }
 
@@ -98,7 +108,7 @@ export class SaveController {
     this.baseline = new Map()
     for (const part of load.parts) {
       if (part.deleted) continue
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: hashOf(part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: partHash(part.partKey, part.content) })
     }
     this.head = load.headCommit
     this.pending = null
@@ -121,7 +131,10 @@ export class SaveController {
   /** Recompute dirtiness after an edit/undo/redo and tell subscribers (no network). */
   refresh(doc: CampusDocument): void {
     if (this.state.status === 'saving') return
-    this.emit({ status: this.isDirty(doc) ? 'dirty' : 'clean', message: null })
+    const dirty = this.isDirty(doc)
+    // A failed save's message stays up while its edits are still unsaved (drafts refresh often).
+    if (dirty && (this.state.status === 'conflict' || this.state.status === 'error')) return
+    this.emit({ status: dirty ? 'dirty' : 'clean', message: null })
   }
 
   async save(doc: CampusDocument, message?: string): Promise<SaveOutcome> {
@@ -160,7 +173,7 @@ export class SaveController {
   /** Baseline update for parts another admin saved and that were merged into the document. */
   applyRemote(parts: PartRecordWithVersion[], headCommit?: number): void {
     for (const part of parts) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOf(part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : partHash(part.partKey, part.content) })
     }
     if (headCommit !== undefined && headCommit > this.head) this.head = headCommit
   }
@@ -175,7 +188,7 @@ export class SaveController {
     // 'mine': adopt their version numbers but keep the local content dirty, so the next
     // save overwrites on top of their version (the UI confirms first — spec D7).
     for (const part of relevant) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOf(part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : partHash(part.partKey, part.content) })
     }
     return { reload: [] }
   }
@@ -196,7 +209,7 @@ export class SaveController {
     for (const part of parts) {
       seen.add(part.key)
       const base = this.baseline.get(part.key)
-      const hash = hashOf(part.content)
+      const hash = partHash(part.key, part.content)
       if (base && base.hash === hash) continue
       out.push({ key: part.key, change: this.putChange(part, base), hash })
     }

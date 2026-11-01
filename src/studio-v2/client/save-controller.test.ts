@@ -277,3 +277,31 @@ describe('SaveController state', () => {
     expect(statuses).toEqual(['dirty', 'saving', 'saved'])
   })
 })
+
+describe('SaveController — campus presence flags (R52)', () => {
+  it('an empty optional map collection dropped by the editor does not dirty the strict campus part', () => {
+    const doc = fixtureFull()
+    doc.roadJunctions = []
+    const controller = controllerFor(doc, fakeApi(async (body) => okReply(body)))
+    const edited = structuredClone(doc)
+    delete (edited as Partial<CampusDocument>).roadJunctions
+    expect(controller.dirtyParts(edited)).toEqual([])
+  })
+})
+
+describe('SaveController.refresh after a failed save', () => {
+  it('a draft refresh keeps the conflict state until the next save or until the edits are gone', async () => {
+    const doc = fixtureFull()
+    const api = fakeApi(async () => ({ status: 'stale', parts: [{ partKey: partKey('map/road', doc.roads[0].id), yourVersion: 1, currentVersion: 2, savedBy: 'ana', savedAt: null }] }))
+    const controller = controllerFor(doc, api)
+    const states: string[] = []
+    controller.subscribe((state) => states.push(state.status))
+    const edited = structuredClone(doc)
+    edited.roads[0].name = 'Mine'
+    await controller.save(edited)
+    controller.refresh(edited)
+    expect(states.at(-1)).toBe('conflict')
+    controller.refresh(doc)
+    expect(states.at(-1)).toBe('clean')
+  })
+})

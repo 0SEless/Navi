@@ -409,6 +409,7 @@ export function createStudioHandlers(deps: StudioHandlerDeps) {
         const input: SaveInput = {
           campusId,
           actor: actor.id,
+          actorName: actor.name,
           session,
           mutationId: body.mutationId,
           baseCommit: body.baseCommit as number,

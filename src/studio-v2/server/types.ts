@@ -78,6 +78,8 @@ export interface SaveInput {
   changes: SaveChange[]
   /** sha256 hex (64 lowercase) of the canonical request; a retry with the same mutationId must send the same value. */
   requestChecksum: string
+  /** Display name recorded with the commit, so conflicts name the admin rather than an id. */
+  actorName?: string | null
 }
 
 export interface SavedPart {

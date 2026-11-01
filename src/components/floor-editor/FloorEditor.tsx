@@ -32,7 +32,7 @@ import { normalizePlanAlignmentForWrite } from '@/lib/floor-plan-inspector'
 import { commitFloorPlanAlignment } from '@/lib/floor-plan-commit'
 import { uploadFloorPlanImage, deleteFloorPlanImage, storeFloorPlanLocally, removeLocalFloorPlan } from '@/services/floor-plan-storage'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
-import { useExplicitSave, useSaveShortcut, useStudioSession } from '@/components/studio/v2/useStudioSession'
+import { useExplicitSave, useStudioSession } from '@/components/studio/v2/useStudioSession'
 import {
   buildFloorPlanReplaceAlignment,
   collectBuildingFloorPlanReferences,
@@ -404,9 +404,9 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     }
   }, [viewMode, activeTool, activateTool, CREATION_TOOLS_2_5D])
 
+  // Save v2: the existing Ctrl+S handler below calls handleManualSave, which saves explicitly.
   const v2Session = useStudioSession()
   const explicitSave = useExplicitSave(v2Session)
-  useSaveShortcut(v2Session ? explicitSave : null)
   const handleManualSave = useCallback(async () => {
     const workflow = services.get('workflow') as any
     try {
@@ -688,7 +688,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         floorLabel={floorLabel}
         status={headerStatus}
         statusMessage={headerStatusMessage}
-        statusIndicator={isStudioLocalDraftModeEnabled() ? <SaveStatus /> : undefined}
+        statusIndicator={isStudioLocalDraftModeEnabled() || v2Session ? <SaveStatus /> : undefined}
         selectedCount={selectedCount}
         onSave={handleManualSave}
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}

@@ -52,7 +52,7 @@ export function createStudioRepo(db: StudioQueryable) {
     /** studio.save: the one Studio save. Statuses are returned as-is. */
     save(input: SaveInput): Promise<SaveDbResult> {
       return call(
-        'SELECT studio.save($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, $7::jsonb, $8::char(64)) AS r',
+        'SELECT studio.save($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, $7::jsonb, $8::char(64), $9::text) AS r',
         [
           input.campusId,
           input.actor,
@@ -62,6 +62,7 @@ export function createStudioRepo(db: StudioQueryable) {
           input.message,
           JSON.stringify(input.changes),
           input.requestChecksum,
+          input.actorName ?? null,
         ],
         'save',
       )

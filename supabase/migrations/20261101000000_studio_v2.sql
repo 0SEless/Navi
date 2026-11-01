@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS studio.commits (
   commit_no   bigint NOT NULL,
   parent_no   bigint,
   author      text NOT NULL,
+  -- Display name of the author when the commit was written (shown in "This road was changed by …").
+  author_name text,
   message     text,
   mutation_id text NOT NULL,
   kind        text NOT NULL CHECK (kind IN ('save', 'import', 'restore')),
@@ -536,7 +538,7 @@ AS $fn$
                        'partKey', c.part_key,
                        'yourVersion', c.expected_version,
                        'currentVersion', coalesce(pc.version_no, 0),
-                       'savedBy', cm.author,
+                       'savedBy', coalesce(cm.author_name, cm.author),
                        'savedAt', cm.created_at)
                      ORDER BY c.part_key COLLATE "C"),
            '[]'::jsonb)
@@ -603,7 +605,8 @@ CREATE OR REPLACE FUNCTION studio.save(
   p_base_commit      bigint,
   p_message          text,
   p_changes          jsonb,
-  p_request_checksum char(64))
+  p_request_checksum char(64),
+  p_actor_name       text DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -692,8 +695,8 @@ BEGIN
   ELSE
     -- 7. Write. expected_version equals the current version here (step 5).
     v_commit := v_head + 1;
-    INSERT INTO studio.commits (campus_id, commit_no, parent_no, author, message, mutation_id, kind)
-    VALUES (p_campus, v_commit, v_head, p_actor, p_message, p_mutation_id, 'save');
+    INSERT INTO studio.commits (campus_id, commit_no, parent_no, author, author_name, message, mutation_id, kind)
+    VALUES (p_campus, v_commit, v_head, p_actor, nullif(btrim(p_actor_name), ''), p_message, p_mutation_id, 'save');
 
     INSERT INTO studio.part_versions
       (campus_id, part_key, version_no, checksum, content, content_bin, deleted, sort_key, commit_no, size_bytes)
@@ -737,7 +740,7 @@ BEGIN
   RETURN v_result;
 END
 $fn$;
-COMMENT ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char) IS
+COMMENT ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char, text) IS
   'The one Studio save: all-or-nothing, replay-safe by mutationId, per-part version check and strict zone locks. See spec section 5.1.';
 
 -- Privileges: only studio.save is callable by the API role; the helpers and the
@@ -747,7 +750,7 @@ REVOKE ALL ON FUNCTION studio.save_parse_changes(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.save_zone_denials(text, text, text, studio.save_change[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.save_stale_parts(text, studio.save_change[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION studio.save_others_changed(text, text, bigint, text[]) FROM PUBLIC;
-REVOKE ALL ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char) FROM PUBLIC;
+REVOKE ALL ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char, text) FROM PUBLIC;
 
 DO $$
 BEGIN
@@ -762,7 +765,7 @@ BEGIN
 END
 $$;
 
-GRANT EXECUTE ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char) TO navi_studio_api;
+GRANT EXECUTE ON FUNCTION studio.save(text, text, text, text, bigint, text, jsonb, char, text) TO navi_studio_api;
 
 -- ---------------------------------------------------------------------------
 -- Zone locks (spec section 7). A zone is 'building:<id>' (the building and all of
