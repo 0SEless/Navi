@@ -1,3 +1,5 @@
 export * from './types'
 export * from './stair-shape'
 export * from './path'
+export * from './mesh'
+export * from './materials'
