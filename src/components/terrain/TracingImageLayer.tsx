@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { TracingImage } from '@/lib/terrain/tracing-store'
-import { FIRST_OVERLAY_LAYER, TRACING_LAYER } from '@/lib/terrain/terrain-view'
+import { overlayAnchor, TRACING_LAYER } from '@/lib/terrain/terrain-view'
 
 const SOURCE = TRACING_LAYER
 
@@ -27,7 +27,7 @@ export function TracingImageLayer({ map, image, visible, onPlace }: {
       if (map.getLayer(SOURCE)) map.removeLayer(SOURCE)
       if (map.getSource(SOURCE)) map.removeSource(SOURCE)
       map.addSource(SOURCE, { type: 'image', url, coordinates })
-      map.addLayer({ id: SOURCE, type: 'raster', source: SOURCE, paint: { 'raster-opacity': image.opacity } }, map.getLayer(FIRST_OVERLAY_LAYER) ? FIRST_OVERLAY_LAYER : undefined)
+      map.addLayer({ id: SOURCE, type: 'raster', source: SOURCE, paint: { 'raster-opacity': image.opacity } }, overlayAnchor(map))
     }
     if (map.isStyleLoaded()) add()
     else map.once('load', add)

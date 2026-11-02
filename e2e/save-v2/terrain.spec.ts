@@ -303,6 +303,10 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
     await page.mouse.up()
   }
 
+  // Roads are drawn as surfaces at their width (Task 13), under the road lines.
+  expect(await top.run<number>('map.getSource("terrain-road-surfaces").serialize().data.features.length')).toBe(1)
+  expect(await top.run<string>('map.getStyle().layers.map((l) => l.id).slice(map.getStyle().layers.findIndex((l) => l.id === "terrain-road-surfaces"))[1]')).toBe('terrain-roads')
+
   // Place: one click south-east of the hall puts a 3 m block on the ground.
   await page.getByRole('button', { name: 'Stairs' }).click()
   const place = await screenOf(122.1712, 11.8170)

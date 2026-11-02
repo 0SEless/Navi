@@ -8,6 +8,7 @@ import { demTileUrl } from '@/lib/terrain/dem-protocol'
 import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
 import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/mesh-layer'
+import { RoadSurfaceLayer } from './layers/RoadSurfaceLayer'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
 import { applyTerrainView, CHANGES_SOURCE, CONTOUR_SOURCE, HILLSHADE_LAYER, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
@@ -228,5 +229,10 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     } else if (map.getLayer(overlay)) map.removeLayer(overlay)
   }, [ready, layers.buildings, layers.roads, layers.contours, view])
 
-  return <div ref={containerRef} data-terrain-map={pitch > 0 ? '3d' : 'top'} style={{ position: 'absolute', inset: 0 }} />
+  return (
+    <>
+      <div ref={containerRef} data-terrain-map={pitch > 0 ? '3d' : 'top'} style={{ position: 'absolute', inset: 0 }} />
+      <RoadSurfaceLayer map={ready ? mapRef.current : null} document={document} sampler={sampler} visible={layers.roads} />
+    </>
+  )
 }

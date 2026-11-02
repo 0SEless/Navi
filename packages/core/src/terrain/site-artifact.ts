@@ -2,7 +2,8 @@ import type { CampusDocument } from '../types/document'
 import type { Structure, StructurePreset } from '../structures/types'
 import { structurePath } from '../structures/path'
 import { bakeTerrain } from './bake'
-import { createTerrainSampler, effectiveBuildingBase, resolveStructureEnds, structureTopAt, surfaceHeightAt, type TerrainSampler } from './compose'
+import { createTerrainSampler, effectiveBuildingBase, resolveStructureEnds, structureTopAt, type TerrainSampler } from './compose'
+import { siteRoadSurfaces } from './road-surface'
 import { decodeInt16, gridOriginForBoundary, toLatLng, toLocal } from './grid'
 import type { BakedTerrain, TerrainGrid } from './types'
 
@@ -53,14 +54,7 @@ export function buildSiteArtifact(doc: CampusDocument): SiteArtifact | null {
   const sampler = samplerFor(doc)
   if (boundary.length < 3 || !sampler) return null
 
-  const roads: SiteRoadSurface[] = (doc.roads ?? []).flatMap((road) => {
-    const polyline = road.polyline?.points ?? []
-    if (polyline.length < 2) return []
-    const typed = road.heightMode === 'typed'
-    const start = typed && Number.isFinite(road.routing?.startElevationMeters) ? road.routing!.startElevationMeters! : surfaceHeightAt(doc, sampler, polyline[0])
-    const end = typed && Number.isFinite(road.routing?.endElevationMeters) ? road.routing!.endElevationMeters! : surfaceHeightAt(doc, sampler, polyline[polyline.length - 1])
-    return [{ id: road.id, polyline: polyline.map((p) => ({ lat: p.lat, lng: p.lng })), width: road.width, type: String(road.type), startHeightM: start, endHeightM: end }]
-  })
+  const roads = siteRoadSurfaces(doc, sampler)
 
   const structures: SiteStructure[] = (doc.structures ?? []).flatMap((structure) => {
     const resolved = resolveStructureEnds(doc, sampler, structure)

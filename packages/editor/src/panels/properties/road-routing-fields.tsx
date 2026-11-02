@@ -25,6 +25,10 @@ import {
 interface RoadRoutingFieldsProps {
   road: Road
   onUpdate: (routing: RoadRouting | undefined) => void
+  /** Terrain plan: Follow ground (default when absent) or Typed heights. */
+  onHeightMode?: (mode: NonNullable<Road['heightMode']>) => void
+  /** The ground heights under the road's ends (Follow ground); null when there is no ground yet. */
+  groundHeights?: { startM: number; endM: number } | null
 }
 
 type ElevationField = 'startElevationMeters' | 'endElevationMeters'
@@ -72,7 +76,8 @@ function formatGrade(value: number | undefined): string {
   return value === undefined ? '—' : `${value.toFixed(1)}%`
 }
 
-export function RoadRoutingFields({ road, onUpdate }: RoadRoutingFieldsProps) {
+export function RoadRoutingFields({ road, onUpdate, onHeightMode, groundHeights = null }: RoadRoutingFieldsProps) {
+  const heightMode = road.heightMode ?? 'follow-surface'
   const initialRouting = normalizeRoadRouting(road.routing)
   const [routingDraft, setRoutingDraft] = useState<RoadRouting | undefined>(initialRouting)
   const routingDraftRef = useRef<RoadRouting | undefined>(initialRouting)
@@ -237,6 +242,27 @@ export function RoadRoutingFields({ road, onUpdate }: RoadRoutingFieldsProps) {
 
       {showElevation && (
         <div style={{ padding: '8px 8px 2px', border: `1px solid ${tokens.border}`, borderRadius: tokens.radius.md }}>
+          <Field label="Height">
+            <select
+              aria-label="Height"
+              value={heightMode}
+              disabled={!onHeightMode}
+              onChange={event => onHeightMode?.(event.target.value as NonNullable<Road['heightMode']>)}
+              style={selectStyle}
+            >
+              <option value="follow-surface">Follow ground</option>
+              <option value="typed">Typed</option>
+            </select>
+          </Field>
+
+          {heightMode === 'follow-surface' ? (
+            <div style={{ ...mutedTextStyle, margin: '2px 0 8px', lineHeight: 1.5 }}>
+              <div>Heights follow the ground under the road.</div>
+              <div>
+                Start {groundHeights ? `${groundHeights.startM.toFixed(2)} m` : '—'} · End {groundHeights ? `${groundHeights.endM.toFixed(2)} m` : '—'}
+              </div>
+            </div>
+          ) : (<>
           <Field label="Start elevation (m)">
             <input
               type="text"
@@ -289,6 +315,7 @@ export function RoadRoutingFields({ road, onUpdate }: RoadRoutingFieldsProps) {
               Elevation suggests a grade, but Slope is set to Level. Manual slope controls routing cost.
             </div>
           )}
+          </>)}
         </div>
       )}
     </>

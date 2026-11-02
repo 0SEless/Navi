@@ -15,6 +15,8 @@ function createRoad(overrides: Partial<Road> = {}): Road {
     width: 6,
     surface: 'paved',
     type: 'arterial',
+    // These tests type elevations, which Typed mode shows (Follow ground is the default when absent).
+    heightMode: 'typed',
     metadata: {},
     ...overrides,
   }
@@ -323,5 +325,36 @@ describe('RoadProperties routing and terrain authoring', () => {
     expect(changes).not.toHaveProperty('id')
     expect(emit).not.toHaveBeenCalled()
     expect(road).toEqual(before)
+  })
+})
+
+describe('RoadProperties height mode (terrain plan)', () => {
+  const followRoad = () => {
+    const { heightMode: _mode, ...road } = createRoad({ routing: { startElevationMeters: 12.5, endElevationMeters: 14 } })
+    return road as Road
+  }
+
+  it('follow-surface is the default when heightMode is absent', () => {
+    renderWithDispatcher(followRoad())
+    if (!screen.queryByRole('combobox', { name: 'Height' })) fireEvent.click(screen.getByRole('button', { name: 'Show elevation details' }))
+    expect(screen.getByRole('combobox', { name: 'Height' })).toHaveValue('follow-surface')
+    expect(screen.queryByRole('textbox', { name: 'Start elevation (m)' })).toBeNull()
+    expect(screen.getByText('Heights follow the ground under the road.')).toBeDefined()
+  })
+
+  it('typed keeps existing values', () => {
+    renderWithDispatcher(createRoad({ routing: { startElevationMeters: 12.5, endElevationMeters: 14 } }))
+    if (!screen.queryByRole('combobox', { name: 'Height' })) fireEvent.click(screen.getByRole('button', { name: 'Show elevation details' }))
+    expect(screen.getByRole('combobox', { name: 'Height' })).toHaveValue('typed')
+    expect(screen.getByRole('textbox', { name: 'Start elevation (m)' })).toHaveValue('12.5')
+    expect(screen.getByRole('textbox', { name: 'End elevation (m)' })).toHaveValue('14')
+  })
+
+  it('switching the mode changes only heightMode and keeps the typed values', () => {
+    const { execute } = renderWithDispatcher(followRoad())
+    if (!screen.queryByRole('combobox', { name: 'Height' })) fireEvent.click(screen.getByRole('button', { name: 'Show elevation details' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Height' }), { target: { value: 'typed' } })
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute.mock.calls[0][0].payload).toEqual({ entityId: 'rd-1', changes: { heightMode: 'typed' } })
   })
 })

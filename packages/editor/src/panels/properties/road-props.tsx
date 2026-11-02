@@ -1,10 +1,20 @@
 import { useCallback } from 'react'
-import type { Road, RoadDisplayMode, RoadRouting } from '@navi/core'
+import { createTerrainSampler, surfaceHeightAt } from '@navi/core'
+import type { CampusDocument, Road, RoadDisplayMode, RoadRouting } from '@navi/core'
 import { useEditor, useEditingEngine } from '../../context'
 import { tokens, Field, inputStyle, selectStyle, SectionHeader } from './field'
 import { RoadRoutingFields } from './road-routing-fields'
 
 interface Props { road: Road }
+
+/** The ground (or a stair) under the road's two ends; null when the campus has no ground yet. */
+function groundHeightsOf(document: CampusDocument | undefined, road: Road): { startM: number; endM: number } | null {
+  const points = road.polyline?.points ?? []
+  if (!document?.terrain || points.length < 2) return null
+  const sampler = createTerrainSampler(document)
+  if (!sampler) return null
+  return { startM: surfaceHeightAt(document, sampler, points[0]), endM: surfaceHeightAt(document, sampler, points[points.length - 1]) }
+}
 
 const ROAD_COLORS = [
   '#1C6BEB', '#22C55E', '#EF4444', '#F59E0B', '#8B5CF6',
@@ -13,7 +23,7 @@ const ROAD_COLORS = [
 ]
 
 export function RoadProperties({ road }: Props) {
-  const { services } = useEditor()
+  const { services, document } = useEditor()
   const editEngine = useEditingEngine()
   const dispatcher = services.get<any>('dispatcher')
   const workflow = services.get('workflow')
@@ -131,7 +141,12 @@ export function RoadProperties({ road }: Props) {
         </div>
       </Field>
 
-      <RoadRoutingFields road={road} onUpdate={updateRouting} />
+      <RoadRoutingFields
+        road={road}
+        onUpdate={updateRouting}
+        onHeightMode={(heightMode) => update({ heightMode })}
+        groundHeights={road.heightMode === 'typed' ? null : groundHeightsOf(document, road)}
+      />
 
       <div style={{ marginTop: 12 }}>
         <button onClick={handleEditRoad}
