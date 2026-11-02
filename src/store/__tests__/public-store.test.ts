@@ -334,6 +334,23 @@ describe('usePublicStore campus data layer', () => {
   // replaced by a single /api/public-campus endpoint that checks its sources
   // server-side. Its guard — full bundle parsing (searchIndex, poiIndex,
   // buildings) — is preserved here at the current contract.
+  const siteFixture = { version: 1, boundary: [{ lat: 10, lng: 20 }, { lat: 10.001, lng: 20 }, { lat: 10.001, lng: 20.001 }], terrain: null, roads: [], structures: [], presets: [], buildings: [] }
+  async function loadWithSite(site: unknown) {
+    stubFetch((url) => url.includes('/api/public-campus')
+      ? jsonResponse({ campusId: 'test-campus', source: 'published_maps', revision: '12', nodes: graphFixture.nodes, edges: graphFixture.edges, buildings: buildingsFixture.buildings, artifacts: { searchIndex: searchFixture, poiIndex: poiFixture, site } })
+      : jsonResponse({ error: 'not found' }, 404))
+    await usePublicStore.getState().fetchCampusData('test-campus')
+    return usePublicStore.getState().campus!
+  }
+
+  it('bundle.site is set from artifacts.site', async () => {
+    expect((await loadWithSite(siteFixture)).site).toEqual(siteFixture)
+  })
+
+  it('malformed site is ignored', async () => {
+    expect((await loadWithSite({ version: 2 })).site).toBeUndefined()
+  })
+
   it('parses the full bundle from /api/public-campus artifacts', async () => {
     const terrainVerticalDatum = {
       kind: 'campus-local' as const, name: 'Synthetic datum', zeroReference: 'Point at zero',

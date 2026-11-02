@@ -26,7 +26,7 @@ import {
 import { findNavRoute, findPoiNavRoute } from '@/lib/findRoute'
 import { reconcileRecentDestinationIds } from '@/lib/home-content'
 import { isValidRoadEdgeRouting, SpatialQueryService } from '@navi/core'
-import type { FloorGeometryArtifact, PanoramaIndex, QrIndex } from '@navi/core'
+import type { FloorGeometryArtifact, PanoramaIndex, QrIndex, SiteArtifact } from '@navi/core'
 import type { QrLocation } from '@/lib/qr-location'
 import {
   normalizePublicCampusResult,
@@ -595,6 +595,14 @@ function parseDoors(raw: unknown): DoorData[] {
     }))
 }
 
+/** A published site package this app can draw (version 1 with its arrays); anything else is ignored. */
+function isSiteArtifact(value: unknown): value is SiteArtifact {
+  if (!isRecord(value) || value.version !== 1) return false
+  return Array.isArray(value.boundary) && Array.isArray(value.roads) && Array.isArray(value.structures)
+    && Array.isArray(value.presets) && Array.isArray(value.buildings)
+    && (value.terrain === null || isRecord(value.terrain))
+}
+
 async function fetchJson(url: string): Promise<unknown> {
   let res: Response
   try {
@@ -645,6 +653,7 @@ async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResu
   const qrIndex = artifacts?.qrIndex as QrIndex | undefined
   const terrainAreas = artifacts?.terrainAreas as CampusBundle['terrainAreas']
   const terrainVerticalDatum = artifacts?.terrainVerticalDatum as CampusBundle['terrainVerticalDatum']
+  const site = isSiteArtifact(artifacts?.site) ? artifacts.site : undefined
 
   // Components: indoor geometry (rooms, hallways, staircases, elevators, entrances)
   // delivered from the editor's GraphSnapshot via published artifacts or graph_snapshots.
@@ -674,6 +683,7 @@ async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResu
     qrIndex,
     ...(terrainAreas !== undefined ? { terrainAreas } : {}),
     ...(terrainVerticalDatum !== undefined ? { terrainVerticalDatum } : {}),
+    ...(site !== undefined ? { site } : {}),
   }
   return normalizePublicCampusResult({
     campusId: id,

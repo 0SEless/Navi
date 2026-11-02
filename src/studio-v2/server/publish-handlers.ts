@@ -15,7 +15,7 @@
 // PublishService) -> compile -> validate -> record.
 // Nothing here logs artifacts, part contents or request bodies.
 import { CampusCompiler, validateNavigationArtifacts } from '@navi/compiler'
-import type { CampusDocument } from '@navi/core'
+import { buildSiteArtifact, type CampusDocument } from '@navi/core'
 // Imported from its own module, never the @navi/editor root or the validation barrel:
 // those re-export React context/hooks (createContext) that break the server route layer.
 // route-network.ts imports only @navi/core at runtime (plus type-only imports).
@@ -191,6 +191,9 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         }
 
         const artifacts = compileRouteArtifacts(compiled)
+        // Terrain plan: the campus-only site package (baked ground, road surfaces, structures).
+        const site = buildSiteArtifact(document)
+        if (site) artifacts.site = site
         const metadata: AnyRecord = isRecord(artifacts.metadata) ? artifacts.metadata : {}
         // Legacy publish refuses artifacts whose provenance names another campus.
         if (typeof metadata.campusId === 'string' && metadata.campusId !== campusId) {

@@ -269,7 +269,8 @@ export function structureTopAt(structure: Structure, resolved: ResolvedStructure
   const rise = end.h - start.h
   if (structure.form === 'stairs') {
     const shape = stairShape(rise, length, structure.flight)
-    if (shape.steps === 0 || s < shape.flightStartM) return start.h
+    // The flight's top edge belongs to the start (slab or landing); each tread is one riser on.
+    if (shape.steps === 0 || s <= shape.flightStartM + 1e-9) return start.h
     if (s >= shape.flightEndM) return end.h
     const step = Math.min(shape.steps, Math.floor((s - shape.flightStartM) / (shape.treadM || 1)) + 1)
     return start.h + shape.riserM * step

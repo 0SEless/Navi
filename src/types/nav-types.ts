@@ -1,4 +1,4 @@
-import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing, TerrainArea, TerrainVerticalDatum } from '@navi/core'
+import type { FloorGeometryArtifact, OutdoorPointOfInterest, PanoramaIndex, PlanAlignment, QrIndex, RoadDisplayMode, RoadEdgeRouting, RoadRouting, SeparatedCrossing, SiteArtifact, TerrainArea, TerrainVerticalDatum } from '@navi/core'
 
 export interface LatLng {
   lat: number;
@@ -172,6 +172,8 @@ export interface CampusBundle {
   qrIndex?: QrIndex;
   terrainAreas?: TerrainArea[];
   terrainVerticalDatum?: TerrainVerticalDatum;
+  /** Terrain plan: the campus-only site package (baked ground, road surfaces, structures). */
+  site?: SiteArtifact;
 }
 
 export interface PathStep {

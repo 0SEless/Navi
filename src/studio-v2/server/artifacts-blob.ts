@@ -14,6 +14,8 @@ export interface PublishArtifactsPayload {
   qrIndex?: unknown
   terrainAreas?: unknown
   terrainVerticalDatum?: unknown
+  /** Terrain plan: the campus-only site package (SiteArtifact); absent when the campus has no boundary. */
+  site?: unknown
   components?: unknown
   doors?: unknown
   metadata?: unknown
@@ -74,6 +76,7 @@ export function buildArtifactsBlob(
     qrIndex: artifacts.qrIndex ?? null,
     ...(artifacts.terrainAreas !== undefined ? { terrainAreas: artifacts.terrainAreas } : {}),
     ...(artifacts.terrainVerticalDatum !== undefined ? { terrainVerticalDatum: artifacts.terrainVerticalDatum } : {}),
+    ...(artifacts.site !== undefined ? { site: artifacts.site } : {}),
     components: Array.isArray(artifacts.components) ? artifacts.components : [],
     doors: Array.isArray(artifacts.doors) ? artifacts.doors : [],
     metadata: {

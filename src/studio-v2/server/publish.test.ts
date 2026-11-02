@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CampusCompiler } from '@navi/compiler'
 import type { CampusDocument } from '@navi/core'
-import { fixtureFull, fixtureMinimal } from '../__fixtures__/campus-fixtures'
+import { fixtureFull, fixtureMinimal, fixtureTerrain } from '../__fixtures__/campus-fixtures'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
 import { splitDocument } from '../parts/split'
 import { buildArtifactsBlob } from './artifacts-blob'
@@ -59,8 +59,8 @@ function partsOf(doc: CampusDocument): PartRecordWithVersion[] {
     versionNo: 1,
     checksum: '0'.repeat(64),
     sortKey: part.sortKey,
-    content: part.content,
-    contentBase64: null,
+    content: part.contentBase64 !== undefined ? null : part.content,
+    contentBase64: part.contentBase64 ?? null,
   }))
 }
 
@@ -191,7 +191,9 @@ describe('publish from a saved commit', () => {
       doors: a.doors ?? [],
       metadata: a.metadata ?? null,
     }))
-    const expected = buildArtifactsBlob(artifacts, 'asu-ibajay', 7, 7)
+    // Terrain plan: publish also carries the campus-only site package for a campus with a boundary.
+    const { buildSiteArtifact } = await import('@navi/core')
+    const expected = buildArtifactsBlob({ ...artifacts, site: JSON.parse(JSON.stringify(buildSiteArtifact(doc))) }, 'asu-ibajay', 7, 7)
 
     vi.resetModules()
     const fresh = await import('./publish-handlers')
@@ -428,6 +430,29 @@ describe('route-network hard gate (R33)', () => {
     ]))
     expect(compile).not.toHaveBeenCalled()
     expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it('publish without terrain omits site', async () => {
+    const doc = fixtureFull()
+    delete doc.boundary
+    const repo = fakeRepo({ partsAtCommit: vi.fn(async () => ({ status: 'ok', commitNo: 7, parts: partsOf(doc) })) })
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+    expect(response.status).toBe(200)
+    const blob = repo.recordPublication.mock.calls[0][2] as Record<string, unknown>
+    expect('site' in blob).toBe(false)
+  })
+
+  it('publish with terrain adds site with baked terrain', async () => {
+    const doc = fixtureTerrain()
+    const repo = fakeRepo({ partsAtCommit: vi.fn(async () => ({ status: 'ok', commitNo: 7, parts: partsOf(doc) })) })
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+    expect(response.status).toBe(200)
+    const site = (repo.recordPublication.mock.calls[0][2] as { site: { version: number; terrain: { cols: number } | null; structures: unknown[] } }).site
+    expect(site.version).toBe(1)
+    expect(site.terrain!.cols).toBeGreaterThan(0)
+    expect(site.structures).toHaveLength(2)
   })
 
   it('a valid fixtureFull passes the gate, compiles once and publishes', async () => {
