@@ -10,7 +10,7 @@ if (!databaseUrl.includes('@127.0.0.1:55434/navi_savev2_test')) {
 
 export default defineConfig({
   testDir: '.',
-  testMatch: ['save-behaviour.spec.ts', 'parity.spec.ts'],
+  testMatch: ['save-behaviour.spec.ts', 'parity.spec.ts', 'terrain.spec.ts'],
   timeout: 240_000,
   expect: { timeout: 20_000 },
   workers: 1,

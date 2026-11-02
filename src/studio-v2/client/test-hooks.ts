@@ -19,3 +19,15 @@ export function exposeForBrowserProbe(context: HookedContext, session: StudioSes
     if (target.__naviStudioV2 === value) delete target.__naviStudioV2
   }
 }
+
+/** Browser-probe hook for the terrain workspace: its MapLibre maps by role, under the same build flag. */
+export function exposeTerrainMapForProbe(role: string, map: unknown): () => void {
+  if (process.env.NEXT_PUBLIC_NAVI_SAVE_V2_TEST_HOOKS !== '1' || process.env.NODE_ENV === 'production') return () => {}
+  if (typeof window === 'undefined') return () => {}
+  const target = window as Window & { __naviTerrainMaps?: Record<string, unknown> }
+  const maps = (target.__naviTerrainMaps ??= {})
+  maps[role] = map
+  return () => {
+    if (maps[role] === map) delete maps[role]
+  }
+}
