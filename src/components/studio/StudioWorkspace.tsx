@@ -142,7 +142,7 @@ interface StudioWorkspaceProps {
   center?: { lat: number; lng: number }
 }
 
-export function StudioWorkspace({ center }: StudioWorkspaceProps) {
+export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
   const { services, document, transformer } = useEditor()
   const workflow = useWorkflow()
   const v2Session = useStudioSession()
@@ -309,6 +309,18 @@ export function StudioWorkspace({ center }: StudioWorkspaceProps) {
           >
             {workflow.snapshot.saveState === 'saving' ? 'Saving…' : 'Save'}
           </button>
+          {v2Session && (
+            <a
+              href={`/studio/${encodeURIComponent(mapId)}/edit/terrain`}
+              data-testid="studio-open-terrain"
+              style={{
+                padding: '3px 10px', borderRadius: 4, border: '1px solid var(--navi-border)',
+                color: 'var(--navi-text-secondary)', fontSize: 11, fontWeight: 600, textDecoration: 'none',
+              }}
+            >
+              Terrain
+            </a>
+          )}
           <button
             onClick={() => setShowRecoveryPanel((visible) => !visible)}
             style={{

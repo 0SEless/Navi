@@ -20,6 +20,7 @@ import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPosition
 import { boundarySetHandler, boundaryClearHandler } from '../commands/boundary-handlers'
 import { areaCreateHandler, areaDeleteHandler } from '../commands/area-handlers'
 import { terrainAreaCreateHandler, terrainAreaUpdateHandler, terrainAreaDeleteHandler } from '../commands/terrain-area-handlers'
+import { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler } from '../commands/terrain-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from '../commands/feature-handlers'
 import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingDeleteHandler } from '../commands/feature-handlers'
@@ -829,6 +830,9 @@ export function createEditorContext(
   registryCmd.register(terrainAreaCreateHandler)
   registryCmd.register(terrainAreaUpdateHandler)
   registryCmd.register(terrainAreaDeleteHandler)
+  registryCmd.register(terrainSetupHandler)
+  registryCmd.register(terrainApplyTilesHandler)
+  registryCmd.register(terrainRestoreHandler)
   // P1-T5 (R2.2): POI discovery landmarks
   registryCmd.register(poiCreateHandler)
   registryCmd.register(poiUpdateHandler)
