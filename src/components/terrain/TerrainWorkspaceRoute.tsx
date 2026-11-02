@@ -60,8 +60,13 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const lock = useTerrainLock()
 
   const dispatch = useCallback((command: Command): MutationResult | undefined => {
-    if (lock.status !== 'held') return { success: false, error: 'The terrain is locked by another admin.' }
     const dispatcher = services.get('dispatcher') as Dispatcher | undefined
+    // Stairs and presets are free parts (no lock) and do not change the ground: no tile reload.
+    if (command.id.startsWith('structure.') || command.id.startsWith('structure-preset.')) {
+      markTerrainDirty(NO_AREA)
+      return dispatcher?.execute(command)
+    }
+    if (lock.status !== 'held') return { success: false, error: 'The terrain is locked by another admin.' }
     // A tile edit only redraws its own area; other commands redraw everything.
     const grid = document.terrain?.grid
     const tiles = command.id === 'terrain.apply-tiles' ? command.payload.tiles as Record<string, unknown> | undefined : undefined

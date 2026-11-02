@@ -6,6 +6,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { contourSegments, toLatLng, toLocal, type CampusDocument, type TerrainSampler } from '@navi/core'
 import { demTileUrl } from '@/lib/terrain/dem-protocol'
 import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
+import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
+import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/mesh-layer'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
 import { applyTerrainView, CHANGES_SOURCE, CONTOUR_SOURCE, HILLSHADE_LAYER, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
@@ -15,6 +17,7 @@ const BOUNDARY_SOURCE = 'terrain-boundary'
 const BUILDINGS_SOURCE = 'terrain-buildings'
 const ROADS_SOURCE = 'terrain-roads'
 const SLABS_SOURCE = 'terrain-slabs'
+const STRUCTURES_LAYER = 'terrain-structures'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
 export interface TerrainMapProps {
@@ -90,6 +93,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   const [ready, setReady] = useState(false)
   // Tilted = shown in 3D. Follows the live pitch: tilting the top view (pinch, right-drag) raises the hill.
   const [tilted, setTilted] = useState(pitch > 0)
+  const structuresRef = useRef<{ layer: MeshLayer; origin: string } | null>(null)
   const latest = useRef({ document, sampler, version, view, exaggeration })
   latest.current = { document, sampler, version, view, exaggeration }
 
@@ -151,6 +155,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       unexpose()
       onMap?.(null)
       mapRef.current = null
+      structuresRef.current = null
       setReady(false)
       map.remove()
     }
@@ -185,6 +190,25 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(cutAboveFloorId ? { cutAboveFloorId } : {}) }))
     map.setLayoutProperty('terrain-slabs', 'visibility', tilted && layers.buildings ? 'visible' : 'none')
   }, [ready, version, document, sampler, cutAboveFloorId, tilted, layers.buildings])
+
+  // Stairs and ramps: one 3D mesh around the terrain grid origin; flat on the map in the top view.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !sampler) return
+    const origin = `${sampler.grid.originLat},${sampler.grid.originLng}`
+    if (structuresRef.current?.origin !== origin) {
+      if (map.getLayer(STRUCTURES_LAYER)) map.removeLayer(STRUCTURES_LAYER)
+      const layer = createMeshLayer(STRUCTURES_LAYER, { lat: sampler.grid.originLat, lng: sampler.grid.originLng })
+      map.addLayer(layer)
+      meshLayerByMap.set(map, layer)
+      structuresRef.current = { layer, origin }
+    }
+    structuresRef.current.layer.setMesh(buildStructuresMesh(document, sampler))
+  }, [ready, document, sampler])
+
+  useEffect(() => {
+    structuresRef.current?.layer.setVerticalScale(tilted ? exaggeration : 0)
+  }, [ready, sampler, tilted, exaggeration])
 
   const showContours = view === 'contours' || layers.contours
   useEffect(() => {

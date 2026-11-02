@@ -242,6 +242,9 @@ export interface ResolvedStructure {
   start: { x: number; y: number; h: number }
   end: { x: number; y: number; h: number }
   bend?: Point
+  /** True when a slab end's building or floor is gone and its last position is used. */
+  orphanStart: boolean
+  orphanEnd: boolean
 }
 
 /**
@@ -251,27 +254,36 @@ export interface ResolvedStructure {
  */
 export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSampler, structure: Structure): ResolvedStructure | null {
   const grid = sampler.grid
-  const endOf = (end: Structure['start'], override: number | undefined) => {
+  const endOf = (end: Structure['start'], override: number | undefined): { x: number; y: number; h: number; orphan: boolean } | null => {
     if (end.kind === 'slab') {
       const building = doc.buildings.find((b) => b.id === end.buildingId)
-      if (!building) return null
-      const ring = outlineOf(building, grid)
-      if (ring.length < 2) return null
+      const floor = building?.floors.find((f) => f.id === end.floorId)
+      const ring = building ? outlineOf(building, grid) : []
+      if (!building || !floor || ring.length < 2) {
+        if (!end.last) return null
+        const p = toLocal(grid, end.last)
+        return { x: p.x, y: p.y, h: override ?? end.last.heightM, orphan: true }
+      }
       const a = ring[((end.edgeIndex % ring.length) + ring.length) % ring.length]
       const b = ring[(end.edgeIndex + 1) % ring.length]
       const x = a.x + (b.x - a.x) * end.edgeT
       const y = a.y + (b.y - a.y) * end.edgeT
-      const floor = building.floors.find((f) => f.id === end.floorId)
-      const h = override ?? effectiveBuildingBase(building, sampler, grid) + (floor?.elevation ?? 0)
-      return { x, y, h }
+      const h = override ?? effectiveBuildingBase(building, sampler, grid) + floor.elevation
+      return { x, y, h, orphan: false }
     }
     const p = toLocal(grid, end.position)
-    return { x: p.x, y: p.y, h: override ?? sampler.heightAt(p.x, p.y) }
+    return { x: p.x, y: p.y, h: override ?? sampler.heightAt(p.x, p.y), orphan: false }
   }
   const start = endOf(structure.start, structure.heightOverride?.start)
   const end = endOf(structure.end, structure.heightOverride?.end)
   if (!start || !end) return null
-  return { start, end, ...(structure.bend ? { bend: toLocal(grid, structure.bend) } : {}) }
+  return {
+    start: { x: start.x, y: start.y, h: start.h },
+    end: { x: end.x, y: end.y, h: end.h },
+    ...(structure.bend ? { bend: toLocal(grid, structure.bend) } : {}),
+    orphanStart: start.orphan,
+    orphanEnd: end.orphan,
+  }
 }
 
 /** Top-surface height of a structure at arc length s (stairs: step tops; ramps: straight slope). */

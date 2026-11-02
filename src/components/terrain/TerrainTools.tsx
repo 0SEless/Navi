@@ -16,6 +16,7 @@ import { useBoundaryEditor } from './useBoundaryEditor'
 import { BuildingGroundPanel, type GroundChange } from './BuildingGroundPanel'
 import { TerrainImportPanel } from './TerrainImportPanel'
 import { useEnsureZone } from '@/components/studio/v2/ZoneProvider'
+import { StructureTool } from './tools/StructureTool'
 
 type LatLng = { lat: number; lng: number }
 const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset', 'contour-pen'])
@@ -137,7 +138,8 @@ export function TerrainTools(props: {
 
   return (
     <>
-      <TerrainToolRail tool={tool} disabled={!editing} onTool={props.onTool} />
+      <TerrainToolRail tool={tool} disabled={!editing} alwaysOn={sampler ? ['pan', 'stairs'] : ['pan']} onTool={props.onTool} />
+      <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} />
       {editing && (
         <button type="button" onClick={() => setImporting(true)} style={{ position: 'absolute', left: 140, top: 12, zIndex: 2, padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid var(--navi-border, #e5e7eb)', background: 'var(--navi-card, #fff)' }}>
           Import ground…

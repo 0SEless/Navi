@@ -4,7 +4,11 @@ export type StructureForm = 'stairs' | 'ramp'
 /** Where one end of a structure is attached. */
 export type StructureEnd =
   /** On a floor slab edge: edge `edgeIndex` of the building outline, `edgeT` 0..1 along it. */
-  | { kind: 'slab'; buildingId: string; floorId: string; edgeIndex: number; edgeT: number }
+  | {
+      kind: 'slab'; buildingId: string; floorId: string; edgeIndex: number; edgeT: number
+      /** Where the end was last drawn; used (and marked) if the building or floor is deleted. */
+      last?: { lat: number; lng: number; heightM: number }
+    }
   | { kind: 'road'; roadId: string; position: { lat: number; lng: number } }
   | { kind: 'ground'; position: { lat: number; lng: number } }
 

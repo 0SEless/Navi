@@ -115,7 +115,7 @@ export function createSiteSurface(site: SiteArtifact): (p: LatLng) => number {
     const start = { ...toLocal(grid, a), h: structure.resolved.startHeightM }
     const end = { ...toLocal(grid, b), h: structure.resolved.endHeightM }
     const bend = structure.bend ? toLocal(grid, structure.bend) : undefined
-    return { structure, resolved: { start, end, ...(bend ? { bend } : {}) }, path: structurePath(start, end, bend) }
+    return { structure, resolved: { start, end, ...(bend ? { bend } : {}), orphanStart: false, orphanEnd: false }, path: structurePath(start, end, bend) }
   })
 
   return (p: LatLng) => {

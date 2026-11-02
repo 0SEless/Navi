@@ -146,3 +146,45 @@ describe('color scale', () => {
     expect(CHANGES_COLOR_STOPS).toEqual([[-5, '#1d4ed8'], [-0.3, '#93c5fd'], [-0.1, 'rgba(0,0,0,0)'], [0.1, 'rgba(0,0,0,0)'], [0.3, '#fca5a5'], [5, '#dc2626']])
   })
 })
+
+describe('structure ends on buildings', () => {
+  const hallDoc = (withBuilding: boolean) => {
+    const floorAt = (id: string, elevation: number) => ({ id, level: 0, label: id, elevation, height: 3.5, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {} })
+    const hall = building('hall', rectFootprint(0, 0, 20, 10), { baseElevation: 12, floors: [floorAt('f1', 0), floorAt('f3', 7)] as never })
+    return doc({
+      terrain: terrainOf(planeBase(2, 0)),
+      buildings: withBuilding ? [hall] : [],
+      structures: [{
+        id: 's1', form: 'stairs', presetId: 'p', width: 2, underneath: 'open', railings: 'both',
+        start: { kind: 'slab', buildingId: 'hall', floorId: 'f3', edgeIndex: 1, edgeT: 0.5, last: { lat: 1, lng: 2, heightM: 18.5 } },
+        end: { kind: 'ground', position: ll(40, 5) },
+      }],
+    })
+  }
+
+  it('a slab end sits on the outline edge at base + floor elevation', async () => {
+    const { resolveStructureEnds } = await import('../compose')
+    const d = hallDoc(true)
+    const resolved = resolveStructureEnds(d, createTerrainSampler(d)!, d.structures![0])!
+    expect(resolved.start.x).toBeCloseTo(20, 3)
+    expect(resolved.start.y).toBeCloseTo(5, 3)
+    expect(resolved.start.h).toBeCloseTo(19, 6)
+    expect(resolved.orphanStart).toBe(false)
+  })
+
+  it('building move → the slab end follows the outline', async () => {
+    const { resolveStructureEnds } = await import('../compose')
+    const d = hallDoc(true)
+    d.buildings[0].footprint = rectFootprint(10, 0, 30, 10)
+    const resolved = resolveStructureEnds(d, createTerrainSampler(d)!, d.structures![0])!
+    expect(resolved.start.x).toBeCloseTo(30, 3)
+  })
+
+  it('deleted building → the start keeps its last position and height and is marked', async () => {
+    const { resolveStructureEnds } = await import('../compose')
+    const d = hallDoc(false)
+    const resolved = resolveStructureEnds(d, createTerrainSampler(d)!, d.structures![0])!
+    expect(resolved.start.h).toBe(18.5)
+    expect(resolved.orphanStart).toBe(true)
+  })
+})

@@ -272,3 +272,89 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+test('T5 — stairs: place a block, stretch one end to the road and the top end to the 3F slab edge, bend, swap preset, undo', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayThreeFloors)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
+  await page.waitForTimeout(2500)
+
+  const top = terrainMap(page, 'top')
+  const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
+  const screenOf = async (lng: number, lat: number) => {
+    const p = await top.run<{ x: number; y: number }>(`map.project([${lng}, ${lat}])`)
+    return { x: box.x + p.x, y: box.y + p.y }
+  }
+  const dragHandle = async (label: string, to: { x: number; y: number }) => {
+    const handle = (await page.getByLabel(label).boundingBox())!
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 12 })
+    await page.mouse.up()
+  }
+
+  // Place: one click south-east of the hall puts a 3 m block on the ground.
+  await page.getByRole('button', { name: 'Stairs' }).click()
+  const place = await screenOf(122.1712, 11.8170)
+  await page.mouse.click(place.x, place.y)
+  await expect.poll(() => doc<number>('(doc.structures ?? []).length')).toBe(1)
+  await expect(page.getByLabel('Stair settings').getByLabel('Preset')).toHaveValue('plain-stair')
+
+  // A fresh block is a few pixels long and its end handle is on top, so stretch the end first:
+  // end → the road; start → the hall's south edge (top floor by default).
+  await dragHandle('Stair end', await screenOf(122.1716, 11.81821))
+  await expect.poll(() => doc<string>('doc.structures[0].end.kind')).toBe('road')
+  expect(await doc<string>('doc.structures[0].end.roadId')).toBe('road-main')
+  await dragHandle('Stair start', await screenOf(122.1706, 11.8172))
+  await expect.poll(() => doc<string>('doc.structures[0].start.kind')).toBe('slab')
+  expect(await doc<string>('doc.structures[0].start.floorId')).toBe('bld-hall-floor-3')
+  expect(await doc<number>('doc.structures[0].start.edgeIndex')).toBe(0)
+
+  // Bend: drag the middle handle sideways.
+  const bend = (await page.getByLabel('Stair bend').boundingBox())!
+  await dragHandle('Stair bend', { x: bend.x + bend.width / 2 + 40, y: bend.y + bend.height / 2 })
+  await expect.poll(() => doc<boolean>('Boolean(doc.structures[0].bend)')).toBe(true)
+  await expect(page.getByLabel('Stair readout')).toContainText('steps')
+
+  // Swap preset keeps both ends and the bend.
+  await page.getByLabel('Stair settings').getByLabel('Preset').selectOption('hillside-stair')
+  await expect.poll(() => doc<string>('doc.structures[0].presetId')).toBe('hillside-stair')
+  expect(await doc<number>('doc.structures[0].width')).toBe(4.5)
+  expect(await doc<string>('doc.structures[0].start.kind + "/" + doc.structures[0].end.kind')).toBe('slab/road')
+  expect(await top.run<number>('map.getLayer("terrain-structures").implementation.vertexCount()')).toBeGreaterThan(0)
+
+  // One command per drag: undo walks back swap → bend → start (the end stays on the road).
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => doc<string>('doc.structures[0].presetId')).toBe('plain-stair')
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => doc<boolean>('Boolean(doc.structures[0].bend)')).toBe(false)
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => doc<string>('doc.structures[0].start.kind')).toBe('ground')
+  expect(await doc<string>('doc.structures[0].end.kind')).toBe('road')
+  await page.keyboard.press('Control+y')
+  await page.keyboard.press('Control+y')
+  await page.keyboard.press('Control+y')
+  await expect.poll(() => doc<string>('doc.structures[0].presetId')).toBe('hillside-stair')
+  await page.screenshot({ path: path.join(SHOTS, 't5-stairs-top.png') })
+
+  // 3D: the stair is drawn at its real height between the slab and the road.
+  await page.getByRole('button', { name: 'Swap' }).click()
+  await page.waitForTimeout(3000)
+  const big = terrainMap(page, '3d')
+  expect(await big.run<number>('map.getLayer("terrain-structures").implementation.vertexCount()')).toBeGreaterThan(0)
+  await big.run('map.flyTo({ center: [122.1711, 11.8176], zoom: 18.5, pitch: 60, bearing: -30, duration: 0 })')
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: path.join(SHOTS, 't5-stairs-3d.png') })
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
