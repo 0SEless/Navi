@@ -13,9 +13,10 @@ import { snapStructureEnd } from '@/lib/terrain/structure-snap'
 import { bendHandleAt, dropHandle, stairReadout, type StructureHandle } from '@/lib/terrain/structure-edit'
 
 type Screen = { x: number; y: number }
-const LABELS: Record<StructureHandle, string> = {
+const LABELS: Record<string, string> = {
   start: 'Stair start', end: 'Stair end', bend: 'Stair bend', 'flight-start': 'Flight start', 'flight-end': 'Flight end',
 }
+const labelOfHandle = (handle: StructureHandle) => (handle.startsWith('landing-') ? `Landing ${Number(handle.slice(8)) + 1}` : LABELS[handle])
 const MOVE_PX = 3
 /** Shorter on screen than this, a stair shows only its end handles (the others would cover them). */
 const DETAIL_PX = 24
@@ -69,6 +70,12 @@ export function StructureHandles({ map, document, sampler, structure, resolved, 
       for (const [handle, s] of [['flight-start', readout.flightStartM], ['flight-end', readout.flightEndM]] as const) {
         handles.push({ handle, at: screenOf(path.at(s).p, structureTopAt(structure, resolved, path.length, s)) })
       }
+    }
+    if (structure.form === 'ramp') {
+      ;(structure.landings ?? []).forEach((t, index) => {
+        const s = Math.min(1, Math.max(0, t)) * path.length
+        handles.push({ handle: `landing-${index}`, at: screenOf(path.at(s).p, structureTopAt(structure, resolved, path.length, s)) })
+      })
     }
   }
   handles.push({ handle: 'start', at: startAt, orphan: resolved.orphanStart }, { handle: 'end', at: endAt, orphan: resolved.orphanEnd })
@@ -133,8 +140,8 @@ export function StructureHandles({ map, document, sampler, structure, resolved, 
           <div
             key={handle}
             role="button"
-            aria-label={LABELS[handle]}
-            title={orphan ? 'Its building or floor was removed. Drag it onto a floor edge again.' : LABELS[handle]}
+            aria-label={labelOfHandle(handle)}
+            title={orphan ? 'Its building or floor was removed. Drag it onto a floor edge again.' : labelOfHandle(handle)}
             data-orphan={orphan ? 'true' : undefined}
             onPointerDown={onPointerDown(handle)}
             onPointerMove={onPointerMove}

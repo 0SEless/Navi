@@ -1,4 +1,5 @@
 import type { StructurePath } from './path'
+import { RAMP_LANDING_M, rampHeightAt } from './ramp-shape'
 import { stairShape } from './stair-shape'
 import type { Structure, StructureForm, StructureMaterial, StructurePreset } from './types'
 
@@ -92,8 +93,11 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   const tr = shape?.treadM ?? 0
   const riser = shape?.riserM ?? 0
 
-  /** The slope line: flat landings, linear over the flight (ramps: linear over the whole run). */
-  const line = (s: number) => (s <= fs ? startH : s >= fe ? endH : startH + (rise * (s - fs)) / (fe - fs || 1))
+  const landings = !stairs ? input.landings ?? [] : []
+  /** The slope line: stairs flat outside the flight and linear over it; ramps level over each landing, linear between. */
+  const line = (s: number) => (!stairs
+    ? rampHeightAt(startH, rise, length, landings, s)
+    : s <= fs ? startH : s >= fe ? endH : startH + (rise * (s - fs)) / (fe - fs || 1))
   /** Step tops for stairs; the slope line for ramps. */
   const top = (s: number) => {
     if (!stairs || steps === 0) return line(s)
@@ -112,6 +116,11 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   const marks = new Set<number>([0, length])
   for (let s = 0.25; s < length; s += 0.25) marks.add(Math.round(s * 1e6) / 1e6)
   if (stairs && steps > 0) for (let k = 0; k <= steps; k++) marks.add(Math.round((fs + k * tr) * 1e6) / 1e6)
+  // Ramp landing edges, so each landing is exactly level.
+  for (const t of landings) {
+    const centre = Math.min(Math.max(t, 0), 1) * length
+    for (const s of [centre - RAMP_LANDING_M / 2, centre + RAMP_LANDING_M / 2]) marks.add(Math.round(Math.min(Math.max(s, 0), length) * 1e6) / 1e6)
+  }
   const S = [...marks].filter((s) => s >= 0 && s <= length).sort((a, b) => a - b)
 
   for (let i = 1; i < S.length; i++) {

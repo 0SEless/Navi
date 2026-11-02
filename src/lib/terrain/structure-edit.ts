@@ -1,5 +1,5 @@
 import {
-  BUILT_IN_PRESETS, resolveStructureEnds, stairShape, structurePath, toLatLng, toLocal,
+  BUILT_IN_PRESETS, RAMP_LANDING_M, rampShape, resolveStructureEnds, stairShape, structurePath, toLatLng, toLocal,
   type CampusDocument, type ResolvedStructure, type Structure, type StructureEnd, type TerrainGrid, type TerrainSampler,
 } from '@navi/core'
 
@@ -45,7 +45,28 @@ export function stairReadout(structure: Structure, resolved: ResolvedStructure) 
   return { length, ...stairShape(resolved.end.h - resolved.start.h, length, structure.flight) }
 }
 
-export type StructureHandle = 'start' | 'end' | 'bend' | 'flight-start' | 'flight-end'
+/** Slope (1:N) and the runs between landings of a ramp as drawn (null for stairs). */
+export function rampReadout(structure: Structure, resolved: ResolvedStructure) {
+  if (structure.form !== 'ramp') return null
+  const length = structurePath(resolved.start, resolved.end, resolved.bend).length
+  return { length, ...rampShape(resolved.end.h - resolved.start.h, length, structure.landings ?? []) }
+}
+
+/** The ramp's landings plus one in the middle of its longest sloped run (fractions of the run). */
+export function addLanding(structure: Structure, resolved: ResolvedStructure): number[] {
+  const length = structurePath(resolved.start, resolved.end, resolved.bend).length || 1
+  const landings = [...(structure.landings ?? [])].sort((a, b) => a - b)
+  let best: [number, number] = [0, 0]
+  let at = 0
+  for (const t of [...landings, Number.POSITIVE_INFINITY]) {
+    const a = Number.isFinite(t) ? Math.max(0, t * length - RAMP_LANDING_M / 2) : length
+    if (a - at > best[1] - best[0]) best = [at, a]
+    if (Number.isFinite(t)) at = Math.max(at, Math.min(length, t * length + RAMP_LANDING_M / 2))
+  }
+  return [...landings, (best[0] + best[1]) / 2 / length].sort((a, b) => a - b)
+}
+
+export type StructureHandle = 'start' | 'end' | 'bend' | 'flight-start' | 'flight-end' | `landing-${number}`
 
 /**
  * The stair after dropping a handle. `end` is the snapped attachment for start/end; `at` is the ground
@@ -79,6 +100,13 @@ export function dropHandle(
     return { ...structure, bend: toLatLng(grid, { x: 2 * q.x - mid.x, y: 2 * q.y - mid.y }) }
   }
   const path = structurePath(resolved.start, resolved.end, resolved.bend)
+  if (handle.startsWith('landing-')) {
+    const index = Number(handle.slice('landing-'.length))
+    const landings = [...(structure.landings ?? [])]
+    if (!(index >= 0 && index < landings.length)) return structure
+    landings[index] = Math.min(1, Math.max(0, path.nearest(q).s / (path.length || 1)))
+    return { ...structure, landings: landings.sort((a, b) => a - b) }
+  }
   const shape = stairShape(resolved.end.h - resolved.start.h, path.length, structure.flight)
   const length = path.length || 1
   const t = path.nearest(q).s / length

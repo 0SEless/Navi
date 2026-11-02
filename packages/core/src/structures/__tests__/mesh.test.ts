@@ -81,3 +81,29 @@ describe('built-in materials and presets', () => {
     expect(BUILT_IN_PRESETS.find((p) => p.id === 'hillside-stair')!.shape).toEqual({ width: 4.5, underneath: 'solid', railings: 'both' })
   })
 })
+
+describe('ramps', () => {
+  const ramp = (overrides: Partial<MeshInput> = {}) => buildStructureMesh(input({ form: 'ramp', startH: 10, endH: 11, landings: [0.5], ...overrides }))
+
+  it('ramp top surface is level across a landing', () => {
+    const tread = verticesOf(ramp(), [1, 0, 0])
+    const onLanding = tread.filter(([x]) => x >= 5.25 - 1e-6 && x <= 6.75 + 1e-6)
+    expect(onLanding.length).toBeGreaterThan(0)
+    for (const [, , z] of onLanding) expect(z).toBeCloseTo(10.5, 5)
+    // Linear between: halfway up the first run.
+    const quarter = tread.filter(([x]) => Math.abs(x - 2.625) < 0.13)
+    for (const [x, , z] of quarter) expect(z).toBeCloseTo(10 + (0.5 * x) / 5.25, 4)
+  })
+
+  it('a ramp has no risers and its open underside is 0.20 m under the top', () => {
+    const mesh = ramp()
+    expect(verticesOf(mesh, [0.85, 0, 0])).toHaveLength(0) // risers are 0.85 × the tread colour
+    expect(verticesOf(buildStructureMesh(input()), [0.85, 0, 0]).length).toBeGreaterThan(0)
+    const under = verticesOf(mesh, [0, 0, 1])
+    expect(under.length).toBeGreaterThan(0)
+    for (const [x, , z] of under) {
+      const top = x <= 5.25 ? 10 + (0.5 * x) / 5.25 : x >= 6.75 ? 10.5 + (0.5 * (x - 6.75)) / 5.25 : 10.5
+      expect(z).toBeCloseTo(top - 0.2, 4)
+    }
+  })
+})

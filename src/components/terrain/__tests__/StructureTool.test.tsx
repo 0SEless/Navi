@@ -135,3 +135,44 @@ describe('Stairs tool', () => {
     expect(labels).toEqual(['Stair start', 'Stair end'])
   })
 })
+
+describe('Ramps', () => {
+  const ramp = (landings?: number[]): Structure => ({
+    ...stair, form: 'ramp', presetId: 'plain-ramp', underneath: 'solid', heightOverride: { end: 1 },
+    ...(landings ? { landings } : {}),
+  })
+
+  it('shows the slope as 1:N and each run, with no pass/fail mark', () => {
+    setup(doc([ramp([0.5])]))
+    const readout = screen.getByLabelText('Ramp readout')
+    expect(readout.textContent).toMatch(/Slope 1:28\.5/)
+    expect(readout.textContent).toMatch(/Runs 14\.[23] m, 14\.[23] m/)
+    expect(readout.textContent).not.toMatch(/too steep|fails|passes/i)
+  })
+
+  it('Add landing puts one in the middle of the longest run (one command)', () => {
+    const { dispatch } = setup(doc([ramp()]))
+    fireEvent.click(screen.getByRole('button', { name: 'Add landing' }))
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect((dispatch.mock.calls[0][0].payload.structure as Structure).landings).toEqual([0.5])
+  })
+
+  it('Remove landing takes it out', () => {
+    const { dispatch } = setup(doc([ramp([0.3, 0.7])]))
+    fireEvent.click(screen.getAllByRole('button', { name: /Remove landing/ })[0])
+    expect((dispatch.mock.calls[0][0].payload.structure as Structure).landings).toEqual([0.7])
+  })
+
+  it('dragging a landing marker along the ramp moves it (one command)', () => {
+    const { dispatch } = setup(doc([ramp([0.5])]))
+    const handle = screen.getByLabelText('Landing 1')
+    const from = { x: Number.parseFloat(handle.style.left), y: Number.parseFloat(handle.style.top) }
+    drag(handle, [[from.x, from.y], [from.x - 4, from.y], [from.x - 8, from.y]])
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    const landings = (dispatch.mock.calls[0][0].payload.structure as Structure).landings!
+    expect(landings).toHaveLength(1)
+    expect(landings[0]).toBeLessThan(0.5)
+    expect(landings[0]).toBeGreaterThan(0.1)
+  })
+})
+

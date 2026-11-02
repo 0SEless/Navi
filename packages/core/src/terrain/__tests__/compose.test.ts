@@ -188,3 +188,16 @@ describe('structure ends on buildings', () => {
     expect(resolved.orphanStart).toBe(true)
   })
 })
+
+describe('structureTopAt for ramps', () => {
+  it('a ramp top is level across its landing', async () => {
+    const { structureTopAt } = await import('../compose')
+    const ramp = { id: 'r', form: 'ramp', presetId: 'plain-ramp', width: 1.5, underneath: 'solid', railings: 'both', landings: [0.5],
+      start: { kind: 'ground', position: ll(0, 0) }, end: { kind: 'ground', position: ll(12, 0) } } as never
+    const resolved = { start: { x: 0, y: 0, h: 10 }, end: { x: 12, y: 0, h: 11 }, orphanStart: false, orphanEnd: false }
+    expect(structureTopAt(ramp, resolved, 12, 6)).toBeCloseTo(10.5, 9)
+    expect(structureTopAt(ramp, resolved, 12, 5.5)).toBeCloseTo(10.5, 9)
+    expect(structureTopAt(ramp, resolved, 12, 2.625)).toBeCloseTo(10.25, 9)
+  })
+})
+

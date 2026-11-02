@@ -7,7 +7,7 @@ import {
 } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { presetFor } from '@/lib/terrain/structure-mesh'
-import { stairReadout } from '@/lib/terrain/structure-edit'
+import { addLanding, rampReadout, stairReadout } from '@/lib/terrain/structure-edit'
 
 const box: React.CSSProperties = {
   position: 'absolute', right: 12, top: 12, zIndex: 2, width: 260, display: 'flex', flexDirection: 'column', gap: 8, padding: 10, fontSize: 12,
@@ -67,6 +67,7 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
   const presets = [...(document.structurePresets ?? []), ...BUILT_IN_PRESETS.filter((p) => !document.structurePresets?.some((own) => own.id === p.id))]
   const replace = (next: Structure, label = 'Edit stair') => dispatch({ id: 'structure.replace', label, payload: { structure: next } })
   const readout = resolved ? stairReadout(structure, resolved) : null
+  const ramp = resolved ? rampReadout(structure, resolved) : null
   const rise = resolved ? resolved.end.h - resolved.start.h : 0
   const orphans = [resolved?.orphanStart ? 'start' : null, resolved?.orphanEnd ? 'end' : null].filter(Boolean)
 
@@ -143,8 +144,18 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
           {readout.hint && <span style={{ color: '#b45309' }}>{readout.hint}</span>}
         </div>
       )}
-      {structure.form === 'ramp' && resolved && Math.abs(rise) > 1e-3 && (
-        <span>Slope 1:{(Math.hypot(resolved.end.x - resolved.start.x, resolved.end.y - resolved.start.y) / Math.abs(rise)).toFixed(1)}</span>
+      {ramp && resolved && (
+        <div aria-label="Ramp readout" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span>{ramp.slopeRatio === null ? 'Level' : `Slope 1:${ramp.slopeRatio.toFixed(1)}`} · rise {rise.toFixed(2)} m</span>
+          <span>Runs {ramp.runsBetweenLandingsM.map((r) => `${r.toFixed(1)} m`).join(', ')}</span>
+          {(structure.landings ?? []).map((t, index) => (
+            <div key={index} style={row}>
+              <span>Landing {index + 1} at {(t * ramp.length).toFixed(1)} m</span>
+              <button type="button" aria-label={`Remove landing ${index + 1}`} onClick={() => replace({ ...structure, landings: (structure.landings ?? []).filter((_, i) => i !== index) }, 'Remove landing')}>Remove</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => replace({ ...structure, landings: addLanding(structure, resolved) }, 'Add landing')}>Add landing</button>
+        </div>
       )}
       {saving ? (
         <div aria-label="Save as preset" style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6, borderTop: '1px solid var(--navi-border, #e5e7eb)' }}>

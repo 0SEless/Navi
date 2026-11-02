@@ -3,6 +3,7 @@ import type { Building, Road } from '../types/entities'
 import type { Structure } from '../structures/types'
 import { structurePath } from '../structures/path'
 import { stairShape } from '../structures/stair-shape'
+import { rampHeightAt } from '../structures/ramp-shape'
 import { sampleBase } from './base-surface'
 import { decodeTile, tileIdOf, tileOfCell, toLocal } from './grid'
 import type { GroundFit, TerrainGrid, TileId } from './types'
@@ -286,7 +287,7 @@ export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSample
   }
 }
 
-/** Top-surface height of a structure at arc length s (stairs: step tops; ramps: straight slope). */
+/** Top-surface height of a structure at arc length s (stairs: step tops; ramps: level landings, straight slopes between). */
 export function structureTopAt(structure: Structure, resolved: ResolvedStructure, length: number, s: number): number {
   const { start, end } = resolved
   const rise = end.h - start.h
@@ -298,7 +299,7 @@ export function structureTopAt(structure: Structure, resolved: ResolvedStructure
     const step = Math.min(shape.steps, Math.floor((s - shape.flightStartM) / (shape.treadM || 1)) + 1)
     return start.h + shape.riserM * step
   }
-  return length > 0 ? start.h + (rise * Math.min(Math.max(s, 0), length)) / length : start.h
+  return rampHeightAt(start.h, rise, length, structure.landings ?? [], s)
 }
 
 /** Top of a structure under p, else the final ground height. */

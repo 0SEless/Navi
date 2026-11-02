@@ -359,6 +359,16 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   await big.run('map.flyTo({ center: [122.1711, 11.8176], zoom: 18.5, pitch: 60, bearing: -30, duration: 0 })')
   await page.waitForTimeout(2500)
   await page.screenshot({ path: path.join(SHOTS, 't5-stairs-3d.png') })
+
+  // Ramp (Task 14): swap to the plain ramp, add a landing; the panel shows 1:N and the runs.
+  await page.getByLabel('Stair settings').getByLabel('Preset').selectOption('plain-ramp')
+  await expect.poll(() => doc<string>('doc.structures[0].form')).toBe('ramp')
+  await page.getByRole('button', { name: 'Add landing' }).click()
+  await expect.poll(() => doc<number>('(doc.structures[0].landings ?? []).length')).toBe(1)
+  await expect(page.getByLabel('Ramp readout')).toContainText('Slope 1:')
+  await expect(page.getByLabel('Ramp readout')).toContainText('Runs ')
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: path.join(SHOTS, 't5-ramp-3d.png') })
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
