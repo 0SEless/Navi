@@ -14,7 +14,7 @@ export type TerrainView = 'heights' | 'changes' | 'contours'
 /** The few MapLibre calls the view switch needs (a fake implements them in tests). */
 export interface TerrainMapLike {
   getLayer(id: string): unknown
-  addLayer(layer: Record<string, unknown>): void
+  addLayer(layer: Record<string, unknown>, beforeId?: string): void
   removeLayer(id: string): void
   setTerrain(terrain: { source: string; exaggeration: number } | null): void
 }
@@ -23,9 +23,16 @@ function reliefColor(stops: Array<[number, string]>): unknown[] {
   return ['interpolate', ['linear'], ['elevation'], ...stops.flat()]
 }
 
+/** Colour and contour layers go under the campus outlines and the brush (the first overlay layer). */
+export const FIRST_OVERLAY_LAYER = 'terrain-roads'
+
+function addUnderOverlays(map: TerrainMapLike, layer: Record<string, unknown>): void {
+  map.addLayer(layer, map.getLayer(FIRST_OVERLAY_LAYER) ? FIRST_OVERLAY_LAYER : undefined)
+}
+
 function replaceLayer(map: TerrainMapLike, layer: Record<string, unknown>): void {
   if (map.getLayer(layer.id as string)) map.removeLayer(layer.id as string)
-  map.addLayer(layer)
+  addUnderOverlays(map, layer)
 }
 
 function removeIfPresent(map: TerrainMapLike, id: string): void {
@@ -44,7 +51,7 @@ export function applyTerrainView(map: TerrainMapLike, opts: { view: TerrainView;
   if (opts.view === 'contours') {
     removeIfPresent(map, RELIEF_LAYER)
     if (!map.getLayer(CONTOUR_LAYER)) {
-      map.addLayer({ id: CONTOUR_LAYER, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#78350f', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.9, 0.45], 'line-width': ['case', ['==', ['get', 'major'], true], 1.4, 0.7] } })
+      addUnderOverlays(map, { id: CONTOUR_LAYER, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#78350f', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.9, 0.45], 'line-width': ['case', ['==', ['get', 'major'], true], 1.4, 0.7] } })
     }
     return
   }

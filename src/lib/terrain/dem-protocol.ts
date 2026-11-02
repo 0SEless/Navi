@@ -28,6 +28,50 @@ export function encodeDemTile(z: number, x: number, y: number, heightAt: (lat: n
   return pixels
 }
 
+export interface LngLatBox { west: number; east: number; south: number; north: number }
+
+/** Geographic bounds of web-mercator tile z/x/y. */
+export function demTileBounds(z: number, x: number, y: number): LngLatBox {
+  const n = 2 ** z
+  const lat = (row: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * row) / n))) * 180) / Math.PI
+  return { west: (x / n) * 360 - 180, east: ((x + 1) / n) * 360 - 180, north: lat(y), south: lat(y + 1) }
+}
+
+/**
+ * Generated tiles by scheme and z/x/y. A new tile version only regenerates the tiles that overlap the
+ * area that changed (a brush stroke touches a few), so painting stays responsive.
+ */
+export class TerrainTileCache {
+  private tiles = new Map<string, { z: number; x: number; y: number; data: ArrayBuffer }>()
+  /** Bumped by every invalidate: a tile generated across an invalidate is not cached (it may be stale). */
+  epoch = 0
+
+  get(scheme: string, z: number, x: number, y: number): ArrayBuffer | null {
+    const hit = this.tiles.get(`${scheme}/${z}/${x}/${y}`)
+    return hit ? hit.data.slice(0) : null
+  }
+
+  set(scheme: string, z: number, x: number, y: number, data: ArrayBuffer, startedAt = this.epoch): void {
+    if (startedAt !== this.epoch) return
+    this.tiles.set(`${scheme}/${z}/${x}/${y}`, { z, x, y, data: data.slice(0) })
+  }
+
+  invalidate(area: LngLatBox | 'all'): void {
+    this.epoch++
+    if (area === 'all') {
+      this.tiles.clear()
+      return
+    }
+    for (const [key, tile] of this.tiles) {
+      const b = demTileBounds(tile.z, tile.x, tile.y)
+      if (b.west <= area.east && b.east >= area.west && b.south <= area.north && b.north >= area.south) this.tiles.delete(key)
+    }
+  }
+}
+
+/** The cache shared by every terrain map in the tab. */
+export const terrainTileCache = new TerrainTileCache()
+
 /** Tile URL template with a version, so a new version reloads every tile of the source. */
 export function demTileUrl(scheme: string, version: number): string {
   return `${scheme}://{z}/{x}/{y}?v=${version}`
@@ -38,18 +82,21 @@ export function demTileUrl(scheme: string, version: number): string {
  * follow the latest document. Returns the unregister function.
  */
 export function registerTerrainProtocol(scheme: string, getHeightAt: () => ((lat: number, lng: number) => number) | null): () => void {
+  const size = 256
   maplibregl.addProtocol(scheme, async (params) => {
     const match = /:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url)
     if (!match) throw new Error(`Bad terrain tile url ${params.url}`)
     const [z, x, y] = match.slice(1).map(Number)
-    const heightAt = getHeightAt() ?? (() => 0)
-    const size = 256
-    const canvas = new OffscreenCanvas(size, size)
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('No 2D canvas for terrain tiles.')
-    context.putImageData(new ImageData(encodeDemTile(z, x, y, heightAt, size), size, size), 0, 0)
-    const blob = await canvas.convertToBlob({ type: 'image/png' })
-    return { data: await blob.arrayBuffer() }
+    // The cache keeps raw RGBA pixels; MapLibre takes an ImageBitmap directly (no PNG encode/decode).
+    const cached = terrainTileCache.get(scheme, z, x, y)
+    let pixels: Uint8ClampedArray<ArrayBuffer>
+    if (cached) pixels = new Uint8ClampedArray(cached)
+    else {
+      const startedAt = terrainTileCache.epoch
+      pixels = encodeDemTile(z, x, y, getHeightAt() ?? (() => 0), size)
+      terrainTileCache.set(scheme, z, x, y, pixels.buffer, startedAt)
+    }
+    return { data: await createImageBitmap(new ImageData(pixels, size, size)) }
   })
   return () => maplibregl.removeProtocol(scheme)
 }

@@ -58,7 +58,7 @@ describe('applyTerrainView', () => {
     applyTerrainView(map, { view: 'changes', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
     const relief = map.layers.get(RELIEF_LAYER)!
     expect(relief.source).toBe(CHANGES_SOURCE)
-    expect((relief.paint as Record<string, unknown[]>)['color-relief-color']).toEqual(['interpolate', ['linear'], ['elevation'], -5, '#3b82f6', 0, 'rgba(0,0,0,0)', 5, '#ef4444'])
+    expect((relief.paint as Record<string, unknown[]>)['color-relief-color']).toEqual(['interpolate', ['linear'], ['elevation'], -5, '#1d4ed8', -0.3, '#93c5fd', -0.1, 'rgba(0,0,0,0)', 0.1, 'rgba(0,0,0,0)', 0.3, '#fca5a5', 5, '#dc2626'])
   })
 
   it('Contours view shows the contour lines without relief colours', () => {
@@ -80,5 +80,56 @@ describe('applyTerrainView', () => {
     const map = fakeMap()
     applyTerrainView(map, { view: 'heights', colorRange: { minM: 0, maxM: 40 }, exaggeration: 3, threeD: false })
     expect(map.terrain).toBeNull()
+  })
+})
+
+describe('TerrainTileCache', () => {
+  it('keeps tiles until an overlapping area is invalidated', async () => {
+    const { TerrainTileCache, demTileBounds } = await import('../dem-protocol')
+    const cache = new TerrainTileCache()
+    const a = new ArrayBuffer(4)
+    cache.set('navi-terrain', 16, 54000, 30000, a)
+    expect(cache.get('navi-terrain', 16, 54000, 30000)).not.toBeNull()
+    const bounds = demTileBounds(16, 54000, 30000)
+    cache.invalidate({ west: bounds.east + 0.01, east: bounds.east + 0.02, south: bounds.south, north: bounds.north })
+    expect(cache.get('navi-terrain', 16, 54000, 30000)).not.toBeNull()
+    cache.invalidate({ west: bounds.west, east: bounds.west + 1e-6, south: bounds.south, north: bounds.south + 1e-6 })
+    expect(cache.get('navi-terrain', 16, 54000, 30000)).toBeNull()
+  })
+
+  it('invalidate all clears every tile; get returns a copy', async () => {
+    const { TerrainTileCache } = await import('../dem-protocol')
+    const cache = new TerrainTileCache()
+    const data = new Uint8Array([1, 2, 3]).buffer
+    cache.set('s', 1, 0, 0, data)
+    const copy = cache.get('s', 1, 0, 0)!
+    expect(copy).not.toBe(data)
+    expect(new Uint8Array(copy)).toEqual(new Uint8Array([1, 2, 3]))
+    cache.invalidate('all')
+    expect(cache.get('s', 1, 0, 0)).toBeNull()
+  })
+})
+
+describe('TerrainTileCache epochs', () => {
+  it('a tile generated across an invalidate is not cached', async () => {
+    const { TerrainTileCache } = await import('../dem-protocol')
+    const cache = new TerrainTileCache()
+    const startedAt = cache.epoch
+    cache.invalidate('all')
+    cache.set('s', 1, 0, 0, new ArrayBuffer(2), startedAt)
+    expect(cache.get('s', 1, 0, 0)).toBeNull()
+  })
+})
+
+describe('NO_AREA', () => {
+  it('invalidates nothing', async () => {
+    const { TerrainTileCache } = await import('../dem-protocol')
+    const { NO_AREA } = await import('../use-terrain-sampler')
+    const cache = new TerrainTileCache()
+    cache.set('s', 1, 0, 0, new ArrayBuffer(2))
+    cache.set('s', 1, 1, 1, new ArrayBuffer(2))
+    cache.invalidate(NO_AREA)
+    expect(cache.get('s', 1, 0, 0)).not.toBeNull()
+    expect(cache.get('s', 1, 1, 1)).not.toBeNull()
   })
 })

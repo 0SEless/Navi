@@ -1,14 +1,43 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createTerrainSampler, toLocal, type CampusDocument, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
-import { registerTerrainProtocol } from './dem-protocol'
+import { createTerrainSampler, parseTileId, toLatLng, toLocal, TILE_CELLS, type CampusDocument, type TerrainGrid, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
+import { registerTerrainProtocol, terrainTileCache, type LngLatBox } from './dem-protocol'
 
 export const HEIGHTS_SCHEME = 'navi-terrain'
 export const CHANGES_SCHEME = 'navi-terrain-changes'
 
 // One protocol pair for the whole tab; every terrain map (main and mini) reads the current sampler.
 let current: TerrainSampler | null = null
+let pendingDirty: LngLatBox | 'all' | null = null
+
+/** Bounds of change tiles (plus 10 m so hillshade edges refresh too). */
+export function tilesBounds(grid: TerrainGrid, tileIds: Iterable<string>): LngLatBox | null {
+  let box: LngLatBox | null = null
+  for (const id of tileIds) {
+    const { col, row } = parseTileId(id)
+    const sw = toLatLng(grid, { x: col * TILE_CELLS - 10, y: row * TILE_CELLS - 10 })
+    const ne = toLatLng(grid, { x: (col + 1) * TILE_CELLS + 10, y: (row + 1) * TILE_CELLS + 10 })
+    box = box
+      ? { west: Math.min(box.west, sw.lng), east: Math.max(box.east, ne.lng), south: Math.min(box.south, sw.lat), north: Math.max(box.north, ne.lat) }
+      : { west: sw.lng, east: ne.lng, south: sw.lat, north: ne.lat }
+  }
+  return box
+}
+
+/** "Nothing changed" (an inverted box: it overlaps no tile and disappears in a union). */
+export const NO_AREA: LngLatBox = { west: 1000, east: -1000, south: 1000, north: -1000 }
+
+/** Tells the next ground update which area changed (anything unmarked regenerates every tile). */
+export function markTerrainDirty(area: LngLatBox | 'all' | null): void {
+  if (!area) return
+  if (area === 'all' || pendingDirty === 'all') pendingDirty = 'all'
+  else if (!pendingDirty) pendingDirty = area
+  else pendingDirty = {
+    west: Math.min(pendingDirty.west, area.west), east: Math.max(pendingDirty.east, area.east),
+    south: Math.min(pendingDirty.south, area.south), north: Math.max(pendingDirty.north, area.north),
+  }
+}
 let users = 0
 let unregister: Array<() => void> = []
 
@@ -57,6 +86,8 @@ export function useTerrainSampler(document: CampusDocument, documentVersion: num
   }, [])
 
   useEffect(() => {
+    terrainTileCache.invalidate(pendingDirty ?? 'all')
+    pendingDirty = null
     current = sampler
     setVersion((v) => v + 1)
   }, [sampler])

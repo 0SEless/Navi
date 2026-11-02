@@ -128,10 +128,21 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     decoded.set(id, cells)
     return cells
   }
+  // Remembers the last tile read (most lookups stay in one tile); a stroke adding a tile resets it.
+  let lastCol = NaN
+  let lastRow = NaN
+  let lastCells: Int16Array | null = null
+  let lastOverrideSize = -1
   const cellCm = (cx: number, cy: number): number => {
     const { col, row, i } = tileOfCell(cx, cy)
-    const cells = tileCells(tileIdOf(col, row))
-    return cells ? cells[i] : 0
+    const overrideSize = opts.tilesOverride?.size ?? 0
+    if (col !== lastCol || row !== lastRow || overrideSize !== lastOverrideSize) {
+      lastCells = tileCells(tileIdOf(col, row))
+      lastCol = col
+      lastRow = row
+      lastOverrideSize = overrideSize
+    }
+    return lastCells ? lastCells[i] : 0
   }
 
   const baseAt = (x: number, y: number) => (base ? sampleBase(base, grid, x, y) ?? 0 : 0)

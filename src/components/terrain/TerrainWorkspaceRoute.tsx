@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
+import type maplibregl from 'maplibre-gl'
+import type { BrushSettings, TileId } from '@navi/core'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
@@ -10,8 +12,12 @@ import { TerrainWorkspace, type SaveResult } from './TerrainWorkspace'
 import { useTerrainLock } from './useTerrainLock'
 import { TerrainStage } from './TerrainStage'
 import { TerrainViewControls } from './TerrainViewControls'
-import { useTerrainSampler } from '@/lib/terrain/use-terrain-sampler'
+import { markTerrainDirty, NO_AREA, tilesBounds, useTerrainSampler } from '@/lib/terrain/use-terrain-sampler'
 import type { TerrainView } from '@/lib/terrain/terrain-view'
+import { TerrainToolRail, type TerrainTool } from './TerrainToolRail'
+import { DEFAULT_BRUSH, TerrainToolPanel } from './TerrainToolPanel'
+import { useTerrainStroke } from './useTerrainStroke'
+import { useTerrainShortcuts } from './useTerrainShortcuts'
 
 interface Dispatcher {
   execute(command: Command): MutationResult
@@ -37,7 +43,12 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const popOut = useSearchParams()?.get('view') === '3d'
   const [view, setView] = useState<TerrainView>('heights')
   const [exaggeration, setExaggeration] = useState(1)
-  const { sampler, version } = useTerrainSampler(document, documentVersion)
+  const [tool, setTool] = useState<TerrainTool>('raise-lower')
+  const [settings, setSettings] = useState<BrushSettings>(DEFAULT_BRUSH)
+  const [working, setWorking] = useState<{ tiles: Map<TileId, Int16Array> | null; tick: number }>({ tiles: null, tick: 0 })
+  const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
+  const [miniMap, setMiniMap] = useState<maplibregl.Map | null>(null)
+  const { sampler, version } = useTerrainSampler(document, documentVersion, working.tiles ? { tilesOverride: working.tiles, overrideVersion: working.tick } : undefined)
   const session = useStudioSession()
   const save = useExplicitSave(session)
   useSaveShortcut(save)
@@ -46,8 +57,42 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const dispatch = useCallback((command: Command): MutationResult | undefined => {
     if (lock.status !== 'held') return { success: false, error: 'The terrain is locked by another admin.' }
     const dispatcher = services.get('dispatcher') as Dispatcher | undefined
+    // A tile edit only redraws its own area; other commands redraw everything.
+    const grid = document.terrain?.grid
+    const tiles = command.id === 'terrain.apply-tiles' ? command.payload.tiles as Record<string, unknown> | undefined : undefined
+    markTerrainDirty(grid && tiles ? tilesBounds(grid, Object.keys(tiles)) : 'all')
     return dispatcher?.execute(command)
-  }, [lock.status, services])
+  }, [lock.status, services, document.terrain?.grid])
+
+  const editing = lock.status === 'held' && Boolean(document.terrain)
+  const workingRef = useRef<Map<TileId, Int16Array> | null>(null)
+  const markWorking = () => {
+    const grid = document.terrain?.grid
+    // A stroke that has not touched a tile yet changes nothing.
+    if (grid && workingRef.current) markTerrainDirty(tilesBounds(grid, workingRef.current.keys()) ?? NO_AREA)
+    else markTerrainDirty(NO_AREA)
+  }
+  const strokeOptions = {
+    document, sampler, tool, settings, enabled: editing, dispatch,
+    onWorking: (tiles: Map<TileId, Int16Array> | null) => {
+      markWorking() // the stroke's area, also when the working tiles are dropped at the end
+      workingRef.current = tiles
+      setWorking((current) => ({ tiles, tick: current.tick + 1 }))
+    },
+    onTick: () => {
+      markWorking()
+      setWorking((current) => ({ ...current, tick: current.tick + 1 }))
+    },
+    onPick: (heightM: number) => setSettings((current) => ({ ...current, mode: 'set', targetM: heightM })),
+  }
+  useTerrainStroke(mainMap, strokeOptions)
+  useTerrainStroke(miniMap, strokeOptions)
+  useTerrainShortcuts({
+    enabled: editing,
+    history: services.get('history') as { undo(): boolean; redo(): boolean } | undefined,
+    setTool,
+    setSettings,
+  })
 
   const onSave = useCallback(async (): Promise<SaveResult> => {
     if (!session) return { ok: true }
@@ -66,7 +111,9 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
       topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} />}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} />
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} />
+      {!popOut && <TerrainToolRail tool={tool} disabled={!editing} onTool={setTool} />}
+      {!popOut && editing && tool !== 'pan' && <TerrainToolPanel settings={settings} onChange={setSettings} showMode={tool === 'raise-lower'} />}
       {children}
     </TerrainWorkspace>
   )

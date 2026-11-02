@@ -71,3 +71,50 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+test('T2 — a Raise stroke is one undo step, shows in the Changes view, and undo/redo work', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayDocument)
+  ana.blocked.length = 0
+  await ana.page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(ana.page)
+  await ana.page.getByRole('button', { name: 'Start flat' }).click()
+  await ana.page.getByLabel('Reference name').fill('Gate road')
+  await ana.page.getByLabel('0 m means').fill('The road at the main gate')
+  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
+  await ana.page.waitForTimeout(2500)
+
+  await ana.page.getByRole('button', { name: 'Raise / Lower' }).click()
+  await ana.page.getByLabel('Brush size').fill('30')
+  await ana.page.getByLabel('Brush strength').fill('100')
+  const box = (await ana.page.locator('[data-terrain-map="top"]').boundingBox())!
+  const y = box.y + box.height / 2
+  await ana.page.mouse.move(box.x + box.width * 0.35, y)
+  await ana.page.mouse.down()
+  for (let i = 0; i <= 20; i++) await ana.page.mouse.move(box.x + box.width * (0.35 + i * 0.015), y, { steps: 2 })
+  await ana.page.waitForTimeout(1500) // holding still keeps raising
+  await ana.page.mouse.up()
+
+  const tilesAfter = () => ana.page.evaluate(() => Object.keys((window as ProbeWindow).__naviStudioV2!.context.document.terrainTiles ?? {}).length)
+  expect(await tilesAfter()).toBeGreaterThan(0)
+  await ana.page.evaluate(() => {
+    const w = window as unknown as { __terrainErrors: string[]; __naviTerrainMaps: Record<string, any> }
+    w.__terrainErrors = []
+    w.__naviTerrainMaps.top.on('error', (e: { error?: { message?: string } }) => w.__terrainErrors.push(String(e.error?.message ?? e)))
+  })
+  const switched = Date.now()
+  await ana.page.getByRole('button', { name: 'Changes' }).click()
+  await ana.page.waitForFunction(() => (window as unknown as { __naviTerrainMaps: Record<string, { isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps.top.isSourceLoaded('terrain-changes'), undefined, { timeout: 15_000 })
+  expect(Date.now() - switched).toBeLessThan(5000) // measured 1.0 s after the ImageBitmap tiles (was 10.8 s)
+  await ana.page.waitForTimeout(500)
+  await ana.page.screenshot({ path: path.join(SHOTS, 't2-changes.png') })
+  expect(await ana.page.evaluate(() => (window as unknown as { __terrainErrors: string[] }).__terrainErrors)).toEqual([])
+
+  await ana.page.keyboard.press('Control+z')
+  expect(await tilesAfter()).toBe(0)
+  await ana.page.keyboard.press('Control+y')
+  expect(await tilesAfter()).toBeGreaterThan(0)
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})

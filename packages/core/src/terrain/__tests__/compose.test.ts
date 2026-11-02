@@ -143,6 +143,6 @@ describe('color scale', () => {
   it('heightsColorStops spans the campus range', () => {
     expect(heightsColorStops(0, 40)).toEqual([[0, '#22c55e'], [20, '#eab308'], [40, '#ef4444']])
     expect(heightsColorStops(5, 5)).toEqual([[5, '#22c55e'], [5.5, '#eab308'], [6, '#ef4444']])
-    expect(CHANGES_COLOR_STOPS).toEqual([[-5, '#3b82f6'], [0, 'rgba(0,0,0,0)'], [5, '#ef4444']])
+    expect(CHANGES_COLOR_STOPS).toEqual([[-5, '#1d4ed8'], [-0.3, '#93c5fd'], [-0.1, 'rgba(0,0,0,0)'], [0.1, 'rgba(0,0,0,0)'], [0.3, '#fca5a5'], [5, '#dc2626']])
   })
 })
