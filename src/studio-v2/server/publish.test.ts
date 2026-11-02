@@ -439,7 +439,7 @@ describe('route-network hard gate (R33)', () => {
     const { handlers } = setup(owner, repo)
     const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
     expect(response.status).toBe(200)
-    const blob = repo.recordPublication.mock.calls[0][2] as Record<string, unknown>
+    const blob = (repo.recordPublication.mock.calls[0] as unknown[])[2] as Record<string, unknown>
     expect('site' in blob).toBe(false)
   })
 
@@ -449,7 +449,7 @@ describe('route-network hard gate (R33)', () => {
     const { handlers } = setup(owner, repo)
     const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
     expect(response.status).toBe(200)
-    const site = (repo.recordPublication.mock.calls[0][2] as { site: { version: number; terrain: { cols: number } | null; structures: unknown[] } }).site
+    const site = ((repo.recordPublication.mock.calls[0] as unknown[])[2] as { site: { version: number; terrain: { cols: number } | null; structures: unknown[] } }).site
     expect(site.version).toBe(1)
     expect(site.terrain!.cols).toBeGreaterThan(0)
     expect(site.structures).toHaveLength(2)
