@@ -23,6 +23,7 @@ export const TERRAIN_TOOLS: ToolEntry[] = [
   { id: 'flatten', label: 'Flatten', hint: 'Holds the height where the stroke starts' },
   { id: 'slope', label: 'Slope', hint: 'Two points: a straight slope between their heights' },
   { id: 'lasso', label: 'Lasso', hint: 'Set, raise or lower everything inside an area' },
+  { id: 'pad', label: 'Buildings', hint: 'Base height, pad and floors of a building' },
   { id: 'picker', label: 'Height picker', hint: 'Click to pick a height (or Alt+click with a brush)' },
   { id: 'reset', label: 'Reset', hint: 'Remove changes inside an area (back to the base)' },
   { id: 'contour-pen', label: 'Contour pen', hint: 'Trace height lines, then Generate surface' },

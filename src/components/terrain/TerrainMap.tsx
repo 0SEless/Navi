@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { contourSegments, toLatLng, toLocal, type CampusDocument, type TerrainSampler } from '@navi/core'
 import { demTileUrl } from '@/lib/terrain/dem-protocol'
+import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
 import { applyTerrainView, CHANGES_SOURCE, CONTOUR_SOURCE, HILLSHADE_LAYER, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
@@ -13,6 +14,7 @@ const HILLSHADE_SOURCE = 'terrain-hillshade-dem'
 const BOUNDARY_SOURCE = 'terrain-boundary'
 const BUILDINGS_SOURCE = 'terrain-buildings'
 const ROADS_SOURCE = 'terrain-roads'
+const SLABS_SOURCE = 'terrain-slabs'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 
 export interface TerrainMapProps {
@@ -27,6 +29,8 @@ export interface TerrainMapProps {
   onMap?: (map: maplibregl.Map | null) => void
   /** Show/hide: buildings, roads, contour lines over any view. */
   layers?: { buildings: boolean; roads: boolean; contours: boolean }
+  /** 3D: hide the floors above this one (and the roof). */
+  cutAboveFloorId?: string | null
 }
 
 function boundaryOf(document: CampusDocument) {
@@ -80,10 +84,12 @@ function contourData(document: CampusDocument, sampler: TerrainSampler | null): 
 }
 
 /** One terrain map (top view or 3D): hillshade, height or change colours, contours, campus outlines. */
-export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false } }: TerrainMapProps) {
+export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false }, cutAboveFloorId = null }: TerrainMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [ready, setReady] = useState(false)
+  // Tilted = shown in 3D. Follows the live pitch: tilting the top view (pinch, right-drag) raises the hill.
+  const [tilted, setTilted] = useState(pitch > 0)
   const latest = useRef({ document, sampler, version, view, exaggeration })
   latest.current = { document, sampler, version, view, exaggeration }
 
@@ -107,6 +113,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           [BOUNDARY_SOURCE]: { type: 'geojson', data: EMPTY },
           [BUILDINGS_SOURCE]: { type: 'geojson', data: EMPTY },
           [ROADS_SOURCE]: { type: 'geojson', data: EMPTY },
+          [SLABS_SOURCE]: { type: 'geojson', data: EMPTY },
         },
         layers: [
           { id: 'terrain-background', type: 'background', paint: { 'background-color': '#eef2ea' } },
@@ -114,6 +121,11 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           { id: 'terrain-roads', type: 'line', source: ROADS_SOURCE, paint: { 'line-color': '#6b7280', 'line-width': 2 } },
           { id: 'terrain-buildings', type: 'line', source: BUILDINGS_SOURCE, paint: { 'line-color': '#1f2937', 'line-width': 1.5 } },
           { id: 'terrain-boundary', type: 'line', source: BOUNDARY_SOURCE, paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-dasharray': [3, 2] } },
+          // Solid floor slabs and roofs (3D only): opaque, so lower floors are hidden.
+          { id: 'terrain-slabs', type: 'fill-extrusion', source: SLABS_SOURCE, layout: { visibility: pitch > 0 ? 'visible' : 'none' }, paint: {
+            'fill-extrusion-color': ['match', ['get', 'kind'], 'roof', '#475569', '#94a3b8'],
+            'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1,
+          } },
         ],
       },
       center: ring.length > 0 ? [(Math.min(...lngs) + Math.max(...lngs)) / 2, (Math.min(...lats) + Math.max(...lats)) / 2] : [0, 0],
@@ -124,6 +136,10 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     })
     mapRef.current = map
     const unexpose = exposeTerrainMapForProbe(pitch > 0 ? '3d' : 'top', map)
+    map.on('pitch', () => {
+      const now = map.getPitch() > 2
+      setTilted((was) => (was === now ? was : now))
+    })
     map.on('load', () => {
       // The main view keeps the campus clear of the tool rail, the side panel, the layers panel and the mini 3D.
       const padding = container.clientWidth > 700 ? { top: 40, left: 160, right: 280, bottom: 250 } : 30
@@ -146,9 +162,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     const map = mapRef.current
     if (!map || !ready) return
     applyTerrainView(map as unknown as Parameters<typeof applyTerrainView>[0], {
-      view, exaggeration, colorRange: document.terrain?.colorRange ?? { minM: 0, maxM: 40 }, threeD: pitch > 0,
+      view, exaggeration, colorRange: document.terrain?.colorRange ?? { minM: 0, maxM: 40 }, threeD: tilted,
     })
-  }, [ready, view, exaggeration, document.terrain?.colorRange, pitch])
+  }, [ready, view, exaggeration, document.terrain?.colorRange, tilted])
 
   useEffect(() => {
     const map = mapRef.current
@@ -162,6 +178,13 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     ;(map.getSource(BUILDINGS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildings)
     ;(map.getSource(ROADS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(roads)
   }, [ready, version, document])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !sampler) return
+    ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(cutAboveFloorId ? { cutAboveFloorId } : {}) }))
+    map.setLayoutProperty('terrain-slabs', 'visibility', tilted && layers.buildings ? 'visible' : 'none')
+  }, [ready, version, document, sampler, cutAboveFloorId, tilted, layers.buildings])
 
   const showContours = view === 'contours' || layers.contours
   useEffect(() => {

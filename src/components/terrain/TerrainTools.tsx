@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import { toLocal, type BrushSettings, type CampusDocument, type TerrainSampler } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
@@ -13,6 +13,9 @@ import { TerrainLayersPanel, type TerrainLayers } from './TerrainLayersPanel'
 import { TracingImageLayer } from './TracingImageLayer'
 import { useMapDraft } from './useMapDraft'
 import { useBoundaryEditor } from './useBoundaryEditor'
+import { BuildingGroundPanel, type GroundChange } from './BuildingGroundPanel'
+import { TerrainImportPanel } from './TerrainImportPanel'
+import { useEnsureZone } from '@/components/studio/v2/ZoneProvider'
 
 type LatLng = { lat: number; lng: number }
 const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset', 'contour-pen'])
@@ -30,6 +33,8 @@ export function TerrainTools(props: {
   onSettings: (next: BrushSettings) => void
   layers: TerrainLayers
   onLayers: (next: TerrainLayers) => void
+  cutAboveFloorId: string | null
+  onCutAbove: (floorId: string | null) => void
 }) {
   const { document, sampler, maps, editing, dispatch, tool } = props
   const campusId = document.metadata.campusId
@@ -37,6 +42,11 @@ export function TerrainTools(props: {
   const [traced, setTraced] = useState<TracedLine[]>([])
   const [tracing, setTracing] = useState<TracingImage | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const ensureZone = useEnsureZone()
+  const toolRef = useRef(tool)
+  toolRef.current = tool
 
   useEffect(() => setPoints([]), [tool])
   useEffect(() => {
@@ -63,6 +73,32 @@ export function TerrainTools(props: {
     closed: tool === 'lasso' || tool === 'reset',
     onPoint: (p: LatLng) => setPoints((current) => (tool === 'slope' && current.length >= 2 ? [p] : [...current, p])),
   }
+  // Buildings tool: click inside a building outline to select it.
+  const mainMap = maps[0] ?? null
+  const miniMap = maps[1] ?? null
+  useEffect(() => {
+    const cleanups = [mainMap, miniMap].filter((map): map is maplibregl.Map => Boolean(map)).map((map) => {
+      const onClick = (event: maplibregl.MapMouseEvent) => {
+        if (toolRef.current !== 'pad') return
+        const { lat, lng } = event.lngLat
+        const hit = document.buildings.find((b) => {
+          const ring = b.footprint?.points ?? []
+          let inside = false
+          for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const a = ring[i]
+            const c = ring[j]
+            if (a.lat > lat !== c.lat > lat && lng < ((c.lng - a.lng) * (lat - a.lat)) / (c.lat - a.lat) + a.lng) inside = !inside
+          }
+          return inside
+        })
+        setSelectedBuildingId(hit?.id ?? null)
+      }
+      map.on('click', onClick)
+      return () => { map.off('click', onClick) }
+    })
+    return () => cleanups.forEach((off) => off())
+  }, [mainMap, miniMap, document])
+
   useMapDraft(maps[0] ?? null, draft)
   useMapDraft(maps[1] ?? null, draft)
   const boundary = { active: editing && tool === 'boundary', document, dispatch }
@@ -88,10 +124,37 @@ export function TerrainTools(props: {
     void (next ? tracingStore().put(key, next) : tracingStore().delete(key)).catch(() => undefined)
   }
   const ring = document.boundary?.points ?? []
+  const selectedBuilding = document.buildings.find((b) => b.id === selectedBuildingId) ?? null
+  const changeGround = async (change: GroundChange) => {
+    if (!selectedBuilding) return
+    // Ground settings belong to the building: they need its lock, never the terrain lock.
+    if (!(await ensureZone([`building:${encodeURIComponent(selectedBuilding.id)}`]))) {
+      setMessage('Another admin is editing this building.')
+      return
+    }
+    run({ id: 'building.set-ground', label: 'Building ground', payload: { buildingId: selectedBuilding.id, ...change } })
+  }
 
   return (
     <>
       <TerrainToolRail tool={tool} disabled={!editing} onTool={props.onTool} />
+      {editing && (
+        <button type="button" onClick={() => setImporting(true)} style={{ position: 'absolute', left: 140, top: 12, zIndex: 2, padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid var(--navi-border, #e5e7eb)', background: 'var(--navi-card, #fff)' }}>
+          Import ground…
+        </button>
+      )}
+      {importing && (
+        <div style={{ position: 'absolute', left: 140, top: 48, zIndex: 3, padding: 14, background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}>
+          <TerrainImportPanel
+            hasChanges={Object.keys(document.terrainTiles ?? {}).length > 0}
+            onImport={(payload) => { setImporting(false); run({ id: 'terrain.setup', label: 'Import ground', payload }) }}
+            onCancel={() => setImporting(false)}
+          />
+        </div>
+      )}
+      {editing && tool === 'pad' && (
+        <BuildingGroundPanel building={selectedBuilding} sampler={sampler} cutAboveFloorId={props.cutAboveFloorId} onChange={(change) => void changeGround(change)} onCutAbove={props.onCutAbove} />
+      )}
       {editing && (tool === 'raise-lower' || tool === 'smooth' || tool === 'flatten' || tool === 'picker') && (
         <TerrainToolPanel settings={props.settings} onChange={props.onSettings} showMode={tool === 'raise-lower' || tool === 'picker'} />
       )}

@@ -32,13 +32,14 @@ export function TerrainImportPanel({ hasChanges, onImport, onCancel }: {
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [followGround, setFollowGround] = useState(true)
 
   const importWith = async (clearTiles: boolean) => {
     setBusy(true)
     setError(null)
     try {
       const base = await readTerrainFiles(files)
-      onImport({ reference: IMPORTED_REFERENCE, base, colorRange: baseHeightRange(base), ...(clearTiles ? { clearTiles: true } : {}) })
+      onImport({ reference: IMPORTED_REFERENCE, base, colorRange: baseHeightRange(base), ...(clearTiles ? { clearTiles: true } : {}), ...(followGround ? { followGround: true } : {}) })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The files could not be read.')
     } finally {
@@ -54,6 +55,10 @@ export function TerrainImportPanel({ hasChanges, onImport, onCancel }: {
         The TopoExport ground comes from a 30 m elevation model: it gives the hill&apos;s broad shape and can be off by a few metres.
       </span>
       <input aria-label="Terrain files" type="file" multiple accept=".glb,.geojson,.json" onChange={(event) => setFiles([...(event.target.files ?? [])])} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input type="checkbox" checked={followGround} onChange={(event) => setFollowGround(event.target.checked)} />
+        Set all buildings to follow the ground (buildings set to a fixed height keep it)
+      </label>
       {error && <div role="alert" style={{ color: '#991b1b', fontSize: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         {hasChanges ? (

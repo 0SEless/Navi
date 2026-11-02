@@ -194,3 +194,81 @@ test('T3 — lasso, slope, contour pen to surface, boundary corner and a local t
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+function ibajayThreeFloors(campusId: string) {
+  const doc = ibajayDocument(campusId)
+  const hall = doc.buildings[0] as { floors: Array<Record<string, unknown>> }
+  hall.floors = [0, 1, 2].map((level) => ({ ...floor(`bld-hall-floor-${level + 1}`, `Floor ${level + 1}`), level, elevation: level * 3.5 }))
+  return doc
+}
+
+type MapProbe = {
+  getTerrain(): unknown
+  setPitch(p: number): void
+  project(p: [number, number]): { x: number; y: number }
+  getLayoutProperty(layer: string, prop: string): unknown
+  getSource(id: string): { serialize(): { data: { features: unknown[] } } } | undefined
+}
+const terrainMap = (page: import('@playwright/test').Page, role: 'top' | '3d') => ({
+  run: <T,>(fn: string) => page.evaluate(([r, f]) => new Function('map', `return ${f}`)((window as unknown as { __naviTerrainMaps: Record<string, MapProbe> }).__naviTerrainMaps[r]), [role, fn]) as Promise<T>,
+})
+
+test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and cut away; tilting the top view shows the hill', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayThreeFloors)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  // Import with "Set all buildings to follow the ground" (ticked by default).
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
+  await page.waitForTimeout(2500)
+
+  // Tilting the top view turns its 3D ground on; back to flat turns it off.
+  const top = terrainMap(page, 'top')
+  expect(await top.run('map.getTerrain()')).toBeNull()
+  await top.run('map.setPitch(55)')
+  await expect.poll(() => top.run('map.getTerrain()')).not.toBeNull()
+  await top.run('map.setPitch(0)')
+  await expect.poll(() => top.run('map.getTerrain()')).toBeNull()
+
+  // Buildings tool: select the hall by clicking inside it.
+  await page.getByRole('button', { name: 'Buildings' }).click()
+  const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
+  const centre = await top.run<{ x: number; y: number }>('map.project([122.1705, 11.81735])')
+  await page.mouse.click(box.x + centre.x, box.y + centre.y)
+  const panel = page.getByLabel('Building settings')
+  await expect(panel.getByText('Hall')).toBeVisible()
+
+  await panel.getByLabel('Fixed height').check()
+  await expect.poll(() => doc<string>('doc.buildings[0].ground.baseMode')).toBe('fixed')
+  await panel.getByLabel('Fixed base height').fill('20')
+  await panel.getByRole('button', { name: 'Set' }).click()
+  await expect.poll(() => doc<number>('doc.buildings[0].baseElevation')).toBe(20)
+  await panel.getByRole('button', { name: 'Raise 0.5 m' }).click()
+  await expect.poll(() => doc<number>('doc.buildings[0].baseElevation')).toBe(20.5)
+  await panel.getByRole('button', { name: 'Snap to ground' }).click()
+  await expect.poll(() => doc<string>('doc.buildings[0].ground.baseMode')).toBe('follow-ground')
+  await panel.getByLabel('Pad mode').selectOption('raise')
+  await expect.poll(() => doc<string>('doc.buildings[0].ground.pad.mode')).toBe('raise')
+
+  // 3D: solid slabs (3 floors + roof); Cut away above the first floor leaves one slab.
+  await page.getByRole('button', { name: 'Swap' }).click()
+  await page.waitForTimeout(3000)
+  const big = terrainMap(page, '3d')
+  expect(await big.run('map.getLayoutProperty("terrain-slabs", "visibility")')).toBe('visible')
+  expect(await big.run('map.getSource("terrain-slabs").serialize().data.features.length')).toBe(4)
+  await page.getByLabel('Building settings').getByLabel('Cut away above').selectOption({ label: 'Floor 1' })
+  await expect.poll(() => big.run('map.getSource("terrain-slabs").serialize().data.features.length')).toBe(1)
+  await page.getByLabel('Height exaggeration').fill('3')
+  await page.waitForTimeout(3000)
+  await page.screenshot({ path: path.join(SHOTS, 't4-buildings-3d.png') })
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})

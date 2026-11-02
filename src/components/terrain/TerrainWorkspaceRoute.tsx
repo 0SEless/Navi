@@ -6,7 +6,7 @@ import type { BrushSettings, TileId } from '@navi/core'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
-import { ZoneProvider } from '@/components/studio/v2/ZoneProvider'
+import { useEnsureZone, ZoneProvider } from '@/components/studio/v2/ZoneProvider'
 import { useExplicitSave, useSaveShortcut, useStudioSession } from '@/components/studio/v2/useStudioSession'
 import { TerrainWorkspace, type SaveResult } from './TerrainWorkspace'
 import { useTerrainLock } from './useTerrainLock'
@@ -51,6 +51,8 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   const [miniMap, setMiniMap] = useState<maplibregl.Map | null>(null)
   const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
+  const [cutAboveFloorId, setCutAboveFloorId] = useState<string | null>(null)
+  const ensureZone = useEnsureZone()
   const { sampler, version } = useTerrainSampler(document, documentVersion, working.tiles ? { tilesOverride: working.tiles, overrideVersion: working.tick } : undefined)
   const session = useStudioSession()
   const save = useExplicitSave(session)
@@ -67,8 +69,16 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     const result = dispatcher?.execute(command)
     // "Trace contours" on the first visit opens the contour pen.
     if (result?.success && command.payload.startTool === 'contour-pen') setTool('contour-pen')
+    // After an import: every building that is not Fixed follows the ground (its own undo step).
+    // It needs the buildings' locks, so it runs only when they are all free.
+    if (result?.success && command.id === 'terrain.setup' && command.payload.followGround === true) {
+      const zones = document.buildings.map((b) => `building:${encodeURIComponent(b.id)}` as const)
+      void ensureZone(zones).then((granted) => {
+        if (granted) dispatcher?.execute({ id: 'buildings.follow-ground', label: 'Buildings follow the ground', payload: {} })
+      })
+    }
     return result
-  }, [lock.status, services, document.terrain?.grid])
+  }, [lock.status, services, document.terrain?.grid, document.buildings, ensureZone])
 
   const editing = lock.status === 'held' && Boolean(document.terrain)
   const workingRef = useRef<Map<TileId, Int16Array> | null>(null)
@@ -117,11 +127,12 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
       topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} />}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} layers={layers} />
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} layers={layers} cutAboveFloorId={cutAboveFloorId} />
       {!popOut && (
         <TerrainTools
           document={document} sampler={sampler} maps={[mainMap, miniMap]} editing={editing} dispatch={dispatch}
           tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
+          cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
         />
       )}
       {children}
