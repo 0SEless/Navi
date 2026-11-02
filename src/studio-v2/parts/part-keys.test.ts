@@ -67,3 +67,12 @@ describe('zoneOf', () => {
     expect(zoneOf(partKey('floor', 'B:1', 'F2'))).toBe('building:B%3A1')
   })
 })
+
+describe('terrain plan part kinds', () => {
+  it('structures and presets are free; tiles are in the terrain zone', () => {
+    expect(zoneOf('map/structure:s1')).toBeNull()
+    expect(zoneOf('map/structure-preset:p1')).toBeNull()
+    expect(zoneOf('terrain-tile:-1_0')).toBe('terrain')
+    expect(parsePartKey(partKey('map/structure', 's1'))).toEqual({ kind: 'map/structure', ids: ['s1'] })
+  })
+})

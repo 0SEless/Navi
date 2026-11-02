@@ -6,6 +6,7 @@ import {
   fixtureLegacyShape,
   fixtureMinimal,
   fixtureWith15Violations,
+  fixtureTerrain,
 } from '../__fixtures__/campus-fixtures'
 import { canonicalJson, fastHash } from './canonical'
 import { partKey } from './part-keys'
@@ -437,5 +438,43 @@ describe('partHashes', () => {
     const elapsed = performance.now() - start
     console.log(`[save-v2] split+partHashes fixtureLarge (${JSON.stringify(doc).length} bytes): ${elapsed.toFixed(1)} ms`)
     expect(elapsed).toBeLessThan(200)
+  })
+})
+
+describe('terrain plan parts', () => {
+  it('split/join round-trip leaves a terrain-free document unchanged', () => {
+    const doc = fixtureFull()
+    const { parts } = splitDocument(doc)
+    expect(parts.some((p) => p.key.startsWith('terrain-tile:') || p.key.startsWith('map/structure'))).toBe(false)
+    expect((parts.find((p) => p.key === 'terrain')!.content as Record<string, unknown>).terrain).toBeUndefined()
+    const joined = joinParts(parts) as unknown as Record<string, unknown>
+    for (const field of ['terrain', 'terrainTiles', 'structures', 'structurePresets']) expect(field in joined).toBe(false)
+    expect(stripVolatile(joined as unknown as CampusDocument)).toEqual(stripVolatile(doc))
+  })
+
+  it('terrain tiles split into terrain-tile binary parts and join back', () => {
+    const doc = fixtureTerrain()
+    const { parts } = splitDocument(doc)
+    const tiles = parts.filter((p) => p.key.startsWith('terrain-tile:'))
+    expect(tiles.map((p) => p.key).sort()).toEqual(['terrain-tile:-1_0', 'terrain-tile:0_0'])
+    for (const tile of tiles) {
+      expect(tile.content).toBeNull()
+      expect(tile.contentBase64).toBe(doc.terrainTiles![tile.key.slice('terrain-tile:'.length) as '0_0'])
+    }
+    expect((parts.find((p) => p.key === 'terrain')!.content as Record<string, unknown>).terrain).toEqual(doc.terrain)
+    const joined = joinParts(parts)
+    expect(joined.terrainTiles).toEqual(doc.terrainTiles)
+    expect(joined.terrain).toEqual(doc.terrain)
+  })
+
+  it('structures and presets round-trip in authored order', () => {
+    const doc = fixtureTerrain()
+    const { parts } = splitDocument(doc)
+    expect(parts.filter((p) => p.key.startsWith('map/structure:')).map((p) => p.key)).toEqual(['map/structure:stair-1', 'map/structure:stair-0'])
+    expect(parts.some((p) => p.key === 'map/structure-preset:preset-plain-stair')).toBe(true)
+    const joined = joinParts(parts)
+    expect(joined.structures!.map((s) => s.id)).toEqual(['stair-1', 'stair-0'])
+    expect(joined.structurePresets).toEqual(doc.structurePresets)
+    expect(stripVolatile(joined)).toEqual(stripVolatile(doc))
   })
 })

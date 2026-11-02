@@ -78,10 +78,12 @@ export function joinParts(parts: PartRecord[], local?: LocalFloorReference[], op
   // Clone up front so nothing in the result aliases the caller's parts.
   const byKey = new Map<PartKey, PartRecord>()
   const mapItems = new Map<PartKind, Array<Sorted<unknown>>>()
+  const tiles = new Map<string, string>()
   for (const part of parts) {
     if (byKey.has(part.key)) fail(`duplicate part key "${part.key}".`)
     const { kind, ids } = parsePartKey(part.key)
     const record: PartRecord = { key: part.key, content: clonePlain(part.content), sortKey: part.sortKey }
+    if (typeof part.contentBase64 === 'string') record.contentBase64 = part.contentBase64
     byKey.set(part.key, record)
     if (kind.startsWith('map/')) {
       const item = asRecord(record.content, `part "${part.key}"`)
@@ -90,7 +92,8 @@ export function joinParts(parts: PartRecord[], local?: LocalFloorReference[], op
       bucket.push({ sortKey: part.sortKey, key: part.key, value: item })
       mapItems.set(kind, bucket)
     } else if (kind === 'terrain-tile') {
-      fail(`part kind "terrain-tile" is not produced by splitDocument ("${part.key}").`)
+      if (typeof record.contentBase64 !== 'string') fail(`terrain tile part "${part.key}" has no binary content.`)
+      tiles.set(ids[0], record.contentBase64)
     }
   }
   const consumed = new Set<PartKey>()
@@ -153,6 +156,7 @@ export function joinParts(parts: PartRecord[], local?: LocalFloorReference[], op
   const terrainKey = partKey('terrain')
   const terrain = byKey.has(terrainKey) ? asRecord(take(terrainKey, 'terrain'), 'terrain part') : {}
 
+  for (const tileId of tiles.keys()) consumed.add(partKey('terrain-tile', tileId))
   for (const items of mapItems.values()) {
     for (const item of items) consumed.add(item.key)
     items.sort(bySortKeyThenKey)
@@ -190,6 +194,10 @@ export function joinParts(parts: PartRecord[], local?: LocalFloorReference[], op
     ['separatedCrossings', collection('separatedCrossings')],
     ['connectivitySemanticsVersion', has(campus, 'connectivitySemanticsVersion') ? campus.connectivitySemanticsVersion : undefined],
     ['boundary', has(campus, 'boundary') ? campus.boundary : undefined],
+    ['terrain', has(terrain, 'terrain') ? terrain.terrain : undefined],
+    ['terrainTiles', tiles.size > 0 ? Object.fromEntries([...tiles].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : undefined],
+    ['structures', collection('structures')],
+    ['structurePresets', collection('structurePresets')],
   ]
   for (const [field, value] of optional) if (value !== undefined) doc[field] = value
 

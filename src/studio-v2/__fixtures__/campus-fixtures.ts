@@ -678,6 +678,51 @@ export function fixtureFull(): CampusDocument {
   })
 }
 
+// ── fixtureTerrain ──────────────────────────────────────────────────────────
+
+/** A tile whose cells are all `cm` (base64 Int16LE, 128 × 128). */
+export function constantTileBase64(cm: number): string {
+  const bytes = new Uint8Array(128 * 128 * 2)
+  const view = new DataView(bytes.buffer)
+  for (let i = 0; i < 128 * 128; i++) view.setInt16(i * 2, cm, true)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binary)
+}
+
+/** fixtureFull plus the terrain plan fields: terrain settings, two tiles (one at a negative index), a stair and a preset. */
+export function fixtureTerrain(): CampusDocument {
+  const doc = fixtureFull()
+  doc.terrain = {
+    reference: { name: 'Sea level (TopoExport)', zeroMeaning: 'Mean sea level' },
+    grid: { originLat: 11.6795, originLng: 122.3695 },
+    colorRange: { minM: 0, maxM: 40 },
+  }
+  doc.terrainTiles = { '0_0': constantTileBase64(150), '-1_0': constantTileBase64(-20) }
+  doc.structurePresets = [{
+    id: 'preset-plain-stair',
+    name: 'Plain stair',
+    form: 'stairs',
+    shape: { width: 1.5, underneath: 'open', railings: 'both' },
+    look: { tread: 'concrete', side: 'concrete-side', under: 'concrete-under', railing: 'painted-green', railingStyle: 'posts-rails' },
+  }]
+  doc.structures = [
+    {
+      id: 'stair-1', form: 'stairs', presetId: 'preset-plain-stair',
+      start: { kind: 'slab', buildingId: doc.buildings[0].id, floorId: doc.buildings[0].floors[0].id, edgeIndex: 0, edgeT: 0.5 },
+      end: { kind: 'ground', position: { lat: 11.6801, lng: 122.3702 } },
+      width: 1.5, underneath: 'open', railings: 'both',
+    },
+    {
+      id: 'stair-0', form: 'stairs', presetId: 'preset-plain-stair',
+      start: { kind: 'ground', position: { lat: 11.6802, lng: 122.3703 } },
+      end: { kind: 'ground', position: { lat: 11.6803, lng: 122.3704 } },
+      width: 2, underneath: 'solid', railings: 'left',
+    },
+  ]
+  return doc
+}
+
 // ── fixtureWith15Violations ─────────────────────────────────────────────────
 
 /** fixtureFull plus the content NAVI 1.5 forbids in saved data (for negative tests). */

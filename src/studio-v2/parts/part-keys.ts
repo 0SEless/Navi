@@ -9,6 +9,8 @@ export type PartKind =
   | 'map/crossing'
   | 'map/area'
   | 'map/poi'
+  | 'map/structure'
+  | 'map/structure-preset'
 
 export type PartKey = string
 /** Lock zones: a building (with its floors) or the terrain. Campus settings are not locked (R69). */
@@ -25,6 +27,8 @@ const ARITY: Record<PartKind, number> = {
   'map/crossing': 1,
   'map/area': 1,
   'map/poi': 1,
+  'map/structure': 1,
+  'map/structure-preset': 1,
 }
 
 function isPartKind(value: string): value is PartKind {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureFull, fixtureLarge, fixtureWith15Violations } from '../__fixtures__/campus-fixtures'
 import { canonicalJson } from './canonical'
-import { STUDIO_PART_MAX_BYTES, checkPart, checkSettings, type PartIssue } from './content-rules'
+import { STUDIO_PART_MAX_BYTES, checkBinaryPart, checkPart, checkSettings, type PartIssue } from './content-rules'
 import { partKey } from './part-keys'
 import { splitDocument, type PartRecord } from './split'
 
@@ -253,5 +253,38 @@ describe('checkPart: floors as the editor creates them (R59)', () => {
   it('still rejects a floor collection or metadata of the wrong type', () => {
     expect(checkPart(floorRecord({ rooms: 'x' })).map((issue) => issue.path)).toEqual(['/rooms'])
     expect(checkPart(floorRecord({ metadata: [] })).map((issue) => issue.path)).toEqual(['/metadata'])
+  })
+})
+
+describe('terrain plan parts', () => {
+  const stair = {
+    id: 's1', form: 'stairs', presetId: 'p1',
+    start: { kind: 'ground', position: { lat: 11.68, lng: 122.37 } },
+    end: { kind: 'ground', position: { lat: 11.681, lng: 122.371 } },
+    width: 1.5, underneath: 'open', railings: 'both',
+  }
+
+  it('accepts a valid structure', () => {
+    expect(checkPart({ key: partKey('map/structure', 's1'), content: stair, sortKey: '000000' })).toEqual([])
+  })
+
+  it('rejects a structure wider than 10 m or with an unknown form', () => {
+    const wide = checkPart({ key: partKey('map/structure', 's1'), content: { ...stair, width: 20 }, sortKey: '000000' })
+    expect(wide.map((i) => i.code)).toContain('INVALID_PART')
+    const odd = checkPart({ key: partKey('map/structure', 's1'), content: { ...stair, form: 'bridge' }, sortKey: '000000' })
+    expect(odd.map((i) => i.path)).toContain('/form')
+  })
+
+  it('requires the preset fields', () => {
+    const issues = checkPart({ key: partKey('map/structure-preset', 'p1'), content: { id: 'p1', name: 'x' }, sortKey: '000000' })
+    expect(issues.map((i) => i.path)).toEqual(expect.arrayContaining(['/form', '/shape', '/look']))
+  })
+
+  it('a terrain tile must be binary of exactly 32768 bytes', () => {
+    expect(checkBinaryPart(partKey('terrain-tile', '0_0'), 32767).map((i) => i.code)).toEqual(['INVALID_PART'])
+    expect(checkBinaryPart(partKey('terrain-tile', '0_0'), 32768)).toEqual([])
+    expect(checkBinaryPart(partKey('terrain-tile', 't1'), 32768).map((i) => i.code)).toEqual(['INVALID_PART'])
+    expect(checkBinaryPart(partKey('map/road', 'r1'), 10).map((i) => i.code)).toEqual(['INVALID_PART'])
+    expect(checkPart({ key: partKey('terrain-tile', '0_0'), content: { cells: [] }, sortKey: null }).map((i) => i.code)).toContain('INVALID_PART')
   })
 })

@@ -7,8 +7,10 @@ import { createIndexedDbStore, type KeyValueStore } from './kv-store'
 export interface V2DraftPart {
   /** Server version the edit started from; 0 for a part that did not exist yet. */
   baseVersion: number
-  /** null = the part was deleted locally. */
+  /** null = the part was deleted locally (unless contentBase64 is set). */
   content: unknown | null
+  /** Binary parts (terrain tiles): the tile as base64; absent for JSON parts. */
+  contentBase64?: string
   sortKey: string | null
 }
 

@@ -32,6 +32,7 @@ export function withRemoteParts(doc: CampusDocument, incoming: PartRecordWithVer
   const byKey = new Map<PartKey, PartRecord>(parts.map((part) => [part.key, part]))
   for (const part of incoming) {
     if (part.deleted) byKey.delete(part.partKey)
+    else if (typeof part.contentBase64 === 'string') byKey.set(part.partKey, { key: part.partKey, content: null, contentBase64: part.contentBase64, sortKey: part.sortKey })
     else byKey.set(part.partKey, { key: part.partKey, content: clonePlain(part.content), sortKey: part.sortKey })
   }
   const joined = joinParts([...byKey.values()], localReferences, {

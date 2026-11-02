@@ -70,6 +70,16 @@ export function partHash(key: PartKey, content: unknown): string {
   return fastHash(canonicalJson(content))
 }
 
+/** Hash of a binary part (terrain tile); prefixed so it can never equal a JSON part hash. */
+export function binaryPartHash(contentBase64: string): string {
+  return `bin:${fastHash(contentBase64)}`
+}
+
+/** Hash of a loaded or split part, binary or JSON. */
+function hashOfPart(key: PartKey, content: unknown, contentBase64: string | null | undefined): string {
+  return typeof contentBase64 === 'string' ? binaryPartHash(contentBase64) : partHash(key, content)
+}
+
 function byteLength(value: unknown): number {
   return encoder.encode(JSON.stringify(value)).length
 }
@@ -92,6 +102,7 @@ export class SaveController {
   private readonly zones: SaveZones
   private readonly maxRequestBytes: number
   private baseline = new Map<PartKey, BaselineEntry>()
+  private binaryHashes = new Map<PartKey, { contentBase64: string; hash: string }>()
   private head = 0
   private listeners = new Set<(state: SaveControllerState) => void>()
   private state: SaveControllerState = { status: 'clean', message: null, headCommit: 0 }
@@ -113,7 +124,7 @@ export class SaveController {
     this.baseline = new Map()
     for (const part of load.parts) {
       if (part.deleted) continue
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: partHash(part.partKey, part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: hashOfPart(part.partKey, part.content, part.contentBase64) })
     }
     this.head = load.headCommit
     this.pending = null
@@ -178,7 +189,7 @@ export class SaveController {
   /** Baseline update for parts another admin saved and that were merged into the document. */
   applyRemote(parts: PartRecordWithVersion[], headCommit?: number): void {
     for (const part of parts) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : partHash(part.partKey, part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64) })
     }
     if (headCommit !== undefined && headCommit > this.head) this.head = headCommit
   }
@@ -193,7 +204,7 @@ export class SaveController {
     // 'mine': adopt their version numbers but keep the local content dirty, so the next
     // save overwrites on top of their version (the UI confirms first — spec D7).
     for (const part of relevant) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : partHash(part.partKey, part.content) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64) })
     }
     return { reload: [] }
   }
@@ -214,7 +225,7 @@ export class SaveController {
     for (const part of parts) {
       seen.add(part.key)
       const base = this.baseline.get(part.key)
-      const hash = partHash(part.key, part.content)
+      const hash = part.contentBase64 !== undefined ? this.binaryHash(part.key, part.contentBase64) : partHash(part.key, part.content)
       if (base && base.hash === hash) continue
       out.push({ key: part.key, change: this.putChange(part, base), hash })
     }
@@ -225,7 +236,19 @@ export class SaveController {
     return out.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
   }
 
+  /** Tiles are large and rarely change: reuse the hash while the tile string is the same. */
+  private binaryHash(key: PartKey, contentBase64: string): string {
+    const cached = this.binaryHashes.get(key)
+    if (cached && cached.contentBase64 === contentBase64) return cached.hash
+    const hash = binaryPartHash(contentBase64)
+    this.binaryHashes.set(key, { contentBase64, hash })
+    return hash
+  }
+
   private putChange(part: PartRecord, base: BaselineEntry | undefined): ClientSaveChange {
+    if (part.contentBase64 !== undefined) {
+      return { partKey: part.key, expectedVersion: base?.versionNo ?? 0, op: 'put-bin', contentBase64: part.contentBase64 }
+    }
     const change: Extract<ClientSaveChange, { op: 'put' }> = {
       partKey: part.key,
       expectedVersion: base?.versionNo ?? 0,

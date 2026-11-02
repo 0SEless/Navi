@@ -262,13 +262,13 @@ describe('save: validation and server-side checksums', () => {
   it('put-bin: decodes the bytes, checksums them and drops client values', async () => {
     const { handlers, repo } = setup()
     repo.save.mockResolvedValue(okSave)
-    const bytes = Buffer.from([0, 1, 2, 3, 250, 251])
+    const bytes = Buffer.alloc(32768, 250)
     const response = await handlers.save(
       post(
         '/api/studio/v2/save',
         saveBody([
           {
-            partKey: 'terrain-tile:t1',
+            partKey: 'terrain-tile:0_0',
             expectedVersion: 0,
             op: 'put-bin',
             contentBase64: bytes.toString('base64'),
@@ -280,7 +280,7 @@ describe('save: validation and server-side checksums', () => {
     expect(response.status).toBe(200)
     expect(repo.save.mock.calls[0][0].changes).toEqual([
       {
-        partKey: 'terrain-tile:t1',
+        partKey: 'terrain-tile:0_0',
         expectedVersion: 0,
         op: 'put-bin',
         contentBase64: bytes.toString('base64'),
@@ -306,6 +306,16 @@ describe('save: validation and server-side checksums', () => {
     )
     expect(response.status).toBe(400)
     expect((await bodyOf(response)).code).toBe('TOO_LARGE')
+    expect(repo.save).not.toHaveBeenCalled()
+  })
+
+  it('put-bin of a tile that is not 32768 bytes -> 400 INVALID_PART', async () => {
+    const { handlers, repo } = setup()
+    const response = await handlers.save(
+      post('/x', saveBody([{ partKey: 'terrain-tile:0_0', expectedVersion: 0, op: 'put-bin', contentBase64: Buffer.alloc(100).toString('base64') }])),
+    )
+    expect(response.status).toBe(400)
+    expect(await bodyOf(response)).toMatchObject({ code: 'INVALID_PART' })
     expect(repo.save).not.toHaveBeenCalled()
   })
 
@@ -538,7 +548,7 @@ describe('save: op rules (R30)', () => {
       post(
         '/x',
         saveBody([
-          { partKey: 'terrain-tile:t1', expectedVersion: 0, op: 'put-bin', contentBase64: 'AAEC' },
+          { partKey: 'terrain-tile:0_0', expectedVersion: 0, op: 'put-bin', contentBase64: Buffer.alloc(32768).toString('base64') },
           { partKey: 'floor:B1:F1', expectedVersion: 2, op: 'delete' },
         ]),
       ),

@@ -10,7 +10,7 @@ import { createStudioApi, type StudioApi } from './api-client'
 import { draftStore as defaultDrafts, planRestore, type DraftStore, type V2DraftPart } from './draft-store'
 import { localReferenceStore as defaultReferences, type LocalReferenceStore } from './local-reference-store'
 import { mergeRemoteParts, withRemoteParts, type MergeContext } from './remote-merge'
-import { SaveController, partHash, type SaveControllerState, type SaveOutcome } from './save-controller'
+import { SaveController, binaryPartHash, partHash, type SaveControllerState, type SaveOutcome } from './save-controller'
 import { clearHistoryForZone, denialMessage, type ZoneClient } from './zone-client'
 import { getZoneClient } from './zone-registry'
 
@@ -58,6 +58,8 @@ const THING_BY_KIND: Record<string, string> = {
   'map/crossing': 'crossing',
   'map/area': 'area',
   'map/poi': 'place',
+  'map/structure': 'stair',
+  'map/structure-preset': 'preset',
 }
 
 /** "This road was changed by Ana" (spec §6.4). */
@@ -89,7 +91,10 @@ export function outcomeMessage(outcome: SaveOutcome): string | null {
 }
 
 function hashParts(doc: CampusDocument): Map<PartKey, string> {
-  return new Map(splitDocument(doc).parts.map((part) => [part.key, partHash(part.key, part.content)]))
+  return new Map(splitDocument(doc).parts.map((part) => [
+    part.key,
+    part.contentBase64 !== undefined ? binaryPartHash(part.contentBase64) : partHash(part.key, part.content),
+  ]))
 }
 
 /** Part keys whose content differs between two documents (the undo history's touched parts). */
@@ -101,6 +106,7 @@ export function touchedParts(before: CampusDocument, after: CampusDocument): Par
 }
 
 function asRecord(part: PartRecordWithVersion): PartRecord {
+  if (typeof part.contentBase64 === 'string') return { key: part.partKey, content: null, contentBase64: part.contentBase64, sortKey: part.sortKey }
   return { key: part.partKey, content: part.content, sortKey: part.sortKey }
 }
 
@@ -110,6 +116,7 @@ function draftPartsOf(doc: CampusDocument, controller: SaveController): Record<P
     parts[change.partKey] = {
       baseVersion: change.expectedVersion,
       content: change.op === 'put' ? change.content : null,
+      ...(change.op === 'put-bin' ? { contentBase64: change.contentBase64 } : {}),
       sortKey: change.op === 'put' ? change.sortKey ?? null : null,
     }
   }
@@ -147,7 +154,7 @@ export class StudioSession {
     const load = await this.api.load(this.campusId)
     this.controller.adoptBaseline(load)
     this.zones.setHeadCommit(load.headCommit)
-    const live = load.parts.filter((part) => !part.deleted && parsePartKey(part.partKey).kind !== 'terrain-tile')
+    const live = load.parts.filter((part) => !part.deleted)
     if (live.length === 0) return null
     let doc = joinParts(live.map(asRecord))
     doc = await this.restoreDraft(doc, load)
@@ -303,7 +310,8 @@ export class StudioSession {
     const restore = decisions.filter((decision) => decision.action === 'apply' || (useMine && decision.action === 'conflict-changed'))
     const incoming: PartRecordWithVersion[] = restore.map(({ key }) => {
       const part = draft.parts[key]
-      return { partKey: key, versionNo: 0, checksum: '', sortKey: part.sortKey, content: part.content, contentBase64: null, deleted: part.content === null }
+      const binary = typeof part.contentBase64 === 'string' ? part.contentBase64 : null
+      return { partKey: key, versionNo: 0, checksum: '', sortKey: part.sortKey, content: binary ? null : part.content, contentBase64: binary, deleted: part.content === null && binary === null }
     })
     return incoming.length > 0 ? withRemoteParts(doc, incoming) : doc
   }

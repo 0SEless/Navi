@@ -11,7 +11,7 @@
 // part contents or secrets.
 import { createHash } from 'node:crypto'
 import { canonicalJson, sha256Hex } from '../parts/canonical'
-import { checkPart, checkSettings, STUDIO_PART_MAX_BYTES, type PartIssue } from '../parts/content-rules'
+import { checkBinaryPart, checkPart, checkSettings, STUDIO_PART_MAX_BYTES, type PartIssue } from '../parts/content-rules'
 import { STUDIO_BODY_MAX_BYTES, STUDIO_SESSION_HEADER } from '../parts/limits'
 import { parsePartKey } from '../parts/part-keys'
 import type { StudioRepo } from './studio-repo'
@@ -273,6 +273,11 @@ async function buildSaveChanges(raw: RawChange[]): Promise<SaveChange[]> {
         path: '',
         message: `Part is ${bytes.length} bytes; the maximum is ${STUDIO_PART_MAX_BYTES}.`,
       })
+      continue
+    }
+    const binaryIssues = checkBinaryPart(change.partKey, bytes.length)
+    if (binaryIssues.length > 0) {
+      issues.push(...binaryIssues)
       continue
     }
     built.push({ ...base, op: 'put-bin', contentBase64: encoded, checksum: sha256OfBytes(bytes) })

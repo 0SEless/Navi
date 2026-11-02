@@ -3,7 +3,7 @@
 //   node scripts/save-v2/tsc-gate.mjs
 // Runs `tsc --noEmit -p .`, then fails when
 //   - the number of "error TS" diagnostics exceeds reports/save-v2/baseline-tsc.txt, or
-//   - any diagnostic is located under src/studio-v2/ (new code must be clean).
+//   - any diagnostic is located under a clean folder (src/studio-v2/ and the terrain plan's folders).
 
 import { spawnSync } from 'node:child_process'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -52,9 +52,18 @@ if (run.status !== 0 && errorLines.length === 0) {
   process.exit(2)
 }
 
-const studioV2 = errorLines.filter((l) => l.replace(/\\/g, '/').startsWith('src/studio-v2/'))
+// New code must be clean: Save v2 and the terrain plan's folders.
+const CLEAN_PATHS = [
+  'src/studio-v2/',
+  'packages/core/src/terrain/',
+  'packages/core/src/structures/',
+  'src/components/terrain/',
+  'src/lib/terrain/',
+  'src/lib/three-d/',
+]
+const studioV2 = errorLines.filter((l) => CLEAN_PATHS.some((prefix) => l.replace(/\\/g, '/').startsWith(prefix)))
 
-console.log(`tsc errors: ${errorLines.length}  baseline: ${baseline}  under src/studio-v2/: ${studioV2.length}`)
+console.log(`tsc errors: ${errorLines.length}  baseline: ${baseline}  in clean folders: ${studioV2.length}`)
 
 let failed = false
 if (errorLines.length > baseline) {
@@ -62,7 +71,7 @@ if (errorLines.length > baseline) {
   failed = true
 }
 if (studioV2.length > 0) {
-  console.error('FAIL: diagnostics under src/studio-v2/:')
+  console.error('FAIL: diagnostics in clean folders (' + CLEAN_PATHS.join(', ') + '):')
   for (const l of studioV2.slice(0, 50)) console.error(`  ${l}`)
   failed = true
 }

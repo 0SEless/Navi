@@ -23,6 +23,7 @@ import type {
   DoorType,
 } from './enums'
 import type { RouteNetwork } from './routing'
+import type { GroundFit } from '../terrain/types'
 
 // ── Core entity interfaces ──
 // Per ADR-0007: outdoor entities use World coordinates, indoor use building-local.
@@ -66,6 +67,9 @@ export interface Building {
   // Metadata
   aliases: string[]
   metadata: Record<string, unknown>
+
+  /** Terrain plan: how the base height follows the ground and the pad around it. Absent = fixed baseElevation, no pad. */
+  ground?: { baseMode: 'follow-ground' | 'fixed'; pad: GroundFit }
 }
 
 export interface Floor {
@@ -617,6 +621,10 @@ export interface Road {
   connectorEntranceId?: string
   /** Optional for legacy documents; interpret through getEffectiveRoadRouting. */
   routing?: RoadRouting
+  /** Terrain plan: absent = 'follow-surface' (heights read from the ground or a structure under the road). */
+  heightMode?: 'follow-surface' | 'typed'
+  /** Terrain plan: how the road reshapes the ground beside it. Absent = off. */
+  groundFit?: GroundFit
   metadata: Record<string, unknown>
 }
 

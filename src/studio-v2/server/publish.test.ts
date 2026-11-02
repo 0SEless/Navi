@@ -289,14 +289,26 @@ describe('publish from a saved commit', () => {
     expect(repo.recordPublication).not.toHaveBeenCalled()
   })
 
-  it('a binary (terrain tile) part gives 422 UNSUPPORTED_PART', async () => {
+  it('a terrain tile part is accepted and publishes', async () => {
     const parts = partsOf(fixtureFull())
-    parts.push({ partKey: 'terrain-tile:t1' as never, versionNo: 1, checksum: '0'.repeat(64), sortKey: null, content: null, contentBase64: 'AAAA' })
+    parts.push({ partKey: 'terrain-tile:0_0' as never, versionNo: 1, checksum: '0'.repeat(64), sortKey: null, content: null, contentBase64: Buffer.alloc(32768).toString('base64') })
+    const repo = fakeRepo({ partsAtCommit: vi.fn(async () => ({ status: 'ok', commitNo: 7, parts })) })
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
+    expect(response.status).toBe(200)
+    expect(repo.recordPublication).toHaveBeenCalledTimes(1)
+  })
+
+  it('a binary part that is not a terrain tile gives 422 UNSUPPORTED_PART', async () => {
+    const parts = partsOf(fixtureFull())
+    const road = parts.find((part) => part.partKey.startsWith('map/road:'))!
+    road.content = null
+    road.contentBase64 = 'AAAA'
     const repo = fakeRepo({ partsAtCommit: vi.fn(async () => ({ status: 'ok', commitNo: 7, parts })) })
     const { handlers } = setup(owner, repo)
     const response = await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7 }))
     expect(response.status).toBe(422)
-    expect(await bodyOf(response)).toEqual({ code: 'UNSUPPORTED_PART', parts: ['terrain-tile:t1'] })
+    expect(await bodyOf(response)).toEqual({ code: 'UNSUPPORTED_PART', parts: [road.partKey] })
   })
 
   it.each([

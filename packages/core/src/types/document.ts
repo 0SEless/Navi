@@ -1,4 +1,6 @@
 import type { Building, Road, Panorama, QRCheckpoint, Area, OutdoorPointOfInterest, TerrainArea, TerrainVerticalDatum } from './entities'
+import type { CampusTerrain, TileId } from '../terrain/types'
+import type { Structure, StructurePreset } from '../structures/types'
 
 export interface DocumentMetadata {
   /** Authoritative campus identity — immutable once created. Used as the canonical
@@ -97,6 +99,14 @@ export interface CampusDocument {
   connectivitySemanticsVersion?: string
   /** Campus outer boundary polygon. Optional — set via boundary tool. */
   boundary?: { points: Array<{ lat: number; lng: number }> }
+  /** Terrain plan: height reference, grid and imported base (the `terrain` part). */
+  terrain?: CampusTerrain
+  /** Terrain plan: raise/lower changes, base64 Int16 cm per 128 × 128 tile (`terrain-tile` parts). */
+  terrainTiles?: Record<TileId, string>
+  /** Terrain plan: outdoor stairs and ramps (free `map/structure` parts). */
+  structures?: Structure[]
+  /** Terrain plan: saved structure presets (free `map/structure-preset` parts). */
+  structurePresets?: StructurePreset[]
   /** Runtime-only change journal. Not serialized. Populated during editing sessions. */
   _changeJournal?: EntityChange[]
 }

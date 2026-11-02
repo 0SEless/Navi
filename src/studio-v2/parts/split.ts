@@ -11,7 +11,8 @@
  *   connectivitySemanticsVersion, panoramas, orphanQrCheckpoints/orphanQrSortKeys.
  * - `building:<id>`: { building (without floors), floorOrder, qrCheckpoints, qrSortKeys }.
  * - `floor:<buildingId>:<floorId>`: the Floor minus the local-only fields.
- * - `terrain`: { terrainAreas?, terrainVerticalDatum? } (always emitted).
+ * - `terrain`: { terrainAreas?, terrainVerticalDatum?, terrain? } (always emitted).
+ * - `terrain-tile:<col>_<row>`: one binary part per changed terrain tile (contentBase64, content null).
  * - `map/*:<id>`: the item itself; its original index lives on PartRecord.sortKey.
  *
  * Local-only floor fields (planImageId, planAlignment, floorPlanState) never
@@ -23,7 +24,9 @@ import { partKey, type PartKey, type PartKind } from './part-keys'
 
 export interface PartRecord {
   key: PartKey
+  /** null for binary parts (terrain tiles), which carry `contentBase64` instead. */
   content: unknown
+  contentBase64?: string
   /** Zero-padded original index within its map collection; null for non-map parts. */
   sortKey: string | null
 }
@@ -67,10 +70,14 @@ export const KNOWN_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   'separatedCrossings',
   'connectivitySemanticsVersion',
   'boundary',
+  'terrain',
+  'terrainTiles',
+  'structures',
+  'structurePresets',
   '_changeJournal',
 ])
 
-export type MapCollectionField = 'roads' | 'roadJunctions' | 'separatedCrossings' | 'areas' | 'pois'
+export type MapCollectionField = 'roads' | 'roadJunctions' | 'separatedCrossings' | 'areas' | 'pois' | 'structures' | 'structurePresets'
 
 /** Top-level map collections stored one part per item. `roads` is required; the rest are optional. */
 export const MAP_COLLECTIONS: ReadonlyArray<{ field: MapCollectionField; kind: PartKind; optional: boolean }> = [
@@ -79,6 +86,8 @@ export const MAP_COLLECTIONS: ReadonlyArray<{ field: MapCollectionField; kind: P
   { field: 'pois', kind: 'map/poi', optional: true },
   { field: 'roadJunctions', kind: 'map/junction', optional: true },
   { field: 'separatedCrossings', kind: 'map/crossing', optional: true },
+  { field: 'structures', kind: 'map/structure', optional: true },
+  { field: 'structurePresets', kind: 'map/structure-preset', optional: true },
 ]
 
 export const LOCAL_ONLY_FLOOR_FIELDS = ['planImageId', 'planAlignment', 'floorPlanState'] as const
@@ -239,7 +248,18 @@ export function splitDocument(doc: CampusDocument): SplitResult {
   const terrain: AnyRecord = {}
   if (has(data, 'terrainAreas')) terrain.terrainAreas = data.terrainAreas
   if (has(data, 'terrainVerticalDatum')) terrain.terrainVerticalDatum = data.terrainVerticalDatum
+  if (has(data, 'terrain')) terrain.terrain = data.terrain
   parts.push({ key: partKey('terrain'), content: terrain, sortKey: null })
+
+  // ── Terrain change tiles (binary) ──────────────────────────────────────────
+  if (has(data, 'terrainTiles')) {
+    const tiles = data.terrainTiles
+    if (typeof tiles !== 'object' || tiles === null || Array.isArray(tiles)) throw new Error('Save v2 split: terrainTiles must be an object.')
+    for (const [tileId, base64] of Object.entries(tiles as AnyRecord)) {
+      if (typeof base64 !== 'string') throw new Error(`Save v2 split: terrain tile "${tileId}" must be a base64 string.`)
+      parts.push({ key: partKey('terrain-tile', tileId), content: null, contentBase64: base64, sortKey: null })
+    }
+  }
 
   // ── Map items ──────────────────────────────────────────────────────────────
   for (const { field, kind } of MAP_COLLECTIONS) {

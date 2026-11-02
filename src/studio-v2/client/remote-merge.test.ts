@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CampusDocument } from '@navi/core'
 import { CommandDispatcher, CommandRegistry, DocumentEventBus, DocumentStore, HistoryStack } from '@navi/editor'
-import { fixtureFull } from '../__fixtures__/campus-fixtures'
+import { constantTileBase64, fixtureFull, fixtureTerrain } from '../__fixtures__/campus-fixtures'
 import { partKey } from '../parts/part-keys'
 import { splitDocument } from '../parts/split'
 import type { PartRecordWithVersion } from '../server/types'
@@ -63,5 +63,19 @@ describe('mergeRemoteParts', () => {
     const context = contextFor(document)
     const remote = remoteRoad(fixtureFull(), 0, 'Remote')
     expect(mergeRemoteParts(context, [remote], new Set([remote.partKey]))).toEqual({ applied: [], history: 'none' })
+  })
+})
+
+describe('mergeRemoteParts: terrain tiles', () => {
+  it('applies a terrain tile another admin saved', () => {
+    const context = contextFor(fixtureTerrain())
+    const tile = constantTileBase64(500)
+    const remote: PartRecordWithVersion[] = [
+      { partKey: 'terrain-tile:3_4', versionNo: 1, checksum: 'a'.repeat(64), sortKey: null, content: null, contentBase64: tile },
+    ]
+    const result = mergeRemoteParts(context, remote, new Set())
+    expect(result.applied).toEqual(['terrain-tile:3_4'])
+    expect(context.document.terrainTiles?.['3_4']).toBe(tile)
+    expect(context.document.terrainTiles?.['0_0']).toBe(constantTileBase64(150))
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CampusDocument } from '@navi/core'
-import { fixtureFull, fixtureMinimal } from '../__fixtures__/campus-fixtures'
+import { constantTileBase64, fixtureFull, fixtureMinimal, fixtureTerrain } from '../__fixtures__/campus-fixtures'
 import { splitDocument } from '../parts/split'
 import { partKey, type ZoneKey } from '../parts/part-keys'
 import type { LoadOk, PartRecordWithVersion } from '../server/types'
@@ -19,8 +19,8 @@ function loadOf(doc: CampusDocument, headCommit = 1, versionNo = 1): LoadOk {
       versionNo,
       checksum: CHECKSUM,
       sortKey: part.sortKey,
-      content: part.content,
-      contentBase64: null,
+      content: part.contentBase64 ? null : part.content,
+      contentBase64: part.contentBase64 ?? null,
     })),
   }
 }
@@ -323,5 +323,29 @@ describe('SaveController — connectivity stamp (R68)', () => {
     const changed = structuredClone(doc)
     changed.connectivitySemanticsVersion = '2.0.0'
     expect(controller.dirtyParts(changed)).toEqual(['campus'])
+  })
+})
+
+describe('SaveController terrain tiles', () => {
+  it('a changed tile is sent as put-bin', async () => {
+    const doc = fixtureTerrain()
+    const api = fakeApi(async (b) => okReply(b))
+    const controller = controllerFor(doc, api, zonesHolding(['terrain']))
+    doc.terrainTiles!['0_0'] = constantTileBase64(300)
+    const outcome = await controller.save(doc)
+    expect(outcome.kind).toBe('saved')
+    const body = api.save.mock.calls[0][0] as SaveRequestBody
+    expect(body.changes).toEqual([
+      { partKey: 'terrain-tile:0_0', expectedVersion: 1, op: 'put-bin', contentBase64: constantTileBase64(300) },
+    ])
+    expect(controller.isDirty(doc)).toBe(false)
+  })
+
+  it('an unchanged tile is not re-sent after adoptBaseline', () => {
+    const doc = fixtureTerrain()
+    const controller = controllerFor(doc, fakeApi(async (b) => okReply(b)))
+    expect(controller.dirtyParts(doc)).toEqual([])
+    delete doc.terrainTiles!['-1_0']
+    expect(controller.changes(doc)).toEqual([{ partKey: 'terrain-tile:-1_0', expectedVersion: 1, op: 'delete' }])
   })
 })

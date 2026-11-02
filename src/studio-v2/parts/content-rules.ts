@@ -36,7 +36,11 @@ const FLOOR_ARRAY_FIELDS = [
   'parametricComponents',
 ] as const
 
-const MAP_KINDS: ReadonlySet<PartKind> = new Set(['map/road', 'map/junction', 'map/crossing', 'map/area', 'map/poi'])
+const MAP_KINDS: ReadonlySet<PartKind> = new Set(['map/road', 'map/junction', 'map/crossing', 'map/area', 'map/poi', 'map/structure', 'map/structure-preset'])
+
+/** A terrain change tile: 128 × 128 Int16 cells. */
+export const TERRAIN_TILE_BYTES = 128 * 128 * 2
+const STRUCTURE_FORMS = new Set(['stairs', 'ramp'])
 
 /** Anchored, linear-time: only the first characters of a string are ever examined. */
 const DATA_URI_PATTERN = /^data:[\w.+-]+\/[\w.+-]+;base64,/
@@ -147,6 +151,10 @@ function checkStructure(kind: PartKind, ids: string[], content: unknown, invalid
       }
       return
     }
+    case 'terrain-tile': {
+      invalid('', 'A terrain tile is binary: save it with put-bin.')
+      return
+    }
     default: {
       if (MAP_KINDS.has(kind)) {
         if (typeof content.id !== 'string' || content.id === '') {
@@ -155,8 +163,40 @@ function checkStructure(kind: PartKind, ids: string[], content: unknown, invalid
           invalid('/id', `Item id "${content.id}" does not match the part key id "${ids[0]}".`)
         }
       }
+      if (kind === 'map/structure') {
+        if (typeof content.form !== 'string' || !STRUCTURE_FORMS.has(content.form)) invalid('/form', '"form" must be "stairs" or "ramp".')
+        if (typeof content.width !== 'number' || !Number.isFinite(content.width) || content.width < 0.6 || content.width > 10) {
+          invalid('/width', '"width" must be a number from 0.6 to 10 metres.')
+        }
+        if (!isObject(content.start)) invalid('/start', '"start" must be an object.')
+        if (!isObject(content.end)) invalid('/end', '"end" must be an object.')
+      }
+      if (kind === 'map/structure-preset') {
+        if (typeof content.name !== 'string' || content.name === '') invalid('/name', '"name" must be a non-empty string.')
+        if (typeof content.form !== 'string' || !STRUCTURE_FORMS.has(content.form)) invalid('/form', '"form" must be "stairs" or "ramp".')
+        if (!isObject(content.shape)) invalid('/shape', '"shape" must be an object.')
+        if (!isObject(content.look)) invalid('/look', '"look" must be an object.')
+      }
     }
   }
+}
+
+/** Binary parts (put-bin): only terrain tiles, of exactly TERRAIN_TILE_BYTES. Never throws. */
+export function checkBinaryPart(key: PartKey, byteLength: number): PartIssue[] {
+  let kind: PartKind
+  try {
+    kind = parsePartKey(key).kind
+  } catch (error) {
+    return [{ key, code: 'UNKNOWN_PART_KIND', path: '', message: error instanceof Error ? error.message : `Unknown part key "${String(key)}".` }]
+  }
+  if (kind !== 'terrain-tile') return [{ key, code: 'INVALID_PART', path: '', message: 'Only terrain tiles are saved as binary parts.' }]
+  if (!/^-?\d+_-?\d+$/.test(parsePartKey(key).ids[0])) {
+    return [{ key, code: 'INVALID_PART', path: '', message: 'A terrain tile id is "<col>_<row>" (whole numbers).' }]
+  }
+  if (byteLength !== TERRAIN_TILE_BYTES) {
+    return [{ key, code: 'INVALID_PART', path: '', message: `A terrain tile is ${TERRAIN_TILE_BYTES} bytes, got ${byteLength}.` }]
+  }
+  return []
 }
 
 export function checkPart(record: PartRecord): PartIssue[] {

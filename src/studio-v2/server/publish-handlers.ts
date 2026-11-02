@@ -44,12 +44,15 @@ function requirePositiveInteger(value: unknown, name: string): number {
 function unsupportedParts(parts: PartRecordWithVersion[]): string[] {
   return parts
     .filter((part) => {
-      if (part.contentBase64 !== null && part.contentBase64 !== undefined) return true
+      let isTile = false
       try {
-        return parsePartKey(part.partKey).kind === 'terrain-tile'
+        isTile = parsePartKey(part.partKey).kind === 'terrain-tile'
       } catch {
         return false
       }
+      const binary = part.contentBase64 !== null && part.contentBase64 !== undefined
+      // Terrain tiles are the only binary parts; they are joined into the document (terrain plan).
+      return isTile ? !binary : binary
     })
     .map((part) => part.partKey)
 }
@@ -155,11 +158,11 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         const unsupported = unsupportedParts(atCommit.parts)
         if (unsupported.length > 0) return json(422, { code: 'UNSUPPORTED_PART', parts: unsupported })
 
-        const records: PartRecord[] = atCommit.parts.map((part) => ({
-          key: part.partKey,
-          content: part.content,
-          sortKey: part.sortKey,
-        }))
+        const records: PartRecord[] = atCommit.parts.map((part) => (
+          typeof part.contentBase64 === 'string'
+            ? { key: part.partKey, content: null, contentBase64: part.contentBase64, sortKey: part.sortKey }
+            : { key: part.partKey, content: part.content, sortKey: part.sortKey }
+        ))
         let document: CampusDocument
         try {
           document = joinParts(records)
