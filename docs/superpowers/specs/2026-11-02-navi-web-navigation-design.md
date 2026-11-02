@@ -4,7 +4,7 @@
 
 Design agreed in brainstorming on 2026-11-02. Waiting for owner review of this written spec before an implementation plan is written.
 
-Sub-project 3 of 4. Builds on the campus-only map from sub-project 2 (`2026-11-02-navi-terrain-2.5d-stairs-design.md`, Section 5).
+Sub-project 3 of 4. Builds on the campus-only map from sub-project 2 (`2026-11-02-navi-terrain-2.5d-stairs-ramps-design.md`, Section 5).
 
 ## Goal
 

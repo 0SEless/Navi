@@ -1,8 +1,8 @@
-# NAVI Terrain, 2.5D Buildings and Stairs
+# NAVI Terrain, 2.5D Buildings, Stairs and Ramps
 
 ## Status
 
-Design agreed section by section in brainstorming (2026-11-01 to 2026-11-02). Waiting for owner review of this written spec before an implementation plan is written.
+Approved by the owner 2026-11-02 (ramps and road surfaces added the same day). Design agreed section by section in brainstorming (2026-11-01 to 2026-11-02). Waiting for owner review of this written spec before an implementation plan is written.
 
 Sub-project 2 of 4. It replaces the E8.4 terrain-area design (`2026-10-30-navi-e84-terrain-authoring-design.md`): the owner chose "surface only", so named terrain areas are dropped.
 
@@ -14,7 +14,7 @@ Model the hillside campus like clay in a sandbox, place buildings and their floo
 
 ## Out of scope
 
-- Ramps, walkways, bridges, platforms, centre rails and half-circle landings (later; the data model leaves room for them).
+- Walkways, bridges, platforms, centre rails and half-circle landings (later; the data model leaves room for them).
 - Uploaded textures and imported building 3D models (later sub-project; both need cloud file storage, which Save v2 does not have).
 - Anything outside the campus boundary in NAVI Web.
 - Navigation behaviour (sub-project 3) and route linking tools (sub-project 1).
@@ -115,7 +115,13 @@ When an import finishes, Studio offers (ticked by default) to set all buildings 
 ### Concept (Agreed)
 
 - Structures are visual only. Routes are drawn over them with the route tools; a route on a structure takes its height from the structure surface.
-- First version: **stairs only**.
+- First version (owner, 2026-11-02): **outdoor stairs first, then ramps**. Both use the stretch block, presets and the same 3D drawing.
+
+### Ramps (Agreed, owner 2026-11-02)
+
+- A ramp is the same stretch block with a smooth sloped top instead of steps; open or solid underneath; railings like stairs.
+- Landings are placed by the user (drag along the ramp). The panel shows the slope (for example "1:10") and the run between landings.
+- No pass/fail mark until the owner confirms the BP 344 limit (1:12 or 1:20); after that the panel marks slopes and runs that exceed it. Nothing blocks publishing.
 
 ### Stretch block (Agreed)
 
@@ -145,6 +151,10 @@ When an import finishes, Studio offers (ticked by default) to set all buildings 
 - Stairs and presets are saved as two new free part kinds (no lock): `map/structure` (one per stair) and `map/structure-preset` (one per preset).
 - When the building moves or floor heights change, the stair's top end follows. If the building is deleted, the stair keeps its last height and shows a marker.
 - Wheelchair access stays a setting on the route, not the stair.
+
+### Roads as the outdoor route network (Agreed, owner 2026-11-02)
+
+The outdoor route network is the roads and paths. In the terrain workspace's 3D view and in NAVI Web, each road and path is drawn as a surface at its own width lying on the terrain, so what visitors see as roads is exactly the network routes use.
 
 ### Road and path heights (Agreed)
 
@@ -192,8 +202,9 @@ Whether NAVI Web already keeps the published campus package for offline use. The
 1. Ground model, import and the terrain part data (no UI beyond import), with the baked file.
 2. Terrain workspace: views, brushes, lasso, boundary edit, mini 3D.
 3. Buildings on terrain: follow ground, pads, solid floor slabs in 3D.
-4. Custom 3D layer and stairs: stretch block, shape maths, open/solid, railings, presets, built-in materials; road Follow ground.
-5. NAVI Web: campus-only map, hillshade ground, terrain from the package, route line on terrain and stairs.
+4. Custom 3D layer and outdoor stairs: stretch block, shape maths, open/solid, railings, presets, built-in materials; roads drawn as surfaces on the terrain; road Follow ground.
+5. Ramps: smooth sloped stretch block, user-placed landings, slope readout.
+6. NAVI Web: campus-only map, hillshade ground, terrain from the package, roads as surfaces, route line on terrain, stairs and ramps.
 
 Each phase ends with the existing gates green (vitest compare, tsc gate, DB tests, Save v2 browser probe).
 
