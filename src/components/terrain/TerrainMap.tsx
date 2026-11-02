@@ -25,6 +25,8 @@ export interface TerrainMapProps {
   pitch: number
   /** Gives the parent the map (brush tools attach their pointer handlers to it). */
   onMap?: (map: maplibregl.Map | null) => void
+  /** Show/hide: buildings, roads, contour lines over any view. */
+  layers?: { buildings: boolean; roads: boolean; contours: boolean }
 }
 
 function boundaryOf(document: CampusDocument) {
@@ -78,7 +80,7 @@ function contourData(document: CampusDocument, sampler: TerrainSampler | null): 
 }
 
 /** One terrain map (top view or 3D): hillshade, height or change colours, contours, campus outlines. */
-export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap }: TerrainMapProps) {
+export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false } }: TerrainMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -123,7 +125,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     mapRef.current = map
     const unexpose = exposeTerrainMapForProbe(pitch > 0 ? '3d' : 'top', map)
     map.on('load', () => {
-      if (ring.length >= 3) map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 40, duration: 0, pitch })
+      // The main view keeps the campus clear of the tool rail, the side panel, the layers panel and the mini 3D.
+      const padding = container.clientWidth > 700 ? { top: 40, left: 160, right: 280, bottom: 250 } : 30
+      if (ring.length >= 3) map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding, duration: 0, pitch })
       setReady(true)
     })
     onMap?.(map)
@@ -159,11 +163,23 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     ;(map.getSource(ROADS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(roads)
   }, [ready, version, document])
 
+  const showContours = view === 'contours' || layers.contours
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || view !== 'contours') return
+    if (!map || !ready || !showContours) return
     ;(map.getSource(CONTOUR_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(contourData(document, sampler))
-  }, [ready, view, version, document, sampler])
+  }, [ready, showContours, version, document, sampler])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    map.setLayoutProperty('terrain-buildings', 'visibility', layers.buildings ? 'visible' : 'none')
+    map.setLayoutProperty('terrain-roads', 'visibility', layers.roads ? 'visible' : 'none')
+    const overlay = 'terrain-contour-overlay'
+    if (layers.contours && view !== 'contours') {
+      if (!map.getLayer(overlay)) map.addLayer({ id: overlay, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#78350f', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.8, 0.35], 'line-width': ['case', ['==', ['get', 'major'], true], 1.2, 0.6] } }, 'terrain-roads')
+    } else if (map.getLayer(overlay)) map.removeLayer(overlay)
+  }, [ready, layers.buildings, layers.roads, layers.contours, view])
 
   return <div ref={containerRef} data-terrain-map={pitch > 0 ? '3d' : 'top'} style={{ position: 'absolute', inset: 0 }} />
 }

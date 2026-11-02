@@ -16,7 +16,7 @@ const MINI_BUTTON: React.CSSProperties = { padding: '2px 8px', fontSize: 11, bor
  * The main view (top view by default) plus the live mini 3D window. Swap makes 3D the main view;
  * Pop out opens the 3D view in its own window. `popOut` renders the 3D view alone (that window).
  */
-export function TerrainStage({ document, sampler, version, view, exaggeration, popOut, onMainMap, onMiniMap }: {
+export function TerrainStage({ document, sampler, version, view, exaggeration, popOut, onMainMap, onMiniMap, layers }: {
   document: CampusDocument
   sampler: TerrainSampler | null
   version: number
@@ -25,9 +25,10 @@ export function TerrainStage({ document, sampler, version, view, exaggeration, p
   popOut: boolean
   onMainMap?: (map: maplibregl.Map | null) => void
   onMiniMap?: (map: maplibregl.Map | null) => void
+  layers?: { buildings: boolean; roads: boolean; contours: boolean }
 }) {
   const [large, setLarge] = useState<'top' | '3d'>(popOut ? '3d' : 'top')
-  const common = { document, sampler, version, view, exaggeration }
+  const common = { document, sampler, version, view, exaggeration, layers }
 
   if (popOut) return <TerrainMap key="popout" {...common} pitch={60} onMap={onMainMap} />
 

@@ -31,10 +31,11 @@ function ibajayDocument(campusId: string) {
 test('T1 — terrain workspace: import the TopoExport ground, views and the mini 3D', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
-  ana.blocked.length = 0 // seeding opens the map editor (OSM tiles); only the terrain page must stay local
 
   await ana.page.goto(`/studio/${campusId}/edit/terrain`)
   await waitForEditor(ana.page)
+  await ana.page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
   await expect(ana.page.getByRole('button', { name: 'Import ground' })).toBeVisible({ timeout: 60_000 })
   await ana.page.getByRole('button', { name: 'Import ground' }).click()
   await ana.page.getByLabel('Terrain files').setInputFiles([
@@ -75,9 +76,10 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
 test('T2 — a Raise stroke is one undo step, shows in the Changes view, and undo/redo work', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
-  ana.blocked.length = 0
   await ana.page.goto(`/studio/${campusId}/edit/terrain`)
   await waitForEditor(ana.page)
+  await ana.page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
   await ana.page.getByRole('button', { name: 'Start flat' }).click()
   await ana.page.getByLabel('Reference name').fill('Gate road')
   await ana.page.getByLabel('0 m means').fill('The road at the main gate')
@@ -115,6 +117,80 @@ test('T2 — a Raise stroke is one undo step, shows in the Changes view, and und
   expect(await tilesAfter()).toBe(0)
   await ana.page.keyboard.press('Control+y')
   expect(await tilesAfter()).toBeGreaterThan(0)
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
+
+test('T3 — lasso, slope, contour pen to surface, boundary corner and a local tracing image', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayDocument)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
+  await page.getByRole('button', { name: 'Trace contours' }).click()
+  await page.getByLabel('Reference name').fill('Sea level')
+  await page.getByLabel('0 m means').fill('Mean sea level')
+  await page.getByRole('button', { name: 'Create terrain' }).click()
+  await expect(page.getByLabel('Contour pen settings')).toBeVisible()
+  await page.waitForTimeout(2000)
+  const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
+  const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy })
+  const click = async (fx: number, fy: number) => { const p = at(fx, fy); await page.mouse.click(p.x, p.y) }
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  // Contour pen: two lines, then Generate surface → contours base.
+  await click(0.3, 0.3); await click(0.7, 0.3)
+  await page.getByLabel('Contour height').fill('10')
+  await page.getByRole('button', { name: 'Add line' }).click()
+  await click(0.3, 0.7); await click(0.7, 0.7)
+  await page.getByLabel('Contour height').fill('20')
+  await page.getByRole('button', { name: 'Add line' }).click()
+  await page.getByRole('button', { name: 'Generate surface' }).click()
+  expect(await doc<string>('doc.terrain.base.kind')).toBe('contours')
+  expect(await doc<number>('doc.terrain.colorRange.maxM')).toBe(20)
+
+  // Lasso: set an area to 30 m.
+  await page.getByRole('button', { name: 'Lasso' }).click()
+  await click(0.45, 0.45); await click(0.55, 0.45); await click(0.55, 0.55); await click(0.45, 0.55)
+  await page.getByLabel('Lasso metres').fill('30')
+  await page.getByRole('button', { name: 'Apply' }).click()
+  expect(await doc<number>('Object.keys(doc.terrainTiles ?? {}).length')).toBeGreaterThan(0)
+
+  // Slope between two points.
+  await page.getByRole('button', { name: 'Slope' }).click()
+  await click(0.2, 0.8); await click(0.4, 0.8)
+  await page.getByLabel('Slope start height').fill('12')
+  await page.getByLabel('Slope end height').fill('16')
+  const before = await doc<string>('JSON.stringify(doc.terrainTiles)')
+  await page.getByRole('button', { name: 'Apply' }).click()
+  expect(await doc<string>('JSON.stringify(doc.terrainTiles)')).not.toBe(before)
+
+  // Edit boundary: drag the first corner.
+  await page.getByRole('button', { name: 'Edit boundary' }).click()
+  const firstBefore = await doc<{ lat: number; lng: number }>('doc.boundary.points[0]')
+  const corner = (await page.getByLabel('Boundary corner 1').boundingBox())!
+  await page.mouse.move(corner.x + 6, corner.y + 6)
+  await page.mouse.down()
+  await page.mouse.move(corner.x - 40, corner.y + 40, { steps: 5 })
+  await page.mouse.up()
+  const firstAfter = await doc<{ lat: number; lng: number }>('doc.boundary.points[0]')
+  expect(firstAfter.lng).toBeLessThan(firstBefore.lng)
+
+  // Tracing image: shown, stored on this computer only.
+  await page.getByLabel('Tracing image file').setInputFiles(path.join(__dirname, '..', 'test-floor-plan.png'))
+  await expect(page.getByLabel('Tracing image north-west corner')).toBeVisible()
+  expect(await doc<string>('JSON.stringify(doc)')).not.toMatch(/tracing/i)
+  await page.getByRole('button', { name: 'Heights' }).click()
+  await page.waitForTimeout(2500)
+  const order = await page.evaluate(() => {
+    const top = (window as unknown as { __naviTerrainMaps: Record<string, { getStyle(): { layers: Array<{ id: string }> }; isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps.top
+    return { layers: top.getStyle().layers.map((l) => l.id), loaded: top.isSourceLoaded('terrain-tracing') }
+  })
+  expect(order.loaded).toBe(true)
+  expect(order.layers.indexOf('terrain-tracing')).toBeGreaterThan(order.layers.indexOf('terrain-relief'))
+  await page.screenshot({ path: path.join(SHOTS, 't3-tools.png') })
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })

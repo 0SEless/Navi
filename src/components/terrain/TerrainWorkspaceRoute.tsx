@@ -14,8 +14,10 @@ import { TerrainStage } from './TerrainStage'
 import { TerrainViewControls } from './TerrainViewControls'
 import { markTerrainDirty, NO_AREA, tilesBounds, useTerrainSampler } from '@/lib/terrain/use-terrain-sampler'
 import type { TerrainView } from '@/lib/terrain/terrain-view'
-import { TerrainToolRail, type TerrainTool } from './TerrainToolRail'
-import { DEFAULT_BRUSH, TerrainToolPanel } from './TerrainToolPanel'
+import type { TerrainTool } from './TerrainToolRail'
+import { DEFAULT_BRUSH } from './TerrainToolPanel'
+import { TerrainTools } from './TerrainTools'
+import { DEFAULT_LAYERS, type TerrainLayers } from './TerrainLayersPanel'
 import { useTerrainStroke } from './useTerrainStroke'
 import { useTerrainShortcuts } from './useTerrainShortcuts'
 
@@ -48,6 +50,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [working, setWorking] = useState<{ tiles: Map<TileId, Int16Array> | null; tick: number }>({ tiles: null, tick: 0 })
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   const [miniMap, setMiniMap] = useState<maplibregl.Map | null>(null)
+  const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
   const { sampler, version } = useTerrainSampler(document, documentVersion, working.tiles ? { tilesOverride: working.tiles, overrideVersion: working.tick } : undefined)
   const session = useStudioSession()
   const save = useExplicitSave(session)
@@ -61,7 +64,10 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     const grid = document.terrain?.grid
     const tiles = command.id === 'terrain.apply-tiles' ? command.payload.tiles as Record<string, unknown> | undefined : undefined
     markTerrainDirty(grid && tiles ? tilesBounds(grid, Object.keys(tiles)) : 'all')
-    return dispatcher?.execute(command)
+    const result = dispatcher?.execute(command)
+    // "Trace contours" on the first visit opens the contour pen.
+    if (result?.success && command.payload.startTool === 'contour-pen') setTool('contour-pen')
+    return result
   }, [lock.status, services, document.terrain?.grid])
 
   const editing = lock.status === 'held' && Boolean(document.terrain)
@@ -111,9 +117,13 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
       topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} />}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} />
-      {!popOut && <TerrainToolRail tool={tool} disabled={!editing} onTool={setTool} />}
-      {!popOut && editing && tool !== 'pan' && <TerrainToolPanel settings={settings} onChange={setSettings} showMode={tool === 'raise-lower'} />}
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} layers={layers} />
+      {!popOut && (
+        <TerrainTools
+          document={document} sampler={sampler} maps={[mainMap, miniMap]} editing={editing} dispatch={dispatch}
+          tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
+        />
+      )}
       {children}
     </TerrainWorkspace>
   )

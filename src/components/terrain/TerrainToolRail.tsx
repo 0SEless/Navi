@@ -10,6 +10,7 @@ export type TerrainTool =
   | 'pad'
   | 'reset'
   | 'contour-pen'
+  | 'boundary'
   | 'pan'
 
 export interface ToolEntry { id: TerrainTool; label: string; hint: string }
@@ -20,7 +21,12 @@ export const TERRAIN_TOOLS: ToolEntry[] = [
   { id: 'raise-lower', label: 'Raise / Lower', hint: 'B · hold Shift to do the opposite' },
   { id: 'smooth', label: 'Smooth', hint: 'Evens out bumps' },
   { id: 'flatten', label: 'Flatten', hint: 'Holds the height where the stroke starts' },
+  { id: 'slope', label: 'Slope', hint: 'Two points: a straight slope between their heights' },
+  { id: 'lasso', label: 'Lasso', hint: 'Set, raise or lower everything inside an area' },
   { id: 'picker', label: 'Height picker', hint: 'Click to pick a height (or Alt+click with a brush)' },
+  { id: 'reset', label: 'Reset', hint: 'Remove changes inside an area (back to the base)' },
+  { id: 'contour-pen', label: 'Contour pen', hint: 'Trace height lines, then Generate surface' },
+  { id: 'boundary', label: 'Edit boundary', hint: 'Drag a corner of the campus boundary' },
 ]
 
 export function TerrainToolRail({ tool, tools = TERRAIN_TOOLS, disabled, onTool }: { tool: TerrainTool; tools?: ToolEntry[]; disabled: boolean; onTool: (tool: TerrainTool) => void }) {

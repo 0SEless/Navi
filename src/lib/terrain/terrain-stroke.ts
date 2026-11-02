@@ -42,6 +42,25 @@ export function gridArea(document: CampusDocument): CellLimit | null {
   }
 }
 
+/**
+ * One terrain.apply-tiles for the tiles an edit touched: unchanged tiles are left out and a tile back
+ * at all zeros is removed (flat ground never stores a tile). null when nothing changed.
+ */
+export function tilesCommand(document: CampusDocument, workingTiles: Map<TileId, Int16Array>, touched: Iterable<TileId>, label: string): Command | null {
+  const tiles: Record<string, string | null> = {}
+  for (const id of touched) {
+    const cells = workingTiles.get(id)
+    if (!cells) continue
+    const encoded = document.terrainTiles?.[id]
+    const before = encoded ? decodeTile(encoded) : null
+    const same = before ? before.every((value, i) => value === cells[i]) : cells.every((value) => value === 0)
+    if (same) continue
+    tiles[id] = cells.every((value) => value === 0) ? null : encodeTile(cells)
+  }
+  if (Object.keys(tiles).length === 0) return null
+  return { id: 'terrain.apply-tiles', label, payload: { tiles } }
+}
+
 export function createTerrainStroke(document: CampusDocument, tool: BrushTool, settings: BrushSettings): TerrainStroke | null {
   const terrain = document.terrain
   const limit = gridArea(document)
@@ -74,18 +93,7 @@ export function createTerrainStroke(document: CampusDocument, tool: BrushTool, s
     finish() {
       if (finished) return null
       finished = true
-      const tiles: Record<string, string | null> = {}
-      for (const id of touched) {
-        const cells = workingTiles.get(id)
-        if (!cells) continue
-        const before = loadTile(id)
-        const same = before ? before.every((value, i) => value === cells[i]) : cells.every((value) => value === 0)
-        if (same) continue
-        // A tile back at all zeros is removed, so flat ground never stores a tile.
-        tiles[id] = cells.every((value) => value === 0) ? null : encodeTile(cells)
-      }
-      if (Object.keys(tiles).length === 0) return null
-      return { id: 'terrain.apply-tiles', label: tool === 'smooth' ? 'Smooth ground' : tool === 'flatten' ? 'Flatten ground' : 'Shape ground', payload: { tiles } }
+      return tilesCommand(document, workingTiles, touched, tool === 'smooth' ? 'Smooth ground' : tool === 'flatten' ? 'Flatten ground' : 'Shape ground')
     },
   }
 }

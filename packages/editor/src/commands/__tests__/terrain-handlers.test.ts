@@ -96,3 +96,14 @@ describe('terrain commands', () => {
     expect(d.terrainTiles).toEqual({ '0_0': 'AAAA' })
   })
 })
+
+describe('boundary and terrain', () => {
+  it('shrinking the boundary keeps tiles', async () => {
+    const { boundarySetHandler } = await import('../boundary-handlers')
+    const d = doc()
+    run(d, { id: 'terrain.setup', label: 'Set up terrain', payload: { reference } })
+    run(d, { id: 'terrain.apply-tiles', label: 'Raise', payload: { tiles: { '0_0': 'AAAA', '5_5': 'BBBB' } } })
+    boundarySetHandler.execute(d, { points: boundary.slice(0, 3).map((p) => ({ lat: p.lat + 0.0001, lng: p.lng })) })
+    expect(d.terrainTiles).toEqual({ '0_0': 'AAAA', '5_5': 'BBBB' })
+  })
+})

@@ -133,3 +133,18 @@ describe('NO_AREA', () => {
     expect(cache.get('s', 1, 1, 1)).not.toBeNull()
   })
 })
+
+describe('layer order', () => {
+  it('colours go under the tracing image when there is one', async () => {
+    const { applyTerrainView, TRACING_LAYER } = await import('../terrain-view')
+    const calls: Array<[string, string | undefined]> = []
+    const map = {
+      getLayer: (id: string) => (id === TRACING_LAYER || id === 'terrain-roads' ? {} : undefined),
+      addLayer: (layer: Record<string, unknown>, before?: string) => { calls.push([layer.id as string, before]) },
+      removeLayer: () => {},
+      setTerrain: () => {},
+    }
+    applyTerrainView(map, { view: 'heights', colorRange: { minM: 0, maxM: 1 }, exaggeration: 1 })
+    expect(calls).toEqual([['terrain-relief', TRACING_LAYER]])
+  })
+})

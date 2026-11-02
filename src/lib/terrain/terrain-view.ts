@@ -26,8 +26,12 @@ function reliefColor(stops: Array<[number, string]>): unknown[] {
 /** Colour and contour layers go under the campus outlines and the brush (the first overlay layer). */
 export const FIRST_OVERLAY_LAYER = 'terrain-roads'
 
+/** The local tracing image sits above the colours and below the outlines. */
+export const TRACING_LAYER = 'terrain-tracing'
+
 function addUnderOverlays(map: TerrainMapLike, layer: Record<string, unknown>): void {
-  map.addLayer(layer, map.getLayer(FIRST_OVERLAY_LAYER) ? FIRST_OVERLAY_LAYER : undefined)
+  const before = map.getLayer(TRACING_LAYER) ? TRACING_LAYER : map.getLayer(FIRST_OVERLAY_LAYER) ? FIRST_OVERLAY_LAYER : undefined
+  map.addLayer(layer, before)
 }
 
 function replaceLayer(map: TerrainMapLike, layer: Record<string, unknown>): void {
