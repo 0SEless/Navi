@@ -184,4 +184,42 @@ describe('TerrainWorkspaceRoute paint preview (section 1)', () => {
     map.fire('idle')
     expect(previewLayer(map)?.vertexCount()).toBe(0)
   })
+
+  it('the mini 3D map paints its own preview layer and hands off on its own idle (T5)', async () => {
+    const dispatch = vi.fn(() => ({ success: true }))
+    editorState.dispatch = dispatch as unknown as (command: unknown) => unknown
+    render(<TerrainWorkspaceRoute mapId="m1" />)
+    await flush()
+    expect(counters.lastStageProps?.onMiniMap).toBeTruthy()
+    // Same controller for both maps: the pop-out window reports through onMainMap too (TerrainStage
+    // renders TerrainMap alone there), so both maps land in the same setMaps call by construction.
+    const main = fakeMap()
+    const mini = fakeMap()
+    act(() => {
+      counters.lastStageProps?.onMainMap?.(main)
+      counters.lastStageProps?.onMiniMap?.(mini)
+    })
+    await flush()
+
+    main.fire('mousedown', { lngLat: ll(40, 40) })
+    await flush()
+    main.fire('mousemove', { lngLat: ll(50, 40) })
+    await flush()
+
+    // A live stroke paints on the mini 3D as well: its own layer instance, same geometry.
+    expect(mini.added.some((l) => l.id === PREVIEW_LAYER_ID)).toBe(true)
+    const mainLayer = previewLayer(main)
+    const miniLayer = previewLayer(mini)
+    expect(mainLayer?.vertexCount()).toBeGreaterThan(0)
+    expect(miniLayer?.vertexCount()).toBeGreaterThan(0)
+
+    main.fire('mouseup')
+    await flush()
+    // Each map clears on ITS OWN idle: firing only the main map leaves the mini preview standing.
+    main.fire('idle')
+    expect(previewLayer(main)?.vertexCount()).toBe(0)
+    expect(miniLayer?.vertexCount()).toBeGreaterThan(0)
+    mini.fire('idle')
+    expect(miniLayer?.vertexCount()).toBe(0)
+  })
 })

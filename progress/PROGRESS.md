@@ -3148,3 +3148,13 @@
 ## 2026-11-04 (session) - Section 1 T4 wired (tests first)
 - T3 committed as 4a8e28c. T4: three new hook tests written RED (Esc cancel, ground-dab throw, preview-update throw), all honest failures against the pre-T4 hook; implemented cancelStroke + dabAt + Esc keydown listener; GREEN 8/8 hook, route render-counter 1/1, whole terrain neighborhood 24 files / 152 tests, scoped eslint exit 0.
 - Pending: full gates for the T4 commit (running), then commit; next task T5 (mini 3D + pop-out parity: drive onMiniMap in the route test, assert a second per-map preview layer and per-map idle handoff).
+
+
+## 2026-11-04 (session) - Section 1 T4 committed as 9fc3196
+- Gates on the exact commit content: vitest passed 6823 / failed 42 pre-existing / total 6873; compare regressed: 0; tsc 1122 / baseline 1122 / clean folders 0.
+- Next: T5 mini 3D + pop-out parity (route test drives onMiniMap; one preview layer per map; per-map idle handoff), then T6 browser probe + timing (announce before stopping the 3119 demo server; :3000 never touched).
+
+
+## 2026-11-04 (session) - Section 1 T5 verified (parity pinned, no source change)
+- Route test extended: both maps attached; mini 3D paints its own preview layer with the same geometry; per-map idle handoff proven (main clear leaves the mini preview standing). 2/2 green first run, scoped eslint clean.
+- Pending: full gates for the T5 test commit, then commit; next task T6 (browser probe + timing on the 3119 demo server - announce first, :3000 untouched).
