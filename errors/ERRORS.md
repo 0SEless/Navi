@@ -3282,3 +3282,33 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: One cast per assertion site (dispatch.mock.calls as unknown as [Command][] or [unknown][]) plus optional indexing calls[0]?.[0]; runtime-identical. Focused re-run stayed 6/6 green (hook 5/5 + route render-counter 1/1) and scoped eslint stayed exit 0.
 - **Prevention**: When writing a mock double whose calls you will index in assertions, give the vi.fn a real parameter type up front (or cast the calls to the expected tuple once); include new test files in a tsc-gate run BEFORE claiming the task verified, not only after the background gate.
 - **Related tasks**: Section 1 T3 (stroke wiring)
+
+
+## 2026-11-04: browser probes of custom layers must resolve the MeshLayer through the MapLibre wrapper
+- **Error**: The T6 probe read map.getLayer('terrain-preview').vertexCount?.() and got -1 although the mesh was live.
+- **Cause**: real MapLibre wraps custom layers; the added implementation object hides behind getLayer(id).implementation. The unit-test fake doubles return the raw object, so the divergence only shows in the browser (the T5 stairs probe already knew the correct pattern: map.getLayer("terrain-structures").implementation.vertexCount()).
+- **Fix**: resolve the implementation first and fall back (implementation ?? layer) before calling vertexCount(); both the mid-stroke assert and the idle-handoff wait now use it.
+- **Prevention**: when a probe reads custom-layer state in a real browser, always go through getLayer(id).implementation ?? getLayer(id); fake-map doubles hide this seam.
+- **Related tasks**: Section 1 T6 (browser probe)
+
+## 2026-11-04: an Alt+click height pick silently rewires the brush to Set-to-height
+- **Error**: the T6 before-stroke pick read the centre height (0) but left Brush mode on "Set to height" with target 0, so the following Raise stroke over flat ground would change nothing.
+- **Cause**: onPick sets settings mode 'set' + targetM by design (the pick's job); the probe then reused settings obliviously.
+- **Fix**: after the baseline pick, selectOption('Raise only') on the Brush mode combobox before driving the stroke.
+- **Prevention**: a probe that reads through UI state (pickers, toggles) must restore the controls it moved, or later steps act on mutated state.
+- **Related tasks**: Section 1 T6 (browser probe)
+
+## 2026-11-04: run.mjs can exit 1 even when Playwright reports a pass (cause unknown)
+- **Error**: the T6 after-run printed "1 passed (1.3m)" yet the node process exited 1 through the PowerShell Out-File pipeline.
+- **Cause**: Unknown - suspected non-zero webServer/auth-stub shutdown on Windows or the pipeline's error-stream treatment; playwright's own verdicts (the test list + pass lines) were the evidence of record for both probe runs.
+- **Fix**: none yet; treat the printed pass/fail list as the truth and the exit code as unreliable when launched through that pipeline.
+- **Prevention**: when a runner's exit code disagrees with its printed results, capture the runner's own verdict lines before crediting either side.
+- **Related tasks**: Section 1 T6 (browser probe)
+
+
+## 2026-11-04: full-suite gate flake - a baseline test timed out while the demo dev server ran
+- **Error**: the T6 vitest gate failed the baseline compare once (regressed: 1): OutdoorRoutePicker "selects a route node through the enlarged map hit surface and previews the pending link".
+- **Cause**: flake, verified by evidence: the suite ran while the owner demo next dev (:3119, same checkout) was live AND the tsc gate ran concurrently; the solo full re-run on the same tree (src identical since T5's zero-src commit) is green (regressed: 0, current passed 6820 as at T5) and the failing test passes 6/6 alone in 3.8 s.
+- **Fix**: re-run the full gate solo and commit on the green run.
+- **Prevention**: treat map-hit-surface tests as load-sensitive: when a next dev is live, run the vitest and tsc gates sequentially, not as a background pair.
+- **Related tasks**: Section 1 T6 commit (browser probe spec)

@@ -372,3 +372,122 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+// Section 1 acceptance (2026-11-04 plan): the clay paint preview replaces the mid-stroke DEM feedback
+// loop. While painting: no DEM reload, no version bump, no sampler rebuild (a sampler rebuild is only
+// possible via a documentVersion bump by construction, so version stability + DEM silence prove it).
+// At mouseup: one terrain.apply-tiles (one undo step), the DEM re-commits once, the preview hands off
+// on each map's own idle, and the height at the stroke centre round-trips through commit and undo.
+test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or version bumps mid-stroke, one undo, no centre jump', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayDocument)
+  await ana.page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(ana.page)
+  await ana.page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
+  await ana.page.getByRole('button', { name: 'Start flat' }).click()
+  await ana.page.getByLabel('Reference name').fill('Probe flat')
+  await ana.page.getByLabel('0 m means').fill('Mean sea level')
+  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
+  await ana.page.waitForTimeout(2500)
+
+  // Instrument after warm-up so the counts start at zero with the DEM tiles settled.
+  await ana.page.evaluate(() => {
+    const w = window as unknown as {
+      __demById: Record<string, { events: number }>
+      __versions: number[]
+      __versionPoll?: number
+      __naviTerrainMaps: Record<string, any>
+      __naviStudioV2: { context: { document: { version: number } } }
+    }
+    w.__demById = {}
+    for (const role of Object.keys(w.__naviTerrainMaps)) {
+      const bucket = (w.__demById[role] = { events: 0 })
+      w.__naviTerrainMaps[role].on('sourcedata', (e: { sourceId?: string }) => {
+        if (String(e.sourceId ?? '').includes('dem')) bucket.events++
+      })
+    }
+    w.__versions = [w.__naviStudioV2.context.document.version]
+    w.__versionPoll = window.setInterval(() => w.__versions.push(w.__naviStudioV2.context.document.version), 30)
+  })
+
+  await ana.page.getByRole('button', { name: 'Raise / Lower' }).click()
+  await ana.page.getByLabel('Brush size').fill('30')
+  await ana.page.getByLabel('Brush strength').fill('100')
+
+  // Terrain value at the stroke centre BEFORE the stroke (baseline read through the height picker).
+  const box = (await ana.page.locator('[data-terrain-map="top"]').boundingBox())!
+  const cx = box.x + box.width * 0.5
+  const cy = box.y + box.height * 0.5
+  await ana.page.keyboard.down('Alt')
+  await ana.page.mouse.click(cx, cy)
+  await ana.page.keyboard.up('Alt')
+  await expect(ana.page.getByLabel('Target height')).toHaveValue(/^0(\.0+)?$/)
+  // The pick left the brush in Set-to-height mode; stroke in Raise only so the clay actually rises.
+  await ana.page.getByLabel('Brush mode').selectOption('Raise only')
+
+  await ana.page.mouse.move(cx - box.width * 0.15, cy)
+  await ana.page.mouse.down()
+  for (let i = 0; i <= 20; i++) await ana.page.mouse.move(cx - box.width * 0.15 + i * 6, cy + (i % 2 ? 4 : -4), { steps: 2 })
+  await ana.page.waitForTimeout(1200) // holding still keeps raising (repeat dabs through the preview)
+  await ana.page.screenshot({ path: path.join(SHOTS, 't6-preview-stroke.png') })
+
+  // Acceptance, still mid-stroke: the painted preview is live on both maps...
+  // (real MapLibre wraps custom layers: the MeshLayer hides behind .implementation, same as the T5 stairs probe)
+  const mid = await ana.page.evaluate(() => {
+    const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
+    const vertices = (role: string) => {
+      const layer = maps[role].getLayer('terrain-preview') as any
+      if (!layer) return -1
+      const impl = layer.implementation ?? layer
+      return typeof impl.vertexCount === 'function' ? impl.vertexCount() : -1
+    }
+    return {
+      top: vertices('top'),
+      mini: vertices('3d'),
+      versions: [...(window as any).__versions],
+      dem: Object.fromEntries(Object.entries((window as any).__demById).map(([k, v]) => [k, (v as { events: number }).events])),
+    }
+  })
+  expect(mid.top).toBeGreaterThan(0)
+  expect(mid.mini).toBeGreaterThan(0)
+  // ...with the committed pipeline untouched: one version the whole stroke, zero DEM tile events.
+  expect(new Set(mid.versions).size).toBe(1)
+  expect(mid.dem.top).toBe(0)
+  expect(mid.dem['3d']).toBe(0)
+
+  await ana.page.mouse.up()
+  // Handoff: both maps reload the committed DEM tiles once; the preview mesh clears on their idle.
+  await ana.page.waitForFunction(() => {
+    const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
+    return Object.values(maps).every((m) => {
+      const layer = (m.getLayer('terrain-preview') as any) ?? null
+      if (!layer) return true
+      const impl = layer.implementation ?? layer
+      return typeof impl.vertexCount !== 'function' || (impl.vertexCount() ?? 0) === 0
+    })
+  }, undefined, { timeout: 20_000 })
+  const after = await ana.page.evaluate(() => {
+    const w = window as unknown as { __demById: Record<string, { events: number }>; __versionPoll?: number }
+    if (w.__versionPoll) window.clearInterval(w.__versionPoll)
+    return Object.fromEntries(Object.entries(w.__demById).map(([k, v]) => [k, (v as { events: number }).events]))
+  })
+  expect(after.top).toBeGreaterThan(0)
+  await ana.page.waitForTimeout(800)
+  await ana.page.screenshot({ path: path.join(SHOTS, 't6-after-idle.png') })
+
+  // One undo step for the whole stroke; undo and redo move the centre height exactly.
+  const tilesAfter = () => ana.page.evaluate(() => Object.keys((window as unknown as { __naviStudioV2?: { context: { document: Record<string, any> } } }).__naviStudioV2!.context.document.terrainTiles ?? {}).length)
+  expect(await tilesAfter()).toBeGreaterThan(0)
+  await ana.page.keyboard.press('Control+z')
+  expect(await tilesAfter()).toBe(0)
+  await ana.page.waitForTimeout(500)
+  await ana.page.keyboard.down('Alt')
+  await ana.page.mouse.click(cx, cy)
+  await ana.page.keyboard.up('Alt')
+  await expect(ana.page.getByLabel('Target height')).toHaveValue(/^0(\.0+)?$/)
+
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})

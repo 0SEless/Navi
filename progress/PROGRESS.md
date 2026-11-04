@@ -3158,3 +3158,20 @@
 ## 2026-11-04 (session) - Section 1 T5 verified (parity pinned, no source change)
 - Route test extended: both maps attached; mini 3D paints its own preview layer with the same geometry; per-map idle handoff proven (main clear leaves the mini preview standing). 2/2 green first run, scoped eslint clean.
 - Pending: full gates for the T5 test commit, then commit; next task T6 (browser probe + timing on the 3119 demo server - announce first, :3000 untouched).
+
+
+## 2026-11-04 (session) - Section 1 T5 committed as 9450c56
+- Gates on the exact commit content: vitest passed 6824 / failed 42 pre-existing / total 6874; compare regressed: 0; tsc 1122 / baseline 1122 / clean folders 0. The T5 parity pin is the first test-style commit (no source change by design).
+- Next: T6 browser probe (terrain.spec.ts additions: zero DEM reloads/version bumps/sampler rebuilds mid-stroke, one undo, no visual jump, mini 3D parity, screenshots) + after-timing measurement on the demo lane (:3119 - announce before stopping; :3000 never touched). Then T7 close-out.
+
+
+## 2026-11-04 (session) - Section 1 T6 verified (browser probe + timing)
+- T5 committed as 9450c56. T6: the T6 probe PASSES on HEAD and FAILS on the pre-T2 throwaway worktree (3501fde) at the preview-presence row; demo lane stopped for the probe per the standing rule (Next dev per-directory lock), :3000 and Dev Supabase untouched.
+- Timing before/after (same gesture, same fixture, same instrumentation): mid-stroke long tasks 3x541ms total -> 0; worst frame 198.5ms -> 67.4ms; settle now exactly ONE long task (the single DEM commit). Screenshots + tables in the ledger.
+- The owner demo lane is back up on 127.0.0.1:3119 (fresh campus demo-061820f3, seeded from this worktree's current build).
+- Pending: full gates for the T6 spec commit, then commit; next task T7 close-out (handoff doc entry, throwaway worktree removal, final gates).
+
+
+## 2026-11-04 (session) - Section 1 T6 gates for the commit
+- tsc gate: 1122 / baseline 1122 / clean folders 0. Vitest baseline compare: first run flaked one baseline test under concurrent load (demo next dev live + tsc gate in parallel) - solo re-run green: baseline passed 6269 / current passed 6820 / retired 0 / regressed 0. Flake journaled in ERRORS.md.
+- Committing: e2e/save-v2/terrain.spec.ts (T6 probe) + ledgers.
