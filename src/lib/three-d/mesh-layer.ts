@@ -52,6 +52,8 @@ export interface MeshLayer extends CustomLayerInterface {
   setMesh(mesh: Float32Array): void
   /** 1 = true height, the terrain's exaggeration when it is exaggerated, 0 = flat on the map (top view). */
   setVerticalScale(scale: number): void
+  /** The last set vertical scale (0, 1 or an exaggeration). */
+  verticalScale(): number
   /** Screen position of a 3D point with the last drawn camera; null before the first frame. */
   project(p: LatLng, heightM: number, size: { width: number; height: number }): { x: number; y: number } | null
   vertexCount(): number
@@ -141,6 +143,9 @@ export function createMeshLayer(id: string, origin: LatLng): MeshLayer {
       if (scale === vertical) return
       vertical = scale
       map?.triggerRepaint()
+    },
+    verticalScale() {
+      return vertical
     },
     render(context, options: CustomRenderMethodInput) {
       lastMain = new Float64Array(options.defaultProjectionData.mainMatrix)

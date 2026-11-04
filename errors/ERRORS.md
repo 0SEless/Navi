@@ -3251,3 +3251,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Used an elevated read-only inspection command authorized by the user. No Docker resource was started or modified by that inspection.
 - **Prevention**: Check Docker named-pipe access separately from engine state; if ordinary access is denied, use only explicitly authorized read-only elevated inventory and keep its scope narrow.
 - **Related tasks**: E5 T1
+
+
+## 2026-11-04: Empty paint-preview mesh for single-row strokes (inclusive vs exclusive bbox)
+- **Error**: Controller tests showed vertexCount 0 for every patch whose bbox was one cell tall or wide (any start dab or straight-row stroke); terrainPreviewMesh returned an empty mesh because its loops treated patch bounds as exclusive.
+- **Cause**: TerrainPreviewPatch is documented and produced as an INCLUSIVE cell bbox, but terrainPreviewMesh iterated `x < x1 / y < y1`; the core mesh tests passed only because their synthetic fixtures shared the exclusive reading and never exercised real producer output.
+- **Fix**: Inclusive loops in terrainPreviewMesh; fixture bounds rewritten for the same geometry under the inclusive convention; new producer-to-consumer regression test (one-cell patch = 6 vertices, one-row stroke = 12 vertices). Focused suite green: 26 passing (core 14, controller 7, mesh-layer 5).
+- **Prevention**: Pin producer/consumer contracts with a test that wires the real producer into the consumer; synthetic hand-written structs can silently adopt the bug's convention.
+- **Related tasks**: Section 1 T2 (paint preview)

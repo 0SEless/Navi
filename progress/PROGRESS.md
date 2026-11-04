@@ -3126,3 +3126,9 @@
 - E5 names are available. Port 55432 has no listener but is reserved in the protected D2 container configuration; E5 proposal uses free 127.0.0.1:55433. The local `postgres:17-alpine` image is PostgreSQL 17.11 and needs no pull.
 - **Blocker:** `docker info` repeatedly reports one running container while `docker ps` is empty and `docker ps -a` shows only the exited D2 container. The discrepancy is unresolved; no provisioning or SQL will run until reconciled and explicitly approved.
 - The E5 approval package, exact proposed isolated resource commands, role/database procedure, test dependency, dump/restore, and cleanup boundaries are in `reports/navi-studio-1.5-track-e5/01-PREFLIGHT-AND-APPROVAL.md`.
+
+
+## 2026-11-04 (session) - Section 1 paint preview: T2 fixed and green
+- T2 core mesh builder bug found via the controller tests (all vertexCount assertions 0): inclusive-bbox vs exclusive-loops mismatch in terrainPreviewMesh; fixed with inclusive loops + fixture corrections + a producer-to-consumer regression test (RED -> GREEN, evidence in ledger + errors/ERRORS.md).
+- Focused verification: packages/core/src/terrain/__tests__/preview-mesh.test.ts (14) + src/lib/three-d/__tests__/terrain-preview.test.ts (7) + src/lib/three-d/__tests__/mesh-layer.test.ts (5) = 26 passed.
+- Next: gates + T2 commit, then T3 stroke wiring (remove the working-tick path, wire TerrainPaintPreview through onStrokeStart/onDab/onStrokeEnd/onStrokeCancel in the route).
