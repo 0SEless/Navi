@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BrushSettings, TileId } from '@navi/core'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -20,6 +20,7 @@ import { TerrainTools } from './TerrainTools'
 import { DEFAULT_LAYERS, type TerrainLayers } from './TerrainLayersPanel'
 import { useTerrainStroke } from './useTerrainStroke'
 import { useTerrainShortcuts } from './useTerrainShortcuts'
+import { createTerrainPaintPreview, type TerrainPaintPreview } from '@/lib/three-d/terrain-preview'
 
 interface Dispatcher {
   execute(command: Command): MutationResult
@@ -47,13 +48,22 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [exaggeration, setExaggeration] = useState(1)
   const [tool, setTool] = useState<TerrainTool>('raise-lower')
   const [settings, setSettings] = useState<BrushSettings>(DEFAULT_BRUSH)
-  const [working, setWorking] = useState<{ tiles: Map<TileId, Int16Array> | null; tick: number }>({ tiles: null, tick: 0 })
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   const [miniMap, setMiniMap] = useState<maplibregl.Map | null>(null)
   const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
   const [cutAboveFloorId, setCutAboveFloorId] = useState<string | null>(null)
   const ensureZone = useEnsureZone()
-  const { sampler, version } = useTerrainSampler(document, documentVersion, working.tiles ? { tilesOverride: working.tiles, overrideVersion: working.tick } : undefined)
+  const { sampler, version } = useTerrainSampler(document, documentVersion)
+  // The clay preview while painting: built once per route, never touches sampler/version state.
+  const previewRef = useRef<TerrainPaintPreview | null>(null)
+  if (previewRef.current == null) {
+    previewRef.current = createTerrainPaintPreview()
+  }
+  useEffect(() => () => previewRef.current?.dispose(), [])
+  useEffect(() => {
+    const maps: maplibregl.Map[] = [mainMap, miniMap].filter((m): m is maplibregl.Map => m !== null)
+    previewRef.current?.setMaps(maps, exaggeration)
+  }, [mainMap, miniMap, exaggeration])
   const session = useStudioSession()
   const save = useExplicitSave(session)
   useSaveShortcut(save)
@@ -86,23 +96,21 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   }, [lock.status, services, document.terrain?.grid, document.buildings, ensureZone])
 
   const editing = lock.status === 'held' && Boolean(document.terrain)
-  const workingRef = useRef<Map<TileId, Int16Array> | null>(null)
-  const markWorking = () => {
-    const grid = document.terrain?.grid
-    // A stroke that has not touched a tile yet changes nothing.
-    if (grid && workingRef.current) markTerrainDirty(tilesBounds(grid, workingRef.current.keys()) ?? NO_AREA)
-    else markTerrainDirty(NO_AREA)
-  }
   const strokeOptions = {
     document, sampler, tool, settings, enabled: editing, dispatch,
-    onWorking: (tiles: Map<TileId, Int16Array> | null) => {
-      markWorking() // the stroke's area, also when the working tiles are dropped at the end
-      workingRef.current = tiles
-      setWorking((current) => ({ tiles, tick: current.tick + 1 }))
+    // The clay preview: start/dab live on the stroke's working tiles, the end hands off to the
+    // committed tiles (each map's next idle), cancel cleans at once. No React state per dab.
+    onStrokeStart: (tiles: Map<TileId, Int16Array>) => {
+      previewRef.current?.start(document, tiles)
     },
-    onTick: () => {
-      markWorking()
-      setWorking((current) => ({ ...current, tick: current.tick + 1 }))
+    onDab: () => {
+      previewRef.current?.update()
+    },
+    onStrokeEnd: () => {
+      previewRef.current?.commit()
+    },
+    onStrokeCancel: () => {
+      previewRef.current?.cancel()
     },
     onPick: (heightM: number) => setSettings((current) => ({ ...current, mode: 'set', targetM: heightM })),
   }

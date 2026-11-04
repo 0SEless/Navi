@@ -1,0 +1,196 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import type maplibregl from 'maplibre-gl'
+import {
+  createTerrainSampler,
+  toLatLng,
+  type BrushSettings,
+  type CampusDocument,
+  type TerrainGrid,
+  type TerrainSampler,
+} from '@navi/core'
+import type { Command, MutationResult } from '@navi/editor'
+import { useTerrainStroke } from '../useTerrainStroke'
+
+const grid: TerrainGrid = { originLat: 11.8, originLng: 122.1 }
+const ll = (x: number, y: number) => {
+  const p = toLatLng(grid, { x, y })
+  return { lat: p.lat, lng: p.lng }
+}
+const settings: BrushSettings = { shape: 'circle', rotationDeg: 0, sizeM: 6, aspect: 1, profile: 'hard', strength: 1, mode: 'raise' }
+
+function doc(): CampusDocument {
+  return {
+    schemaVersion: 1, version: 0, metadata: {}, buildings: [], roads: [], panoramas: [], qrCheckpoints: [],
+    boundary: { points: [ll(20, 20), ll(100, 20), ll(100, 80), ll(20, 80)] },
+    terrain: { reference: { name: 'T', zeroMeaning: 'z' }, grid, colorRange: { minM: 0, maxM: 40 } },
+  } as unknown as CampusDocument
+}
+
+interface MockMapEvent {
+  lngLat: { lat: number; lng: number }
+  originalEvent: { button: number; altKey: boolean; shiftKey: boolean }
+  preventDefault(): void
+}
+
+interface MiniMap {
+  on(type: string, fn: (event: unknown) => void): void
+  off(type: string, fn: (event: unknown) => void): void
+  fire(type: string, event?: Partial<MockMapEvent>): void
+  dragPan: { disable(): void; enable(): void }
+  panState: { disabled: number; enabled: number }
+  layers: string[]
+}
+
+function fakeMap(): maplibregl.Map & MiniMap {
+  const handlers = new Map<string, Array<(event: unknown) => void>>()
+  const layers: string[] = []
+  const state = { disabled: 0, enabled: 0 }
+  const map = {
+    on: (type: string, fn: (event: unknown) => void) => {
+      handlers.set(type, (handlers.get(type) ?? []).concat(fn))
+    },
+    off: (type: string, fn: (event: unknown) => void) => {
+      handlers.set(type, (handlers.get(type) ?? []).filter((f) => f !== fn))
+    },
+    fire: (type: string, event?: Partial<MockMapEvent>) => {
+      const full: MockMapEvent = {
+        lngLat: event?.lngLat ?? ll(40, 40),
+        originalEvent: { button: event?.originalEvent?.button ?? 0, altKey: event?.originalEvent?.altKey ?? false, shiftKey: event?.originalEvent?.shiftKey ?? false },
+        preventDefault: () => {},
+      }
+      for (const fn of [...(handlers.get(type) ?? [])]) fn(full)
+    },
+    isStyleLoaded: () => true,
+    getSource: () => ({ setData: vi.fn() }),
+    addSource: vi.fn(),
+    addLayer: (layer: { id: string }) => layers.push(layer.id),
+    getLayer: (id: string) => (layers.includes(id) ? {} : undefined),
+    getCanvas: () => ({ clientWidth: 400, clientHeight: 300 }),
+    dragPan: {
+      disable: () => state.disabled++,
+      enable: () => state.enabled++,
+    },
+  } as unknown as maplibregl.Map & MiniMap
+  map.panState = state
+  map.layers = layers
+  return map
+}
+
+function strokeHarness(dispatch: (command: Command) => MutationResult | undefined, sampler: TerrainSampler | null) {
+  const counts = { start: 0, dab: 0, end: 0, cancel: 0, pick: 0 }
+  const order: string[] = []
+  let startedTiles: Map<`${number}_${number}`, Int16Array> | null = null
+  const map = fakeMap()
+  const Hook = () => {
+    useTerrainStroke(map, {
+      document: doc(),
+      sampler,
+      tool: 'raise-lower',
+      settings,
+      enabled: true,
+      dispatch: (command) => {
+        order.push('dispatch')
+        return dispatch(command)
+      },
+      onStrokeStart: (tiles) => {
+        order.push('start')
+        counts.start++
+        startedTiles = tiles
+      },
+      onDab: () => {
+        order.push('dab')
+        counts.dab++
+      },
+      onStrokeEnd: () => {
+        order.push('end')
+        counts.end++
+      },
+      onStrokeCancel: () => {
+        order.push('cancel')
+        counts.cancel++
+      },
+      onPick: () => {
+        order.push('pick')
+        counts.pick++
+      },
+    })
+    return null
+  }
+  render(<Hook />)
+  return { map, counts, order, tilesRef: () => startedTiles }
+}
+
+const ok = (): MutationResult => ({ success: true })
+
+describe('useTerrainStroke (paint preview wiring)', () => {
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('one stroke: start once with the live tiles, one dab per effective dab, dispatch once, end after the dispatch', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, null)
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    expect(h.counts.start).toBe(1)
+    expect(h.counts.dab).toBe(1)
+    expect(h.tilesRef()).not.toBeNull()
+    vi.advanceTimersByTime(160) // the hold-to-repeat adds two dabs at 80 ms spacing
+    expect(h.counts.dab).toBe(3)
+    h.map.fire('mousemove', { lngLat: ll(45, 40) }) // 5 m from the last dab, spacing is 1.5 m
+    expect(h.counts.dab).toBe(4)
+    h.map.fire('mouseup')
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    const dispatched = dispatch.mock.calls as unknown as [Command][]
+    expect(dispatched[0]?.[0].id).toBe('terrain.apply-tiles')
+    expect(h.counts.end).toBe(1)
+    expect(h.counts.cancel).toBe(0)
+    expect(h.order.slice(-2)).toEqual(['dispatch', 'end'])
+  })
+
+  it('a failed dispatch cancels the stroke instead of handing the preview off', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(() => ({ success: false, error: 'locked' }) as MutationResult)
+    const h = strokeHarness(dispatch, null)
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    h.map.fire('mouseup')
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(h.counts.end).toBe(0)
+    expect(h.counts.cancel).toBe(1)
+  })
+
+  it('a stroke that changes nothing dispatches no command and cancels (empty preview cleaned)', () => {
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, null)
+    h.map.fire('mousedown', { lngLat: ll(500, 500), originalEvent: { button: 0, altKey: false, shiftKey: false } })
+    h.map.fire('mouseup')
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(h.counts.end).toBe(0)
+    expect(h.counts.cancel).toBe(1)
+    expect(h.counts.start).toBe(1)
+  })
+
+  it('mouseout finishes the stroke like mouseup', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, null)
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    h.map.fire('mouseout')
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(h.counts.end).toBe(1)
+    expect(h.order.slice(-2)).toEqual(['dispatch', 'end'])
+  })
+
+  it('Alt+click with a brush picks the height under the point and never starts a stroke', () => {
+    const sampler = createTerrainSampler(doc(), {})
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, sampler)
+    h.map.fire('mousedown', { lngLat: ll(40, 40), originalEvent: { button: 0, altKey: true, shiftKey: false } })
+    expect(h.counts.pick).toBe(1)
+    expect(h.counts.start).toBe(0)
+    expect(h.counts.end).toBe(0)
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+})

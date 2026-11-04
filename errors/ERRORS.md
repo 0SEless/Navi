@@ -3259,3 +3259,26 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: Inclusive loops in terrainPreviewMesh; fixture bounds rewritten for the same geometry under the inclusive convention; new producer-to-consumer regression test (one-cell patch = 6 vertices, one-row stroke = 12 vertices). Focused suite green: 26 passing (core 14, controller 7, mesh-layer 5).
 - **Prevention**: Pin producer/consumer contracts with a test that wires the real producer into the consumer; synthetic hand-written structs can silently adopt the bug's convention.
 - **Related tasks**: Section 1 T2 (paint preview)
+
+
+## 2026-11-04: render-counter assertions need explicit act() flushes to expose scheduled re-renders
+- **Error**: The first route-level render-counter red run compared an IDENTICAL render count against the old per-stroke-setState wiring; the assertion passed and only the later missing-preview-layer assertion failed.
+- **Cause**: Events fired synchronously outside act(); React kept the scheduled re-render pending, so the counter never observed the old code's extra render until some other flush ran.
+- **Fix**: Flush act() after each map event before comparing counts; with flushes present the old wiring fails exactly at the mid-stroke count assertion (verified by stashing the new code) and the new wiring stays flat.
+- **Prevention**: When a unit test measures "re-renders during X", wait/act between the X steps so scheduled React work has flushed; otherwise the counter compares nothing and silently under-bites.
+- **Related tasks**: Section 1 T3 (stroke wiring)
+
+## 2026-11-04: react-hooks/refs rejected pre-existing render-time ref sync in useTerrainStroke
+- **Error**: Scoped eslint flagged 'latest.current = options' (a render-time ref write) in the stroke hook and the new route's 'if (!ref.current)' lazy-init shape.
+- **Cause**: The hook predates the current react-hooks/refs rule; the file was touched by T3, so the debt surfaced during scoped lint.
+- **Fix**: Options now synchronize through an unkeyed useEffect that runs before (declaration order) the event-registration effect; the route builds the preview with the rule's sanctioned 'if (ref.current == null) { ref.current = ... }' lazy path. Scoped eslint exit 0; 6/6 focused tests still green.
+- **Prevention**: Never sync refs from a component body: put ref writes in effects (registration effects are keyed by map identity, and unkeyed effect sync runs every commit), and build lazy refs with the '== null' two-line pattern.
+- **Related tasks**: Section 1 T3 (stroke wiring)
+
+
+## 2026-11-04: new test files shipped tsc errors in a clean folder (vi.fn<double> call-tuple indexing)
+- **Error**: The T3 full-gate pass came back "tsc errors: 1125 / baseline: 1122 / in clean folders: 3" - all three errors in the two new T3 test files: mock call indexes written as dispatch.mock.calls[0][0] (TS2493 tuple '[]' of length '0' has no element at index '0'; TS2532 Object is possibly 'undefined').
+- **Cause**: vi.fn factories declared with zero parameters (e.g. vi.fn(() => ({ success: true }))) infer an EMPTY argument tuple, so any [0] index into .call/.calls entries is a type error; noUncheckedIndexedAccess additionally flags the outer calls[0].
+- **Fix**: One cast per assertion site (dispatch.mock.calls as unknown as [Command][] or [unknown][]) plus optional indexing calls[0]?.[0]; runtime-identical. Focused re-run stayed 6/6 green (hook 5/5 + route render-counter 1/1) and scoped eslint stayed exit 0.
+- **Prevention**: When writing a mock double whose calls you will index in assertions, give the vi.fn a real parameter type up front (or cast the calls to the expected tuple once); include new test files in a tsc-gate run BEFORE claiming the task verified, not only after the background gate.
+- **Related tasks**: Section 1 T3 (stroke wiring)

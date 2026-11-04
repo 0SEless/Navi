@@ -3132,3 +3132,9 @@
 - T2 core mesh builder bug found via the controller tests (all vertexCount assertions 0): inclusive-bbox vs exclusive-loops mismatch in terrainPreviewMesh; fixed with inclusive loops + fixture corrections + a producer-to-consumer regression test (RED -> GREEN, evidence in ledger + errors/ERRORS.md).
 - Focused verification: packages/core/src/terrain/__tests__/preview-mesh.test.ts (14) + src/lib/three-d/__tests__/terrain-preview.test.ts (7) + src/lib/three-d/__tests__/mesh-layer.test.ts (5) = 26 passed.
 - Next: gates + T2 commit, then T3 stroke wiring (remove the working-tick path, wire TerrainPaintPreview through onStrokeStart/onDab/onStrokeEnd/onStrokeCancel in the route).
+
+
+## 2026-11-04 (session) - Section 1 T2 committed; T3 wired and gated
+- T2 committed as 07c154a (mesh builder + controller + verticalScale + specs, gates green at that state).
+- T3: working-tick path deleted both sides; preview wired through onStrokeStart/onDab/onStrokeEnd/onStrokeCancel; hook tests 5/5 and route render-counter 1/1 green (honest red proven by stashing the new code); terrain suite 13 files / 62 tests green; scoped eslint clean after react-hooks/refs fixes.
+- Pending: full gates for the T3 commit (running), then commit; next task T4 (Esc cancel + error-path tests).

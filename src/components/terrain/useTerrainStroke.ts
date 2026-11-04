@@ -19,10 +19,14 @@ export interface TerrainStrokeOptions {
   settings: BrushSettings
   enabled: boolean
   dispatch: (command: Command) => MutationResult | undefined
-  /** The stroke's working tiles while painting (null when the stroke ends). */
-  onWorking: (tiles: Map<TileId, Int16Array> | null) => void
-  /** Called (throttled) while painting so the maps redraw the working tiles. */
-  onTick: () => void
+  /** The stroke began: the live working tiles map (dabs mutate it in place). */
+  onStrokeStart: (tiles: Map<TileId, Int16Array>) => void
+  /** One effective dab: paint the instant preview now (never touches the committed terrain). */
+  onDab: () => void
+  /** The stroke's command was dispatched successfully: hand the preview off to the committed tiles. */
+  onStrokeEnd: () => void
+  /** Nothing to commit (no change) or the dispatch failed: clean the preview at once. */
+  onStrokeCancel: () => void
   /** Height picker: Alt+click with a brush, or a click with the picker tool. */
   onPick: (heightM: number) => void
 }
@@ -37,7 +41,11 @@ function ensureBrushLayer(map: maplibregl.Map): void {
 /** Paints with the active brush on `map` (main or mini view): one stroke = one undo step. */
 export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStrokeOptions): void {
   const latest = useRef(options)
-  latest.current = options
+  // The options are read inside event handlers only; keeping them in a ref updated on every commit
+  // means the handlers always see the latest tool/settings/document without re-registering events.
+  useEffect(() => {
+    latest.current = options
+  })
 
   useEffect(() => {
     if (!map) return
@@ -45,12 +53,11 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     let last: { x: number; y: number } | null = null
     let pointer: { lat: number; lng: number } | null = null
     let repeat: number | null = null
-    let tickPending = false
 
     // Holding the mouse still keeps painting (Unity-style): one dab every 80 ms at the pointer.
     const startRepeat = () => {
       repeat = window.setInterval(() => {
-        if (stroke && pointer && stroke.dab(pointer)) tick()
+        if (stroke && pointer && stroke.dab(pointer)) latest.current.onDab()
       }, 80)
     }
     const stopRepeat = () => {
@@ -75,16 +82,6 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       source.setData({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { inside }, geometry: { type: 'LineString', coordinates: ring.map((p) => [p.lng, p.lat]) } }] })
     }
 
-    const tick = () => {
-      if (tickPending) return
-      tickPending = true
-      // At most ~3 redraws a second while painting: each one reloads the visible terrain tiles.
-      window.setTimeout(() => {
-        tickPending = false
-        latest.current.onTick()
-      }, 300)
-    }
-
     const pickAt = (lngLat: maplibregl.LngLat) => {
       const { document, sampler, onPick } = latest.current
       if (!sampler || !document.terrain) return
@@ -107,9 +104,9 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       if (!stroke) return
       event.preventDefault()
       map.dragPan.disable()
-      latest.current.onWorking(stroke.workingTiles)
+      latest.current.onStrokeStart(stroke.workingTiles)
       pointer = { lat: event.lngLat.lat, lng: event.lngLat.lng }
-      if (stroke.dab(pointer)) tick()
+      if (stroke.dab(pointer)) latest.current.onDab()
       startRepeat()
       last = document.terrain ? toLocal(document.terrain.grid, { lat: event.lngLat.lat, lng: event.lngLat.lng }) : null
     }
@@ -124,7 +121,7 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       const spacing = Math.max(0.5, latest.current.settings.sizeM / 4)
       if (last && Math.hypot(here.x - last.x, here.y - last.y) < spacing) return
       last = here
-      if (stroke.dab({ lat: event.lngLat.lat, lng: event.lngLat.lng })) tick()
+      if (stroke.dab({ lat: event.lngLat.lat, lng: event.lngLat.lng })) latest.current.onDab()
     }
 
     const onUp = () => {
@@ -133,9 +130,20 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       const command = stroke.finish()
       stroke = null
       last = null
+      pointer = null
       map.dragPan.enable()
-      if (command) latest.current.dispatch(command)
-      latest.current.onWorking(null)
+      // A stroke with no ground change has no command: cancel (the preview shows nothing to clean).
+      if (!command) {
+        latest.current.onStrokeCancel()
+        return
+      }
+      // The command is the commit; the preview hands off to the committed tiles only when it landed.
+      const result = latest.current.dispatch(command)
+      if (result?.success === false) {
+        latest.current.onStrokeCancel()
+        return
+      }
+      latest.current.onStrokeEnd()
     }
 
     map.on('mousedown', onDown)
