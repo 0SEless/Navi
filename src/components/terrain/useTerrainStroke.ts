@@ -57,12 +57,31 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     // Holding the mouse still keeps painting (Unity-style): one dab every 80 ms at the pointer.
     const startRepeat = () => {
       repeat = window.setInterval(() => {
-        if (stroke && pointer && stroke.dab(pointer)) latest.current.onDab()
+        if (stroke && pointer) dabAt(pointer)
       }, 80)
     }
     const stopRepeat = () => {
       if (repeat !== null) window.clearInterval(repeat)
       repeat = null
+    }
+
+    // Esc during a stroke, or a paint error: clean cancel with no residue (no dispatch, nothing handed off).
+    const cancelStroke = () => {
+      stopRepeat()
+      if (!stroke) return
+      stroke = null
+      pointer = null
+      last = null
+      map.dragPan.enable()
+      latest.current.onStrokeCancel()
+    }
+    // One guarded dab: a failing stroke or preview update cancels the stroke instead of leaking an armed repeat.
+    const dabAt = (p: { lat: number; lng: number }) => {
+      try {
+        if (stroke && stroke.dab(p)) latest.current.onDab()
+      } catch {
+        cancelStroke()
+      }
     }
 
     const outline = (lngLat: maplibregl.LngLat) => {
@@ -106,9 +125,11 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       map.dragPan.disable()
       latest.current.onStrokeStart(stroke.workingTiles)
       pointer = { lat: event.lngLat.lat, lng: event.lngLat.lng }
-      if (stroke.dab(pointer)) latest.current.onDab()
-      startRepeat()
-      last = document.terrain ? toLocal(document.terrain.grid, { lat: event.lngLat.lat, lng: event.lngLat.lng }) : null
+      dabAt(pointer)
+      if (stroke) {
+        startRepeat()
+        last = document.terrain ? toLocal(document.terrain.grid, { lat: event.lngLat.lat, lng: event.lngLat.lng }) : null
+      }
     }
 
     const onMove = (event: maplibregl.MapMouseEvent) => {
@@ -121,7 +142,7 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
       const spacing = Math.max(0.5, latest.current.settings.sizeM / 4)
       if (last && Math.hypot(here.x - last.x, here.y - last.y) < spacing) return
       last = here
-      if (stroke.dab({ lat: event.lngLat.lat, lng: event.lngLat.lng })) latest.current.onDab()
+      dabAt({ lat: event.lngLat.lat, lng: event.lngLat.lng })
     }
 
     const onUp = () => {
@@ -150,8 +171,17 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     map.on('mousemove', onMove)
     map.on('mouseup', onUp)
     map.on('mouseout', onUp)
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Esc while a stroke is live = abandon the stroke (no dispatch): the preview cleans at once.
+      if (event.key === 'Escape' && stroke) {
+        event.preventDefault()
+        cancelStroke()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
     return () => {
       stopRepeat()
+      window.removeEventListener('keydown', onKeyDown)
       map.off('mousedown', onDown)
       map.off('mousemove', onMove)
       map.off('mouseup', onUp)

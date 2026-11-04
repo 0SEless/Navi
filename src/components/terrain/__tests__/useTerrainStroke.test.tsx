@@ -12,6 +12,28 @@ import {
 import type { Command, MutationResult } from '@navi/editor'
 import { useTerrainStroke } from '../useTerrainStroke'
 
+// T4 error path: force stroke.dab to throw so the hook's guard is exercised (the real stroke is created inside the hook
+// by the mocked createTerrainStroke, so only its dab is fault-injectable).
+const strokeFaults = vi.hoisted(() => ({ dab: false }))
+
+vi.mock('@/lib/terrain/terrain-stroke', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/terrain/terrain-stroke')>('@/lib/terrain/terrain-stroke')
+  return {
+    ...actual,
+    createTerrainStroke: (...args: Parameters<typeof actual.createTerrainStroke>) => {
+      const stroke = actual.createTerrainStroke(...args)
+      if (!stroke) return stroke
+      return {
+        ...stroke,
+        dab: (p: Parameters<typeof stroke.dab>[0]) => {
+          if (strokeFaults.dab) throw new Error('sampler exploded')
+          return stroke.dab(p)
+        },
+      }
+    },
+  }
+})
+
 const grid: TerrainGrid = { originLat: 11.8, originLng: 122.1 }
 const ll = (x: number, y: number) => {
   const p = toLatLng(grid, { x, y })
@@ -77,7 +99,7 @@ function fakeMap(): maplibregl.Map & MiniMap {
   return map
 }
 
-function strokeHarness(dispatch: (command: Command) => MutationResult | undefined, sampler: TerrainSampler | null) {
+function strokeHarness(dispatch: (command: Command) => MutationResult | undefined, sampler: TerrainSampler | null, onDabOverride?: () => void) {
   const counts = { start: 0, dab: 0, end: 0, cancel: 0, pick: 0 }
   const order: string[] = []
   let startedTiles: Map<`${number}_${number}`, Int16Array> | null = null
@@ -98,10 +120,11 @@ function strokeHarness(dispatch: (command: Command) => MutationResult | undefine
         counts.start++
         startedTiles = tiles
       },
-      onDab: () => {
-        order.push('dab')
-        counts.dab++
-      },
+      onDab: onDabOverride
+        ?? (() => {
+          order.push('dab')
+          counts.dab++
+        }),
       onStrokeEnd: () => {
         order.push('end')
         counts.end++
@@ -192,5 +215,68 @@ describe('useTerrainStroke (paint preview wiring)', () => {
     expect(h.counts.start).toBe(0)
     expect(h.counts.end).toBe(0)
     expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('Esc during a stroke cancels it: no dispatch, no end, dragPan back, the stroke is dead', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, null)
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    expect(h.counts.start).toBe(1)
+    expect(h.counts.dab).toBe(1)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(h.counts.cancel).toBe(1)
+    expect(h.counts.end).toBe(0)
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(h.map.panState.enabled).toBe(1)
+    // The stroke is dead: held-repeat paints nothing and a late mouseup has nothing to commit.
+    vi.advanceTimersByTime(240)
+    h.map.fire('mousemove', { lngLat: ll(50, 40) })
+    expect(h.counts.dab).toBe(1)
+    h.map.fire('mouseup')
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(h.counts.end).toBe(0)
+    expect(h.counts.cancel).toBe(1)
+  })
+
+  it('a throwing ground dab kills the stroke: cancel once, dragPan back, no dispatch', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(ok)
+    strokeFaults.dab = true
+    try {
+      const h = strokeHarness(dispatch, null)
+      h.map.fire('mousedown', { lngLat: ll(40, 40) })
+      expect(h.counts.start).toBe(1)
+      expect(h.counts.cancel).toBe(1)
+      expect(h.counts.end).toBe(0)
+      expect(dispatch).not.toHaveBeenCalled()
+      expect(h.map.panState.enabled).toBe(1)
+      h.map.fire('mousemove', { lngLat: ll(50, 40) })
+      h.map.fire('mouseup')
+      expect(h.counts.cancel).toBe(1)
+      expect(h.counts.end).toBe(0)
+      expect(dispatch).not.toHaveBeenCalled()
+      expect(h.counts.dab).toBe(0)
+    } finally {
+      strokeFaults.dab = false
+    }
+  })
+
+  it('a throwing preview update (onDab) kills the stroke the same way', () => {
+    vi.useFakeTimers()
+    const dispatch = vi.fn(ok)
+    const h = strokeHarness(dispatch, null, () => {
+      throw new Error('preview exploded')
+    })
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    expect(h.counts.start).toBe(1)
+    expect(h.counts.cancel).toBe(1)
+    expect(h.counts.end).toBe(0)
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(h.map.panState.enabled).toBe(1)
+    h.map.fire('mousemove', { lngLat: ll(50, 40) })
+    h.map.fire('mouseup')
+    expect(h.counts.end).toBe(0)
+    expect(h.counts.cancel).toBe(1)
   })
 })

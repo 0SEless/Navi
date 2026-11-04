@@ -3138,3 +3138,13 @@
 - T2 committed as 07c154a (mesh builder + controller + verticalScale + specs, gates green at that state).
 - T3: working-tick path deleted both sides; preview wired through onStrokeStart/onDab/onStrokeEnd/onStrokeCancel; hook tests 5/5 and route render-counter 1/1 green (honest red proven by stashing the new code); terrain suite 13 files / 62 tests green; scoped eslint clean after react-hooks/refs fixes.
 - Pending: full gates for the T3 commit (running), then commit; next task T4 (Esc cancel + error-path tests).
+
+
+## 2026-11-04 (session) - Section 1 T3 committed as 4a8e28c
+- Gates on the exact commit content: vitest passed 6820 / failed 42 pre-existing (non-terrain) / total 6870; baseline compare regressed: 0 (exit 0); tsc 1122 / baseline 1122 / clean folders 0 (exit 0). Full pair re-run AFTER the final refs-fix edit (11:12) and the type-only test fixes (calls[0]?.[0] casts) - the earlier 1125/3-red tsc run never made it into a commit.
+- Next: T4 tests first (Esc during a stroke cancels it; onDab throw kills the stroke cleanly), then the cancelStroke/Esc implementation, gates, commit.
+
+
+## 2026-11-04 (session) - Section 1 T4 wired (tests first)
+- T3 committed as 4a8e28c. T4: three new hook tests written RED (Esc cancel, ground-dab throw, preview-update throw), all honest failures against the pre-T4 hook; implemented cancelStroke + dabAt + Esc keydown listener; GREEN 8/8 hook, route render-counter 1/1, whole terrain neighborhood 24 files / 152 tests, scoped eslint exit 0.
+- Pending: full gates for the T4 commit (running), then commit; next task T5 (mini 3D + pop-out parity: drive onMiniMap in the route test, assert a second per-map preview layer and per-map idle handoff).
