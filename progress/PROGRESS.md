@@ -3183,3 +3183,17 @@
 - Handoff doc In-progress entry rewritten: section 1 approved + built with commit list, acceptance and timing numbers, agreed rulings, next = the owner's go for section 2.
 - Demo lane restored at 127.0.0.1:3119 with a fresh campus demo-96bf1517 (this worktree's current build). Throwaway worktree navi-t6-before removed junction-first (lesson in ERRORS.md).
 - Pending: close-out commit (handoff doc + ledgers). Nothing pushed - feat/terrain-2.5d stays local.
+
+
+## 2026-11-04 (session) - Section 2 T1 measured (contours-on cost)
+- Throwaway measurement campus demo-dde38083 seeded (owner demo campus demo-96bf1517 untouched); contours enabled via the Layers toggle on the Section 1 HEAD build.
+- Numbers: contour enable = 2 long tasks 213 + 62 ms (one build); settle with contours on = 137 ms (contour rebuild) + 179 ms (DEM commit, unchanged from T6); one 240 ms task classified "stroke" is the mouseup burst racing the classifier (lesson in ERRORS.md) - mid-stroke work stays zero by construction.
+- Decision: accept contours-on-by-default without optimizing (spec-approved trade-off); the T7 probe will pin the invariants and the new settle yardstick.
+- Pending: T2 defaults flip (TDD): route default view 'contours' + DEFAULT_LAYERS.contours = true.
+
+
+## 2026-11-04 (session) - Section 2 T2 verified and committed (defaults flip)
+- RED first: new route test "opens neutral" failed on the old default (expected 'contours', received 'heights'); the two Section 1 route tests stayed green.
+- GREEN after the flip: route default view 'contours' + DEFAULT_LAYERS.contours = true. Route file 3/3; terrain neighbourhood 24 files / 154 tests green; scoped eslint 0.
+- Gates (sequential, demo lane up): vitest compare baseline 6269 / current passed 6821 / retired 0 / regressed 0; tsc 1122 / baseline 1122 / clean folders 0.
+- Committing: the two defaults + the route test + the Section 2 spec and plan docs + ledgers. Next: T3 browser probe (T7 test + T1 expectation updates).

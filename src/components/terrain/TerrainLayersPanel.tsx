@@ -7,7 +7,7 @@ export interface TerrainLayers {
   tracing: boolean
 }
 
-export const DEFAULT_LAYERS: TerrainLayers = { buildings: true, roads: true, contours: false, tracing: true }
+export const DEFAULT_LAYERS: TerrainLayers = { buildings: true, roads: true, contours: true, tracing: true }
 
 /** Show/hide map layers; the tracing image is picked here and stays on this computer. */
 export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing }: {

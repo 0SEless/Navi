@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import type maplibregl from 'maplibre-gl'
 import { PREVIEW_LAYER_ID } from '@/lib/three-d/terrain-preview'
 import { toLatLng, type CampusDocument, type TerrainGrid } from '@navi/core'
@@ -7,7 +7,12 @@ import { TerrainWorkspaceRoute } from '../TerrainWorkspaceRoute'
 
 const counters = vi.hoisted(() => ({
   stage: 0,
-  lastStageProps: null as { onMainMap?: (m: unknown) => void; onMiniMap?: (m: unknown) => void } | null,
+  lastStageProps: null as {
+    onMainMap?: (m: unknown) => void
+    onMiniMap?: (m: unknown) => void
+    view?: string
+    layers?: { buildings: boolean; roads: boolean; contours: boolean; tracing: boolean }
+  } | null,
   driven: [] as unknown[],
 }))
 
@@ -27,9 +32,14 @@ vi.mock('@/components/studio/v2/useStudioSession', () => ({
 }))
 vi.mock('../useTerrainLock', () => ({ useTerrainLock: () => ({ status: 'held', holderName: null }) }))
 vi.mock('../TerrainStage', () => ({
-  TerrainStage: (props: { onMainMap?: (m: unknown) => void; onMiniMap?: (m: unknown) => void }) => {
+  TerrainStage: (props: {
+    onMainMap?: (m: unknown) => void
+    onMiniMap?: (m: unknown) => void
+    view?: string
+    layers?: { buildings: boolean; roads: boolean; contours: boolean; tracing: boolean }
+  }) => {
     counters.stage++
-    counters.lastStageProps = props as { onMainMap?: (m: unknown) => void; onMiniMap?: (m: unknown) => void }
+    counters.lastStageProps = props
     return null
   },
 }))
@@ -221,5 +231,29 @@ describe('TerrainWorkspaceRoute paint preview (section 1)', () => {
     expect(miniLayer?.vertexCount()).toBeGreaterThan(0)
     mini.fire('idle')
     expect(miniLayer?.vertexCount()).toBe(0)
+  })
+})
+
+describe('TerrainWorkspaceRoute defaults (section 2)', () => {
+  afterEach(() => {
+    cleanup()
+    editorState.dispatch = undefined
+    counters.stage = 0
+    counters.lastStageProps = null
+  })
+
+  it('opens neutral: the contours view with contour lines on; heights stays one click away', async () => {
+    render(<TerrainWorkspaceRoute mapId="m1" />)
+    await flush()
+    // The opening look is the neutral contours view, and the stage passes it to both maps.
+    expect(counters.lastStageProps?.view).toBe('contours')
+    expect(counters.lastStageProps?.layers?.contours).toBe(true)
+    // Heights (the colour ramp) is one click away, and the contour lines persist over it.
+    act(() => {
+      ;(screen.getByRole('button', { name: 'Heights' }) as HTMLButtonElement).click()
+    })
+    await flush()
+    expect(counters.lastStageProps?.view).toBe('heights')
+    expect(counters.lastStageProps?.layers?.contours).toBe(true)
   })
 })

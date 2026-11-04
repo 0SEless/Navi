@@ -3320,3 +3320,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: cmd /c rmdir on the junction removes the link only (target untouched), then git worktree remove --force is safe.
 - **Prevention**: before ANY Worktree removal, check (Get-Item <wt>\\node_modules).LinkType - if Junction/SymbolicLink, rmdir the link first, and verify the main worktree's node_modules is intact afterwards.
 - **Related tasks**: T7 close-out (throwaway worktree removal)
+
+
+## 2026-11-04: long-task phase classification races the mouseup round-trip
+- **Error**: the T1 contour measurement classified a 240 ms long task as mid-stroke although no mid-stroke work exists by construction.
+- **Cause**: the classifier uses the time the mouseup CDP send returned (upSent) as the stroke/settle boundary; the page's mouseup handler (dispatch + render + effects) can start before the following page.evaluate round-trip reads upSent, so the post-mouseup burst lands in the stroke window.
+- **Fix**: for mid-stroke claims, assert contract invariants (documentVersion stability, zero DEM sourcedata) as the T6/T7 probes do; treat time-window long-task classification as settle-size evidence only.
+- **Prevention**: never claim "zero work in phase X" from wall-clock classification alone when the phase boundary is set from outside the page.
+- **Related tasks**: Section 2 T1 (contour timing), Section 1 T6 (probe design)
