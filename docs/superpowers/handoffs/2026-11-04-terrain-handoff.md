@@ -46,10 +46,28 @@ it before continuing the plan's Tasks 15–16.
 Last full check (Task 14): vitest gate 0 regressions, tsc gate 1122 (= baseline) with 0 in clean folders,
 browser probe 25/25.
 
-## In progress: UI/UX redesign (brainstorming, not yet a spec)
+## In progress: UI/UX redesign (section 1 approved and built; sections 2-4 await the owner's go)
+
+**2026-11-04 status update (read this first; the blocks below are the history):** the owner approved
+section 1 only - the "clay-feel paint preview" - and it is built and verified:
+- Spec + plan: `docs/superpowers/specs/2026-11-04-navi-terrain-redesign-section-1-paint-preview.md`,
+  `docs/superpowers/plans/2026-11-04-navi-terrain-redesign-section-1-paint-preview.md`.
+- Built on `feat/terrain-2.5d` as commits 07c154a (T2 preview core), 4a8e28c (T3 stroke wiring),
+  9fc3196 (T4 Esc/error cancel), 9450c56 (T5 mini/pop-out parity), e883cfc (T6 browser probe + timing).
+  Every commit gated: vitest baseline `regressed: 0`, tsc `1122 / 1122 / clean folders 0`.
+- Acceptance in a real browser (Save v2 probe lane): mid-stroke the clay preview is live on main + mini 3D
+  with ZERO documentVersion bumps, zero DEM reloads, zero sampler rebuilds; mouseup = exactly one undo,
+  committed parity with no visual jump; the same probe FAILS on pre-T2 code (red/green pinned at 3501fde).
+- Timing (same scripted gesture, same fixture campus): mid-stroke long tasks 3 totalling **541 ms -> 0**;
+  worst frame **198.5 ms -> 67.4 ms**; after mouseup the settle is exactly ONE long task - the single
+  committed DEM reload.
+- Agreed rulings for the rest: build order is 2 neutral colours + contour lines -> 3 Shift+Z height editing
+  -> 4 zoom limits / road styling / boundary persistence; "ground adapts to buildings" (cut-and-fill) is
+  REJECTED for section 3; point 6 is settled as keyboard tool switching; the BP-344 ramp limit is deferred.
+- Next: the owner's go for section 2. Nothing pushed - everything stays on `feat/terrain-2.5d`.
 
 The owner tried the workspace live (demo on port 3119) and gave this feedback. Treat it as the brief; it is
-**not yet approved as a design**.
+**not yet approved as a design** (section 1 has since been approved and built - see the update above).
 
 **Owner said:**
 1. **Buildings must make the terrain adapt.** Select a building in the terrain editor, tilt into 2.5D/3D, press
@@ -76,12 +94,13 @@ The owner tried the workspace live (demo on port 3119) and gave this feedback. T
 **Waiting on the owner:** what point 6 means: (a) keyboard shortcuts to switch tools, (b) no Move tool at all
 (pan/tilt any time, even with a brush active), or (c) something else.
 
-**Next steps for this redesign:**
-1. Get the owner's answer to point 6 and confirmation of the assumptions above.
-2. Measure the sculpting lag before designing a fix (stroke → working tiles → DEM protocol → tile reload; see
-   `useTerrainStroke.ts`, `src/lib/terrain/dem-protocol.ts`, `use-terrain-sampler.ts`).
-3. Present the design in sections, write it as a spec under `docs/superpowers/specs/`, get owner approval, then
-   superpowers:writing-plans, then build.
+**Next steps for this redesign (updated 2026-11-04; 1-2 of the original list are done):**
+1. Point 6 answered (keyboard tool switching) and the assumptions above were superseded by the owner's
+   section-by-section approval.
+2. Sculpting lag was measured and fixed by section 1 (mid-stroke long tasks 541 ms -> 0; one DEM commit at
+   stroke end).
+3. Section 1 is built and verified (see the status update above). Remaining: the owner's go for section 2,
+   then sections 3 and 4 in the agreed build order, each with its own spec/plan under `docs/superpowers/`.
 
 ## Not done
 

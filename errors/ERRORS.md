@@ -3312,3 +3312,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: re-run the full gate solo and commit on the green run.
 - **Prevention**: treat map-hit-surface tests as load-sensitive: when a next dev is live, run the vitest and tsc gates sequentially, not as a background pair.
 - **Related tasks**: Section 1 T6 commit (browser probe spec)
+
+
+## 2026-11-04: removing a worktree whose node_modules is a junction would delete the main worktree's node_modules
+- **Error**: n/a - caught before damage (prevention-first entry); git worktree remove --force on navi-t6-before would have walked its node_modules junction, which pointed at navi-save-v2/node_modules.
+- **Cause**: the throwaway probe worktree was created with node_modules as an NTFS junction to the main worktree; git worktree only understands plain files and directories.
+- **Fix**: cmd /c rmdir on the junction removes the link only (target untouched), then git worktree remove --force is safe.
+- **Prevention**: before ANY Worktree removal, check (Get-Item <wt>\\node_modules).LinkType - if Junction/SymbolicLink, rmdir the link first, and verify the main worktree's node_modules is intact afterwards.
+- **Related tasks**: T7 close-out (throwaway worktree removal)

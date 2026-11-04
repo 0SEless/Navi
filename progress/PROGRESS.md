@@ -3175,3 +3175,11 @@
 ## 2026-11-04 (session) - Section 1 T6 gates for the commit
 - tsc gate: 1122 / baseline 1122 / clean folders 0. Vitest baseline compare: first run flaked one baseline test under concurrent load (demo next dev live + tsc gate in parallel) - solo re-run green: baseline passed 6269 / current passed 6820 / retired 0 / regressed 0. Flake journaled in ERRORS.md.
 - Committing: e2e/save-v2/terrain.spec.ts (T6 probe) + ledgers.
+
+
+## 2026-11-04 (session) - Section 1 T7 close-out
+- T6 committed as e883cfc. Whole save-v2 lane probe (26 tests: parity 12 + save-behaviour 8 + terrain 6 incl. T6): 26 passed in 12.7 m, exit 0 - the plan's "25/25" is met and exceeded. Demo lane announced-down for the probe; :3000 and Dev Supabase untouched.
+- Final gates for the close-out commit (sequential, per the flake lesson): vitest compare baseline 6269 / current passed 6820 / retired 0 / regressed 0; tsc 1122 / baseline 1122 / clean folders 0.
+- Handoff doc In-progress entry rewritten: section 1 approved + built with commit list, acceptance and timing numbers, agreed rulings, next = the owner's go for section 2.
+- Demo lane restored at 127.0.0.1:3119 with a fresh campus demo-96bf1517 (this worktree's current build). Throwaway worktree navi-t6-before removed junction-first (lesson in ERRORS.md).
+- Pending: close-out commit (handoff doc + ledgers). Nothing pushed - feat/terrain-2.5d stays local.
