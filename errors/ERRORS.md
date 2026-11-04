@@ -3328,3 +3328,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: for mid-stroke claims, assert contract invariants (documentVersion stability, zero DEM sourcedata) as the T6/T7 probes do; treat time-window long-task classification as settle-size evidence only.
 - **Prevention**: never claim "zero work in phase X" from wall-clock classification alone when the phase boundary is set from outside the page.
 - **Related tasks**: Section 2 T1 (contour timing), Section 1 T6 (probe design)
+
+
+## 2026-11-04: T7 probe flaked once under full-lane load - stroke during the lock-acquire window
+- **Error**: the first whole-lane run of the new T7 probe failed at `mid.top > 0` with -1 (no terrain-preview layer on either map mid-stroke); T7 then passed solo and in a full instrumented re-run (27 passed, 13.9m).
+- **Cause**: T7 stroked without waiting for the terrain lock. `useTerrainLock` starts 'acquiring' and only enables painting (`editing`) after `client.ensure(['terrain'])` resolves; a mousedown while still acquiring is silently ignored by the stroke hook (no error, no paint), while the brush outline still draws because `outline()` is not gated on `enabled`. T6 never hits this because its Alt+click pick asserts an enabled-gated effect first.
+- **Fix**: expose `editing` as `window.__naviTerrainEditing` via the existing probe-hook flag (`exposeTerrainEditingForProbe` in test-hooks.ts, wired in TerrainWorkspaceRoute), and T7 waits for it before painting.
+- **Prevention**: a browser-probe action that depends on editability must gate on it explicitly; a probe failure that passes solo AND in a re-run is a load flake - identify the ungated window instead of re-running until green.
+- **Related tasks**: Section 2 T3, Section 1 T6 (OutdoorRoutePicker load-flake lesson)

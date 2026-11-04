@@ -3197,3 +3197,11 @@
 - GREEN after the flip: route default view 'contours' + DEFAULT_LAYERS.contours = true. Route file 3/3; terrain neighbourhood 24 files / 154 tests green; scoped eslint 0.
 - Gates (sequential, demo lane up): vitest compare baseline 6269 / current passed 6821 / retired 0 / regressed 0; tsc 1122 / baseline 1122 / clean folders 0.
 - Committing: the two defaults + the route test + the Section 2 spec and plan docs + ledgers. Next: T3 browser probe (T7 test + T1 expectation updates).
+
+
+## 2026-11-04 (session) - Section 2 T3 (browser probe) - T7 written, one flake diagnosed and gated
+- T7 added: opens neutral on both maps (contour layer present, no relief), Heights is one click away (relief + overlay, lines persist), short stroke re-pins the Section 1 invariants (zero version bumps, zero DEM sourcedata mid-stroke, one undo to 0 tiles). T1 expectations updated to the new default (screenshot t1-open.png; post-Heights asserts relief + overlay + loaded on both maps).
+- First whole-lane run: 26 passed, T7 failed (mid.top -1). Investigation: demo-lane diagnostic with the same flow PASSED (styleLoaded true at every step, preview 9360 vertices mid-stroke); instrumented T7 solo PASSED (14580 vertices, versions constant, dem 0/0); instrumented whole-lane re-run PASSED (27/27, 13.9m). Mechanism: stroke during the lock-acquire window is silently ignored (full entry in ERRORS.md).
+- Fix: `exposeTerrainEditingForProbe` test hook + T7 waits for `__naviTerrainEditing === true` before painting; temporary diagnostics removed.
+- Verified: solo T7 green with the gate (probe-s2t3-solo2.log); whole lane 27/27 with instrumentation (probe-s2t3-lane2.log); gates green on the commit content (compare-s2t3.log, tsc-s2t3.log).
+- Next: T4 close-out (whole lane + handoff doc pointing at section 3).

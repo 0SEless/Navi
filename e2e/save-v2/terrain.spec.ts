@@ -51,13 +51,14 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
   expect(range!.minM).toBeCloseTo(1.8, 0)
   expect(range!.maxM).toBeCloseTo(35.5, 0)
   await ana.page.waitForTimeout(4000)
-  await ana.page.screenshot({ path: path.join(SHOTS, 't1-heights.png') })
+  await ana.page.screenshot({ path: path.join(SHOTS, 't1-open.png') })
+  // Section 2 default: the workspace opens neutral — contour lines, no colour ramp.
   const maps = await ana.page.evaluate(() => {
     const all = (window as unknown as { __naviTerrainMaps?: Record<string, { getTerrain(): unknown; getLayer(id: string): unknown; isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps ?? {}
-    return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { terrain: m.getTerrain(), relief: Boolean(m.getLayer('terrain-relief')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
+    return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { terrain: m.getTerrain(), relief: Boolean(m.getLayer('terrain-relief')), contours: Boolean(m.getLayer('terrain-contours')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
   })
-  expect(maps.top).toEqual({ terrain: null, relief: true, loaded: true })
-  expect(maps['3d']).toMatchObject({ terrain: { source: 'terrain-dem', exaggeration: 1 }, relief: true })
+  expect(maps.top).toMatchObject({ terrain: null, relief: false, contours: true })
+  expect(maps['3d']).toMatchObject({ terrain: { source: 'terrain-dem', exaggeration: 1 }, relief: false, contours: true })
 
   await ana.page.getByRole('button', { name: 'Contours' }).click()
   await ana.page.waitForTimeout(3000)
@@ -68,6 +69,12 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
   await ana.page.getByLabel('Height exaggeration').fill('3')
   await ana.page.waitForTimeout(4000)
   await ana.page.screenshot({ path: path.join(SHOTS, 't1-3d.png') })
+  // Colours are one click away on every map, and the contour lines persist over them (section 2).
+  const heights = await ana.page.evaluate(() => {
+    const all = (window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown; isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps ?? {}
+    return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { relief: Boolean(m.getLayer('terrain-relief')), overlay: Boolean(m.getLayer('terrain-contour-overlay')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
+  })
+  for (const m of Object.values(heights)) expect(m).toMatchObject({ relief: true, overlay: true, loaded: true })
 
   expect(ana.blocked).toEqual([])
   await ana.context.close()
@@ -487,6 +494,133 @@ test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or vers
   await ana.page.mouse.click(cx, cy)
   await ana.page.keyboard.up('Alt')
   await expect(ana.page.getByLabel('Target height')).toHaveValue(/^0(\.0+)?$/)
+
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
+
+test('T7 — the neutral default: opens on contours with the lines on both maps, no colour ramp; heights is one click away', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayDocument)
+  await ana.page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(ana.page)
+  await ana.page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
+  await ana.page.getByRole('button', { name: 'Start flat' }).click()
+  await ana.page.getByLabel('Reference name').fill('Probe flat')
+  await ana.page.getByLabel('0 m means').fill('Mean sea level')
+  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
+  await ana.page.waitForTimeout(2500)
+
+  const layerState = () => ana.page.evaluate(() => {
+    const maps = (window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown; getTerrain(): unknown }> }).__naviTerrainMaps ?? {}
+    return Object.fromEntries(Object.entries(maps).map(([role, m]) => [role, {
+      contours: Boolean(m.getLayer('terrain-contours')),
+      overlay: Boolean(m.getLayer('terrain-contour-overlay')),
+      relief: Boolean(m.getLayer('terrain-relief')),
+      terrain: m.getTerrain(),
+    }]))
+  })
+
+  // The opening look is neutral on both maps: contour lines, no colour ramp.
+  const opened = await layerState()
+  expect(opened.top).toMatchObject({ contours: true, overlay: false, relief: false })
+  expect(opened['3d']).toMatchObject({ contours: true, overlay: false, relief: false, terrain: { source: 'terrain-dem', exaggeration: 1 } })
+  await expect(ana.page.getByRole('button', { name: 'Contours' })).toHaveAttribute('aria-pressed', 'true')
+  await ana.page.screenshot({ path: path.join(SHOTS, 't7-default-open.png') })
+
+  // Heights is one click away: the colour ramp returns and the contour lines persist over it.
+  await ana.page.getByRole('button', { name: 'Heights' }).click()
+  await ana.page.waitForTimeout(1500)
+  const heights = await layerState()
+  expect(heights.top).toMatchObject({ contours: false, overlay: true, relief: true })
+  expect(heights['3d']).toMatchObject({ contours: false, overlay: true, relief: true })
+  await ana.page.screenshot({ path: path.join(SHOTS, 't7-heights.png') })
+
+  // Back to the default look; with the lines on by default, the Section 1 stroke invariants hold:
+  // zero version bumps and zero DEM sourcedata mid-stroke, one undo at the end.
+  await ana.page.getByRole('button', { name: 'Contours' }).click()
+  await ana.page.waitForTimeout(1000)
+
+  await ana.page.evaluate(() => {
+    const w = window as unknown as {
+      __demById: Record<string, { events: number }>
+      __versions: number[]
+      __versionPoll?: number
+      __naviTerrainMaps: Record<string, any>
+      __naviStudioV2: { context: { document: { version: number } } }
+    }
+    w.__demById = {}
+    for (const role of Object.keys(w.__naviTerrainMaps)) {
+      const bucket = (w.__demById[role] = { events: 0 })
+      w.__naviTerrainMaps[role].on('sourcedata', (e: { sourceId?: string }) => {
+        if (String(e.sourceId ?? '').includes('dem')) bucket.events++
+      })
+    }
+    w.__versions = [w.__naviStudioV2.context.document.version]
+    w.__versionPoll = window.setInterval(() => w.__versions.push(w.__naviStudioV2.context.document.version), 30)
+  })
+
+  await ana.page.getByRole('button', { name: 'Raise / Lower' }).click()
+  await ana.page.getByLabel('Brush size').fill('30')
+  await ana.page.getByLabel('Brush strength').fill('100')
+
+  // The terrain lock is acquired asynchronously; a stroke while still acquiring is silently
+  // ignored (T7 flaked once under full-lane load exactly here). Wait until painting is enabled.
+  await ana.page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+
+  const box = (await ana.page.locator('[data-terrain-map="top"]').boundingBox())!
+  const cx = box.x + box.width * 0.5
+  const cy = box.y + box.height * 0.5
+  await ana.page.mouse.move(cx - box.width * 0.15, cy)
+  await ana.page.mouse.down()
+  for (let i = 0; i <= 12; i++) await ana.page.mouse.move(cx - box.width * 0.15 + i * 8, cy + (i % 2 ? 4 : -4), { steps: 2 })
+  await ana.page.waitForTimeout(800)
+  await ana.page.screenshot({ path: path.join(SHOTS, 't7-stroke.png') })
+
+  const mid = await ana.page.evaluate(() => {
+    const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
+    const vertices = (role: string) => {
+      const layer = maps[role].getLayer('terrain-preview') as any
+      if (!layer) return -1
+      const impl = layer.implementation ?? layer
+      return typeof impl.vertexCount === 'function' ? impl.vertexCount() : -1
+    }
+    return {
+      top: vertices('top'),
+      mini: vertices('3d'),
+      versions: [...(window as any).__versions],
+      dem: Object.fromEntries(Object.entries((window as any).__demById).map(([k, v]) => [k, (v as { events: number }).events])),
+    }
+  })
+  expect(mid.top).toBeGreaterThan(0)
+  expect(mid.mini).toBeGreaterThan(0)
+  expect(new Set(mid.versions).size).toBe(1)
+  expect(mid.dem.top).toBe(0)
+  expect(mid.dem['3d']).toBe(0)
+
+  await ana.page.mouse.up()
+  await ana.page.waitForFunction(() => {
+    const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
+    return Object.values(maps).every((m) => {
+      const layer = (m.getLayer('terrain-preview') as any) ?? null
+      if (!layer) return true
+      const impl = layer.implementation ?? layer
+      return typeof impl.vertexCount !== 'function' || (impl.vertexCount() ?? 0) === 0
+    })
+  }, undefined, { timeout: 20_000 })
+  const after = await ana.page.evaluate(() => {
+    const w = window as unknown as { __demById: Record<string, { events: number }>; __versionPoll?: number }
+    if (w.__versionPoll) window.clearInterval(w.__versionPoll)
+    return Object.fromEntries(Object.entries(w.__demById).map(([k, v]) => [k, (v as { events: number }).events]))
+  })
+  expect(after.top).toBeGreaterThan(0)
+
+  const tilesAfter = () => ana.page.evaluate(() => Object.keys((window as unknown as { __naviStudioV2?: { context: { document: Record<string, any> } } }).__naviStudioV2!.context.document.terrainTiles ?? {}).length)
+  expect(await tilesAfter()).toBeGreaterThan(0)
+  await ana.page.keyboard.press('Control+z')
+  expect(await tilesAfter()).toBe(0)
 
   expect(ana.blocked).toEqual([])
   await ana.context.close()

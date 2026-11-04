@@ -6,6 +6,7 @@ import type { BrushSettings, TileId } from '@navi/core'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
+import { exposeTerrainEditingForProbe } from '@/studio-v2/client/test-hooks'
 import { useEnsureZone, ZoneProvider } from '@/components/studio/v2/ZoneProvider'
 import { useExplicitSave, useSaveShortcut, useStudioSession } from '@/components/studio/v2/useStudioSession'
 import { TerrainWorkspace, type SaveResult } from './TerrainWorkspace'
@@ -96,6 +97,8 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   }, [lock.status, services, document.terrain?.grid, document.buildings, ensureZone])
 
   const editing = lock.status === 'held' && Boolean(document.terrain)
+  // Browser probes wait for this before painting: a stroke while the lock is still acquiring is ignored.
+  useEffect(() => exposeTerrainEditingForProbe(editing), [editing])
   const strokeOptions = {
     document, sampler, tool, settings, enabled: editing, dispatch,
     // The clay preview: start/dab live on the stroke's working tiles, the end hands off to the

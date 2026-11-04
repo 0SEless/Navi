@@ -31,3 +31,14 @@ export function exposeTerrainMapForProbe(role: string, map: unknown): () => void
     if (maps[role] === map) delete maps[role]
   }
 }
+
+/** Browser-probe hook for the terrain workspace: whether painting is enabled (lock held + terrain). */
+export function exposeTerrainEditingForProbe(editing: boolean): () => void {
+  if (process.env.NEXT_PUBLIC_NAVI_SAVE_V2_TEST_HOOKS !== '1' || process.env.NODE_ENV === 'production') return () => {}
+  if (typeof window === 'undefined') return () => {}
+  const target = window as Window & { __naviTerrainEditing?: boolean }
+  target.__naviTerrainEditing = editing
+  return () => {
+    if (target.__naviTerrainEditing === editing) delete target.__naviTerrainEditing
+  }
+}
