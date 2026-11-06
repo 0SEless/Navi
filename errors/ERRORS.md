@@ -3336,3 +3336,19 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: expose `editing` as `window.__naviTerrainEditing` via the existing probe-hook flag (`exposeTerrainEditingForProbe` in test-hooks.ts, wired in TerrainWorkspaceRoute), and T7 waits for it before painting.
 - **Prevention**: a browser-probe action that depends on editability must gate on it explicitly; a probe failure that passes solo AND in a re-run is a load flake - identify the ungated window instead of re-running until green.
 - **Related tasks**: Section 2 T3, Section 1 T6 (OutdoorRoutePicker load-flake lesson)
+
+
+## 2026-11-06: tsc gate false pass - a torn `.next/dev/types/routes.d.ts` hid 1116 errors
+- **Error**: the section 2 close-out tsc gate printed "tsc errors: 6 / baseline 1122 / clean folders 0" and PASSED; all 6 errors were syntax errors in `.next/dev/types/routes.d.ts`.
+- **Cause**: the generated file held interleaved duplicate fragments (two `next dev` writers, or a writer killed mid-write when the 3119 demo lane stopped at the session restart). A syntax error in an included file stops tsc before type checking, so the count collapses and the "<= baseline" rule passes.
+- **Fix**: deleted the git-ignored generated file; the next `next dev` (probe lane) regenerated it; the re-run gate is back to 1122 / 1122 / 0.
+- **Prevention**: treat a tsc count far BELOW the baseline as a failure to investigate, not a pass; read `reports/save-v2/raw/tsc-last-run.txt` when the number moves by more than a handful.
+- **Related tasks**: Section 2 T4 close-out
+
+
+## 2026-11-06: local probe DB refused the postgres password (file unchanged since 2026-10-31)
+- **Error**: `node e2e/save-v2/run.mjs` failed at once in db-reset: password authentication failed for user "postgres".
+- **Cause**: unknown - the role's password inside `navi-savev2-pg` no longer matched `%LOCALAPPDATA%\navi-savev2\pg-password.txt` (same container, same file since 2026-10-31); something changed the role password in between.
+- **Fix**: reset the role password from the container's own mounted secret (`ALTER ROLE postgres PASSWORD :'pw'` with `pw` read from /run/secrets/pg_password, nothing printed); connect + marker assertion OK; probe 27/27.
+- **Prevention**: never ALTER the postgres role of the probe DB by hand; if auth fails, restore it from the mounted secret as above (disposable synthetic DB only - never the protected Dev Supabase).
+- **Related tasks**: Section 2 T4 close-out

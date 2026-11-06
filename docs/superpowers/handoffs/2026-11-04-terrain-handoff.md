@@ -46,7 +46,15 @@ it before continuing the plan's Tasks 15–16.
 Last full check (Task 14): vitest gate 0 regressions, tsc gate 1122 (= baseline) with 0 in clean folders,
 browser probe 25/25.
 
-## In progress: UI/UX redesign (section 1 approved and built; sections 2-4 await the owner's go)
+## In progress: UI/UX redesign (sections 1-2 built; minimap removal next, then sections 3-4)
+
+**2026-11-06 status update (newest):** section 2 (neutral colours + contour lines) is closed out: the
+workspace opens on the Contours view with contour lines on, Heights/Changes stay one click away; whole-lane
+probe 27/27, gates green. Spec + plan: `docs/superpowers/specs|plans/2026-11-04-navi-terrain-redesign-section-2-neutral-colours-contours.md`.
+**Owner decision (2026-11-06): remove the mini 3D window** ("we can just tilt the map as we edit"); this
+comes next, before section 3 (Shift+Z height editing for buildings and stair ends; cut-and-fill rejected),
+then section 4 (zoom limits, road styling, boundary always visible), then the plan's Tasks 15-16.
+
 
 **2026-11-04 status update (read this first; the blocks below are the history):** the owner approved
 section 1 only - the "clay-feel paint preview" - and it is built and verified:

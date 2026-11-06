@@ -3205,3 +3205,9 @@
 - Fix: `exposeTerrainEditingForProbe` test hook + T7 waits for `__naviTerrainEditing === true` before painting; temporary diagnostics removed.
 - Verified: solo T7 green with the gate (probe-s2t3-solo2.log); whole lane 27/27 with instrumentation (probe-s2t3-lane2.log); gates green on the commit content (compare-s2t3.log, tsc-s2t3.log).
 - Next: T4 close-out (whole lane + handoff doc pointing at section 3).
+
+
+## 2026-11-06 (session) - Section 2 T4 close-out
+- Whole-lane probe 27/27 (14.6 m, exit 0) on the exact commit content; vitest compare baseline 6269 / current passed 6821 / retired 0 / regressed 0; tsc 1122 / baseline 1122 / clean folders 0 (after removing a torn generated routes.d.ts that had produced a false "6 errors" pass - ERRORS.md).
+- Local probe DB postgres password restored from its mounted secret (ERRORS.md); Dev Supabase and :3000 untouched; the 3119 demo lane was already down.
+- Section 2 is complete (T1 measured, T2 defaults flip, T3 probe, T4 close-out). Owner decision 2026-11-06: remove the mini 3D window (tilt the main map instead) - next, before section 3.
