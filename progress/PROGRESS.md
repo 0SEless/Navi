@@ -3244,3 +3244,12 @@
 - Ruling: the Shift+Z handler reads the selection through a useLayoutEffect-synced ref (a fast key press after a click saw no selection once).
 - Gates: vitest regressed 0 (current passed 6842); tsc 1122/1122/0. Whole lane 28/28.
 - Owner answered the stair question: "Offset, keeps following" - next: stair ends.
+
+
+## 2026-11-07 (session) - Section 3 stairs + close-out
+- Owner: "Offset, keeps following". Core `Structure.heightOffset` {start,end}: a ground/road end sits offset above/below its surface and follows it; heightOverride still wins (2 core tests RED -> GREEN). Re-attaching an end clears override AND offset (withoutEndHeight; StructureTool test RED -> GREEN).
+- HeightEditMode: one DragSession model for buildings and stairs; stair = nearest end on screen; ground/road end -> offset (clears a typed height), slab end -> stepFloor; free part, no lock. 3 stair tests RED -> GREEN. StructurePanel offset row + Back to ground; StructureTool onSelect + showHandles (dots hidden in height mode). Tests RED -> GREEN.
+- Browser T9: Shift+Z on a stair -> side view, no dots; ground end offset > 0 and still kind ground; floor end steps to Floor 3; undo; Back to ground; Esc returns.
+- Gates: vitest regressed 0 (current passed 6851); tsc 1122/1122/0. Whole lane 29/29. Section 3 complete.
+- Follow-ups (owner to prioritise): side-view framing (object sits small and high on screen); cursor height label reads 0.0 m when the pointer is over a building/sky in tilted views.
+

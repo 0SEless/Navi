@@ -235,3 +235,30 @@ describe('structureTopAt for ramps', () => {
   })
 })
 
+describe('stair end offsets (Shift+Z, owner 2026-11-07: "offset, keeps following")', () => {
+  const stairOn = (base: number, extra: Record<string, unknown> = {}) => {
+    const d = doc({ terrain: terrainOf(planeBase(base, 0)) })
+    const structure = {
+      id: 's', form: 'stairs', presetId: 'p', width: 2, underneath: 'open', railings: 'both',
+      start: { kind: 'ground', position: ll(0, 0) }, end: { kind: 'road', roadId: 'r', position: ll(10, 0) }, ...extra,
+    }
+    return { d, structure }
+  }
+
+  it('a ground or road end sits its offset above the surface and keeps following it', async () => {
+    const { resolveStructureEnds } = await import('../compose')
+    for (const ground of [2, 7]) {
+      const { d, structure } = stairOn(ground, { heightOffset: { start: 0.3, end: -0.2 } })
+      const r = resolveStructureEnds(d, createTerrainSampler(d)!, structure as never)!
+      expect(r.start.h).toBeCloseTo(ground + 0.3, 6)
+      expect(r.end.h).toBeCloseTo(ground - 0.2, 6)
+    }
+  })
+
+  it('a typed height (heightOverride) still wins over the offset', async () => {
+    const { resolveStructureEnds } = await import('../compose')
+    const { d, structure } = stairOn(2, { heightOffset: { start: 0.3 }, heightOverride: { start: 9 } })
+    expect(resolveStructureEnds(d, createTerrainSampler(d)!, structure as never)!.start.h).toBeCloseTo(9, 6)
+  })
+})
+

@@ -29,6 +29,11 @@ export interface Structure {
   landings?: number[]
   /** Metres; absent = from the attachment. */
   heightOverride?: { start?: number; end?: number }
+  /**
+   * Metres above (+) or below (−) the ground or road a ground/road end sits on (Shift+Z); the end keeps
+   * following that surface. Slab ends ignore it (they step floor to floor). A typed heightOverride wins.
+   */
+  heightOffset?: { start?: number; end?: number }
 }
 
 export interface StructureMaterial {

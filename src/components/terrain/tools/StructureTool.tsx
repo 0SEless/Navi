@@ -16,14 +16,25 @@ function newStructureId(): string {
  * The Stairs tool: click an empty spot to place a 3 m block on the ground, click a stair to select it,
  * then stretch its ends with the handles. Stairs are free parts (no lock).
  */
-export function StructureTool({ document, sampler, map, active, dispatch }: {
+export function StructureTool({ document, sampler, map, active, dispatch, onSelect, showHandles = true }: {
   document: CampusDocument
   sampler: TerrainSampler | null
   map: maplibregl.Map | null
   active: boolean
   dispatch: (command: Command) => MutationResult | undefined
+  /** The selected stair (Shift+Z edits it). */
+  onSelect?: (structureId: string | null) => void
+  /** Off while Shift+Z height mode is on, so its drag gets the mouse. */
+  showHandles?: boolean
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const onSelectRef = useRef(onSelect)
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  })
+  useEffect(() => {
+    onSelectRef.current?.(selectedId)
+  }, [selectedId])
   const latest = useRef({ document, sampler, dispatch })
   latest.current = { document, sampler, dispatch }
 
@@ -55,7 +66,7 @@ export function StructureTool({ document, sampler, map, active, dispatch }: {
   const resolved = selected && sampler ? resolveStructureEnds(document, sampler, selected) : null
   return (
     <>
-      {map && sampler && selected && resolved && (
+      {map && sampler && selected && resolved && showHandles && (
         <StructureHandles map={map} document={document} sampler={sampler} structure={selected} resolved={resolved} dispatch={dispatch} />
       )}
       <StructurePanel document={document} structure={selected} resolved={resolved} dispatch={dispatch} onDeleted={() => setSelectedId(null)} />

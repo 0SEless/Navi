@@ -66,11 +66,24 @@ export function addLanding(structure: Structure, resolved: ResolvedStructure): n
   return [...landings, (best[0] + best[1]) / 2 / length].sort((a, b) => a - b)
 }
 
+/** The stair with one end's typed height and Shift+Z offset cleared (the new attachment decides). */
+export function withoutEndHeight(structure: Structure, which: 'start' | 'end'): Structure {
+  const next: Structure = { ...structure }
+  for (const key of ['heightOverride', 'heightOffset'] as const) {
+    const heights = structure[key]
+    if (heights?.[which] === undefined) continue
+    const { [which]: _dropped, ...rest } = heights
+    if (Object.keys(rest).length > 0) next[key] = rest
+    else delete next[key]
+  }
+  return next
+}
+
 export type StructureHandle = 'start' | 'end' | 'bend' | 'flight-start' | 'flight-end' | `landing-${number}`
 
 /**
  * The stair after dropping a handle. `end` is the snapped attachment for start/end; `at` is the ground
- * point under the pointer for the bend and flight markers. Re-attaching an end drops its typed height.
+ * point under the pointer for the bend and flight markers. Re-attaching an end drops its typed height and offset.
  */
 export function dropHandle(
   structure: Structure,
@@ -80,13 +93,7 @@ export function dropHandle(
   drop: { end?: StructureEnd; at: LatLng },
 ): Structure {
   if (handle === 'start' || handle === 'end') {
-    const next: Structure = { ...structure, [handle]: drop.end ?? { kind: 'ground', position: drop.at } }
-    if (structure.heightOverride?.[handle] !== undefined) {
-      const { [handle]: _dropped, ...rest } = structure.heightOverride
-      if (Object.keys(rest).length > 0) next.heightOverride = rest
-      else delete next.heightOverride
-    }
-    return next
+    return withoutEndHeight({ ...structure, [handle]: drop.end ?? { kind: 'ground', position: drop.at } }, handle)
   }
   const q = toLocal(grid, drop.at)
   if (handle === 'bend') {

@@ -251,11 +251,12 @@ export interface ResolvedStructure {
 /**
  * Where a structure's ends are and how high: a slab end sits on its building's outline edge at
  * base + floor elevation; road and ground ends take the final ground height there (structures read
- * the ground, never road surfaces, so road ↔ structure heights cannot loop). heightOverride wins.
+ * the ground, never road surfaces, so road ↔ structure heights cannot loop), plus their heightOffset.
+ * heightOverride wins.
  */
 export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSampler, structure: Structure): ResolvedStructure | null {
   const grid = sampler.grid
-  const endOf = (end: Structure['start'], override: number | undefined): { x: number; y: number; h: number; orphan: boolean } | null => {
+  const endOf = (end: Structure['start'], override: number | undefined, offset?: number): { x: number; y: number; h: number; orphan: boolean } | null => {
     if (end.kind === 'slab') {
       const building = doc.buildings.find((b) => b.id === end.buildingId)
       const floor = building?.floors.find((f) => f.id === end.floorId)
@@ -273,10 +274,10 @@ export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSample
       return { x, y, h, orphan: false }
     }
     const p = toLocal(grid, end.position)
-    return { x: p.x, y: p.y, h: override ?? sampler.heightAt(p.x, p.y), orphan: false }
+    return { x: p.x, y: p.y, h: override ?? sampler.heightAt(p.x, p.y) + (offset ?? 0), orphan: false }
   }
-  const start = endOf(structure.start, structure.heightOverride?.start)
-  const end = endOf(structure.end, structure.heightOverride?.end)
+  const start = endOf(structure.start, structure.heightOverride?.start, structure.heightOffset?.start)
+  const end = endOf(structure.end, structure.heightOverride?.end, structure.heightOffset?.end)
   if (!start || !end) return null
   return {
     start: { x: start.x, y: start.y, h: start.h },

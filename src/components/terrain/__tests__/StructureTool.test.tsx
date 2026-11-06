@@ -85,6 +85,41 @@ describe('Stairs tool', () => {
     expect((command.payload.structure as Structure).start).toEqual(stair.start)
   })
 
+  it('the panel shows a Shift+Z offset and Back to ground clears it (one command)', () => {
+    const { dispatch } = setup(doc([{ ...stair, heightOffset: { end: 0.4 } }]))
+    expect(screen.getByText('End +0.4 m above the ground')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to ground' }))
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    const next = dispatch.mock.calls[0][0].payload.structure as Structure
+    expect(next.heightOffset).toBeUndefined()
+  })
+
+  it('no drag dots while Shift+Z height mode is on (the height drag gets the mouse)', () => {
+    const map = fakeMap()
+    const d = doc([stair])
+    render(<StructureTool document={d} sampler={createTerrainSampler(d)} map={map as never} active showHandles={false} dispatch={vi.fn(() => ({ success: true }))} />)
+    act(() => map.fire('click', { lngLat: ll(25, -10) }))
+    expect(screen.queryByLabelText('Stair end')).toBeNull()
+    expect(screen.getByLabelText('Stair settings')).toBeDefined()
+  })
+
+  it('reports the selected stair (for Shift+Z)', () => {
+    const map = fakeMap()
+    const d = doc([stair])
+    const onSelect = vi.fn()
+    render(<StructureTool document={d} sampler={createTerrainSampler(d)} map={map as never} active dispatch={vi.fn(() => ({ success: true }))} onSelect={onSelect} />)
+    act(() => map.fire('click', { lngLat: ll(25, -10) }))
+    expect(onSelect).toHaveBeenLastCalledWith('s1')
+  })
+
+  it('re-attaching an end clears its Shift+Z offset (the new surface decides)', () => {
+    const { dispatch } = setup(doc([{ ...stair, heightOffset: { end: 0.4, start: 0.2 } }]))
+    drag(screen.getByLabelText('Stair end'), [[36, 9], [45, 20], [55, 40], [60, 45]])
+    const next = dispatch.mock.calls[0][0].payload.structure as Structure
+    expect(next.end).toMatchObject({ kind: 'road' })
+    expect(next.heightOffset).toEqual({ start: 0.2 })
+  })
+
   it('a press without moving changes nothing', () => {
     const { dispatch } = setup(doc([stair]))
     drag(screen.getByLabelText('Stair end'), [[36, 9], [36, 9]])

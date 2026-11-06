@@ -706,3 +706,77 @@ test('T8 — Shift+Z height mode: side view, drag a building down and the ground
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+test('T9 — Shift+Z on a stair: the ground end gets an offset and keeps following the ground; the floor end steps floors', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayThreeFloors)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+
+  // A stair from the hall's Floor 2 (south edge) down to the ground 22 m south.
+  const START: [number, number] = [122.1705, 11.8172]
+  const END: [number, number] = [122.1705, 11.8170]
+  await page.evaluate(([s, e]) => {
+    const r = (window as ProbeWindow).__naviStudioV2!.context.services.get('dispatcher').execute({ id: 'structure.create', label: 'Add stair', payload: { structure: {
+      id: 'probe-stair', form: 'stairs', presetId: 'plain-stair', width: 2, underneath: 'open', railings: 'both',
+      start: { kind: 'slab', buildingId: 'bld-hall', floorId: 'bld-hall-floor-2', edgeIndex: 0, edgeT: 0.5, last: { lat: s[1], lng: s[0], heightM: 0 } },
+      end: { kind: 'ground', position: { lat: e[1], lng: e[0] } },
+    } } })
+    if (r && r.success === false) throw new Error(r.error)
+  }, [START, END])
+  await page.waitForTimeout(1500)
+
+  const top = terrainMap(page, 'top')
+  const box = (await page.locator('[data-terrain-map]').boundingBox())!
+  const screenOf = async (p: [number, number]) => {
+    const q = await top.run<{ x: number; y: number }>(`map.project([${p[0]}, ${p[1]}])`)
+    return { x: box.x + q.x, y: box.y + q.y }
+  }
+  const drag = async (from: { x: number; y: number }, dy: number) => {
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x, from.y + dy, { steps: 10 })
+    await page.mouse.up()
+  }
+
+  // Select the stair with the Stairs tool, then Shift+Z: the side view, and no drag dots in the way.
+  await page.getByRole('button', { name: 'Stairs' }).click()
+  const middle = await screenOf([122.1705, 11.8171])
+  await page.mouse.click(middle.x, middle.y)
+  await expect(page.getByLabel('Stair settings').getByLabel('Preset')).toHaveValue('plain-stair')
+  await page.keyboard.press('Shift+Z')
+  await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeGreaterThan(60)
+  await expect(page.getByLabel('Stair end')).toHaveCount(0)
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: path.join(SHOTS, 't9-stair-side-view.png') })
+
+  // The ground end: an offset above the ground; it is still attached to the ground (keeps following it).
+  await drag(await screenOf(END), -12)
+  await expect.poll(() => doc<number | undefined>('doc.structures[0].heightOffset?.end')).toBeGreaterThan(0)
+  expect(await doc<string>('doc.structures[0].end.kind')).toBe('ground')
+  await expect(page.getByLabel('Stair settings').getByRole('button', { name: 'Back to ground' })).toBeVisible()
+
+  // The floor end steps floor to floor: up a floor from Floor 2.
+  await drag(await screenOf(START), -60)
+  await expect.poll(() => doc<string>('doc.structures[0].start.floorId')).toBe('bld-hall-floor-3')
+  await page.screenshot({ path: path.join(SHOTS, 't9-stair-floor-3.png') })
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => doc<string>('doc.structures[0].start.floorId')).toBe('bld-hall-floor-2')
+
+  // Back to ground clears the offset; Esc leaves and the camera returns.
+  await page.getByLabel('Stair settings').getByRole('button', { name: 'Back to ground' }).click()
+  await expect.poll(() => doc<unknown>('doc.structures[0].heightOffset ?? null')).toBeNull()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeLessThan(5)
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})

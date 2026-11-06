@@ -50,6 +50,8 @@ export function TerrainTools(props: {
   const [tracing, setTracing] = useState<TracingImage | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)
+  const [selectedStairId, setSelectedStairId] = useState<string | null>(null)
+  const [heightMode, setHeightMode] = useState(false)
   const [importing, setImporting] = useState(false)
   const ensureZone = useEnsureZone()
   const toolRef = useRef(tool)
@@ -144,11 +146,13 @@ export function TerrainTools(props: {
       <CursorHeight map={mainMap} sampler={sampler} />
       <HeightEditMode
         map={mainMap} document={document} sampler={sampler} dispatch={dispatch}
-        target={tool === 'pad' && selectedBuildingId ? { kind: 'building', buildingId: selectedBuildingId } : null}
-        onDraft={(next) => props.onDraft?.(next)} onActive={(on) => props.onHeightActive?.(on)}
+        target={tool === 'pad' && selectedBuildingId
+          ? { kind: 'building', buildingId: selectedBuildingId }
+          : tool === 'stairs' && selectedStairId ? { kind: 'stair', structureId: selectedStairId } : null}
+        onDraft={(next) => props.onDraft?.(next)} onActive={(on) => { setHeightMode(on); props.onHeightActive?.(on) }}
         ensureBuildingLock={(buildingId) => ensureZone([`building:${encodeURIComponent(buildingId)}`])}
       />
-      <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} />
+      <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} onSelect={setSelectedStairId} showHandles={!heightMode} />
       {editing && (
         <button type="button" onClick={() => setImporting(true)} style={{ position: 'absolute', left: 140, top: 12, zIndex: 2, padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid var(--navi-border, #e5e7eb)', background: 'var(--navi-card, #fff)' }}>
           Import ground…

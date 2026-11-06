@@ -7,7 +7,7 @@ import {
 } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { presetFor } from '@/lib/terrain/structure-mesh'
-import { addLanding, rampReadout, stairReadout } from '@/lib/terrain/structure-edit'
+import { addLanding, rampReadout, stairReadout, withoutEndHeight } from '@/lib/terrain/structure-edit'
 
 const box: React.CSSProperties = {
   position: 'absolute', right: 12, top: 12, zIndex: 2, width: 260, display: 'flex', flexDirection: 'column', gap: 8, padding: 10, fontSize: 12,
@@ -70,6 +70,21 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
   const ramp = resolved ? rampReadout(structure, resolved) : null
   const rise = resolved ? resolved.end.h - resolved.start.h : 0
   const orphans = [resolved?.orphanStart ? 'start' : null, resolved?.orphanEnd ? 'end' : null].filter(Boolean)
+
+  /** A Shift+Z offset on a ground/road end: how far above/below its surface, and Back to ground. */
+  const offsetRow = (which: 'start' | 'end') => {
+    const offset = structure.heightOffset?.[which]
+    const end = structure[which]
+    if (offset === undefined || end.kind === 'slab') return null
+    const name = which === 'start' ? 'Start' : 'End'
+    const surface = end.kind === 'road' ? 'road' : 'ground'
+    return (
+      <div style={row}>
+        <span>{offset >= 0 ? `${name} +${offset.toFixed(1)} m above the ${surface}` : `${name} ${Math.abs(offset).toFixed(1)} m below the ${surface}`}</span>
+        <button type="button" onClick={() => replace(withoutEndHeight(structure, which), 'Back to ground')}>Back to ground</button>
+      </div>
+    )
+  }
 
   const floorPicker = (which: 'start' | 'end') => {
     const end = structure[which]
@@ -134,6 +149,8 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
       </label>
       {floorPicker('start')}
       {floorPicker('end')}
+      {offsetRow('start')}
+      {offsetRow('end')}
       <span style={{ color: 'var(--navi-muted, #6b7280)' }}>
         Look: {PARTS.map(([part, name]) => `${name.toLowerCase()} ${BUILT_IN_MATERIALS[preset.look[part]]?.name.toLowerCase() ?? preset.look[part]}`).join(', ')}
       </span>

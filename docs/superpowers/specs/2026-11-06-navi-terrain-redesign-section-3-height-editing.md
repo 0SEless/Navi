@@ -34,9 +34,12 @@ was finished in the terrain setup and stays fixed).
      with base mode **fixed** and the new base, and the pad set to **lower only** (dig only), keeping its
      blend distance (3 m when there was none). Amended 2026-11-06 during T5: the ground import gives
      every building a "both" pad by default, which would build ground up under a raised building.
-   - **Stair end:** the end nearest the pointer when the drag starts. Ground/road end → its
-     `heightOverride` (live mesh). Slab end → steps from floor to floor of its building (never free
-     height, so it always lands on a slab). On release: one `structure.replace`.
+   - **Stair end:** the end nearest the pointer when the drag starts. Ground/road end → a new
+     `heightOffset` above/below that surface, so the end **keeps following** the ground or road
+     (owner 2026-11-07: "Offset, keeps following"; a typed `heightOverride` on that end is cleared).
+     The stair panel shows the offset with **Back to ground**; re-attaching an end clears it. Slab end
+     → steps from floor to floor of its building (never free height, so it always lands on a slab).
+     On release: one `structure.replace`. The stair's drag dots hide while height mode is on.
 4. **One drag = one undo step.** **Esc during a drag** puts the object back (no command).
 5. **The ground digs on release** (one terrain refresh, as after a brush stroke) — not live during the
    drag, so dragging stays smooth.

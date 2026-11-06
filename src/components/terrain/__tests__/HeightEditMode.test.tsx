@@ -39,6 +39,8 @@ function fakeMap() {
     },
     getContainer: () => container,
     getCanvas: () => canvas,
+    // 1 px = 1e-5° with the grid origin at the top-left corner (projectAtHeight falls back to this).
+    project: ([lng, lat]: [number, number]) => ({ x: (lng - 122.1) * 1e5, y: (11.8 - lat) * 1e5 }),
     getCenter: () => camera.center,
     getZoom: () => camera.zoom,
     getBearing: () => camera.bearing,
@@ -163,3 +165,72 @@ describe('HeightEditMode (Shift+Z)', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/another admin/i)
   })
 })
+
+describe('HeightEditMode for stairs (offset keeps following; floor ends step)', () => {
+  function stairDoc(): CampusDocument {
+    const d = doc()
+    ;(d.buildings[0] as unknown as { floors: unknown[] }).floors = [
+      { id: 'f1', elevation: 0, height: 3.5 }, { id: 'f2', elevation: 3.5, height: 3.5 }, { id: 'f3', elevation: 7, height: 3.5 },
+    ]
+    d.structures = [{
+      id: 's1', form: 'stairs', presetId: 'plain-stair', width: 1.5, underneath: 'open', railings: 'both',
+      start: { kind: 'slab', buildingId: 'hall', floorId: 'f2', edgeIndex: 0, edgeT: 0.5 },
+      end: { kind: 'ground', position: ll(20, -20) },
+    }]
+    return d
+  }
+
+  function setupStair() {
+    const map = fakeMap()
+    const d = stairDoc()
+    const dispatch = vi.fn((_command: Command) => ({ success: true }))
+    const onDraft = vi.fn()
+    const lock = vi.fn(async () => true)
+    render(
+      <HeightEditMode
+        map={map as never} document={d} sampler={createTerrainSampler(d)} target={{ kind: 'stair', structureId: 's1' }}
+        dispatch={dispatch} onDraft={onDraft} onActive={() => {}} ensureBuildingLock={lock}
+      />,
+    )
+    return { map, dispatch, onDraft, lock }
+  }
+
+  it('Shift+Z looks across the stair run (side view)', () => {
+    const { map } = setupStair()
+    act(() => { shiftZ() })
+    expect(map.eased[0]).toMatchObject({ pitch: 75 })
+    // The stair runs north-south: the camera faces east or west.
+    expect([90, 270]).toContain(Math.round(map.eased[0].bearing as number))
+  })
+
+  it('the ground end nearest the cursor gets an offset above the ground: live, one command, no lock', async () => {
+    const { map, dispatch, onDraft, lock } = setupStair()
+    act(() => { shiftZ() })
+    // The ground end is at about (18, 18) on screen, the slab start at about (18, 0).
+    act(() => map.fire('mousedown', { point: { x: 18, y: 17 } }))
+    act(() => map.fire('mousemove', { point: { x: 18, y: 15 } }))
+    const live = (onDraft.mock.calls.at(-1)?.[0] as { structure: { heightOffset: { end: number } } }).structure
+    expect(live.heightOffset.end).toBeGreaterThan(0)
+    expect(screen.getByRole('status').textContent).toMatch(/^End \+\d+\.\d m above the ground$/)
+    act(() => map.fire('mouseup', { point: { x: 18, y: 15 } }))
+    await flush()
+    expect(dispatch).toHaveBeenCalledTimes(1)
+    expect(dispatch.mock.calls[0][0]).toMatchObject({ id: 'structure.replace', payload: { structure: { id: 's1', heightOffset: { end: live.heightOffset.end } } } })
+    expect((dispatch.mock.calls[0][0].payload.structure as { end: unknown }).end).toEqual({ kind: 'ground', position: ll(20, -20) })
+    expect(lock).not.toHaveBeenCalled()
+  })
+
+  it('a floor end steps floor to floor instead of a free height', async () => {
+    const { map, dispatch } = setupStair()
+    act(() => { shiftZ() })
+    act(() => map.fire('mousedown', { point: { x: 18, y: 1 } }))
+    act(() => map.fire('mousemove', { point: { x: 18, y: -9 } }))
+    expect(screen.getByRole('status').textContent).toBe('Start · f3')
+    act(() => map.fire('mouseup', { point: { x: 18, y: -9 } }))
+    await flush()
+    const next = dispatch.mock.calls[0][0].payload.structure as { start: { floorId: string }; heightOffset?: unknown }
+    expect(next.start.floorId).toBe('f3')
+    expect(next.heightOffset).toBeUndefined()
+  })
+})
+
