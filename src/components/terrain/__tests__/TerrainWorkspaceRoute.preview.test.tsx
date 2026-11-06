@@ -215,11 +215,11 @@ describe('TerrainWorkspaceRoute defaults (section 2)', () => {
     render(<TerrainWorkspaceRoute mapId="m1" />)
     await flush()
     // The opening look is the neutral contours view, and the stage passes it to both maps.
-    expect(counters.lastStageProps?.view).toBe('contours')
+    expect(counters.lastStageProps?.view).toBe('neutral')
     expect(counters.lastStageProps?.layers?.contours).toBe(true)
     // Heights (the colour ramp) is one click away, and the contour lines persist over it.
     act(() => {
-      ;(screen.getByRole('button', { name: 'Heights' }) as HTMLButtonElement).click()
+      ;(screen.getByRole('button', { name: 'Height' }) as HTMLButtonElement).click()
     })
     await flush()
     expect(counters.lastStageProps?.view).toBe('heights')

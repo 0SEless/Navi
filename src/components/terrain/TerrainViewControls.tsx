@@ -2,10 +2,10 @@
 
 import type { TerrainView } from '@/lib/terrain/terrain-view'
 
-const VIEWS: Array<{ id: TerrainView; label: string }> = [
-  { id: 'heights', label: 'Heights' },
+const COLOURS: Array<{ id: TerrainView; label: string }> = [
+  { id: 'neutral', label: 'Off' },
+  { id: 'heights', label: 'Height' },
   { id: 'changes', label: 'Changes' },
-  { id: 'contours', label: 'Contours' },
 ]
 
 export function TerrainViewControls({ view, exaggeration, onView, onExaggeration, threeD = false, onThreeD }: {
@@ -35,8 +35,9 @@ export function TerrainViewControls({ view, exaggeration, onView, onExaggeration
           3D
         </button>
       )}
-      <div role="group" aria-label="Terrain view" style={{ display: 'flex', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 4, overflow: 'hidden' }}>
-        {VIEWS.map((option) => (
+      <span aria-hidden style={{ fontSize: 11, color: 'var(--navi-text-secondary, #6b7280)' }}>Colours</span>
+      <div role="group" aria-label="Colours" style={{ display: 'flex', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 4, overflow: 'hidden' }}>
+        {COLOURS.map((option) => (
           <button
             key={option.id}
             type="button"

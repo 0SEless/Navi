@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decodeDemPixel, encodeDemTile } from '../dem-protocol'
+import { CHANGES_COLOR_STOPS, heightsColorStops } from '@navi/core'
 import { applyTerrainView, TERRAIN_SOURCE, CHANGES_SOURCE, RELIEF_LAYER, RELIEF_SOURCE, CONTOUR_LAYER, type TerrainMapLike } from '../terrain-view'
 
 describe('encodeDemTile', () => {
@@ -48,7 +49,7 @@ describe('applyTerrainView', () => {
     const relief = map.layers.get(RELIEF_LAYER)!
     expect(relief.type).toBe('color-relief')
     expect(relief.source).toBe(RELIEF_SOURCE)
-    expect(relief.paint).toEqual({ 'color-relief-color': ['interpolate', ['linear'], ['elevation'], 0, '#22c55e', 20, '#eab308', 40, '#ef4444'], 'color-relief-opacity': 0.55 })
+    expect(relief.paint).toEqual({ 'color-relief-color': ['interpolate', ['linear'], ['elevation'], ...heightsColorStops(0, 40).flat()], 'color-relief-opacity': 0.55 })
     expect(map.layers.has(CONTOUR_LAYER)).toBe(false)
   })
 
@@ -58,14 +59,15 @@ describe('applyTerrainView', () => {
     applyTerrainView(map, { view: 'changes', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
     const relief = map.layers.get(RELIEF_LAYER)!
     expect(relief.source).toBe(CHANGES_SOURCE)
-    expect((relief.paint as Record<string, unknown[]>)['color-relief-color']).toEqual(['interpolate', ['linear'], ['elevation'], -5, '#1d4ed8', -0.3, '#93c5fd', -0.1, 'rgba(0,0,0,0)', 0.1, 'rgba(0,0,0,0)', 0.3, '#fca5a5', 5, '#dc2626'])
+    expect((relief.paint as Record<string, unknown[]>)['color-relief-color']).toEqual(['interpolate', ['linear'], ['elevation'], ...CHANGES_COLOR_STOPS.flat()])
   })
 
-  it('Contours view shows the contour lines without relief colours', () => {
+  it('Colours Off (neutral) removes the colours and adds nothing; contour lines are the Layers switch, not a view', () => {
     const map = fakeMap()
-    applyTerrainView(map, { view: 'contours', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
-    expect(map.layers.has(CONTOUR_LAYER)).toBe(true)
+    applyTerrainView(map, { view: 'heights', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
+    applyTerrainView(map, { view: 'neutral', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
     expect(map.layers.has(RELIEF_LAYER)).toBe(false)
+    expect(map.layers.has(CONTOUR_LAYER)).toBe(false)
   })
 
   it('exaggeration slider sets terrain exaggeration', () => {

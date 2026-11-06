@@ -44,7 +44,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const { document, services } = useEditor()
   const documentVersion = useDocumentVersion() // re-render on every document change
   const router = useRouter()
-  const [view, setView] = useState<TerrainView>('contours')
+  const [view, setView] = useState<TerrainView>('neutral')
   const [exaggeration, setExaggeration] = useState(1)
   const [tool, setTool] = useState<TerrainTool>('raise-lower')
   const [settings, setSettings] = useState<BrushSettings>(DEFAULT_BRUSH)

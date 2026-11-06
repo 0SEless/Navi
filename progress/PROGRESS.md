@@ -3219,3 +3219,9 @@
 - Tests first: TerrainStage.test.tsx (one map, no Swap/Pop out) and a route test (no onMiniMap; 3D button tilts and flattens) RED, then GREEN; the section 1 mini-parity route test removed (no mini map). Browser T1/T4/T5 use the 3D button; T6/T7 mini assertions removed.
 - Gates: vitest compare regressed 0 (current passed 6822); tsc 1122 / 1122 / clean 0. Whole lane 26/27 - the one failure was P10 (NAVI Web /map/search navigation interrupted by a redirect to /map/explore), untouched by this change; P10 solo re-run passed.
 - Next: section 3 (Shift+Z height editing for buildings and stair ends) - needs its own spec and the owner's approval.
+
+
+## 2026-11-06 (session) - Neutral ground, Colours switch, cursor height (owner-approved in chat)
+- Owner: no "Christmas light" colours; approved the recommendation: sand-grey ground (#e9e3d6) with a warm hillshade, contour lines on, one **Colours: Off / Height / Changes** switch (Off by default), Height = calm sand-to-brown scale (no green/yellow/red), Changes = muted blue/clay, a height label next to the cursor. Contour labels on the 5 m lines stay a follow-up (need glyphs).
+- Code: TerrainView 'contours' -> 'neutral'; contour lines are only the Layers switch (one layer `terrain-contours`, under the road surfaces); core heightsColorStops / CHANGES_COLOR_STOPS recoloured; CursorHeight component.
+- Tests first: colour-scale property tests (hue/saturation/lightness), view tests, TerrainViewControls test, CursorHeight tests (RED -> GREEN). Gates: vitest regressed 0, tsc 1122/1122/0. Whole lane 27/27 after T3 now polls for the tracing image (a fixed 2.5 s wait flaked once under load; T3 passed solo).

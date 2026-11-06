@@ -11,7 +11,7 @@ import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/m
 import { RoadSurfaceLayer } from './layers/RoadSurfaceLayer'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
-import { applyTerrainView, CHANGES_SOURCE, CONTOUR_SOURCE, HILLSHADE_LAYER, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
+import { applyTerrainView, CHANGES_SOURCE, CONTOUR_LAYER, CONTOUR_SOURCE, HILLSHADE_LAYER, overlayAnchor, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
 
 const HILLSHADE_SOURCE = 'terrain-hillshade-dem'
 const BOUNDARY_SOURCE = 'terrain-boundary'
@@ -20,6 +20,7 @@ const ROADS_SOURCE = 'terrain-roads'
 const SLABS_SOURCE = 'terrain-slabs'
 const STRUCTURES_LAYER = 'terrain-structures'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+export const GROUND_COLOR = '#e9e3d6'
 
 export interface TerrainMapProps {
   document: CampusDocument
@@ -121,8 +122,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           [SLABS_SOURCE]: { type: 'geojson', data: EMPTY },
         },
         layers: [
-          { id: 'terrain-background', type: 'background', paint: { 'background-color': '#eef2ea' } },
-          { id: HILLSHADE_LAYER, type: 'hillshade', source: HILLSHADE_SOURCE, paint: { 'hillshade-exaggeration': 0.5 } },
+          // Neutral ground (owner 2026-11-06): sand-grey with a warm hillshade, like TopoExport.
+          { id: 'terrain-background', type: 'background', paint: { 'background-color': GROUND_COLOR } },
+          { id: HILLSHADE_LAYER, type: 'hillshade', source: HILLSHADE_SOURCE, paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#6f6455', 'hillshade-highlight-color': '#fffdf7', 'hillshade-accent-color': '#8c8170' } },
           { id: 'terrain-roads', type: 'line', source: ROADS_SOURCE, paint: { 'line-color': '#6b7280', 'line-width': 2 } },
           { id: 'terrain-buildings', type: 'line', source: BUILDINGS_SOURCE, paint: { 'line-color': '#1f2937', 'line-width': 1.5 } },
           { id: 'terrain-boundary', type: 'line', source: BOUNDARY_SOURCE, paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-dasharray': [3, 2] } },
@@ -211,7 +213,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     structuresRef.current?.layer.setVerticalScale(tilted ? exaggeration : 0)
   }, [ready, sampler, tilted, exaggeration])
 
-  const showContours = view === 'contours' || layers.contours
+  const showContours = layers.contours
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !showContours) return
@@ -223,11 +225,11 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     if (!map || !ready) return
     map.setLayoutProperty('terrain-buildings', 'visibility', layers.buildings ? 'visible' : 'none')
     map.setLayoutProperty('terrain-roads', 'visibility', layers.roads ? 'visible' : 'none')
-    const overlay = 'terrain-contour-overlay'
-    if (layers.contours && view !== 'contours') {
-      if (!map.getLayer(overlay)) map.addLayer({ id: overlay, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#78350f', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.8, 0.35], 'line-width': ['case', ['==', ['get', 'major'], true], 1.2, 0.6] } }, 'terrain-roads')
-    } else if (map.getLayer(overlay)) map.removeLayer(overlay)
-  }, [ready, layers.buildings, layers.roads, layers.contours, view])
+    // Contour lines (every 1 m, stronger every 5 m) over any colours, under the road surfaces and outlines.
+    if (layers.contours) {
+      if (!map.getLayer(CONTOUR_LAYER)) map.addLayer({ id: CONTOUR_LAYER, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#7c5c3b', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.85, 0.4], 'line-width': ['case', ['==', ['get', 'major'], true], 1.3, 0.6] } }, overlayAnchor(map))
+    } else if (map.getLayer(CONTOUR_LAYER)) map.removeLayer(CONTOUR_LAYER)
+  }, [ready, layers.buildings, layers.roads, layers.contours])
 
   return (
     <>

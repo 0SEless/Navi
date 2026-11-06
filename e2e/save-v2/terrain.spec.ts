@@ -64,7 +64,7 @@ test('T1 — terrain workspace: import the TopoExport ground, views, one map and
   expect(maps.top).toMatchObject({ terrain: null, relief: false, contours: true })
   expect(Object.keys(maps)).toEqual(['top'])
 
-  await ana.page.getByRole('button', { name: 'Contours' }).click()
+  await ana.page.getByRole('button', { name: 'Off', exact: true }).click()
   await ana.page.waitForTimeout(3000)
   await ana.page.screenshot({ path: path.join(SHOTS, 't1-contours.png') })
 
@@ -72,16 +72,16 @@ test('T1 — terrain workspace: import the TopoExport ground, views, one map and
   await ana.page.getByRole('button', { name: '3D' }).click()
   await expect(ana.page.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => ana.page.evaluate(() => (window as unknown as { __naviTerrainMaps: Record<string, { getTerrain(): unknown }> }).__naviTerrainMaps.top.getTerrain())).toMatchObject({ source: 'terrain-dem' })
-  await ana.page.getByRole('button', { name: 'Heights' }).click()
+  await ana.page.getByRole('button', { name: 'Height', exact: true }).click()
   await ana.page.getByLabel('Height exaggeration').fill('3')
   await ana.page.waitForTimeout(4000)
   await ana.page.screenshot({ path: path.join(SHOTS, 't1-3d.png') })
   // Colours are one click away on every map, and the contour lines persist over them (section 2).
   const heights = await ana.page.evaluate(() => {
     const all = (window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown; isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps ?? {}
-    return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { relief: Boolean(m.getLayer('terrain-relief')), overlay: Boolean(m.getLayer('terrain-contour-overlay')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
+    return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { relief: Boolean(m.getLayer('terrain-relief')), contours: Boolean(m.getLayer('terrain-contours')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
   })
-  for (const m of Object.values(heights)) expect(m).toMatchObject({ relief: true, overlay: true, loaded: true })
+  for (const m of Object.values(heights)) expect(m).toMatchObject({ relief: true, contours: true, loaded: true })
 
   expect(ana.blocked).toEqual([])
   await ana.context.close()
@@ -196,14 +196,15 @@ test('T3 — lasso, slope, contour pen to surface, boundary corner and a local t
   await page.getByLabel('Tracing image file').setInputFiles(path.join(__dirname, '..', 'test-floor-plan.png'))
   await expect(page.getByLabel('Tracing image north-west corner')).toBeVisible()
   expect(await doc<string>('JSON.stringify(doc)')).not.toMatch(/tracing/i)
-  await page.getByRole('button', { name: 'Heights' }).click()
-  await page.waitForTimeout(2500)
-  const order = await page.evaluate(() => {
+  await page.getByRole('button', { name: 'Height', exact: true }).click()
+  const order = () => page.evaluate(() => {
     const top = (window as unknown as { __naviTerrainMaps: Record<string, { getStyle(): { layers: Array<{ id: string }> }; isSourceLoaded(id: string): boolean }> }).__naviTerrainMaps.top
     return { layers: top.getStyle().layers.map((l) => l.id), loaded: top.isSourceLoaded('terrain-tracing') }
   })
-  expect(order.loaded).toBe(true)
-  expect(order.layers.indexOf('terrain-tracing')).toBeGreaterThan(order.layers.indexOf('terrain-relief'))
+  // Wait for the image to load (a fixed wait flaked under whole-lane load, 2026-11-06).
+  await expect.poll(async () => (await order()).loaded, { timeout: 15_000 }).toBe(true)
+  const { layers } = await order()
+  expect(layers.indexOf('terrain-tracing')).toBeGreaterThan(layers.indexOf('terrain-relief'))
   await page.screenshot({ path: path.join(SHOTS, 't3-tools.png') })
   expect(ana.blocked).toEqual([])
   await ana.context.close()
@@ -503,7 +504,7 @@ test('T6 — the clay paint preview: instant on the map, zero DEM reloads or ver
   await ana.context.close()
 })
 
-test('T7 — the neutral default: opens on contours with contour lines, no colour ramp; heights is one click away', async ({ browser }) => {
+test('T7 — the neutral default: colours Off with contour lines on; Height is one click away and the lines stay', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
   await ana.page.goto(`/studio/${campusId}/edit/terrain`)
@@ -521,7 +522,6 @@ test('T7 — the neutral default: opens on contours with contour lines, no colou
     const maps = (window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown; getTerrain(): unknown }> }).__naviTerrainMaps ?? {}
     return Object.fromEntries(Object.entries(maps).map(([role, m]) => [role, {
       contours: Boolean(m.getLayer('terrain-contours')),
-      overlay: Boolean(m.getLayer('terrain-contour-overlay')),
       relief: Boolean(m.getLayer('terrain-relief')),
       terrain: m.getTerrain(),
     }]))
@@ -529,21 +529,21 @@ test('T7 — the neutral default: opens on contours with contour lines, no colou
 
   // The opening look is neutral: contour lines, no colour ramp.
   const opened = await layerState()
-  expect(opened.top).toMatchObject({ contours: true, overlay: false, relief: false })
+  expect(opened.top).toMatchObject({ contours: true, relief: false })
   expect(Object.keys(opened)).toEqual(['top'])
-  await expect(ana.page.getByRole('button', { name: 'Contours' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(ana.page.getByRole('button', { name: 'Off', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await ana.page.screenshot({ path: path.join(SHOTS, 't7-default-open.png') })
 
   // Heights is one click away: the colour ramp returns and the contour lines persist over it.
-  await ana.page.getByRole('button', { name: 'Heights' }).click()
+  await ana.page.getByRole('button', { name: 'Height', exact: true }).click()
   await ana.page.waitForTimeout(1500)
   const heights = await layerState()
-  expect(heights.top).toMatchObject({ contours: false, overlay: true, relief: true })
+  expect(heights.top).toMatchObject({ contours: true, relief: true })
   await ana.page.screenshot({ path: path.join(SHOTS, 't7-heights.png') })
 
   // Back to the default look; with the lines on by default, the Section 1 stroke invariants hold:
   // zero version bumps and zero DEM sourcedata mid-stroke, one undo at the end.
-  await ana.page.getByRole('button', { name: 'Contours' }).click()
+  await ana.page.getByRole('button', { name: 'Off', exact: true }).click()
   await ana.page.waitForTimeout(1000)
 
   await ana.page.evaluate(() => {

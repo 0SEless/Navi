@@ -9,7 +9,8 @@ export const HILLSHADE_LAYER = 'terrain-hillshade'
 export const RELIEF_LAYER = 'terrain-relief'
 export const CONTOUR_LAYER = 'terrain-contours'
 
-export type TerrainView = 'heights' | 'changes' | 'contours'
+/** Colours on the ground: none (neutral ground, the default), by height, or by change. */
+export type TerrainView = 'neutral' | 'heights' | 'changes'
 
 /** The few MapLibre calls the view switch needs (a fake implements them in tests). */
 export interface TerrainMapLike {
@@ -51,22 +52,18 @@ function removeIfPresent(map: TerrainMapLike, id: string): void {
 }
 
 /**
- * Heights: colour by height (campus range). Changes: colour by raise/lower (±5 m). Contours: lines only
- * (every 1 m, stronger every 5 m; no text labels: they would need a font server).
+ * Neutral: no colours (sand-grey ground and hillshade). Heights: calm sand-to-brown by height (campus
+ * range). Changes: muted blue/clay by raise/lower (±5 m). Contour lines are a Layers switch, not a view.
  * Hillshade stays in every view; exaggeration is clamped to 1–5; the top view (threeD false) has no 3D terrain.
  */
 export function applyTerrainView(map: TerrainMapLike, opts: { view: TerrainView; colorRange: { minM: number; maxM: number }; exaggeration: number; threeD?: boolean }): void {
   const exaggeration = Math.min(5, Math.max(1, opts.exaggeration))
   // The top view is flat: 3D terrain there only costs tile loading.
   map.setTerrain(opts.threeD === false ? null : { source: TERRAIN_SOURCE, exaggeration })
-  if (opts.view === 'contours') {
+  if (opts.view === 'neutral') {
     removeIfPresent(map, RELIEF_LAYER)
-    if (!map.getLayer(CONTOUR_LAYER)) {
-      addUnderOverlays(map, { id: CONTOUR_LAYER, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#78350f', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.9, 0.45], 'line-width': ['case', ['==', ['get', 'major'], true], 1.4, 0.7] } })
-    }
     return
   }
-  removeIfPresent(map, CONTOUR_LAYER)
   const changes = opts.view === 'changes'
   replaceLayer(map, {
     id: RELIEF_LAYER,

@@ -139,11 +139,45 @@ describe('bakeTerrain', () => {
   })
 })
 
+/** Hue (degrees), saturation and lightness (0..1) of a #rrggbb colour. */
+function hsl(hex: string): { h: number; s: number; l: number } {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return { h: 0, s: 0, l }
+  const s = d / (1 - Math.abs(2 * l - 1))
+  const h = max === r ? 60 * (((g - b) / d) % 6) : max === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4)
+  return { h: (h + 360) % 360, s, l }
+}
+
 describe('color scale', () => {
   it('heightsColorStops spans the campus range', () => {
-    expect(heightsColorStops(0, 40)).toEqual([[0, '#22c55e'], [20, '#eab308'], [40, '#ef4444']])
-    expect(heightsColorStops(5, 5)).toEqual([[5, '#22c55e'], [5.5, '#eab308'], [6, '#ef4444']])
-    expect(CHANGES_COLOR_STOPS).toEqual([[-5, '#1d4ed8'], [-0.3, '#93c5fd'], [-0.1, 'rgba(0,0,0,0)'], [0.1, 'rgba(0,0,0,0)'], [0.3, '#fca5a5'], [5, '#dc2626']])
+    expect(heightsColorStops(0, 40).map(([m]) => m)).toEqual([0, 20, 40])
+    expect(heightsColorStops(5, 5).map(([m]) => m)).toEqual([5, 5.5, 6])
+  })
+
+  it('heights are one calm sand-to-brown scale: no green, no bright colours, darker going up', () => {
+    const colours = heightsColorStops(0, 40).map(([, c]) => hsl(c))
+    for (const c of colours) {
+      expect(c.h).toBeGreaterThanOrEqual(20) // sand / earth hues only (no green, no red)
+      expect(c.h).toBeLessThanOrEqual(45)
+      expect(c.s).toBeLessThanOrEqual(0.5)
+    }
+    for (let i = 1; i < colours.length; i++) expect(colours[i].l).toBeLessThan(colours[i - 1].l)
+  })
+
+  it('changes are muted: blue lowered, warm raised, clear within ±10 cm', () => {
+    const at = (m: number) => CHANGES_COLOR_STOPS.find(([v]) => v === m)?.[1]
+    expect(at(-0.1)).toBe('rgba(0,0,0,0)')
+    expect(at(0.1)).toBe('rgba(0,0,0,0)')
+    const lowered = CHANGES_COLOR_STOPS.filter(([v]) => v <= -0.3).map(([, c]) => hsl(c))
+    const raised = CHANGES_COLOR_STOPS.filter(([v]) => v >= 0.3).map(([, c]) => hsl(c))
+    for (const c of lowered) expect(c.h).toBeGreaterThan(190)
+    for (const c of lowered) expect(c.h).toBeLessThan(230)
+    for (const c of raised) expect(c.h).toBeLessThan(30)
+    for (const c of [...lowered, ...raised]) expect(c.s).toBeLessThanOrEqual(0.55)
   })
 })
 

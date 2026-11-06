@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe('TerrainStage', () => {
   it('draws one map, flat to start, with no mini 3D window, Swap or Pop out', () => {
-    render(<TerrainStage document={{} as CampusDocument} sampler={null} version={0} view="contours" exaggeration={1} />)
+    render(<TerrainStage document={{} as CampusDocument} sampler={null} version={0} view="neutral" exaggeration={1} />)
     expect(maps.pitches).toEqual([0])
     expect(document.querySelectorAll('[data-terrain-map]')).toHaveLength(1)
     expect(document.querySelector('[data-terrain-mini]')).toBeNull()
