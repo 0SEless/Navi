@@ -129,6 +129,10 @@ export function TerrainTools(props: {
     void (next ? tracingStore().put(key, next) : tracingStore().delete(key)).catch(() => undefined)
   }
   const ring = document.boundary?.points ?? []
+  // The campus box plus ~20 m (the terrain grid's margin): where the cursor height label has ground.
+  const campusBounds: [[number, number], [number, number]] | null = ring.length >= 3
+    ? [[Math.min(...ring.map((p) => p.lng)) - 0.0002, Math.min(...ring.map((p) => p.lat)) - 0.0002], [Math.max(...ring.map((p) => p.lng)) + 0.0002, Math.max(...ring.map((p) => p.lat)) + 0.0002]]
+    : null
   const selectedBuilding = document.buildings.find((b) => b.id === selectedBuildingId) ?? null
   const changeGround = async (change: GroundChange) => {
     if (!selectedBuilding) return
@@ -143,7 +147,7 @@ export function TerrainTools(props: {
   return (
     <>
       <TerrainToolRail tool={tool} disabled={!editing} alwaysOn={sampler ? ['pan', 'stairs'] : ['pan']} onTool={props.onTool} />
-      <CursorHeight map={mainMap} sampler={sampler} />
+      <CursorHeight map={mainMap} sampler={sampler} bounds={campusBounds} />
       <HeightEditMode
         map={mainMap} document={document} sampler={sampler} dispatch={dispatch}
         target={tool === 'pad' && selectedBuildingId

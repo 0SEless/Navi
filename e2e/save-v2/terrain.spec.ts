@@ -661,6 +661,13 @@ test('T8 — Shift+Z height mode: side view, drag a building down and the ground
   await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeGreaterThan(60)
   await expect(page.getByText('Height mode')).toBeVisible()
   await page.waitForTimeout(2500) // the 3D ground loads after the tilt
+  // The side view frames the hall: it lands in the middle of the screen (it sat in the top third when
+  // the aim point fell to sea level inside the hill).
+  const framing = await top.run<{ x: number; y: number; w: number; h: number }>(`(() => { const p = map.project([${HALL[0]}, ${HALL[1]}]); return { x: p.x, y: p.y, w: map.getCanvas().clientWidth, h: map.getCanvas().clientHeight } })()`)
+  expect(framing.x / framing.w).toBeGreaterThan(0.35)
+  expect(framing.x / framing.w).toBeLessThan(0.65)
+  expect(framing.y / framing.h).toBeGreaterThan(0.4)
+  expect(framing.y / framing.h).toBeLessThan(0.7)
   const groundBefore = await top.run<number>(`map.queryTerrainElevation([${HALL[0]}, ${HALL[1]}])`)
   await page.screenshot({ path: path.join(SHOTS, 't8-side-view.png') })
 

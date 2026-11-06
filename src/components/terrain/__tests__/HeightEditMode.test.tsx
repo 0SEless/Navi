@@ -29,10 +29,24 @@ function fakeMap() {
   const eased: Array<Record<string, unknown>> = []
   const pan = { enabled: true }
   const canvas = { style: { cursor: '' } }
+  const clamp = { calls: [] as boolean[] }
   return {
-    eased, pan, canvas, camera,
+    eased, pan, canvas, camera, clamp,
+    setCenterClampedToGround(on: boolean) { clamp.calls.push(on) },
+    elevations: [] as number[],
+    jumped: [] as Array<Record<string, unknown>>,
+    jumpTo(options: Record<string, unknown>) {
+      (this as { jumped: Array<Record<string, unknown>> }).jumped.push(options)
+      if (typeof options.pitch === 'number') camera.pitch = options.pitch
+    },
+    setCenterElevation(elevation: number) { (this as { elevations: number[] }).elevations.push(elevation) },
+    getCenterClampedToGround: () => clamp.calls.at(-1) ?? true,
     on(type: string, fn: (event: unknown) => void) { handlers.set(type, [...(handlers.get(type) ?? []), fn]) },
     off(type: string, fn: (event: unknown) => void) { handlers.set(type, (handlers.get(type) ?? []).filter((f) => f !== fn)) },
+    once(type: string, fn: (event: unknown) => void) {
+      const wrapped = (event: unknown) => { handlers.set(type, (handlers.get(type) ?? []).filter((f) => f !== wrapped)); fn(event) }
+      handlers.set(type, [...(handlers.get(type) ?? []), wrapped])
+    },
     fire(type: string, event: Record<string, unknown> = {}) {
       const full = { point: { x: 100, y: 100 }, originalEvent: { button: 0, shiftKey: false }, preventDefault() {}, ...event }
       for (const fn of handlers.get(type) ?? []) fn(full)
@@ -82,9 +96,9 @@ describe('HeightEditMode (Shift+Z)', () => {
     act(() => { shiftZ() })
     expect(onActive).toHaveBeenLastCalledWith(true)
     expect(map.eased[0]).toMatchObject({ pitch: 75 })
-    // Aimed at the middle of the building's height (base 12, one 3.5 m floor), not at sea level inside the hill.
-    expect(map.eased[0].elevation).toBeCloseTo(13.75, 6)
     expect(map.eased[0].zoom as number).toBeLessThanOrEqual(18.5)
+    // The aim height must stick: MapLibre's ground clamp would put it back at sea level (inside the hill).
+    expect(map.clamp.calls).toEqual([false])
     expect(map.pan.enabled).toBe(false)
     expect(map.canvas.style.cursor).toBe('ns-resize')
     act(() => { shiftZ() })
@@ -92,6 +106,25 @@ describe('HeightEditMode (Shift+Z)', () => {
     expect(map.eased[1]).toMatchObject({ center: { lng: 122.1, lat: 11.8 }, zoom: 17, bearing: 10, pitch: 0 })
     expect(map.pan.enabled).toBe(true)
     expect(map.canvas.style.cursor).toBe('')
+    expect(map.clamp.calls).toEqual([false, true])
+  })
+
+  it('when the turn has arrived, it aims at the middle of the building (MapLibre drops the aim mid-tilt)', () => {
+    const { map } = setup()
+    act(() => { shiftZ() })
+    act(() => map.fire('moveend'))
+    expect(map.elevations).toEqual([13.75])
+    act(() => map.fire('moveend'))
+    expect(map.elevations).toEqual([13.75]) // once only
+  })
+
+  it('a turn cut short (MapLibre under load) jumps straight to the side view, then aims', () => {
+    const { map } = setup()
+    act(() => { shiftZ() })
+    map.camera.pitch = 13 // the ease stopped part-way
+    act(() => map.fire('moveend'))
+    expect(map.jumped[0]).toMatchObject({ pitch: 75 })
+    expect(map.elevations).toEqual([13.75])
   })
 
   it('nothing selected: a hint, no camera move', () => {

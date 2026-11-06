@@ -41,4 +41,15 @@ describe('CursorHeight', () => {
     unmount()
     expect(map.count('mousemove')).toBe(0)
   })
+
+  it('no label where there is no campus ground (past the boundary: sky or far side of a building in 3D)', () => {
+    const map = fakeMap()
+    const bounds: [[number, number], [number, number]] = [[122.1, 11.8], [122.102, 11.802]]
+    render(<CursorHeight map={map as never} sampler={sampler} bounds={bounds} />)
+    act(() => map.fire('mousemove', { lngLat: { lat: 11.801, lng: 122.101 }, point: { x: 10, y: 10 } }))
+    expect(screen.getByRole('status').textContent).toBe('12.4 m')
+    act(() => map.fire('mousemove', { lngLat: { lat: 11.9, lng: 122.3 }, point: { x: 10, y: 10 } }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
 })
+

@@ -16,7 +16,7 @@ import type { TerrainMapProps } from './TerrainMap'
 export type HeightEditTarget = { kind: 'building'; buildingId: string } | { kind: 'stair'; structureId: string }
 type Draft = NonNullable<TerrainMapProps['draft']>
 type LatLng = { lat: number; lng: number }
-type SavedCamera = { center: LatLng; zoom: number; bearing: number; pitch: number }
+type SavedCamera = { center: LatLng; zoom: number; bearing: number; pitch: number; clamped: boolean }
 
 /** One drag: the live draft and readout for the dragged metres, then the one command (or nothing). */
 interface DragSession {
@@ -169,13 +169,32 @@ export function HeightEditMode({ map, document, sampler, target, dispatch, onDra
         return
       }
       const c = m.getCenter()
-      saved.current = { center: { lng: c.lng, lat: c.lat }, zoom: m.getZoom(), bearing: m.getBearing(), pitch: m.getPitch() }
+      saved.current = {
+        center: { lng: c.lng, lat: c.lat }, zoom: m.getZoom(), bearing: m.getBearing(), pitch: m.getPitch(),
+        clamped: m.getCenterClampedToGround(),
+      }
+      // Keep the aim height: MapLibre's ground clamp snaps the aim point to sea level while the 3D ground
+      // is still off (measured: aim 0 m with the hall's ground at 33 m, so the hall sat in the top third).
+      m.setCenterClampedToGround(false)
       const camera = sideViewCamera(v.points, v.kind)
       const framed = m.cameraForBounds(camera.bounds, { padding: 120, bearing: camera.bearing })
       const exaggeration = (m.getTerrain?.() as { exaggeration?: number } | null)?.exaggeration ?? 1
-      m.easeTo({
+      const aim = v.aimM * exaggeration
+      const turn = {
         center: framed?.center ?? camera.center, zoom: Math.min((framed?.zoom ?? 18.5) - 0.7, 18.5),
-        bearing: camera.bearing, pitch: SIDE_VIEW_PITCH, elevation: v.aimM * exaggeration, duration: 600,
+        bearing: camera.bearing, pitch: SIDE_VIEW_PITCH, duration: 600,
+      }
+      m.easeTo(turn)
+      // When the turn ends, aim at the object's height (MapLibre's easeTo ignores `elevation` here, and
+      // the 3D ground switching on mid-tilt resets it to sea level). Under load MapLibre sometimes ends the
+      // ease part-way (measured: stuck at 13°): then jump straight to the side view.
+      m.once('moveend', () => {
+        if (!activeRef.current) return
+        if (Math.abs(m.getPitch() - SIDE_VIEW_PITCH) >= 1) {
+          const { duration: _duration, ...view } = turn
+          m.jumpTo(view)
+        }
+        m.setCenterElevation(aim)
       })
       m.dragPan.disable()
       m.getCanvas().style.cursor = 'ns-resize'
@@ -187,7 +206,11 @@ export function HeightEditMode({ map, document, sampler, target, dispatch, onDra
       const m = latest.current.map
       cancelDrag()
       if (m) {
-        if (saved.current) m.easeTo({ ...saved.current, duration: 600 })
+        if (saved.current) {
+          const { clamped, ...camera } = saved.current
+          m.setCenterClampedToGround(clamped)
+          m.easeTo({ ...camera, duration: 600 })
+        }
         m.dragPan.enable()
         m.getCanvas().style.cursor = ''
       }
@@ -217,6 +240,7 @@ export function HeightEditMode({ map, document, sampler, target, dispatch, onDra
         const m = latest.current.map
         m?.dragPan.enable()
         if (m) m.getCanvas().style.cursor = ''
+        if (m && saved.current) m.setCenterClampedToGround(saved.current.clamped)
       }
     }
   }, [])

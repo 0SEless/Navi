@@ -3253,3 +3253,11 @@
 - Gates: vitest regressed 0 (current passed 6851); tsc 1122/1122/0. Whole lane 29/29. Section 3 complete.
 - Follow-ups (owner to prioritise): side-view framing (object sits small and high on screen); cursor height label reads 0.0 m when the pointer is over a building/sky in tilted views.
 
+
+
+## 2026-11-07 (session) - Side-view framing + cursor label (owner: "Fix framing first")
+- Measured in the browser (T8): the side view aimed at 0 m (sea level) while the hall's ground is 33.3 m - MapLibre ignores `elevation` in easeTo here and resets it when the 3D ground switches on mid-tilt; the hall sat at y 245/812.
+- Fix: centerClampedToGround off during height mode (restored on leave); when the turn ends, setCenterElevation(middle of the object). Under whole-lane load MapLibre sometimes ended the ease part-way (stuck at 13 deg): then jumpTo the side view. Measured after: aim 38.5 m, hall at y 430/812 (centred). T8 now asserts the hall lands in the middle of the screen.
+- Cursor height label hidden outside the campus box (+~20 m): in 3D a pointer on the sky or past a building landed outside the ground and read 0.0 m.
+- Tests RED -> GREEN (HeightEditMode 11, CursorHeight 3). Gates: vitest regressed 0 (6854); tsc 1122/1122/0. Whole lane 29/29.
+- Note: Docker was down after the restart; started Docker Desktop + db-up.ps1 (test DB login ok).

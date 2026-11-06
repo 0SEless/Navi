@@ -8,10 +8,19 @@ import { toLocal, type TerrainSampler } from '@navi/core'
 /**
  * The ground height under the pointer ("12.4 m"), next to the cursor, whatever tool is active:
  * how heights read without colours. Shows the committed ground (a stroke's preview shows its own shape).
+ * Nothing outside `bounds` (the campus): in 3D a pointer on the sky or past a building lands far away.
  */
-export function CursorHeight({ map, sampler }: { map: maplibregl.Map | null; sampler: TerrainSampler | null }) {
+export function CursorHeight({ map, sampler, bounds = null }: {
+  map: maplibregl.Map | null
+  sampler: TerrainSampler | null
+  bounds?: [[number, number], [number, number]] | null
+}) {
   const [at, setAt] = useState<{ x: number; y: number; heightM: number } | null>(null)
   const samplerRef = useRef(sampler)
+  const boundsRef = useRef(bounds)
+  useEffect(() => {
+    boundsRef.current = bounds
+  })
   useEffect(() => {
     samplerRef.current = sampler
     if (!sampler) setAt(null)
@@ -22,6 +31,12 @@ export function CursorHeight({ map, sampler }: { map: maplibregl.Map | null; sam
     const onMove = (event: maplibregl.MapMouseEvent) => {
       const s = samplerRef.current
       if (!s) return
+      const b = boundsRef.current
+      const { lng, lat } = event.lngLat
+      if (b && (lng < b[0][0] || lng > b[1][0] || lat < b[0][1] || lat > b[1][1])) {
+        setAt(null)
+        return
+      }
       const q = toLocal(s.grid, { lat: event.lngLat.lat, lng: event.lngLat.lng })
       setAt({ x: event.point.x, y: event.point.y, heightM: s.heightAt(q.x, q.y) })
     }
