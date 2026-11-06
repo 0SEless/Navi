@@ -3225,3 +3225,11 @@
 - Owner: no "Christmas light" colours; approved the recommendation: sand-grey ground (#e9e3d6) with a warm hillshade, contour lines on, one **Colours: Off / Height / Changes** switch (Off by default), Height = calm sand-to-brown scale (no green/yellow/red), Changes = muted blue/clay, a height label next to the cursor. Contour labels on the 5 m lines stay a follow-up (need glyphs).
 - Code: TerrainView 'contours' -> 'neutral'; contour lines are only the Layers switch (one layer `terrain-contours`, under the road surfaces); core heightsColorStops / CHANGES_COLOR_STOPS recoloured; CursorHeight component.
 - Tests first: colour-scale property tests (hue/saturation/lightness), view tests, TerrainViewControls test, CursorHeight tests (RED -> GREEN). Gates: vitest regressed 0, tsc 1122/1122/0. Whole lane 27/27 after T3 now polls for the tracing image (a fixed 2.5 s wait flaked once under load; T3 passed solo).
+
+
+## 2026-11-06 (session) - Section 3 T1 + T2 (height-edit maths, live drafts)
+- Owner approved the section 3 spec (0049b44) with one stair concern: ground/road stair ends must keep adapting to the ground/road. Asked: offset that keeps following (recommended) vs steps following the slope (bigger, separate step). Waiting; the building part does not depend on it.
+- T1: src/lib/terrain/height-edit.ts (metresForDrag with MapLibre 512 px tiles, sideViewCamera, stepFloor, padAfterLowering) - 6 tests RED -> GREEN (one test value corrected first: 0.3 m/px at z18, not 0.6).
+- T2: buildSlabFeatures baseOverride, buildStructuresMesh draft, TerrainMap/TerrainStage `draft` prop - 2 tests RED -> GREEN.
+- Ruling: T1 and T2 share one gated commit (both are pure/plumbing, no behaviour change on their own) - cost if wrong: none.
+- Gates: vitest regressed 0 (current passed 6835); tsc 1122 / 1122 / clean 0.

@@ -47,4 +47,16 @@ describe('buildSlabFeatures', () => {
     expect(features.filter((f) => f.properties?.kind === 'slab')).toHaveLength(2)
     expect(features.some((f) => f.properties?.kind === 'roof')).toBe(false)
   })
+
+  it('a draft base moves that building only (live Shift+Z drag)', () => {
+    const d = doc()
+    const sampler = createTerrainSampler(d)!
+    const moved = buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } })
+    const kept = buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } })
+    const top = (fc: GeoJSON.FeatureCollection, floorId: string) => fc.features.find((f) => f.properties?.floorId === floorId)!.properties!.top as number
+    // Ground 10 at the centroid: base 9 puts floor 2 (3.5 m up) at 12.5 m, 2.5 m above the ground.
+    expect(top(moved, 'f2')).toBeCloseTo(2.5, 6)
+    expect(top(kept, 'f2')).toBeCloseTo(12 + 3.5 - 10, 6)
+  })
 })
+

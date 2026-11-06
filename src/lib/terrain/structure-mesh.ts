@@ -1,6 +1,6 @@
 import {
   BUILT_IN_MATERIALS, BUILT_IN_PRESETS, buildStructureMesh, resolveStructureEnds, structurePath,
-  type CampusDocument, type StructurePreset, type TerrainSampler,
+  type CampusDocument, type Structure, type StructurePreset, type TerrainSampler,
 } from '@navi/core'
 
 /** The campus's own preset, else the built-in one, else the plain stair. */
@@ -10,10 +10,14 @@ export function presetFor(document: CampusDocument, presetId: string): Structure
     ?? BUILT_IN_PRESETS[0]
 }
 
-/** Every stair and ramp as one mesh in the terrain grid's local metres (for the 3D mesh layer). */
-export function buildStructuresMesh(document: CampusDocument, sampler: TerrainSampler): Float32Array {
+/**
+ * Every stair and ramp as one mesh in the terrain grid's local metres (for the 3D mesh layer).
+ * `draft` replaces the saved stair with the same id (a live Shift+Z drag) without touching the document.
+ */
+export function buildStructuresMesh(document: CampusDocument, sampler: TerrainSampler, draft?: Structure): Float32Array {
   const parts: Float32Array[] = []
-  for (const structure of document.structures ?? []) {
+  for (const saved of document.structures ?? []) {
+    const structure = draft?.id === saved.id ? draft : saved
     const resolved = resolveStructureEnds(document, sampler, structure)
     if (!resolved) continue
     parts.push(buildStructureMesh({

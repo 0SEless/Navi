@@ -39,6 +39,16 @@ describe('buildStructuresMesh', () => {
     expect(buildStructuresMesh(d, createTerrainSampler(d)!).length).toBe(0)
   })
 
+  it('a draft stair replaces the saved one (live Shift+Z drag), the document stays untouched', () => {
+    const d = doc([stair('a')])
+    const sampler = createTerrainSampler(d)!
+    const saved = buildStructuresMesh(d, sampler)
+    const raised = buildStructuresMesh(d, sampler, { ...stair('a'), heightOverride: { end: 3 } })
+    const topOf = (mesh: Float32Array) => { let top = -Infinity; for (let k = 2; k < mesh.length; k += 9) top = Math.max(top, mesh[k]); return top }
+    expect(topOf(raised)).toBeGreaterThan(topOf(saved) + 1)
+    expect(d.structures![0].heightOverride).toEqual({ end: 1.4 })
+  })
+
   it('presets: the campus’s own first, then built-in, else the plain stair', () => {
     const own = { id: 'mine', name: 'Mine', form: 'stairs' as const, shape: { width: 2, underneath: 'open' as const, railings: 'none' as const }, look: { tread: 'wood', side: 'wood', under: 'wood', railing: 'steel', railingStyle: 'bars' as const } }
     const d = { ...doc([]), structurePresets: [own] } as CampusDocument

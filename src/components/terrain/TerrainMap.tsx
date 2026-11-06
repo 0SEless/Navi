@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { contourSegments, toLatLng, toLocal, type CampusDocument, type TerrainSampler } from '@navi/core'
+import { contourSegments, toLatLng, toLocal, type CampusDocument, type Structure, type TerrainSampler } from '@navi/core'
 import { demTileUrl } from '@/lib/terrain/dem-protocol'
 import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
@@ -23,6 +23,8 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 export const GROUND_COLOR = '#e9e3d6'
 
 export interface TerrainMapProps {
+  /** A live Shift+Z drag: one building at a draft base, or one stair as drafted. Not saved. */
+  draft?: { buildingBase?: { buildingId: string; baseM: number }; structure?: Structure } | null
   document: CampusDocument
   sampler: TerrainSampler | null
   /** Changes whenever the ground may have changed; reloads the terrain tiles. */
@@ -89,7 +91,7 @@ function contourData(document: CampusDocument, sampler: TerrainSampler | null): 
 }
 
 /** One terrain map (top view or 3D): hillshade, height or change colours, contours, campus outlines. */
-export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false }, cutAboveFloorId = null }: TerrainMapProps) {
+export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false }, cutAboveFloorId = null, draft = null }: TerrainMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -190,9 +192,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !sampler) return
-    ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(cutAboveFloorId ? { cutAboveFloorId } : {}) }))
+    ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(cutAboveFloorId ? { cutAboveFloorId } : {}), ...(draft?.buildingBase ? { baseOverride: draft.buildingBase } : {}) }))
     map.setLayoutProperty('terrain-slabs', 'visibility', tilted && layers.buildings ? 'visible' : 'none')
-  }, [ready, version, document, sampler, cutAboveFloorId, tilted, layers.buildings])
+  }, [ready, version, document, sampler, cutAboveFloorId, tilted, layers.buildings, draft?.buildingBase?.buildingId, draft?.buildingBase?.baseM])
 
   // Stairs and ramps: one 3D mesh around the terrain grid origin; flat on the map in the top view.
   useEffect(() => {
@@ -206,8 +208,8 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       meshLayerByMap.set(map, layer)
       structuresRef.current = { layer, origin }
     }
-    structuresRef.current.layer.setMesh(buildStructuresMesh(document, sampler))
-  }, [ready, document, sampler])
+    structuresRef.current.layer.setMesh(buildStructuresMesh(document, sampler, draft?.structure))
+  }, [ready, document, sampler, draft?.structure])
 
   useEffect(() => {
     structuresRef.current?.layer.setVerticalScale(tilted ? exaggeration : 0)
