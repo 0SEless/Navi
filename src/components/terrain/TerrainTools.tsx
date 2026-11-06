@@ -18,6 +18,8 @@ import { TerrainImportPanel } from './TerrainImportPanel'
 import { useEnsureZone } from '@/components/studio/v2/ZoneProvider'
 import { StructureTool } from './tools/StructureTool'
 import { CursorHeight } from './CursorHeight'
+import { HeightEditMode } from './HeightEditMode'
+import type { TerrainMapProps } from './TerrainMap'
 
 type LatLng = { lat: number; lng: number }
 const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset', 'contour-pen'])
@@ -37,6 +39,9 @@ export function TerrainTools(props: {
   onLayers: (next: TerrainLayers) => void
   cutAboveFloorId: string | null
   onCutAbove: (floorId: string | null) => void
+  /** Shift+Z height mode: the live draft for the map, and whether the mode is on (brushes off). */
+  onDraft?: (draft: TerrainMapProps['draft']) => void
+  onHeightActive?: (active: boolean) => void
 }) {
   const { document, sampler, map: mainMap, editing, dispatch, tool } = props
   const campusId = document.metadata.campusId
@@ -137,6 +142,12 @@ export function TerrainTools(props: {
     <>
       <TerrainToolRail tool={tool} disabled={!editing} alwaysOn={sampler ? ['pan', 'stairs'] : ['pan']} onTool={props.onTool} />
       <CursorHeight map={mainMap} sampler={sampler} />
+      <HeightEditMode
+        map={mainMap} document={document} sampler={sampler} dispatch={dispatch}
+        target={tool === 'pad' && selectedBuildingId ? { kind: 'building', buildingId: selectedBuildingId } : null}
+        onDraft={(next) => props.onDraft?.(next)} onActive={(on) => props.onHeightActive?.(on)}
+        ensureBuildingLock={(buildingId) => ensureZone([`building:${encodeURIComponent(buildingId)}`])}
+      />
       <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} />
       {editing && (
         <button type="button" onClick={() => setImporting(true)} style={{ position: 'absolute', left: 140, top: 12, zIndex: 2, padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid var(--navi-border, #e5e7eb)', background: 'var(--navi-card, #fff)' }}>

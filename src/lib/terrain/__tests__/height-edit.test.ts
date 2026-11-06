@@ -50,10 +50,11 @@ describe('stepFloor', () => {
 })
 
 describe('padAfterLowering', () => {
-  it('no pad yet → dig only (lower) with a 3 m blend; a pad set by hand is kept', () => {
+  it('always dig only (lower): never builds ground up; keeps a blend distance already set, else 3 m', () => {
     expect(padAfterLowering(undefined)).toEqual({ mode: 'lower', blendMeters: 3 })
     expect(padAfterLowering({ mode: 'off', blendMeters: 8 })).toEqual({ mode: 'lower', blendMeters: 3 })
-    expect(padAfterLowering({ mode: 'both', blendMeters: 5 })).toEqual({ mode: 'both', blendMeters: 5 })
-    expect(padAfterLowering({ mode: 'raise', blendMeters: 2 })).toEqual({ mode: 'raise', blendMeters: 2 })
+    // The import's follow-ground default is "both": a raised building must still leave the gap open.
+    expect(padAfterLowering({ mode: 'both', blendMeters: 5 })).toEqual({ mode: 'lower', blendMeters: 5 })
+    expect(padAfterLowering({ mode: 'raise', blendMeters: 2 })).toEqual({ mode: 'lower', blendMeters: 2 })
   })
 })

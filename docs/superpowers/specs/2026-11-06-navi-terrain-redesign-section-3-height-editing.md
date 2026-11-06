@@ -31,8 +31,9 @@ was finished in the terrain setup and stays fixed).
    current zoom; holding **Shift** makes it 10× finer; values round to 0.1 m. A label next to the cursor
    shows the result, e.g. "Base 14.5 m (−1.5)".
    - **Building:** the base moves live (slabs and roof follow). On release: one `building.set-ground`
-     with base mode **fixed** and the new base. If the pad was **off**, it becomes **lower** with a
-     3 m blend (dig only); a pad the owner set by hand is kept.
+     with base mode **fixed** and the new base, and the pad set to **lower only** (dig only), keeping its
+     blend distance (3 m when there was none). Amended 2026-11-06 during T5: the ground import gives
+     every building a "both" pad by default, which would build ground up under a raised building.
    - **Stair end:** the end nearest the pointer when the drag starts. Ground/road end → its
      `heightOverride` (live mesh). Slab end → steps from floor to floor of its building (never free
      height, so it always lands on a slab). On release: one `structure.replace`.

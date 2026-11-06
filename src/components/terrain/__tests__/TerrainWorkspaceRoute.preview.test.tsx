@@ -14,6 +14,7 @@ const counters = vi.hoisted(() => ({
     layers?: { buildings: boolean; roads: boolean; contours: boolean; tracing: boolean }
   } | null,
   driven: [] as unknown[],
+  toolsProps: null as { onHeightActive?: (active: boolean) => void; onDraft?: (draft: unknown) => void } | null,
 }))
 
 vi.mock('next/navigation', () => ({
@@ -43,7 +44,12 @@ vi.mock('../TerrainStage', () => ({
     return null
   },
 }))
-vi.mock('../TerrainTools', () => ({ TerrainTools: () => null }))
+vi.mock('../TerrainTools', () => ({
+  TerrainTools: (props: { onHeightActive?: (active: boolean) => void; onDraft?: (draft: unknown) => void }) => {
+    counters.toolsProps = props
+    return null
+  },
+}))
 
 const editorState = vi.hoisted(() => ({ dispatch: undefined as ((command: unknown) => unknown) | undefined }))
 
@@ -254,6 +260,42 @@ describe('TerrainWorkspaceRoute one map (minimap removed, 2026-11-06)', () => {
     expect(screen.getByRole('button', { name: '3D' }).getAttribute('aria-pressed')).toBe('true')
     act(() => (screen.getByRole('button', { name: '3D' }) as HTMLButtonElement).click())
     expect(main.eased).toEqual([60, 0])
+  })
+})
+
+describe('TerrainWorkspaceRoute height mode (section 3)', () => {
+  afterEach(() => {
+    cleanup()
+    editorState.dispatch = undefined
+    counters.stage = 0
+    counters.lastStageProps = null
+    counters.toolsProps = null
+  })
+
+  it('brushes are off while height mode is on, and the draft reaches the map', async () => {
+    const dispatch = vi.fn(() => ({ success: true }))
+    editorState.dispatch = dispatch as unknown as (command: unknown) => unknown
+    render(<TerrainWorkspaceRoute mapId="m1" />)
+    await flush()
+    const map = fakeMap()
+    act(() => counters.lastStageProps?.onMainMap?.(map))
+    await flush()
+    act(() => counters.toolsProps?.onHeightActive?.(true))
+    await flush()
+
+    map.fire('mousedown', { lngLat: ll(40, 40) })
+    await flush()
+    map.fire('mousemove', { lngLat: ll(50, 40) })
+    await flush()
+    map.fire('mouseup')
+    await flush()
+    expect(previewLayer(map)?.vertexCount() ?? 0).toBe(0)
+    expect(dispatch).not.toHaveBeenCalled()
+
+    const draft = { buildingBase: { buildingId: 'hall', baseM: 9 } }
+    act(() => counters.toolsProps?.onDraft?.(draft))
+    await flush()
+    expect((counters.lastStageProps as { draft?: unknown } | null)?.draft).toEqual(draft)
   })
 })
 

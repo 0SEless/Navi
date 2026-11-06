@@ -625,3 +625,84 @@ test('T7 — the neutral default: colours Off with contour lines on; Height is o
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+test('T8 — Shift+Z height mode: side view, drag a building down and the ground digs to its base, up leaves the ground, Esc returns', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayThreeFloors)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+  await page.waitForTimeout(1500)
+
+  const top = terrainMap(page, 'top')
+  const box = (await page.locator('[data-terrain-map]').boundingBox())!
+  const HALL: [number, number] = [122.1705, 11.81735]
+
+  // Nothing selected: Shift+Z only hints.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.keyboard.press('Shift+Z')
+  await expect(page.getByText('Select a building or a stair first')).toBeVisible()
+  expect(await top.run<number>('map.getPitch()')).toBeLessThan(5)
+
+  // Select the hall with the Buildings tool, then Shift+Z: the camera turns to its side.
+  await page.getByRole('button', { name: 'Buildings' }).click()
+  const centre = await top.run<{ x: number; y: number }>(`map.project([${HALL[0]}, ${HALL[1]}])`)
+  await page.mouse.click(box.x + centre.x, box.y + centre.y)
+  await expect(page.getByLabel('Building settings').getByText('Hall')).toBeVisible()
+  await page.keyboard.press('Shift+Z')
+  await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeGreaterThan(60)
+  await expect(page.getByText('Height mode')).toBeVisible()
+  await page.waitForTimeout(2500) // the 3D ground loads after the tilt
+  const groundBefore = await top.run<number>(`map.queryTerrainElevation([${HALL[0]}, ${HALL[1]}])`)
+  await page.screenshot({ path: path.join(SHOTS, 't8-side-view.png') })
+
+  const drag = async (dy: number) => {
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x, y + dy, { steps: 10 })
+    await page.mouse.up()
+  }
+
+  // Drag down (screen down = lower): Fixed at a lower base, pad digs (lower only), one undo step.
+  const before = await doc<number>('doc.buildings[0].baseElevation')
+  await drag(60)
+  await expect.poll(() => doc<string>('doc.buildings[0].ground.baseMode')).toBe('fixed')
+  const lowered = await doc<number>('doc.buildings[0].baseElevation')
+  expect(lowered).toBeLessThan(groundBefore - 1)
+  expect(await doc<string>('doc.buildings[0].ground.pad.mode')).toBe('lower')
+  // The ground under the building digs down to its base (after the one terrain refresh).
+  await expect.poll(() => top.run<number>(`map.queryTerrainElevation([${HALL[0]}, ${HALL[1]}])`), { timeout: 15_000 }).toBeLessThan(lowered + 0.15)
+  await page.screenshot({ path: path.join(SHOTS, 't8-lowered.png') })
+
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => doc<string>('doc.buildings[0].ground.baseMode')).toBe('follow-ground')
+  expect(await doc<number>('doc.buildings[0].baseElevation')).toBe(before)
+
+  // Drag up: higher base, and no ground is built up under it (the gap is left open). The ground is the
+  // natural slope again (before, the import's "both" pad had flattened it to the outline's mean).
+  await drag(-60)
+  await expect.poll(() => doc<number>('doc.buildings[0].baseElevation')).toBeGreaterThan(groundBefore + 1)
+  const raised = await doc<number>('doc.buildings[0].baseElevation')
+  await page.waitForTimeout(3000)
+  const groundRaised = await top.run<number>(`map.queryTerrainElevation([${HALL[0]}, ${HALL[1]}])`)
+  expect(groundRaised).toBeLessThan(raised - 1)
+  expect(Math.abs(groundRaised - groundBefore)).toBeLessThan(1)
+  await page.screenshot({ path: path.join(SHOTS, 't8-raised.png') })
+
+  // Esc leaves height mode and the camera goes back to the flat view.
+  await page.keyboard.press('Escape')
+  await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeLessThan(5)
+  await expect(page.getByText('Height mode')).toHaveCount(0)
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})

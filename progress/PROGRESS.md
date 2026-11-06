@@ -3233,3 +3233,14 @@
 - T2: buildSlabFeatures baseOverride, buildStructuresMesh draft, TerrainMap/TerrainStage `draft` prop - 2 tests RED -> GREEN.
 - Ruling: T1 and T2 share one gated commit (both are pure/plumbing, no behaviour change on their own) - cost if wrong: none.
 - Gates: vitest regressed 0 (current passed 6835); tsc 1122 / 1122 / clean 0.
+
+
+## 2026-11-06/07 (session) - Section 3 T3-T5 for buildings (Shift+Z height mode)
+- T3: HeightEditMode (Shift+Z toggle, side view + camera restore, drag = live draft, release = one building.set-ground Fixed + dig-only pad, Esc mid-drag restores, building lock refused = message). 6 tests RED -> GREEN; mutation-checked (dig rule, Esc cancel).
+- T4: route keeps heightActive (brushes off) + draft (to the stage); TerrainTools mounts HeightEditMode for the Buildings-tool selection; route test RED -> GREEN.
+- T5: browser T8 (hint with nothing selected; side view pitch > 60; drag down -> Fixed, pad lower, ground under the hall meets the base; undo; drag up -> no ground built up; Esc -> flat view).
+- Ruling (spec amended): Shift+Z always leaves the pad on "lower only" keeping its blend - the ground import gives every building a "both" pad, which would build ground up under a raised building (owner: gap left open). Found by T8.
+- Ruling: the side view aims at the middle of the building's height (easeTo elevation) - with a sea-level aim point the tilted view stared at the slope in front (T8 screenshot). Remaining: the building still sits a little above screen centre; framing polish is a follow-up.
+- Ruling: the Shift+Z handler reads the selection through a useLayoutEffect-synced ref (a fast key press after a click saw no selection once).
+- Gates: vitest regressed 0 (current passed 6842); tsc 1122/1122/0. Whole lane 28/28.
+- Owner answered the stair question: "Offset, keeps following" - next: stair ends.

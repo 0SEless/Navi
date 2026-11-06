@@ -12,6 +12,7 @@ import { useExplicitSave, useSaveShortcut, useStudioSession } from '@/components
 import { TerrainWorkspace, type SaveResult } from './TerrainWorkspace'
 import { useTerrainLock } from './useTerrainLock'
 import { TerrainStage } from './TerrainStage'
+import type { TerrainMapProps } from './TerrainMap'
 import { TerrainViewControls } from './TerrainViewControls'
 import { markTerrainDirty, NO_AREA, tilesBounds, useTerrainSampler } from '@/lib/terrain/use-terrain-sampler'
 import type { TerrainView } from '@/lib/terrain/terrain-view'
@@ -53,6 +54,9 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [tilted, setTilted] = useState(false)
   const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
   const [cutAboveFloorId, setCutAboveFloorId] = useState<string | null>(null)
+  // Shift+Z height mode: brushes are off while it is on; the drag's draft is drawn on the map, not saved.
+  const [heightActive, setHeightActive] = useState(false)
+  const [draft, setDraft] = useState<TerrainMapProps['draft']>(null)
   const ensureZone = useEnsureZone()
   const { sampler, version } = useTerrainSampler(document, documentVersion)
   // The clay preview while painting: built once per route, never touches sampler/version state.
@@ -109,7 +113,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   // Browser probes wait for this before painting: a stroke while the lock is still acquiring is ignored.
   useEffect(() => exposeTerrainEditingForProbe(editing), [editing])
   const strokeOptions = {
-    document, sampler, tool, settings, enabled: editing, dispatch,
+    document, sampler, tool, settings, enabled: editing && !heightActive, dispatch,
     // The clay preview: start/dab live on the stroke's working tiles, the end hands off to the
     // committed tiles (each map's next idle), cancel cleans at once. No React state per dab.
     onStrokeStart: (tiles: Map<TileId, Int16Array>) => {
@@ -151,11 +155,12 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
       topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} />
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} draft={draft} />
       <TerrainTools
         document={document} sampler={sampler} map={mainMap} editing={editing} dispatch={dispatch}
         tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
         cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
+        onDraft={setDraft} onHeightActive={setHeightActive}
       />
       {children}
     </TerrainWorkspace>

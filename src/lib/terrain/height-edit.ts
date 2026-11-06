@@ -63,8 +63,12 @@ export function stepFloor(floors: Array<{ id: string; elevation: number }>, curr
   return floors.reduce((best, f) => (Math.abs(f.elevation - target) < Math.abs(best.elevation - target) ? f : best), current).id
 }
 
-/** Lowering a building digs: no pad (or off) becomes "lower only" with a 3 m blend; a pad set by hand is kept. */
+/**
+ * A Shift+Z height edit leaves the pad on "lower only" (owner 2026-11-06: the ground is finished, it only
+ * digs to a lowered building; a raised one leaves the gap open). Keeps a blend distance already set
+ * (including the import's follow-ground "both" default), else 3 m.
+ */
 export function padAfterLowering(pad: GroundFit | undefined): GroundFit {
   if (!pad || pad.mode === 'off') return { mode: 'lower', blendMeters: DIG_BLEND_M }
-  return pad
+  return { mode: 'lower', blendMeters: pad.blendMeters }
 }
