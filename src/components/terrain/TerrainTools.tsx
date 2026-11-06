@@ -25,7 +25,7 @@ const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset',
 export function TerrainTools(props: {
   document: CampusDocument
   sampler: TerrainSampler | null
-  maps: Array<maplibregl.Map | null>
+  map: maplibregl.Map | null
   editing: boolean
   dispatch: (command: Command) => MutationResult | undefined
   tool: TerrainTool
@@ -37,7 +37,7 @@ export function TerrainTools(props: {
   cutAboveFloorId: string | null
   onCutAbove: (floorId: string | null) => void
 }) {
-  const { document, sampler, maps, editing, dispatch, tool } = props
+  const { document, sampler, map: mainMap, editing, dispatch, tool } = props
   const campusId = document.metadata.campusId
   const [points, setPoints] = useState<LatLng[]>([])
   const [traced, setTraced] = useState<TracedLine[]>([])
@@ -75,35 +75,31 @@ export function TerrainTools(props: {
     onPoint: (p: LatLng) => setPoints((current) => (tool === 'slope' && current.length >= 2 ? [p] : [...current, p])),
   }
   // Buildings tool: click inside a building outline to select it.
-  const mainMap = maps[0] ?? null
-  const miniMap = maps[1] ?? null
   useEffect(() => {
-    const cleanups = [mainMap, miniMap].filter((map): map is maplibregl.Map => Boolean(map)).map((map) => {
-      const onClick = (event: maplibregl.MapMouseEvent) => {
-        if (toolRef.current !== 'pad') return
-        const { lat, lng } = event.lngLat
-        const hit = document.buildings.find((b) => {
-          const ring = b.footprint?.points ?? []
-          let inside = false
-          for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-            const a = ring[i]
-            const c = ring[j]
-            if (a.lat > lat !== c.lat > lat && lng < ((c.lng - a.lng) * (lat - a.lat)) / (c.lat - a.lat) + a.lng) inside = !inside
-          }
-          return inside
-        })
-        setSelectedBuildingId(hit?.id ?? null)
-      }
-      map.on('click', onClick)
-      return () => { map.off('click', onClick) }
-    })
-    return () => cleanups.forEach((off) => off())
-  }, [mainMap, miniMap, document])
+    const map = mainMap
+    if (!map) return
+    const onClick = (event: maplibregl.MapMouseEvent) => {
+      if (toolRef.current !== 'pad') return
+      const { lat, lng } = event.lngLat
+      const hit = document.buildings.find((b) => {
+        const ring = b.footprint?.points ?? []
+        let inside = false
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const a = ring[i]
+          const c = ring[j]
+          if (a.lat > lat !== c.lat > lat && lng < ((c.lng - a.lng) * (lat - a.lat)) / (c.lat - a.lat) + a.lng) inside = !inside
+        }
+        return inside
+      })
+      setSelectedBuildingId(hit?.id ?? null)
+    }
+    map.on('click', onClick)
+    return () => { map.off('click', onClick) }
+  }, [mainMap, document])
 
-  useMapDraft(maps[0] ?? null, draft)
-  useMapDraft(maps[1] ?? null, draft)
+  useMapDraft(mainMap, draft)
   const boundary = { active: editing && tool === 'boundary', document, dispatch }
-  useBoundaryEditor(maps[0] ?? null, boundary)
+  useBoundaryEditor(mainMap, boundary)
 
   const run = (command: Command | null) => {
     if (!command) {
@@ -201,7 +197,7 @@ export function TerrainTools(props: {
         onTracingOpacity={(opacity) => tracing && saveTracing({ ...tracing, opacity })}
         onRemoveTracing={() => saveTracing(null)}
       />
-      <TracingImageLayer map={maps[0] ?? null} image={tracing} visible={props.layers.tracing} onPlace={(bounds) => tracing && saveTracing({ ...tracing, ...bounds })} />
+      <TracingImageLayer map={mainMap} image={tracing} visible={props.layers.tracing} onPlace={(bounds) => tracing && saveTracing({ ...tracing, ...bounds })} />
     </>
   )
 }

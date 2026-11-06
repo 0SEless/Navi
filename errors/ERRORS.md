@@ -3352,3 +3352,11 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: reset the role password from the container's own mounted secret (`ALTER ROLE postgres PASSWORD :'pw'` with `pw` read from /run/secrets/pg_password, nothing printed); connect + marker assertion OK; probe 27/27.
 - **Prevention**: never ALTER the postgres role of the probe DB by hand; if auth fails, restore it from the mounted secret as above (disposable synthetic DB only - never the protected Dev Supabase).
 - **Related tasks**: Section 2 T4 close-out
+
+
+## 2026-11-06: P10 flaked once - /map/search navigation interrupted by a redirect to /map/explore
+- **Error**: whole-lane probe after the minimap removal: P10 failed at `page.goto('/map/search')` ("interrupted by another navigation to /map/explore").
+- **Cause**: a client-side redirect on the NAVI Web map pages races the test's navigation (the test's `.catch(() => page.goto(...))` retry also lost the race); unrelated to the terrain change - P10 passed solo on the same tree.
+- **Fix**: none yet (out of scope for the terrain work); solo re-run is the evidence.
+- **Prevention**: if P10 flakes again, wait for the /map/explore redirect to settle (waitForURL) before navigating to /map/search.
+- **Related tasks**: minimap removal (whole-lane probe)

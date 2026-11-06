@@ -8,14 +8,33 @@ const VIEWS: Array<{ id: TerrainView; label: string }> = [
   { id: 'contours', label: 'Contours' },
 ]
 
-export function TerrainViewControls({ view, exaggeration, onView, onExaggeration }: {
+export function TerrainViewControls({ view, exaggeration, onView, onExaggeration, threeD = false, onThreeD }: {
   view: TerrainView
   exaggeration: number
   onView: (view: TerrainView) => void
   onExaggeration: (value: number) => void
+  /** Whether the map is tilted (3D); the button tilts or flattens it. */
+  threeD?: boolean
+  onThreeD?: () => void
 }) {
   return (
     <>
+      {onThreeD && (
+        <button
+          type="button"
+          aria-pressed={threeD}
+          title={threeD ? 'Back to the flat top view' : 'Tilt to 3D (or right-drag the map)'}
+          onClick={onThreeD}
+          style={{
+            padding: '3px 10px', fontSize: 11, fontWeight: 600, borderRadius: 4, cursor: 'pointer',
+            border: '1px solid var(--navi-border, #e5e7eb)',
+            background: threeD ? 'var(--navi-primary, #2563eb)' : 'transparent',
+            color: threeD ? 'white' : 'var(--navi-text-secondary, #6b7280)',
+          }}
+        >
+          3D
+        </button>
+      )}
       <div role="group" aria-label="Terrain view" style={{ display: 'flex', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 4, overflow: 'hidden' }}>
         {VIEWS.map((option) => (
           <button

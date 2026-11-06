@@ -3211,3 +3211,11 @@
 - Whole-lane probe 27/27 (14.6 m, exit 0) on the exact commit content; vitest compare baseline 6269 / current passed 6821 / retired 0 / regressed 0; tsc 1122 / baseline 1122 / clean folders 0 (after removing a torn generated routes.d.ts that had produced a false "6 errors" pass - ERRORS.md).
 - Local probe DB postgres password restored from its mounted secret (ERRORS.md); Dev Supabase and :3000 untouched; the 3119 demo lane was already down.
 - Section 2 is complete (T1 measured, T2 defaults flip, T3 probe, T4 close-out). Owner decision 2026-11-06: remove the mini 3D window (tilt the main map instead) - next, before section 3.
+
+
+## 2026-11-06 (session) - Minimap removal (owner decision, design approved in chat)
+- Removed the mini 3D window with its Swap and Pop out buttons (and the ?view=3d pop-out page); the terrain workspace has ONE map. Added a 3D toggle in the top bar (aria-pressed follows the map's live pitch; easeTo 60 / 0); hand tilt still works.
+- Code: TerrainStage renders one TerrainMap; the route drops the second map (second stroke hook, preview second map); TerrainTools takes `map` instead of `maps`.
+- Tests first: TerrainStage.test.tsx (one map, no Swap/Pop out) and a route test (no onMiniMap; 3D button tilts and flattens) RED, then GREEN; the section 1 mini-parity route test removed (no mini map). Browser T1/T4/T5 use the 3D button; T6/T7 mini assertions removed.
+- Gates: vitest compare regressed 0 (current passed 6822); tsc 1122 / 1122 / clean 0. Whole lane 26/27 - the one failure was P10 (NAVI Web /map/search navigation interrupted by a redirect to /map/explore), untouched by this change; P10 solo re-run passed.
+- Next: section 3 (Shift+Z height editing for buildings and stair ends) - needs its own spec and the owner's approval.

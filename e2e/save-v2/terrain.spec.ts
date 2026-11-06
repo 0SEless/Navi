@@ -28,7 +28,7 @@ function ibajayDocument(campusId: string) {
   }
 }
 
-test('T1 — terrain workspace: import the TopoExport ground, views and the mini 3D', async ({ browser }) => {
+test('T1 — terrain workspace: import the TopoExport ground, views, one map and the 3D button', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
 
@@ -46,7 +46,11 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
 
   await expect(ana.page.getByText('Sea level (imported)')).toBeVisible()
   await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
-  await expect(ana.page.locator('[data-terrain-mini="true"]')).toBeVisible()
+  // One map only (owner 2026-11-06: no mini 3D window; tilt the map instead).
+  await expect(ana.page.locator('[data-terrain-map]')).toHaveCount(1)
+  await expect(ana.page.locator('[data-terrain-mini]')).toHaveCount(0)
+  await expect(ana.page.getByRole('button', { name: 'Swap' })).toHaveCount(0)
+  await expect(ana.page.getByRole('button', { name: 'Pop out' })).toHaveCount(0)
   const range = await ana.page.evaluate(() => (window as ProbeWindow).__naviStudioV2!.context.document.terrain?.colorRange)
   expect(range!.minM).toBeCloseTo(1.8, 0)
   expect(range!.maxM).toBeCloseTo(35.5, 0)
@@ -58,13 +62,16 @@ test('T1 — terrain workspace: import the TopoExport ground, views and the mini
     return Object.fromEntries(Object.entries(all).map(([role, m]) => [role, { terrain: m.getTerrain(), relief: Boolean(m.getLayer('terrain-relief')), contours: Boolean(m.getLayer('terrain-contours')), loaded: m.isSourceLoaded('terrain-relief-dem') }]))
   })
   expect(maps.top).toMatchObject({ terrain: null, relief: false, contours: true })
-  expect(maps['3d']).toMatchObject({ terrain: { source: 'terrain-dem', exaggeration: 1 }, relief: false, contours: true })
+  expect(Object.keys(maps)).toEqual(['top'])
 
   await ana.page.getByRole('button', { name: 'Contours' }).click()
   await ana.page.waitForTimeout(3000)
   await ana.page.screenshot({ path: path.join(SHOTS, 't1-contours.png') })
 
-  await ana.page.getByRole('button', { name: 'Swap' }).click()
+  // The 3D button tilts the one map: the hill rises in place (and flattens again on a second click).
+  await ana.page.getByRole('button', { name: '3D' }).click()
+  await expect(ana.page.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => ana.page.evaluate(() => (window as unknown as { __naviTerrainMaps: Record<string, { getTerrain(): unknown }> }).__naviTerrainMaps.top.getTerrain())).toMatchObject({ source: 'terrain-dem' })
   await ana.page.getByRole('button', { name: 'Heights' }).click()
   await ana.page.getByLabel('Height exaggeration').fill('3')
   await ana.page.waitForTimeout(4000)
@@ -216,7 +223,7 @@ type MapProbe = {
   getLayoutProperty(layer: string, prop: string): unknown
   getSource(id: string): { serialize(): { data: { features: unknown[] } } } | undefined
 }
-const terrainMap = (page: import('@playwright/test').Page, role: 'top' | '3d') => ({
+const terrainMap = (page: import('@playwright/test').Page, role: 'top') => ({
   run: <T,>(fn: string) => page.evaluate(([r, f]) => new Function('map', `return ${f}`)((window as unknown as { __naviTerrainMaps: Record<string, MapProbe> }).__naviTerrainMaps[r]), [role, fn]) as Promise<T>,
 })
 
@@ -266,9 +273,9 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   await expect.poll(() => doc<string>('doc.buildings[0].ground.pad.mode')).toBe('raise')
 
   // 3D: solid slabs (3 floors + roof); Cut away above the first floor leaves one slab.
-  await page.getByRole('button', { name: 'Swap' }).click()
+  await page.getByRole('button', { name: '3D' }).click()
   await page.waitForTimeout(3000)
-  const big = terrainMap(page, '3d')
+  const big = terrainMap(page, 'top')
   expect(await big.run('map.getLayoutProperty("terrain-slabs", "visibility")')).toBe('visible')
   expect(await big.run('map.getSource("terrain-slabs").serialize().data.features.length')).toBe(4)
   await page.getByLabel('Building settings').getByLabel('Cut away above').selectOption({ label: 'Floor 1' })
@@ -359,9 +366,9 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   await page.screenshot({ path: path.join(SHOTS, 't5-stairs-top.png') })
 
   // 3D: the stair is drawn at its real height between the slab and the road.
-  await page.getByRole('button', { name: 'Swap' }).click()
+  await page.getByRole('button', { name: '3D' }).click()
   await page.waitForTimeout(3000)
-  const big = terrainMap(page, '3d')
+  const big = terrainMap(page, 'top')
   expect(await big.run<number>('map.getLayer("terrain-structures").implementation.vertexCount()')).toBeGreaterThan(0)
   await big.run('map.flyTo({ center: [122.1711, 11.8176], zoom: 18.5, pitch: 60, bearing: -30, duration: 0 })')
   await page.waitForTimeout(2500)
@@ -385,7 +392,7 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
 // possible via a documentVersion bump by construction, so version stability + DEM silence prove it).
 // At mouseup: one terrain.apply-tiles (one undo step), the DEM re-commits once, the preview hands off
 // on each map's own idle, and the height at the stroke centre round-trips through commit and undo.
-test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or version bumps mid-stroke, one undo, no centre jump', async ({ browser }) => {
+test('T6 — the clay paint preview: instant on the map, zero DEM reloads or version bumps mid-stroke, one undo, no centre jump', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
   await ana.page.goto(`/studio/${campusId}/edit/terrain`)
@@ -440,7 +447,7 @@ test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or vers
   await ana.page.waitForTimeout(1200) // holding still keeps raising (repeat dabs through the preview)
   await ana.page.screenshot({ path: path.join(SHOTS, 't6-preview-stroke.png') })
 
-  // Acceptance, still mid-stroke: the painted preview is live on both maps...
+  // Acceptance, still mid-stroke: the painted preview is live on the map...
   // (real MapLibre wraps custom layers: the MeshLayer hides behind .implementation, same as the T5 stairs probe)
   const mid = await ana.page.evaluate(() => {
     const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
@@ -452,20 +459,17 @@ test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or vers
     }
     return {
       top: vertices('top'),
-      mini: vertices('3d'),
       versions: [...(window as any).__versions],
       dem: Object.fromEntries(Object.entries((window as any).__demById).map(([k, v]) => [k, (v as { events: number }).events])),
     }
   })
   expect(mid.top).toBeGreaterThan(0)
-  expect(mid.mini).toBeGreaterThan(0)
   // ...with the committed pipeline untouched: one version the whole stroke, zero DEM tile events.
   expect(new Set(mid.versions).size).toBe(1)
   expect(mid.dem.top).toBe(0)
-  expect(mid.dem['3d']).toBe(0)
 
   await ana.page.mouse.up()
-  // Handoff: both maps reload the committed DEM tiles once; the preview mesh clears on their idle.
+  // Handoff: the map reloads the committed DEM tiles once; the preview mesh clears on its idle.
   await ana.page.waitForFunction(() => {
     const maps = (window as unknown as { __naviTerrainMaps: Record<string, any> }).__naviTerrainMaps
     return Object.values(maps).every((m) => {
@@ -499,7 +503,7 @@ test('T6 — the clay paint preview: instant main+mini, zero DEM reloads or vers
   await ana.context.close()
 })
 
-test('T7 — the neutral default: opens on contours with the lines on both maps, no colour ramp; heights is one click away', async ({ browser }) => {
+test('T7 — the neutral default: opens on contours with contour lines, no colour ramp; heights is one click away', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana, ibajayDocument)
   await ana.page.goto(`/studio/${campusId}/edit/terrain`)
@@ -523,10 +527,10 @@ test('T7 — the neutral default: opens on contours with the lines on both maps,
     }]))
   })
 
-  // The opening look is neutral on both maps: contour lines, no colour ramp.
+  // The opening look is neutral: contour lines, no colour ramp.
   const opened = await layerState()
   expect(opened.top).toMatchObject({ contours: true, overlay: false, relief: false })
-  expect(opened['3d']).toMatchObject({ contours: true, overlay: false, relief: false, terrain: { source: 'terrain-dem', exaggeration: 1 } })
+  expect(Object.keys(opened)).toEqual(['top'])
   await expect(ana.page.getByRole('button', { name: 'Contours' })).toHaveAttribute('aria-pressed', 'true')
   await ana.page.screenshot({ path: path.join(SHOTS, 't7-default-open.png') })
 
@@ -535,7 +539,6 @@ test('T7 — the neutral default: opens on contours with the lines on both maps,
   await ana.page.waitForTimeout(1500)
   const heights = await layerState()
   expect(heights.top).toMatchObject({ contours: false, overlay: true, relief: true })
-  expect(heights['3d']).toMatchObject({ contours: false, overlay: true, relief: true })
   await ana.page.screenshot({ path: path.join(SHOTS, 't7-heights.png') })
 
   // Back to the default look; with the lines on by default, the Section 1 stroke invariants hold:
@@ -589,16 +592,13 @@ test('T7 — the neutral default: opens on contours with the lines on both maps,
     }
     return {
       top: vertices('top'),
-      mini: vertices('3d'),
       versions: [...(window as any).__versions],
       dem: Object.fromEntries(Object.entries((window as any).__demById).map(([k, v]) => [k, (v as { events: number }).events])),
     }
   })
   expect(mid.top).toBeGreaterThan(0)
-  expect(mid.mini).toBeGreaterThan(0)
   expect(new Set(mid.versions).size).toBe(1)
   expect(mid.dem.top).toBe(0)
-  expect(mid.dem['3d']).toBe(0)
 
   await ana.page.mouse.up()
   await ana.page.waitForFunction(() => {

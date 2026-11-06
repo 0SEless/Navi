@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BrushSettings, TileId } from '@navi/core'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { exposeTerrainEditingForProbe } from '@/studio-v2/client/test-hooks'
@@ -44,13 +44,13 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const { document, services } = useEditor()
   const documentVersion = useDocumentVersion() // re-render on every document change
   const router = useRouter()
-  const popOut = useSearchParams()?.get('view') === '3d'
   const [view, setView] = useState<TerrainView>('contours')
   const [exaggeration, setExaggeration] = useState(1)
   const [tool, setTool] = useState<TerrainTool>('raise-lower')
   const [settings, setSettings] = useState<BrushSettings>(DEFAULT_BRUSH)
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
-  const [miniMap, setMiniMap] = useState<maplibregl.Map | null>(null)
+  // Tilted = shown in 3D; follows the map's live pitch (hand tilt or the 3D button).
+  const [tilted, setTilted] = useState(false)
   const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
   const [cutAboveFloorId, setCutAboveFloorId] = useState<string | null>(null)
   const ensureZone = useEnsureZone()
@@ -62,9 +62,18 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   }
   useEffect(() => () => previewRef.current?.dispose(), [])
   useEffect(() => {
-    const maps: maplibregl.Map[] = [mainMap, miniMap].filter((m): m is maplibregl.Map => m !== null)
-    previewRef.current?.setMaps(maps, exaggeration)
-  }, [mainMap, miniMap, exaggeration])
+    previewRef.current?.setMaps(mainMap ? [mainMap] : [], exaggeration)
+  }, [mainMap, exaggeration])
+  useEffect(() => {
+    if (!mainMap) return
+    const onPitch = () => setTilted(mainMap.getPitch() > 2)
+    onPitch()
+    mainMap.on('pitch', onPitch)
+    return () => { mainMap.off('pitch', onPitch) }
+  }, [mainMap])
+  const toggleThreeD = useCallback(() => {
+    mainMap?.easeTo({ pitch: tilted ? 0 : 60, duration: 600 })
+  }, [mainMap, tilted])
   const session = useStudioSession()
   const save = useExplicitSave(session)
   useSaveShortcut(save)
@@ -118,7 +127,6 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     onPick: (heightM: number) => setSettings((current) => ({ ...current, mode: 'set', targetM: heightM })),
   }
   useTerrainStroke(mainMap, strokeOptions)
-  useTerrainStroke(miniMap, strokeOptions)
   useTerrainShortcuts({
     enabled: editing,
     history: services.get('history') as { undo(): boolean; redo(): boolean } | undefined,
@@ -141,16 +149,14 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       lock={lock}
       onSave={onSave}
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
-      topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} />}
+      topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} popOut={popOut} onMainMap={setMainMap} onMiniMap={setMiniMap} layers={layers} cutAboveFloorId={cutAboveFloorId} />
-      {!popOut && (
-        <TerrainTools
-          document={document} sampler={sampler} maps={[mainMap, miniMap]} editing={editing} dispatch={dispatch}
-          tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
-          cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
-        />
-      )}
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} />
+      <TerrainTools
+        document={document} sampler={sampler} map={mainMap} editing={editing} dispatch={dispatch}
+        tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
+        cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
+      />
       {children}
     </TerrainWorkspace>
   )

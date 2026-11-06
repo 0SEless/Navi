@@ -89,6 +89,8 @@ type MiniMap = {
   fire(type: string, event?: Partial<MockMapEvent>): void
   added: Array<{ id: string; vertexCount(): number }>
   panState: { disabled: number; enabled: number }
+  pitch: { value: number }
+  eased: number[]
 }
 
 function fakeMap(): maplibregl.Map & MiniMap {
@@ -96,6 +98,8 @@ function fakeMap(): maplibregl.Map & MiniMap {
   const singles = new Map<string, Array<() => void>>()
   const added: Array<{ id: string; vertexCount(): number }> = []
   const pan = { disabled: 0, enabled: 0 }
+  const pitch = { value: 0 }
+  const eased: number[] = []
   const map = {
     on: (type: string, fn: (event: unknown) => void) => {
       handlers.set(type, (handlers.get(type) ?? []).concat(fn))
@@ -114,7 +118,8 @@ function fakeMap(): maplibregl.Map & MiniMap {
     },
     getLayer: () => undefined,
     removeLayer: () => {},
-    getPitch: () => 0,
+    getPitch: () => pitch.value,
+    easeTo: (options: { pitch: number }) => { eased.push(options.pitch) },
     getCanvas: () => ({ clientWidth: 400, clientHeight: 300 }),
     triggerRepaint: () => {},
     dragPan: {
@@ -137,6 +142,8 @@ function fakeMap(): maplibregl.Map & MiniMap {
   } as unknown as maplibregl.Map & MiniMap
   map.added = added
   map.panState = pan
+  map.pitch = pitch
+  map.eased = eased
   return map
 }
 
@@ -194,44 +201,6 @@ describe('TerrainWorkspaceRoute paint preview (section 1)', () => {
     map.fire('idle')
     expect(previewLayer(map)?.vertexCount()).toBe(0)
   })
-
-  it('the mini 3D map paints its own preview layer and hands off on its own idle (T5)', async () => {
-    const dispatch = vi.fn(() => ({ success: true }))
-    editorState.dispatch = dispatch as unknown as (command: unknown) => unknown
-    render(<TerrainWorkspaceRoute mapId="m1" />)
-    await flush()
-    expect(counters.lastStageProps?.onMiniMap).toBeTruthy()
-    // Same controller for both maps: the pop-out window reports through onMainMap too (TerrainStage
-    // renders TerrainMap alone there), so both maps land in the same setMaps call by construction.
-    const main = fakeMap()
-    const mini = fakeMap()
-    act(() => {
-      counters.lastStageProps?.onMainMap?.(main)
-      counters.lastStageProps?.onMiniMap?.(mini)
-    })
-    await flush()
-
-    main.fire('mousedown', { lngLat: ll(40, 40) })
-    await flush()
-    main.fire('mousemove', { lngLat: ll(50, 40) })
-    await flush()
-
-    // A live stroke paints on the mini 3D as well: its own layer instance, same geometry.
-    expect(mini.added.some((l) => l.id === PREVIEW_LAYER_ID)).toBe(true)
-    const mainLayer = previewLayer(main)
-    const miniLayer = previewLayer(mini)
-    expect(mainLayer?.vertexCount()).toBeGreaterThan(0)
-    expect(miniLayer?.vertexCount()).toBeGreaterThan(0)
-
-    main.fire('mouseup')
-    await flush()
-    // Each map clears on ITS OWN idle: firing only the main map leaves the mini preview standing.
-    main.fire('idle')
-    expect(previewLayer(main)?.vertexCount()).toBe(0)
-    expect(miniLayer?.vertexCount()).toBeGreaterThan(0)
-    mini.fire('idle')
-    expect(miniLayer?.vertexCount()).toBe(0)
-  })
 })
 
 describe('TerrainWorkspaceRoute defaults (section 2)', () => {
@@ -257,3 +226,34 @@ describe('TerrainWorkspaceRoute defaults (section 2)', () => {
     expect(counters.lastStageProps?.layers?.contours).toBe(true)
   })
 })
+
+describe('TerrainWorkspaceRoute one map (minimap removed, 2026-11-06)', () => {
+  afterEach(() => {
+    cleanup()
+    editorState.dispatch = undefined
+    counters.stage = 0
+    counters.lastStageProps = null
+  })
+
+  it('offers the stage no mini map; the 3D button tilts the main map and flattens it again', async () => {
+    render(<TerrainWorkspaceRoute mapId="m1" />)
+    await flush()
+    expect(counters.lastStageProps?.onMiniMap).toBeUndefined()
+    const main = fakeMap()
+    act(() => counters.lastStageProps?.onMainMap?.(main))
+    await flush()
+
+    const button = screen.getByRole('button', { name: '3D' })
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    act(() => (button as HTMLButtonElement).click())
+    expect(main.eased).toEqual([60])
+    // Tilting by hand (right-drag, pinch) or by the button both report through the map's pitch.
+    main.pitch.value = 60
+    act(() => main.fire('pitch'))
+    await flush()
+    expect(screen.getByRole('button', { name: '3D' }).getAttribute('aria-pressed')).toBe('true')
+    act(() => (screen.getByRole('button', { name: '3D' }) as HTMLButtonElement).click())
+    expect(main.eased).toEqual([60, 0])
+  })
+})
+
