@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { primaryButton, secondaryButton } from './form-styles'
+import { MAP_CENTRE_X, primaryButton, secondaryButton } from './form-styles'
 
 const STEPS = [
   'Layers — turn the street map, ground, buildings and more on or off on the left.',
@@ -12,8 +12,8 @@ const STEPS = [
 /** Where each step points (the layers panel, the dock, Import terrain at the dock's end, Done top right). */
 const PLACES: React.CSSProperties[] = [
   { left: 256, top: 24 },
-  { left: '50%', bottom: 64, transform: 'translateX(-50%)' },
-  { left: '50%', bottom: 64, transform: 'translateX(10%)' },
+  { left: MAP_CENTRE_X, bottom: 64, transform: 'translateX(-50%)' },
+  { left: MAP_CENTRE_X, bottom: 64, transform: 'translateX(10%)' },
   { right: 16, top: 12 },
 ]
 const STORAGE_KEY = 'navi-terrain-guide-seen'

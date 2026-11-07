@@ -10,7 +10,10 @@ describe('TerrainToolRail (the bottom dock)', () => {
     const dock = screen.getByRole('toolbar', { name: 'Terrain tools' })
     expect(dock.getAttribute('aria-orientation')).toBe('horizontal')
     expect(dock.style.bottom).toBe('12px')
-    expect(dock.style.left).toBe('50%')
+    // Centred on the map right of the 240 px layers panel; scrolls instead of hiding under it when narrow.
+    expect(dock.style.left).toBe('calc(50% + 120px)')
+    expect(dock.style.maxWidth).toBe('calc(100% - 264px)')
+    expect(dock.style.overflowX).toBe('auto')
     expect(screen.getByRole('button', { name: 'Raise / Lower' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Raise / Lower' }).getAttribute('title')).toBe('Raise / Lower: Hold Shift to do the opposite (B)')
   })

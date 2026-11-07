@@ -1,6 +1,7 @@
 'use client'
 
 import type { BrushSettings } from '@navi/core'
+import { MAP_CENTRE_X } from './form-styles'
 
 export const DEFAULT_BRUSH: BrushSettings = { shape: 'circle', rotationDeg: 0, sizeM: 10, aspect: 0.5, profile: 'smooth', strength: 0.5, mode: 'raise' }
 
@@ -11,7 +12,7 @@ export function TerrainToolPanel({ settings, onChange, showMode }: { settings: B
   const set = (patch: Partial<BrushSettings>) => onChange({ ...settings, ...patch })
   return (
     <div aria-label="Brush settings" style={{
-      position: 'absolute', left: '50%', bottom: 64, transform: 'translateX(-50%)', zIndex: 2, width: 230, display: 'flex', flexDirection: 'column', gap: 8, padding: 10,
+      position: 'absolute', left: MAP_CENTRE_X, bottom: 64, transform: 'translateX(-50%)', zIndex: 2, width: 230, display: 'flex', flexDirection: 'column', gap: 8, padding: 10,
       background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
     }}>
       <strong style={{ fontSize: 12 }}>Brush</strong>

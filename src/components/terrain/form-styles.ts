@@ -21,3 +21,8 @@ export function withDisabled(style: CSSProperties, disabled: boolean): CSSProper
 export const textInput: CSSProperties = {
   padding: '7px 10px', borderRadius: 6, fontSize: 13, border: '1px solid var(--navi-border, #d1d5db)', background: 'var(--navi-card, #fff)',
 }
+
+/** Section 5: the layers panel's width; the map's visible centre is right of it. */
+export const LAYERS_PANEL_WIDTH = 240
+export const MAP_CENTRE_X = `calc(50% + ${LAYERS_PANEL_WIDTH / 2}px)`
+

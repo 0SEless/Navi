@@ -1,5 +1,7 @@
 'use client'
 
+import { LAYERS_PANEL_WIDTH, MAP_CENTRE_X } from './form-styles'
+
 export type TerrainTool =
   | 'raise-lower'
   | 'smooth'
@@ -60,7 +62,7 @@ function ToolIcon({ id }: { id: TerrainTool | 'import' }) {
 }
 
 const buttonStyle = (active: boolean, disabled: boolean): React.CSSProperties => ({
-  position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, padding: 0,
+  position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, padding: 0, flexShrink: 0,
   borderRadius: 6, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
   border: active ? '1px solid var(--navi-primary, #2563eb)' : '1px solid transparent',
   background: active ? 'var(--navi-primary-light, #eff6ff)' : 'transparent',
@@ -84,7 +86,8 @@ export function TerrainToolRail({ tool, tools = TERRAIN_TOOLS, disabled, alwaysO
 }) {
   return (
     <div role="toolbar" aria-label="Terrain tools" aria-orientation="horizontal" style={{
-      position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 2, display: 'flex', alignItems: 'center', gap: 2,
+      position: 'absolute', bottom: 12, left: MAP_CENTRE_X, transform: 'translateX(-50%)', zIndex: 2, display: 'flex', alignItems: 'center', gap: 2,
+      maxWidth: `calc(100% - ${LAYERS_PANEL_WIDTH + 24}px)`, overflowX: 'auto',
       padding: '3px 6px', background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8,
       boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
     }}>

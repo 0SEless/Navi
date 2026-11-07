@@ -20,6 +20,7 @@ import { StructureTool } from './tools/StructureTool'
 import { CursorHeight } from './CursorHeight'
 import { HeightEditMode } from './HeightEditMode'
 import type { TerrainMapProps } from './TerrainMap'
+import { MAP_CENTRE_X } from './form-styles'
 
 type LatLng = { lat: number; lng: number }
 const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset', 'contour-pen'])
@@ -158,7 +159,7 @@ export function TerrainTools(props: {
       />
       <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} onSelect={setSelectedStairId} showHandles={!heightMode} />
       {importing && (
-        <div style={{ position: 'absolute', left: '50%', bottom: 64, transform: 'translateX(-50%)', zIndex: 3, padding: 14, background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}>
+        <div style={{ position: 'absolute', left: MAP_CENTRE_X, bottom: 64, transform: 'translateX(-50%)', zIndex: 3, padding: 14, background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}>
           <TerrainImportPanel
             hasChanges={Object.keys(document.terrainTiles ?? {}).length > 0}
             onImport={(payload) => {
