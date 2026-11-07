@@ -12,6 +12,8 @@ export function siteRoadSurfaces(doc: CampusDocument, sampler: TerrainSampler): 
   return (doc.roads ?? []).flatMap((road) => {
     const polyline = road.polyline?.points ?? []
     if (polyline.length < 2) return []
+    // A route made over an outdoor stair or ramp is for navigation only: the stair itself is what visitors see.
+    if (road.routing?.structureId) return []
     const typed = road.heightMode === 'typed'
     const start = typed && Number.isFinite(road.routing?.startElevationMeters) ? road.routing!.startElevationMeters! : surfaceHeightAt(doc, sampler, polyline[0])
     const end = typed && Number.isFinite(road.routing?.endElevationMeters) ? road.routing!.endElevationMeters! : surfaceHeightAt(doc, sampler, polyline[polyline.length - 1])
