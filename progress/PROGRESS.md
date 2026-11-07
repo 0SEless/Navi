@@ -3315,3 +3315,10 @@
 - Found by the browser probe and fixed: (1) the street map in the starting style kept the terrain map from ever loading when tiles are blocked/offline - now added after load; (2) the paint preview, tracing image, drafts and brush outline waited for isStyleLoaded()/load, which street-map tiles keep pending - new style-ready helper (tests RED -> GREEN).
 - Tests: unit (terrain-start 11, useSettingsBoundary 5, boundary-edit 6, terrain-layers 6, TerrainLayersPanel 4, TerrainToolRail 4, TerrainGuide 5, useTerrainLock 4, TerrainWorkspace, style-ready 4, terrain-preview +1); browser lane 33/33 (T13 new; S7 rewritten to the terrain editor lock; T3/T10 adjusted to the panel and eye buttons). Gates: regressed 0; tsc 1122/1122/0.
 
+
+## 2026-11-07 (session) - Owner-requested tool-by-tool test in Chrome + fixes
+- Record: docs/testing/2026-11-07-terrain-editor-manual-test.md (every tool in 2D/3D on ASU-IBAJAY, timings; all test edits undone).
+- Fixed (tests RED -> GREEN): zero-height ground-floor slab flicker (Studio + NAVI Web); paint preview drew whole tile boxes and flickered over unchanged ground; ground past an imported TopoExport area fell to 0 m (cliff, boundary drawn at its foot) - now continues from the nearest edge (sampleBaseExtended); raise/lower time-based 1.5 m/s at full strength (drags barely moved the ground, holds shot up; "cannot lower"); buildings are solid blocks with walls (cut away stops the block at the floor).
+- Open (proposed in the record): Shift+Z side view too far; Shift+Z drag too sensitive; Height colours fixed 0-40 m on flat start; 3D relief faint under the street map; unstyled area-tool panels.
+- Gates: regressed 0; tsc 1122/1122/0. Browser lane 33/33.
+
