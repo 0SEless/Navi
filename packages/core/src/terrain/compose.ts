@@ -4,7 +4,7 @@ import type { Structure } from '../structures/types'
 import { structurePath } from '../structures/path'
 import { stairShape } from '../structures/stair-shape'
 import { rampHeightAt } from '../structures/ramp-shape'
-import { sampleBase } from './base-surface'
+import { sampleBaseExtended } from './base-surface'
 import { decodeTile, tileIdOf, tileOfCell, toLocal } from './grid'
 import type { GroundFit, TerrainGrid, TileId } from './types'
 
@@ -146,7 +146,8 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     return lastCells ? lastCells[i] : 0
   }
 
-  const baseAt = (x: number, y: number) => (base ? sampleBase(base, grid, x, y) ?? 0 : 0)
+  // Past the edge of an imported ground the height continues from its nearest edge (no cliff to 0 m).
+  const baseAt = (x: number, y: number) => (base ? sampleBaseExtended(base, grid, x, y) ?? 0 : 0)
   const changeAt = (x: number, y: number) => {
     const x0 = Math.floor(x)
     const y0 = Math.floor(y)

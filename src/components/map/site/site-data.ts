@@ -55,8 +55,8 @@ export function siteStructuresMesh(site: SiteArtifact): { origin: LatLng; mesh: 
 }
 
 /**
- * Solid floor slabs and a roof per building (3D, MapLibre fill-extrusion): from the published base, floors
- * spread evenly over the building's height, heights relative to the ground under the building's centre
+ * One solid block per building (3D, MapLibre fill-extrusion): from the ground to the roof (published base
+ * plus the building's height), heights relative to the ground under the building's centre
  * (MapLibre lifts each extrusion by that ground).
  */
 export function siteSlabFeatures(site: SiteArtifact, buildings: Building[]): GeoJSON.FeatureCollection {
@@ -72,12 +72,9 @@ export function siteSlabFeatures(site: SiteArtifact, buildings: Building[]): Geo
     const floorHeight = building.height > 0 ? building.height / levels : DEFAULT_FLOOR_HEIGHT
     const closed = [...ring, ring[0]].map((p) => [p.lng, p.lat])
     const geometry: GeoJSON.Polygon = { type: 'Polygon', coordinates: [closed] }
-    for (let i = 0; i < levels; i++) {
-      const level = base + i * floorHeight
-      features.push({ type: 'Feature', geometry, properties: { kind: 'slab', buildingId: building.id, base: i === 0 ? 0 : level - SLAB_THICKNESS - g, top: i === 0 ? Math.max(level - g, SLAB_THICKNESS) : level - g } })
-    }
+    // One solid block from the ground to the roof (walls; owner 2026-11-07), never zero height.
     const roof = base + levels * floorHeight
-    features.push({ type: 'Feature', geometry, properties: { kind: 'roof', buildingId: building.id, base: roof - SLAB_THICKNESS - g, top: roof - g } })
+    features.push({ type: 'Feature', geometry, properties: { kind: 'block', buildingId: building.id, base: 0, top: Math.max(roof - g, SLAB_THICKNESS) } })
   }
   return { type: 'FeatureCollection', features }
 }

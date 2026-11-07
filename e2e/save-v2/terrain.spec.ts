@@ -273,14 +273,15 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   await panel.getByLabel('Pad mode').selectOption('raise')
   await expect.poll(() => doc<string>('doc.buildings[0].ground.pad.mode')).toBe('raise')
 
-  // 3D: solid slabs (3 floors + roof); Cut away above the first floor leaves one slab.
+  // 3D: the building is one solid block with walls (owner 2026-11-07); Cut away above the first floor
+  // stops the block at that floor.
   await page.getByRole('button', { name: '3D' }).click()
   await page.waitForTimeout(3000)
   const big = terrainMap(page, 'top')
   expect(await big.run('map.getLayoutProperty("terrain-slabs", "visibility")')).toBe('visible')
-  expect(await big.run('map.getSource("terrain-slabs").serialize().data.features.length')).toBe(4)
+  expect(await big.run('map.getSource("terrain-slabs").serialize().data.features.map((f) => f.properties.kind)')).toEqual(['block'])
   await page.getByLabel('Building settings').getByLabel('Cut away above').selectOption({ label: 'Floor 1' })
-  await expect.poll(() => big.run('map.getSource("terrain-slabs").serialize().data.features.length')).toBe(1)
+  await expect.poll(() => big.run('map.getSource("terrain-slabs").serialize().data.features.map((f) => f.properties.kind)')).toEqual(['cut'])
   await page.getByLabel('Height exaggeration').fill('3')
   await page.waitForTimeout(3000)
   await page.screenshot({ path: path.join(SHOTS, 't4-buildings-3d.png') })
@@ -1180,6 +1181,19 @@ test('T13 — section 5: opens flat on a campus whose boundary is only in the se
   await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-frame.geojson'))
   await page.getByRole('button', { name: 'Keep my changes' }).click()
   await expect.poll(() => doc<number>('Math.round(doc.terrain.colorRange.minM)')).toBe(2)
+
+  // Lower only on the imported ground (owner: "I cannot lower anything"): holding the brush 1.2 s at
+  // full strength digs about 1.5 m/s under its centre.
+  await dock.getByRole('button', { name: 'Raise / Lower' }).click()
+  await page.getByLabel('Brush mode').selectOption('lower')
+  await page.getByLabel('Brush strength').fill('100')
+  const dig = await page.evaluate(() => (window as unknown as { __naviTerrainMaps: Record<string, { project(p: [number, number]): { x: number; y: number } }> }).__naviTerrainMaps.top.project([122.1712, 11.8172]))
+  await page.mouse.move(box.x + dig.x, box.y + dig.y)
+  await page.mouse.down()
+  await page.waitForTimeout(1200)
+  await page.mouse.up()
+  const lowest = () => doc<number>('Math.min(0, ...Object.values(doc.terrainTiles ?? {}).map((t) => { const b = atob(t); const a = new Int16Array(new Uint8Array([...b].map((c) => c.charCodeAt(0))).buffer); return Math.min(...a) }))')
+  await expect.poll(lowest).toBeLessThanOrEqual(-100)
 
   // Done: saved, and the campus settings boundary has the new corner too.
   await page.getByRole('button', { name: 'Done' }).click()

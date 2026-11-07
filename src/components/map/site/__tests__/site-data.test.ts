@@ -41,13 +41,12 @@ describe('NAVI Web site data', () => {
     expect(one.origin).toEqual({ lat: site().terrain!.originLat, lng: site().terrain!.originLng })
   })
 
-  it('building slabs: one per floor plus the roof, from the published base, relative to the ground under the centre', () => {
+  it('buildings: one solid block from the ground to the roof (walls), from the published base, relative to the ground under the centre', () => {
     const fc = siteSlabFeatures(site(), [hall as never])
-    expect(fc.features).toHaveLength(4)
-    // Base 7 m (Fixed); ground at the centre (x 50) is 7 m; floors 3.5 m apart.
-    const tops = fc.features.map((f) => Math.round((f.properties!.top as number) * 100) / 100 + 0)
-    // The ground floor is at least one slab thick (a zero-height slab flickers in the ground surface).
-    expect(tops).toEqual([0.25, 3.5, 7, 10.5])
+    // Base 7 m (Fixed); ground at the centre (x 50) is 7 m; 3 floors of 3.5 m: roof 10.5 m above the ground.
+    expect(fc.features).toHaveLength(1)
+    expect(fc.features[0].properties).toMatchObject({ kind: 'block', base: 0 })
+    expect(fc.features[0].properties!.top).toBeCloseTo(10.5, 3) // baked ground: whole centimetres
   })
 
   it('contour lines every 5 m, and the campus ground area is the boundary', () => {

@@ -138,9 +138,10 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           { id: 'terrain-roads', type: 'line', source: ROADS_SOURCE, paint: { 'line-color': '#6b7280', 'line-width': 2 } },
           { id: 'terrain-buildings', type: 'line', source: BUILDINGS_SOURCE, paint: { 'line-color': '#1f2937', 'line-width': 1.5 } },
           { id: 'terrain-boundary', type: 'line', source: BOUNDARY_SOURCE, paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-dasharray': [3, 2] } },
-          // Solid floor slabs and roofs (3D only): opaque, so lower floors are hidden.
+          // Buildings as solid blocks with walls (3D only); see building-slabs.ts.
           { id: 'terrain-slabs', type: 'fill-extrusion', source: SLABS_SOURCE, layout: { visibility: pitch > 0 ? 'visible' : 'none' }, paint: {
-            'fill-extrusion-color': ['match', ['get', 'kind'], 'roof', '#475569', '#94a3b8'],
+            // Buildings are solid blocks (walls); a cut-away block (a floor in view) is a shade darker.
+            'fill-extrusion-color': ['match', ['get', 'kind'], 'cut', '#a3adba', '#d5dae1'],
             'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1,
           } },
         ],

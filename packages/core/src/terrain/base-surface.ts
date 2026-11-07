@@ -10,6 +10,11 @@ interface MeshIndex {
   triangles: Array<[number, number, number]>
   /** Triangles per 10 m bucket, keyed "bx,by". */
   buckets: Map<string, number[]>
+  /** The mesh's box in local metres. */
+  box: { minX: number; minY: number; maxX: number; maxY: number }
+  /** Outer edges (used by one triangle only) as vertex pairs, and their 10 m buckets. */
+  edges: Array<[number, number]>
+  edgeBuckets: Map<string, number[]>
 }
 
 interface ContourIndex {
@@ -52,7 +57,34 @@ function meshIndex(source: Extract<TerrainBaseSource, { kind: 'mesh' }>, grid: T
       }
     }
   })
-  const index = { xs, ys, hs, triangles: source.triangles, buckets }
+  // Outer edges: the ones only one triangle uses (the edge of the imported area).
+  const edgeUse = new Map<string, { pair: [number, number]; count: number }>()
+  for (const [a, b, c] of source.triangles) {
+    for (const [i, j] of [[a, b], [b, c], [c, a]] as Array<[number, number]>) {
+      const key = i < j ? `${i},${j}` : `${j},${i}`
+      const entry = edgeUse.get(key)
+      if (entry) entry.count++
+      else edgeUse.set(key, { pair: [i, j], count: 1 })
+    }
+  }
+  const edges = [...edgeUse.values()].filter((e) => e.count === 1).map((e) => e.pair)
+  const edgeBuckets = new Map<string, number[]>()
+  edges.forEach(([a, b], e) => {
+    for (let bx = Math.floor(Math.min(xs[a], xs[b]) / BUCKET_METERS); bx <= Math.floor(Math.max(xs[a], xs[b]) / BUCKET_METERS); bx++) {
+      for (let by = Math.floor(Math.min(ys[a], ys[b]) / BUCKET_METERS); by <= Math.floor(Math.max(ys[a], ys[b]) / BUCKET_METERS); by++) {
+        const key = `${bx},${by}`
+        const list = edgeBuckets.get(key)
+        if (list) list.push(e)
+        else edgeBuckets.set(key, [e])
+      }
+    }
+  })
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (let i = 0; i < n; i++) {
+    minX = Math.min(minX, xs[i]); maxX = Math.max(maxX, xs[i])
+    minY = Math.min(minY, ys[i]); maxY = Math.max(maxY, ys[i])
+  }
+  const index = { xs, ys, hs, triangles: source.triangles, buckets, box: { minX, minY, maxX, maxY }, edges, edgeBuckets }
   meshCache.set(source, { grid, index })
   return index
 }
@@ -119,3 +151,53 @@ function sampleContours(index: ContourIndex, x: number, y: number): number | nul
 export function sampleBase(source: TerrainBaseSource, grid: TerrainGrid, x: number, y: number): number | null {
   return source.kind === 'mesh' ? sampleMesh(meshIndex(source, grid), x, y) : sampleContours(contourIndex(source, grid), x, y)
 }
+
+/** Height along the outer edge of the mesh nearest to (x, y): rings of 10 m buckets until the nearest is certain. */
+function nearestEdgeHeight(index: MeshIndex, x: number, y: number): number | null {
+  if (index.edges.length === 0) return null
+  const { xs, ys, hs } = index
+  const bx = Math.floor(x / BUCKET_METERS)
+  const by = Math.floor(y / BUCKET_METERS)
+  let best = null as { d: number; h: number } | null
+  const seen = new Set<number>()
+  for (let r = 0; r <= 200; r++) {
+    for (let i = bx - r; i <= bx + r; i++) {
+      for (let j = by - r; j <= by + r; j++) {
+        if (Math.max(Math.abs(i - bx), Math.abs(j - by)) !== r) continue
+        for (const e of index.edgeBuckets.get(`${i},${j}`) ?? []) {
+          if (seen.has(e)) continue
+          seen.add(e)
+          const [a, b] = index.edges[e]
+          const dx = xs[b] - xs[a]
+          const dy = ys[b] - ys[a]
+          const len2 = dx * dx + dy * dy
+          const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - xs[a]) * dx + (y - ys[a]) * dy) / len2))
+          const d = Math.hypot(x - (xs[a] + t * dx), y - (ys[a] + t * dy))
+          if (!best || d < best.d) best = { d, h: hs[a] + t * (hs[b] - hs[a]) }
+        }
+      }
+    }
+    // Every edge within r buckets has been seen: a nearer one would lie within r · 10 m.
+    if (best && best.d <= r * BUCKET_METERS) return best.h
+  }
+  return best?.h ?? null
+}
+
+/**
+ * Base ground height at local (x, y), continued past the edge of an imported mesh: outside it, the
+ * height of its nearest edge (the ground keeps going instead of dropping to 0 m in a cliff).
+ */
+export function sampleBaseExtended(source: TerrainBaseSource, grid: TerrainGrid, x: number, y: number): number | null {
+  if (source.kind !== 'mesh') return sampleBase(source, grid, x, y)
+  const index = meshIndex(source, grid)
+  const inside = sampleMesh(index, x, y)
+  if (inside !== null) return inside
+  const cx = Math.max(index.box.minX, Math.min(index.box.maxX, x))
+  const cy = Math.max(index.box.minY, Math.min(index.box.maxY, y))
+  if (cx !== x || cy !== y) {
+    const clamped = sampleMesh(index, cx, cy)
+    if (clamped !== null) return clamped
+  }
+  return nearestEdgeHeight(index, cx, cy)
+}
+

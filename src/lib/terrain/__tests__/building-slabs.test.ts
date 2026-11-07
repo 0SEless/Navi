@@ -28,44 +28,44 @@ function doc(): CampusDocument {
 }
 
 describe('buildSlabFeatures', () => {
-  it('slab heights subtract ground at centroid', () => {
+  // Ground 10 m at the centroid, base 12 m (Fixed), floors at 0 / 3.5 / 7 m, 3.5 m high: roof at 22.5 m.
+  it('each building is one solid block from the ground to its roof (walls, no floating roof)', () => {
     const d = doc()
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features
-    // ground 10 m, base 12 m (fixed): floors at 12, 15.5, 19 → slabs relative to the ground at the centroid.
-    const slabs = features.filter((f) => f.properties?.kind === 'slab').map((f) => [f.properties?.base, f.properties?.top])
-    expect(slabs[0][0]).toBe(0) // ground floor slab sinks into the ground
-    expect(slabs[0][1]).toBeCloseTo(2, 6)
-    expect(slabs[1][0]).toBeCloseTo(5.25, 6)
-    expect(slabs[1][1]).toBeCloseTo(5.5, 6)
-    expect(slabs[2][1]).toBeCloseTo(9, 6)
-    expect(features.find((f) => f.properties?.kind === 'roof')?.properties?.top).toBeCloseTo(12.5, 6)
+    expect(features).toHaveLength(1)
+    expect(features[0].properties).toMatchObject({ kind: 'block', buildingId: 'b1', base: 0 })
+    expect(features[0].properties!.top).toBeCloseTo(12.5, 6)
   })
 
-  it('a building standing on the ground gets a ground-floor slab with thickness (no zero-height slab flickering on the ground)', () => {
+  it('a building standing on the ground: a block from the ground to its roof', () => {
     const d = doc()
-    d.buildings[0].baseElevation = 10 // exactly the ground (10 m)
-    const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features
-    const ground = features.find((f) => f.properties?.kind === 'slab')!.properties!
-    expect(ground.base).toBe(0)
-    expect(ground.top).toBeCloseTo(0.25, 6)
+    d.buildings[0].baseElevation = 10
+    const block = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features[0].properties!
+    expect(block.base).toBe(0)
+    expect(block.top).toBeCloseTo(10.5, 6)
   })
 
-  it('cut away omits higher floors', () => {
+  it('cut away: the block stops at the chosen floor, whose floor shows on top', () => {
     const d = doc()
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features
-    expect(features.filter((f) => f.properties?.kind === 'slab')).toHaveLength(2)
-    expect(features.some((f) => f.properties?.kind === 'roof')).toBe(false)
+    expect(features).toHaveLength(1)
+    expect(features[0].properties).toMatchObject({ kind: 'cut', floorId: 'f2', base: 0 })
+    expect(features[0].properties!.top).toBeCloseTo(12 + 3.5 - 10, 6)
+  })
+
+  it('cut at a ground floor that sits on the ground keeps a slab of thickness (never zero height)', () => {
+    const d = doc()
+    d.buildings[0].baseElevation = 10
+    const cut = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f1' }).features[0].properties!
+    expect(cut.top).toBeCloseTo(0.25, 6)
   })
 
   it('a draft base moves that building only (live Shift+Z drag)', () => {
     const d = doc()
     const sampler = createTerrainSampler(d)!
-    const moved = buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } })
-    const kept = buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } })
-    const top = (fc: GeoJSON.FeatureCollection, floorId: string) => fc.features.find((f) => f.properties?.floorId === floorId)!.properties!.top as number
-    // Ground 10 at the centroid: base 9 puts floor 2 (3.5 m up) at 12.5 m, 2.5 m above the ground.
-    expect(top(moved, 'f2')).toBeCloseTo(2.5, 6)
-    expect(top(kept, 'f2')).toBeCloseTo(12 + 3.5 - 10, 6)
+    const top = (fc: GeoJSON.FeatureCollection) => fc.features[0].properties!.top as number
+    // Base 9 (draft): roof at 9 + 10.5 = 19.5 m, 9.5 m above the ground.
+    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } }))).toBeCloseTo(9.5, 6)
+    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } }))).toBeCloseTo(12.5, 6)
   })
 })
-

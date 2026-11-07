@@ -16,8 +16,18 @@ import type { Command } from '@navi/editor'
 
 export type BrushTool = 'raise-lower' | 'smooth' | 'flatten'
 
-/** Height change per dab for Raise/Lower (scaled by strength and the brush profile). */
+/** Height change per dab for Raise/Lower when no time is known (scaled by strength and the brush profile). */
 export const DAB_STEP_M = 0.1
+
+/**
+ * Raise/Lower is time-based (owner test, 2026-11-07: drags barely moved the ground while a pause shot up):
+ * the ground under the brush centre moves this many metres per second at full strength, whether the
+ * brush is dragged or held still. A dab counts the time since the previous one: 80 ms for the first,
+ * at most 250 ms (a rested mouse does not jump).
+ */
+export const RAISE_RATE_M_PER_S = 1.5
+const FIRST_DAB_S = 0.08
+const MAX_DAB_S = 0.25
 
 export interface TerrainStroke {
   /** Working tiles of this stroke (the terrain maps draw them while painting). */
@@ -61,7 +71,7 @@ export function tilesCommand(document: CampusDocument, workingTiles: Map<TileId,
   return { id: 'terrain.apply-tiles', label, payload: { tiles } }
 }
 
-export function createTerrainStroke(document: CampusDocument, tool: BrushTool, settings: BrushSettings): TerrainStroke | null {
+export function createTerrainStroke(document: CampusDocument, tool: BrushTool, settings: BrushSettings, now: () => number = () => performance.now()): TerrainStroke | null {
   const terrain = document.terrain
   const limit = gridArea(document)
   if (!terrain || !limit) return null
@@ -73,6 +83,7 @@ export function createTerrainStroke(document: CampusDocument, tool: BrushTool, s
   }
   const sampler = createTerrainSampler(document, { tilesOverride: workingTiles })!
   let flattenTarget: number | null = null
+  let lastDabAt: number | null = null
   let finished = false
 
   return {
@@ -86,7 +97,12 @@ export function createTerrainStroke(document: CampusDocument, tool: BrushTool, s
       else if (tool === 'flatten') {
         flattenTarget ??= sampler.heightAt(Math.round(at.x), Math.round(at.y))
         changed = flattenDab(workingTiles, loadTile, sampler, at, { ...settings, targetM: flattenTarget }, limit)
-      } else changed = applyDab(workingTiles, loadTile, sampler, at, settings, DAB_STEP_M, limit)
+      } else {
+        const t = now()
+        const seconds = lastDabAt === null ? FIRST_DAB_S : Math.min(MAX_DAB_S, Math.max(0, (t - lastDabAt) / 1000))
+        lastDabAt = t
+        changed = applyDab(workingTiles, loadTile, sampler, at, settings, RAISE_RATE_M_PER_S * seconds, limit)
+      }
       changed.forEach((id) => touched.add(id))
       return true
     },

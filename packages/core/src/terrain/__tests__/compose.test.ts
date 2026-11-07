@@ -36,6 +36,31 @@ function doc(fields: Partial<CampusDocument>): CampusDocument {
 }
 
 describe('createTerrainSampler', () => {
+  it('outside an imported ground the height continues from its nearest edge (no cliff down to 0 m)', () => {
+    // A small imported mesh: h = 20 + 0.1·x over [0, 100]², like a TopoExport frame smaller than the campus.
+    const v = (x: number, y: number): [number, number, number] => {
+      const p = ll(x, y)
+      return [p.lat, p.lng, 20 + 0.1 * x]
+    }
+    const base: TerrainBaseSource = { kind: 'mesh', vertices: [v(0, 0), v(100, 0), v(100, 100), v(0, 100)], triangles: [[0, 1, 2], [0, 2, 3]], sourceNote: 'test' }
+    const s = createTerrainSampler(doc({ terrain: terrainOf(base) }))!
+    expect(s.heightAt(50, 50)).toBeCloseTo(25, 6) // inside: the mesh
+    expect(s.heightAt(150, 50)).toBeCloseTo(30, 6) // east of it: the east edge (x = 100)
+    expect(s.heightAt(-40, 50)).toBeCloseTo(20, 6) // west: the west edge
+    expect(s.heightAt(-30, -30)).toBeCloseTo(20, 6) // beyond a corner: the corner
+  })
+
+  it('outside a rotated imported ground (corner gaps inside its box) the nearest edge is used', () => {
+    // A diamond: its bounding box has empty corners, as a rotated TopoExport frame does on the campus grid.
+    const v = (x: number, y: number, h: number): [number, number, number] => {
+      const p = ll(x, y)
+      return [p.lat, p.lng, h]
+    }
+    const base: TerrainBaseSource = { kind: 'mesh', vertices: [v(50, 0, 10), v(100, 50, 10), v(50, 100, 10), v(0, 50, 10)], triangles: [[0, 1, 2], [0, 2, 3]], sourceNote: 'test' }
+    const s = createTerrainSampler(doc({ terrain: terrainOf(base) }))!
+    expect(s.heightAt(5, 5)).toBeCloseTo(10, 6) // inside the box, outside the diamond
+  })
+
   it('no terrain → createTerrainSampler returns null', () => {
     expect(createTerrainSampler(doc({}))).toBeNull()
   })
