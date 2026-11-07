@@ -33,6 +33,9 @@ export interface CampusTerrain {
   colorRange: { minM: number; maxM: number }
 }
 
+/** An axis-aligned rectangle in local metres (grid x east, y north). */
+export interface Rect { minX: number; minY: number; maxX: number; maxY: number }
+
 /** `${col}_${row}` of a 128 × 128 change tile; negative indexes are allowed. */
 export type TileId = `${number}_${number}`
 

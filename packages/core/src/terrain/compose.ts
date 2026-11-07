@@ -109,8 +109,21 @@ export function effectiveBuildingBase(building: Building, sampler: TerrainSample
 
 // ── sampler ──────────────────────────────────────────────────────────────────
 
-interface PadEntry { ring: Point[]; fit: GroundFit; base: () => number }
-interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number }
+interface Box { minX: number; minY: number; maxX: number; maxY: number }
+interface PadEntry { ring: Point[]; fit: GroundFit; base: () => number; box: Box }
+interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number; box: Box }
+
+/** The points' box grown by `grow` metres: a fit only reaches points inside it (the fit index). */
+function boxOf(points: Point[], grow: number): Box {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of points) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+  }
+  return { minX: minX - grow, minY: minY - grow, maxX: maxX + grow, maxY: maxY + grow }
+}
+
+const inBox = (b: Box, x: number, y: number) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY
 
 export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOptions = {}): TerrainSampler | null {
   const terrain = doc.terrain
@@ -171,7 +184,7 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     const ring = outlineOf(building, grid)
     if (ring.length < 3) continue
     let cached: number | null = null
-    pads.push({ ring, fit, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)) })
+    pads.push({ ring, fit, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)), box: boxOf(ring, fit.blendMeters + 0.01) })
   }
 
   const roads: RoadEntry[] = []
@@ -180,13 +193,14 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     if (!fit || fit.mode === 'off') continue
     const line = (road.polyline?.points ?? []).map((p) => toLocal(grid, p))
     if (line.length < 2) continue
-    roads.push({ line, halfWidth: (road.width ?? 0) / 2, fit, heightAlong: roadProfile(road, line, groundAt) })
+    roads.push({ line, halfWidth: (road.width ?? 0) / 2, fit, heightAlong: roadProfile(road, line, groundAt), box: boxOf(line, (road.width ?? 0) / 2 + fit.blendMeters + 0.01) })
   }
 
   const fitAt = (x: number, y: number): number => {
     const p = { x, y }
     let bestPad: { distance: number; delta: number } | null = null
     for (const pad of pads) {
+      if (!inBox(pad.box, x, y)) continue // the fit index: a pad never reaches beyond its box
       const inside = pointInPolygon(p, pad.ring)
       const distance = inside ? 0 : distanceToSegments(p, pad.ring, true)
       if (distance > pad.fit.blendMeters) continue
@@ -198,6 +212,7 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     if (bestPad) return bestPad.delta
     let bestRoad: { distance: number; delta: number } | null = null
     for (const road of roads) {
+      if (!inBox(road.box, x, y)) continue
       const centre = distanceToSegments(p, road.line, false)
       const outside = Math.max(0, centre - road.halfWidth)
       if (outside > road.fit.blendMeters) continue
