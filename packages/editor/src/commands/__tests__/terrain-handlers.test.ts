@@ -35,24 +35,6 @@ describe('terrain commands', () => {
     expect(result).toMatchObject({ success: false, error: 'Draw the campus boundary first' })
   })
 
-  it('setup stores a valid importBlend', () => {
-    const d = doc()
-    run(d, { id: 'terrain.setup', label: 'Import', payload: { reference, base, importBlend: { zeroM: 4.2, edgeM: 40 } } })
-    expect(d.terrain?.importBlend).toEqual({ zeroM: 4.2, edgeM: 40 })
-  })
-
-  it('setup rejects an importBlend with edgeM outside 10–100 or a non-finite zeroM', () => {
-    expect(terrainSetupHandler.execute(doc(), { reference, base, importBlend: { zeroM: 4, edgeM: 5 } })).toMatchObject({ success: false })
-    expect(terrainSetupHandler.execute(doc(), { reference, base, importBlend: { zeroM: Number.NaN, edgeM: 40 } })).toMatchObject({ success: false })
-  })
-
-  it('setup without importBlend removes an earlier one (a re-import without blending)', () => {
-    const d = doc()
-    run(d, { id: 'terrain.setup', label: 'Import', payload: { reference, base, importBlend: { zeroM: 4.2, edgeM: 40 } } })
-    run(d, { id: 'terrain.setup', label: 'Import', payload: { reference, base } })
-    expect(d.terrain?.importBlend).toBeUndefined()
-  })
-
   it('setup creates grid at boundary south-west minus 20 m', () => {
     const d = doc()
     run(d, { id: 'terrain.setup', label: 'Set up terrain', payload: { reference, base } })

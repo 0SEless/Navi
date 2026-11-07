@@ -41,12 +41,6 @@ export const terrainSetupHandler: CommandHandler = {
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     if (!isReference(payload.reference)) return { success: false, error: 'Name the height reference and say what 0 m means.' }
     if (payload.colorRange !== undefined && !isColorRange(payload.colorRange)) return { success: false, error: 'The colour range needs finite minM and maxM.' }
-    const blendIn = payload.importBlend as { zeroM?: unknown; edgeM?: unknown } | undefined
-    if (blendIn !== undefined) {
-      const ok = typeof blendIn.zeroM === 'number' && Number.isFinite(blendIn.zeroM)
-        && typeof blendIn.edgeM === 'number' && blendIn.edgeM >= 10 && blendIn.edgeM <= 100
-      if (!ok) return { success: false, error: 'The blend needs a 0 m height and an edge distance of 10–100 m.' }
-    }
     const previous = snapshot(document)
     let grid = document.terrain?.grid
     if (!grid) {
@@ -59,7 +53,6 @@ export const terrainSetupHandler: CommandHandler = {
       reference: structuredClone(payload.reference),
       grid,
       ...(base ? { base } : {}),
-      ...(blendIn ? { importBlend: { zeroM: blendIn.zeroM as number, edgeM: blendIn.edgeM as number } } : {}),
       colorRange: isColorRange(payload.colorRange) ? { ...payload.colorRange } : document.terrain?.colorRange ?? { minM: 0, maxM: 40 },
     }
     document.terrain = terrain

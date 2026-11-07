@@ -201,32 +201,3 @@ export function sampleBaseExtended(source: TerrainBaseSource, grid: TerrainGrid,
   return nearestEdgeHeight(index, cx, cy)
 }
 
-function insideRing(p: Point, ring: Point[]): boolean {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]
-    const b = ring[j]
-    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
-  }
-  return inside
-}
-
-/**
- * The lowest imported ground inside `ring` (local metres), sampled every `stepM` metres — the default 0 m height of a
- * blended import. null when the ring is not a polygon or nothing is sampled.
- */
-export function lowestBaseInside(source: TerrainBaseSource, grid: TerrainGrid, ring: Point[], stepM = 2): number | null {
-  if (ring.length < 3) return null
-  const xs = ring.map((p) => p.x)
-  const ys = ring.map((p) => p.y)
-  let lowest = Infinity
-  for (let x = Math.min(...xs); x <= Math.max(...xs); x += stepM) {
-    for (let y = Math.min(...ys); y <= Math.max(...ys); y += stepM) {
-      if (!insideRing({ x, y }, ring)) continue
-      const h = sampleBaseExtended(source, grid, x, y)
-      if (h !== null && h < lowest) lowest = h
-    }
-  }
-  return Number.isFinite(lowest) ? lowest : null
-}
-
