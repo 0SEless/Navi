@@ -33,7 +33,8 @@ export function useBoundaryEditor(map: maplibregl.Map | null, opts: {
     const corners = ring.slice()
     const set = (points: typeof corners, label: string) => latest.current.dispatch({ id: 'boundary.set', label, payload: { points } })
     let selected: number | null = null
-    let dragged = false
+    // A drag ends with a click on some browsers: clicks right after a drag do not select.
+    let draggedAt = 0
 
     const cornerMarkers = corners.map((corner, index) => {
       const element = document.createElement('div')
@@ -41,13 +42,13 @@ export function useBoundaryEditor(map: maplibregl.Map | null, opts: {
       element.style.cssText = CORNER_STYLE
       element.addEventListener('click', (event) => {
         event.stopPropagation()
-        if (dragged) { dragged = false; return }
+        if (Date.now() - draggedAt < 300) return
         selected = selected === index ? null : index
         cornerMarkers.forEach((marker, k) => { marker.getElement().style.cssText = k === selected ? SELECTED_STYLE : CORNER_STYLE })
       })
       const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat([corner.lng, corner.lat]).addTo(map)
-      marker.on('dragstart', () => { dragged = true })
       marker.on('dragend', () => {
+        draggedAt = Date.now()
         const at = marker.getLngLat()
         set(corners.map((p, k) => (k === index ? { lat: at.lat, lng: at.lng } : p)), 'Move boundary corner')
       })

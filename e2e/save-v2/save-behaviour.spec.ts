@@ -8,8 +8,8 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import {
-  BUILDING_DENIED, GYM, LIBRARY, NORTH, PLAN_IMAGE, SOUTH, TERRAIN_DENIED,
-  clickSave, dispatch, documentValue, drawWall, legacy, openAdmin, openFloor, openMap, rename, roadName, saves, seededCampus,
+  BUILDING_DENIED, GYM, LIBRARY, NORTH, PLAN_IMAGE, SOUTH,
+  clickSave, dispatch, documentValue, drawWall, legacy, openAdmin, openFloor, openMap, rename, roadName, saves, seededCampus, waitForEditor,
   type ProbeWindow,
 } from './support'
 
@@ -171,17 +171,18 @@ test('S6 — closing without saving keeps a draft; reopening offers Restore and 
 test('S7 — terrain is one admin at a time; the other admin can still edit a building', async ({ browser }) => {
   const ana = await openAdmin(browser, 'ana')
   const campusId = await seededCampus(ana)
-  await openMap(ana, campusId)
-  await ana.page.getByTestId('terrain-draw-start').click()
+  // Section 5: the terrain lock is taken by opening the terrain editor (the old map-canvas box is gone).
+  await ana.page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(ana.page)
   await expect.poll(() => ana.page.evaluate(() => (window as ProbeWindow).__naviStudioV2!.session.zones.held())).toContain('terrain')
 
   const ben = await openAdmin(browser, 'ben')
-  await openMap(ben, campusId)
-  await ben.page.getByTestId('terrain-draw-start').click()
-  await expect(ben.page.getByTestId('zone-denied-dialog')).toContainText(TERRAIN_DENIED)
-  await expect(ben.page.getByTestId('terrain-draw-finish')).toHaveCount(0)
-  await ben.page.getByTestId('zone-denied-dialog').getByRole('button', { name: 'OK' }).click()
+  await ben.page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(ben.page)
+  await expect(ben.page.getByRole('status').filter({ hasText: 'is editing the terrain. You can look, but not change it.' })).toBeVisible({ timeout: 30_000 })
+  expect(await ben.page.evaluate(() => (window as ProbeWindow).__naviStudioV2!.session.zones.held())).not.toContain('terrain')
 
+  await openMap(ben, campusId)
   await ben.page.getByRole('treeitem', { name: /Gym/ }).click()
   await expect.poll(() => ben.page.evaluate(() => (window as ProbeWindow).__naviStudioV2!.session.zones.held())).toContain(`building:${GYM}`)
   await rename(ben.page, GYM, 'Gym (ben)')

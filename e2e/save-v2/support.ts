@@ -97,18 +97,20 @@ export async function openAdmin(browser: Browser, name: 'ana' | 'ben'): Promise<
     if (url.pathname.startsWith('/api/')) requests.push({ method: request.method(), path: url.pathname, body: request.postData() ?? '' })
     return route.continue()
   })
+  // Section 5: the terrain guide is shown once per browser; probes start with it seen.
+  await context.addInitScript(() => { try { localStorage.setItem('navi-terrain-guide-seen', '1') } catch { /* no storage */ } })
   const page = await context.newPage()
   return { context, page, requests, blocked }
 }
 
-export async function createCampus(admin: Admin): Promise<string> {
+export async function createCampus(admin: Admin, settingsBoundary: Array<{ lat: number; lng: number }> = []): Promise<string> {
   const campusId = `probe-${randomBytes(6).toString('hex')}`
   const response = await admin.page.request.post('/api/studio/v2/campuses', {
     headers: { 'x-navi-studio-session': randomUUID() },
     data: {
       campusId,
       name: 'Save v2 Probe Campus',
-      settings: { schoolName: 'ASU', boundary: [], center: { lat: 14.6005, lng: 121.051 }, stats: { buildings: 2, nodes: 0, edges: 0 }, updatedAt: '2026-11-01T00:00:00.000Z', landmarkTypes: [], landmarkInstances: [] },
+      settings: { schoolName: 'ASU', boundary: settingsBoundary, center: { lat: 14.6005, lng: 121.051 }, stats: { buildings: 2, nodes: 0, edges: 0 }, updatedAt: '2026-11-01T00:00:00.000Z', landmarkTypes: [], landmarkInstances: [] },
     },
   })
   expect(response.status()).toBe(201)
@@ -120,8 +122,8 @@ export async function waitForEditor(page: Page): Promise<void> {
 }
 
 /** Ana creates the campus, saves the seed document through the real client, and frees every lock. */
-export async function seededCampus(ana: Admin, makeDocument: (campusId: string) => unknown = seedDocument): Promise<string> {
-  const campusId = await createCampus(ana)
+export async function seededCampus(ana: Admin, makeDocument: (campusId: string) => unknown = seedDocument, settingsBoundary: Array<{ lat: number; lng: number }> = []): Promise<string> {
+  const campusId = await createCampus(ana, settingsBoundary)
   await ana.page.goto(`/studio/${campusId}/edit`)
   await waitForEditor(ana.page)
   const outcome = await ana.page.evaluate(async (seed) => {
@@ -230,4 +232,9 @@ export async function saveNow(page: Page): Promise<void> {
   expect(answer.status(), await answer.text()).toBe(200)
   // The save is finished when the status line says so (drafts cleared, workflow settled).
   await expect(page.getByText(/Saved · #\d+/).first()).toBeVisible()
+}
+
+/** Blocked outside requests other than street-map tiles (Studio's terrain editor shows the street map, section 5). */
+export function dataBlocked(blocked: string[]): string[] {
+  return blocked.filter((entry) => !entry.endsWith('://tile.openstreetmap.org'))
 }

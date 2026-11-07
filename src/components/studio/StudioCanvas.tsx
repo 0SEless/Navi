@@ -59,7 +59,6 @@ import { RotationHandle } from './RotationHandle'
 import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { PositionEditHint } from './PositionEditHint'
-import { TerrainAreaAuthoring } from './TerrainAreaAuthoring'
 
 interface StudioCanvasProps {
   center?: { lat: number; lng: number }
@@ -227,7 +226,6 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
       {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
       {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={drawing.setRoomDrag} onEmptyMapClick={onEmptyMapClick} drawing={drawing} />}
       {mapInstance && <POIGeometryAuthoring map={mapInstance} />}
-      {mapInstance && <TerrainAreaAuthoring map={mapInstance} />}
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
         <StyleSelector />
       </div>

@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { floor, openAdmin, openMap, seededCampus, waitForEditor, type ProbeWindow } from './support'
+import { dataBlocked, floor, openAdmin, openMap, seededCampus, waitForEditor, type ProbeWindow } from './support'
 
 // Terrain plan acceptance (built up task by task; Task 16 completes it). Uses the owner's
 // ASU-Ibajay TopoExport files; the seeded campus sits inside that export's frame.
@@ -37,8 +38,8 @@ test('T1 — terrain workspace: import the TopoExport ground, views, one map and
   await waitForEditor(ana.page)
   await ana.page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
-  await expect(ana.page.getByRole('button', { name: 'Import ground' })).toBeVisible({ timeout: 60_000 })
-  await ana.page.getByRole('button', { name: 'Import ground' }).click()
+  await expect(ana.page.getByRole('button', { name: 'Import terrain' })).toBeVisible({ timeout: 60_000 })
+  await ana.page.getByRole('button', { name: 'Import terrain' }).click()
   await ana.page.getByLabel('Terrain files').setInputFiles([
     path.join(FIXTURES, 'topoexport-asu-ibajay.glb'),
     path.join(FIXTURES, 'topoexport-frame.geojson'),
@@ -84,7 +85,7 @@ test('T1 — terrain workspace: import the TopoExport ground, views, one map and
   })
   for (const m of Object.values(heights)) expect(m).toMatchObject({ relief: true, contours: true, loaded: true })
 
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -95,10 +96,8 @@ test('T2 — a Raise stroke is one undo step, shows in the Changes view, and und
   await waitForEditor(ana.page)
   await ana.page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
-  await ana.page.getByRole('button', { name: 'Start flat' }).click()
-  await ana.page.getByLabel('Reference name').fill('Gate road')
-  await ana.page.getByLabel('0 m means').fill('The road at the main gate')
-  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  // Section 5: Terrain opens on flat ground; it is created at the first edit.
+  await ana.page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
   await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
   await ana.page.waitForTimeout(2500)
 
@@ -132,7 +131,7 @@ test('T2 — a Raise stroke is one undo step, shows in the Changes view, and und
   expect(await tilesAfter()).toBe(0)
   await ana.page.keyboard.press('Control+y')
   expect(await tilesAfter()).toBeGreaterThan(0)
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -144,10 +143,9 @@ test('T3 — lasso, slope, contour pen to surface, boundary corner and a local t
   await waitForEditor(page)
   await page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
-  await page.getByRole('button', { name: 'Trace contours' }).click()
-  await page.getByLabel('Reference name').fill('Sea level')
-  await page.getByLabel('0 m means').fill('Mean sea level')
-  await page.getByRole('button', { name: 'Create terrain' }).click()
+  // Section 5: no first-visit page; the contour pen is a dock tool.
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+  await page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: 'Contour pen' }).click()
   await expect(page.getByLabel('Contour pen settings')).toBeVisible()
   await page.waitForTimeout(2000)
   const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
@@ -188,10 +186,11 @@ test('T3 — lasso, slope, contour pen to surface, boundary corner and a local t
   const corner = (await page.getByLabel('Boundary corner 1').boundingBox())!
   await page.mouse.move(corner.x + 6, corner.y + 6)
   await page.mouse.down()
-  await page.mouse.move(corner.x - 40, corner.y + 40, { steps: 5 })
+  // Dragged outward to the east (west of the corner is the layers panel, section 5).
+  await page.mouse.move(corner.x + 46, corner.y + 40, { steps: 5 })
   await page.mouse.up()
   const firstAfter = await doc<{ lat: number; lng: number }>('doc.boundary.points[0]')
-  expect(firstAfter.lng).toBeLessThan(firstBefore.lng)
+  expect(firstAfter.lng).toBeGreaterThan(firstBefore.lng)
 
   // Tracing image: shown, stored on this computer only.
   await page.getByLabel('Tracing image file').setInputFiles(path.join(__dirname, '..', 'test-floor-plan.png'))
@@ -207,7 +206,7 @@ test('T3 — lasso, slope, contour pen to surface, boundary corner and a local t
   const { layers } = await order()
   expect(layers.indexOf('terrain-tracing')).toBeGreaterThan(layers.indexOf('terrain-relief'))
   await page.screenshot({ path: path.join(SHOTS, 't3-tools.png') })
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -240,7 +239,7 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
 
   // Import with "Set all buildings to follow the ground" (ticked by default).
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
@@ -255,7 +254,7 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   await expect.poll(() => top.run('map.getTerrain()')).toBeNull()
 
   // Buildings tool: select the hall by clicking inside it.
-  await page.getByRole('button', { name: 'Buildings' }).click()
+  await page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: 'Buildings', exact: true }).click()
   const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
   const centre = await top.run<{ x: number; y: number }>('map.project([122.1705, 11.81735])')
   await page.mouse.click(box.x + centre.x, box.y + centre.y)
@@ -285,7 +284,7 @@ test('T4 — buildings follow the ground, Fixed/Snap/pad, solid floor slabs and 
   await page.getByLabel('Height exaggeration').fill('3')
   await page.waitForTimeout(3000)
   await page.screenshot({ path: path.join(SHOTS, 't4-buildings-3d.png') })
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -299,7 +298,7 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   ana.blocked.length = 0 // late tile requests of the seeding page (map editor, OSM) are not the terrain page's
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
 
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
@@ -325,7 +324,7 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   expect(await top.run<string[]>('map.getStyle().layers.map((l) => l.id).slice(map.getStyle().layers.findIndex((l) => l.id === "terrain-road-surfaces"), map.getStyle().layers.findIndex((l) => l.id === "terrain-roads") + 1)')).toEqual(['terrain-road-surfaces', 'terrain-road-edges', 'terrain-road-centre', 'terrain-roads'])
 
   // Place: one click south-east of the hall puts a 3 m block on the ground.
-  await page.getByRole('button', { name: 'Stairs' }).click()
+  await page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: 'Stairs', exact: true }).click()
   const place = await screenOf(122.1712, 11.8170)
   await page.mouse.click(place.x, place.y)
   await expect.poll(() => doc<number>('(doc.structures ?? []).length')).toBe(1)
@@ -386,7 +385,7 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
   await expect(page.getByLabel('Ramp readout')).toContainText('Runs ')
   await page.waitForTimeout(1500)
   await page.screenshot({ path: path.join(SHOTS, 't5-ramp-3d.png') })
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -402,10 +401,8 @@ test('T6 — the clay paint preview: instant on the map, zero DEM reloads or ver
   await waitForEditor(ana.page)
   await ana.page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
-  await ana.page.getByRole('button', { name: 'Start flat' }).click()
-  await ana.page.getByLabel('Reference name').fill('Probe flat')
-  await ana.page.getByLabel('0 m means').fill('Mean sea level')
-  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  // Section 5: Terrain opens on flat ground; it is created at the first edit.
+  await ana.page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
   await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
   await ana.page.waitForTimeout(2500)
 
@@ -502,7 +499,7 @@ test('T6 — the clay paint preview: instant on the map, zero DEM reloads or ver
   await ana.page.keyboard.up('Alt')
   await expect(ana.page.getByLabel('Target height')).toHaveValue(/^0(\.0+)?$/)
 
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -513,10 +510,8 @@ test('T7 — the neutral default: colours Off with contour lines on; Height is o
   await waitForEditor(ana.page)
   await ana.page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
-  await ana.page.getByRole('button', { name: 'Start flat' }).click()
-  await ana.page.getByLabel('Reference name').fill('Probe flat')
-  await ana.page.getByLabel('0 m means').fill('Mean sea level')
-  await ana.page.getByRole('button', { name: 'Create terrain' }).click()
+  // Section 5: Terrain opens on flat ground; it is created at the first edit.
+  await ana.page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
   await expect(ana.page.locator('[data-terrain-map="top"]')).toBeVisible()
   await ana.page.waitForTimeout(2500)
 
@@ -624,7 +619,7 @@ test('T7 — the neutral default: colours Off with contour lines on; Height is o
   await ana.page.keyboard.press('Control+z')
   expect(await tilesAfter()).toBe(0)
 
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -637,7 +632,7 @@ test('T8 — Shift+Z height mode: side view, drag a building down and the ground
   await page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
@@ -655,7 +650,7 @@ test('T8 — Shift+Z height mode: side view, drag a building down and the ground
   expect(await top.run<number>('map.getPitch()')).toBeLessThan(5)
 
   // Select the hall with the Buildings tool, then Shift+Z: the camera turns to its side.
-  await page.getByRole('button', { name: 'Buildings' }).click()
+  await page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: 'Buildings', exact: true }).click()
   const centre = await top.run<{ x: number; y: number }>(`map.project([${HALL[0]}, ${HALL[1]}])`)
   await page.mouse.click(box.x + centre.x, box.y + centre.y)
   await expect(page.getByLabel('Building settings').getByText('Hall')).toBeVisible()
@@ -712,7 +707,7 @@ test('T8 — Shift+Z height mode: side view, drag a building down and the ground
   await page.keyboard.press('Escape')
   await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeLessThan(5)
   await expect(page.getByText('Height mode')).toHaveCount(0)
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -725,7 +720,7 @@ test('T9 — Shift+Z on a stair: the ground end gets an offset and keeps followi
   await page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
@@ -758,7 +753,7 @@ test('T9 — Shift+Z on a stair: the ground end gets an offset and keeps followi
   }
 
   // Select the stair with the Stairs tool, then Shift+Z: the side view, and no drag dots in the way.
-  await page.getByRole('button', { name: 'Stairs' }).click()
+  await page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: 'Stairs', exact: true }).click()
   const middle = await screenOf([122.1705, 11.8171])
   await page.mouse.click(middle.x, middle.y)
   await expect(page.getByLabel('Stair settings').getByLabel('Preset')).toHaveValue('plain-stair')
@@ -786,7 +781,7 @@ test('T9 — Shift+Z on a stair: the ground end gets an offset and keeps followi
   await expect.poll(() => doc<unknown>('doc.structures[0].heightOffset ?? null')).toBeNull()
   await page.keyboard.press('Escape')
   await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeLessThan(5)
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -803,7 +798,7 @@ test('T10 — section 4: the camera stays on the campus, boundary and soft outsi
   await waitForEditor(page)
   await page.waitForTimeout(1000)
   ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
@@ -838,11 +833,13 @@ test('T10 — section 4: the camera stays on the campus, boundary and soft outsi
   expect(markings.filter((m) => m.roadId === 'road-main').map((m) => m.kind).sort()).toEqual(['centre', 'edge', 'edge'])
   expect(markings.filter((m) => m.roadId === 'path-1')).toEqual([])
   expect(await top.run<string>('map.getLayoutProperty("terrain-roads", "visibility")')).toBe('none')
-  await page.getByLabel('Roads and paths').uncheck()
+  const roadsEye = page.getByRole('region', { name: 'Layers' }).getByRole('button', { name: 'Roads and paths' })
+  await roadsEye.click()
+  await expect(roadsEye).toHaveAttribute('aria-pressed', 'false')
   for (const id of ['terrain-road-surfaces', 'terrain-road-edges', 'terrain-road-centre']) {
     expect(await top.run<string>(`map.getLayoutProperty("${id}", "visibility")`)).toBe('none')
   }
-  await page.getByLabel('Roads and paths').check()
+  await roadsEye.click()
   await page.screenshot({ path: path.join(SHOTS, 't10-top.png') })
 
   // One key per tool: the dock's pressed button follows the keys.
@@ -852,7 +849,7 @@ test('T10 — section 4: the camera stays on the campus, boundary and soft outsi
     await page.keyboard.press(key)
     await expect(page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
   }
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 
@@ -988,7 +985,7 @@ test('T12 — acceptance (Task 16): ASU-Ibajay ground, a raise stroke, buildings
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
 
   // Import the owner's TopoExport ground; every building follows it (ticked by default).
-  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByRole('button', { name: 'Import terrain' }).click()
   // One file at a time, as the owner picks them: the second pick adds to the first.
   await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-asu-ibajay.glb'))
   await expect(page.getByText('Still needed: frame.geojson')).toBeVisible()
@@ -1121,7 +1118,78 @@ test('T12 — acceptance (Task 16): ASU-Ibajay ground, a raise stroke, buildings
   ana.blocked.length = 0
   await expect.poll(() => doc<number>('(doc.structures ?? []).length'), { timeout: 30_000 }).toBe(1)
   expect(await fingerprint()).toBe(before)
-  expect(ana.blocked).toEqual([])
+  expect(dataBlocked(ana.blocked)).toEqual([])
+  await ana.context.close()
+})
+
+test('T13 — section 5: opens flat on a campus whose boundary is only in the settings, expands the boundary, imports one file at a time, Done keeps the settings boundary in step', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const ring = [{ lat: 11.8163, lng: 122.1690 }, { lat: 11.8163, lng: 122.1730 }, { lat: 11.8190, lng: 122.1730 }, { lat: 11.8190, lng: 122.1690 }]
+  // As the create-map wizard leaves it: the boundary in the campus settings, none in the document.
+  const campusId = await seededCampus(ana, (id) => {
+    const document = ibajayDocument(id) as Record<string, unknown>
+    delete document.boundary
+    return document
+  }, ring)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  // Opens on the campus: no first-visit page, no missing-boundary banner, nothing written yet.
+  await expect(page.locator('[data-terrain-map="top"]')).toBeVisible()
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+  await expect(page.getByText(/no campus boundary yet/)).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Layers' })).toBeVisible()
+  expect(await doc<boolean>('doc.terrain === undefined && doc.boundary === undefined')).toBe(true)
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: path.join(SHOTS, 't13-open.png') })
+  // The camera frames the campus even though its boundary arrived after the map opened.
+  const centre = await page.evaluate(() => (window as unknown as { __naviTerrainMaps: Record<string, { getCenter(): { lat: number; lng: number } }> }).__naviTerrainMaps.top.getCenter())
+  expect(centre.lat).toBeGreaterThan(11.8163)
+  expect(centre.lat).toBeLessThan(11.8190)
+  expect(centre.lng).toBeGreaterThan(122.1690)
+  expect(centre.lng).toBeLessThan(122.1730)
+
+  // The first stroke creates the flat "Campus ground" and copies the map-creation boundary.
+  const dock = page.getByRole('toolbar', { name: 'Terrain tools' })
+  await dock.getByRole('button', { name: 'Raise / Lower' }).click()
+  await page.getByLabel('Brush size').fill('20')
+  await page.getByLabel('Brush strength').fill('100')
+  const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
+  const from = await page.evaluate(() => (window as unknown as { __naviTerrainMaps: Record<string, { project(p: [number, number]): { x: number; y: number } }> }).__naviTerrainMaps.top.project([122.1720, 11.8183]))
+  await page.mouse.move(box.x + from.x, box.y + from.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + from.x + i * 6, box.y + from.y, { steps: 2 })
+  await page.waitForTimeout(600)
+  await page.mouse.up()
+  await expect.poll(() => doc<string | undefined>('doc.terrain?.reference?.name')).toBe('Campus ground')
+  expect(await doc<number>('doc.boundary.points.length')).toBe(4)
+  await expect.poll(() => doc<number>('Object.keys(doc.terrainTiles ?? {}).length')).toBeGreaterThan(0)
+
+  // Expand the boundary: + on the first edge adds a corner.
+  await dock.getByRole('button', { name: 'Edit boundary' }).click()
+  await page.getByLabel('Add boundary corner on edge 1').click()
+  await expect.poll(() => doc<number>('doc.boundary.points.length')).toBe(5)
+
+  // Import terrain from the dock, one file at a time, keeping the stroke.
+  await page.getByRole('button', { name: 'Import terrain' }).click()
+  await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-asu-ibajay.glb'))
+  await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-frame.geojson'))
+  await page.getByRole('button', { name: 'Keep my changes' }).click()
+  await expect.poll(() => doc<number>('Math.round(doc.terrain.colorRange.minM)')).toBe(2)
+
+  // Done: saved, and the campus settings boundary has the new corner too.
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.waitForURL(new RegExp(`/studio/${campusId}/edit$`), { timeout: 60_000 })
+  await expect.poll(async () => {
+    const response = await page.request.get('/api/studio/v2/campuses', { headers: { 'x-navi-studio-session': randomUUID() } })
+    const body = await response.json() as { campuses?: Array<{ id: string; settings?: { boundary?: unknown[] } }> }
+    return body.campuses?.find((row) => row.id === campusId)?.settings?.boundary?.length ?? 0
+  }, { timeout: 30_000 }).toBe(5)
+  expect(dataBlocked(ana.blocked)).toEqual([])
   await ana.context.close()
 })
 

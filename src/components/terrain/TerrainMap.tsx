@@ -118,8 +118,6 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       style: {
         version: 8,
         sources: {
-          // Section 5: the street map underneath; our ground draws on top of it.
-          [STREET_MAP_SOURCE]: { type: 'raster', tiles: [STREET_MAP_TILES], tileSize: 256, maxzoom: 19, attribution: '&copy; OpenStreetMap contributors' },
           [TERRAIN_SOURCE]: dem(HEIGHTS_SCHEME),
           [RELIEF_SOURCE]: dem(HEIGHTS_SCHEME),
           [HILLSHADE_SOURCE]: dem(HEIGHTS_SCHEME),
@@ -133,7 +131,6 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
         },
         layers: [
           // Neutral ground (owner 2026-11-06): sand-grey with a warm hillshade, like TopoExport.
-          { id: STREET_MAP_LAYER, type: 'raster', source: STREET_MAP_SOURCE, paint: { 'raster-opacity': initialLayers.current.streetMapOpacity } },
           { id: 'terrain-background', type: 'background', paint: { 'background-color': GROUND_COLOR, 'background-opacity': initialLayers.current.groundOpacity } },
           { id: HILLSHADE_LAYER, type: 'hillshade', source: HILLSHADE_SOURCE, paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#6f6455', 'hillshade-highlight-color': '#fffdf7', 'hillshade-accent-color': '#8c8170' } },
           // Outside the boundary: a light veil, so you always see where the campus ends (section 4).
@@ -251,6 +248,12 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
+    // The street map is added after the map has loaded: the ground never waits for outside tiles
+    // (offline, or tiles blocked), it only draws on top of them when they come.
+    if (!map.getSource(STREET_MAP_SOURCE)) {
+      map.addSource(STREET_MAP_SOURCE, { type: 'raster', tiles: [STREET_MAP_TILES], tileSize: 256, maxzoom: 19, attribution: '&copy; OpenStreetMap contributors' })
+      map.addLayer({ id: STREET_MAP_LAYER, type: 'raster', source: STREET_MAP_SOURCE, paint: { 'raster-opacity': layers.streetMapOpacity } }, 'terrain-background')
+    }
     for (const [id, visibility] of Object.entries(layerVisibility(layers))) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility)
     }

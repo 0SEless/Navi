@@ -121,14 +121,24 @@ describe('TerrainPaintPreview', () => {
     expect(preview.layerOn(top)!.vertexCount()).toBeGreaterThan(0)
   })
 
-  it('a map without the style loaded attaches on load and paints then', () => {
+  it('a map whose style loaded while tiles (the street map) are still coming attaches at once', () => {
+    const preview = createTerrainPaintPreview()
+    const top = fakeMap({ styleLoaded: false })
+    ;(top as unknown as { style: { _loaded: boolean } }).style = { _loaded: true }
+    preview.setMaps([top], 1)
+    const tiles = new Map([[tileIdOf(0, 0), workingTile([1])]])
+    preview.start(documentOf({ reference: { name: 'T', zeroMeaning: 'Sea level' }, grid, base: planeBase(0, 0), colorRange: { minM: 0, maxM: 40 } } as CampusTerrain), tiles)
+    expect(top.added).toHaveLength(1)
+  })
+
+  it('a map without the style loaded attaches on style.load and paints then', () => {
     const preview = createTerrainPaintPreview()
     const top = fakeMap({ styleLoaded: false })
     preview.setMaps([top], 1)
     const tiles = new Map([[tileIdOf(0, 0), workingTile([1])]])
     preview.start(documentOf({ reference: { name: 'T', zeroMeaning: 'Sea level' }, grid, base: planeBase(0, 0), colorRange: { minM: 0, maxM: 40 } } as CampusTerrain), tiles)
     expect(top.added).toHaveLength(0)
-    top.fire('load')
+    top.fire('style.load')
     expect(top.added).toHaveLength(1)
     expect(preview.layerOn(top)!.vertexCount()).toBeGreaterThan(0)
   })

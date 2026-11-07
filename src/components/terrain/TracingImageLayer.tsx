@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { TracingImage } from '@/lib/terrain/tracing-store'
 import { overlayAnchor, TRACING_LAYER } from '@/lib/terrain/terrain-view'
+import { whenStyleReady } from '@/lib/terrain/style-ready'
 
 const SOURCE = TRACING_LAYER
 
@@ -29,8 +30,7 @@ export function TracingImageLayer({ map, image, visible, onPlace }: {
       map.addSource(SOURCE, { type: 'image', url, coordinates })
       map.addLayer({ id: SOURCE, type: 'raster', source: SOURCE, paint: { 'raster-opacity': image.opacity } }, overlayAnchor(map))
     }
-    if (map.isStyleLoaded()) add()
-    else map.once('load', add)
+    whenStyleReady(map, add)
 
     const corner = (lng: number, lat: number, label: string) => {
       const element = document.createElement('div')

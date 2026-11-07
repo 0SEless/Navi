@@ -7,6 +7,7 @@ import type { Command, MutationResult } from '@navi/editor'
 import { createTerrainStroke, gridArea, type BrushTool, type TerrainStroke } from '@/lib/terrain/terrain-stroke'
 import { brushOutline } from '@/lib/terrain/brush-outline'
 import type { TerrainTool } from './TerrainToolRail'
+import { styleReady } from '@/lib/terrain/style-ready'
 
 const BRUSH_SOURCE = 'terrain-brush'
 const BRUSH_LAYER = 'terrain-brush'
@@ -87,7 +88,7 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     const outline = (lngLat: maplibregl.LngLat) => {
       const { document, settings, tool } = latest.current
       const terrain = document.terrain
-      if (!map.isStyleLoaded() || !terrain) return
+      if (!styleReady(map) || !terrain) return
       ensureBrushLayer(map)
       const source = map.getSource(BRUSH_SOURCE) as maplibregl.GeoJSONSource
       if (!BRUSH_TOOLS.has(tool)) {

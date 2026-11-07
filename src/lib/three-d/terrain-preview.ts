@@ -9,6 +9,7 @@ import {
 } from '@navi/core'
 import { overlayAnchor } from '@/lib/terrain/terrain-view'
 import { createMeshLayer, type MeshLayer } from './mesh-layer'
+import { whenStyleReady } from '@/lib/terrain/style-ready'
 
 export const PREVIEW_LAYER_ID = 'terrain-preview'
 
@@ -98,8 +99,7 @@ export class TerrainPaintPreview {
       layer.setMesh(this.meshData())
       layer.setVerticalScale(this.scaleOf(map))
     }
-    if (map.isStyleLoaded()) attachNow()
-    else map.once('load', attachNow)
+    whenStyleReady(map, attachNow)
   }
 
   private refresh(): void {

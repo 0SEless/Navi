@@ -97,7 +97,6 @@ vi.mock('../ViewportController', () => ({ ViewportController: () => null }))
 vi.mock('../useToolController', () => ({ useToolController: vi.fn() }))
 vi.mock('../InteractionController', () => ({ InteractionController: () => null }))
 vi.mock('../POIGeometryAuthoring', () => ({ POIGeometryAuthoring: () => null }))
-vi.mock('../TerrainAreaAuthoring', () => ({ TerrainAreaAuthoring: () => null }))
 vi.mock('../rendering/EntityRendererBridge', () => ({ EntityRendererBridge: () => null }))
 vi.mock('../rendering/NavigationGraphRenderer', () => ({
   NavigationGraphRenderer: () => null,

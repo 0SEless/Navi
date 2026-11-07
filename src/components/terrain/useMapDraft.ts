@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type maplibregl from 'maplibre-gl'
+import { styleReady } from '@/lib/terrain/style-ready'
 
 type LatLng = { lat: number; lng: number }
 
@@ -30,7 +31,7 @@ export function useMapDraft(map: maplibregl.Map | null, opts: { active: boolean;
   useEffect(() => {
     if (!map) return
     const draw = () => {
-      if (!map.isStyleLoaded()) return
+      if (!styleReady(map)) return
       if (!map.getSource(DRAFT_SOURCE)) {
         map.addSource(DRAFT_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
         map.addLayer({ id: `${DRAFT_SOURCE}-line`, type: 'line', source: DRAFT_SOURCE, paint: { 'line-color': '#7c3aed', 'line-width': 2, 'line-dasharray': [2, 1] } })
