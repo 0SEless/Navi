@@ -31,6 +31,12 @@ export interface CampusTerrain {
   base?: TerrainBaseSource
   /** Heights-view colour scale: green at minM, red at maxM. */
   colorRange: { minM: number; maxM: number }
+  /**
+   * A blended import (owner 2026-11-07): the imported base is shifted so `zeroM` (metres above sea level) becomes
+   * 0 m, and outside the campus boundary it eases to 0 m over `edgeM` metres (smoothstep), so the campus blends into
+   * the flat surroundings. Inside the boundary only the shift applies (true slopes).
+   */
+  importBlend?: { zeroM: number; edgeM: number }
 }
 
 /** An axis-aligned rectangle in local metres (grid x east, y north). */

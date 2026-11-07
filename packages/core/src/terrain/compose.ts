@@ -67,6 +67,17 @@ function fitApplies(mode: GroundFit['mode'], delta: number): boolean {
   return mode === 'both' || (mode === 'raise' && delta > 0) || (mode === 'lower' && delta < 0)
 }
 
+/** A lat/lng ring in local metres without a repeated closing point. */
+function outlineOfPoints(points: Array<{ lat: number; lng: number }>, grid: TerrainGrid): Point[] {
+  const ring = points.map((p) => toLocal(grid, p))
+  if (ring.length > 1) {
+    const first = ring[0]
+    const last = ring[ring.length - 1]
+    if (first.x === last.x && first.y === last.y) ring.pop()
+  }
+  return ring
+}
+
 function outlineOf(building: Building, grid: TerrainGrid): Point[] {
   const points = building.footprint?.points ?? []
   const ring = points.map((p) => toLocal(grid, p))
@@ -160,7 +171,17 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
   }
 
   // Past the edge of an imported ground the height continues from its nearest edge (no cliff to 0 m).
-  const baseAt = (x: number, y: number) => (base ? sampleBaseExtended(base, grid, x, y) ?? 0 : 0)
+  const rawBaseAt = (x: number, y: number) => (base ? sampleBaseExtended(base, grid, x, y) ?? 0 : 0)
+  // Blended import: shifted so zeroM is 0 m; outside the boundary it eases to 0 m over edgeM (smoothstep).
+  const blend = terrain.importBlend
+  const blendRing = blend ? outlineOfPoints(doc.boundary?.points ?? [], grid) : []
+  const baseAt = !blend || blendRing.length < 3 ? rawBaseAt : (x: number, y: number) => {
+    const shifted = rawBaseAt(x, y) - blend.zeroM
+    const p = { x, y }
+    if (pointInPolygon(p, blendRing)) return shifted
+    const t = Math.min(1, distanceToSegments(p, blendRing, true) / Math.max(1, blend.edgeM))
+    return shifted * (1 - t * t * (3 - 2 * t))
+  }
   const changeAt = (x: number, y: number) => {
     const x0 = Math.floor(x)
     const y0 = Math.floor(y)
