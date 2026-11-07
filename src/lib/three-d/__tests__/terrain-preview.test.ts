@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type maplibregl from 'maplibre-gl'
-import { tileIdOf, TILE_CELLS, type CampusDocument, type CampusTerrain, type TerrainBaseSource, type TerrainGrid } from '@navi/core'
+import { encodeTile, tileIdOf, TILE_CELLS, type CampusDocument, type CampusTerrain, type TerrainBaseSource, type TerrainGrid } from '@navi/core'
 import { createTerrainPaintPreview } from '../terrain-preview'
 
 type MiniMap = { fire(type: string): void; fireable(type: string): number; added: Array<{ layer: unknown; before?: unknown }> }
@@ -141,6 +141,22 @@ describe('TerrainPaintPreview', () => {
     top.fire('style.load')
     expect(top.added).toHaveLength(1)
     expect(preview.layerOn(top)!.vertexCount()).toBeGreaterThan(0)
+  })
+
+  it('draws only the cells this stroke changes, not earlier changes in the same tile (no flicker over unchanged ground)', () => {
+    const preview = createTerrainPaintPreview()
+    const top = fakeMap({ pitch: 55 })
+    preview.setMaps([top], 1)
+    // The tile already holds an earlier change in its first cell; the stroke adds one far away.
+    const committed = workingTile([300])
+    const working = committed.slice()
+    working[100 * TILE_CELLS + 100] = 50
+    const document = { ...documentOf({ reference: { name: 'T', zeroMeaning: 'Sea level' }, grid, base: planeBase(0, 0), colorRange: { minM: 0, maxM: 40 } } as CampusTerrain), terrainTiles: { [tileIdOf(0, 0)]: encodeTile(committed) } } as unknown as CampusDocument
+    preview.start(document, new Map([[tileIdOf(0, 0), working]]))
+    const vertices = preview.layerOn(top)!.vertexCount()
+    expect(vertices).toBeGreaterThan(0)
+    // At most the 2 x 2 cells around the one changed cell (6 vertices per cell), not the 101 x 101 box.
+    expect(vertices).toBeLessThanOrEqual(4 * 6)
   })
 
   it('a document without terrain attaches nothing', () => {

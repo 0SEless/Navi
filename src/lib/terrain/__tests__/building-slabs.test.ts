@@ -41,6 +41,15 @@ describe('buildSlabFeatures', () => {
     expect(features.find((f) => f.properties?.kind === 'roof')?.properties?.top).toBeCloseTo(12.5, 6)
   })
 
+  it('a building standing on the ground gets a ground-floor slab with thickness (no zero-height slab flickering on the ground)', () => {
+    const d = doc()
+    d.buildings[0].baseElevation = 10 // exactly the ground (10 m)
+    const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features
+    const ground = features.find((f) => f.properties?.kind === 'slab')!.properties!
+    expect(ground.base).toBe(0)
+    expect(ground.top).toBeCloseTo(0.25, 6)
+  })
+
   it('cut away omits higher floors', () => {
     const d = doc()
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features

@@ -74,7 +74,7 @@ export function siteSlabFeatures(site: SiteArtifact, buildings: Building[]): Geo
     const geometry: GeoJSON.Polygon = { type: 'Polygon', coordinates: [closed] }
     for (let i = 0; i < levels; i++) {
       const level = base + i * floorHeight
-      features.push({ type: 'Feature', geometry, properties: { kind: 'slab', buildingId: building.id, base: i === 0 ? 0 : level - SLAB_THICKNESS - g, top: level - g } })
+      features.push({ type: 'Feature', geometry, properties: { kind: 'slab', buildingId: building.id, base: i === 0 ? 0 : level - SLAB_THICKNESS - g, top: i === 0 ? Math.max(level - g, SLAB_THICKNESS) : level - g } })
     }
     const roof = base + levels * floorHeight
     features.push({ type: 'Feature', geometry, properties: { kind: 'roof', buildingId: building.id, base: roof - SLAB_THICKNESS - g, top: roof - g } })

@@ -46,7 +46,8 @@ describe('NAVI Web site data', () => {
     expect(fc.features).toHaveLength(4)
     // Base 7 m (Fixed); ground at the centre (x 50) is 7 m; floors 3.5 m apart.
     const tops = fc.features.map((f) => Math.round((f.properties!.top as number) * 100) / 100 + 0)
-    expect(tops).toEqual([0, 3.5, 7, 10.5])
+    // The ground floor is at least one slab thick (a zero-height slab flickers in the ground surface).
+    expect(tops).toEqual([0.25, 3.5, 7, 10.5])
   })
 
   it('contour lines every 5 m, and the campus ground area is the boundary', () => {

@@ -31,7 +31,11 @@ export function buildSlabFeatures(
       const level = base + floor.elevation
       features.push({
         type: 'Feature', geometry,
-        properties: { kind: 'slab', buildingId: building.id, floorId: floor.id, base: index === 0 ? 0 : level - SLAB_THICKNESS - ground, top: level - ground },
+        // The ground floor is a solid block from the ground up to its floor; at least one slab thick, so a
+        // building standing on the ground never gets a zero-height slab flickering in the ground surface.
+        properties: index === 0
+          ? { kind: 'slab', buildingId: building.id, floorId: floor.id, base: 0, top: Math.max(level - ground, SLAB_THICKNESS) }
+          : { kind: 'slab', buildingId: building.id, floorId: floor.id, base: level - SLAB_THICKNESS - ground, top: level - ground },
       })
     })
     if (cut < 0 && floors.length > 0) {

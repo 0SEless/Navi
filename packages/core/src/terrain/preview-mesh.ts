@@ -22,6 +22,8 @@ export interface TerrainPreviewMeshOptions {
   heightAt: (x: number, y: number) => number
   /** Vertex colour, 0..1 (a flat, neutral tone; the shader adds slope shading). */
   color: readonly [number, number, number]
+  /** Cells to leave out (the cell whose south-west corner is x, y): ones this stroke did not change. */
+  skipCell?: (x: number, y: number) => boolean
 }
 
 /** The normal from ±1 m central differences; a height sample that is not finite reads as flat. */
@@ -56,6 +58,7 @@ export function terrainPreviewMesh(patches: TerrainPreviewPatch[], opts: Terrain
   for (const patch of patches) {
     for (let y = patch.y0; y <= patch.y1; y++) {
       for (let x = patch.x0; x <= patch.x1; x++) {
+        if (opts.skipCell?.(x, y)) continue
         vertices(mesh, opts, [{ x, y }, { x: x + 1, y }, { x, y: y + 1 }])
         vertices(mesh, opts, [{ x: x + 1, y }, { x: x + 1, y: y + 1 }, { x, y: y + 1 }])
       }

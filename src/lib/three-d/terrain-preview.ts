@@ -29,6 +29,8 @@ export class TerrainPaintPreview {
   private origin: { lat: number; lng: number } | null = null
   private tiles: Map<TileId, Int16Array> | null = null
   private sampler: TerrainSampler | null = null
+  /** The ground before this stroke: cells it did not change are not drawn (they would flicker on the ground). */
+  private committed: TerrainSampler | null = null
   private exaggeration = 1
   private pending: Array<{ map: maplibregl.Map; listener: () => void }> = []
 
@@ -47,6 +49,7 @@ export class TerrainPaintPreview {
     this.tiles = tiles
     this.origin = document.terrain ? { lat: document.terrain.grid.originLat, lng: document.terrain.grid.originLng } : null
     this.sampler = this.origin ? createTerrainSampler(document, { tilesOverride: tiles }) : null
+    this.committed = this.origin ? createTerrainSampler(document) : null
     for (const map of this.registered) this.ensureLayer(map)
     this.refresh()
   }
@@ -82,6 +85,7 @@ export class TerrainPaintPreview {
     this.registered = []
     this.tiles = null
     this.sampler = null
+    this.committed = null
   }
 
   /** Probe/test access to the per-map preview layer. */
@@ -115,7 +119,13 @@ export class TerrainPaintPreview {
     if (!sampler || !tiles || tiles.size === 0) return EMPTY_MESH
     const patches = terrainPreviewPatches(tiles)
     if (patches.length === 0) return EMPTY_MESH
-    return terrainPreviewMesh(patches, { heightAt: (x, y) => sampler.heightAt(x, y), color: PREVIEW_COLOR })
+    const committed = this.committed
+    const same = (x: number, y: number) => !committed || Math.abs(sampler.heightAt(x, y) - committed.heightAt(x, y)) < 0.005
+    return terrainPreviewMesh(patches, {
+      heightAt: (x, y) => sampler.heightAt(x, y),
+      color: PREVIEW_COLOR,
+      skipCell: committed ? (x, y) => same(x, y) && same(x + 1, y) && same(x, y + 1) && same(x + 1, y + 1) : undefined,
+    })
   }
 
   /** The stair-mesh rule (ledger ruling): exaggeration (clamped 1–5) when tilted, 0 flat on top. */
