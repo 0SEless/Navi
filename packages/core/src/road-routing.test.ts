@@ -6,6 +6,8 @@ import {
   getRoadGradePercent,
   getRoadPolylineLengthMeters,
   normalizeRoadRouting,
+  isValidRoadRouting,
+  isValidRoadEdgeRouting,
   serializeDocument,
 } from './index'
 import type {
@@ -304,5 +306,19 @@ describe('Road routing serialization compatibility', () => {
 
     expect(restored.roads[0].routing?.feature).toBe('ramp')
     expect(restored.roads[0].routing?.wheelchairAccessible).toBeUndefined()
+  })
+})
+
+describe('stair route links: routing.structureId', () => {
+  it('a road made over an outdoor stair keeps its stair id through normalising and validation', () => {
+    const routing = { feature: 'stairs', structureId: 's1' }
+    expect(normalizeRoadRouting(routing)).toEqual(routing)
+    expect(isValidRoadRouting(routing)).toBe(true)
+    expect(isValidRoadEdgeRouting({ sourceRoadId: 'rd-stair-s1', authoredOrientation: 'forward', authored: routing })).toBe(true)
+  })
+
+  it('an empty or non-string stair id is dropped', () => {
+    expect(normalizeRoadRouting({ feature: 'stairs', structureId: '' })).toEqual({ feature: 'stairs' })
+    expect(isValidRoadRouting({ feature: 'stairs', structureId: 7 })).toBe(false)
   })
 })

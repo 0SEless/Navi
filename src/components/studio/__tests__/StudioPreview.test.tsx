@@ -60,6 +60,17 @@ describe('StudioPreview', () => {
   })
 })
 
+describe('StudioPreview outdoor stairs', () => {
+  it('a route over an outdoor stair (a walk edge from a road marked stairs) says with stairs', async () => {
+    const outdoor = { ...campus, edges: [{ id: 'e1', from: 'n1', to: 'n2', type: 'walk', distance: 20, bidirectional: true, routing: { sourceRoadId: 'rd-stair-s1', authoredOrientation: 'forward', authored: { feature: 'stairs', structureId: 's1' } } }] }
+    const load: PreviewLoad = vi.fn(async () => ({ ok: true as const, campus: outdoor }))
+    await act(async () => { render(<StudioPreview campusId="c1" commitNo={7} load={load} />) })
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: 'n1' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: 'n2' } })
+    expect(screen.getByText(/20 m, with stairs/)).toBeTruthy()
+  })
+})
+
 describe('PreviewButton', () => {
   it('Preview with unsaved changes asks Save first?', () => {
     render(<PreviewButton mapId="c1" dirty headCommit={4} save={vi.fn()} open={vi.fn()} />)

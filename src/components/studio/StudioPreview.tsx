@@ -49,7 +49,9 @@ export function StudioPreview({ campusId, commitNo, load = loadPreview }: { camp
   const route = useMemo(() => (bundle && from && to && from !== to ? findRoute(bundle.nodes, bundle.edges, from, to) : null), [bundle, from, to])
   const withStairs = useMemo(() => {
     if (!route || !bundle) return false
-    return route.path.slice(1).some((id, i) => bundle.edges.some((e) => e.type === 'stairs' && ((e.from === route.path[i] && e.to === id) || (e.to === route.path[i] && e.from === id))))
+    // Indoor stairs are 'stairs' edges; outdoor stairs are walk edges from a road marked stairs.
+    const isStairs = (e: (typeof bundle.edges)[number]) => e.type === 'stairs' || e.routing?.authored?.feature === 'stairs'
+    return route.path.slice(1).some((id, i) => bundle.edges.some((e) => isStairs(e) && ((e.from === route.path[i] && e.to === id) || (e.to === route.path[i] && e.from === id))))
   }, [route, bundle])
 
   return (

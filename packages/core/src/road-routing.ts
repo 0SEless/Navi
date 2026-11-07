@@ -54,6 +54,8 @@ export function normalizeRoadRouting(routing: unknown): RoadRouting | undefined 
   if (typeof source.wheelchairAccessible === 'boolean') {
     normalized.wheelchairAccessible = source.wheelchairAccessible
   }
+  // Stair route links (2026-11-07): the outdoor stair this road was made over.
+  if (typeof source.structureId === 'string' && source.structureId.trim().length > 0) normalized.structureId = source.structureId
 
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
@@ -66,6 +68,7 @@ const ROAD_ROUTING_KEYS = new Set([
   'endElevationMeters',
   'walkable',
   'wheelchairAccessible',
+  'structureId',
 ])
 
 /** True only when every present member is supported and already normalized. */
