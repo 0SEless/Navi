@@ -231,22 +231,24 @@ test('P9 — undo and redo across a save boundary', async ({ browser }) => {
   expect(fresh.roads.find((r: Doc) => r.id === SOUTH).name).toBe('South Road')
 })
 
-test('P11 — the Studio preview page renders the saved campus', async ({ browser }) => {
-  const { ana, campusId } = await editor(browser)
-  await act(ana.page, (p) => p.run({ id: 'entity.update', payload: { entityId: 'bld-library', changes: { name: 'Library (saved)' } } }))
+test('P11 — the Studio preview shows the saved campus as visitors will see it, without publishing', async ({ browser }) => {
+  // A campus that compiles (the preview runs Publish's build; the probe seed campus would be refused).
+  const { ana, campusId } = await publishableEditor(browser)
+  await act(ana.page, (p, id) => p.run({ id: 'entity.update', payload: { entityId: id, changes: { name: 'Library (saved)' } } }), PUB_BUILDING)
   await saveNow(ana.page)
+  const head = await ana.page.evaluate(() => (window as unknown as { __naviStudioV2: { session: { getState(): { headCommit: number } } } }).__naviStudioV2.session.getState().headCommit)
   const viewer = await openAdmin(browser, 'ben')
   const errors: string[] = []
   viewer.page.on('pageerror', (error) => errors.push(error.message))
-  // The preview draws buildings on the map canvas; it loads them through the Save v2 campus route.
-  const load = viewer.page.waitForResponse((r) => r.url().includes(`/api/studio/v2/campus/${campusId}`) && r.request().method() === 'GET', { timeout: 90_000 })
-  await viewer.page.goto(`/studio/${campusId}/preview`)
+  // The preview builds the saved commit on the server (Publish's steps) and shows NAVI Web's map.
+  const load = viewer.page.waitForResponse((r) => r.url().endsWith('/api/studio/v2/preview') && r.request().method() === 'POST', { timeout: 120_000 })
+  await viewer.page.goto(`/studio/${campusId}/preview?commit=${head}`)
   const answer = await load
   expect(answer.status()).toBe(200)
   expect(await answer.text()).toContain('Library (saved)')
-  await expect(viewer.page.getByText('Save v2 Probe Campus').first()).toBeVisible()
+  await expect(viewer.page.getByText(`Preview — not published. Showing save #${head}.`)).toBeVisible()
   await expect(viewer.page.locator('canvas').first()).toBeVisible()
-  expect(viewer.requests.some((r) => r.path === '/api/graph')).toBe(false)
+  expect(viewer.requests.some((r) => r.path === '/api/graph' || r.path === '/api/studio/v2/publish')).toBe(false)
   expect(errors).toEqual([])
 })
 

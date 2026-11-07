@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { dataBlocked, floor, openAdmin, openMap, seededCampus, waitForEditor, type ProbeWindow } from './support'
+import { dataBlocked, floor, installEditorHelpers, openAdmin, openMap, saveNow, seededCampus, waitForEditor, type ProbeWindow } from './support'
 
 // Terrain plan acceptance (built up task by task; Task 16 completes it). Uses the owner's
 // ASU-Ibajay TopoExport files; the seeded campus sits inside that export's frame.
@@ -1321,5 +1321,161 @@ test('T14 — speed on the ASU-IBAJAY copy (GPU): 3D on, a 2 s held stroke and i
   expect(release.longestMs).toBeLessThanOrEqual(200)
   expect(threeD.readyMs).toBeLessThanOrEqual(1500)
   expect(threeD.longestMs).toBeLessThanOrEqual(400)
+  await ana.context.close()
+})
+
+// Stair route links and Preview (2026-11-07): the Computer Science case — a lower road, and an outdoor stair up the
+// building's east side to its 2F entrance. Connect it in the map editor, preview the saved campus (the visitor route
+// graph goes road → stair → 2F), publish, and NAVI Web has the same route; then the stair is deleted and Validate
+// reports the stair route out of step.
+const M_LAT = 14.6
+const M_LNG = 121.05
+const m = (x: number, y: number) => ({ lat: M_LAT + y / 110540, lng: M_LNG + x / (111320 * Math.cos((M_LAT * Math.PI) / 180)) })
+function csCampus(campusId: string) {
+  const rect = [m(0, 0), m(20, 0), m(20, 10), m(0, 10), m(0, 0)]
+  return {
+    schemaVersion: 1, version: 1, connectivitySemanticsVersion: '1.0.0',
+    metadata: { campusId, name: 'Stair Route Campus', description: 'stair route links', lastModified: '2026-11-07T00:00:00.000Z', editorVersion: '1.5-probe' },
+    buildings: [{
+      id: 'hall', name: 'Hall', code: 'CS', category: 'academic', description: '', footprint: { points: rect }, baseElevation: 0, height: 6,
+      floors: [{ ...floor('f1', '1F'), level: 0, elevation: 0, height: 3 }, { ...floor('f2', '2F'), level: 1, elevation: 3, height: 3 }],
+      verticalConnectors: [], verticalTransitions: [], color: '#4682b4', aliases: [], metadata: {},
+    }],
+    // A plain routing mark so the visitor graph's edges name the road they come from.
+    roads: [{ id: 'r1', name: 'Lower road', polyline: { points: [m(40, -20), m(40, 30)] }, width: 4, surface: 'concrete', type: 'pedestrian', routing: { feature: 'normal' }, metadata: {} }],
+    structures: [{
+      id: 's1', form: 'stairs', presetId: 'plain-stair', width: 2, underneath: 'open', railings: 'both',
+      start: { kind: 'slab', buildingId: 'hall', floorId: 'f2', edgeIndex: 1, edgeT: 0.5 },
+      end: { kind: 'road', roadId: 'r1', position: m(40.8, 5) },
+    }],
+    roadJunctions: [], separatedCrossings: [], panoramas: [], qrCheckpoints: [], areas: [],
+    boundary: { points: [m(-30, -40), m(70, -40), m(70, 50), m(-30, 50)] },
+  }
+}
+
+type Graph = { nodes: Array<{ id: string; floor?: number }>; edges: Array<{ from: string; to: string; routing?: { sourceRoadId: string; authored: { feature?: string } } }> }
+/** Whether the visitor graph goes from the lower road over the stair to a 2F node. */
+function roadReaches2F(graph: Graph): string {
+  const stairEdges = graph.edges.filter((e) => e.routing?.sourceRoadId === 'rd-stair-s1')
+  if (stairEdges.length === 0 || stairEdges.some((e) => e.routing?.authored.feature !== 'stairs')) return 'no stair edges'
+  const roadNodes = new Set(graph.edges.filter((e) => e.routing?.sourceRoadId === 'r1').flatMap((e) => [e.from, e.to]))
+  const upstairs = new Set(graph.nodes.filter((n) => n.floor === 1).map((n) => n.id))
+  const next = new Map<string, string[]>()
+  for (const e of graph.edges) {
+    next.set(e.from, [...(next.get(e.from) ?? []), e.to])
+    next.set(e.to, [...(next.get(e.to) ?? []), e.from])
+  }
+  const seen = new Set<string>(roadNodes)
+  const queue = [...roadNodes]
+  while (queue.length) {
+    const id = queue.shift()!
+    if (upstairs.has(id)) return 'road reaches 2F'
+    for (const n of next.get(id) ?? []) {
+      if (!seen.has(n)) {
+        seen.add(n)
+        queue.push(n)
+      }
+    }
+  }
+  return 'road does not reach 2F'
+}
+
+test('T15 — stair route links: connect an outdoor stair in the map editor, preview road → stair → 2F, publish, out of step after delete', async ({ browser }) => {
+  test.setTimeout(300_000)
+  const ana = await openAdmin(browser, 'ana')
+  await installEditorHelpers(ana)
+  const campusId = await seededCampus(ana, csCampus)
+  await openMap(ana, campusId, /Hall/)
+  const page = ana.page
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  // The admin's floor work: an entrance on 2F at the stair's top, joined to 2F's routes (building lock first).
+  const ensured = await page.evaluate(async ({ entrance, inner, deep, ground }) => {
+    const probe = (window as unknown as { __naviStudioV2: { session: { zones: { ensure(z: string[]): Promise<boolean> } }; context: { transformer: { worldToBuildingLocal(p: unknown, b: string): { x: number; y: number } } } } }).__naviStudioV2
+    if (!(await probe.session.zones.ensure(['building:hall']))) return false
+    const local = (p: unknown) => probe.context.transformer.worldToBuildingLocal(p, 'hall')
+    ;(window as unknown as { __p: { edit(fn: (d: any) => void): void } }).__p.edit((d: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // 1F's own door on the lower road (the compiler checks reachability from ground entrances like this one).
+      d.buildings[0].floors[0].entrances = [{ id: 'e1', label: 'Lower door', position: local(ground), level: 0, type: 'main', hasQR: false, hasPanorama: false, connectorRoadId: 'r1' }]
+      const f2 = d.buildings[0].floors[1]
+      f2.entrances = [{ id: 'e2', label: 'East door', position: local(entrance), level: 1, type: 'main', hasQR: false, hasPanorama: false }]
+      f2.routeNetwork = {
+        nodes: [{ id: 'n2', type: 'entrance', position: local(inner), floor: 1 }, { id: 'n3', type: 'waypoint', position: local(deep), floor: 1 }],
+        edges: [{ id: 'n2-n3', from: 'n2', to: 'n3', type: 'walk', distance: 13 }],
+      }
+    })
+    return true
+  }, { entrance: m(19.5, 5), inner: m(18, 5), deep: m(5, 5), ground: m(20, 2) })
+  expect(ensured).toBe(true)
+
+  // The marking is on the map; clicking it opens the stair panel.
+  await page.waitForFunction(() => Boolean((window as unknown as { __naviTerrainMaps?: Record<string, unknown> }).__naviTerrainMaps?.studio), undefined, { timeout: 30_000 })
+  const middle = m(30, 5)
+  await page.evaluate((c) => {
+    const map = (window as unknown as { __naviTerrainMaps: Record<string, { jumpTo(o: unknown): void }> }).__naviTerrainMaps.studio
+    map.jumpTo({ center: [c.lng, c.lat], zoom: 19.5 })
+  }, middle)
+  await page.waitForTimeout(1500)
+  const at = await page.evaluate((c) => {
+    const map = (window as unknown as { __naviTerrainMaps: Record<string, { project(p: [number, number]): { x: number; y: number }; getCanvas(): HTMLCanvasElement }> }).__naviTerrainMaps.studio
+    const r = map.getCanvas().getBoundingClientRect()
+    const p = map.project([c.lng, c.lat])
+    return { x: r.left + p.x, y: r.top + p.y }
+  }, middle)
+  await page.mouse.click(at.x, at.y)
+  const panel = page.getByRole('dialog', { name: 'Outdoor stair' })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('Not connected')).toBeVisible()
+  await page.screenshot({ path: path.join(SHOTS, 't15-marking.png') })
+
+  // Connect to route → the suggestion → Confirm.
+  await panel.getByRole('button', { name: 'Connect to route' }).click()
+  await expect(panel.getByText('Bottom: Lower road')).toBeVisible()
+  await expect(panel.getByText('Top: East door (2F)')).toBeVisible()
+  await panel.getByRole('button', { name: 'Confirm' }).click()
+  await expect(panel.getByText('Connected')).toBeVisible()
+  expect(await doc<unknown>("doc.roads.find((r) => r.routing?.structureId === 's1')?.routing")).toEqual({ feature: 'stairs', structureId: 's1' })
+  expect(await doc<string>('doc.buildings[0].floors[1].entranceAccess[0].outdoorRouteId')).toBe('rd-stair-s1')
+
+  // One undo step each way.
+  await page.evaluate(() => (window as unknown as { __p: { history(): { undo(): boolean } } }).__p.history().undo())
+  expect(await doc<boolean>("doc.roads.some((r) => r.routing?.structureId === 's1')")).toBe(false)
+  await page.evaluate(() => (window as unknown as { __p: { history(): { redo(): boolean } } }).__p.history().redo())
+  expect(await doc<boolean>("doc.roads.some((r) => r.routing?.structureId === 's1')")).toBe(true)
+  await saveNow(page)
+  const head = await page.evaluate(() => (window as unknown as { __naviStudioV2: { session: { getState(): { headCommit: number } } } }).__naviStudioV2.session.getState().headCommit)
+
+  // Preview (a new tab): the visitor graph goes from the lower road over the stair into 2F; nothing is published.
+  const popup = ana.context.waitForEvent('page')
+  await page.getByRole('button', { name: 'Preview' }).click()
+  const preview = await popup
+  const built = await preview.waitForResponse((r) => r.url().endsWith('/api/studio/v2/preview') && r.request().method() === 'POST', { timeout: 120_000 })
+  expect(built.status()).toBe(200)
+  const campus = ((await built.json()) as { campus: Graph }).campus
+  expect(roadReaches2F(campus)).toBe('road reaches 2F')
+  await expect(preview.getByText(`Preview — not published. Showing save #${head}.`)).toBeVisible()
+  expect(((campus as unknown as { buildings: Array<{ id: string }> }).buildings).map((b) => b.id)).toContain('hall')
+  await preview.screenshot({ path: path.join(SHOTS, 't15-preview.png') })
+  expect(ana.requests.some((r) => r.path === '/api/studio/v2/publish')).toBe(false)
+  await preview.close()
+
+  // Publish that save; NAVI Web's campus has the same route.
+  const published = await page.request.post('/api/studio/v2/publish', { headers: { 'x-navi-studio-session': randomUUID() }, data: { campusId, commitNo: head } })
+  expect(published.status()).toBe(200)
+  const web = (await (await page.request.get(`/api/public-campus?campus_id=${campusId}`)).json()) as Graph
+  expect(roadReaches2F(web)).toBe('road reaches 2F')
+
+  // Moving the stair moves its route; deleting it leaves the route out of step (Validate says so).
+  await page.evaluate((to) => {
+    const p = (window as unknown as { __p: { doc(): any; run(c: unknown): unknown } }).__p // eslint-disable-line @typescript-eslint/no-explicit-any
+    const s = structuredClone(p.doc().structures[0])
+    s.end = { kind: 'road', roadId: 'r1', position: to }
+    p.run({ id: 'structure.replace', payload: { structure: s } })
+  }, m(40.8, 8))
+  const first = await doc<{ lat: number }>("doc.roads.find((r) => r.id === 'rd-stair-s1').polyline.points[0]")
+  expect(first.lat).toBeCloseTo(m(40, 8).lat, 6)
+  await page.evaluate(() => (window as unknown as { __p: { run(c: unknown): unknown } }).__p.run({ id: 'structure.delete', payload: { id: 's1' } }))
+  await page.getByRole('button', { name: 'Validate' }).click()
+  await expect(page.getByText('Stair route out of step: the stair was deleted').first()).toBeVisible({ timeout: 30_000 })
   await ana.context.close()
 })
