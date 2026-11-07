@@ -161,8 +161,8 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       setTilted((was) => (was === now ? was : now))
     })
     map.on('load', () => {
-      // The main view keeps the campus clear of the tool rail, the side panel and the layers panel.
-      const padding = container.clientWidth > 700 ? { top: 40, left: 160, right: 280, bottom: 250 } : 30
+      // Section 5: clear of the layers panel (left) and the tool dock (bottom).
+      const padding = container.clientWidth > 700 ? { top: 40, left: 260, right: 40, bottom: 110 } : 30
       if (ring.length >= 3) map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding, duration: 0, pitch })
       setReady(true)
     })

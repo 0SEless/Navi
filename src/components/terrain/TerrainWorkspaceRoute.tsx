@@ -19,7 +19,7 @@ import type { TerrainView } from '@/lib/terrain/terrain-view'
 import type { TerrainTool } from './TerrainToolRail'
 import { DEFAULT_BRUSH } from './TerrainToolPanel'
 import { TerrainTools } from './TerrainTools'
-import { DEFAULT_LAYERS, type TerrainLayers } from './TerrainLayersPanel'
+import { loadLayers, saveLayers, type TerrainLayers } from '@/lib/terrain/terrain-layers'
 import { useTerrainStroke } from './useTerrainStroke'
 import { useTerrainShortcuts } from './useTerrainShortcuts'
 import { createTerrainPaintPreview, type TerrainPaintPreview } from '@/lib/three-d/terrain-preview'
@@ -63,7 +63,12 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   // Tilted = shown in 3D; follows the map's live pitch (hand tilt or the 3D button).
   const [tilted, setTilted] = useState(false)
-  const [layers, setLayers] = useState<TerrainLayers>(DEFAULT_LAYERS)
+  // Section 5: layer choices are remembered in this browser.
+  const [layers, setLayersState] = useState<TerrainLayers>(() => loadLayers())
+  const setLayers = useCallback((next: TerrainLayers) => {
+    setLayersState(next)
+    saveLayers(next)
+  }, [])
   const [cutAboveFloorId, setCutAboveFloorId] = useState<string | null>(null)
   // Shift+Z height mode: brushes are off while it is on; the drag's draft is drawn on the map, not saved.
   const [heightActive, setHeightActive] = useState(false)
