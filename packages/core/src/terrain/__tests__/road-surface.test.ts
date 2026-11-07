@@ -46,3 +46,14 @@ describe('roadSurfacePolygons', () => {
     expect(roadSurfacePolygons([road([[0, 0]])]).features).toHaveLength(0)
   })
 })
+
+describe('offsetRoadLine', () => {
+  it('runs alongside the road at the given distance: + to the left, − to the right', async () => {
+    const { offsetRoadLine } = await import('../road-surface')
+    const left = offsetRoadLine(road([[0, 0], [100, 0]]), 2.7).map((p) => toLocal(grid, p))
+    const right = offsetRoadLine(road([[0, 0], [100, 0]]), -2.7).map((p) => toLocal(grid, p))
+    for (const p of left) expect(p.y).toBeCloseTo(2.7, 2)
+    for (const p of right) expect(p.y).toBeCloseTo(-2.7, 2)
+    expect(left).toHaveLength(2)
+  })
+})

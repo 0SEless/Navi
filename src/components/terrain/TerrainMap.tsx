@@ -9,9 +9,11 @@ import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
 import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/mesh-layer'
 import { RoadSurfaceLayer } from './layers/RoadSurfaceLayer'
+import { campusCameraLimits, MAX_PITCH } from '@/lib/terrain/camera-limits'
+import { boundaryVeil } from '@/lib/terrain/boundary-veil'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
-import { applyTerrainView, CHANGES_SOURCE, CONTOUR_LAYER, CONTOUR_SOURCE, HILLSHADE_LAYER, overlayAnchor, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
+import { applyTerrainView, CHANGES_SOURCE, CONTOUR_LAYER, CONTOUR_SOURCE, HILLSHADE_LAYER, OUTSIDE_LAYER, overlayAnchor, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
 
 const HILLSHADE_SOURCE = 'terrain-hillshade-dem'
 const BOUNDARY_SOURCE = 'terrain-boundary'
@@ -119,6 +121,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           [CHANGES_SOURCE]: dem(CHANGES_SCHEME),
           [CONTOUR_SOURCE]: { type: 'geojson', data: EMPTY },
           [BOUNDARY_SOURCE]: { type: 'geojson', data: EMPTY },
+          [OUTSIDE_LAYER]: { type: 'geojson', data: EMPTY },
           [BUILDINGS_SOURCE]: { type: 'geojson', data: EMPTY },
           [ROADS_SOURCE]: { type: 'geojson', data: EMPTY },
           [SLABS_SOURCE]: { type: 'geojson', data: EMPTY },
@@ -127,6 +130,8 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           // Neutral ground (owner 2026-11-06): sand-grey with a warm hillshade, like TopoExport.
           { id: 'terrain-background', type: 'background', paint: { 'background-color': GROUND_COLOR } },
           { id: HILLSHADE_LAYER, type: 'hillshade', source: HILLSHADE_SOURCE, paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#6f6455', 'hillshade-highlight-color': '#fffdf7', 'hillshade-accent-color': '#8c8170' } },
+          // Outside the boundary: a light veil, so you always see where the campus ends (section 4).
+          { id: OUTSIDE_LAYER, type: 'fill', source: OUTSIDE_LAYER, paint: { 'fill-color': '#f7f4ec', 'fill-opacity': 0.35 } },
           { id: 'terrain-roads', type: 'line', source: ROADS_SOURCE, paint: { 'line-color': '#6b7280', 'line-width': 2 } },
           { id: 'terrain-buildings', type: 'line', source: BUILDINGS_SOURCE, paint: { 'line-color': '#1f2937', 'line-width': 1.5 } },
           { id: 'terrain-boundary', type: 'line', source: BOUNDARY_SOURCE, paint: { 'line-color': '#2563eb', 'line-width': 2, 'line-dasharray': [3, 2] } },
@@ -140,7 +145,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       center: ring.length > 0 ? [(Math.min(...lngs) + Math.max(...lngs)) / 2, (Math.min(...lats) + Math.max(...lats)) / 2] : [0, 0],
       zoom: 16,
       pitch,
-      maxPitch: 85,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
     })
     mapRef.current = map
@@ -175,6 +180,27 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       view, exaggeration, colorRange: document.terrain?.colorRange ?? { minM: 0, maxM: 40 }, threeD: tilted,
     })
   }, [ready, view, exaggeration, document.terrain?.colorRange, tilted])
+
+  // Section 4: the camera stays on the campus (never lost in empty space); follows boundary edits.
+  const boundaryKey = boundaryOf(document).map((p) => `${p.lat},${p.lng}`).join(';')
+  useEffect(() => {
+    const map = mapRef.current
+    const container = containerRef.current
+    if (!map || !ready || !container) return
+    const limits = campusCameraLimits(boundaryOf(latest.current.document), { width: container.clientWidth, height: container.clientHeight })
+    if (!limits) return
+    map.setMaxBounds(limits.maxBounds)
+    map.setMinZoom(limits.minZoom)
+    map.setMaxZoom(limits.maxZoom)
+    map.setMaxPitch(limits.maxPitch)
+  }, [ready, boundaryKey])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const veil = boundaryVeil(boundaryOf(latest.current.document))
+    ;(map.getSource(OUTSIDE_LAYER) as maplibregl.GeoJSONSource | undefined)?.setData(veil ?? EMPTY)
+  }, [ready, boundaryKey])
 
   useEffect(() => {
     const map = mapRef.current
@@ -226,7 +252,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     const map = mapRef.current
     if (!map || !ready) return
     map.setLayoutProperty('terrain-buildings', 'visibility', layers.buildings ? 'visible' : 'none')
-    map.setLayoutProperty('terrain-roads', 'visibility', layers.roads ? 'visible' : 'none')
+    // The thin grey road lines are replaced by the road surfaces and markings (section 4); the layer stays
+    // as the anchor the surfaces and colours are ordered against.
+    map.setLayoutProperty('terrain-roads', 'visibility', 'none')
     // Contour lines (every 1 m, stronger every 5 m) over any colours, under the road surfaces and outlines.
     if (layers.contours) {
       if (!map.getLayer(CONTOUR_LAYER)) map.addLayer({ id: CONTOUR_LAYER, type: 'line', source: CONTOUR_SOURCE, paint: { 'line-color': '#7c5c3b', 'line-opacity': ['case', ['==', ['get', 'major'], true], 0.85, 0.4], 'line-width': ['case', ['==', ['get', 'major'], true], 1.3, 0.6] } }, overlayAnchor(map))

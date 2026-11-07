@@ -48,6 +48,14 @@ browser probe 25/25.
 
 ## In progress: UI/UX redesign (sections 1-2 built; minimap removal next, then sections 3-4)
 
+**2026-11-07 status update (newest):** sections 1-4 of the redesign are built and verified on
+`feat/terrain-2.5d` (not pushed): 1 paint preview, 2 neutral look + Colours switch + cursor height,
+minimap removed (one map + 3D button), 3 Shift+Z height editing (buildings dig-only; stair ends offset
+that keeps following, floor steps; side view centred), 4 zoom limits, boundary + soft outside, road
+look, one key per tool. Whole-lane probe 30/30. Next candidates (owner to choose): stair steps follow the
+slope; contour height labels; Task 15 NAVI Web campus map; Task 16 (cloud migration + preview deploy need
+owner approval); BP 344 ramp marks (owner leaning: red > 1:12, amber 1:12-1:20 - verify the BP 344 text).
+
 **2026-11-06 status update (newest):** section 2 (neutral colours + contour lines) is closed out: the
 workspace opens on the Contours view with contour lines on, Heights/Changes stay one click away; whole-lane
 probe 27/27, gates green. Spec + plan: `docs/superpowers/specs|plans/2026-11-04-navi-terrain-redesign-section-2-neutral-colours-contours.md`.

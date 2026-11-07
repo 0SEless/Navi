@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyTerrainView, overlayAnchor, RELIEF_LAYER, ROAD_SURFACE_LAYER, TRACING_LAYER } from '../terrain-view'
+import { applyTerrainView, OUTSIDE_LAYER, overlayAnchor, RELIEF_LAYER, ROAD_SURFACE_LAYER, TRACING_LAYER } from '../terrain-view'
 
 /** A map that keeps its layers in drawing order (first = bottom). */
 function orderedMap(ids: string[]) {
@@ -29,4 +29,12 @@ describe('terrain layer order', () => {
     applyTerrainView(map, { view: 'changes', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
     expect(map.ids()).toEqual(['terrain-hillshade', RELIEF_LAYER, TRACING_LAYER, ROAD_SURFACE_LAYER, 'terrain-roads'])
   })
+
+  it('the outside veil sits over the colours and under the road surfaces (section 4)', () => {
+    const map = orderedMap(['terrain-hillshade', OUTSIDE_LAYER, ROAD_SURFACE_LAYER, 'terrain-roads'])
+    expect(overlayAnchor(map)).toBe(OUTSIDE_LAYER)
+    applyTerrainView(map, { view: 'heights', colorRange: { minM: 0, maxM: 40 }, exaggeration: 1 })
+    expect(map.ids()).toEqual(['terrain-hillshade', RELIEF_LAYER, OUTSIDE_LAYER, ROAD_SURFACE_LAYER, 'terrain-roads'])
+  })
 })
+

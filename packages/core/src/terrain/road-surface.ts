@@ -55,6 +55,14 @@ function offsetSide(line: Point[], hw: number, side: number): Point[] {
   return out
 }
 
+/** A line alongside the road at `offsetM` from its centre line: + to the left, − to the right (markings). */
+export function offsetRoadLine(road: SiteRoadSurface, offsetM: number): Array<{ lat: number; lng: number }> {
+  if (road.polyline.length < 2) return []
+  const frame = { originLat: road.polyline[0].lat, originLng: road.polyline[0].lng }
+  const line = road.polyline.map((p) => toLocal(frame, p))
+  return offsetSide(line, Math.abs(offsetM), offsetM >= 0 ? 1 : -1).map((p) => toLatLng(frame, p))
+}
+
 /**
  * Each road as a polygon at its width (both sides offset by half the width), for MapLibre `fill`
  * layers that drape on the terrain. Properties: id, type, width, startHeightM, endHeightM.

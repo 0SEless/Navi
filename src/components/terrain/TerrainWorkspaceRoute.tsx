@@ -133,6 +133,8 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   useTerrainStroke(mainMap, strokeOptions)
   useTerrainShortcuts({
     enabled: editing,
+    heightMode: heightActive,
+    stairsAvailable: Boolean(sampler),
     history: services.get('history') as { undo(): boolean; redo(): boolean } | undefined,
     setTool,
     setSettings,

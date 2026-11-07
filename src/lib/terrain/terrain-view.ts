@@ -33,9 +33,12 @@ export const TRACING_LAYER = 'terrain-tracing'
 /** Roads drawn as surfaces at their width: above the colours and the tracing image, under the road lines. */
 export const ROAD_SURFACE_LAYER = 'terrain-road-surfaces'
 
+/** The light veil over the ground outside the campus boundary (section 4): above the colours. */
+export const OUTSIDE_LAYER = 'terrain-outside'
+
 /** The lowest overlay present: things drawn under the overlays are added just below it. */
 export function overlayAnchor(map: Pick<TerrainMapLike, 'getLayer'>): string | undefined {
-  return [ROAD_SURFACE_LAYER, FIRST_OVERLAY_LAYER].find((id) => map.getLayer(id))
+  return [OUTSIDE_LAYER, ROAD_SURFACE_LAYER, FIRST_OVERLAY_LAYER].find((id) => map.getLayer(id))
 }
 
 function addUnderOverlays(map: TerrainMapLike, layer: Record<string, unknown>): void {

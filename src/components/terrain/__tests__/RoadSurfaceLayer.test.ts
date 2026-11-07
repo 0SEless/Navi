@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTerrainSampler, toLatLng, type CampusDocument } from '@navi/core'
-import { attachRoadSurfaces, ROAD_SURFACE_LAYER, roadSurfaceData } from '../layers/RoadSurfaceLayer'
+import { attachRoadSurfaces, PATH_COLOR, ROAD_COLOR, ROAD_CENTRE_LAYER, ROAD_EDGE_LAYER, ROAD_SURFACE_LAYER, roadSurfaceData } from '../layers/RoadSurfaceLayer'
 
 const grid = { originLat: 11.8, originLng: 122.1 }
 const ll = (x: number, y: number) => toLatLng(grid, { x, y })
@@ -11,7 +11,7 @@ function doc(): CampusDocument {
     terrain: { reference: { name: 'Test', zeroMeaning: 'Sea level' }, grid, colorRange: { minM: 0, maxM: 40 } },
     roads: [
       { id: 'r1', polyline: { points: [ll(0, 0), ll(80, 0)] }, width: 6, type: 'connector', routing: { startElevationMeters: 9, endElevationMeters: 11 } },
-      { id: 'r2', polyline: { points: [ll(0, 20), ll(80, 20)] }, width: 3, type: 'pathway', heightMode: 'typed', routing: { startElevationMeters: 9, endElevationMeters: 11 } },
+      { id: 'r2', polyline: { points: [ll(0, 20), ll(80, 20)] }, width: 3, type: 'pedestrian', heightMode: 'typed', routing: { startElevationMeters: 9, endElevationMeters: 11 } },
     ],
   } as unknown as CampusDocument
 }
@@ -49,10 +49,20 @@ describe('road surfaces in the terrain workspace', () => {
   it('the fill sits under the road lines and follows the Roads layer switch', () => {
     const map = fakeMap()
     const d = doc()
-    attachRoadSurfaces(map as never, roadSurfaceData(d, createTerrainSampler(d)), true)
-    expect(map.layers.map((l) => l.id)).toEqual([ROAD_SURFACE_LAYER, 'terrain-roads'])
-    attachRoadSurfaces(map as never, roadSurfaceData(d, createTerrainSampler(d)), false)
+    attachRoadSurfaces(map as never, d, createTerrainSampler(d), true)
+    expect(map.layers.map((l) => l.id)).toEqual([ROAD_SURFACE_LAYER, ROAD_EDGE_LAYER, ROAD_CENTRE_LAYER, 'terrain-roads'])
+    attachRoadSurfaces(map as never, d, createTerrainSampler(d), false)
     expect(map.layers.filter((l) => l.id === ROAD_SURFACE_LAYER)).toHaveLength(1)
-    expect(map.layers[0].layout?.visibility).toBe('none')
+    // The Roads switch hides the surfaces and their markings together.
+    for (const id of [ROAD_SURFACE_LAYER, ROAD_EDGE_LAYER, ROAD_CENTRE_LAYER]) expect(map.layers.find((l) => l.id === id)?.layout?.visibility).toBe('none')
+  })
+
+  it('roads are asphalt, paths (pedestrian) are light paving', () => {
+    const map = fakeMap()
+    const d = doc()
+    attachRoadSurfaces(map as never, d, createTerrainSampler(d), true)
+    const surface = map.layers.find((l) => l.id === ROAD_SURFACE_LAYER) as unknown as { paint: Record<string, unknown> }
+    expect(surface.paint['fill-color']).toEqual(['match', ['get', 'type'], 'pedestrian', PATH_COLOR, ROAD_COLOR])
   })
 })
+

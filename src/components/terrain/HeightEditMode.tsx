@@ -12,6 +12,7 @@ import { metresForDrag, padAfterLowering, sideViewCamera, SIDE_VIEW_PITCH, stepF
 import { withoutEndHeight } from '@/lib/terrain/structure-edit'
 import { projectAtHeight } from '@/lib/three-d/mesh-layer'
 import type { TerrainMapProps } from './TerrainMap'
+import { isTypingTarget } from './useTerrainShortcuts'
 
 export type HeightEditTarget = { kind: 'building'; buildingId: string } | { kind: 'stair'; structureId: string }
 type Draft = NonNullable<TerrainMapProps['draft']>
@@ -220,8 +221,7 @@ export function HeightEditMode({ map, document, sampler, target, dispatch, onDra
       latest.current.onActive(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      const el = event.target as HTMLElement | null
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (isTypingTarget(event.target)) return
       if (event.key === 'Escape') {
         if (drag.current) cancelDrag()
         else if (activeRef.current) leave()

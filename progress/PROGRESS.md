@@ -3261,3 +3261,14 @@
 - Cursor height label hidden outside the campus box (+~20 m): in 3D a pointer on the sky or past a building landed outside the ground and read 0.0 m.
 - Tests RED -> GREEN (HeightEditMode 11, CursorHeight 3). Gates: vitest regressed 0 (6854); tsc 1122/1122/0. Whole lane 29/29.
 - Note: Docker was down after the restart; started Docker Desktop + db-up.ps1 (test DB login ok).
+
+
+## 2026-11-07 (session) - Section 4 built (roads, zoom limits, boundary, tool keys)
+- Owner: "build the section 4" (spec + plan cd81baa from the fork session; built here).
+- T1 camera limits: campusCameraLimits (box + half its size, minZoom = fit - 1, maxZoom 21, maxPitch 80), applied on load and on boundary edits. 4 tests (one expectation corrected first: at 1240x812 the campus is limited north-south, fit 17.66).
+- T2 boundary + soft outside: boundaryVeil (world with the boundary as its hole), `terrain-outside` light veil (35 %) over the colours and under the road surfaces; overlayAnchor now starts at the veil. Tests RED -> GREEN.
+- T3 roads: path colour fix ('pathway' never existed; `pedestrian` = light paving), asphalt roads, white edge lines + dashed centre on roads >= 5 m (core offsetRoadLine + roadMarkings), grey line hidden (kept as the layer anchor), Roads switch hides all. Tests RED -> GREEN.
+- T4 keys: V B S F P L U T H R C E, letter on each dock button and in its tooltip; ignored while typing, with modifiers and in height mode; locked tools need the lock (Move always, Stairs with ground). Ruling: a checkbox/button/range is not typing (T10 found keys dead after ticking a Layers checkbox) - isTypingTarget, also used by Shift+Z.
+- T5 browser T10: limits + clamp, veil + boundary flat and tilted, road markings (road vs path), Roads switch, keys switch the dock.
+- Gates: vitest regressed 0 (6870); tsc 1122/1122/0 (after typing the marking-width expression). Whole lane 30/30.
+

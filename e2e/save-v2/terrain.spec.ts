@@ -320,7 +320,8 @@ test('T5 — stairs: place a block, stretch one end to the road and the top end 
 
   // Roads are drawn as surfaces at their width (Task 13), under the road lines.
   expect(await top.run<number>('map.getSource("terrain-road-surfaces").serialize().data.features.length')).toBe(1)
-  expect(await top.run<string>('map.getStyle().layers.map((l) => l.id).slice(map.getStyle().layers.findIndex((l) => l.id === "terrain-road-surfaces"))[1]')).toBe('terrain-roads')
+  // Section 4: the surface, then its edge and centre markings, all under the (hidden) road line anchor.
+  expect(await top.run<string[]>('map.getStyle().layers.map((l) => l.id).slice(map.getStyle().layers.findIndex((l) => l.id === "terrain-road-surfaces"), map.getStyle().layers.findIndex((l) => l.id === "terrain-roads") + 1)')).toEqual(['terrain-road-surfaces', 'terrain-road-edges', 'terrain-road-centre', 'terrain-roads'])
 
   // Place: one click south-east of the hall puts a 3 m block on the ground.
   await page.getByRole('button', { name: 'Stairs' }).click()
@@ -787,3 +788,70 @@ test('T9 — Shift+Z on a stair: the ground end gets an offset and keeps followi
   expect(ana.blocked).toEqual([])
   await ana.context.close()
 })
+
+test('T10 — section 4: the camera stays on the campus, boundary and soft outside, road look, one key per tool', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, (id) => {
+    const d = ibajayDocument(id)
+    // One footpath next to the main road (paths: light paving, no markings).
+    ;(d.roads as unknown[]).push({ id: 'path-1', name: 'Footpath', polyline: { points: [{ lat: 11.8166, lng: 122.1700 }, { lat: 11.8169, lng: 122.1712 }] }, width: 2, surface: 'concrete', type: 'pedestrian', metadata: {} })
+    return d
+  })
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0 // late tile requests of the seeding page are not the terrain page's
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  const top = terrainMap(page, 'top')
+
+  // Not lost: zooming far out and panning far away are clamped to the campus.
+  const limits = await top.run<{ minZoom: number; maxZoom: number; maxPitch: number; bounds: number[][] | null }>('({ minZoom: map.getMinZoom(), maxZoom: map.getMaxZoom(), maxPitch: map.getMaxPitch(), bounds: map.getMaxBounds()?.toArray() ?? null })')
+  expect(limits.maxZoom).toBe(21)
+  expect(limits.maxPitch).toBe(80)
+  expect(limits.minZoom).toBeGreaterThan(14)
+  expect(limits.bounds).not.toBeNull()
+  await top.run('map.jumpTo({ zoom: 3, center: [130, 20] })')
+  const after = await top.run<{ zoom: number; lng: number; lat: number }>('({ zoom: map.getZoom(), lng: map.getCenter().lng, lat: map.getCenter().lat })')
+  expect(after.zoom).toBeGreaterThanOrEqual(limits.minZoom - 1e-6)
+  expect(after.lng).toBeLessThanOrEqual(limits.bounds![1][0] + 1e-9)
+  expect(after.lat).toBeLessThanOrEqual(limits.bounds![1][1] + 1e-9)
+  await top.run('map.jumpTo({ zoom: 17, center: [122.171, 11.81765] })')
+
+  // Boundary line and the soft outside veil, flat and tilted.
+  const boundaryLayers = () => top.run<{ veil: boolean; veilData: number; line: unknown }>('({ veil: Boolean(map.getLayer("terrain-outside")), veilData: map.getSource("terrain-outside").serialize().data.features?.length ?? (map.getSource("terrain-outside").serialize().data.type === "Feature" ? 1 : 0), line: map.getLayoutProperty("terrain-boundary", "visibility") ?? "visible" })')
+  expect(await boundaryLayers()).toEqual({ veil: true, veilData: 1, line: 'visible' })
+  await page.getByRole('button', { name: '3D' }).click()
+  await expect.poll(() => top.run<number>('map.getPitch()'), { timeout: 5000 }).toBeGreaterThan(50)
+  expect(await boundaryLayers()).toEqual({ veil: true, veilData: 1, line: 'visible' })
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: path.join(SHOTS, 't10-boundary-roads-3d.png') })
+  await page.getByRole('button', { name: '3D' }).click()
+
+  // Roads: asphalt with edge lines and a dashed centre (6 m road); the footpath: paving, no markings.
+  const markings = await top.run<Array<{ roadId: string; kind: string }>>('map.getSource("terrain-road-markings").serialize().data.features.map((f) => f.properties)')
+  expect(markings.filter((m) => m.roadId === 'road-main').map((m) => m.kind).sort()).toEqual(['centre', 'edge', 'edge'])
+  expect(markings.filter((m) => m.roadId === 'path-1')).toEqual([])
+  expect(await top.run<string>('map.getLayoutProperty("terrain-roads", "visibility")')).toBe('none')
+  await page.getByLabel('Roads and paths').uncheck()
+  for (const id of ['terrain-road-surfaces', 'terrain-road-edges', 'terrain-road-centre']) {
+    expect(await top.run<string>(`map.getLayoutProperty("${id}", "visibility")`)).toBe('none')
+  }
+  await page.getByLabel('Roads and paths').check()
+  await page.screenshot({ path: path.join(SHOTS, 't10-top.png') })
+
+  // One key per tool: the dock's pressed button follows the keys.
+  const box = (await page.locator('[data-terrain-map]').boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (const [key, label] of [['s', 'Smooth'], ['t', 'Stairs'], ['e', 'Edit boundary'], ['v', 'Move'], ['b', 'Raise / Lower']] as const) {
+    await page.keyboard.press(key)
+    await expect(page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
+  }
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
+
