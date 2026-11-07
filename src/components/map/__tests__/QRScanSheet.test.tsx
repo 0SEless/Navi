@@ -31,7 +31,8 @@ const campus: CampusBundle = {
     type: 'entrance',
     metadata: { entityType: 'qr', entityId: 'checkpoint-1' },
   }],
-  edges: [],
+  // A published QR point is on the route network (only connected points can start a route).
+  edges: [{ id: 'qr-edge', from: 'qr-node', to: 'hall-node', type: 'walk', distance: 10, weight: 10 }],
   searchEntries: [],
   buildings: [],
   poi: [],
@@ -61,7 +62,7 @@ beforeEach(() => {
       buildings: [],
       components: [],
       nodes: campus.nodes,
-      edges: [],
+      edges: campus.edges,
     },
     qrLocation: null,
   })

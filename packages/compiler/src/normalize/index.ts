@@ -109,6 +109,19 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
           width: door.width,
           properties: { ...door.metadata, doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType },
         }))
+        // Doors drawn in the floor editor live on the floor with their owning room (2026-11-08); they are this
+        // room's doors too (assigned ones only: an unassigned or ambiguous door has no room to lead into).
+        for (const door of floor.doors ?? []) {
+          if (door.roomId !== room.id || (door.ownership && door.ownership.status !== 'assigned')) continue
+          if (doors.some(d => d.id === door.id)) continue
+          doors.push({
+            id: door.id,
+            roomId: room.id,
+            position: localToLatLng(door.position.x, door.position.y, origin.lat, origin.lng),
+            width: door.width,
+            properties: { ...(door.metadata ?? {}), doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType },
+          })
+        }
 
         return {
           id: room.id,

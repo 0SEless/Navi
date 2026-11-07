@@ -677,8 +677,19 @@ function buildBuildingIndex(
  */
 function resolveBuildingNodeId(navGraph: NavigationGraph, buildingId: string): string {
   const buildingNodes = navGraph.nodes.filter(node => node.buildingId === buildingId)
-  const entranceNode = buildingNodes.find(node => node.type === 'entrance' || String(node.type) === 'building_entrance')
-  return entranceNode?.id ?? buildingNodes[0]?.id ?? ''
+  // Only a point the route network reaches can be a destination (2026-11-08): with a new-style entrance link the
+  // door's old portal point is left unconnected, and the link's inside end (marked entranceId) is the way in.
+  const linked = new Set<string>()
+  for (const edge of navGraph.edges) {
+    linked.add(edge.from)
+    linked.add(edge.to)
+  }
+  const isEntrance = (node: NavigationGraph['nodes'][number]) => node.type === 'entrance' || String(node.type) === 'building_entrance'
+  const connectedEntrance = buildingNodes.find(node => isEntrance(node) && linked.has(node.id))
+  const linkInside = buildingNodes.find(node => typeof node.properties?.entranceId === 'string' && linked.has(node.id))
+  const anyConnected = buildingNodes.find(node => linked.has(node.id))
+  const entranceNode = buildingNodes.find(isEntrance)
+  return connectedEntrance?.id ?? linkInside?.id ?? entranceNode?.id ?? anyConnected?.id ?? buildingNodes[0]?.id ?? ''
 }
 
 function normalizeHotspotType(hotspotType: string | undefined, targetType: string): 'navigation' | 'information' | 'link' {

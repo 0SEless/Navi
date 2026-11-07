@@ -34,10 +34,14 @@ const qrNode: NavNode = {
   metadata: { entityType: 'qr', entityId: checkpoint.id },
 }
 
+const hallNode: NavNode = { ...qrNode, id: 'hall-node', label: 'Hall', position: { lat: 14.0002, lng: 121.0002 }, type: 'walkway', metadata: {} }
+const walk = (from: string, to: string) => ({ id: `${from}-${to}`, from, to, type: 'walk' as const, distance: 10, weight: 10 })
+
 function bundle(overrides: Partial<CampusBundle> = {}): CampusBundle {
   return {
-    nodes: [qrNode],
-    edges: [],
+    // A published QR point is on the route network (only connected points can start a route).
+    nodes: [qrNode, hallNode],
+    edges: [walk('qr-node-1', 'hall-node')],
     searchEntries: [],
     buildings: [{
       id: 'cs-building',
@@ -121,6 +125,7 @@ describe('resolveQrScanPayload', () => {
           id: 'nearby-node',
           metadata: { entityType: 'room', entityId: 'room-1' },
         }],
+        edges: [walk('nearby-node', 'hall-node')],
         floorGeometry: {
           schemaVersion: 1,
           formatVersion: 1,
@@ -140,6 +145,13 @@ describe('resolveQrScanPayload', () => {
     if (result.status !== 'resolved') return
     expect(result.location.anchor).toBe('coordinate-snap')
     expect(result.location.nodeId).toBe('nearby-node')
+  })
+
+  it('never starts on a point the route network does not reach (2026-11-08)', () => {
+    const result = resolveQrScanPayload('navi.app/q/CS-3F-EAST-01', bundle({ edges: [] }), 'campus-a')
+    expect(result.status).toBe('resolved')
+    if (result.status !== 'resolved') return
+    expect(result.location.nodeId).toBeNull()
   })
 
   it('returns a truthful resolved location without a routing anchor', () => {

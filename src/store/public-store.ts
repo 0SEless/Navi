@@ -24,6 +24,7 @@ import {
   type ThemePreference,
 } from '@/lib/public-preferences'
 import { findNavRoute, findPoiNavRoute } from '@/lib/findRoute'
+import { routableNodes } from '@/lib/location-resolver'
 import { reconcileRecentDestinationIds } from '@/lib/home-content'
 import { isValidRoadEdgeRouting, SpatialQueryService } from '@navi/core'
 import type { FloorGeometryArtifact, PanoramaIndex, QrIndex, SiteArtifact } from '@navi/core'
@@ -330,11 +331,20 @@ const VALID_NODE_TYPES = new Set<NavNode['type']>([
 const NODE_TYPE_MAP: Record<string, NavNode['type']> = {
   space: 'room',
   corridor: 'walkway',
-  transition: 'building_entrance',
+  // The compiler's own point types (2026-11-08): route points are walkways and places are rooms; a stair or lift
+  // point ('transition') is told apart by the entity it came from (below), never a building entrance.
+  waypoint: 'walkway',
+  poi: 'room',
+  transition: 'connector_stop',
 }
 
-function mapNodeType(raw: unknown): NavNode['type'] {
+function mapNodeType(raw: unknown, properties?: Record<string, unknown>): NavNode['type'] {
   if (typeof raw === 'string') {
+    if (raw === 'transition') {
+      if (properties?.entityType === 'elevator') return 'elevator'
+      if (properties?.entityType === 'staircase') return 'stair'
+    }
+    if (raw === 'poi' && properties?.entityType === 'anchor') return 'qr_marker'
     if (VALID_NODE_TYPES.has(raw as NavNode['type'])) return raw as NavNode['type']
     const mapped = NODE_TYPE_MAP[raw]
     if (mapped) return mapped
@@ -356,7 +366,7 @@ function normalizeNode(raw: unknown, campusId: string): NavNode | null {
     floor: typeof floor === 'number' ? floor : 0,
     buildingId: typeof buildingId === 'string' ? buildingId : '',
     campusId,
-    type: mapNodeType(raw.type),
+    type: mapNodeType(raw.type, isRecord(raw.properties) ? raw.properties : undefined),
   }
   if (typeof raw.name === 'string') node.name = raw.name
   const properties = isRecord(raw.properties) ? raw.properties : undefined
@@ -1069,8 +1079,9 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
     return state.findRoute(fromId, state.toNode)
   },
 
+  // Only points the route network reaches (2026-11-08): a start anywhere else could never be routed from.
   nearestNode: (latlng, maxDistanceMeters = 50) =>
-    nearestNode(get().campus?.nodes ?? [], latlng, maxDistanceMeters),
+    nearestNode(routableNodes(get().campus?.nodes ?? [], get().campus?.edges ?? []), latlng, maxDistanceMeters),
 
   addRecentDestination: (nodeId) => {
     const campusId = get().currentCampusId

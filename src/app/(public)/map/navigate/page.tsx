@@ -388,6 +388,7 @@ function NavigatePageContent() {
   }, [])
 
   const nodes = useMemo(() => campus?.nodes ?? [], [campus])
+  const routeEdges = useMemo(() => campus?.edges ?? [], [campus])
   const buildings = campus?.buildings ?? []
   const routeCandidate = useMemo<NavRoute | null>(() => {
     if (!campus || !fromNode || (!toNode && !poiDestination)) return null
@@ -501,10 +502,11 @@ function NavigatePageContent() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false)
+        // Only a point the route network reaches can start a route.
         const resolved = resolveNearestNode(nodes, {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        })
+        }, undefined, routeEdges)
         if (!resolved) {
           showToast('Location unavailable — choose a supported origin')
           return

@@ -13,11 +13,8 @@ import type {
   PrimitiveEdge,
   CompilerDiagnostic,
 } from '../types'
+import { nextCompilerId as nextId } from '../ids'
 
-let seqId = 0
-function nextId(prefix: string): string {
-  return `${prefix}-${++seqId}`
-}
 
 /**
  * Sample a polyline into waypoints at a fixed interval.

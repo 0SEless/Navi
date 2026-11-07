@@ -8,11 +8,8 @@ import type {
 } from '../types'
 import { verticalEdgeDistance, elevationKey } from './vertical-distance'
 import type { CanonicalAccessResult } from './canonical-access-compiler'
+import { nextCompilerId as nextId } from '../ids'
 
-let seqId = 0
-function nextId(prefix: string): string {
-  return `${prefix}-${++seqId}`
-}
 
 function buildSpatialIndex(nodes: PrimitiveNode[]): SpatialQueryService {
   const svc = new SpatialQueryService()
@@ -141,6 +138,32 @@ export function connectPrimitives(
         entityType: 'room_door',
         generatorId: 'builtin:connector',
       },
+    })
+  }
+
+  // 1b. QR and panorama anchors (2026-11-08): a scanned QR code starts a route at its anchor, so each anchor joins
+  // the nearest route point on its floor (as a door does); without one it stays off the network.
+  for (const node of nodes) {
+    if (node.kind !== 'poi' || node.source.entityType !== 'anchor') continue
+    const waypoint = findNearestWaypoint(node.position, nodes, node.floor, node.buildingId)
+    if (!waypoint) {
+      diagnostics.push({
+        severity: 'warning',
+        sourceEntityId: node.source.entityId,
+        phase: 'primitives',
+        code: 'ANCHOR_ORPHANED',
+        message: `Anchor "${node.label}" has no route point on floor ${node.floor} to join`,
+      })
+      continue
+    }
+    edges.push({
+      id: nextId('AE'),
+      kind: 'access',
+      from: node.id,
+      to: waypoint.id,
+      distance: haversineDistance(node.position, waypoint.position),
+      accessType: 'anchor',
+      source: { entityId: node.source.entityId, entityType: 'anchor', generatorId: 'builtin:connector' },
     })
   }
 

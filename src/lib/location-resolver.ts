@@ -1,4 +1,4 @@
-import type { NavNode, LatLng } from '@/types/nav-types'
+import type { NavEdge, NavNode, LatLng } from '@/types/nav-types'
 import { distanceMeters } from '@navi/core'
 
 export { distanceMeters }
@@ -17,7 +17,10 @@ export function resolveNearestNode(
   nodes: NavNode[],
   position: LatLng,
   maxDistance = 1500,
+  /** When given, only points the route network reaches (on some edge) can be the start. */
+  edges?: NavEdge[],
 ): NearestNodeResult | null {
+  nodes = edges ? routableNodes(nodes, edges) : nodes
   if (nodes.length === 0) return null
   let nearest = nodes[0]
   let minDist = distanceMeters(position, nearest.position)
@@ -30,4 +33,14 @@ export function resolveNearestNode(
   }
   if (minDist > maxDistance) return null
   return { node: nearest, distanceMeters: minDist }
+}
+
+/** The points some route edge touches: a start or destination anywhere else could never be routed from or to. */
+export function routableNodes(nodes: NavNode[], edges: NavEdge[]): NavNode[] {
+  const linked = new Set<string>()
+  for (const edge of edges) {
+    linked.add(edge.from)
+    linked.add(edge.to)
+  }
+  return nodes.filter((node) => linked.has(node.id))
 }

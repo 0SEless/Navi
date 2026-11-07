@@ -384,6 +384,41 @@ function stairRouteIssues(document: CampusDocument, profile: RouteProfile): Vali
   return issues
 }
 
+/**
+ * Rooms visitors can't be routed to (2026-11-08): the compiler joins a room to the route network through its doors
+ * (in-room or floor-level, assigned) or its room links (access points). A room with neither compiles and is listed in
+ * NAVI Web's search, but no route reaches it. A warning, never a block.
+ */
+function unreachableRoomIssues(document: CampusDocument, profile: RouteProfile): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  for (const building of document.buildings ?? []) {
+    for (const floor of building.floors ?? []) {
+      const linked = new Set<string>()
+      for (const attributes of floor.roomAttributes ?? []) {
+        if ((attributes.accessPoints ?? []).length > 0) {
+          linked.add(attributes.faceId)
+          if (attributes.roomId) linked.add(attributes.roomId)
+        }
+      }
+      for (const door of floor.doors ?? []) {
+        if (door.roomId && (!door.ownership || door.ownership.status === 'assigned')) linked.add(door.roomId)
+      }
+      for (const room of floor.rooms ?? []) {
+        const inRoomDoors = (room as { roomDoors?: unknown[] }).roomDoors ?? []
+        if (linked.has(room.id) || inRoomDoors.length > 0) continue
+        const found = issue(
+          'route-room-unreachable', profile,
+          `Room "${room.name || room.id}" can't be reached: add a door or link it to the floor's route`,
+          [{ entityId: room.id, entityType: 'room' }],
+          { buildingId: building.id, floorId: floor.id, layer: 'access' },
+        )
+        issues.push({ ...found, severity: 'warning' })
+      }
+    }
+  }
+  return issues
+}
+
 /** Pure route checks shared by the validation engine and the Floor Editor panel. */
 export function validateRouteNetwork(document: CampusDocument, profile: RouteProfile = 'publish'): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -400,6 +435,7 @@ export function validateRouteNetwork(document: CampusDocument, profile: RoutePro
     }
   }
   issues.push(...stairRouteIssues(document, profile))
+  issues.push(...unreachableRoomIssues(document, profile))
   return issues
 }
 
@@ -451,8 +487,14 @@ export const routeStairRule = rule(
   (issues) => issues.filter((issue) => issue.ruleId === 'route-stair'),
 )
 
+export const routeRoomUnreachableRule: ValidationRule = {
+  ...rule('route-room-unreachable', 'Every room has a door or a room link, so visitors can be routed to it', (issues) => issues.filter((issue) => issue.ruleId === 'route-room-unreachable')),
+  defaultSeverity: 'warning',
+}
+
 export const routeNetworkRules: ReadonlyArray<ValidationRule> = [
   routeStairRule,
+  routeRoomUnreachableRule,
   routeNetworkStructureRule,
   routeNetworkDisconnectedRule,
   routeRoomAccessRule,

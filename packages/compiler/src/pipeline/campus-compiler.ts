@@ -21,6 +21,7 @@ import { BuildEdgesStage, buildEdges } from './stages/build-edges-stage'
 import { OptimizeStage, optimizeGraph } from './stages/optimize-stage'
 import { ValidateStage } from './stages/validate-stage'
 import { normalizeDocument } from '../normalize'
+import { resetCompilerIds } from '../ids'
 import { generatePrimitives } from '../primitives/coordinator'
 import { normalizeConnectivity } from '../connectivity/normalizer'
 import { validateConnectivity } from '../connectivity/validator'
@@ -130,6 +131,8 @@ export class CampusCompiler {
     const mergeThreshold = this.config.mergeThreshold ?? ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters
     const maxEntranceRoadDistance = this.config.maxEntranceRoadDistance ?? ROUTE_NETWORK_THRESHOLDS.compilerFallbackMeters
 
+    // Ids restart for every compile: unique within it, the same for the same campus every time.
+    resetCompilerIds()
     try {
       // ── Stage 1: Normalize ──
       const normResult = normalizeDocument(document)

@@ -44,9 +44,13 @@ function buildEdgeIdMap(edges: NavEdge[]): Map<string, NavEdge> {
 }
 
 /** Map NavNode.type + optional incoming edge type to a NavStepType. */
-function nodeTypeToStepType(nodeType: NavNode['type'], edgeType?: string): NavStepType {
+function nodeTypeToStepType(nodeType: NavNode['type'], edgeType?: string, next?: NavEdge): NavStepType {
   if (nodeType === 'stair' || nodeType === 'staircase') return 'stairs'
   if (nodeType === 'elevator') return 'elevator'
+  // The step where the climb starts (2026-11-08): the edge leaving this point is stairs or a lift between floors,
+  // or part of an outdoor stair route. Compiled graphs join plain route points this way, with no stair point.
+  if (next && (next.type === 'stairs' || next.type === 'stair' || next.routing?.authored?.feature === 'stairs')) return 'stairs'
+  if (next?.type === 'elevator') return 'elevator'
   if (nodeType === 'entrance' || nodeType === 'building_entrance') return 'entrance'
   if (edgeType === 'door') return 'door'
   return 'walk'
@@ -92,6 +96,13 @@ export function buildNavRoute(
   const endNode = nodeById.get(pathResult.path[pathResult.path.length - 1])
   if (!startNode || !endNode) return null
 
+  // The edge from path[i] to path[i + 1] (the one the route takes next).
+  const nextEdgeOf = (i: number): NavEdge | undefined => {
+    if (i >= pathResult.path.length - 1) return undefined
+    const id = pathResult.steps[i + 1]?.edgeId
+    return id ? edgeById.get(id) : edgeMap.get(`${pathResult.path[i]}->${pathResult.path[i + 1]}`)
+  }
+
   // Build enriched steps — one per path node
   const steps: NavRouteStep[] = []
   for (let i = 0; i < pathResult.path.length; i++) {
@@ -112,7 +123,7 @@ export function buildNavRoute(
       position: node.position,
       floor: node.floor,
       buildingId: node.buildingId,
-      type: nodeTypeToStepType(node.type, edge?.type),
+      type: nodeTypeToStepType(node.type, edge?.type, nextEdgeOf(i)),
     })
   }
 

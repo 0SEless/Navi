@@ -58,8 +58,11 @@ function exactQrGraphNode(
   campus: CampusBundle,
   campusId: string,
 ): NavNode | null {
+  // An exact QR point counts only if the route network reaches it.
+  const linked = new Set(campus.edges.flatMap((edge) => [edge.from, edge.to]))
   return campus.nodes.find((node) => {
     if (node.campusId !== campusId) return false
+    if (!linked.has(node.id)) return false
     if (node.metadata?.entityType !== 'qr' || node.metadata.entityId !== checkpoint.id) return false
     if (nonEmptyString(checkpoint.buildingId) && node.buildingId !== checkpoint.buildingId) return false
     if (finiteNumber(checkpoint.floor) && node.floor !== checkpoint.floor) return false
@@ -100,7 +103,8 @@ function coordinateSnap(
     && (!buildingId || node.buildingId === buildingId)
     && (floor === undefined || node.floor === floor)
   ))
-  return resolveNearestNode(candidates, worldPosition, 30)?.node ?? null
+  // Only a point the route network reaches can start a route.
+  return resolveNearestNode(candidates, worldPosition, 30, campus.edges)?.node ?? null
 }
 
 /** Build a QR-origin view model from one exact published checkpoint entry. */

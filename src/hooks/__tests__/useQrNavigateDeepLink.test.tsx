@@ -68,7 +68,8 @@ function makeCampus(campusId: string): CampusBundle {
   }
   return {
     nodes: [qrNode, destination(campusId)],
-    edges: [],
+    // A published QR point is on the route network (only connected points can start a route).
+    edges: [{ id: `${campusId}-qr-edge`, from: qrNode.id, to: destination(campusId).id, type: 'walk', distance: 10, weight: 10 }],
     searchEntries: [{
       id: `${campusId}-destination-entry`,
       label: 'Library',

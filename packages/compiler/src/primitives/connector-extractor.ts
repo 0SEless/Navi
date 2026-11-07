@@ -1,9 +1,6 @@
 import type { PrimitiveContribution, NormalizedDocument, GenerationContext } from '../types'
+import { nextCompilerId as nextId } from '../ids'
 
-let seqId = 0
-function nextId(prefix: string): string {
-  return `${prefix}-${++seqId}`
-}
 
 /**
  * ConnectorExtractor produces Transition nodes for vertical movement:

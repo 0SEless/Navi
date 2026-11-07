@@ -1,10 +1,7 @@
 import { createHash } from 'crypto'
 import type { ConnectivityGraph, NavigationGraph, NavNode, NavEdge } from '../types'
+import { nextCompilerId as nextId } from '../ids'
 
-let seqId = 0
-function nextId(prefix: string): string {
-  return `${prefix}-${++seqId}`
-}
 
 function assertNever(_x: never): void {}
 
@@ -62,7 +59,8 @@ export function emitGraph(graph: ConnectivityGraph): NavigationGraph {
           position: node.position,
           floor: node.floor,
           buildingId: node.buildingId,
-          properties: {},
+          // QR / panorama floor anchors keep their identity (2026-11-08): NAVI Web shows them as markers, not rooms.
+          properties: node.source?.entityType === 'anchor' ? { entityType: 'anchor', entityId: node.source.entityId } : {},
         })
         nodeIdMap.set(node.id, [id])
         break
@@ -155,6 +153,12 @@ export function emitGraph(graph: ConnectivityGraph): NavigationGraph {
         const fromIds = nodeIdMap.get(edge.from)
         const toIds = nodeIdMap.get(edge.to)
         if (!fromIds || !toIds) continue
+        // A new-style entrance link (2026-11-08): mark its inside end with the entrance, so a building's search
+        // destination can be the door it really connects through (its old portal point stays unconnected).
+        if (edge.accessType === 'entrance_bridge') {
+          const inside = navNodes.find((n) => n.id === toIds[0])
+          if (inside) inside.properties = { ...(inside.properties ?? {}), entranceId: edge.source.entityId }
+        }
         navEdges.push({
           id: nextId('E'),
           from: fromIds[0],
