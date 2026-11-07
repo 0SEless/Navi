@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { contourSegments, toLatLng, toLocal, type CampusDocument, type Structure, type TerrainSampler } from '@navi/core'
+import { toLocal, type CampusDocument, type Structure, type TerrainSampler } from '@navi/core'
 import { demTileUrl } from '@/lib/terrain/dem-protocol'
 import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
@@ -11,7 +11,8 @@ import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/m
 import { RoadSurfaceLayer } from './layers/RoadSurfaceLayer'
 import { campusCameraLimits, MAX_PITCH } from '@/lib/terrain/camera-limits'
 import { boundaryVeil } from '@/lib/terrain/boundary-veil'
-import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
+import { CHANGES_SCHEME, contoursFromWorker, HEIGHTS_SCHEME, lastTileRefresh } from '@/lib/terrain/use-terrain-sampler'
+import { contourGeoJson } from '@/lib/terrain/contour-geojson'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
 import { DEFAULT_LAYERS, layerVisibility, STREET_MAP_LAYER, STREET_MAP_SOURCE, STREET_MAP_TILES, type TerrainLayers } from '@/lib/terrain/terrain-layers'
 import { applyTerrainView, CHANGES_SOURCE, CONTOUR_LAYER, CONTOUR_SOURCE, HILLSHADE_LAYER, OUTSIDE_LAYER, overlayAnchor, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
@@ -69,27 +70,14 @@ function overlayData(document: CampusDocument) {
   return { boundary, buildings, roads }
 }
 
-/** Contour lines every 1 m (major every 5 m) over the boundary box, sampled every 2 m. */
-function contourData(document: CampusDocument, sampler: TerrainSampler | null): GeoJSON.FeatureCollection {
+/** The contour area: the boundary box plus 20 m (local metres), or null without a boundary. */
+function contourBox(document: CampusDocument, sampler: TerrainSampler | null) {
   const ring = boundaryOf(document)
-  if (!sampler || ring.length < 3) return EMPTY
+  if (!sampler || ring.length < 3) return null
   const local = ring.map((p) => toLocal(sampler.grid, p))
-  const bbox = {
+  return {
     minX: Math.min(...local.map((p) => p.x)) - 20, minY: Math.min(...local.map((p) => p.y)) - 20,
     maxX: Math.max(...local.map((p) => p.x)) + 20, maxY: Math.max(...local.map((p) => p.y)) + 20,
-  }
-  const levels = contourSegments((x, y) => sampler.heightAt(x, y), bbox, { step: 1, cell: 2 })
-  return {
-    type: 'FeatureCollection',
-    features: levels.flatMap((level) => level.segments.map(([a, b]) => {
-      const pa = toLatLng(sampler.grid, a)
-      const pb = toLatLng(sampler.grid, b)
-      return {
-        type: 'Feature' as const,
-        properties: { elevation: level.elevationM, major: Math.abs(level.elevationM % 5) < 1e-6 },
-        geometry: { type: 'LineString' as const, coordinates: [[pa.lng, pa.lat], [pb.lng, pb.lat]] },
-      }
-    })),
   }
 }
 
@@ -211,7 +199,10 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     if (!map || !ready) return
     for (const [id, scheme] of [[TERRAIN_SOURCE, HEIGHTS_SCHEME], [RELIEF_SOURCE, HEIGHTS_SCHEME], [HILLSHADE_SOURCE, HEIGHTS_SCHEME], [CHANGES_SOURCE, CHANGES_SCHEME]] as const) {
       const source = map.getSource(id) as maplibregl.RasterDEMTileSource | undefined
-      source?.setTiles([demTileUrl(scheme, version)])
+      if (!source) continue
+      // A marked change reloads only the elevation tiles it touched; anything else reloads every tile.
+      if (lastTileRefresh.all) source.setTiles([demTileUrl(scheme, version)])
+      else if (lastTileRefresh.tiles.length > 0) map.refreshTiles(id, lastTileRefresh.tiles)
     }
     const { boundary, buildings, roads } = overlayData(document)
     ;(map.getSource(BOUNDARY_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(boundary)
@@ -268,7 +259,25 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !showContours) return
-    ;(map.getSource(CONTOUR_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(contourData(document, sampler))
+    const source = () => map.getSource(CONTOUR_SOURCE) as maplibregl.GeoJSONSource | undefined
+    const bbox = contourBox(document, sampler)
+    if (!bbox || !sampler) {
+      source()?.setData(EMPTY)
+      return
+    }
+    // Contour lines from the worker when it runs (the main thread otherwise, or if it gives up).
+    const fromWorker = contoursFromWorker(bbox)
+    if (!fromWorker) {
+      source()?.setData(contourGeoJson((x, y) => sampler.heightAt(x, y), sampler.grid, bbox))
+      return
+    }
+    let live = true
+    void fromWorker.then((geojson) => {
+      if (live) source()?.setData(geojson ?? contourGeoJson((x, y) => sampler.heightAt(x, y), sampler.grid, bbox))
+    })
+    return () => {
+      live = false
+    }
   }, [ready, showContours, version, document, sampler])
 
   useEffect(() => {

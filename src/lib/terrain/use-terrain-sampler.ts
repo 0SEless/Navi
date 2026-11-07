@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createHeightField, createTerrainSampler, parseTileId, toLatLng, toLocal, TILE_CELLS, type CampusDocument, type HeightField, type TerrainGrid, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
+import { createHeightField, createTerrainSampler, parseTileId, toLatLng, toLocal, TILE_CELLS, type CampusDocument, type HeightField, type Rect, type TerrainGrid, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
 import { registerTerrainProtocol, terrainTileCache, type LngLatBox } from './dem-protocol'
+import { createTerrainWorkerClient, type WorkerLike } from './terrain-worker-client'
 
 export const HEIGHTS_SCHEME = 'navi-terrain'
 export const CHANGES_SCHEME = 'navi-terrain-changes'
@@ -14,6 +15,26 @@ let pendingDirty: LngLatBox | 'all' | null = null
 // rectangle, anything unmarked rebuilds it. One per tab, like the protocols.
 let field: HeightField | null = null
 let fieldGrid: TerrainGrid | null = null
+
+// One module worker per tab builds elevation tiles and contour lines from a copy of the field (the main thread
+// does it when the worker is missing or fails). Samplers read from the field are marked, so a stroke's
+// working-tile sampler (not in the worker's copy) never gets worker tiles.
+const worker = createTerrainWorkerClient(() =>
+  typeof Worker === 'undefined' ? null : (new Worker(new URL('./terrain-worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike),
+)
+const fieldBacked = new WeakSet<TerrainSampler>()
+
+/** Which elevation tiles the last ground change needs reloaded: every tile, or these z/x/y only. */
+export let lastTileRefresh: { all: boolean; tiles: Array<{ z: number; x: number; y: number }> } = { all: true, tiles: [] }
+
+function tileFromWorker(scheme: 'heights' | 'changes') {
+  return (z: number, x: number, y: number) => (current && fieldBacked.has(current) ? worker.tile(scheme, z, x, y) : null)
+}
+
+/** Contour lines over `bbox` (local metres) from the worker, or null: build them on the main thread. */
+export function contoursFromWorker(bbox: Rect): Promise<GeoJSON.FeatureCollection | null> | null {
+  return current && fieldBacked.has(current) ? worker.contours(bbox) : null
+}
 
 /** The tab's height field (the paint preview updates it in place while a stroke is live). */
 export function currentHeightField(): HeightField | null {
@@ -29,12 +50,14 @@ function syncField(document: CampusDocument, grid: TerrainGrid): HeightField | n
     if (dirty.west <= dirty.east && dirty.south <= dirty.north) {
       const sw = toLocal(grid, { lat: dirty.south, lng: dirty.west })
       const ne = toLocal(grid, { lat: dirty.north, lng: dirty.east })
-      field.update(document, { minX: sw.x, minY: sw.y, maxX: ne.x, maxY: ne.y })
+      worker.send(field, field.update(document, { minX: sw.x, minY: sw.y, maxX: ne.x, maxY: ne.y }))
     }
     return field
   }
   field = createHeightField(document)
   fieldGrid = field ? grid : null
+  if (field) worker.send(field)
+  else worker.forget()
   return field
 }
 
@@ -97,7 +120,9 @@ export function useTerrainSampler(document: CampusDocument, documentVersion: num
       if (!exact || opts?.tilesOverride) return exact
       const f = syncField(document, exact.grid)
       if (!f) return exact
-      return { ...exact, heightAt: (x: number, y: number) => f.heightAt(x, y), changeAt: (x: number, y: number) => f.changeAt(x, y) }
+      const read: TerrainSampler = { ...exact, heightAt: (x: number, y: number) => f.heightAt(x, y), changeAt: (x: number, y: number) => f.changeAt(x, y) }
+      fieldBacked.add(read)
+      return read
     },
     // documentVersion / overrideVersion stand for in-place changes of the document and the working tiles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +132,10 @@ export function useTerrainSampler(document: CampusDocument, documentVersion: num
 
   useEffect(() => {
     if (users++ === 0) {
-      unregister = [registerTerrainProtocol(HEIGHTS_SCHEME, heightAtLatLng), registerTerrainProtocol(CHANGES_SCHEME, changeAtLatLng)]
+      unregister = [
+        registerTerrainProtocol(HEIGHTS_SCHEME, heightAtLatLng, tileFromWorker('heights')),
+        registerTerrainProtocol(CHANGES_SCHEME, changeAtLatLng, tileFromWorker('changes')),
+      ]
     }
     return () => {
       if (--users === 0) {
@@ -119,7 +147,10 @@ export function useTerrainSampler(document: CampusDocument, documentVersion: num
   }, [])
 
   useEffect(() => {
-    terrainTileCache.invalidate(pendingDirty ?? 'all')
+    const area = pendingDirty ?? 'all'
+    // Maps reload only the tiles they were handed that overlap a marked change (map.refreshTiles); else all.
+    lastTileRefresh = area === 'all' ? { all: true, tiles: [] } : { all: false, tiles: terrainTileCache.tilesIn(area) }
+    terrainTileCache.invalidate(area)
     pendingDirty = null
     current = sampler
     setVersion((v) => v + 1)
