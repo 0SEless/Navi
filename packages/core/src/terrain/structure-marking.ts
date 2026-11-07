@@ -17,6 +17,8 @@ export interface StairMarking {
   steps: Array<[LatLng, LatLng]>
   /** From the low side towards the high side. */
   arrow: [LatLng, LatLng]
+  /** The arrow's head: left wing, tip (the arrow's uphill end), right wing. */
+  arrowHead: [LatLng, LatLng, LatLng]
   /** True when the end is higher than the start. */
   uphillAtEnd: boolean
 }
@@ -74,5 +76,14 @@ export function stairMarking(doc: CampusDocument, structure: Structure): StairMa
   const low = uphillAtEnd ? 0.25 : 0.75
   const high = uphillAtEnd ? 0.75 : 0.25
   const arrow: [LatLng, LatLng] = [toLL(path.at(path.length * low).p), toLL(path.at(path.length * high).p)]
-  return { outline, steps, arrow, uphillAtEnd }
+  // Head: two wings 1 m (at most a third of the width each side) back from the tip, so the uphill end is plain.
+  const tipAt = path.at(path.length * high)
+  const backAt = path.at(path.length * high + (uphillAtEnd ? -1 : 1) * Math.min(1, path.length / 4))
+  const wing = Math.min(half * 0.66, 0.8)
+  const arrowHead: [LatLng, LatLng, LatLng] = [
+    toLL({ x: backAt.p.x + backAt.n.x * wing, y: backAt.p.y + backAt.n.y * wing }),
+    toLL(tipAt.p),
+    toLL({ x: backAt.p.x - backAt.n.x * wing, y: backAt.p.y - backAt.n.y * wing }),
+  ]
+  return { outline, steps, arrow, arrowHead, uphillAtEnd }
 }

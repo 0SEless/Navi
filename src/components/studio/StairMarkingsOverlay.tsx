@@ -16,6 +16,8 @@ import {
 } from '@navi/core'
 import type { Command } from '@navi/editor'
 import { StairPanel, stairProblem } from './StairPanel'
+import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
+import { styleReady } from '@/lib/terrain/style-ready'
 
 const SOURCE = 'stair-markings'
 const HIT = 'stair-markings-hit'
@@ -44,6 +46,7 @@ function markingData(document: CampusDocument): GeoJSON.FeatureCollection {
     }
     const [from, to] = marking.arrow
     features.push({ type: 'Feature', properties: { ...props, part: 'arrow' }, geometry: { type: 'LineString', coordinates: [[from.lng, from.lat], [to.lng, to.lat]] } })
+    features.push({ type: 'Feature', properties: { ...props, part: 'arrow' }, geometry: { type: 'LineString', coordinates: marking.arrowHead.map((p) => [p.lng, p.lat]) } })
   }
   return { type: 'FeatureCollection', features }
 }
@@ -81,15 +84,23 @@ export function StairMarkingsOverlay({ map, document, version, mapId, transforme
   const latest = useRef({ document, choosing })
   latest.current = { document, choosing }
 
+  // Browser probes (test builds only) reach the map editor's map as __naviTerrainMaps.studio.
+  useEffect(() => exposeTerrainMapForProbe('studio', map), [map])
+
   useEffect(() => {
     const draw = () => {
-      if (!map.isStyleLoaded()) return
+      // Not map.isStyleLoaded(): it stays false while outside map tiles load (or fail).
+      if (!styleReady(map)) return
       ensureLayers(map)
       ;(map.getSource(SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(data)
     }
     draw()
+    map.on('style.load', draw)
     map.on('styledata', draw)
-    return () => { map.off('styledata', draw) }
+    return () => {
+      map.off('style.load', draw)
+      map.off('styledata', draw)
+    }
   }, [map, data])
 
   useEffect(() => {

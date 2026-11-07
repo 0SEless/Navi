@@ -72,6 +72,17 @@ describe('stairMarking', () => {
     expect(Math.abs(local(a).y - local(b).y)).toBeCloseTo(2, 3)
   })
 
+  it('the arrow has a head at its uphill tip, its wings behind the tip', () => {
+    const d = campus()
+    const m = stairMarking(d, d.structures![0])!
+    const [left, tip, right] = m.arrowHead
+    expect(tip).toEqual(m.arrow[1])
+    // Uphill is towards the building (−x): the wings sit on the downhill (+x) side of the tip, one each side.
+    expect(local(left).x).toBeGreaterThan(local(tip).x)
+    expect(local(right).x).toBeGreaterThan(local(tip).x)
+    expect(Math.sign(local(left).y - local(tip).y)).toBe(-Math.sign(local(right).y - local(tip).y))
+  })
+
   it('a ramp marking has no step lines', () => {
     const d = campus('ramp')
     const m = stairMarking(d, d.structures![0])!
