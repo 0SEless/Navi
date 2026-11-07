@@ -27,6 +27,8 @@ export function registerTerrainProtocol(
     const match = /:\/\/(\d+)\/(\d+)\/(\d+)/.exec(params.url)
     if (!match) throw new Error(`Bad terrain tile url ${params.url}`)
     const [z, x, y] = match.slice(1).map(Number)
+    // Handed to a map from now on: a change committed while this tile is still being built reloads it too.
+    terrainTileCache.served(z, x, y)
     // The cache keeps raw RGBA pixels; MapLibre takes an ImageBitmap directly (no PNG encode/decode).
     const cached = terrainTileCache.get(scheme, z, x, y)
     let pixels: Uint8ClampedArray<ArrayBuffer>
@@ -37,7 +39,6 @@ export function registerTerrainProtocol(
       pixels = built ?? encodeDemTile(z, x, y, getHeightAt() ?? (() => 0), size)
       terrainTileCache.set(scheme, z, x, y, pixels.buffer, startedAt)
     }
-    terrainTileCache.served(z, x, y)
     return { data: await createImageBitmap(new ImageData(pixels, size, size)) }
   })
   return () => maplibregl.removeProtocol(scheme)
