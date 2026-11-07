@@ -3282,3 +3282,12 @@
 - Browser T11: publish (routable fixture + contour-line ground + a stair) -> NAVI Web: campus-only layers, no outside requests, building layers set up over the campus, stairs mesh, 3D turns the terrain and slabs on; screenshots t11-web-2d/3d.
 - Gates: vitest regressed 0 (6889); tsc 1122/1122/0. Whole lane 31/31.
 
+
+
+## 2026-11-07 (session) - Task 16 steps 1-3: acceptance with the ASU-Ibajay data
+- Owner: "Yes, start Task 16" (covers step 4: cloud migration on navi-studio-v2 + preview deploy).
+- T12: ASU-Ibajay ground import (range 1.8-35.5 m), a raise stroke seen in Changes, buildings follow the ground, a hillside stair from the hall's Floor 3 to the main road, Done (saves, back to the editor), publish, NAVI Web campus-only (no outside requests, published terrain + DEM source, one stair mesh, 3D terrain), reload Studio -> tiles (full-content hash), stair and ground settings identical.
+- The probe campus was made publishable: the hall's ground-floor main entrance tied to the main road (Studio's publish check rejected a road network with no entrance).
+- Test fixes (not code): the reload fingerprint ignores JSON key order (the database reorders keys); the editor page's online base-map tiles are not counted against the campus-only rule (the terrain page and NAVI Web are).
+- Performance (plan targets): publish incl. client compile + network + server bake 2.7-3.7 s for ASU-Ibajay (target <= 2 s was for the bake alone; not isolated); stair mesh ~5.5 ms (Task 11); brush mid-stroke work 0 long tasks (section 1).
+- Gates: vitest regressed 0 (6889); tsc 1122/1122/0. Whole lane 32/32.

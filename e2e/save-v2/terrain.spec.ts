@@ -969,3 +969,155 @@ test('T11 — NAVI Web campus-only map: published terrain, roads and a stair; no
   await ana.context.close()
 })
 
+/** The ASU-Ibajay probe campus made publishable: the hall's ground floor has a main entrance tied to the main road. */
+function ibajayPublishable(campusId: string) {
+  const doc = ibajayThreeFloors(campusId) as unknown as { buildings: Array<{ floors: Array<Record<string, unknown>> }>; roads: Array<Record<string, unknown>> }
+  doc.buildings[0].floors[0].entrances = [{ id: 'ent-hall', label: 'Hall entrance', position: { x: 0, y: -15 }, level: 0, type: 'main', hasQR: false, hasPanorama: false, connectorRoadId: 'road-main' }]
+  doc.roads[0].connectorEntranceId = 'ent-hall'
+  return doc
+}
+
+test('T12 — acceptance (Task 16): ASU-Ibajay ground, a raise stroke, buildings follow the ground, a stair from 3F to the road, Done, publish, campus-only NAVI Web, reload identical', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayPublishable)
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0
+  const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
+
+  // Import the owner's TopoExport ground; every building follows it (ticked by default).
+  await page.getByRole('button', { name: 'Import ground' }).click()
+  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
+  const range = await doc<{ minM: number; maxM: number }>('doc.terrain.colorRange')
+  expect(range.minM).toBeCloseTo(1.8, 0)
+  expect(range.maxM).toBeCloseTo(35.5, 0)
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+
+  // A raise stroke (away from the hall), seen in the Changes colours.
+  await page.getByRole('button', { name: 'Raise / Lower' }).click()
+  await page.getByLabel('Brush size').fill('20')
+  await page.getByLabel('Brush strength').fill('100')
+  const top = terrainMap(page, 'top')
+  const box = (await page.locator('[data-terrain-map]').boundingBox())!
+  const from = await top.run<{ x: number; y: number }>('map.project([122.1720, 11.8183])')
+  await page.mouse.move(box.x + from.x, box.y + from.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 10; i++) await page.mouse.move(box.x + from.x + i * 6, box.y + from.y, { steps: 2 })
+  await page.waitForTimeout(800)
+  await page.mouse.up()
+  await expect.poll(() => doc<number>('Object.keys(doc.terrainTiles ?? {}).length')).toBeGreaterThan(0)
+  await page.getByRole('button', { name: 'Changes', exact: true }).click()
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainMaps: Record<string, { isSourceLoaded(id: string): boolean; getLayer(id: string): unknown }> }).__naviTerrainMaps.top.isSourceLoaded('terrain-changes'), undefined, { timeout: 15_000 })
+  expect(await top.run<boolean>('Boolean(map.getLayer("terrain-relief"))')).toBe(true)
+  await page.screenshot({ path: path.join(SHOTS, 't12-changes.png') })
+  await page.getByRole('button', { name: 'Off', exact: true }).click()
+
+  // A stair from the hall's Floor 3 (south edge) down to the main road.
+  await page.evaluate(() => {
+    const r = (window as ProbeWindow).__naviStudioV2!.context.services.get('dispatcher').execute({ id: 'structure.create', label: 'Add stair', payload: { structure: {
+      id: 'acceptance-stair', form: 'stairs', presetId: 'hillside-stair', width: 4.5, underneath: 'solid', railings: 'both',
+      start: { kind: 'slab', buildingId: 'bld-hall', floorId: 'bld-hall-floor-3', edgeIndex: 0, edgeT: 0.5 },
+      end: { kind: 'road', roadId: 'road-main', position: { lat: 11.81707, lng: 122.16985 } },
+    } } })
+    if (r && r.success === false) throw new Error(r.error)
+  })
+  const fingerprint = () => page.evaluate(() => {
+    const d = (window as ProbeWindow).__naviStudioV2!.context.document as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Full-content hash of a tile (base64 text or numbers).
+    const sum = (v: unknown) => {
+      const values = typeof v === 'string' ? Array.from(v, (c) => c.charCodeAt(0)) : Array.from(v as ArrayLike<number>)
+      return `${values.length}:${values.reduce((a, b, i) => (a * 31 + b * (i % 97 + 1)) % 1_000_000_007, 7)}`
+    }
+    // Key order does not matter (the database stores JSON with its own key order).
+    const stable = (value: unknown): unknown => Array.isArray(value)
+      ? value.map(stable)
+      : value && typeof value === 'object'
+        ? Object.fromEntries(Object.keys(value as object).sort().map((k) => [k, stable((value as Record<string, unknown>)[k])]))
+        : value
+    return JSON.stringify(stable({
+      tiles: Object.keys(d.terrainTiles ?? {}).sort().map((k) => `${k}=${sum(d.terrainTiles[k])}`),
+      structures: d.structures,
+      ground: d.buildings.map((b: { id: string; ground?: unknown; baseElevation: number }) => ({ id: b.id, ground: b.ground ?? null, base: b.baseElevation })),
+    }))
+  })
+  const before = await fingerprint()
+
+  // Done: saves and returns to the editor.
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.waitForURL(new RegExp(`/studio/${campusId}/edit$`), { timeout: 60_000 })
+  await openMap(ana, campusId, /Hall/)
+
+  // Publish (Studio's "Publish anyway" path); time the server publish (bake included).
+  const started = Date.now()
+  const response = page.waitForResponse((r) => r.url().endsWith('/api/studio/v2/publish') && r.request().method() === 'POST', { timeout: 90_000 })
+  const outcome = await page.evaluate(async () => {
+    const services = (window as unknown as { __naviStudioV2: { context: { services: { get(id: string): any } } } }).__naviStudioV2.context.services // eslint-disable-line @typescript-eslint/no-explicit-any
+    let thrown: string | null = null
+    await services.get('publish').publish(true).catch((error: unknown) => { thrown = String(error) })
+    const snapshot = services.get('publishStore')?.getSnapshot?.() ?? services.get('publish').getSnapshot?.()
+    return { thrown, error: snapshot?.publishError ?? null }
+  })
+  expect(outcome.thrown ?? outcome.error, JSON.stringify(outcome)).toBeNull()
+  expect((await response).status()).toBe(200)
+  console.log(`T12_PUBLISH_MS ${Date.now() - started}`)
+
+  // NAVI Web: campus only (nothing from outside), the published terrain, one stair mesh.
+  const visitor = await browser.newContext({ baseURL: 'http://127.0.0.1:3118', viewport: { width: 1280, height: 820 } })
+  const outside: string[] = []
+  await visitor.route('**/*', (route) => {
+    const url = new URL(route.request().url())
+    if (url.hostname !== '127.0.0.1') {
+      outside.push(url.hostname)
+      return route.abort('blockedbyclient')
+    }
+    return route.continue()
+  })
+  await visitor.addInitScript((id) => {
+    localStorage.setItem('navi-default-campus', id)
+    localStorage.setItem('navi-onboarded', 'true')
+  }, campusId)
+  const web = await visitor.newPage()
+  const errors: string[] = []
+  web.on('pageerror', (error) => errors.push(error.message))
+  const campus = web.waitForResponse((r) => r.url().includes(`/api/public-campus?campus_id=${campusId}`), { timeout: 90_000 })
+  await web.goto('/map/explore')
+  const payload = await (await campus).json() as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  const site = payload.artifacts?.site ?? payload.site
+  expect(site?.structures).toHaveLength(1)
+  expect(site?.terrain).not.toBeNull()
+  const webMap = <T,>(fn: string) => web.evaluate((f) => new Function('map', `return ${f}`)((window as unknown as { __naviTerrainMaps: Record<string, unknown> }).__naviTerrainMaps.web), fn) as Promise<T>
+  const mapReady = () => web.waitForFunction(() => Boolean((window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown }> }).__naviTerrainMaps?.web?.getLayer('site-ground')), undefined, { timeout: 60_000 })
+  await mapReady().catch(() => undefined)
+  await web.waitForLoadState('networkidle')
+  await web.goto('/map/explore')
+  await mapReady()
+  const sources = await webMap<string[]>('Object.keys(map.getStyle().sources)')
+  expect(sources).not.toContain('osm')
+  expect(sources).toContain('site-dem-terrain')
+  expect(await webMap<number>('map.getLayer("site-structures").implementation.vertexCount()')).toBeGreaterThan(0)
+  await web.getByRole('button', { name: 'Cycle camera view' }).click()
+  await expect.poll(() => webMap<string | null>('map.getTerrain()?.source ?? null'), { timeout: 10_000 }).toBe('site-dem-terrain')
+  await webMap('map.jumpTo({ center: [122.1705, 11.8171], zoom: 18.2, pitch: 62, bearing: -20 })')
+  await web.waitForTimeout(3500)
+  await web.screenshot({ path: path.join(SHOTS, 't12-web-3d.png') })
+  expect(outside).toEqual([])
+  expect(errors).toEqual([])
+  await visitor.close()
+
+  // Reload Studio: the tiles, the stair and the buildings' ground settings come back identical.
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  // The editor page (where Publish lives) uses an online base map; the terrain page and NAVI Web do not.
+  await page.waitForTimeout(1000)
+  ana.blocked.length = 0
+  await expect.poll(() => doc<number>('(doc.structures ?? []).length'), { timeout: 30_000 }).toBe(1)
+  expect(await fingerprint()).toBe(before)
+  expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
+
