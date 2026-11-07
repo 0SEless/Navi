@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createTerrainSampler, parseTileId, toLatLng, toLocal, TILE_CELLS, type CampusDocument, type TerrainGrid, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
+import { createHeightField, createTerrainSampler, parseTileId, toLatLng, toLocal, TILE_CELLS, type CampusDocument, type HeightField, type TerrainGrid, type TerrainSampler, type TerrainSamplerOptions } from '@navi/core'
 import { registerTerrainProtocol, terrainTileCache, type LngLatBox } from './dem-protocol'
 
 export const HEIGHTS_SCHEME = 'navi-terrain'
@@ -10,6 +10,33 @@ export const CHANGES_SCHEME = 'navi-terrain-changes'
 // One protocol pair for the whole tab; every terrain map (main and mini) reads the current sampler.
 let current: TerrainSampler | null = null
 let pendingDirty: LngLatBox | 'all' | null = null
+// The height field of the current document (smooth sculpting): lookups read it; a marked change updates only its
+// rectangle, anything unmarked rebuilds it. One per tab, like the protocols.
+let field: HeightField | null = null
+let fieldGrid: TerrainGrid | null = null
+
+/** The tab's height field (the paint preview updates it in place while a stroke is live). */
+export function currentHeightField(): HeightField | null {
+  return field
+}
+
+/** Brings the field up to `document`: the marked area only, or a rebuild. */
+function syncField(document: CampusDocument, grid: TerrainGrid): HeightField | null {
+  const dirty = pendingDirty
+  const sameGrid = field && fieldGrid && fieldGrid.originLat === grid.originLat && fieldGrid.originLng === grid.originLng
+  if (field && sameGrid && dirty && dirty !== 'all') {
+    // NO_AREA (an inverted box: stairs, presets) changes no ground.
+    if (dirty.west <= dirty.east && dirty.south <= dirty.north) {
+      const sw = toLocal(grid, { lat: dirty.south, lng: dirty.west })
+      const ne = toLocal(grid, { lat: dirty.north, lng: dirty.east })
+      field.update(document, { minX: sw.x, minY: sw.y, maxX: ne.x, maxY: ne.y })
+    }
+    return field
+  }
+  field = createHeightField(document)
+  fieldGrid = field ? grid : null
+  return field
+}
 
 /** Bounds of change tiles (plus 10 m so hillshade edges refresh too). */
 export function tilesBounds(grid: TerrainGrid, tileIds: Iterable<string>): LngLatBox | null {
@@ -65,7 +92,13 @@ function changeAtLatLng(): ((lat: number, lng: number) => number) | null {
  */
 export function useTerrainSampler(document: CampusDocument, documentVersion: number, opts?: TerrainSamplerOptions & { overrideVersion?: number }): { sampler: TerrainSampler | null; version: number } {
   const sampler = useMemo(
-    () => createTerrainSampler(document, opts?.tilesOverride ? { tilesOverride: opts.tilesOverride } : {}),
+    (): TerrainSampler | null => {
+      const exact = createTerrainSampler(document, opts?.tilesOverride ? { tilesOverride: opts.tilesOverride } : {})
+      if (!exact || opts?.tilesOverride) return exact
+      const f = syncField(document, exact.grid)
+      if (!f) return exact
+      return { ...exact, heightAt: (x: number, y: number) => f.heightAt(x, y), changeAt: (x: number, y: number) => f.changeAt(x, y) }
+    },
     // documentVersion / overrideVersion stand for in-place changes of the document and the working tiles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [document, documentVersion, opts?.tilesOverride, opts?.overrideVersion],
