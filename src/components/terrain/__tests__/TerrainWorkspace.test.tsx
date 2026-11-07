@@ -46,6 +46,15 @@ describe('TerrainWorkspace', () => {
     }))
   })
 
+  it('first visit shows why setting up was refused (for example, no campus boundary yet)', () => {
+    setup({ document: doc(false), dispatch: vi.fn(() => ({ success: false, error: 'Draw the campus boundary first' })) })
+    fireEvent.click(screen.getByRole('button', { name: 'Start flat' }))
+    fireEvent.change(screen.getByLabelText('Reference name'), { target: { value: 'Gate road' } })
+    fireEvent.change(screen.getByLabelText('0 m means'), { target: { value: 'The main gate road' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create terrain' }))
+    expect(screen.getByRole('alert').textContent).toBe('Draw the campus boundary first')
+  })
+
   it('shows the height reference in the top bar', () => {
     setup()
     expect(screen.getByText(/Sea level/)).toBeTruthy()

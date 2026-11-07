@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { TerrainImportPanel } from './TerrainImportPanel'
+import { TerrainImportPanel, type SetupOutcome } from './TerrainImportPanel'
 import { primaryButton, secondaryButton, textInput, withDisabled } from './form-styles'
 
 type Mode = 'choose' | 'import' | 'flat' | 'trace'
@@ -12,10 +12,11 @@ const card: React.CSSProperties = {
 }
 
 /** No terrain yet: Import ground, Trace contours over a tracing image, or Start flat (name the reference). */
-export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; onSetup: (payload: Record<string, unknown>) => void }) {
+export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; onSetup: (payload: Record<string, unknown>) => SetupOutcome }) {
   const [mode, setMode] = useState<Mode>('choose')
   const [name, setName] = useState('')
   const [zero, setZero] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   if (readOnly) {
     return <div style={{ padding: 32, fontSize: 13, color: 'var(--navi-text-secondary, #6b7280)' }}>This campus has no terrain yet.</div>
@@ -24,7 +25,7 @@ export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; on
   if (mode === 'import') {
     return (
       <div style={{ padding: 32 }}>
-        <TerrainImportPanel hasChanges={false} onImport={(payload) => onSetup(payload)} onCancel={() => setMode('choose')} />
+        <TerrainImportPanel hasChanges={false} onImport={onSetup} onCancel={() => setMode('choose')} />
       </div>
     )
   }
@@ -35,7 +36,8 @@ export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; on
         style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 360, fontSize: 13 }}
         onSubmit={(event) => {
           event.preventDefault()
-          onSetup({ reference: { name: name.trim(), zeroMeaning: zero.trim() }, ...(mode === 'trace' ? { startTool: 'contour-pen' } : {}) })
+          const outcome = onSetup({ reference: { name: name.trim(), zeroMeaning: zero.trim() }, ...(mode === 'trace' ? { startTool: 'contour-pen' } : {}) })
+          setError(outcome && outcome.success === false ? outcome.error ?? 'The terrain could not be set up.' : null)
         }}
       >
         <strong>{mode === 'trace' ? 'Trace contours' : 'Start flat'}: name the height reference</strong>
@@ -47,6 +49,7 @@ export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; on
           0 m means
           <input aria-label="0 m means" value={zero} onChange={(event) => setZero(event.target.value)} placeholder="e.g. The road at the main gate" style={textInput} />
         </label>
+        {error && <div role="alert" style={{ color: '#991b1b', fontSize: 12 }}>{error}</div>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="submit" style={withDisabled(primaryButton, !name.trim() || !zero.trim())} disabled={!name.trim() || !zero.trim()}>Create terrain</button>
           <button type="button" style={secondaryButton} onClick={() => setMode('choose')}>Back</button>

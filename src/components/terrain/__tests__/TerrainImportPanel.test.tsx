@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { addPickedFiles, missingTerrainFile, TerrainImportPanel } from '../TerrainImportPanel'
 
@@ -71,5 +73,15 @@ describe('TerrainImportPanel', () => {
     setup()
     fireEvent.drop(screen.getByTestId('terrain-drop'), { dataTransfer: { files: [file('ground.glb'), file('frame.geojson')] } })
     expect(chosen()).toEqual(['ground.glb', 'frame.geojson'])
+  })
+
+  it('shows why the import was refused (for example, no campus boundary yet)', async () => {
+    const onImport = vi.fn(() => ({ success: false, error: 'Draw the campus boundary first' }))
+    render(<TerrainImportPanel hasChanges={false} onImport={onImport} onCancel={vi.fn()} />)
+    const contours = readFileSync(join(__dirname, '../../../../packages/core/src/terrain/__tests__/fixtures/topoexport-contours-edtm-30m.geojson'), 'utf-8')
+    fireEvent.change(screen.getByLabelText('Terrain files'), { target: { files: [new File([contours], 'contours.geojson')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Draw the campus boundary first')
+    expect(onImport).toHaveBeenCalledTimes(1)
   })
 })

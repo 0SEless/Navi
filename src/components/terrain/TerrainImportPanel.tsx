@@ -47,9 +47,12 @@ export function missingTerrainFile(files: File[]): string | null {
   return null
 }
 
+/** What a set-up command answered; a refusal carries the reason to show. */
+export type SetupOutcome = { success: boolean; error?: string } | void | undefined
+
 export function TerrainImportPanel({ hasChanges, onImport, onCancel }: {
   hasChanges: boolean
-  onImport: (payload: Record<string, unknown>) => void
+  onImport: (payload: Record<string, unknown>) => SetupOutcome
   onCancel: () => void
 }) {
   const [files, setFiles] = useState<File[]>([])
@@ -70,7 +73,8 @@ export function TerrainImportPanel({ hasChanges, onImport, onCancel }: {
     setError(null)
     try {
       const base = await readTerrainFiles(files)
-      onImport({ reference: IMPORTED_REFERENCE, base, colorRange: baseHeightRange(base), ...(clearTiles ? { clearTiles: true } : {}), ...(followGround ? { followGround: true } : {}) })
+      const outcome = onImport({ reference: IMPORTED_REFERENCE, base, colorRange: baseHeightRange(base), ...(clearTiles ? { clearTiles: true } : {}), ...(followGround ? { followGround: true } : {}) })
+      if (outcome && outcome.success === false) setError(outcome.error ?? 'The ground could not be imported.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The files could not be read.')
     } finally {
