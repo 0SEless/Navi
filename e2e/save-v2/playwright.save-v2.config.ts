@@ -16,7 +16,12 @@ export default defineConfig({
   workers: 1,
   outputDir: '../../reports/save-v2/raw/playwright-output',
   reporter: [['list']],
-  use: { baseURL: 'http://127.0.0.1:3118', headless: true, trace: 'retain-on-failure', viewport: { width: 1440, height: 900 } },
+  use: {
+    baseURL: 'http://127.0.0.1:3118', headless: true, trace: 'retain-on-failure', viewport: { width: 1440, height: 900 },
+    // PERF_GPU=1 (the T14 speed test) runs on the real graphics card; headless otherwise renders WebGL in software,
+    // about 50× slower, which says nothing about what the owner sees.
+    ...(process.env.PERF_GPU ? { launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11'] } } : {}),
+  },
   webServer: [
     {
       command: 'node scripts/track-e8-browser-acceptance/auth-stub.mjs',

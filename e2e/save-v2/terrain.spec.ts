@@ -1207,3 +1207,119 @@ test('T13 — section 5: opens flat on a campus whose boundary is only in the se
   await ana.context.close()
 })
 
+
+// Smooth sculpting (2026-11-07): the ASU-IBAJAY copy — boundary and 29 buildings following the ground with "lower"
+// pads — sculpted by hand (no TopoExport import, owner's decision). Long main-thread tasks and frames are recorded for
+// turning on 3D, a 2 s held Raise stroke and its release. GPU only (PERF_GPU=1).
+const IBAJAY = JSON.parse(readFileSync(path.join(FIXTURES, 'ibajay-campus.json'), 'utf-8')) as { boundary: Array<{ lat: number; lng: number }>; footprints: number[][][] }
+function ibajayCopy(campusId: string) {
+  return {
+    schemaVersion: 1, version: 1, connectivitySemanticsVersion: '1.0.0',
+    metadata: { campusId, name: 'ASU-IBAJAY copy', description: 'speed test', lastModified: '2026-11-07T00:00:00.000Z', editorVersion: '1.5-probe' },
+    buildings: IBAJAY.footprints.map((ring, i) => ({
+      id: `bld-${i}`, name: `Bldg ${i}`, code: `B${i}`, category: 'academic', description: '',
+      footprint: { points: [...ring, ring[0]].map(([lat, lng]) => ({ lat, lng })) },
+      baseElevation: 0, height: 5, floors: [{ ...floor(`bld-${i}-f1`, 'Floor 1'), height: 5 }],
+      verticalConnectors: [], verticalTransitions: [], color: '#4682b4', aliases: [], metadata: {},
+      ground: { baseMode: 'follow-ground', pad: { mode: 'lower', blendMeters: 3 } },
+    })),
+    roads: [], roadJunctions: [], separatedCrossings: [], panoramas: [], qrCheckpoints: [], areas: [],
+    boundary: { points: IBAJAY.boundary },
+  }
+}
+
+test('T14 — speed on the ASU-IBAJAY copy (GPU): 3D on, a 2 s held stroke and its release', async ({ browser }) => {
+  test.skip(!process.env.PERF_GPU, 'speed test: run with PERF_GPU=1 on the real graphics card')
+  test.setTimeout(600_000)
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, ibajayCopy)
+  const page = ana.page
+  await page.addInitScript(() => {
+    const w = window as unknown as { __long: Array<{ at: number; ms: number }>; __frames: number[] }
+    w.__long = []
+    w.__frames = []
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) w.__long.push({ at: Math.round(e.startTime), ms: Math.round(e.duration) })
+      }).observe({ type: 'longtask', buffered: true })
+    } catch {
+      // no longtask support
+    }
+    const tick = (t: number) => {
+      w.__frames.push(t)
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing === true, undefined, { timeout: 60_000 })
+  const renderer = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2') as WebGL2RenderingContext | null
+    const ext = gl?.getExtension('WEBGL_debug_renderer_info')
+    return gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown'
+  })
+  expect(renderer, 'runs on the graphics card, not software WebGL').not.toMatch(/SwiftShader|software/i)
+
+  const tools = page.getByRole('toolbar', { name: 'Terrain tools' })
+  await tools.getByRole('button', { name: 'Raise / Lower' }).click()
+  await page.getByLabel('Brush size').fill('30')
+  await page.getByLabel('Brush strength').fill('100')
+  const box = (await page.locator('[data-terrain-map="top"]').boundingBox())!
+  const n = IBAJAY.boundary.length
+  const centre = IBAJAY.boundary.reduce((s, p) => ({ lat: s.lat + p.lat / n, lng: s.lng + p.lng / n }), { lat: 0, lng: 0 })
+  const at = await page.evaluate((c) => (window as unknown as { __naviTerrainMaps: Record<string, { project(p: [number, number]): { x: number; y: number } }> }).__naviTerrainMaps.top.project([c.lng, c.lat]), centre)
+  // The owner's first touch creates the ground (the campus opens flat, nothing stored yet).
+  await page.mouse.move(box.x + at.x + 120, box.y + at.y)
+  await page.mouse.down()
+  await page.waitForTimeout(200)
+  await page.mouse.up()
+  await page.waitForFunction(() => Boolean((window as ProbeWindow).__naviStudioV2?.context.document.terrain), undefined, { timeout: 30_000 })
+  await page.waitForTimeout(3000)
+
+  const mark = () => page.evaluate(() => performance.now())
+  const measure = (from: number, to: number) => page.evaluate(([a, b]) => {
+    const w = window as unknown as { __long: Array<{ at: number; ms: number }>; __frames: number[] }
+    const long = w.__long.filter((l) => l.at >= a && l.at <= b)
+    const frames = w.__frames.filter((t) => t >= a && t <= b)
+    return { longestMs: Math.max(0, ...long.map((l) => l.ms)), longTasks: long.length, fps: Math.round(frames.length / ((b - a) / 1000)) }
+  }, [from, to] as const)
+
+  // 3D on: until the top map's terrain tiles are all in.
+  const t0 = await mark()
+  await page.getByRole('button', { name: '3D' }).click()
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainMaps: Record<string, { getTerrain(): unknown }> }).__naviTerrainMaps.top.getTerrain() !== null, undefined, { timeout: 30_000 })
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainMaps: Record<string, { areTilesLoaded(): boolean }> }).__naviTerrainMaps.top.areTilesLoaded(), undefined, { timeout: 60_000 })
+  const t1 = await mark()
+  const threeD = { ...(await measure(t0, t1)), readyMs: Math.round(t1 - t0) }
+  await page.waitForTimeout(2000)
+
+  // A 2 s held Raise stroke at full strength near the campus centre, moving a little as a person does.
+  await page.mouse.move(box.x + at.x, box.y + at.y)
+  const s0 = await mark()
+  await page.mouse.down()
+  for (let i = 0; i < 40; i++) {
+    await page.mouse.move(box.x + at.x + (i % 10) * 3, box.y + at.y + Math.floor(i / 10) * 3)
+    await page.waitForTimeout(50)
+  }
+  const s1 = await mark()
+  await page.mouse.up()
+  await page.waitForTimeout(2500)
+  const s2 = await mark()
+  const stroke = await measure(s0, s1)
+  const release = await measure(s1, s2)
+  // The elevation tiles and contour lines came from the terrain worker (its script was loaded).
+  const workerScripts = await page.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name).filter((n) => /worker/i.test(n)))
+  console.log('T14 ' + JSON.stringify({ renderer, threeD, stroke, release, workerScripts }))
+  expect(workerScripts.length, 'the terrain worker loaded').toBeGreaterThan(0)
+  await page.screenshot({ path: path.join(SHOTS, 't14-after-stroke.png') })
+
+  // Accepted levels (the prototype the owner approved: 52 fps; longest tasks ~60 ms stroke, ~0.1 s release,
+  // ~0.2 s 3D on — the rest is MapLibre and React development mode). The spec targets are tighter; see the log line.
+  expect(stroke.fps).toBeGreaterThanOrEqual(40)
+  expect(stroke.longestMs).toBeLessThanOrEqual(100)
+  expect(release.longestMs).toBeLessThanOrEqual(200)
+  expect(threeD.readyMs).toBeLessThanOrEqual(1500)
+  expect(threeD.longestMs).toBeLessThanOrEqual(400)
+  await ana.context.close()
+})
