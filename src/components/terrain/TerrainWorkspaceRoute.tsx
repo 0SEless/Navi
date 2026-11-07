@@ -25,6 +25,7 @@ import { useTerrainShortcuts } from './useTerrainShortcuts'
 import { createTerrainPaintPreview, type TerrainPaintPreview } from '@/lib/three-d/terrain-preview'
 import { executeWithStart, viewDocument } from '@/lib/terrain/terrain-start'
 import { useSettingsBoundary } from './useSettingsBoundary'
+import { guideSeen, markGuideSeen, TerrainGuide } from './TerrainGuide'
 
 interface Dispatcher {
   execute(command: Command): MutationResult
@@ -63,6 +64,10 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   // Tilted = shown in 3D; follows the map's live pitch (hand tilt or the 3D button).
   const [tilted, setTilted] = useState(false)
+  // Section 5: the guide shows once per browser (after mount: storage is browser-only).
+  const [guideOpen, setGuideOpen] = useState(false)
+  useEffect(() => { if (!guideSeen()) setGuideOpen(true) }, [])
+  const closeGuide = useCallback(() => { markGuideSeen(); setGuideOpen(false) }, [])
   // Section 5: layer choices are remembered in this browser.
   const [layers, setLayersState] = useState<TerrainLayers>(() => loadLayers())
   const setLayers = useCallback((next: TerrainLayers) => {
@@ -181,7 +186,13 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       onSave={onSave}
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
       missingBoundary={settingsBoundary.loaded && (document.boundary?.points?.length ?? 0) < 3}
-      topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />}
+      topBarExtras={(
+        <>
+          <TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />
+          <button type="button" aria-label="Terrain guide" title="Show the terrain guide" onClick={() => setGuideOpen(true)}
+            style={{ marginLeft: 8, width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--navi-border, #d1d5db)', background: 'var(--navi-card, #fff)', fontWeight: 700, cursor: 'pointer' }}>?</button>
+        </>
+      )}
     >
       <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} draft={draft} />
       <TerrainTools
@@ -190,6 +201,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
         cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
         onDraft={setDraft} onHeightActive={setHeightActive}
       />
+      <TerrainGuide open={guideOpen} onClose={closeGuide} />
       {children}
     </TerrainWorkspace>
   )
