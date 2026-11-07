@@ -29,7 +29,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useEditor, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
+import { useEditor, useDocumentVersion, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '@navi/editor'
 import { useCampusBoundary } from './CampusBoundary'
 import { useOsmImportTool } from './OsmImportTool'
 import { ImportToast } from './ImportToast'
@@ -59,6 +59,8 @@ import { RotationHandle } from './RotationHandle'
 import { useStudioStore } from '@/store/studio-store'
 import { useGraphStore } from '@/store/graph-store'
 import { PositionEditHint } from './PositionEditHint'
+import { StairMarkingsOverlay } from './StairMarkingsOverlay'
+import { useEnsureZone } from './v2/ZoneProvider'
 
 interface StudioCanvasProps {
   center?: { lat: number; lng: number }
@@ -139,7 +141,10 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
   const positionEditTarget = useStudioStore((s) => s.positionEditTarget)
   const isBuildingEdit = positionEditTarget?.type === 'building'
 
-  const { services: studioServices, document } = useEditor()
+  const { services: studioServices, document, transformer } = useEditor()
+  // Stair route links: markings redraw on every document change; Connect asks for the building lock.
+  const documentVersion = useDocumentVersion()
+  const ensureZone = useEnsureZone()
   const dispatcherRef = useRef(studioServices.get('dispatcher'))
   dispatcherRef.current = studioServices.get('dispatcher')
 
@@ -226,6 +231,13 @@ export function StudioCanvas({ center, onEmptyMapClick }: StudioCanvasProps) {
       {mapInstance && <ViewportController map={mapInstance} initialCenter={center} />}
       {mapInstance && <InteractionController map={mapInstance} onSetRoomDrag={drawing.setRoomDrag} onEmptyMapClick={onEmptyMapClick} drawing={drawing} />}
       {mapInstance && <POIGeometryAuthoring map={mapInstance} />}
+      {mapInstance && document && (
+        <StairMarkingsOverlay
+          map={mapInstance} document={document} version={documentVersion} mapId={document.metadata?.campusId ?? ''} transformer={transformer}
+          ensureZone={(zones) => ensureZone(zones as never)}
+          executeBatch={(commands) => dispatcherRef.current!.executeBatch(commands)}
+        />
+      )}
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
         <StyleSelector />
       </div>

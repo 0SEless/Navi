@@ -103,6 +103,16 @@ describe('Stairs tool', () => {
     expect(screen.getByLabelText('Stair settings')).toBeDefined()
   })
 
+  it('opens on a requested stair ("Edit in terrain editor" from the map editor) once the tool is active', () => {
+    const map = { ...fakeMap(), easeTo: vi.fn() }
+    const d = doc([stair])
+    const onSelect = vi.fn()
+    const { rerender } = render(<StructureTool document={d} sampler={null} map={map as never} active={false} dispatch={vi.fn(() => ({ success: true }))} onSelect={onSelect} requestedId="s1" />)
+    rerender(<StructureTool document={d} sampler={createTerrainSampler(d)} map={map as never} active dispatch={vi.fn(() => ({ success: true }))} onSelect={onSelect} requestedId="s1" />)
+    expect(onSelect).toHaveBeenLastCalledWith('s1')
+    expect(map.easeTo).toHaveBeenCalledTimes(1)
+  })
+
   it('reports the selected stair (for Shift+Z)', () => {
     const map = fakeMap()
     const d = doc([stair])

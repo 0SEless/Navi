@@ -60,9 +60,13 @@ vi.mock('@navi/editor', () => {
   return {
     CAMPUS_TOOL_GROUPS: [],
     useEditor: () => ({ document: { roads: [] }, services }),
+    useDocumentVersion: () => 0,
     useToolDockShortcuts: vi.fn(),
   }
 })
+
+// The stair markings have their own tests (StairPanel); here they only need to stay out of the pointer work.
+vi.mock('../StairMarkingsOverlay', () => ({ StairMarkingsOverlay: () => null }))
 
 vi.mock('@/store/studio-store', () => ({
   useStudioStore: (selector: (state: typeof probe.studioState) => unknown) => selector(probe.studioState),

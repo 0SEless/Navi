@@ -59,7 +59,9 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const router = useRouter()
   const [view, setView] = useState<TerrainView>('neutral')
   const [exaggeration, setExaggeration] = useState(1)
-  const [tool, setTool] = useState<TerrainTool>('raise-lower')
+  // "Edit in terrain editor" from the map editor opens on one stair: /edit/terrain?stair=<id>.
+  const [requestedStairId] = useState<string | null>(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('stair')))
+  const [tool, setTool] = useState<TerrainTool>(() => (requestedStairId ? 'stairs' : 'raise-lower'))
   const [settings, setSettings] = useState<BrushSettings>(DEFAULT_BRUSH)
   const [mainMap, setMainMap] = useState<maplibregl.Map | null>(null)
   // Tilted = shown in 3D; follows the map's live pitch (hand tilt or the 3D button).
@@ -199,6 +201,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
         document={document} sampler={sampler} map={mainMap} editing={editing} dispatch={dispatch}
         tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
         cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
+        requestedStairId={requestedStairId}
         onDraft={setDraft} onHeightActive={setHeightActive}
       />
       <TerrainGuide open={guideOpen} onClose={closeGuide} />

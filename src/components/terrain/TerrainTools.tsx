@@ -43,6 +43,8 @@ export function TerrainTools(props: {
   /** Shift+Z height mode: the live draft for the map, and whether the mode is on (brushes off). */
   onDraft?: (draft: TerrainMapProps['draft']) => void
   onHeightActive?: (active: boolean) => void
+  /** Opened from the map editor on one stair (?stair=<id>). */
+  requestedStairId?: string | null
 }) {
   const { document, sampler, map: mainMap, editing, dispatch, tool } = props
   const campusId = document.metadata.campusId
@@ -157,7 +159,7 @@ export function TerrainTools(props: {
         onDraft={(next) => props.onDraft?.(next)} onActive={(on) => { setHeightMode(on); props.onHeightActive?.(on) }}
         ensureBuildingLock={(buildingId) => ensureZone([`building:${encodeURIComponent(buildingId)}`])}
       />
-      <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} onSelect={setSelectedStairId} showHandles={!heightMode} />
+      <StructureTool document={document} sampler={sampler} map={mainMap} active={tool === 'stairs' && Boolean(sampler)} dispatch={dispatch} onSelect={setSelectedStairId} showHandles={!heightMode} requestedId={props.requestedStairId ?? null} />
       {importing && (
         <div style={{ position: 'absolute', left: MAP_CENTRE_X, bottom: 64, transform: 'translateX(-50%)', zIndex: 3, padding: 14, background: 'var(--navi-card, #fff)', border: '1px solid var(--navi-border, #e5e7eb)', borderRadius: 8, boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}>
           <TerrainImportPanel
