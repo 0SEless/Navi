@@ -106,7 +106,7 @@ export function TerrainTools(props: {
   }, [mainMap, document])
 
   useMapDraft(mainMap, draft)
-  const boundary = { active: editing && tool === 'boundary', document, dispatch }
+  const boundary = { active: editing && tool === 'boundary', document, dispatch, onMessage: setMessage }
   useBoundaryEditor(mainMap, boundary)
 
   const run = (command: Command | null) => {

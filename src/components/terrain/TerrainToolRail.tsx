@@ -30,7 +30,7 @@ export const TERRAIN_TOOLS: ToolEntry[] = [
   { id: 'picker', label: 'Height picker', hint: 'Click to pick a height (or Alt+click with a brush)', key: 'h' },
   { id: 'reset', label: 'Reset', hint: 'Remove changes inside an area (back to the base)', key: 'r' },
   { id: 'contour-pen', label: 'Contour pen', hint: 'Trace height lines, then Generate surface', key: 'c' },
-  { id: 'boundary', label: 'Edit boundary', hint: 'Drag a corner of the campus boundary', key: 'e' },
+  { id: 'boundary', label: 'Edit boundary', hint: 'Drag a corner; click + on an edge to add one; Delete removes the selected corner', key: 'e' },
 ]
 
 export function TerrainToolRail({ tool, tools = TERRAIN_TOOLS, disabled, alwaysOn = ['pan'], onTool }: {
