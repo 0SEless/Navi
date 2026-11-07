@@ -1,5 +1,5 @@
 import { recordChange, RoadStyle } from '@navi/core'
-import type { CampusDocument, LatLng, RoadDisplayMode, RoadSurface, RoadType } from '@navi/core'
+import type { CampusDocument, LatLng, Road, RoadDisplayMode, RoadSurface, RoadType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import { cleanupRoadRoutingReferences } from './routing-relationship-cleanup'
@@ -61,7 +61,15 @@ export const roadCreateHandler: CommandHandler = {
       ? (payload.connections as RoadConnectionRequest[])
       : undefined
 
-    document.roads.push({ id, name, polyline: { points: roadPoints }, width, surface, type, displayMode, connectorEntranceId, metadata: (payload.metadata as Record<string, unknown>) ?? {} })
+    // Stair route links: a road made over an outdoor stair carries its routing (feature + structureId) and height mode.
+    const routing = payload.routing as Road['routing'] | undefined
+    const heightMode = payload.heightMode === 'typed' || payload.heightMode === 'follow-surface' ? payload.heightMode : undefined
+    document.roads.push({
+      id, name, polyline: { points: roadPoints }, width, surface, type, displayMode, connectorEntranceId,
+      ...(routing ? { routing: structuredClone(routing) } : {}),
+      ...(heightMode ? { heightMode } : {}),
+      metadata: (payload.metadata as Record<string, unknown>) ?? {},
+    })
 
     // Fix 1: apply explicit connection authority in the same command.
     // Connect projects the endpoint and creates/merges the RoadJunction.

@@ -44,6 +44,7 @@ export { terrainAreaCreateHandler, terrainAreaUpdateHandler, terrainAreaDeleteHa
 export { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler } from './terrain-handlers'
 export { buildingSetGroundHandler, buildingsFollowGroundHandler, DEFAULT_PAD } from './building-ground-handlers'
 export { structureHandlers } from './structure-handlers'
+export { stairConnectCommands, stairDisconnectCommands, STAIR_ROUTE_ID_PREFIX } from './stair-route'
 export { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from './parametric-handlers'
 export { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from './feature-handlers'
 export { poiCreateHandler, poiUpdateHandler, poiDeleteHandler } from './feature-handlers'
