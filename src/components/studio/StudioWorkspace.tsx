@@ -21,7 +21,8 @@ import type { ValidationFocus } from '@/types/studio-types'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
 import { ZoneProvider } from './v2/ZoneProvider'
 import { LeaveBuildingRelease } from './v2/LeaveBuildingRelease'
-import { useExplicitSave, useSaveShortcut, useStudioSession } from './v2/useStudioSession'
+import { useExplicitSave, useSaveShortcut, useStudioSession, useStudioSessionState } from './v2/useStudioSession'
+import { PreviewButton } from './StudioPreview'
 
 interface ValidationViewport {
   flyTo: (center: LatLng, options?: { zoom?: number; duration?: number }) => void
@@ -147,6 +148,7 @@ export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
   const workflow = useWorkflow()
   const v2Session = useStudioSession()
   const explicitSave = useExplicitSave(v2Session)
+  const v2State = useStudioSessionState(v2Session)
   useSaveShortcut(v2Session ? explicitSave : null)
   const publishStore = services.get('publishStore')
   const publishService = services.get('publish')
@@ -332,6 +334,22 @@ export function StudioWorkspace({ mapId, center }: StudioWorkspaceProps) {
           >
             Road Recovery
           </button>
+          {v2Session && (
+            <PreviewButton
+              mapId={mapId}
+              dirty={v2State.dirty || v2State.status === 'dirty'}
+              headCommit={v2State.headCommit}
+              save={async () => {
+                try {
+                  await explicitSave()
+                } catch {
+                  return undefined
+                }
+                return v2Session.getState().dirty ? undefined : v2Session.getState().headCommit
+              }}
+              open={(url) => window.open(url, '_blank', 'noopener')}
+            />
+          )}
           <BuildStatus
             onOpenProblems={() => setShowProblemsPanel((visible) => !visible)}
             problemCount={(validationSnapshot?.statistics.totalIssues ?? 0) + (syncIssue.active ? 1 : 0)}

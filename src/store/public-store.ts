@@ -619,7 +619,11 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResult | null> {
-  const doc = await fetchJson(`/api/public-campus?campus_id=${encodeURIComponent(campusId)}`)
+  return parsePublicCampus(await fetchJson(`/api/public-campus?campus_id=${encodeURIComponent(campusId)}`), campusId)
+}
+
+/** The /api/public-campus body (or a Studio preview's campus) as NAVI Web's bundle; null when it is not that campus. */
+export function parsePublicCampus(doc: unknown, campusId: string): PublicCampusResult | null {
   if (!isRecord(doc)) return null
   if (typeof doc.campusId !== 'string' || doc.campusId !== campusId) return null
   const id = campusId
