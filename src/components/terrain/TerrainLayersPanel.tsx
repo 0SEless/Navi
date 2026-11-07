@@ -1,13 +1,11 @@
 'use client'
 
-export interface TerrainLayers {
-  buildings: boolean
-  roads: boolean
-  contours: boolean
-  tracing: boolean
-}
+import type { TerrainLayers } from '@/lib/terrain/terrain-layers'
 
-export const DEFAULT_LAYERS: TerrainLayers = { buildings: true, roads: true, contours: true, tracing: true }
+export { DEFAULT_LAYERS, type TerrainLayers } from '@/lib/terrain/terrain-layers'
+
+/** The layers that are switched on or off (not the see-through amounts). */
+type OnOffLayer = { [K in keyof TerrainLayers]: TerrainLayers[K] extends boolean ? K : never }[keyof TerrainLayers]
 
 /** Show/hide map layers; the tracing image is picked here and stays on this computer. */
 export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing }: {
@@ -19,7 +17,7 @@ export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacit
   onTracingOpacity: (value: number) => void
   onRemoveTracing: () => void
 }) {
-  const toggle = (key: keyof TerrainLayers, label: string) => (
+  const toggle = (key: OnOffLayer, label: string) => (
     <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <input type="checkbox" checked={layers[key]} onChange={(event) => onLayers({ ...layers, [key]: event.target.checked })} />
       {label}

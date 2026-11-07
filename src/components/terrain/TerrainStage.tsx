@@ -5,6 +5,7 @@ import type { CampusDocument, TerrainSampler } from '@navi/core'
 import type { TerrainMapProps } from './TerrainMap'
 import type { TerrainView } from '@/lib/terrain/terrain-view'
 import { TerrainMap } from './TerrainMap'
+import type { TerrainLayers } from '@/lib/terrain/terrain-layers'
 
 /**
  * The one terrain map: flat (top view) to start; tilting it (right-drag, pinch or the 3D button)
@@ -17,7 +18,7 @@ export function TerrainStage({ document, sampler, version, view, exaggeration, o
   view: TerrainView
   exaggeration: number
   onMainMap?: (map: maplibregl.Map | null) => void
-  layers?: { buildings: boolean; roads: boolean; contours: boolean }
+  layers?: Partial<TerrainLayers>
   cutAboveFloorId?: string | null
   draft?: TerrainMapProps['draft']
 }) {

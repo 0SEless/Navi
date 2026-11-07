@@ -13,6 +13,7 @@ import { campusCameraLimits, MAX_PITCH } from '@/lib/terrain/camera-limits'
 import { boundaryVeil } from '@/lib/terrain/boundary-veil'
 import { CHANGES_SCHEME, HEIGHTS_SCHEME } from '@/lib/terrain/use-terrain-sampler'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
+import { DEFAULT_LAYERS, layerVisibility, STREET_MAP_LAYER, STREET_MAP_SOURCE, STREET_MAP_TILES, type TerrainLayers } from '@/lib/terrain/terrain-layers'
 import { applyTerrainView, CHANGES_SOURCE, CONTOUR_LAYER, CONTOUR_SOURCE, HILLSHADE_LAYER, OUTSIDE_LAYER, overlayAnchor, RELIEF_SOURCE, TERRAIN_SOURCE, type TerrainView } from '@/lib/terrain/terrain-view'
 
 const HILLSHADE_SOURCE = 'terrain-hillshade-dem'
@@ -36,8 +37,8 @@ export interface TerrainMapProps {
   pitch: number
   /** Gives the parent the map (brush tools attach their pointer handlers to it). */
   onMap?: (map: maplibregl.Map | null) => void
-  /** Show/hide: buildings, roads, contour lines over any view. */
-  layers?: { buildings: boolean; roads: boolean; contours: boolean }
+  /** Show/hide and see-through of the layers (section 5); missing fields use the defaults. */
+  layers?: Partial<TerrainLayers>
   /** 3D: hide the floors above this one (and the roof). */
   cutAboveFloorId?: string | null
 }
@@ -93,7 +94,8 @@ function contourData(document: CampusDocument, sampler: TerrainSampler | null): 
 }
 
 /** One terrain map (top view or 3D): hillshade, height or change colours, contours, campus outlines. */
-export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers = { buildings: true, roads: true, contours: false }, cutAboveFloorId = null, draft = null }: TerrainMapProps) {
+export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers: layersProp = {}, cutAboveFloorId = null, draft = null }: TerrainMapProps) {
+  const layers: TerrainLayers = { ...DEFAULT_LAYERS, ...layersProp }
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -102,6 +104,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   const structuresRef = useRef<{ layer: MeshLayer; origin: string } | null>(null)
   const latest = useRef({ document, sampler, version, view, exaggeration })
   latest.current = { document, sampler, version, view, exaggeration }
+  const initialLayers = useRef(layers)
 
   useEffect(() => {
     const container = containerRef.current
@@ -115,6 +118,8 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       style: {
         version: 8,
         sources: {
+          // Section 5: the street map underneath; our ground draws on top of it.
+          [STREET_MAP_SOURCE]: { type: 'raster', tiles: [STREET_MAP_TILES], tileSize: 256, maxzoom: 19, attribution: '&copy; OpenStreetMap contributors' },
           [TERRAIN_SOURCE]: dem(HEIGHTS_SCHEME),
           [RELIEF_SOURCE]: dem(HEIGHTS_SCHEME),
           [HILLSHADE_SOURCE]: dem(HEIGHTS_SCHEME),
@@ -128,7 +133,8 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
         },
         layers: [
           // Neutral ground (owner 2026-11-06): sand-grey with a warm hillshade, like TopoExport.
-          { id: 'terrain-background', type: 'background', paint: { 'background-color': GROUND_COLOR } },
+          { id: STREET_MAP_LAYER, type: 'raster', source: STREET_MAP_SOURCE, paint: { 'raster-opacity': initialLayers.current.streetMapOpacity } },
+          { id: 'terrain-background', type: 'background', paint: { 'background-color': GROUND_COLOR, 'background-opacity': initialLayers.current.groundOpacity } },
           { id: HILLSHADE_LAYER, type: 'hillshade', source: HILLSHADE_SOURCE, paint: { 'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#6f6455', 'hillshade-highlight-color': '#fffdf7', 'hillshade-accent-color': '#8c8170' } },
           // Outside the boundary: a light veil, so you always see where the campus ends (section 4).
           { id: OUTSIDE_LAYER, type: 'fill', source: OUTSIDE_LAYER, paint: { 'fill-color': '#f7f4ec', 'fill-opacity': 0.35 } },
@@ -146,7 +152,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
       zoom: 16,
       pitch,
       maxPitch: MAX_PITCH,
-      attributionControl: false,
+      attributionControl: { compact: true },
     })
     mapRef.current = map
     const unexpose = exposeTerrainMapForProbe(pitch > 0 ? '3d' : 'top', map)
@@ -240,6 +246,19 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   useEffect(() => {
     structuresRef.current?.layer.setVerticalScale(tilted ? exaggeration : 0)
   }, [ready, sampler, tilted, exaggeration])
+
+  // Section 5: layer switches and see-through (after the stairs layer exists).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    for (const [id, visibility] of Object.entries(layerVisibility(layers))) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility)
+    }
+    if (map.getLayer(STREET_MAP_LAYER)) map.setPaintProperty(STREET_MAP_LAYER, 'raster-opacity', layers.streetMapOpacity)
+    if (map.getLayer('terrain-background')) map.setPaintProperty('terrain-background', 'background-opacity', layers.groundOpacity)
+    // `layers` fields are listed one by one; sampler/document re-run it when the stairs layer is rebuilt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, sampler, layers.streetMap, layers.streetMapOpacity, layers.ground, layers.groundOpacity, layers.boundary, layers.structures])
 
   const showContours = layers.contours
   useEffect(() => {
