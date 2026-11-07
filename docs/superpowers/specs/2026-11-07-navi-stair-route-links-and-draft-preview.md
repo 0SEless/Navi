@@ -67,8 +67,8 @@ Click **Connect to route** on a selected stair:
    - a **road junction** joining the stair path to the chosen route at the bottom;
    - an **entrance link** (`EntranceAccess`) from the stair path's top end to the chosen entrance, so the route
      continues into that floor's indoor routes.
-   The stair path remembers its stair (`routing.structureId`), and its heights follow the stair surface (roads already
-   take their height from the surface under them, including stairs).
+   The stair path remembers its stair (new optional field `routing.structureId`), and its heights follow the stair
+   surface (roads set to Follow ground read the surface under them, stairs included — terrain spec 2026-11-02).
 4. **Disconnect** removes exactly what Confirm wrote (one undo step).
 
 Saving: the stair path, junction and entrance link are ordinary road / junction / floor data, saved with the existing
