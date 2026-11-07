@@ -37,7 +37,8 @@ export interface SiteArtifact {
 }
 
 /** A flat sampler for campuses without terrain (0 m ground; pads and heights still resolve). */
-function samplerFor(doc: CampusDocument): TerrainSampler | null {
+/** The ground stairs and roads are resolved on: the terrain, or flat over the boundary when there is none. */
+export function structureSampler(doc: CampusDocument): TerrainSampler | null {
   const own = createTerrainSampler(doc)
   if (own) return own
   const boundary = doc.boundary?.points ?? []
@@ -51,7 +52,7 @@ function samplerFor(doc: CampusDocument): TerrainSampler | null {
 /** null when the campus has no boundary (nothing to frame the campus-only map). */
 export function buildSiteArtifact(doc: CampusDocument): SiteArtifact | null {
   const boundary = doc.boundary?.points ?? []
-  const sampler = samplerFor(doc)
+  const sampler = structureSampler(doc)
   if (boundary.length < 3 || !sampler) return null
 
   const roads = siteRoadSurfaces(doc, sampler)
