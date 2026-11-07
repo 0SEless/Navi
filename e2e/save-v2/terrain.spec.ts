@@ -989,7 +989,11 @@ test('T12 — acceptance (Task 16): ASU-Ibajay ground, a raise stroke, buildings
 
   // Import the owner's TopoExport ground; every building follows it (ticked by default).
   await page.getByRole('button', { name: 'Import ground' }).click()
-  await page.getByLabel('Terrain files').setInputFiles([path.join(FIXTURES, 'topoexport-asu-ibajay.glb'), path.join(FIXTURES, 'topoexport-frame.geojson')])
+  // One file at a time, as the owner picks them: the second pick adds to the first.
+  await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-asu-ibajay.glb'))
+  await expect(page.getByText('Still needed: frame.geojson')).toBeVisible()
+  await page.getByLabel('Terrain files').setInputFiles(path.join(FIXTURES, 'topoexport-frame.geojson'))
+  await expect(page.getByRole('list', { name: 'Chosen files' }).getByRole('listitem')).toHaveCount(2)
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect.poll(() => doc<string | undefined>('doc.buildings[0].ground?.baseMode')).toBe('follow-ground')
   const range = await doc<{ minM: number; maxM: number }>('doc.terrain.colorRange')

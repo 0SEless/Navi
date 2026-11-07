@@ -3360,3 +3360,8 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: none yet (out of scope for the terrain work); solo re-run is the evidence.
 - **Prevention**: if P10 flakes again, wait for the /map/explore redirect to settle (waitForURL) before navigating to /map/search.
 - **Related tasks**: minimap removal (whole-lane probe)
+
+
+## 2026-11-07 - T8 Shift+Z pitch flake under load
+- In the full 32-test run (14.4 min) T8's side-view tilt sat at 14 deg after 5 s; run alone it passed. Same stall as the earlier "ease cut short" note; the app's jumpTo fallback fires on moveend, which can come late on a loaded machine. Not changed; watch it.
+

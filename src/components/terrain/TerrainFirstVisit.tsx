@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { TerrainImportPanel } from './TerrainImportPanel'
+import { primaryButton, secondaryButton, textInput, withDisabled } from './form-styles'
 
 type Mode = 'choose' | 'import' | 'flat' | 'trace'
 
@@ -40,15 +41,15 @@ export function TerrainFirstVisit({ readOnly, onSetup }: { readOnly: boolean; on
         <strong>{mode === 'trace' ? 'Trace contours' : 'Start flat'}: name the height reference</strong>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           Reference name
-          <input aria-label="Reference name" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Main gate road" />
+          <input aria-label="Reference name" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Main gate road" style={textInput} />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           0 m means
-          <input aria-label="0 m means" value={zero} onChange={(event) => setZero(event.target.value)} placeholder="e.g. The road at the main gate" />
+          <input aria-label="0 m means" value={zero} onChange={(event) => setZero(event.target.value)} placeholder="e.g. The road at the main gate" style={textInput} />
         </label>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" disabled={!name.trim() || !zero.trim()}>Create terrain</button>
-          <button type="button" onClick={() => setMode('choose')}>Back</button>
+          <button type="submit" style={withDisabled(primaryButton, !name.trim() || !zero.trim())} disabled={!name.trim() || !zero.trim()}>Create terrain</button>
+          <button type="button" style={secondaryButton} onClick={() => setMode('choose')}>Back</button>
         </div>
       </form>
     )

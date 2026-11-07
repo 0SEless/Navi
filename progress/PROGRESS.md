@@ -3298,3 +3298,12 @@
 - Before: cloud studio.zone_of had R69, no structure kinds (md5 cb9de43a...). After: md5 9917ae37... = local test DB after the migration; zone_of('map/structure:...') and ('map/structure-preset:...') = NULL (free), building/terrain-tile zones unchanged.
 - Preview: `bash scripts/save-v2/deploy-preview.sh` -> deployment navi-next-5ut8csoyk-navi01.vercel.app (READY, preview target, functions sin1), alias https://navi-next-savev2-navi01.vercel.app; /map/explore and /login answer 200.
 - Next: owner's manual testing on the preview; then the final whole-branch review and finishing the branch (nothing pushed to git).
+
+
+## 2026-11-07 (session) - Terrain import: add files one at a time
+- Owner, testing the preview: "im only able to import one file" (the .glb and frame.geojson).
+- Cause: the file input accepted several files only when picked together (Ctrl+click); a second pick replaced the first, and nothing showed which files were chosen. The T12 test put both in at once, so it passed.
+- Fix: each pick (or drop) adds to a visible list (a new .glb replaces the old one, the same file twice is kept once, other types ignored), each file has a remove button, "Still needed: ..." names the missing file and Import waits for it; a drop zone takes both files at once. The terrain set-up screens get real button and input looks (the app's base styles strip the browser's button look).
+- Tests: TerrainImportPanel.test.tsx (10, RED -> GREEN); T12 now picks the .glb and the frame file in two goes.
+- Gates: vitest regressed 0; tsc 1122/1122/0. Browser lane 31/32: T8 (Shift+Z pitch 14 deg after 5 s) failed in the long run and passed alone (2.8 min) - load flake, logged.
+
