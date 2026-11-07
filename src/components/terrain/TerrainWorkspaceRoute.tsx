@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BrushSettings, TileId } from '@navi/core'
 import { useRouter } from 'next/navigation'
@@ -23,6 +23,8 @@ import { DEFAULT_LAYERS, type TerrainLayers } from './TerrainLayersPanel'
 import { useTerrainStroke } from './useTerrainStroke'
 import { useTerrainShortcuts } from './useTerrainShortcuts'
 import { createTerrainPaintPreview, type TerrainPaintPreview } from '@/lib/three-d/terrain-preview'
+import { executeWithStart, viewDocument } from '@/lib/terrain/terrain-start'
+import { useSettingsBoundary } from './useSettingsBoundary'
 
 interface Dispatcher {
   execute(command: Command): MutationResult
@@ -42,8 +44,17 @@ export function TerrainWorkspaceRoute({ mapId, children }: { mapId: string; chil
 }
 
 function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; children?: ReactNode }) {
-  const { document, services } = useEditor()
+  const { document: stored, services } = useEditor()
   const documentVersion = useDocumentVersion() // re-render on every document change
+  // Section 5: Terrain opens on the campus. Missing boundary -> the one drawn at map creation;
+  // missing terrain -> flat "Campus ground". Both reach the real document only at the first edit.
+  const settingsBoundary = useSettingsBoundary(stored.metadata.campusId)
+  const document = useMemo(
+    () => viewDocument(stored, settingsBoundary.points),
+    // documentVersion stands for in-place changes of the stored document.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stored, documentVersion, settingsBoundary.points],
+  )
   const router = useRouter()
   const [view, setView] = useState<TerrainView>('neutral')
   const [exaggeration, setExaggeration] = useState(1)
@@ -95,7 +106,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     const grid = document.terrain?.grid
     const tiles = command.id === 'terrain.apply-tiles' ? command.payload.tiles as Record<string, unknown> | undefined : undefined
     markTerrainDirty(grid && tiles ? tilesBounds(grid, Object.keys(tiles)) : 'all')
-    const result = dispatcher?.execute(command)
+    const result = dispatcher ? executeWithStart((next) => dispatcher.execute(next), stored, settingsBoundary.points, command) : undefined
     // "Trace contours" on the first visit opens the contour pen.
     if (result?.success && command.payload.startTool === 'contour-pen') setTool('contour-pen')
     // After an import: every building that is not Fixed follows the ground (its own undo step).
@@ -107,7 +118,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       })
     }
     return result
-  }, [lock.status, services, document.terrain?.grid, document.buildings, ensureZone])
+  }, [lock.status, services, document.terrain?.grid, document.buildings, ensureZone, stored, settingsBoundary.points])
 
   const editing = lock.status === 'held' && Boolean(document.terrain)
   // Browser probes wait for this before painting: a stroke while the lock is still acquiring is ignored.
@@ -145,8 +156,17 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     await save()
     const state = session.getState()
     if (state.status === 'error' || state.status === 'conflict') return { ok: false, message: state.message ?? 'Could not save the terrain.' }
+    // Keep the campus settings (map list, NAVI Web campus area) on the same boundary.
+    const points = stored.boundary?.points
+    if (points && points.length >= 3) {
+      try {
+        settingsBoundary.save(points)
+      } catch (error) {
+        console.warn('[terrain] Could not update the campus settings boundary:', error)
+      }
+    }
     return { ok: true }
-  }, [save, session])
+  }, [save, session, stored, settingsBoundary])
 
   return (
     <TerrainWorkspace
@@ -155,6 +175,7 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       lock={lock}
       onSave={onSave}
       onLeave={() => router.push(`/studio/${encodeURIComponent(mapId)}/edit`)}
+      missingBoundary={settingsBoundary.loaded && (document.boundary?.points?.length ?? 0) < 3}
       topBarExtras={<TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />}
     >
       <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} draft={draft} />

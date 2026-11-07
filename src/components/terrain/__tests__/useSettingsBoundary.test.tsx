@@ -14,10 +14,10 @@ function campus(boundary = ring): CampusMap {
 }
 
 const original = useCampusMapStore.getState()
-let updateMap: ReturnType<typeof vi.fn>
+let updateMap: ReturnType<typeof vi.fn<(id: string, data: Partial<CampusMap>) => void>>
 
 beforeEach(() => {
-  updateMap = vi.fn()
+  updateMap = vi.fn<(id: string, data: Partial<CampusMap>) => void>()
   useCampusMapStore.setState({ maps: [], updateMap, fetchFromSupabase: vi.fn(async () => undefined) })
 })
 

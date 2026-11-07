@@ -27,32 +27,16 @@ function setup(overrides: Partial<TerrainWorkspaceProps> = {}) {
 }
 
 describe('TerrainWorkspace', () => {
-  it('shows first-visit choices when doc.terrain is absent', () => {
-    setup({ document: doc(false) })
-    expect(screen.getByRole('button', { name: 'Import ground' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Trace contours' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Start flat' })).toBeTruthy()
+  it('opens on the map with no first-visit choices', () => {
+    render(<TerrainWorkspace document={doc(false)} dispatch={vi.fn()} lock={{ status: 'held', holderName: null }} onSave={vi.fn(async () => ({ ok: true as const }))} onLeave={vi.fn()}><div data-testid="stage" /></TerrainWorkspace>)
+    expect(screen.queryByRole('button', { name: 'Start flat' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Trace contours' })).toBeNull()
+    expect(screen.getByTestId('stage')).toBeTruthy()
   })
 
-  it('Start flat sets up the terrain with the named reference', () => {
-    const props = setup({ document: doc(false) })
-    fireEvent.click(screen.getByRole('button', { name: 'Start flat' }))
-    fireEvent.change(screen.getByLabelText('Reference name'), { target: { value: 'Gate road' } })
-    fireEvent.change(screen.getByLabelText('0 m means'), { target: { value: 'The main gate road' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create terrain' }))
-    expect(props.dispatch).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'terrain.setup',
-      payload: { reference: { name: 'Gate road', zeroMeaning: 'The main gate road' } },
-    }))
-  })
-
-  it('first visit shows why setting up was refused (for example, no campus boundary yet)', () => {
-    setup({ document: doc(false), dispatch: vi.fn(() => ({ success: false, error: 'Draw the campus boundary first' })) })
-    fireEvent.click(screen.getByRole('button', { name: 'Start flat' }))
-    fireEvent.change(screen.getByLabelText('Reference name'), { target: { value: 'Gate road' } })
-    fireEvent.change(screen.getByLabelText('0 m means'), { target: { value: 'The main gate road' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create terrain' }))
-    expect(screen.getByRole('alert').textContent).toBe('Draw the campus boundary first')
+  it('shows the no-boundary banner when the map has no boundary', () => {
+    setup({ document: doc(false), missingBoundary: true })
+    expect(screen.getByRole('status').textContent).toBe('This map has no campus boundary yet. Draw it in the main editor with Set Campus Boundary.')
   })
 
   it('shows the height reference in the top bar', () => {

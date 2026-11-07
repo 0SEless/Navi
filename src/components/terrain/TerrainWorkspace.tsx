@@ -4,7 +4,6 @@ import { useState, type ReactNode } from 'react'
 import type { CampusDocument } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { TerrainTopBar } from './TerrainTopBar'
-import { TerrainFirstVisit } from './TerrainFirstVisit'
 import type { TerrainLockState } from './useTerrainLock'
 
 export type SaveResult = { ok: true } | { ok: false; message: string }
@@ -22,13 +21,14 @@ export interface TerrainWorkspaceProps {
   topBarExtras?: ReactNode
   /** The terrain map (Task 7) and tool panels. */
   children?: ReactNode
+  /** No boundary in the document or the campus settings (section 5). */
+  missingBoundary?: boolean
 }
 
 /** The separate terrain environment: top bar, lock banner, first visit, and the map area. */
-export function TerrainWorkspace({ document, dispatch, lock, onSave, onLeave, topBarExtras, children }: TerrainWorkspaceProps) {
+export function TerrainWorkspace({ document, lock, onSave, onLeave, topBarExtras, children, missingBoundary = false }: TerrainWorkspaceProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const readOnly = lock.status !== 'held'
 
   const done = async () => {
     setSaving(true)
@@ -47,13 +47,18 @@ export function TerrainWorkspace({ document, dispatch, lock, onSave, onLeave, to
           {`${lock.holderName ?? 'Another admin'} is editing the terrain. You can look, but not change it.`}
         </div>
       )}
+      {missingBoundary && (
+        <div role="status" style={{ padding: '6px 14px', fontSize: 12, background: '#fef3c7', color: '#92400e', borderBottom: '1px solid #fde68a' }}>
+          This map has no campus boundary yet. Draw it in the main editor with Set Campus Boundary.
+        </div>
+      )}
       {message && (
         <div role="alert" style={{ padding: '6px 14px', fontSize: 12, background: '#fee2e2', color: '#991b1b', borderBottom: '1px solid #fecaca' }}>
           {message}
         </div>
       )}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {document.terrain ? children : <TerrainFirstVisit readOnly={readOnly} onSetup={(payload) => dispatch({ id: 'terrain.setup', label: 'Set up terrain', payload })} />}
+        {children}
       </div>
     </div>
   )
