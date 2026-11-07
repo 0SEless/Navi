@@ -1,4 +1,4 @@
-import { isRouteEdgeType, isRouteNodeType } from '@navi/core'
+import { isRouteEdgeType, isRouteNodeType, ROUTE_NETWORK_THRESHOLDS, stairRouteLine, stairTopEnd, structureSampler, toLocal } from '@navi/core'
 import type { CampusDocument, Floor, RouteEdge, RouteNode } from '@navi/core'
 import type { ValidationIssue } from '../../snapshot'
 import type { ValidationContext, ValidationProfileId, ValidationRule } from '../types'
@@ -331,6 +331,59 @@ function entranceAccessIssues(
   return issues
 }
 
+/**
+ * Stair route links (2026-11-07): a road made over an outdoor stair (routing.structureId) must still match its stair —
+ * the stair exists, the route still reaches its entrance on the floor the stair arrives at, the joined route exists,
+ * and the path's ends are where the stair's ends are. Errors in Publish, so a broken stair route never reaches visitors.
+ */
+function stairRouteIssues(document: CampusDocument, profile: RouteProfile): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  const grid = structureSampler(document)?.grid
+  const roadIds = new Set((document.roads ?? []).map((road) => road.id))
+  for (const road of document.roads ?? []) {
+    const structureId = road.routing?.structureId
+    if (!structureId) continue
+    const report = (reason: string) => issues.push(issue('route-stair', profile, `Stair route out of step: ${reason}`, [{ entityId: structureId, entityType: 'structure' }, { entityId: road.id, entityType: 'road' }]))
+    const structure = (document.structures ?? []).find((s) => s.id === structureId)
+    if (!structure) {
+      report('the stair was deleted')
+      continue
+    }
+    const links = document.buildings.flatMap((building) => building.floors.flatMap((floor) => (floor.entranceAccess ?? [])
+      .filter((access) => access.outdoorRouteId === road.id)
+      .map((access) => ({ building, floor, access }))))
+    const top = stairTopEnd(document, structure)
+    if (top?.kind === 'slab') {
+      if (links.length === 0 || links.some(({ floor, access }) => !(floor.entrances ?? []).some((e) => e.id === access.entranceId))) {
+        report('the entrance was deleted')
+        continue
+      }
+      if (links.some(({ building, floor }) => building.id !== top.buildingId || floor.id !== top.floorId)) {
+        report('the top end is on another floor')
+        continue
+      }
+    }
+    const joined = (document.roadJunctions ?? []).some((j) => j.roadIds.includes(road.id) && j.roadIds.some((id) => id !== road.id && roadIds.has(id)))
+    if (!joined) {
+      report('the joined route was deleted')
+      continue
+    }
+    const line = stairRouteLine(document, structure)
+    const points = road.polyline?.points ?? []
+    if (!line || !grid || points.length < 2) {
+      report('the stair moved away from its route')
+      continue
+    }
+    const far = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+      const p = toLocal(grid, a)
+      const q = toLocal(grid, b)
+      return Math.hypot(p.x - q.x, p.y - q.y) > ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters + road.width / 2
+    }
+    if (far(points[points.length - 1], line[line.length - 1]) || far(points[0], line[0])) report('the stair moved away from its route')
+  }
+  return issues
+}
+
 /** Pure route checks shared by the validation engine and the Floor Editor panel. */
 export function validateRouteNetwork(document: CampusDocument, profile: RouteProfile = 'publish'): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -346,6 +399,7 @@ export function validateRouteNetwork(document: CampusDocument, profile: RoutePro
       issues.push(...entranceAccessIssues(building.id, floor, graph, profile, roadIds))
     }
   }
+  issues.push(...stairRouteIssues(document, profile))
   return issues
 }
 
@@ -391,7 +445,14 @@ export const routeFloorConsistencyRule = rule(
   (issues) => issues.filter((issue) => issue.ruleId === 'route-floor-consistency'),
 )
 
+export const routeStairRule = rule(
+  'route-stair',
+  'Routes over outdoor stairs and ramps match their stair',
+  (issues) => issues.filter((issue) => issue.ruleId === 'route-stair'),
+)
+
 export const routeNetworkRules: ReadonlyArray<ValidationRule> = [
+  routeStairRule,
   routeNetworkStructureRule,
   routeNetworkDisconnectedRule,
   routeRoomAccessRule,

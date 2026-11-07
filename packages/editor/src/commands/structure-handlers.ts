@@ -1,6 +1,7 @@
 import { recordChange } from '@navi/core'
 import type { CampusDocument, Structure, StructurePreset } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
+import { followStairRoute } from './stair-route'
 
 // Terrain plan: outdoor stairs and ramps (free map parts, no lock) and their presets.
 // A list that becomes empty is removed again, so an untouched campus stays byte-stable.
@@ -64,6 +65,7 @@ export const structureReplaceHandler: CommandHandler = {
     const previous = items[index]
     items[index] = next
     store(document, items)
+    followStairRoute(document, next.id)
     recordChange(document, { entityId: next.id, entityType: 'structure', operation: 'updated' })
     return { success: true, entityId: next.id, data: { previous } }
   },

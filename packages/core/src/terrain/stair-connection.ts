@@ -4,6 +4,7 @@
 import type { LatLng, LocalCoord } from '../types/coordinates'
 import type { CampusDocument } from '../types/document'
 import type { Road } from '../types/entities'
+import type { Structure } from '../structures/types'
 import { ROUTE_NETWORK_THRESHOLDS } from '../route-network/definitions'
 import { resolveStructureEnds } from './compose'
 import { toLatLng, toLocal } from './grid'
@@ -73,19 +74,38 @@ export function routeCandidate(doc: CampusDocument, grid: TerrainGrid, road: Roa
   return { candidate: { roadId: road.id, kind: 'road-segment', position: toLatLng(grid, best.p) }, distance: best.d }
 }
 
+/** Which end is the top: the high end; a level stair counts its slab end (else its start). */
+function topIsStart(doc: CampusDocument, structure: Structure): boolean | null {
+  const sampler = structureSampler(doc)
+  const ends = sampler ? resolveStructureEnds(doc, sampler, structure) : null
+  if (!ends) return null
+  return ends.start.h > ends.end.h || (ends.start.h === ends.end.h && structure.end.kind !== 'slab')
+}
+
+/** The stair's route line, bottom → top (one point per metre); null when an end cannot be resolved. */
+export function stairRouteLine(doc: CampusDocument, structure: Structure): LatLng[] | null {
+  const startIsTop = topIsStart(doc, structure)
+  const line = startIsTop === null ? null : structureCentreline(doc, structure)
+  if (!line) return null
+  return startIsTop ? [...line].reverse() : line
+}
+
+/** The end the route arrives at (the top end). */
+export function stairTopEnd(doc: CampusDocument, structure: Structure): Structure['start'] | null {
+  const startIsTop = topIsStart(doc, structure)
+  return startIsTop === null ? null : startIsTop ? structure.start : structure.end
+}
+
 /** null when the stair is unknown or an end cannot be resolved. */
 export function suggestStairConnection(doc: CampusDocument, structureId: string, opts: StairConnectionOptions): StairConnection | null {
   const structure = (doc.structures ?? []).find((s) => s.id === structureId)
   const sampler = structureSampler(doc)
   if (!structure || !sampler) return null
-  const ends = resolveStructureEnds(doc, sampler, structure)
-  const line = structureCentreline(doc, structure)
-  if (!ends || !line) return null
-  // The high end is the top; a level stair counts its slab end (else its start) as the top.
-  const startIsTop = ends.start.h > ends.end.h || (ends.start.h === ends.end.h && structure.end.kind !== 'slab')
+  const startIsTop = topIsStart(doc, structure)
+  const centreline = stairRouteLine(doc, structure)
+  if (startIsTop === null || !centreline) return null
   const top = startIsTop ? structure.start : structure.end
   const bottom = startIsTop ? structure.end : structure.start
-  const centreline = startIsTop ? [...line].reverse() : line
   const grid = sampler.grid
 
   const onRoad = (end: typeof bottom, at: LatLng): StairEndRoute | null => {

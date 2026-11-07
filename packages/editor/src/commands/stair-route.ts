@@ -2,7 +2,7 @@
 // a road marked stairs/ramp from the bottom end to the top end, joined to the chosen route at the bottom, and linked
 // to the top floor's entrance (or joined to a route at the top). Disconnect removes exactly that and puts back the
 // entrance's previous outdoor link. Callers run the commands with dispatcher.executeBatch.
-import { stairRouteOf, type CampusDocument, type EntranceAccess, type StairConnection, type StairEndRoute } from '@navi/core'
+import { ROUTE_NETWORK_THRESHOLDS, routeCandidate, stairRouteLine, stairRouteOf, structureSampler, toLocal, type CampusDocument, type EntranceAccess, type LatLng, type StairConnection, type StairEndRoute } from '@navi/core'
 import type { Command } from './types'
 import type { RoadConnectionRequest } from './road-connectivity'
 
@@ -97,4 +97,47 @@ export function stairDisconnectCommands(document: CampusDocument, structureId: s
   }
   commands.push({ id: 'road.delete', label: 'Disconnect stair', payload: { roadId: road.id } })
   return commands
+}
+
+/**
+ * After a stair edit (same mutation, so one undo step): its route takes the stair's new line, width and form; the
+ * junctions at its ends slide along the joined routes; the entrance link's outdoor position moves to the top end.
+ * Nothing happens when the stair cannot be resolved — validation then reports the stair route out of step.
+ */
+export function followStairRoute(document: CampusDocument, structureId: string): void {
+  const road = stairRouteOf(document, structureId)
+  const structure = (document.structures ?? []).find((s) => s.id === structureId)
+  const grid = structureSampler(document)?.grid
+  if (!road || !structure || !grid) return
+  const line = stairRouteLine(document, structure)
+  if (!line || line.length < 2) return
+  const old = road.polyline.points
+  const near = (a: LatLng, b: LatLng) => {
+    const p = toLocal(grid, a)
+    const q = toLocal(grid, b)
+    return Math.hypot(p.x - q.x, p.y - q.y) <= ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters
+  }
+  const slide = (oldEnd: LatLng | undefined, index: number) => {
+    if (!oldEnd) return
+    for (const junction of document.roadJunctions ?? []) {
+      if (!junction.roadIds.includes(road.id) || !near(junction.position, oldEnd)) continue
+      const other = document.roads.find((r) => r.id !== road.id && junction.roadIds.includes(r.id))
+      const found = other ? routeCandidate(document, grid, other, line[index]) : null
+      if (!other || !found || found.distance > other.width / 2 + ROUTE_NETWORK_THRESHOLDS.snapRadiusMeters) continue
+      junction.position = { ...found.candidate.position }
+      line[index] = { ...found.candidate.position }
+    }
+  }
+  slide(old[0], 0)
+  slide(old[old.length - 1], line.length - 1)
+  road.polyline.points = line
+  road.width = structure.width
+  road.routing = { ...road.routing, feature: structure.form === 'ramp' ? 'ramp' : 'stairs', structureId }
+  for (const building of document.buildings) {
+    for (const floor of building.floors) {
+      for (const access of floor.entranceAccess ?? []) {
+        if (access.outdoorRouteId === road.id) access.outdoorPosition = { ...line[line.length - 1] }
+      }
+    }
+  }
 }

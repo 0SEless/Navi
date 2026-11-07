@@ -1,61 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { suggestStairConnection, toLatLng, type CampusDocument, type TerrainGrid } from '@navi/core'
-import { CommandDispatcher } from '../dispatcher'
-import { CommandRegistry } from '../registry'
-import { roadCreateHandler, roadDeleteHandler } from '../road-handlers'
-import { entranceAccessAssignHandler, entranceAccessUnassignHandler } from '../route-access-handlers'
-import { structureHandlers } from '../structure-handlers'
-import { DocumentEventBus } from '../../eventbus'
-import { HistoryStack } from '../../history'
-import { DocumentStore } from '../../context/document-store'
 import { stairConnectCommands, stairDisconnectCommands, STAIR_ROUTE_ID_PREFIX } from '../stair-route'
+import { stairCampus, stairEditor } from './stair-fixture'
 
 const grid: TerrainGrid = { originLat: 11.8, originLng: 122.1 }
 const ll = (x: number, y: number) => toLatLng(grid, { x, y })
 const toWorld = (_b: string, _l: number, p: { x: number; y: number }) => ll(p.x, p.y)
-
-/** The Computer Science case: lower road r1, a stair up the hall's east side to the 2F entrance e2. */
-export function stairCampus(opts: { form?: 'stairs' | 'ramp'; linkedTo?: string; bottomOnGround?: boolean } = {}): CampusDocument {
-  const f2 = {
-    id: 'f2', level: 1, label: '2F', elevation: 3, height: 3, rooms: [], hallways: [], staircases: [], elevators: [], connectorStops: [], parametricComponents: [], metadata: {},
-    entrances: [{ id: 'e2', label: 'East door', position: { x: 19.5, y: 5 }, level: 1, type: 'main', hasQR: false, hasPanorama: false }],
-    routeNetwork: { nodes: [{ id: 'n2', type: 'junction', position: { x: 18, y: 5 }, floor: 1 }], edges: [] },
-    ...(opts.linkedTo ? { entranceAccess: [{ entranceId: 'e2', outdoorNodeId: 'N-entrance-access-e2', indoorRouteNodeId: 'n2', outdoorRouteId: opts.linkedTo, outdoorPosition: ll(30, 40) }] } : {}),
-  }
-  return {
-    schemaVersion: 1, version: 1, metadata: { campusId: 'c', name: 'C', description: '', lastModified: '', editorVersion: 'test' },
-    panoramas: [], qrCheckpoints: [], areas: [], roadJunctions: [], separatedCrossings: [],
-    terrain: { reference: { name: 'Flat', zeroMeaning: 'z' }, grid, colorRange: { minM: 0, maxM: 10 } },
-    boundary: { points: [ll(-50, -50), ll(100, -50), ll(100, 60), ll(-50, 60)] },
-    buildings: [{
-      id: 'hall', name: 'Hall', code: 'H', category: 'academic', description: '', baseElevation: 0, height: 6,
-      footprint: { points: [ll(0, 0), ll(20, 0), ll(20, 10), ll(0, 10), ll(0, 0)] },
-      floors: [{ ...f2, id: 'f1', level: 0, label: '1F', elevation: 0, entrances: [], routeNetwork: undefined, entranceAccess: undefined }, f2],
-      verticalConnectors: [], color: '#000', aliases: [], metadata: {},
-    }],
-    roads: [
-      { id: 'r1', name: 'Lower road', polyline: { points: [ll(40, -20), ll(40, 30)] }, width: 4, surface: 'paved', type: 'pedestrian', metadata: {} },
-      { id: 'r2', name: 'Upper road', polyline: { points: [ll(-20, 40), ll(60, 40)] }, width: 4, surface: 'paved', type: 'pedestrian', metadata: {} },
-    ],
-    structures: [{
-      id: 's1', form: opts.form ?? 'stairs', presetId: 'p', width: 2, underneath: 'open', railings: 'both',
-      start: { kind: 'slab', buildingId: 'hall', floorId: 'f2', edgeIndex: 1, edgeT: 0.5 },
-      end: opts.bottomOnGround ? { kind: 'ground', position: ll(40.8, 5) } : { kind: 'road', roadId: 'r1', position: ll(40.8, 5) },
-    }],
-  } as unknown as CampusDocument
-}
-
-export function stairEditor(document: CampusDocument) {
-  const eventBus = new DocumentEventBus()
-  const documentStore = new DocumentStore(document, eventBus)
-  const registry = new CommandRegistry()
-  for (const h of [roadCreateHandler, roadDeleteHandler, entranceAccessAssignHandler, entranceAccessUnassignHandler, ...structureHandlers]) registry.register(h)
-  const dispatcher = new CommandDispatcher(registry, document, eventBus)
-  const history = new HistoryStack(dispatcher, document, registry, 20, documentStore)
-  dispatcher.addPreHook(history)
-  dispatcher.addPostHook(history)
-  return { dispatcher, history }
-}
 
 const connect = (document: CampusDocument) => {
   const suggestion = suggestStairConnection(document, 's1', { toWorld })!
@@ -118,5 +68,35 @@ describe('Connect to route', () => {
     const document = stairCampus({ bottomOnGround: true })
     const suggestion = suggestStairConnection(document, 's1', { toWorld })!
     expect(stairConnectCommands(document, suggestion)).toEqual({ error: 'Pick the route at the bottom of the stair.' })
+  })
+})
+
+describe('the stair route follows its stair', () => {
+  const moved = (document: CampusDocument) => ({ ...structuredClone(document.structures![0]), end: { kind: 'road', roadId: 'r1', position: ll(40.8, 8) } })
+  const route = (document: CampusDocument) => document.roads.find((r) => r.routing?.structureId === 's1')!
+
+  it('moving the stair moves its path in the same undo step', () => {
+    const document = stairCampus()
+    const { dispatcher, history } = stairEditor(document)
+    dispatcher.executeBatch(connect(document))
+    expect(dispatcher.execute({ id: 'structure.replace', label: 'Move stair', payload: { structure: moved(document) } }).success).toBe(true)
+    const points = route(document).polyline.points
+    // Bottom end now joins r1 at y = 8 (the junction moved along the road with it); the top stays at the 2F edge.
+    const bottom = document.roadJunctions!.find((j) => j.roadIds.includes(route(document).id))!
+    expect(bottom.position.lat).toBeCloseTo(ll(40, 8).lat, 7)
+    expect(points[0]).toEqual(bottom.position)
+    expect(points[points.length - 1].lat).toBeCloseTo(ll(20, 5).lat, 7)
+    expect(document.buildings[0].floors[1].entranceAccess![0].outdoorPosition).toEqual(points[points.length - 1])
+    expect(history.undo()).toBe(true) // one step undoes the move and the path together
+    expect(route(document).polyline.points[0].lat).toBeCloseTo(ll(40, 5).lat, 6)
+  })
+
+  it('swapping to a ramp preset makes the path a ramp at the new width', () => {
+    const document = stairCampus()
+    const { dispatcher } = stairEditor(document)
+    dispatcher.executeBatch(connect(document))
+    dispatcher.execute({ id: 'structure.swap-preset', label: 'Swap', payload: { id: 's1', preset: { id: 'rp', form: 'ramp', shape: { width: 3, underneath: 'solid', railings: 'none' } } } })
+    expect(route(document).routing?.feature).toBe('ramp')
+    expect(route(document).width).toBe(3)
   })
 })
