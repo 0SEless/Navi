@@ -48,6 +48,14 @@ browser probe 25/25.
 
 ## In progress: UI/UX redesign (sections 1-2 built; minimap removal next, then sections 3-4)
 
+**2026-11-07 status update (newest, after Task 16):** the terrain plan is complete through Task 16 on
+`feat/terrain-2.5d` (not pushed): redesign sections 1-4, Task 15 (NAVI Web campus-only map), Task 16
+acceptance (T12, whole lane 32/32). The owner approved step 4: migration 20261103000000 is applied to
+navi-studio-v2 (fingerprint matches local) and the preview https://navi-next-savev2-navi01.vercel.app runs
+this branch. Next: the owner tests on the preview; then the final whole-branch review and finishing the
+branch. Follow-ups: Studio MapPreview needs a Save v2 loader to show the visitor view; NAVI Web contour
+toggle UI; stair steps following the slope; contour labels; BP 344 ramp marks.
+
 **2026-11-07 status update (newest):** sections 1-4 of the redesign are built and verified on
 `feat/terrain-2.5d` (not pushed): 1 paint preview, 2 neutral look + Colours switch + cursor height,
 minimap removed (one map + 3D button), 3 Shift+Z height editing (buildings dig-only; stair ends offset

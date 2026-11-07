@@ -3291,3 +3291,10 @@
 - Test fixes (not code): the reload fingerprint ignores JSON key order (the database reorders keys); the editor page's online base-map tiles are not counted against the campus-only rule (the terrain page and NAVI Web are).
 - Performance (plan targets): publish incl. client compile + network + server bake 2.7-3.7 s for ASU-Ibajay (target <= 2 s was for the bake alone; not isolated); stair mesh ~5.5 ms (Task 11); brush mid-stroke work 0 long tasks (section 1).
 - Gates: vitest regressed 0 (6889); tsc 1122/1122/0. Whole lane 32/32.
+
+
+## 2026-11-07 (session) - Task 16 step 4: cloud migration + preview (owner-approved)
+- Applied migration 20261103000000_studio_v2_structures (as `studio_v2_structures`; the file's own BEGIN/COMMIT removed - the tool wraps it) to navi-studio-v2 (ztbnicoiwjghzttchqmp) ONLY; the protected Dev project was not touched.
+- Before: cloud studio.zone_of had R69, no structure kinds (md5 cb9de43a...). After: md5 9917ae37... = local test DB after the migration; zone_of('map/structure:...') and ('map/structure-preset:...') = NULL (free), building/terrain-tile zones unchanged.
+- Preview: `bash scripts/save-v2/deploy-preview.sh` -> deployment navi-next-5ut8csoyk-navi01.vercel.app (READY, preview target, functions sin1), alias https://navi-next-savev2-navi01.vercel.app; /map/explore and /login answer 200.
+- Next: owner's manual testing on the preview; then the final whole-branch review and finishing the branch (nothing pushed to git).
