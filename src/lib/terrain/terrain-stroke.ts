@@ -16,24 +16,27 @@ import type { Command } from '@navi/editor'
 
 export type BrushTool = 'raise-lower' | 'smooth' | 'flatten'
 
-/** Height change per dab for Raise/Lower when no time is known (scaled by strength and the brush profile). */
-export const DAB_STEP_M = 0.1
-
 /**
- * Raise/Lower is time-based (owner test, 2026-11-07: drags barely moved the ground while a pause shot up):
- * the ground under the brush centre moves this many metres per second at full strength, whether the
- * brush is dragged or held still. A dab counts the time since the previous one: 80 ms for the first,
- * at most 250 ms (a rested mouse does not jump).
+ * Raise/Lower strength, sculpt-tool style (tuned by the owner on the prototype, 2026-11-07): moving, each dab (a
+ * quarter brush apart) changes the ground by MOVE_STEP_FRACTION of the brush size — one pass ≈ 11 % of the brush
+ * size; holding still, it keeps changing at HOLD_RATE_FRACTION of the brush size per second. Both are scaled by
+ * strength and the brush profile. A frame counts at most MAX_HOLD_FRAME_S of holding (a stalled frame does not jump).
  */
-export const RAISE_RATE_M_PER_S = 1.5
-const FIRST_DAB_S = 0.08
-const MAX_DAB_S = 0.25
+export const MOVE_STEP_FRACTION = 0.045
+export const HOLD_RATE_FRACTION = 0.5625
+export const MAX_HOLD_FRAME_S = 0.25
+
+/** Metres one Raise/Lower dab moves the ground under the brush centre (before strength and profile). */
+export function brushStepM(sizeM: number, motion: { moving: true } | { moving: false; seconds: number }): number {
+  return motion.moving ? MOVE_STEP_FRACTION * sizeM : HOLD_RATE_FRACTION * sizeM * Math.min(MAX_HOLD_FRAME_S, Math.max(0, motion.seconds))
+}
 
 export interface TerrainStroke {
   /** Working tiles of this stroke (the terrain maps draw them while painting). */
   readonly workingTiles: Map<TileId, Int16Array>
   /** Applies one dab; false when the point is outside the grid area (nothing changes). */
-  dab(p: { lat: number; lng: number }): boolean
+  /** Raise/Lower: `stepM` metres at the centre (default one moving step). */
+  dab(p: { lat: number; lng: number }, stepM?: number): boolean
   /** The single undoable command for the whole stroke, or null when nothing changed. */
   finish(): Command | null
 }
@@ -71,7 +74,7 @@ export function tilesCommand(document: CampusDocument, workingTiles: Map<TileId,
   return { id: 'terrain.apply-tiles', label, payload: { tiles } }
 }
 
-export function createTerrainStroke(document: CampusDocument, tool: BrushTool, settings: BrushSettings, now: () => number = () => performance.now()): TerrainStroke | null {
+export function createTerrainStroke(document: CampusDocument, tool: BrushTool, settings: BrushSettings): TerrainStroke | null {
   const terrain = document.terrain
   const limit = gridArea(document)
   if (!terrain || !limit) return null
@@ -83,12 +86,11 @@ export function createTerrainStroke(document: CampusDocument, tool: BrushTool, s
   }
   const sampler = createTerrainSampler(document, { tilesOverride: workingTiles })!
   let flattenTarget: number | null = null
-  let lastDabAt: number | null = null
   let finished = false
 
   return {
     workingTiles,
-    dab(p) {
+    dab(p, stepM) {
       if (finished) return false
       const at = toLocal(terrain.grid, p)
       if (at.x < limit.minX || at.x > limit.maxX || at.y < limit.minY || at.y > limit.maxY) return false
@@ -98,10 +100,7 @@ export function createTerrainStroke(document: CampusDocument, tool: BrushTool, s
         flattenTarget ??= sampler.heightAt(Math.round(at.x), Math.round(at.y))
         changed = flattenDab(workingTiles, loadTile, sampler, at, { ...settings, targetM: flattenTarget }, limit)
       } else {
-        const t = now()
-        const seconds = lastDabAt === null ? FIRST_DAB_S : Math.min(MAX_DAB_S, Math.max(0, (t - lastDabAt) / 1000))
-        lastDabAt = t
-        changed = applyDab(workingTiles, loadTile, sampler, at, settings, RAISE_RATE_M_PER_S * seconds, limit)
+        changed = applyDab(workingTiles, loadTile, sampler, at, settings, stepM ?? brushStepM(settings.sizeM, { moving: true }), limit)
       }
       changed.forEach((id) => touched.add(id))
       return true

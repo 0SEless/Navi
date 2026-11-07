@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 import type maplibregl from 'maplibre-gl'
-import { toLatLng, toLocal, type BrushSettings, type CampusDocument, type TerrainSampler, type TileId } from '@navi/core'
+import { toLatLng, toLocal, type BrushSettings, type CampusDocument, type TerrainSampler, type TileId, type Rect } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
-import { createTerrainStroke, gridArea, type BrushTool, type TerrainStroke } from '@/lib/terrain/terrain-stroke'
+import { brushStepM, createTerrainStroke, gridArea, type BrushTool, type TerrainStroke } from '@/lib/terrain/terrain-stroke'
 import { brushOutline } from '@/lib/terrain/brush-outline'
 import type { TerrainTool } from './TerrainToolRail'
 import { styleReady } from '@/lib/terrain/style-ready'
@@ -23,7 +23,8 @@ export interface TerrainStrokeOptions {
   /** The stroke began: the live working tiles map (dabs mutate it in place). */
   onStrokeStart: (tiles: Map<TileId, Int16Array>) => void
   /** One effective dab: paint the instant preview now (never touches the committed terrain). */
-  onDab: () => void
+  /** After each frame's dabs: the rectangle (local metres) they touched. */
+  onDab: (rect?: Rect) => void
   /** The stroke's command was dispatched successfully: hand the preview off to the committed tiles. */
   onStrokeEnd: () => void
   /** Nothing to commit (no change) or the dispatch failed: clean the preview at once. */
@@ -53,17 +54,50 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     let stroke: TerrainStroke | null = null
     let last: { x: number; y: number } | null = null
     let pointer: { lat: number; lng: number } | null = null
-    let repeat: number | null = null
+    let frame: number | null = null
+    let lastFrameAt = 0
 
-    // Holding the mouse still keeps painting (Unity-style): one dab every 80 ms at the pointer.
+    // The brush runs once per animation frame (smooth sculpting): it walks from the last brush point to the pointer
+    // in dabs a quarter brush apart (moving steps), or adds one holding step when the pointer stayed, then hands the
+    // touched rectangle to the preview. Mouse moves only record the pointer, so work never queues up.
+    const paintFrame = (now: number) => {
+      frame = null
+      if (!stroke || !pointer) return
+      const seconds = Math.max(0, (now - lastFrameAt) / 1000)
+      lastFrameAt = now
+      const { document, settings } = latest.current
+      const terrain = document.terrain
+      if (terrain) {
+        const here = toLocal(terrain.grid, pointer)
+        const from = last ?? here
+        const spacing = Math.max(0.5, settings.sizeM / 4)
+        const distance = Math.hypot(here.x - from.x, here.y - from.y)
+        const moving = distance >= spacing
+        const steps = moving ? Math.floor(distance / spacing) : 1
+        const stepM = moving ? brushStepM(settings.sizeM, { moving: true }) : brushStepM(settings.sizeM, { moving: false, seconds })
+        const reach = (settings.sizeM * Math.max(1, settings.aspect ?? 1)) / 2 + 2
+        try {
+          for (let i = 1; i <= steps && stroke; i++) {
+            const at = moving ? { x: from.x + ((here.x - from.x) * i) / steps, y: from.y + ((here.y - from.y) * i) / steps } : here
+            stroke.dab(toLatLng(terrain.grid, at), stepM)
+          }
+          if (moving) last = here
+          else last = last ?? here
+          if (stroke) latest.current.onDab({ minX: Math.min(from.x, here.x) - reach, minY: Math.min(from.y, here.y) - reach, maxX: Math.max(from.x, here.x) + reach, maxY: Math.max(from.y, here.y) + reach })
+        } catch {
+          cancelStroke()
+          return
+        }
+      }
+      if (stroke) frame = requestAnimationFrame(paintFrame)
+    }
     const startRepeat = () => {
-      repeat = window.setInterval(() => {
-        if (stroke && pointer) dabAt(pointer)
-      }, 80)
+      lastFrameAt = performance.now()
+      frame = requestAnimationFrame(paintFrame)
     }
     const stopRepeat = () => {
-      if (repeat !== null) window.clearInterval(repeat)
-      repeat = null
+      if (frame !== null) cancelAnimationFrame(frame)
+      frame = null
     }
 
     // Esc during a stroke, or a paint error: clean cancel with no residue (no dispatch, nothing handed off).
@@ -79,7 +113,12 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     // One guarded dab: a failing stroke or preview update cancels the stroke instead of leaking an armed repeat.
     const dabAt = (p: { lat: number; lng: number }) => {
       try {
-        if (stroke && stroke.dab(p)) latest.current.onDab()
+        const { document, settings } = latest.current
+        if (stroke && stroke.dab(p)) {
+          const at = document.terrain ? toLocal(document.terrain.grid, p) : null
+          const reach = (settings.sizeM * Math.max(1, settings.aspect ?? 1)) / 2 + 2
+          latest.current.onDab(at ? { minX: at.x - reach, minY: at.y - reach, maxX: at.x + reach, maxY: at.y + reach } : undefined)
+        }
       } catch {
         cancelStroke()
       }
@@ -136,19 +175,16 @@ export function useTerrainStroke(map: maplibregl.Map | null, options: TerrainStr
     const onMove = (event: maplibregl.MapMouseEvent) => {
       outline(event.lngLat)
       if (!stroke) return
+      // Moves only record the pointer; the frame loop paints.
       pointer = { lat: event.lngLat.lat, lng: event.lngLat.lng }
-      const terrain = latest.current.document.terrain
-      if (!terrain) return
-      const here = toLocal(terrain.grid, { lat: event.lngLat.lat, lng: event.lngLat.lng })
-      const spacing = Math.max(0.5, latest.current.settings.sizeM / 4)
-      if (last && Math.hypot(here.x - last.x, here.y - last.y) < spacing) return
-      last = here
-      dabAt({ lat: event.lngLat.lat, lng: event.lngLat.lng })
     }
 
     const onUp = () => {
       if (!stroke) return
       stopRepeat()
+      paintFrame(performance.now()) // the path still pending since the last frame
+      stopRepeat()
+      if (!stroke) return
       const command = stroke.finish()
       stroke = null
       last = null

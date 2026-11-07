@@ -25,9 +25,9 @@ vi.mock('@/lib/terrain/terrain-stroke', async () => {
       if (!stroke) return stroke
       return {
         ...stroke,
-        dab: (p: Parameters<typeof stroke.dab>[0]) => {
+        dab: (p: Parameters<typeof stroke.dab>[0], stepM?: number) => {
           if (strokeFaults.dab) throw new Error('sampler exploded')
-          return stroke.dab(p)
+          return stroke.dab(p, stepM)
         },
       }
     },
@@ -152,7 +152,7 @@ describe('useTerrainStroke (paint preview wiring)', () => {
     vi.useRealTimers()
   })
 
-  it('one stroke: start once with the live tiles, one dab per effective dab, dispatch once, end after the dispatch', () => {
+  it('one stroke paints once per frame (holding adds a step every frame; a move is walked on the next frame), dispatches once', () => {
     vi.useFakeTimers()
     const dispatch = vi.fn(ok)
     const h = strokeHarness(dispatch, null)
@@ -160,10 +160,14 @@ describe('useTerrainStroke (paint preview wiring)', () => {
     expect(h.counts.start).toBe(1)
     expect(h.counts.dab).toBe(1)
     expect(h.tilesRef()).not.toBeNull()
-    vi.advanceTimersByTime(160) // the hold-to-repeat adds two dabs at 80 ms spacing
-    expect(h.counts.dab).toBe(3)
-    h.map.fire('mousemove', { lngLat: ll(45, 40) }) // 5 m from the last dab, spacing is 1.5 m
-    expect(h.counts.dab).toBe(4)
+    vi.advanceTimersByTime(160) // about ten frames of holding
+    const held = h.counts.dab
+    expect(held).toBeGreaterThanOrEqual(9)
+    expect(held).toBeLessThanOrEqual(12)
+    h.map.fire('mousemove', { lngLat: ll(45, 40) }) // a move only records the pointer…
+    expect(h.counts.dab).toBe(held)
+    vi.advanceTimersByTime(16) // …the next frame paints it
+    expect(h.counts.dab).toBe(held + 1)
     h.map.fire('mouseup')
     expect(dispatch).toHaveBeenCalledTimes(1)
     const dispatched = dispatch.mock.calls as unknown as [Command][]
@@ -171,6 +175,32 @@ describe('useTerrainStroke (paint preview wiring)', () => {
     expect(h.counts.end).toBe(1)
     expect(h.counts.cancel).toBe(0)
     expect(h.order.slice(-2)).toEqual(['dispatch', 'end'])
+  })
+
+  it('holding 1 s at full strength raises the centre by about 0.5625 × the brush size (after the first dab)', () => {
+    vi.useFakeTimers()
+    const h = strokeHarness(vi.fn(ok), null)
+    h.map.fire('mousedown', { lngLat: ll(40, 40) })
+    vi.advanceTimersByTime(1000)
+    const centreCm = h.tilesRef()!.get('0_0')![40 * 128 + 40]
+    // first dab 0.045 × 6 m = 0.27 m, then 1 s × 0.5625 × 6 m = 3.375 m; heights are stored in whole cm per dab,
+    // so ~62 frames of 5.4 cm land as 5 cm each (≈ 3.37 m total) — within 10 % of the exact rate.
+    expect(centreCm).toBeGreaterThan(364 * 0.9)
+    expect(centreCm).toBeLessThan(364 * 1.05)
+    h.map.fire('mouseup')
+  })
+
+  it('one quick pass raises a spot by a few dabs of 4.5 % of the brush size', () => {
+    vi.useFakeTimers()
+    const h = strokeHarness(vi.fn(ok), null)
+    h.map.fire('mousedown', { lngLat: ll(30, 40) })
+    h.map.fire('mousemove', { lngLat: ll(50, 40) })
+    vi.advanceTimersByTime(16) // one frame walks the 20 m in 1.5 m steps
+    h.map.fire('mouseup')
+    const spotCm = h.tilesRef()!.get('0_0')![40 * 128 + 40]
+    // A 6 m hard brush covers (40, 40) from dabs within 3 m: 4 dabs × 27 cm.
+    expect(spotCm).toBeGreaterThanOrEqual(3 * 27)
+    expect(spotCm).toBeLessThanOrEqual(5 * 27)
   })
 
   it('a failed dispatch cancels the stroke instead of handing the preview off', () => {
@@ -229,7 +259,7 @@ describe('useTerrainStroke (paint preview wiring)', () => {
     expect(h.counts.end).toBe(0)
     expect(dispatch).not.toHaveBeenCalled()
     expect(h.map.panState.enabled).toBe(1)
-    // The stroke is dead: held-repeat paints nothing and a late mouseup has nothing to commit.
+    // The stroke is dead: no frame paints and a late mouseup has nothing to commit.
     vi.advanceTimersByTime(240)
     h.map.fire('mousemove', { lngLat: ll(50, 40) })
     expect(h.counts.dab).toBe(1)
