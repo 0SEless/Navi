@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type maplibregl from 'maplibre-gl'
-import type { BrushSettings, TileId } from '@navi/core'
+import type { BrushSettings, Rect, TileId } from '@navi/core'
 import { useRouter } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
@@ -140,8 +140,8 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     onStrokeStart: (tiles: Map<TileId, Int16Array>) => {
       previewRef.current?.start(document, tiles)
     },
-    onDab: () => {
-      previewRef.current?.update()
+    onDab: (rect?: Rect) => {
+      previewRef.current?.update(rect)
     },
     onStrokeEnd: () => {
       previewRef.current?.commit()
