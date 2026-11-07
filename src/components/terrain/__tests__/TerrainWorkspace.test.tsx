@@ -50,6 +50,20 @@ describe('TerrainWorkspace', () => {
     expect(screen.getByRole('status').textContent).toBe('Ana is editing the terrain. You can look, but not change it.')
   })
 
+  it('same account shows Take over here for the owner', () => {
+    const takeOver = vi.fn(async () => undefined)
+    setup({ lock: { status: 'view-only', holderName: 'Ana', sameActor: true, canTakeOver: true, takeOver } })
+    expect(screen.getByRole('status').textContent).toContain('You are editing the terrain in another tab.')
+    fireEvent.click(screen.getByRole('button', { name: 'Take over here' }))
+    expect(takeOver).toHaveBeenCalledTimes(1)
+  })
+
+  it('same account without owner role shows the 5-minute note', () => {
+    setup({ lock: { status: 'view-only', holderName: 'Ana', sameActor: true, canTakeOver: false } })
+    expect(screen.getByRole('status').textContent).toBe('You are editing the terrain in another tab. It frees itself within 5 minutes after that tab closes.')
+    expect(screen.queryByRole('button', { name: 'Take over here' })).toBeNull()
+  })
+
   it('Done saves then navigates back', async () => {
     const props = setup()
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))

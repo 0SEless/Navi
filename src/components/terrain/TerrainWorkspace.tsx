@@ -5,6 +5,7 @@ import type { CampusDocument } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { TerrainTopBar } from './TerrainTopBar'
 import type { TerrainLockState } from './useTerrainLock'
+import { secondaryButton } from './form-styles'
 
 export type SaveResult = { ok: true } | { ok: false; message: string }
 
@@ -43,8 +44,13 @@ export function TerrainWorkspace({ document, lock, onSave, onLeave, topBarExtras
     <div data-terrain-workspace="true" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--navi-bg, #f8fafc)' }}>
       <TerrainTopBar terrain={document.terrain} saving={saving} onDone={() => void done()} extras={topBarExtras} />
       {lock.status === 'view-only' && (
-        <div role="status" style={{ padding: '6px 14px', fontSize: 12, background: '#fef3c7', color: '#92400e', borderBottom: '1px solid #fde68a' }}>
-          {`${lock.holderName ?? 'Another admin'} is editing the terrain. You can look, but not change it.`}
+        <div role="status" style={{ padding: '6px 14px', fontSize: 12, background: '#fef3c7', color: '#92400e', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {lock.sameActor
+            ? <span>You are editing the terrain in another tab.{lock.canTakeOver ? '' : ' It frees itself within 5 minutes after that tab closes.'}</span>
+            : `${lock.holderName ?? 'Another admin'} is editing the terrain. You can look, but not change it.`}
+          {lock.sameActor && lock.canTakeOver && lock.takeOver && (
+            <button type="button" style={{ ...secondaryButton, padding: '3px 10px', fontSize: 12 }} onClick={() => void lock.takeOver?.()}>Take over here</button>
+          )}
         </div>
       )}
       {missingBoundary && (
