@@ -598,6 +598,8 @@ export interface Entrance {
 /** Optional outdoor traversal metadata. Absence preserves legacy behavior. */
 export interface RoadRouting {
   feature?: RoadRoutingFeature
+  /** Stair route links (2026-11-07): this road is the route over that outdoor stair or ramp (Structure.id). */
+  structureId?: string
   slope?: RoadSlope
   direction?: RoadDirection
   /** Administrator-authored elevation in meters; not a survey measurement. */
