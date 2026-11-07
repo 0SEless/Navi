@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { validateNavigationArtifacts, type ArtifactValidationResult } from '@navi/compiler'
 import { isSaveV2PublicReadEnabled, readCurrentPublication } from '@/studio-v2/server/public-read'
+import { publicCampusPayload, resolveCampusDisplayName } from '@/studio-v2/server/public-campus-payload'
 
 /**
  * GET /api/public-campus?campus_id=X
@@ -180,15 +181,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
 
-function resolveCampusDisplayName(campusId: string, ...values: unknown[]): string | null {
-  for (const value of values) {
-    if (!isNonEmptyString(value)) continue
-    const name = value.trim()
-    if (name !== campusId) return name
-  }
-  return null
-}
-
 function validatePublishedArtifactsForRead(
   campusId: string,
   artifacts: unknown,
@@ -301,31 +293,8 @@ export async function GET(request: NextRequest) {
       return publicReadError('PUBLIC_CAMPUS_ARTIFACT_INVALID', 500)
     }
 
-    const artifacts = published.artifacts as PublishedArtifacts
-    const graph = artifacts.graph ?? {}
-    const buildings = artifacts.buildingIndex?.buildings ?? []
-
-    return buildResponse(campusId, 'published_maps', {
-      campusName: resolveCampusDisplayName(
-        campusId,
-        artifacts.campusName,
-        artifacts.name,
-        artifacts.metadata?.campusName,
-        artifacts.metadata?.name,
-      ),
-      buildings,
-      nodes: graph.nodes ?? [],
-      edges: graph.edges ?? [],
-      traces: graph.traces ?? [],
-      pois: artifacts.poiIndex?.points ?? graph.pois ?? [],
-      boundary: graph.metadata?.boundingBox ?? null,
-      // Components and doors are additive compiler projections. Older published
-      // maps may not have them — default to [] without rejecting the artifact.
-      components: artifacts.components ?? [],
-      doors: artifacts.doors ?? [],
-      artifacts,
-      revision: artifacts.metadata?.revision ?? null,
-    })
+    // The same body the Studio preview returns (public-campus-payload.ts), so the two cannot drift.
+    return NextResponse.json(publicCampusPayload(campusId, published.artifacts as Record<string, unknown>))
   }
 
   // ── Source 2: graph_snapshots (fallback only) ──

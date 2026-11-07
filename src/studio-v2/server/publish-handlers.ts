@@ -26,6 +26,7 @@ import { joinParts } from '../parts/join'
 import { parsePartKey } from '../parts/part-keys'
 import type { PartRecord } from '../parts/split'
 import { buildArtifactsBlob, type PublishArtifactsPayload } from './artifacts-blob'
+import { publicCampusPayload } from './public-campus-payload'
 import { fail, isRecord, json, readBody, requireCampusId, runGuarded, type Actor, type StudioHandlerDeps } from './handlers'
 import type { PartRecordWithVersion } from './types'
 
@@ -108,7 +109,113 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
     return null
   }
 
+  /**
+   * Publish's build of a saved commit — parts → join → route gate (R33) → compile → visitor package → validate —
+   * with no writes. Returns the artifacts, or the refusal response. Shared by publish and preview (2026-11-07).
+   */
+  async function buildCommit(campusId: string, commitNo: number): Promise<PublishArtifactsPayload | Response> {
+    const atCommit = await repo.partsAtCommit(campusId, commitNo)
+    switch (atCommit.status) {
+      case 'not_found':
+        return json(404, { code: 'COMMIT_NOT_FOUND' })
+      case 'pruned':
+        return json(409, { code: 'COMMIT_PRUNED' })
+      case 'campus_not_found':
+        return json(404, { code: 'CAMPUS_NOT_FOUND' })
+    }
+
+    const unsupported = unsupportedParts(atCommit.parts)
+    if (unsupported.length > 0) return json(422, { code: 'UNSUPPORTED_PART', parts: unsupported })
+
+    const records: PartRecord[] = atCommit.parts.map((part) => (
+      typeof part.contentBase64 === 'string'
+        ? { key: part.partKey, content: null, contentBase64: part.contentBase64, sortKey: part.sortKey }
+        : { key: part.partKey, content: part.content, sortKey: part.sortKey }
+    ))
+    let document: CampusDocument
+    try {
+      document = joinParts(records)
+    } catch (error) {
+      return json(422, {
+        code: 'COMPILE_FAILED',
+        diagnostics: [{ code: 'JOIN_FAILED', message: errorMessage(error, 'The saved parts could not be joined.') }],
+      })
+    }
+
+    // R33: PublishService's hard gate. Route errors block publishing, even forced.
+    const routeErrors = validateRouteNetwork(document, 'publish').filter((issue) => issue.severity === 'error')
+    if (routeErrors.length > 0) return json(422, { code: 'ROUTE_INVALID', diagnostics: routeErrors })
+
+    let compiled: ReturnType<CampusCompiler['compileV2']>
+    try {
+      compiled = new CampusCompiler().compileV2(document)
+    } catch (error) {
+      return json(422, {
+        code: 'COMPILE_FAILED',
+        diagnostics: [{ code: 'COMPILE_EXCEPTION', message: errorMessage(error, 'Internal compilation error') }],
+      })
+    }
+    if (!compiled.success || !compiled.graph) {
+      return json(422, { code: 'COMPILE_FAILED', diagnostics: compiled.errors })
+    }
+
+    const artifacts = compileRouteArtifacts(compiled)
+    // Terrain plan: the campus-only site package (baked ground, road surfaces, structures).
+    const site = buildSiteArtifact(document)
+    if (site) artifacts.site = site
+    const metadata: AnyRecord = isRecord(artifacts.metadata) ? artifacts.metadata : {}
+    // Legacy publish refuses artifacts whose provenance names another campus.
+    if (typeof metadata.campusId === 'string' && metadata.campusId !== campusId) {
+      return json(422, {
+        code: 'ARTIFACT_INVALID',
+        diagnostics: [{
+          code: 'ARTIFACT_CAMPUS_ID_MISMATCH',
+          message: 'Campus identity does not match compiler source provenance',
+          path: 'metadata.campusId',
+        }],
+        warnings: [],
+      })
+    }
+
+    // Same fields as the legacy publish route (src/app/api/publish/route.ts).
+    const validation = validateNavigationArtifacts({
+      graph: artifacts.navigationGraph,
+      buildingIndex: artifacts.buildingIndex,
+      metadata: artifacts.metadata,
+      components: artifacts.components,
+      doors: artifacts.doors,
+      floorGeometry: artifacts.floorGeometry,
+      panoramaIndex: artifacts.panoramaIndex,
+      qrIndex: artifacts.qrIndex,
+      terrainAreas: artifacts.terrainAreas,
+      terrainVerticalDatum: artifacts.terrainVerticalDatum,
+    })
+    if (!validation.valid) {
+      return json(422, { code: 'ARTIFACT_INVALID', diagnostics: validation.errors, warnings: validation.warnings })
+    }
+    return artifacts
+  }
+
   return {
+    // POST /api/studio/v2/preview { campusId, commitNo } (2026-11-07): the visitor campus of a saved commit, built
+    // exactly as Publish builds it, recorded nowhere. Owners and editors (who can edit the campus) may preview.
+    preview(request: Request): Promise<Response> {
+      return runGuarded(verifyPrincipal, 'preview', request, async (actor) => {
+        const body = await readBody(request)
+        const campusId = requireCampusId(body.campusId)
+        const commitNo = requirePositiveInteger(body.commitNo, 'commitNo')
+        if (!actor.isSuperAdmin) {
+          const role = await repo.roleOf(campusId, actor.id)
+          if (role === null) return json(404, { code: 'CAMPUS_NOT_FOUND' })
+          if (role !== 'owner' && role !== 'editor') return json(403, { code: 'FORBIDDEN' })
+        }
+        const built = await buildCommit(campusId, commitNo)
+        if (built instanceof Response) return built
+        const blob = buildArtifactsBlob(built, campusId, commitNo, commitNo)
+        return Response.json({ commitNo, campus: publicCampusPayload(campusId, blob as Record<string, unknown>) }, { status: 200, headers: { 'cache-control': 'no-store' } })
+      })
+    },
+
     // POST /api/studio/v2/publish
     publish(request: Request): Promise<Response> {
       return runGuarded(verifyPrincipal, 'publish', request, async (actor) => {
@@ -145,85 +252,9 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         }
 
         // ── Publish a saved commit ──
-        const atCommit = await repo.partsAtCommit(campusId, commitNo)
-        switch (atCommit.status) {
-          case 'not_found':
-            return json(404, { code: 'COMMIT_NOT_FOUND' })
-          case 'pruned':
-            return json(409, { code: 'COMMIT_PRUNED' })
-          case 'campus_not_found':
-            return json(404, { code: 'CAMPUS_NOT_FOUND' })
-        }
-
-        const unsupported = unsupportedParts(atCommit.parts)
-        if (unsupported.length > 0) return json(422, { code: 'UNSUPPORTED_PART', parts: unsupported })
-
-        const records: PartRecord[] = atCommit.parts.map((part) => (
-          typeof part.contentBase64 === 'string'
-            ? { key: part.partKey, content: null, contentBase64: part.contentBase64, sortKey: part.sortKey }
-            : { key: part.partKey, content: part.content, sortKey: part.sortKey }
-        ))
-        let document: CampusDocument
-        try {
-          document = joinParts(records)
-        } catch (error) {
-          return json(422, {
-            code: 'COMPILE_FAILED',
-            diagnostics: [{ code: 'JOIN_FAILED', message: errorMessage(error, 'The saved parts could not be joined.') }],
-          })
-        }
-
-        // R33: PublishService's hard gate. Route errors block publishing, even forced.
-        const routeErrors = validateRouteNetwork(document, 'publish').filter((issue) => issue.severity === 'error')
-        if (routeErrors.length > 0) return json(422, { code: 'ROUTE_INVALID', diagnostics: routeErrors })
-
-        let compiled: ReturnType<CampusCompiler['compileV2']>
-        try {
-          compiled = new CampusCompiler().compileV2(document)
-        } catch (error) {
-          return json(422, {
-            code: 'COMPILE_FAILED',
-            diagnostics: [{ code: 'COMPILE_EXCEPTION', message: errorMessage(error, 'Internal compilation error') }],
-          })
-        }
-        if (!compiled.success || !compiled.graph) {
-          return json(422, { code: 'COMPILE_FAILED', diagnostics: compiled.errors })
-        }
-
-        const artifacts = compileRouteArtifacts(compiled)
-        // Terrain plan: the campus-only site package (baked ground, road surfaces, structures).
-        const site = buildSiteArtifact(document)
-        if (site) artifacts.site = site
-        const metadata: AnyRecord = isRecord(artifacts.metadata) ? artifacts.metadata : {}
-        // Legacy publish refuses artifacts whose provenance names another campus.
-        if (typeof metadata.campusId === 'string' && metadata.campusId !== campusId) {
-          return json(422, {
-            code: 'ARTIFACT_INVALID',
-            diagnostics: [{
-              code: 'ARTIFACT_CAMPUS_ID_MISMATCH',
-              message: 'Campus identity does not match compiler source provenance',
-              path: 'metadata.campusId',
-            }],
-            warnings: [],
-          })
-        }
-
-        // Same fields as the legacy publish route (src/app/api/publish/route.ts).
-        const validation = validateNavigationArtifacts({
-          graph: artifacts.navigationGraph,
-          buildingIndex: artifacts.buildingIndex,
-          metadata: artifacts.metadata,
-          components: artifacts.components,
-          doors: artifacts.doors,
-          floorGeometry: artifacts.floorGeometry,
-          panoramaIndex: artifacts.panoramaIndex,
-          qrIndex: artifacts.qrIndex,
-          terrainAreas: artifacts.terrainAreas,
-          terrainVerticalDatum: artifacts.terrainVerticalDatum,
-        })
-        if (!validation.valid) {
-          return json(422, { code: 'ARTIFACT_INVALID', diagnostics: validation.errors, warnings: validation.warnings })
-        }
+        const built = await buildCommit(campusId, commitNo)
+        if (built instanceof Response) return built
+        const artifacts = built
 
         // Legacy guard: a normal publish never clears a non-empty public map.
         if (graphIsEmpty(artifacts)) {
