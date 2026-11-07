@@ -21,7 +21,8 @@ vitest, Playwright lane `e2e/save-v2`.
 
 - Targets (spec, exact): lookup ≤ 1 µs with 29 pads (Node); held 2 s stroke: no main-thread task > 50 ms, brush work
   ≤ 4 ms per frame; release: no task > 50 ms; 3D on: full picture ≤ 1 s, no task > 100 ms.
-- Raise/Lower rate stays `RAISE_RATE_M_PER_S = 1.5` (full strength, brush centre), dragging or holding.
+- Raise/Lower strength (owner-tuned on the prototype): moving — each dab (a quarter brush apart) adds `0.045 × sizeM`
+  (≈ 11 % of the brush size per pass); holding still — `0.5625 × sizeM` per second; both × strength × profile weight.
 - `importBlend` defaults: `zeroM` = lowest imported base inside the boundary; `edgeM` = 40 (slider 10–100); curve
   smoothstep. Inside the boundary only the shift applies (true slopes).
 - Import copy: checkbox "Blend into the surroundings"; inputs "0 m height (m above sea level)", "Edge blend (m)";
@@ -45,7 +46,7 @@ vitest, Playwright lane `e2e/save-v2`.
 
 ---
 
-### Task 0: Prototype gate (throwaway) — STOP for the owner
+### Task 0: Prototype gate (throwaway) — DONE 2026-11-07: passed, owner "all good" (see the spec's Gate result)
 
 **Branch:** `spike/terrain-height-field` from `feat/terrain-2.5d` HEAD, worktree under `.navi-worktrees/`; never merged.
 **Fixture to keep (committed to `feat/terrain-2.5d` later in Task 1):** `packages/core/src/terrain/__tests__/fixtures/ibajay-campus.json`
@@ -152,9 +153,10 @@ commands by their tiles' rect, as today), tests `use-terrain-sampler.test.tsx`.
 (pointer moves only record the latest point; a `requestAnimationFrame` loop places dabs along the path every
 `max(0.5, sizeM/4)` m and splits the frame's time between them, capped at 0.25 s per frame; the 80 ms interval is removed),
 tests in both.
-- [ ] Step 1 (RED): `a 1 s hold at 60 fps raises ~1.5 m at full strength`; `a 1 s drag over a point raises it in proportion
-  to the time the brush covered it`; `a slow frame (200 ms) never applies more than 0.25 s`; `mouseup applies the pending
-  path then dispatches once`; existing stroke tests keep passing.
+- [ ] Step 1 (RED): `a 1 s hold at full strength raises the centre by 0.5625 × sizeM`; `one pass of a 10 m brush raises
+  the centre about 1.1 m (dabs of 0.045 × sizeM, a quarter brush apart)`; `a slow frame (200 ms) never applies more than
+  0.25 s of holding`; `mouseup applies the pending path then dispatches once`; rewrite the old dab-per-move and 80 ms
+  interval tests to the frame model.
 - [ ] Steps 2–4; Step 5: gates; commit `feat(terrain): brush runs once per frame`.
 
 ### Task 7: Chunked preview
@@ -167,6 +169,9 @@ equal to the stroke-start copy), tests.
 - [ ] Steps 2–4; Step 5: gates; commit `perf(terrain): chunked paint preview`.
 
 ### Task 8: Worker for tiles and contours; refresh only changed tiles
+
+> From the prototype: outside the field, tiles read the field's nearest edge (never the composer) — that alone took
+> 3D-on from 1.8 s to 0.7 s. Turbopack module workers verified in production.
 
 **Files:** create `src/lib/terrain/terrain-worker.ts` (module worker: `init`, `patch`, `tile`, `contours`), `src/lib/terrain/terrain-worker-client.ts`
 (promise API, fallback to main thread when `Worker` is missing or errors), modify `dem-protocol.ts` (`registerTerrainProtocol`
@@ -183,7 +188,8 @@ the worker), tests.
 **Files:** `e2e/save-v2/terrain.spec.ts` — new `T14 — performance on ASU-IBAJAY` (seed the fixture campus with the
 TopoExport import and follow-ground pads; PerformanceObserver long tasks; held 2 s stroke; release; 3D on) asserting the
 Global Constraints targets; plus the full lane.
-- [ ] Step 1: write T14, run `node e2e/save-v2/run.mjs -g "T14"` — Expected PASS (any failure → systematic-debugging).
+- [ ] Step 1: write T14 (on the GPU: `PERF_GPU=1`, launch args `--enable-gpu --ignore-gpu-blocklist --use-angle=d3d11`; reuse
+  the prototype's `terrain-perf.spec.ts`), run `PERF_GPU=1 node e2e/save-v2/run.mjs -g "T14"` — Expected PASS.
 - [ ] Step 2: full lane `node e2e/save-v2/run.mjs` (background) — Expected all pass.
 - [ ] Step 3: gates; progress notes; commit `test(terrain): performance targets on the ASU-IBAJAY copy`.
 - [ ] Step 4: deploy the preview (`bash scripts/save-v2/deploy-preview.sh`); owner tests (re-import with blend).

@@ -40,9 +40,12 @@ MANUAL RAISE"). Branch `feat/terrain-2.5d`. Evidence: `docs/testing/2026-11-07-t
    plus margins, plus a grid of the edits alone (for the Changes colours). A lookup is a grid read. A brush or command
    recomputes only the changed rectangle; anything else rebuilds the grid (a few hundred milliseconds at most, once).
    The existing composer stays as the exact reference that fills the grid and that publishing (bake) uses.
-3. **Frame-based brush.** While the button is down, one brush step per screen frame: it walks from the last brush
-   point to the pointer (dabs a quarter brush apart) and shares that frame's time between them, so dragging and
-   holding raise at the same 1.5 m/s (full strength, brush centre). Work never queues up.
+3. **Frame-based brush, sculpt-tool strength.** While the button is down, one brush step per screen frame: it walks
+   from the last brush point to the pointer, dabs a quarter brush apart. **Moving:** each dab adds 4.5 % of the
+   brush size (one pass raises a spot by about 11 % of the brush size at full strength — 1.1 m with a 10 m brush).
+   **Holding still:** it keeps rising at 56.25 % of the brush size per second. Strength scales both; Lower is the
+   same downward. (Owner, on the prototype: the first rule, 1.5 m/s by time, raised "really nothing" on a drag;
+   then "+50 %", then "lower it about 25 %… then it is all good".) Work never queues up.
 4. **Chunked preview.** The live 3D preview is split into 32 × 32 m chunks; a frame rebuilds only the chunks the
    brush touched, and draws only cells this stroke changed (no flicker over untouched ground).
 5. **Background worker + targeted refresh.** A Web Worker holds a copy of the height field and builds elevation tiles
@@ -78,3 +81,21 @@ back to the owner.
 - Buildings and lowering ("sink with the ground / lowest point / keep flat under it") — a separate decision.
 - A three.js or fully GPU terrain renderer (fallback only if the gate fails).
 - Contour labels, ramp marks, Shift+Z framing/sensitivity, Height colour range (open items from the test record).
+
+## Gate result (2026-11-07) — passed, owner: "all good"
+
+Prototype branch `spike/terrain-height-field` (not merged; preview https://navi-next-spike-navi01.vercel.app).
+Measured on the owner's machine (AMD Radeon integrated, Chrome GPU path) on the ASU-IBAJAY copy:
+
+| Moment | Current code | Prototype | Target |
+|---|---|---|---|
+| Height lookup (Node) | 4.7 µs | 0.69 µs | ≤ 1 µs ✓ |
+| Held stroke | 6 fps; a 2 s stroke took 54.7 s | 52 fps; longest task 57–60 ms | ≤ 50 ms (close) |
+| Release | longest freeze 1 s | longest task ~0.1 s | ≤ 50 ms (open) |
+| 3D on | 4.7 s, freeze 2.7 s | 0.71 s, longest task 0.21–0.23 s | ≤ 1 s ✓ / ≤ 100 ms (open) |
+
+What is left is MapLibre's own work (first 3D shader compile ~0.25 s, terrain drawing) and React development-mode
+overhead, not our code. The module worker is **Verified** in the Turbopack production build. Lessons for the real
+build: elevation tiles must read the field's edge outside it (not the composer); performance probes must run on the
+GPU (`PERF_GPU=1`), headless software WebGL is 50× slower and misleading.
+
