@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useState } from 'react'
+import { useEffect, useMemo, useCallback, useState } from 'react'
 import { Compass, LocateFixed, Navigation } from 'lucide-react'
 import NavigationMap, { useNavigationMap } from '@/components/map/NavigationMap'
 import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
@@ -16,6 +16,7 @@ import { POILayer } from '@/components/map/layers/POILayer'
 import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
 import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
 import { RouteLine } from '@/components/map/RouteLine'
+import { SiteLayers } from '@/components/map/site/SiteLayers'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import NavigationCamera, { type NavigationCameraConfig } from '@/components/map/NavigationCamera'
 import NavigationPositionMarker from '@/components/map/NavigationPositionMarker'
@@ -96,6 +97,17 @@ function ExploreLayers({
   // Phase 2F foundation: consume the navigation segment so layers never decide
   // navigation state independently. T10: routes emphasize via this segment.
   const { navigationSegment } = useNavigationContext()
+  // Task 15: with a published site the map is campus only; tilted (3D) shows its terrain, and the route
+  // becomes a ribbon on the surface (2D keeps the route line).
+  const site = bundle.site
+  const [threeD, setThreeD] = useState(() => (map ? map.getPitch() > 2 : false))
+  useEffect(() => {
+    if (!map) return
+    const onPitch = () => setThreeD(map.getPitch() > 2)
+    onPitch()
+    map.on('pitch', onPitch)
+    return () => { map.off('pitch', onPitch) }
+  }, [map])
 
   const handleBuildingClick = (buildingId: string) => {
     // Look up the full Building from the bundle (not the render model)
@@ -113,6 +125,11 @@ function ExploreLayers({
       return n ? { lat: n.position.lat, lng: n.position.lng } : authoredPoiPosition(bundle, id)
     },
     [bundle],
+  )
+  // The route's points for the 3D ribbon.
+  const routePath = useMemo(
+    () => (route?.path ?? []).map(getNodePosition).filter((p): p is { lat: number; lng: number } => Boolean(p)),
+    [route, getNodePosition],
   )
   const getNodeFloor = useCallback(
     (id: string) => {
@@ -194,13 +211,18 @@ function ExploreLayers({
       />
       <RouteLine
         map={map}
-        route={route ?? null}
+        route={site && threeD ? null : route ?? null}
         getNodePosition={getNodePosition}
         getNodeFloor={getNodeFloor}
         activeFloor={activeFloor}
         navigationSegment={navigationSegment}
         fitCamera={fitCamera}
       />
+      {/* Last on purpose: the app's layers set up only on a loaded style, and the site's terrain tiles
+          would keep it "loading". The site layers insert themselves underneath the app's layers. */}
+      {site && (
+        <SiteLayers map={map} site={site} buildings={bundle.buildings} threeD={threeD} contours={false} routePath={routePath} />
+      )}
     </div>
   )
 }
@@ -415,6 +437,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
   return (
     <NavigationMap
       bounds={mapBounds}
+      site={bundle.site ?? null}
       className="h-full w-full"
       pitch={initialPitch}
       maxPitch={camera ? NAVIGATION_POV_PREFERRED_PITCH : undefined}

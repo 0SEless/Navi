@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CampusDocument } from '../../types/document'
 import type { Road } from '../../types/entities'
 import { toLatLng } from '../grid'
-import { buildSiteArtifact, createSiteSurface } from '../site-artifact'
+import { buildSiteArtifact, createSiteGround, createSiteSurface } from '../site-artifact'
 import type { CampusTerrain, TerrainBaseSource, TerrainGrid } from '../types'
 
 const grid: TerrainGrid = { originLat: 11.8, originLng: 122.1 }
@@ -84,5 +84,13 @@ describe('createSiteSurface', () => {
 
   it('without terrain the ground is 0 m', () => {
     expect(createSiteSurface(buildSiteArtifact(doc({}))!)(ll(5, 5))).toBe(0)
+  })
+
+  it('createSiteGround is the ground only (stairs are not baked into the 3D hill)', () => {
+    const site = buildSiteArtifact(doc({ terrain: terrain(2), structures: [stair] }))!
+    const ground = createSiteGround(site)
+    expect(ground(ll(0, 0))).toBeCloseTo(2, 2)
+    expect(ground(ll(10, 0))).toBeCloseTo(2, 2)
+    expect(createSiteGround(buildSiteArtifact(doc({}))!)(ll(5, 5))).toBe(0)
   })
 })

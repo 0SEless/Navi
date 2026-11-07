@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 const mapInstances = vi.hoisted(() => [] as Array<{
   fitBounds: ReturnType<typeof vi.fn>
   remove: ReturnType<typeof vi.fn>
+  setMaxBounds: ReturnType<typeof vi.fn>
+  setMinZoom: ReturnType<typeof vi.fn>
   navigationControlOptions?: unknown
   mapOptions?: Record<string, unknown>
 }>)
@@ -12,6 +14,9 @@ vi.mock('maplibre-gl', () => {
   class FakeMap {
     fitBounds = vi.fn()
     remove = vi.fn()
+    setMaxBounds = vi.fn()
+    setMinZoom = vi.fn()
+    cameraForBounds = vi.fn(() => ({ zoom: 16.4 }))
 
     constructor(options: Record<string, unknown>) {
       this.mapOptions = options
@@ -77,3 +82,39 @@ describe('NavigationMap bounds policy', () => {
     expect(mapInstances[0].mapOptions?.maxPitch).toBe(85)
   })
 })
+
+describe('NavigationMap campus-only mode (terrain plan Task 15)', () => {
+  const site = {
+    version: 1, terrain: null, roads: [], structures: [], presets: [], buildings: [],
+    boundary: [{ lat: 11.8163, lng: 122.169 }, { lat: 11.8163, lng: 122.173 }, { lat: 11.819, lng: 122.173 }, { lat: 11.819, lng: 122.169 }],
+  }
+
+  it('with site: no OSM source is added and maxBounds is set (the campus plus 50 m)', async () => {
+    mapInstances.length = 0
+    render(<NavigationMap site={site as never} />)
+    await waitFor(() => expect(mapInstances[0]?.setMaxBounds).toHaveBeenCalledTimes(1))
+    const style = mapInstances[0].mapOptions!.style as { sources: Record<string, unknown>; layers: Array<{ id: string; type: string }> }
+    expect(Object.keys(style.sources)).toEqual([])
+    expect(style.layers.map((l) => l.type)).toEqual(['background'])
+    const [[w, s], [e, n]] = mapInstances[0].setMaxBounds.mock.calls[0][0] as [[number, number], [number, number]]
+    expect(122.169 - w).toBeCloseTo(50 / (111320 * Math.cos((11.8177 * Math.PI) / 180)), 5)
+    expect(11.8163 - s).toBeCloseTo(50 / 111320, 6)
+    expect(e).toBeGreaterThan(122.173)
+    expect(n).toBeGreaterThan(11.819)
+    // Zoom out stops at the zoom that shows the whole campus.
+    // Zoom out stops at the whole campus, but never above 15: the navigation camera's top view caps
+    // the max zoom at 16 and MapLibre refuses a max below the min (P10 found it).
+    expect(mapInstances[0].setMinZoom).toHaveBeenCalledWith(15)
+  })
+
+  it('without site: the OSM base map as before, no camera limits', async () => {
+    mapInstances.length = 0
+    render(<NavigationMap />)
+    await waitFor(() => expect(mapInstances[0]).toBeDefined())
+    const style = mapInstances[0].mapOptions!.style as { sources: Record<string, unknown> }
+    expect(Object.keys(style.sources)).toEqual(['osm'])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(mapInstances[0].setMaxBounds).not.toHaveBeenCalled()
+  })
+})
+

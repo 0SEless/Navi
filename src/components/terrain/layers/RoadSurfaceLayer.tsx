@@ -5,17 +5,14 @@ import type maplibregl from 'maplibre-gl'
 import type { ExpressionSpecification } from 'maplibre-gl'
 import { roadSurfacePolygons, siteRoadSurfaces, type CampusDocument, type TerrainSampler } from '@navi/core'
 import { FIRST_OVERLAY_LAYER, ROAD_SURFACE_LAYER } from '@/lib/terrain/terrain-view'
-import { roadMarkings } from '@/lib/terrain/road-markings'
+import { PATH_COLOR, ROAD_COLOR, roadMarkings } from '@/lib/terrain/road-markings'
 
-export { ROAD_SURFACE_LAYER }
+export { PATH_COLOR, ROAD_COLOR, ROAD_SURFACE_LAYER }
 
 export const ROAD_SURFACE_SOURCE = 'terrain-road-surfaces'
 export const ROAD_MARKINGS_SOURCE = 'terrain-road-markings'
 export const ROAD_EDGE_LAYER = 'terrain-road-edges'
 export const ROAD_CENTRE_LAYER = 'terrain-road-centre'
-/** Section 4 road look: dark asphalt for roads, light paving for paths (`pedestrian`). */
-export const ROAD_COLOR = '#4b4f55'
-export const PATH_COLOR = '#ddd6c8'
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 const MARKING_WIDTH: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 16, 0.5, 20, 2]
 

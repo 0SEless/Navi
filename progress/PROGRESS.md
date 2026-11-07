@@ -3272,3 +3272,13 @@
 - T5 browser T10: limits + clamp, veil + boundary flat and tilted, road markings (road vs path), Roads switch, keys switch the dock.
 - Gates: vitest regressed 0 (6870); tsc 1122/1122/0 (after typing the marking-width expression). Whole lane 30/30.
 
+
+## 2026-11-07 (session) - Terrain plan Task 15: NAVI Web campus-only map
+- Owner: "ok do that" (Task 15), then manual testing after a preview.
+- Core: buildRouteRibbon (route ribbon 0.05 m above the surface, 0.5 m samples; tests RED -> GREEN, one count fixed for a 10.0000001 m path); createSiteGround (ground only, so stairs are not baked into the 3D hill).
+- NAVI Web: site-data (stairs mesh, building slabs from the published base spread over the building height, 5 m contours, campus ground area) + SiteLayers (green campus ground, hillshade + 3D terrain from the baked heights, roads with the Studio markings, stairs, slabs in 3D, route ribbon in 3D); NavigationMap campus-only mode (no OSM, maxBounds campus + 50 m, min zoom = whole campus capped at 15); ExploreMap mounts the site layers, 3D (tilt) shows terrain, the 2D route line hides in 3D and the ribbon draws the route.
+- Rulings: one SiteLayers component + pure site-data instead of four layer files; visitor ground is green (owner's target picture) while Studio stays neutral; contours on NAVI Web off (no toggle UI yet); Studio's MapPreview NOT changed - it runs on the legacy graph store with no Save v2 document (terrain/stairs), so it needs a Save v2 loader first (follow-up).
+- Bugs found by the browser probe and fixed: (1) NAVI Web's map layers (buildings, rooms, doors, ...) waited for a 'load' that had already fired when another layer's sources kept the style loading - they now also set up on 'sourcedata' (11 layers; layer-ready test RED -> GREEN); the site layers mount last. (2) P10: "maxZoom must be greater than the current minZoom" - the navigation camera caps max zoom at 16, the campus min zoom (whole campus, ~18 for a small campus) is now capped at 15 (test RED -> GREEN).
+- Browser T11: publish (routable fixture + contour-line ground + a stair) -> NAVI Web: campus-only layers, no outside requests, building layers set up over the campus, stairs mesh, 3D turns the terrain and slabs on; screenshots t11-web-2d/3d.
+- Gates: vitest regressed 0 (6889); tsc 1122/1122/0. Whole lane 31/31.
+

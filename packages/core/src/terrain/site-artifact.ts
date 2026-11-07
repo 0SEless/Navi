@@ -81,8 +81,8 @@ export function buildSiteArtifact(doc: CampusDocument): SiteArtifact | null {
   }
 }
 
-/** Surface height for NAVI Web: the top of a structure where p lies on one, else the baked ground (bilinear), else 0. */
-export function createSiteSurface(site: SiteArtifact): (p: LatLng) => number {
+/** The site's local frame and its baked ground (bilinear, metres) at local x/y; 0 without terrain. */
+function siteGroundSampler(site: SiteArtifact): { grid: TerrainGrid; groundAt: (x: number, y: number) => number } {
   const terrain = site.terrain
   const cells = terrain ? decodeInt16(terrain.heightsCm) : null
   const grid: TerrainGrid = terrain
@@ -103,7 +103,21 @@ export function createSiteSurface(site: SiteArtifact): (p: LatLng) => number {
     const cm = at(x0, y0) * (1 - fx) * (1 - fy) + at(x1, y0) * fx * (1 - fy) + at(x0, y1) * (1 - fx) * fy + at(x1, y1) * fx * fy
     return cm / 100
   }
+  return { grid, groundAt }
+}
 
+/** The ground only (NAVI Web's 3D terrain): stairs and ramps are drawn on top, not baked into the hill. */
+export function createSiteGround(site: SiteArtifact): (p: LatLng) => number {
+  const { grid, groundAt } = siteGroundSampler(site)
+  return (p: LatLng) => {
+    const q = toLocal(grid, p)
+    return groundAt(q.x, q.y)
+  }
+}
+
+/** Surface height for NAVI Web: the top of a structure where p lies on one, else the baked ground (bilinear), else 0. */
+export function createSiteSurface(site: SiteArtifact): (p: LatLng) => number {
+  const { grid, groundAt } = siteGroundSampler(site)
   const shapes = site.structures.map((structure) => {
     const [a, b] = structure.resolved.path
     const start = { ...toLocal(grid, a), h: structure.resolved.startHeightM }

@@ -254,11 +254,15 @@ export function OpeningLayer({
       init()
     } else {
       map.on('load', init)
+      // Also when any source delivers data: 'load' fires once, and other layers' sources (the site's
+      // terrain tiles) can keep the style loading while this layer mounts.
+      map.on('sourcedata', init)
     }
 
     return () => {
       try {
         map.off('load', init)
+        map.off('sourcedata', init)
         ;[LYR.DOOR_LINE, LYR.WINDOW_OUTLINE, LYR.WINDOW_FILL, LYR.DOOR_OUTLINE, LYR.DOOR_FILL].forEach(l => {
           if (map.getLayer(l)) map.removeLayer(l)
         })

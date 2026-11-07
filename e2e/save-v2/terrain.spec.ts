@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { floor, openAdmin, seededCampus, waitForEditor, type ProbeWindow } from './support'
+import { floor, openAdmin, openMap, seededCampus, waitForEditor, type ProbeWindow } from './support'
 
 // Terrain plan acceptance (built up task by task; Task 16 completes it). Uses the owner's
 // ASU-Ibajay TopoExport files; the seeded campus sits inside that export's frame.
@@ -852,6 +853,119 @@ test('T10 — section 4: the camera stays on the campus, boundary and soft outsi
     await expect(page.getByRole('toolbar', { name: 'Terrain tools' }).getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true')
   }
   expect(ana.blocked).toEqual([])
+  await ana.context.close()
+})
+
+/** The routable campus that passes every publish gate (the parity probe's fixtureFull). */
+const PUBLISHABLE = JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'campus-full.json'), 'utf8'))
+
+test('T11 — NAVI Web campus-only map: published terrain, roads and a stair; no outside map; 3D turns the terrain on', async ({ browser }) => {
+  const ana = await openAdmin(browser, 'ana')
+  const campusId = await seededCampus(ana, (id) => {
+    const d = structuredClone(PUBLISHABLE)
+    d.metadata.campusId = id
+    return d
+  })
+  const page = ana.page
+  await page.goto(`/studio/${campusId}/edit/terrain`)
+  await waitForEditor(page)
+  await page.waitForFunction(() => (window as unknown as { __naviTerrainEditing?: boolean }).__naviTerrainEditing !== undefined, undefined, { timeout: 60_000 })
+  ana.blocked.length = 0
+  const run = (command: Record<string, unknown>) => page.evaluate((c) => {
+    const r = (window as ProbeWindow).__naviStudioV2!.context.services.get('dispatcher').execute(c)
+    if (r && r.success === false) throw new Error(r.error)
+  }, command)
+  // Ground: a gentle slope from 10 m (south) to 20 m (north), from two contour lines.
+  await run({ id: 'terrain.setup', label: 'Ground', payload: {
+    reference: { name: 'Probe slope', zeroMeaning: 'Sea level' },
+    base: { kind: 'contours', sourceNote: 'probe', lines: [
+      { elevationM: 10, points: [{ lat: 11.6790, lng: 122.3690 }, { lat: 11.6790, lng: 122.3717 }] },
+      { elevationM: 20, points: [{ lat: 11.6811, lng: 122.3690 }, { lat: 11.6811, lng: 122.3717 }] },
+    ] },
+    colorRange: { minM: 10, maxM: 20 },
+  } })
+  // A stair from the library's upper floor (south edge) down to the ground.
+  await run({ id: 'structure.create', label: 'Add stair', payload: { structure: {
+    id: 'web-stair', form: 'stairs', presetId: 'plain-stair', width: 2, underneath: 'open', railings: 'both',
+    start: { kind: 'slab', buildingId: 'osm:way/123', floorId: 'bib/upper', edgeIndex: 0, edgeT: 0.5 },
+    end: { kind: 'ground', position: { lat: 11.67985, lng: 122.3701 } },
+  } } })
+  const saved = await page.evaluate(async () => {
+    const p = (window as ProbeWindow).__naviStudioV2!
+    const result = await p.session.save(p.context.document)
+    await p.session.zones.release(p.session.zones.held())
+    return result.kind
+  })
+  expect(saved).toBe('saved')
+
+  // Publish from the editor (Studio's "Publish anyway" path, as the parity probe does).
+  await openMap(ana, campusId, /Biblioteca/)
+  const response = page.waitForResponse((r) => r.url().endsWith('/api/studio/v2/publish') && r.request().method() === 'POST', { timeout: 90_000 })
+  const outcome = await page.evaluate(async () => {
+    const services = (window as unknown as { __naviStudioV2: { context: { services: { get(id: string): any } } } }).__naviStudioV2.context.services // eslint-disable-line @typescript-eslint/no-explicit-any
+    let thrown: string | null = null
+    await services.get('publish').publish(true).catch((error: unknown) => { thrown = String(error) })
+    const snapshot = services.get('publishStore')?.getSnapshot?.() ?? services.get('publish').getSnapshot?.()
+    return { thrown, error: snapshot?.publishError ?? null }
+  })
+  expect(outcome.thrown ?? outcome.error, JSON.stringify(outcome)).toBeNull()
+  expect((await response).status()).toBe(200)
+
+  // A visitor opens NAVI Web: only the campus, nothing fetched from outside.
+  const visitor = await browser.newContext({ baseURL: 'http://127.0.0.1:3118', viewport: { width: 1280, height: 820 } })
+  const outside: string[] = []
+  await visitor.route('**/*', (route) => {
+    const url = new URL(route.request().url())
+    if (url.hostname !== '127.0.0.1') {
+      outside.push(url.hostname)
+      return route.abort('blockedbyclient')
+    }
+    return route.continue()
+  })
+  await visitor.addInitScript((id) => {
+    localStorage.setItem('navi-default-campus', id)
+    localStorage.setItem('navi-onboarded', 'true')
+  }, campusId)
+  const web = await visitor.newPage()
+  const errors: string[] = []
+  web.on('pageerror', (error) => errors.push(error.message))
+  const campus = web.waitForResponse((r) => r.url().includes(`/api/public-campus?campus_id=${campusId}`), { timeout: 90_000 })
+  await web.goto('/map/explore')
+  const payload = await (await campus).json() as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  const site = payload.artifacts?.site ?? payload.site
+  expect(site?.structures).toHaveLength(1)
+  expect(site?.terrain).not.toBeNull()
+  const webMap = <T,>(fn: string) => web.evaluate((f) => new Function('map', `return ${f}`)((window as unknown as { __naviTerrainMaps: Record<string, unknown> }).__naviTerrainMaps.web), fn) as Promise<T>
+  const mapReady = () => web.waitForFunction(() => Boolean((window as unknown as { __naviTerrainMaps?: Record<string, { getLayer(id: string): unknown }> }).__naviTerrainMaps?.web?.getLayer('site-ground')), undefined, { timeout: 60_000 })
+  // The dev server may reload a page it has just compiled: load it once more before looking.
+  await mapReady().catch(() => undefined)
+  await web.waitForLoadState('networkidle')
+  await web.goto('/map/explore')
+  await mapReady()
+  const style = await webMap<{ sources: string[]; layers: string[]; bounds: unknown }>('({ sources: Object.keys(map.getStyle().sources), layers: map.getStyle().layers.map((l) => l.id), bounds: map.getMaxBounds()?.toArray() ?? null })')
+  expect(style.sources).not.toContain('osm')
+  for (const id of ['site-ground', 'site-hillshade', 'site-roads', 'site-road-edges']) expect(style.layers).toContain(id)
+  // The app's own layers still set up on top of the campus (they wait for a loaded style; the site's
+  // terrain tiles must not keep them waiting), and the campus is drawn underneath them.
+  expect(style.layers).toContain('buildings-fill')
+  expect(style.layers.indexOf('site-ground')).toBeLessThan(style.layers.indexOf('buildings-fill'))
+  // Custom (3D mesh) layers are not part of getStyle(): look them up directly.
+  expect(await webMap<boolean>('Boolean(map.getLayer("site-structures"))')).toBe(true)
+  expect(style.bounds).not.toBeNull()
+  expect(await webMap<number>('map.getLayer("site-structures").implementation.vertexCount()')).toBeGreaterThan(0)
+  await web.waitForTimeout(2500)
+  await web.screenshot({ path: path.join(SHOTS, 't11-web-2d.png') })
+
+  // The view button tilts to 3D: the published terrain and the slabs turn on.
+  await web.getByRole('button', { name: 'Cycle camera view' }).click()
+  await expect.poll(() => webMap<string | null>('map.getTerrain()?.source ?? null'), { timeout: 10_000 }).toBe('site-dem-terrain')
+  expect(await webMap<string>('map.getLayoutProperty("site-slabs", "visibility")')).toBe('visible')
+  await webMap('map.jumpTo({ center: [122.3703, 11.68], zoom: 18.6, pitch: 60, bearing: -25 })')
+  await web.waitForTimeout(3000)
+  await web.screenshot({ path: path.join(SHOTS, 't11-web-3d.png') })
+  expect(outside).toEqual([])
+  expect(errors).toEqual([])
+  await visitor.close()
   await ana.context.close()
 })
 

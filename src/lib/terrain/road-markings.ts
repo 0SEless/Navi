@@ -1,5 +1,9 @@
 import { offsetRoadLine, type SiteRoadSurface } from '@navi/core'
 
+/** Road look (section 4, shared by Studio and NAVI Web): dark asphalt roads, light paving paths. */
+export const ROAD_COLOR = '#4b4f55'
+export const PATH_COLOR = '#ddd6c8'
+
 /** Roads this wide or wider have two lanes: a dashed centre line. */
 export const TWO_LANE_WIDTH_M = 5
 /** Edge lines sit this far inside the road's edge. */
