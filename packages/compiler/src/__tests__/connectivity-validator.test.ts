@@ -133,3 +133,41 @@ describe('validateConnectivity', () => {
     expect(report.metrics.reachableWaypoints).toBe(2)
   })
 })
+
+// New-style entrance links (EntranceAccess) replace the door's portal with an 'entrance_bridge' access edge between
+// the outdoor route and the indoor route. They are ways into the building too (2026-11-08).
+describe('validateConnectivity with new-style entrance links', () => {
+  const bridge = (id: string, from: string, to: string, accessType = 'entrance_bridge') => ({
+    id, kind: 'access' as const, from, to, distance: 2, accessType, source: { entityId: 'ent-1', entityType: 'entrance', generatorId: 'test' },
+  })
+
+  it('a campus whose only way in is an entrance link has no disconnected waypoints', () => {
+    const road1 = makeWaypoint('road-1', 'road', 0, '')
+    const road2 = makeWaypoint('road-2', 'road', 0, '')
+    const hall1 = makeWaypoint('hall-1')
+    const hall2 = makeWaypoint('hall-2')
+    const graph = makeGraph({
+      nodes: [road1, road2, hall1, hall2],
+      edges: [makeSkeletonEdge('r', 'road-1', 'road-2'), bridge('CA-EA-ent-1', 'road-2', 'hall-1'), makeSkeletonEdge('h', 'hall-1', 'hall-2')],
+    })
+    expect(validateConnectivity(graph).diagnostics.filter((d) => d.code === 'HALLWAY_DISCONNECTED')).toEqual([])
+  })
+
+  it('a building no link reaches is still reported', () => {
+    const graph = makeGraph({
+      nodes: [makeWaypoint('road-1', 'road', 0, ''), makeWaypoint('hall-1'), makeWaypoint('island-1', 'island', 0, 'b2'), makeWaypoint('island-2', 'island', 0, 'b2')],
+      edges: [bridge('CA-EA-ent-1', 'road-1', 'hall-1'), makeSkeletonEdge('i', 'island-1', 'island-2')],
+    })
+    const disconnected = validateConnectivity(graph).diagnostics.filter((d) => d.code === 'HALLWAY_DISCONNECTED')
+    expect(disconnected).toHaveLength(1)
+    expect(disconnected[0].relatedNodeIds?.slice().sort()).toEqual(['island-1', 'island-2'])
+  })
+
+  it('other access edges (a stair or lift stop) are not ways in', () => {
+    const graph = makeGraph({
+      nodes: [makeWaypoint('wp-1'), makeWaypoint('wp-2')],
+      edges: [bridge('AE-1', 'wp-1', 'wp-2', 'transition')],
+    })
+    expect(validateConnectivity(graph).diagnostics.filter((d) => d.code === 'HALLWAY_DISCONNECTED')).toHaveLength(1)
+  })
+})

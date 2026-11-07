@@ -1390,13 +1390,12 @@ test('T15 — stair route links: connect an outdoor stair in the map editor, pre
   const doc = <T,>(read: string) => page.evaluate((r) => new Function('doc', `return ${r}`)((window as ProbeWindow).__naviStudioV2!.context.document), read) as Promise<T>
 
   // The admin's floor work: an entrance on 2F at the stair's top, joined to 2F's routes (building lock first).
-  const ensured = await page.evaluate(async ({ entrance, inner, deep, ground }) => {
+  const ensured = await page.evaluate(async ({ entrance, inner, deep }) => {
     const probe = (window as unknown as { __naviStudioV2: { session: { zones: { ensure(z: string[]): Promise<boolean> } }; context: { transformer: { worldToBuildingLocal(p: unknown, b: string): { x: number; y: number } } } } }).__naviStudioV2
     if (!(await probe.session.zones.ensure(['building:hall']))) return false
     const local = (p: unknown) => probe.context.transformer.worldToBuildingLocal(p, 'hall')
     ;(window as unknown as { __p: { edit(fn: (d: any) => void): void } }).__p.edit((d: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      // 1F's own door on the lower road (the compiler checks reachability from ground entrances like this one).
-      d.buildings[0].floors[0].entrances = [{ id: 'e1', label: 'Lower door', position: local(ground), level: 0, type: 'main', hasQR: false, hasPanorama: false, connectorRoadId: 'r1' }]
+      // The stair's entrance link is the hall's only way in (the compiler counts entrance links as ways in).
       const f2 = d.buildings[0].floors[1]
       f2.entrances = [{ id: 'e2', label: 'East door', position: local(entrance), level: 1, type: 'main', hasQR: false, hasPanorama: false }]
       f2.routeNetwork = {
@@ -1405,7 +1404,7 @@ test('T15 — stair route links: connect an outdoor stair in the map editor, pre
       }
     })
     return true
-  }, { entrance: m(19.5, 5), inner: m(18, 5), deep: m(5, 5), ground: m(20, 2) })
+  }, { entrance: m(19.5, 5), inner: m(18, 5), deep: m(5, 5) })
   expect(ensured).toBe(true)
 
   // The marking is on the map; clicking it opens the stair panel.

@@ -75,6 +75,14 @@ export function validateConnectivity(graph: ConnectivityGraph): ValidationReport
   for (const pe of portalEdges) {
     entranceIds.add(pe.nodeId)
   }
+  // A new-style entrance link (EntranceAccess) replaces its door's portal with an 'entrance_bridge' access edge
+  // between the outdoor route and the indoor route: both of its ends are a way into the building.
+  for (const edge of graph.edges) {
+    if (edge.kind === 'access' && edge.accessType === 'entrance_bridge') {
+      entranceIds.add(edge.from)
+      entranceIds.add(edge.to)
+    }
+  }
 
   const reachable = new Set<string>()
   const adjacency = new Map<string, string[]>()
