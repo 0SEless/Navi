@@ -96,3 +96,7 @@ export {
 export type { RoomAccessValidationError } from './geometry/semantic-room-store'
 export { FaceIdentityTracker, matchDerivedRoomIdentities } from './geometry/face-identity'
 export type { FaceIdentity, IdentityMatchResult } from './geometry/face-identity'
+
+// Floor-to-floor stair and lift connections (2026-11-08)
+export { autoLinkFeature, clearFeatureLinks, featureFloor, linkCandidates, linkFeatures, unlinkFeature } from './navigation/feature-links'
+export type { FeatureKind } from './navigation/feature-links'

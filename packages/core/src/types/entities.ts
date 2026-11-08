@@ -480,6 +480,8 @@ export interface Staircase {
   fromLevel: number
   toLevel: number          // PHYSICAL EXTENT (authored). Invariant: fromLevel <= toLevel
   levels: Record<number, StairLevelGeometry>  // ACCESS FLOORS only. Invariant: keys ⊆ [fromLevel..toLevel]
+  /** Floor-to-floor connection (2026-11-08): the same-kind item on the floor directly below / above (ids, both ways). */
+  links?: { below?: string; above?: string }
 }
 
 export interface StairLevelGeometry {
@@ -513,6 +515,8 @@ export interface Elevator {
   fromLevel: number
   toLevel: number          // PHYSICAL EXTENT (authored). Invariant: fromLevel <= toLevel
   levels: Record<number, ElevatorLevelGeometry>  // ACCESS FLOORS only. Invariant: keys ⊆ [fromLevel..toLevel]
+  /** Floor-to-floor connection (2026-11-08): the same-kind item on the floor directly below / above (ids, both ways). */
+  links?: { below?: string; above?: string }
 }
 
 export interface ElevatorLevelGeometry {
