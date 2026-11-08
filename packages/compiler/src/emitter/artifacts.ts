@@ -599,6 +599,18 @@ function buildBuildingIndex(
     }
   }
 
+  // Every building of the campus is on the map, also one with no routes yet (2026-11-08: a campus of buildings and
+  // terrain only came out with no buildings at all). Its floors come from the document.
+  for (const docBuilding of document?.buildings ?? []) {
+    if (buildingMap.has(docBuilding.id)) continue
+    buildingMap.set(docBuilding.id, {
+      name: docBuilding.name,
+      entrances: [],
+      floors: new Set((docBuilding.floors ?? []).map((f) => f.level)),
+      nodeIds: new Set(),
+    })
+  }
+
   const buildings: BuildingEntry[] = []
   for (const [id, data] of buildingMap) {
     if (id === '__outdoor__') continue

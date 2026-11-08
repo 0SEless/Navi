@@ -524,6 +524,14 @@ function normalizeBoundingBox(raw: unknown): CampusBundle['boundingBox'] {
   return null
 }
 
+/** A frame that shows something: finite and not the empty 0°, 0° box older builds sent for a campus without routes. */
+function usableFrame(box: CampusBundle['boundingBox']): CampusBundle['boundingBox'] {
+  if (!box) return null
+  const values = [box.minLat, box.maxLat, box.minLng, box.maxLng]
+  if (!values.every(Number.isFinite) || values.every((v) => v === 0)) return null
+  return box
+}
+
 function computeBoundingBox(nodes: NavNode[]): CampusBundle['boundingBox'] {
   if (nodes.length === 0) return null
   let minLat = Infinity
@@ -691,7 +699,8 @@ export function parsePublicCampus(doc: unknown, campusId: string): PublicCampusR
     components,
     doors,
     poi,
-    boundingBox: graph.boundingBox,
+    // No route points yet (a campus of buildings and terrain): the published frame (the boundary, else the buildings).
+    boundingBox: graph.boundingBox ?? usableFrame(normalizeBoundingBox(doc.boundary)),
     floorGeometry,
     panoramaIndex,
     qrIndex,

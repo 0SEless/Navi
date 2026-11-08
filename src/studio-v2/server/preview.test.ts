@@ -7,6 +7,7 @@ import { fixtureFull } from '../__fixtures__/campus-fixtures'
 import { splitDocument } from '../parts/split'
 import type { VerifiedPrincipalResult } from './handlers'
 import { publicCampusPayload } from './public-campus-payload'
+import { parsePublicCampus } from '@/store/public-store'
 import { createPublishHandlers } from './publish-handlers'
 import type { StudioRepo } from './studio-repo'
 import type { PartRecordWithVersion } from './types'
@@ -92,5 +93,33 @@ describe('preview a saved commit', () => {
   it('a stranger gets 404', async () => {
     const response = await setup(null).handlers.preview(post('preview', { campusId: 'asu-ibajay', commitNo: 7 }))
     expect(response.status).toBe(404)
+  })
+
+  it('a campus with buildings but no routes yet: the preview shows every building, framed on the campus', async () => {
+    // The owner's campus (2026-11-08): 29 buildings with empty ground floors, terrain, no roads or routes.
+    const doc = fixtureFull()
+    doc.roads = []
+    for (const building of doc.buildings) {
+      building.staircases = []
+      building.elevators = []
+      building.verticalTransitions = []
+      building.verticalConnectors = []
+      building.floors = [{ id: `${building.id}-f0`, level: 0, label: 'Ground Floor', height: 3.5, elevation: 0, visible: true, locked: false, rooms: [], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], metadata: {} }] as unknown as typeof building.floors
+    }
+    const response = await setup('owner', doc).handlers.preview(post('preview', { campusId: doc.metadata.campusId, commitNo: 7 }))
+    expect(response.status).toBe(200)
+    const { campus } = (await response.json()) as { campus: { buildings: Array<{ id: string }>; nodes: unknown[] } }
+    expect(campus.nodes).toEqual([])
+    expect(campus.buildings.map((b) => b.id).sort()).toEqual(doc.buildings.map((b) => b.id).sort())
+
+    const parsed = parsePublicCampus(campus, doc.metadata.campusId)
+    expect(parsed).not.toBeNull()
+    expect(parsed!.bundle.buildings).toHaveLength(doc.buildings.length)
+    // Framed on the buildings, not on 0°, 0°.
+    const lat = doc.buildings[0].footprint.points[0].lat
+    const box = parsed!.bundle.boundingBox!
+    expect(box.minLat).toBeLessThanOrEqual(lat)
+    expect(box.maxLat).toBeGreaterThanOrEqual(lat)
+    expect(Math.abs(box.minLat)).toBeGreaterThan(1)
   })
 })

@@ -58,7 +58,10 @@ export function StudioPreview({ campusId, commitNo, load = loadPreview }: { camp
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div role="status" style={bar}>
         <span>Preview — not published. Showing save #{commitNo}.</span>
-        {bundle && (
+        {bundle && bundle.nodes.length === 0 && (
+          <span style={{ fontWeight: 400 }}>No routes yet: directions won&apos;t work until you add roads and routes.</span>
+        )}
+        {bundle && bundle.nodes.length > 0 && (
           <>
             <label>From <select aria-label="From" value={from} onChange={(e) => setFrom(e.target.value)}>
               <option value="">Pick a place</option>

@@ -44,6 +44,15 @@ describe('StudioPreview', () => {
     expect(screen.getByTestId('visitor-map').textContent).toContain('buildings 1')
   })
 
+  it('a campus with buildings and no routes yet shows the map and says directions need routes', async () => {
+    const noRoutes = { ...campus, nodes: [], edges: [], artifacts: { searchIndex: [] }, boundary: { minLat: 11.79, maxLat: 11.81, minLng: 122.09, maxLng: 122.11 } }
+    const load: PreviewLoad = vi.fn(async () => ({ ok: true as const, campus: noRoutes }))
+    await act(async () => { render(<StudioPreview campusId="c1" commitNo={7} load={load} />) })
+    expect(screen.getByTestId('visitor-map').textContent).toContain('buildings 1')
+    expect(screen.getByText("No routes yet: directions won't work until you add roads and routes.")).toBeTruthy()
+    expect(screen.queryByText('Publish would be refused. Fix these first:')).toBeNull()
+  })
+
   it('a failed build lists the problems', async () => {
     const load: PreviewLoad = vi.fn(async () => ({ ok: false as const, code: 'ROUTE_INVALID', problems: ['Stair route out of step: the stair was deleted'] }))
     await act(async () => { render(<StudioPreview campusId="c1" commitNo={7} load={load} />) })

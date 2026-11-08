@@ -1,3 +1,4 @@
+import { campusFrame } from '../emitter/frame'
 import type { CampusDocument } from '@navi/core'
 import { ROUTE_NETWORK_THRESHOLDS } from '@navi/core'
 import type {
@@ -166,6 +167,11 @@ export class CampusCompiler {
       connectivityGraph.metadata.campusId = document.metadata.campusId
       const navGraph = emitGraph(connectivityGraph)
       navGraph.createdAt = new Date().toISOString()
+      // No route points yet: frame the map on the campus (its boundary, else its buildings), not on 0°, 0°.
+      if (navGraph.nodes.length === 0) {
+        const frame = campusFrame(document)
+        if (frame) navGraph.metadata.boundingBox = frame
+      }
 
       // ── Stage 4: Build Artifacts ──
       const artifacts = buildArtifacts(connectivityGraph, navGraph, document)
@@ -388,7 +394,7 @@ export class CampusCompiler {
   // ── Graph Construction ──
 
   private buildGraph(document: CampusDocument, nodes: NavNode[], edges: NavEdge[]) {
-    // Bounding box
+    // Bounding box: the route points; a campus with no routes yet: its boundary, else its buildings (campusFrame).
     const bbox = nodes.length > 0
       ? nodes.reduce((bb, n) => ({
           minLng: Math.min(bb.minLng, n.position.lng),
@@ -396,7 +402,7 @@ export class CampusCompiler {
           minLat: Math.min(bb.minLat, n.position.lat),
           maxLat: Math.max(bb.maxLat, n.position.lat),
         }), { minLng: Infinity, maxLng: -Infinity, minLat: Infinity, maxLat: -Infinity })
-      : { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }
+      : campusFrame(document) ?? { minLng: 0, maxLng: 0, minLat: 0, maxLat: 0 }
 
     const buildingSet = new Set(nodes.map(n => n.buildingId).filter(Boolean))
     const floorSet = new Set(nodes.map(n => `${n.buildingId}:${n.floor}`))
