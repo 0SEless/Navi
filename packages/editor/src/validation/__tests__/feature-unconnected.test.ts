@@ -39,6 +39,17 @@ describe('feature-unconnected', () => {
     expect(messages(campus(2, [{ id: 's', levels: [0, 1] }]))).toEqual([])
   })
 
+  it('still warns when its only link points at a missing stair or a stair not on the next floor (the compiler ignores those)', () => {
+    expect(messages(campus(3, [{ id: 'a', name: 'Stair A', levels: [0], links: { above: 'ghost' } }]))).toEqual(['warning: Stair "Stair A" on 1F isn\'t connected to another floor'])
+    expect(messages(campus(3, [
+      { id: 'a', name: 'Stair A', levels: [0], links: { above: 'c' } },
+      { id: 'c', name: 'Stair C', levels: [2], links: { below: 'a' } },
+    ]))).toEqual([
+      'warning: Stair "Stair A" on 1F isn\'t connected to another floor',
+      'warning: Stair "Stair C" on 3F isn\'t connected to another floor',
+    ])
+  })
+
   it('lift wording', () => {
     expect(messages(campus(3, [], [{ id: 'l', name: 'Lift 1', levels: [2] }]))).toEqual(['warning: Lift "Lift 1" on 3F isn\'t connected to another floor'])
   })

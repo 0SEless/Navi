@@ -235,10 +235,20 @@ export const featureUnconnectedRule: ValidationRule = {
         { kind: 'elevator', word: 'Lift', items: bld.elevators ?? [] },
       ]
       for (const { kind, word, items } of groups) {
+        const floorsOf = (item: (typeof items)[number]) => Object.keys(item.levels ?? {}).map(Number).filter(Number.isInteger)
+        // A link counts as the compiler counts it: the partner exists, links back, and is on the very next floor.
+        const joined = (item: (typeof items)[number], side: 'below' | 'above') => {
+          const partner = item.links?.[side] ? items.find((other) => other.id === item.links?.[side]) : undefined
+          if (!partner || partner.links?.[side === 'below' ? 'above' : 'below'] !== item.id) return false
+          const mine = floorsOf(item)
+          const theirs = floorsOf(partner)
+          if (mine.length === 0 || theirs.length === 0) return false
+          return side === 'below' ? Math.max(...theirs) + 1 === Math.min(...mine) : Math.min(...theirs) === Math.max(...mine) + 1
+        }
         for (const feature of items) {
-          const floors = Object.keys(feature.levels ?? {}).map(Number).filter(Number.isInteger)
+          const floors = floorsOf(feature)
           if (floors.length !== 1) continue // older multi-floor items connect their own floors
-          if (feature.links?.below || feature.links?.above) continue
+          if (joined(feature, 'below') || joined(feature, 'above')) continue
           issues.push({
             issueId: `feature-unconnected:${feature.id}:${hash(feature.id)}`,
             ruleId: 'feature-unconnected',
