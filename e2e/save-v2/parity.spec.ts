@@ -252,6 +252,95 @@ test('P11 — the Studio preview shows the saved campus as visitors will see it,
   expect(errors).toEqual([])
 })
 
+test('P13 — stairs placed one per floor in the floor editor connect the floors; the preview routes upstairs over them', async ({ browser }) => {
+  test.setTimeout(300_000)
+  // The floor editor's address carries the building id; the fixture's 'osm:way/123' does not survive it (the page gets it
+  // still encoded), so this campus uses a plain id, as Studio's own ids are.
+  const B = 'bib-p13'
+  const ana = await openAdmin(browser, 'ana')
+  await installEditorHelpers(ana)
+  const campusId = await seededCampus(ana, (id) => {
+    const doc = JSON.parse(JSON.stringify(publishableDocument(id)).split(PUB_BUILDING).join(B))
+    // The fixture's old-style connectors (stops per floor) also join the floors; they go too.
+    for (const building of doc.buildings) {
+      if (building.id !== B) continue
+      building.verticalConnectors = []
+      for (const floor of building.floors) floor.connectorStops = []
+    }
+    return doc
+  })
+  const page = ana.page
+  const floorUrl = (level: number) => `/studio/${campusId}/edit/building/${B}/floor/${level}`
+  const run = (command: { id: string; payload: Record<string, unknown> }) => page.evaluate((c) => {
+    const result = (window as unknown as { __naviStudioV2: { context: { services: { get(id: string): { execute(c: unknown): { success: boolean; error?: string } } } } } }).__naviStudioV2.context.services.get('dispatcher').execute({ label: c.id, ...c })
+    if (!result?.success) throw new Error(`${c.id}: ${result?.error}`)
+  }, command)
+  const stair = (id: string, name: string, floor: number) => ({
+    id: 'feature.create',
+    payload: { buildingId: B, floor, id, name, featureType: 'staircase', position: { x: 10, y: 4 }, rotation: 0, fromLevel: floor, toLevel: floor, drawing: { definitionId: 'stair', properties: {} } },
+  })
+
+  // Ground floor: the campus's old two-floor stair and lift go, so only the new stairs can join the floors.
+  await page.goto(floorUrl(0))
+  await waitForFloorEditor(page)
+  await run({ id: 'feature.delete', payload: { featureId: 'stair-1' } })
+  await run({ id: 'feature.delete', payload: { featureId: 'elev-1' } })
+  await run(stair('p13down', 'Stair P13 down', 0))
+  await saveNow(page)
+
+  // Upper floor: the new stair connects itself to the one below; its panel says so.
+  await page.goto(floorUrl(1))
+  await waitForFloorEditor(page)
+  await run(stair('p13up', 'Stair P13 up', 1))
+  const links = await page.evaluate((id) => {
+    const doc = (window as unknown as { __naviStudioV2: { context: { document: Doc } } }).__naviStudioV2.context.document
+    const b = doc.buildings.find((x: Doc) => x.id === id)
+    return Object.fromEntries(b.staircases.map((s: Doc) => [s.id, s.links ?? null]))
+  }, B)
+  expect(links).toMatchObject({ p13down: { above: 'p13up' }, p13up: { below: 'p13down' } })
+  await page.getByText('Stair P13 up', { exact: true }).first().click()
+  const down = page.getByLabel('Connects down to')
+  await expect(down).toBeVisible()
+  await expect(down.locator('option:checked')).toHaveText('Ground Floor · Stair P13 down')
+  await expect(page.getByText('No floor above')).toBeVisible()
+  await page.screenshot({ path: path.join(__dirname, '..', '..', 'test-results', 'p13-connects-down.png') })
+  await saveNow(page)
+  const head = await page.evaluate(() => (window as unknown as { __naviStudioV2: { session: { getState(): { headCommit: number } } } }).__naviStudioV2.session.getState().headCommit)
+
+  // Preview: the visitor graph goes from the ground floor up the new stairs to the upper floor.
+  const viewer = await openAdmin(browser, 'ben')
+  const load = viewer.page.waitForResponse((r) => r.url().endsWith('/api/studio/v2/preview') && r.request().method() === 'POST', { timeout: 120_000 })
+  await viewer.page.goto(`/studio/${campusId}/preview?commit=${head}`)
+  const answer = await load
+  expect(answer.status()).toBe(200)
+  const campus = ((await answer.json()) as { campus: { nodes: Array<{ id: string; floor?: number; buildingId?: string }>; edges: Array<{ from: string; to: string; type: string }> } }).campus
+  const floorOfNode = new Map(campus.nodes.filter((n) => n.buildingId === B).map((n) => [n.id, n.floor]))
+  const stairs = campus.edges.filter((e) => e.type === 'stairs' && floorOfNode.has(e.from))
+  expect(stairs.map((e) => [floorOfNode.get(e.from), floorOfNode.get(e.to)].sort().join('–'))).toEqual(['0–1'])
+  expect(campus.edges.some((e) => e.type === 'elevator' && floorOfNode.has(e.from))).toBe(false)
+  const next = new Map<string, string[]>()
+  for (const e of campus.edges) {
+    next.set(e.from, [...(next.get(e.from) ?? []), e.to])
+    next.set(e.to, [...(next.get(e.to) ?? []), e.from])
+  }
+  const start = campus.nodes.filter((n) => floorOfNode.get(n.id) === 0 && n.id !== stairs[0].from && n.id !== stairs[0].to).map((n) => n.id)
+  const seen = new Set(start)
+  const queue = [...start]
+  let reached = false
+  while (queue.length && !reached) {
+    const id = queue.shift()!
+    if (floorOfNode.get(id) === 1) reached = true
+    for (const n of next.get(id) ?? []) if (!seen.has(n)) { seen.add(n); queue.push(n) }
+  }
+  expect(reached ? 'ground floor reaches upper floor' : 'upper floor unreachable').toBe('ground floor reaches upper floor')
+})
+
+/** The floor editor is open on its floor (session ready and the outliner drawn). */
+async function waitForFloorEditor(page: Page): Promise<void> {
+  await page.waitForFunction(() => Boolean((window as unknown as { __naviStudioV2?: { session?: unknown } }).__naviStudioV2?.session), undefined, { timeout: 120_000 })
+  await page.getByText('Outliner', { exact: true }).first().waitFor({ timeout: 60_000 })
+}
+
 test('P12 — intended changes: no panorama tool; an unpublished campus is not served as draft data', async ({ browser }) => {
   const { ana, campusId } = await editor(browser)
   // Studio's working area offers no 360 tour / panorama / hotspot tool.
