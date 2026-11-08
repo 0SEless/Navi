@@ -223,7 +223,7 @@ export const featureUnconnectedRule: ValidationRule = {
   category: 'connectivity',
   defaultSeverity: 'warning',
   profiles: ['draft', 'publish', 'strict'],
-  affinity: 'entity:feature',
+  affinity: 'entity:building',
 
   execute(context: ValidationContext): ReadonlyArray<ValidationIssue> {
     const issues: ValidationIssue[] = []
