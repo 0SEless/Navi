@@ -97,7 +97,15 @@ describe('documentToGeoJSON', () => {
     )
   })
 
-  it('emits resolved appearance mode, height, and building-plus-floor extrusion base', () => {
+  it('the map editor is flat: a building stands on it up to its height, whatever its stored ground base', () => {
+    const doc = createDoc()
+    doc.buildings[0].baseElevation = 19
+    doc.buildings[0].height = 15
+    const building = documentToGeoJSON(doc).buildings.features[0]
+    expect(building.properties).toMatchObject({ base_elevation: 0, height: 15 })
+  })
+
+  it('emits resolved appearance mode, height, and a floor-level extrusion base (the map editor is flat)', () => {
     const doc = createDoc()
     doc.buildings[0].baseElevation = 12
     doc.buildings[0].floors[0].elevation = 2
@@ -114,7 +122,7 @@ describe('documentToGeoJSON', () => {
 
     expect(point.properties).toMatchObject({ appearanceMode: 'marker' })
     expect(circle.properties).toMatchObject({ appearanceMode: '2d' })
-    expect(rectangle.properties).toMatchObject({ appearanceMode: '2.5d', appearanceHeight: 4.5, base_elevation: 14 })
+    expect(rectangle.properties).toMatchObject({ appearanceMode: '2.5d', appearanceHeight: 4.5, base_elevation: 2 })
   })
 
   it('returns empty collections for entities without data', () => {

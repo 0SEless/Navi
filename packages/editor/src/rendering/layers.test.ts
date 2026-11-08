@@ -121,7 +121,7 @@ describe('POI geometry paint', () => {
     if (!extrusion) return
 
     const paint = extrusion()
-    expect(paint['fill-extrusion-height']).toEqual(['get', 'appearanceHeight'])
+    expect(paint['fill-extrusion-height']).toEqual(['+', ['get', 'base_elevation'], ['get', 'appearanceHeight']])
     expect(paint['fill-extrusion-base']).toEqual(['get', 'base_elevation'])
     expect(JSON.stringify(paint)).toContain('selected')
     expect(JSON.stringify(paint)).toContain('hover')
@@ -164,7 +164,8 @@ describe('MapLibre style-spec validity', () => {
 
   it('extrusion paint keeps the 2.5D shapes and feature-state response', () => {
     const paint = layerApi.poiExtrusionPaint()
-    expect(paint['fill-extrusion-height']).toEqual(['get', 'appearanceHeight'])
+    // MapLibre's height is the top above the ground: the floor's level plus the shape's own height.
+    expect(paint['fill-extrusion-height']).toEqual(['+', ['get', 'base_elevation'], ['get', 'appearanceHeight']])
     expect(paint['fill-extrusion-base']).toEqual(['get', 'base_elevation'])
     // Opacity variation moved into the data-driven color channel (rgba alpha).
     expect(JSON.stringify(paint['fill-extrusion-color'])).toContain('selected')

@@ -272,7 +272,8 @@ export function poiExtrusionPaint(): maplibregl.FillExtrusionLayerSpecification[
       ['boolean', ['feature-state', 'hover'], false], 'rgba(255, 255, 255, 0.35)',
       ['coalesce', ['get', 'color'], 'rgba(245, 158, 11, 0.3)'],
     ],
-    'fill-extrusion-height': ['get', 'appearanceHeight'],
+    // MapLibre's height is the top above the ground: the floor's level plus the shape's own height.
+    'fill-extrusion-height': ['+', ['get', 'base_elevation'], ['get', 'appearanceHeight']],
     'fill-extrusion-base': ['get', 'base_elevation'],
   }
 }

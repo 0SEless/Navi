@@ -137,7 +137,10 @@ export function BuildingProperties({ building }: Props) {
       </Field>
       <Field label="Elevation">
         <div style={{ color: tokens.textPrimary, fontSize: tokens.fontSize.md }}>
-          {building.baseElevation.toFixed(1)} m
+          {/* The ground base is set in the terrain editor; a follow-ground building's stored number is not its base. */}
+          {building.ground?.baseMode === 'follow-ground'
+            ? 'Follows the ground (set in Terrain)'
+            : `${(building.baseElevation ?? 0).toFixed(1)} m (set in Terrain)`}
         </div>
       </Field>
       <Field label="Color">

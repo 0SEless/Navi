@@ -69,7 +69,9 @@ function buildingToFeature(b: Building): GeoJSON.Feature {
   return {
     type: 'Feature',
     id: b.id,
-    properties: { id: b.id, name: b.name, code: b.code, category: b.category, color: b.color, height: b.height, base_elevation: b.baseElevation ?? 0 },
+    // The map editor draws flat ground: every building stands on it up to its height. Its height above the real
+    // ground (baseElevation, or the terrain when it follows the ground) is shown in the terrain editor and NAVI Web.
+    properties: { id: b.id, name: b.name, code: b.code, category: b.category, color: b.color, height: b.height, base_elevation: 0 },
     geometry: {
       type: 'Polygon',
       coordinates: [b.footprint.points.map(latLngToCoords)],
@@ -162,7 +164,7 @@ function floorFeatures(building: Building, transformer?: CoordinateTransformer):
           ...(appearance.mode === '2.5d'
             ? {
                 appearanceHeight: appearance.height,
-                base_elevation: building.baseElevation + floor.elevation,
+                base_elevation: floor.elevation, // the floor's level in the building (flat map, as above)
               }
             : {}),
         },

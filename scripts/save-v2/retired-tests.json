@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "test": "packages/editor/src/rendering/geojson.test.ts > documentToGeoJSON emits resolved appearance mode, height, and building-plus-floor extrusion base",
+    "reason": "Renamed 2026-11-08 to 'a floor-level extrusion base (the map editor is flat)': the map editor no longer adds the building's ground base, which made raised buildings and POIs float on its flat map (owner report). Same test, new rule.",
+    "retiredOn": "2026-11-08"
+  }
+]

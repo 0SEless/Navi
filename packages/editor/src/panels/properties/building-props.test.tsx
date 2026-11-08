@@ -72,6 +72,17 @@ describe('BuildingProperties', () => {
     expect(screen.getByDisplayValue('The main campus building')).toBeDefined()
   })
 
+  it('a building that follows the ground says so instead of a stale stored base', () => {
+    renderWithServices(createBuilding({ baseElevation: 19, ground: { baseMode: 'follow-ground', pad: { mode: 'off', blendMeters: 3 } } }))
+    expect(screen.getByText('Follows the ground (set in Terrain)')).toBeTruthy()
+    expect(screen.queryByText('19.0 m')).toBeNull()
+  })
+
+  it('a fixed base shows its height and where it is set', () => {
+    renderWithServices(createBuilding({ baseElevation: 12.5 }))
+    expect(screen.getByText('12.5 m (set in Terrain)')).toBeTruthy()
+  })
+
   it('renders category select with academic selected', () => {
     renderWithServices(createBuilding({ category: 'residential' }))
     const select = screen.getByDisplayValue('residential') as HTMLSelectElement
