@@ -212,3 +212,43 @@ export const featureConnectivityRule: ValidationRule = {
     return issues
   },
 }
+
+/**
+ * Unconnected stairs and lifts (2026-11-08): each floor draws its own stair or lift and connects it to the one below or
+ * above (links). One that connects nothing, in a building with more than one floor, takes no one anywhere. A warning.
+ */
+export const featureUnconnectedRule: ValidationRule = {
+  ruleId: 'feature-unconnected',
+  description: 'Stairs and lifts connect to another floor',
+  category: 'connectivity',
+  defaultSeverity: 'warning',
+  profiles: ['draft', 'publish', 'strict'],
+  affinity: 'entity:feature',
+
+  execute(context: ValidationContext): ReadonlyArray<ValidationIssue> {
+    const issues: ValidationIssue[] = []
+    for (const bld of context.document.buildings) {
+      if ((bld.floors ?? []).length < 2) continue
+      const labelOf = (level: number) => bld.floors.find((f) => f.level === level)?.label ?? `floor ${level}`
+      const groups: Array<{ kind: 'staircase' | 'elevator'; word: string; items: Array<{ id: string; name: string; levels: Record<number, unknown>; links?: { below?: string; above?: string } }> }> = [
+        { kind: 'staircase', word: 'Stair', items: bld.staircases ?? [] },
+        { kind: 'elevator', word: 'Lift', items: bld.elevators ?? [] },
+      ]
+      for (const { kind, word, items } of groups) {
+        for (const feature of items) {
+          const floors = Object.keys(feature.levels ?? {}).map(Number).filter(Number.isInteger)
+          if (floors.length !== 1) continue // older multi-floor items connect their own floors
+          if (feature.links?.below || feature.links?.above) continue
+          issues.push({
+            issueId: `feature-unconnected:${feature.id}:${hash(feature.id)}`,
+            ruleId: 'feature-unconnected',
+            severity: 'warning',
+            message: `${word} "${feature.name || feature.id}" on ${labelOf(floors[0])} isn't connected to another floor`,
+            targets: [{ entityId: feature.id, entityType: kind }],
+          })
+        }
+      }
+    }
+    return issues
+  },
+}

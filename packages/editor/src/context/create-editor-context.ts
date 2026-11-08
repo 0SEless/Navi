@@ -55,7 +55,7 @@ import { orphanReferenceRule } from '../validation/rules/modules/orphan-referenc
 import { connectorConnectivityRule } from '../validation/rules/modules/connector-connectivity'
 import { roomDoorConnectivityRule } from '../validation/rules/modules/room-door-connectivity'
 import { roomDoorGeometryRule } from '../validation/rules/modules/room-door-geometry'
-import { featureExtentRule, featureOverlapRule, featureConnectivityRule } from '../validation/rules/modules/feature-rules'
+import { featureExtentRule, featureOverlapRule, featureConnectivityRule, featureUnconnectedRule } from '../validation/rules/modules/feature-rules'
 import { routeNetworkRules } from '../validation/rules/modules/route-network'
 
 import { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass } from '../validation/rules/analysis'
@@ -936,6 +936,7 @@ export function createEditorContext(
   validationEngine.registerRule(roomDoorConnectivityRule)
   validationEngine.registerRule(roomDoorGeometryRule)
   validationEngine.registerRule(featureExtentRule)
+  validationEngine.registerRule(featureUnconnectedRule)
   validationEngine.registerRule(featureOverlapRule)
   validationEngine.registerRule(featureConnectivityRule)
   for (const routeRule of routeNetworkRules) {
