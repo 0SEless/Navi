@@ -265,6 +265,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
                 { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
               ]),
             ),
+            ...(st.links ? { links: { ...st.links } } : {}),
           })) }
         : {}),
       ...((bld.elevators && bld.elevators.length > 0)
@@ -280,6 +281,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
                 { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
               ]),
             ),
+            ...(el.links ? { links: { ...el.links } } : {}),
           })) }
         : {}),
       // W15B: pass-through vertical transitions — no transformation

@@ -606,6 +606,8 @@ export interface NormalizedFeatureLevels {
   /** Keys are ACCESS floors only — absent floors simply absent (never
    *  zero-filled); each entry carries that floor's own position. */
   levels: Record<number, { position: LatLng }>
+  /** Floor-to-floor connection (2026-11-08): the same-kind item directly below / above. */
+  links?: { below?: string; above?: string }
 }
 
 export interface NormalizedFloor {
