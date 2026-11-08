@@ -45,6 +45,23 @@ describe('buildSlabFeatures', () => {
     expect(block.top).toBeCloseTo(10.5, 6)
   })
 
+  it("the roof follows the building's height (as the map editor and NAVI Web), not its floor count", () => {
+    const d = doc()
+    d.buildings[0].baseElevation = 10
+    d.buildings[0].height = 15
+    d.buildings[0].floors = [floor('f1', 0)] as unknown as Building['floors']
+    const block = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features[0].properties!
+    expect(block.top).toBeCloseTo(15, 6)
+  })
+
+  it('without a height the roof is its floors (older buildings)', () => {
+    const d = doc()
+    d.buildings[0].baseElevation = 10
+    ;(d.buildings[0] as { height?: number }).height = undefined
+    const block = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features[0].properties!
+    expect(block.top).toBeCloseTo(10.5, 6)
+  })
+
   it('cut away: the block stops at the chosen floor, whose floor shows on top', () => {
     const d = doc()
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features

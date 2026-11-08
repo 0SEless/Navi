@@ -34,7 +34,8 @@ export function buildSlabFeatures(
       continue
     }
     const last = floors[floors.length - 1]
-    const roof = base + last.elevation + (last.height ?? 3.5)
+    // The building's height (the map editor's Building Height, as NAVI Web draws it); older buildings without one: its floors.
+    const roof = base + (building.height > 0 ? building.height : last.elevation + (last.height ?? 3.5))
     features.push({ type: 'Feature', geometry, properties: { kind: 'block', buildingId: building.id, base: 0, top: Math.max(roof - ground, SLAB_THICKNESS) } })
   }
   return { type: 'FeatureCollection', features }
