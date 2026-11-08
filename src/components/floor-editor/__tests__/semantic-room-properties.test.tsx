@@ -24,7 +24,9 @@ vi.mock('@/store/graph-store', () => ({
   useGraphStore: (selector: (state: { graph: { nodes: any[] } }) => unknown) => selector({ graph: { nodes: mocks.graphNodes } }),
 }))
 
-vi.mock('@navi/editor', () => ({
+vi.mock('@navi/editor', async (importOriginal) => ({
+  featureFloor: (await importOriginal<typeof import('@navi/editor')>()).featureFloor,
+  linkCandidates: (await importOriginal<typeof import('@navi/editor')>()).linkCandidates,
   useDocumentVersion: () => 0,
   useEditor: () => ({
     document: mocks.document,

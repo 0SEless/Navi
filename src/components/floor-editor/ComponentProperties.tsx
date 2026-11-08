@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useEditor, useEditingEngine, useDocumentVersion } from '@navi/editor'
+import { FeatureLinks } from './FeatureLinks'
 import { canonicalRoomId, SpatialQueryService } from '@navi/core'
 import type { Road } from '@navi/core'
 import { RelationshipService, RelationshipSuggestionService } from '@navi/editor'
@@ -211,8 +212,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
   const [roomAccessPrimary, setRoomAccessPrimary] = useState(true)
   const [entranceIndoorRouteNodeId, setEntranceIndoorRouteNodeId] = useState('')
   const [entranceOutdoorNodeId, setEntranceOutdoorNodeId] = useState('')
-  const [rangeFrom, setRangeFrom] = useState(component?.range?.from ?? component?.floor ?? DEFAULT_FLOOR)
-  const [rangeTo, setRangeTo] = useState(component?.range?.to ?? (component?.floor ?? DEFAULT_FLOOR) + 1)
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -231,8 +230,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     setRoomAccessPrimary(true)
     setEntranceIndoorRouteNodeId('')
     setEntranceOutdoorNodeId('')
-    setRangeFrom(component?.range?.from ?? component?.floor ?? DEFAULT_FLOOR)
-    setRangeTo(component?.range?.to ?? (component?.floor ?? DEFAULT_FLOOR) + 1)
   }, [component])
 
   // ── Entrance suggestion logic (all hooks at top level) ──
@@ -466,9 +463,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     }
     if (isStairOrElevator) {
       const featureId = component.featureId || (component.id.includes('-') ? component.id.split('-')[0] : component.id)
-      changes.range = { from: rangeFrom, to: rangeTo }
-      editEngine.begin({ kind: 'assign', entityId: component.id, property: 'range', value: changes.range })
-      editEngine.doCommit()
+      // Floors connect through links now (2026-11-08, FeatureLinks below), not a from/to range.
       dispatcher.execute({
         id: 'feature.update',
         label: 'Update Feature Properties',
@@ -477,8 +472,6 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
           level: component.floor,
           patch: {
             name,
-            fromLevel: rangeFrom,
-            toLevel: rangeTo,
             ...(verticalLevelGeometry ? (() => {
               const rotation = doorRotationDegrees * Math.PI / 180
               const center = verticalLevelGeometry.position
@@ -894,26 +887,18 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                     style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, boxSizing: 'border-box' }} />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>FROM FLOOR</label>
-                <input type="number" value={rangeFrom} onChange={(e) => setRangeFrom(Number(e.target.value))} onKeyDown={handlePropertyKeyDown}
-                  style={{
-                    width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)',
-                    background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>TO FLOOR</label>
-                <input type="number" value={rangeTo} onChange={(e) => setRangeTo(Number(e.target.value))} onKeyDown={handlePropertyKeyDown}
-                  style={{
-                    width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)',
-                    background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              </div>
+              {(() => {
+                const building = document.buildings.find((candidate) => candidate.id === component.buildingId)
+                const featureType = component.type === 'stair' ? 'staircase' : 'elevator'
+                const featureId = component.featureId ?? (component.id.includes('-') ? component.id.split('-')[0] : component.id)
+                return building ? (
+                  <FeatureLinks
+                    building={building} featureType={featureType} featureId={featureId}
+                    onLink={(lowerId, upperId) => { dispatcher.execute({ id: 'feature.link', label: 'Connect floors', payload: { buildingId: building.id, featureType, lowerId, upperId } }) }}
+                    onUnlink={(side) => { dispatcher.execute({ id: 'feature.unlink', label: 'Disconnect floors', payload: { buildingId: building.id, featureType, featureId, side } }) }}
+                  />
+                ) : null
+              })()}
             </div>
           )}
 
