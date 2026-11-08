@@ -3322,3 +3322,12 @@
 - Open (proposed in the record): Shift+Z side view too far; Shift+Z drag too sensitive; Height colours fixed 0-40 m on flat start; 3D relief faint under the street map; unstyled area-tool panels.
 - Gates: regressed 0; tsc 1122/1122/0. Browser lane 33/33.
 
+
+
+## 2026-11-08 (session) - reconciliation after the restart: section 2 T4 was already closed by later sessions
+- The 2026-11-04 session ended mid-T4 (lane failure unlogged). Verified today instead of redoing: commit 8cc1332 closed out section 2 (handoff 2026-11-06 block: whole-lane 27/27, gates green; ERRORS entries of 2026-11-06 tagged "Section 2 T4 close-out"). The unpaid error record (the 6/27 lane run) is added to ERRORS.md now.
+- Branch state verified: feat/save-v2 at 5495375, contains 563c6dc and everything after (sections 3-4, minimap removal, section 5, Tasks 15-16, stair routes, preview deploy). Nothing pushed.
+- Gates green this morning 07:32 (sdd logs): vitest regressed 0 (6269 base / 7049 passed), tsc 1122 / 1122 / 0. This session's ledger + handoff edits are md-only (no compiled file touched), so those results stand in for the commit; no re-run.
+- Local ports after the restart: only the probe Postgres (55434) listens; :3119/:45678 (demo lane) down and not restored since 11-06; the owner's :3000 is also down - not touched, per the standing rule. Demo campuses in navi_savev2_test were wiped by the probe runs since 11-06; a restored demo lane needs a freshly seeded campus.
+- Handoff tidy-up: In-progress heading now points at what is actually next (owner testing on the preview, then the final branch review); one wrongly-duplicated "(newest)" label demoted to "(earlier)".
+- Next: owner's call - restore the :3119 demo lane (fresh seeded campus, announced) or leave it off while testing runs on the Vercel preview; then owner preview testing / final whole-branch review.

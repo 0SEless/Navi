@@ -46,7 +46,7 @@ it before continuing the plan's Tasks 15–16.
 Last full check (Task 14): vitest gate 0 regressions, tsc gate 1122 (= baseline) with 0 in clean folders,
 browser probe 25/25.
 
-## In progress: UI/UX redesign (sections 1-2 built; minimap removal next, then sections 3-4)
+## In progress: UI/UX redesign (sections 1-5 built; owner preview testing next, then the final branch review)
 
 **2026-11-07 status update (newest, after Task 16):** the terrain plan is complete through Task 16 on
 `feat/terrain-2.5d` (not pushed): redesign sections 1-4, Task 15 (NAVI Web campus-only map), Task 16
@@ -56,7 +56,7 @@ this branch. Next: the owner tests on the preview; then the final whole-branch r
 branch. Follow-ups: Studio MapPreview needs a Save v2 loader to show the visitor view; NAVI Web contour
 toggle UI; stair steps following the slope; contour labels; BP 344 ramp marks.
 
-**2026-11-07 status update (newest):** sections 1-4 of the redesign are built and verified on
+**2026-11-07 status update (earlier):** sections 1-4 of the redesign are built and verified on
 `feat/terrain-2.5d` (not pushed): 1 paint preview, 2 neutral look + Colours switch + cursor height,
 minimap removed (one map + 3D button), 3 Shift+Z height editing (buildings dig-only; stair ends offset
 that keeps following, floor steps; side view centred), 4 zoom limits, boundary + soft outside, road

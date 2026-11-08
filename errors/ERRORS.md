@@ -3365,3 +3365,11 @@ Track every error encountered during implementation. Each entry includes:
 ## 2026-11-07 - T8 Shift+Z pitch flake under load
 - In the full 32-test run (14.4 min) T8's side-view tilt sat at 14 deg after 5 s; run alone it passed. Same stall as the earlier "ease cut short" note; the app's jumpTo fallback fires on moveend, which can come late on a loaded machine. Not changed; watch it.
 
+
+
+## 2026-11-08: the 2026-11-04 section 2 T4 lane failure logged late (session interrupted before logging)
+- **Error**: the whole-lane probe on the T3 commit content (563c6dc) failed 6 of 27 in 20.4 min (green lanes run ~13.9 min): P4, S1, S2, S3, S5, T7. The parity/save-behaviour failures shared one signature: `TimeoutError` waiting 120 s for `window.__naviStudioV2?.session` (support.ts:119) with repeated `[browser] Save v2: could not merge saved changes: StudioApiError: HTTP_404` (api-client.ts:92); 21 tests passed in the same run.
+- **Cause (best supported)**: a transient condition in that run's probe server/DB, not code - the same tree passed a full instrumented lane hours earlier (probe-s2t3-lane2.log, 27/27, 13.9 m), T7 passed solo twice, and the close-out lane on the identical content ran green (recorded 2026-11-06). T7's own failure mode was mid.top = -1 with editing already true - mechanism Unknown: its trace was destroyed when later runs cleaned reports/save-v2/raw/playwright-output; the same symptom in the pre-fix lane-1 run had the lock-acquire window as cause (now gated); the remaining suspect is the attach path deferring to the one-shot map 'load' event when isStyleLoaded() is false at stroke start under load - a class later fixed properly in section 5 (style-ready helper, 2026-11-07).
+- **Fix**: none needed for code; the clean re-run on identical content was green (close-out commit 8cc1332). The T3 test-hook lock gate stays.
+- **Prevention**: a multi-test failure with one shared server-side signature (session never mounts + API 404s) across unrelated spec files is an environment suspect first - re-run once on identical content before touching product code; write the ledger entry before reports/ artifacts can be cleaned.
+- **Related tasks**: Section 2 T3, Section 2 T4 close-out (8cc1332)
