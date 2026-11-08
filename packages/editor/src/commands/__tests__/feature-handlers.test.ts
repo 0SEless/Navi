@@ -88,7 +88,8 @@ describe('Feature Handlers (P1 Commands)', () => {
     const st = building.staircases![0]
     expect(st.id).toBe(result.entityId)
     expect(st.fromLevel).toBe(0)
-    expect(st.toLevel).toBe(1)
+    // One floor by default (2026-11-08): floors connect through links, not a range.
+    expect(st.toLevel).toBe(0)
     expect(st.levels[0]).toBeDefined()
     expect(st.levels[0].position).toEqual({ x: 10, y: 10 })
     expect(st.levels[0].polygon).toBeDefined()
@@ -148,7 +149,7 @@ describe('Feature Handlers (P1 Commands)', () => {
     expect(st.levels[0].position).toEqual({ x: 5, y: 5 })
     expect(st.levels[0].rotation).toBe(0)
     expect(st.levels[0].drawing?.properties.stepWidth).toBe(1.0)
-    expect(st).toMatchObject({ name: 'Staircase', fromLevel: 0, toLevel: 1 })
+    expect(st).toMatchObject({ name: 'Staircase', fromLevel: 0, toLevel: 0 })
   })
 
   it('feature.modeTransition converts parametric level to freeform and vice versa', () => {

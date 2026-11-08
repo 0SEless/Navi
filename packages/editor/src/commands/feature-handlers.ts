@@ -1,3 +1,4 @@
+import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
 import { isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
@@ -939,7 +940,8 @@ export const featureCreateHandler: CommandHandler = {
     const position = (payload.position as LocalCoord) ?? { x: 0, y: 0 }
     const rotation = (payload.rotation as number) ?? 0
     const fromLevel = (payload.fromLevel as number) ?? floor
-    const toLevel = (payload.toLevel as number) ?? (floor + 1)
+    // A stair or lift is drawn on one floor (2026-11-08); floors connect through links, not a range.
+    const toLevel = (payload.toLevel as number) ?? floor
     const accessible = (payload.accessible as boolean) ?? false
 
     const drawing = payload.drawing as { definitionId: 'stair' | 'elevator'; properties: Record<string, unknown> } | undefined
@@ -974,6 +976,8 @@ export const featureCreateHandler: CommandHandler = {
       if (!building.staircases) building.staircases = []
       building.staircases.push(feature)
       restoreFeatureTransitions(building, payload.verticalTransitions as VerticalTransition[] | undefined)
+      // Placed: connect to the nearest free staircase on the floor below / above.
+      autoLinkFeature(building, 'staircase', id)
       recordChange(document, { entityId: id, entityType: 'staircase', operation: 'created' })
       return { success: true, entityId: id, data: { feature, buildingId } }
     } else {
@@ -995,6 +999,8 @@ export const featureCreateHandler: CommandHandler = {
       if (!building.elevators) building.elevators = []
       building.elevators.push(feature)
       restoreFeatureTransitions(building, payload.verticalTransitions as VerticalTransition[] | undefined)
+      // Placed: connect to the nearest free elevator on the floor below / above.
+      autoLinkFeature(building, 'elevator', id)
       recordChange(document, { entityId: id, entityType: 'elevator', operation: 'created' })
       return { success: true, entityId: id, data: { feature, buildingId } }
     }
@@ -1129,6 +1135,8 @@ export const featureDeleteHandler: CommandHandler = {
     const { building, feature, featureType } = ctx
     const oldFeature = JSON.parse(JSON.stringify(feature))
     const verticalTransitions = cleanupFeatureRoutingReferences(building, feature.id)
+    // Its partners on the floors below / above lose their link to it (undo restores both from the snapshot).
+    clearFeatureLinks(building, featureType as FeatureKind, feature.id)
 
     if (featureType === 'staircase') {
       if (building.staircases) {
@@ -1156,18 +1164,9 @@ export const featureDeleteHandler: CommandHandler = {
     return { success: true, entityId: feature.id, data: { oldFeature, buildingId: building.id, featureType, verticalTransitions } }
 
   },
-  inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
-    const oldFeature = result.data?.oldFeature
-    if (!oldFeature) return null
-    return {
-      id: 'feature.create',
-      label: 'Undo Delete Feature',
-      payload: {
-        ...oldFeature,
-        featureType: result.data?.featureType,
-        verticalTransitions: result.data?.verticalTransitions as VerticalTransition[] | undefined,
-      },
-    }
+  inverse(_payload: Record<string, unknown>, _result: MutationResult): Command | null {
+    // Snapshot undo (2026-11-08): re-creating through feature.create lost the floor and the partners' links.
+    return null
   },
 }
 
@@ -1182,6 +1181,8 @@ export const featureReplaceHandler: CommandHandler = {
 
     const { building, feature, featureType: oldType } = ctx
     if (oldType === newType) return { success: false, error: `Feature is already of type ${newType}` }
+    // Links join the same kind only: a stair turned into a lift (or back) starts unconnected.
+    clearFeatureLinks(building, oldType as FeatureKind, feature.id)
 
     const oldFeature = JSON.parse(JSON.stringify(feature))
     const newId = genId(newType === 'staircase' ? 'stair' : 'elev')

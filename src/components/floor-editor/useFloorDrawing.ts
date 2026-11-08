@@ -631,7 +631,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           position: pc.position,
           rotation: pc.rotation,
           fromLevel: floor,
-          toLevel: floor + 1,
+          toLevel: floor, // one floor; floors connect through links (2026-11-08)
           drawing: { definitionId: 'elevator', properties: pc.properties },
         },
       })
@@ -821,7 +821,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           position: pc.position,
           rotation: pc.rotation,
           fromLevel: floor,
-          toLevel: floor + 1,
+          toLevel: floor, // one floor; floors connect through links (2026-11-08)
           drawing: { definitionId: 'stair', properties: pc.properties },
         },
       })
@@ -839,7 +839,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
           position: pc.position,
           rotation: pc.rotation,
           fromLevel: floor,
-          toLevel: floor + 1,
+          toLevel: floor, // one floor; floors connect through links (2026-11-08)
           drawing: { definitionId: 'elevator', properties: pc.properties },
         },
       })

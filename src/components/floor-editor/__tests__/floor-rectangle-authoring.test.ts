@@ -13,7 +13,7 @@ describe('production Floor rectangle authoring commands', () => {
 
   it.each([['stairs', 'staircase'], ['elevator', 'elevator']] as const)('builds %s footprint with vertical identity', (tool, featureType) => {
     expect(buildFloorRectangleCommand(tool, rectangle, { buildingId: 'b', floorId: 'f', floorLevel: 2, entityId: 'v' })).toEqual({
-      command: { id: 'feature.create', label: featureType === 'staircase' ? 'Create Staircase' : 'Create Elevator', payload: { buildingId: 'b', floor: 2, id: 'v', featureType, position: { x: 3, y: 3 }, rotation: 0, polygon: { points: rectangle.points }, fromLevel: 2, toLevel: 3 } },
+      command: { id: 'feature.create', label: featureType === 'staircase' ? 'Create Staircase' : 'Create Elevator', payload: { buildingId: 'b', floor: 2, id: 'v', featureType, position: { x: 3, y: 3 }, rotation: 0, polygon: { points: rectangle.points }, fromLevel: 2, toLevel: 2 } },
       selectedId: 'v-2',
     })
   })

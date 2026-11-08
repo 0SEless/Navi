@@ -55,7 +55,7 @@ export function buildFloorRectangleCommand(tool: FloorRectangleTool, rectangle: 
       payload: {
         buildingId: context.buildingId, floor: context.floorLevel, id: context.entityId, featureType,
         position: rectangle.center, rotation: 0, polygon: { points: rectangle.points },
-        fromLevel: context.floorLevel, toLevel: context.floorLevel + 1,
+        fromLevel: context.floorLevel, toLevel: context.floorLevel, // one floor; floors connect through links (2026-11-08)
       },
     },
     selectedId: `${context.entityId}-${context.floorLevel}`,

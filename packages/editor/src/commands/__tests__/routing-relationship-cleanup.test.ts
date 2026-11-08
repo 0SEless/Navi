@@ -7,6 +7,11 @@ import { buildingDeleteHandler } from '../building-handlers'
 import { entranceDeleteHandler } from '../entrance-handlers'
 import { entityDeleteHandler } from '../entity-delete-handler'
 import { featureCreateHandler, featureDeleteHandler } from '../feature-handlers'
+import { CommandDispatcher } from '../dispatcher'
+import { CommandRegistry } from '../registry'
+import { DocumentEventBus } from '../../eventbus'
+import { HistoryStack } from '../../history'
+import { DocumentStore } from '../../context/document-store'
 import { floorDeleteHandler } from '../floor-handlers'
 import { roadDeleteHandler } from '../road-handlers'
 import { routeNodeDeleteHandler } from '../route-network-handlers'
@@ -200,12 +205,20 @@ describe('Phase 2 routing relationship cleanup', () => {
       connections: [{ floorId: 'f0', routeNodeId: 'node-a' }],
     }]
     const doc = document([b])
-    const deleted = featureDeleteHandler.execute(doc, { featureId: 'stair-a' })
-    const inverse = featureDeleteHandler.inverse?.({ featureId: 'stair-a' }, deleted)
-
-    expect(inverse).not.toBeNull()
-    expect(featureCreateHandler.execute(doc, inverse!.payload).success).toBe(true)
-    expect(b.verticalTransitions).toEqual([{
+    // Undo of a delete is an exact snapshot (2026-11-08): the stair, its links and its transitions come back verbatim.
+    const eventBus = new DocumentEventBus()
+    const registry = new CommandRegistry()
+    registry.register(featureCreateHandler)
+    registry.register(featureDeleteHandler)
+    const dispatcher = new CommandDispatcher(registry, doc, eventBus)
+    const history = new HistoryStack(dispatcher, doc, registry, 20, new DocumentStore(doc, eventBus))
+    dispatcher.addPreHook(history)
+    dispatcher.addPostHook(history)
+    expect(dispatcher.execute({ id: 'feature.delete', label: 'Delete', payload: { featureId: 'stair-a' } }).success).toBe(true)
+    expect(doc.buildings[0].verticalTransitions?.length ?? 0).toBe(0)
+    expect(history.undo()).toBe(true)
+    expect(doc.buildings[0].staircases?.map((s) => s.id)).toEqual(['stair-a'])
+    expect(doc.buildings[0].verticalTransitions).toEqual([{
       id: 'transition-a', featureId: 'stair-a', type: 'staircase',
       connections: [{ floorId: 'f0', routeNodeId: 'node-a' }],
     }])

@@ -73,6 +73,7 @@ import type { CampusDocument, Room, Hallway, LegacyStaircase, LegacyElevator, En
 import type { TracePath } from '@/types/nav-types'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
 import type { EditorContext } from './editor-context'
+import { featureLinkHandler, featureUnlinkHandler } from '../commands/feature-link-handlers'
 
 function computeCentroid(points: Array<{ lat: number; lng: number }>): { lat: number; lng: number } {
   let lat = 0, lng = 0
@@ -871,6 +872,8 @@ export function createEditorContext(
   registryCmd.register(parametricDeleteHandler)
   registryCmd.register(parametricUpdateHandler)
   registryCmd.register(featureCreateHandler)
+  registryCmd.register(featureLinkHandler)
+  registryCmd.register(featureUnlinkHandler)
   registryCmd.register(featureUpdateHandler)
   registryCmd.register(featureModeTransitionHandler)
   registryCmd.register(featureDeleteHandler)

@@ -59,3 +59,4 @@ export { featureLevelUpdateHandler, featureLevelCopyHandler } from './levels-han
 export { wallCreateHandler, wallUpdateHandler, wallDeleteHandler } from './wall-handlers'
 export { wallJunctionUpdateHandler } from './wall-junction-handlers'
 export { wallSplitHandler, wallSplitUndoHandler, wallCrossingSplitHandler, wallCrossingSplitUndoHandler, wallTJunctionSplitHandler, wallMergeHandler, wallMergeUndoHandler } from './wall-topology-handlers'
+export { featureLinkHandler, featureUnlinkHandler } from './feature-link-handlers'

@@ -6,6 +6,8 @@ import {
   deserializeDocument,
 } from '@navi/core'
 import { CommandDispatcher, CommandRegistry, DocumentEventBus } from '@navi/editor'
+import { HistoryStack } from '../history'
+import { DocumentStore } from '../context/document-store'
 import {
   featureCreateHandler,
   featureUpdateHandler,
@@ -120,6 +122,9 @@ describe('Studio Save/Reload Persistence & Feature Deletion', () => {
     registry.register(featureDeleteHandler)
     const eventBus = new DocumentEventBus()
     const dispatcher = new CommandDispatcher(registry, doc, eventBus)
+    const history = new HistoryStack(dispatcher, doc, registry, 20, new DocumentStore(doc, eventBus))
+    dispatcher.addPreHook(history)
+    dispatcher.addPostHook(history)
 
     // 1. Create staircase
     dispatcher.execute({
@@ -148,11 +153,8 @@ describe('Studio Save/Reload Persistence & Feature Deletion', () => {
     expect(deleteRes.success).toBe(true)
     expect(doc.buildings[0].staircases).toHaveLength(0)
 
-    // 3. Undo delete restores the staircase with polygon
-    const inverseCmd = featureDeleteHandler.inverse({ featureId: 'stair-delete-test-0' }, deleteRes)
-    expect(inverseCmd).toBeDefined()
-    const undoRes = dispatcher.execute(inverseCmd!)
-    expect(undoRes.success).toBe(true)
+    // 3. Undo delete restores the staircase with polygon (exact snapshot undo, 2026-11-08)
+    expect(history.undo()).toBe(true)
     expect(doc.buildings[0].staircases).toHaveLength(1)
     expect(doc.buildings[0].staircases![0].id).toBe('stair-delete-test')
   })
