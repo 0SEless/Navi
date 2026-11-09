@@ -2,7 +2,7 @@
 
 ## Status
 
-Design agreed in brainstorming on 2026-11-02. Waiting for owner review of this written spec before an implementation plan is written.
+Design agreed in brainstorming on 2026-11-02. Written spec approved by the owner on 2026-11-09; implementation plan: `docs/superpowers/plans/2026-11-09-navi-web-navigation.md`.
 
 Sub-project 3 of 4. Builds on the campus-only map from sub-project 2 (`2026-11-02-navi-terrain-2.5d-stairs-ramps-design.md`, Section 5).
 
