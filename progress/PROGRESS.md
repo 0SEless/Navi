@@ -3331,3 +3331,11 @@
 - Local ports after the restart: only the probe Postgres (55434) listens; :3119/:45678 (demo lane) down and not restored since 11-06; the owner's :3000 is also down - not touched, per the standing rule. Demo campuses in navi_savev2_test were wiped by the probe runs since 11-06; a restored demo lane needs a freshly seeded campus.
 - Handoff tidy-up: In-progress heading now points at what is actually next (owner testing on the preview, then the final branch review); one wrongly-duplicated "(newest)" label demoted to "(earlier)".
 - Next: owner's call - restore the :3119 demo lane (fresh seeded campus, announced) or leave it off while testing runs on the Vercel preview; then owner preview testing / final whole-branch review.
+
+## 2026-11-12 (session) - old ASU Ibajay map imported into Save v2 as ASU-IBAJAY
+- navi-development (scvgulusmutnzasmgysx) had been paused; restored with owner authorization. Its map-map-1-repe ("NAVI – ASU Ibajay Campus", published rev 32) is the owner's real map (~90% done).
+- One-time import (spec + plan 2026-11-12-navi-old-map-import-with-trial-terrain; code src/studio-v2/import/old-map + scripts/save-v2/import-old-map.ts, commits c81bb9a..c578532): old map + ONLY the terrain of trial campus map-map-5-0y27 -> new campus map-asu-ibajay "ASU-IBAJAY", commit 1, 151 parts (20 buildings, 28 floors, 26 roads, 35 junctions, 32 POIs, 8 terrain tiles). Dry run OK (0.58 MiB, terrain origin unchanged, 45% of boundary outside sculpted tiles = flat). Old project and trial campus verified unchanged.
+- Owner choices: no "imported" in the name; floor-plan images (17) skipped - walls/rooms kept.
+- Local settings file KEPT on purpose: .env.import.local (git-ignored) holds the navi-studio-v2 Transaction pooler URI with password; Vercel's copy is write-only. How to use: scripts/save-v2/README-import-env.md and `. scripts/save-v2/load-import-env.sh`.
+- Gates: import tests 26/26; tsc 0 errors in the new code. Final review by a fresh reviewer: Critical 0; 2 Important fixed (save size check, --actor owner check); 6 minors deferred (ledger .superpowers/sdd/2026-11-12-navi-old-map-import-with-trial-terrain).
+- Next: owner checks ASU-IBAJAY in Studio (Validate, terrain under buildings, entrance links, Preview before publishing), then publishes. Note: the trial campus is also named ASU-IBAJAY - use the id. Nothing pushed.
