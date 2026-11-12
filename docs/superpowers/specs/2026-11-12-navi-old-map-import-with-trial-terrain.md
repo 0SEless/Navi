@@ -94,7 +94,7 @@ Expected follow-up fixes (owner, in Studio, not part of this import):
 - Split error or unknown field: stop at the dry run; listed in the report.
 - Campus id already exists: stop; never overwrite.
 - Save returns `stale`, `zone_not_held` or any non-`ok` status: stop and print it. Because the save is a single commit, a failed save leaves no partial campus parts. An empty campus created just before a failed save is reported, so the owner can delete it in Studio.
-- Database connection details come from the existing Save v2 script setup (`scripts/save-v2/db-target.mjs`) and the Next env files. No key is printed or written to the report.
+- Save v2 is reached with `getStudioPool()` (`NAVI_STUDIO_DATABASE_URL`, `NAVI_STUDIO_ALLOWED_DB_REF=ztbnicoiwjghzttchqmp`); that pool refuses the protected Development project by design, so the old map is read with a separate supabase-js client doing `select` only. No key is printed or written to the report.
 
 ## Testing
 

@@ -49,3 +49,6 @@ graphify-out/
 
 # demo campus output
 /campus-output/
+
+# Old-map import exports (map data, never committed)
+scripts/save-v2/import-data/
