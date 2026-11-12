@@ -1,5 +1,5 @@
 import { STUDIO_SESSION_HEADER } from '@/studio-v2/parts/limits'
-import { zoneOf } from '@/studio-v2/parts/part-keys'
+import { zoneOf, type ZoneKey } from '@/studio-v2/parts/part-keys'
 import type { PartRecord } from '@/studio-v2/parts/split'
 import type { createStudioHandlers } from '@/studio-v2/server/handlers'
 
@@ -51,7 +51,7 @@ export async function applyImport(input: ApplyInput): Promise<ApplyResult> {
   if (!created.ok) return stop('create', created, false)
 
   const session = crypto.randomUUID()
-  const zones = [...new Set(parts.map((p) => zoneOf(p.key)).filter((z): z is string => z !== null))]
+  const zones = [...new Set(parts.map((p) => zoneOf(p.key)).filter((z): z is ZoneKey => z !== null))]
   try {
     const locked = await handlers.locks(post({ campusId, acquire: zones }, session))
     const lockBody = (await read(locked.clone())) as { denied?: unknown[] } | null

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dryRun, renderReport } from '../dry-run'
+import { campusSettings, dryRun, renderReport } from '../dry-run'
 import { oldMapFixture, trialTerrainFixture } from './fixture'
 
 describe('dryRun', () => {
@@ -33,6 +33,20 @@ describe('dryRun', () => {
     const { report } = dryRun(oldMapFixture(), trial, 'h')
     expect(report.ok).toBe(false)
     expect(report.problems.join('\n')).toContain('0_0')
+  })
+
+  it('stops on a part that the Studio content rules reject, naming the rule', () => {
+    const old = oldMapFixture()
+    old.document.panoramas = [{ id: 'pano-1' }]
+    const { report } = dryRun(old, trialTerrainFixture(), 'h')
+    expect(report.ok).toBe(false)
+    expect(report.problems.join('\n')).toMatch(/content rule .*campus/)
+  })
+
+  it('builds campus settings from the old campus map and they pass the settings rules', () => {
+    const old = oldMapFixture()
+    expect(campusSettings(old)).toEqual({ campusName: old.name, schoolName: old.schoolName, center: old.center, boundary: old.boundary })
+    expect(dryRun(old, trialTerrainFixture(), 'h').report.problems).toEqual([])
   })
 
   it('reports the share of boundary points outside the copied tiles', () => {

@@ -1,5 +1,6 @@
 import { decodeTile, tileIdOf, tileOfCell, toLocal, type CampusDocument } from '@navi/core'
 import { canonicalJson } from '@/studio-v2/parts/canonical'
+import { checkBinaryPart, checkPart, checkSettings, type PartIssue } from '@/studio-v2/parts/content-rules'
 import { joinParts } from '@/studio-v2/parts/join'
 import { splitDocument, type PartRecord } from '@/studio-v2/parts/split'
 import { buildImportDocument } from './build-document'
@@ -20,6 +21,15 @@ function comparable(doc: CampusDocument): string {
   delete copy.version
   delete copy._changeJournal
   return canonicalJson(copy)
+}
+
+/** The new campus settings, copied from the old campus map. */
+export function campusSettings(old: OldMapExport): Record<string, unknown> {
+  return { campusName: old.name, schoolName: old.schoolName, center: old.center, boundary: old.boundary }
+}
+
+function describeIssue(issue: PartIssue): string {
+  return `content rule ${issue.code} on ${issue.key}${issue.path ? ` at ${issue.path}` : ''}: ${issue.message}`
 }
 
 /** Builds the import document and checks it, writing nothing. */
@@ -54,9 +64,17 @@ export function dryRun(
       editorVersion: source.metadata?.editorVersion,
     })
     if (comparable(joined) !== comparable(doc)) problems.push('round trip: joining the parts does not give back the built document')
+    for (const part of parts) {
+      const issues = part.contentBase64 !== undefined
+        ? checkBinaryPart(part.key, Buffer.from(part.contentBase64, 'base64').byteLength)
+        : checkPart(part)
+      problems.push(...issues.map(describeIssue))
+    }
   } catch (error) {
     problems.push(`split: ${(error as Error).message}`)
   }
+
+  problems.push(...checkSettings(campusSettings(old)).map(describeIssue))
 
   const originBefore = gridOf(trial.terrain)
   if (!originBefore) problems.push('trial terrain has no grid origin')
