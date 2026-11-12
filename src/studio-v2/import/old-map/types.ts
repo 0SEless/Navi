@@ -44,6 +44,8 @@ export interface DryRunReport {
   originAfter: TerrainGridOrigin | null
   /** Share (0–1) of boundary points that fall outside the copied terrain tiles. */
   boundaryOutsideTiles: number
+  /** Local-only floor fields (plan images) that Save v2 never stores; listed, not blocking. */
+  notStored: string[]
   partKeys: string[]
   exportHash: string
 }
