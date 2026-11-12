@@ -46,6 +46,8 @@ export interface DryRunReport {
   boundaryOutsideTiles: number
   /** Local-only floor fields (plan images) that Save v2 never stores; listed, not blocking. */
   notStored: string[]
+  /** Size of the single save request (changes plus a margin for the other fields). */
+  saveBodyBytes: number
   partKeys: string[]
   exportHash: string
 }

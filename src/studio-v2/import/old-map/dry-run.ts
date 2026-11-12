@@ -3,7 +3,12 @@ import { canonicalJson } from '@/studio-v2/parts/canonical'
 import { checkBinaryPart, checkPart, checkSettings, type PartIssue } from '@/studio-v2/parts/content-rules'
 import { joinParts } from '@/studio-v2/parts/join'
 import { splitDocument, type PartRecord } from '@/studio-v2/parts/split'
+import { STUDIO_BODY_MAX_BYTES } from '@/studio-v2/parts/limits'
+import { saveChanges } from './apply'
 import { buildImportDocument } from './build-document'
+
+/** Room for the save body's other fields (campusId, mutationId, baseCommit, message). */
+const SAVE_BODY_ENVELOPE_BYTES = 1024
 import type { DryRunReport, OldMapExport, TerrainGridOrigin, TrialTerrainExport } from './types'
 
 type AnyRecord = Record<string, any>
@@ -76,6 +81,12 @@ export function dryRun(
 
   problems.push(...checkSettings(campusSettings(old)).map(describeIssue))
 
+  // The import is one save request; Studio rejects bodies over STUDIO_BODY_MAX_BYTES.
+  const saveBodyBytes = Buffer.byteLength(JSON.stringify({ changes: saveChanges(parts) }), 'utf8') + SAVE_BODY_ENVELOPE_BYTES
+  if (saveBodyBytes > STUDIO_BODY_MAX_BYTES) {
+    problems.push(`save request is ${saveBodyBytes} bytes; Studio accepts at most ${STUDIO_BODY_MAX_BYTES} in one save`)
+  }
+
   const originBefore = gridOf(trial.terrain)
   if (!originBefore) problems.push('trial terrain has no grid origin')
   const terrainPart = parts.find((p) => p.key === 'terrain')
@@ -110,6 +121,7 @@ export function dryRun(
     originAfter,
     boundaryOutsideTiles: boundary.length === 0 ? 0 : outside / boundary.length,
     notStored,
+    saveBodyBytes,
     partKeys: parts.map((p) => p.key),
     exportHash,
   }
@@ -132,6 +144,7 @@ export function renderReport(report: DryRunReport): string {
     `- Road junctions: ${c.junctions}`,
     `- Places (POIs): ${c.pois}`,
     `- Terrain tiles: ${c.terrainTiles}`,
+    `- Save request size: ${(report.saveBodyBytes / 1024 / 1024).toFixed(2)} MiB (limit 4 MiB)`,
     '',
     '## Terrain origin',
     `- Trial campus: ${report.originBefore.originLat}, ${report.originBefore.originLng}`,

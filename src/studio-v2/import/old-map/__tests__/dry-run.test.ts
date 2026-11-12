@@ -49,6 +49,20 @@ describe('dryRun', () => {
     expect(dryRun(old, trialTerrainFixture(), 'h').report.problems).toEqual([])
   })
 
+  it('measures the single save request and stops when it is over the 4 MiB body limit', () => {
+    const small = dryRun(oldMapFixture(), trialTerrainFixture(), 'h').report
+    expect(small.saveBodyBytes).toBeGreaterThan(0)
+    expect(small.saveBodyBytes).toBeLessThan(4 * 1024 * 1024)
+
+    const old = oldMapFixture()
+    const poi = (old.document.pois as any[])[0]
+    old.document.pois = [0, 1, 2].map((i) => ({ ...poi, id: `big-${i}`, description: 'x'.repeat(1_500_000) }))
+    const { report } = dryRun(old, trialTerrainFixture(), 'h')
+    expect(report.saveBodyBytes).toBeGreaterThan(4 * 1024 * 1024)
+    expect(report.ok).toBe(false)
+    expect(report.problems.join('\n')).toContain('save request')
+  })
+
   it('reports the share of boundary points outside the copied tiles', () => {
     expect(dryRun(oldMapFixture(), trialTerrainFixture(), 'h').report.boundaryOutsideTiles).toBeCloseTo(0.4)
   })

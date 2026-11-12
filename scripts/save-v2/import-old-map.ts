@@ -12,7 +12,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
-import { applyImport } from '../../src/studio-v2/import/old-map/apply'
+import { applyImport, ownerActorProblem } from '../../src/studio-v2/import/old-map/apply'
 import { campusSettings, dryRun, renderReport } from '../../src/studio-v2/import/old-map/dry-run'
 import { exportHash, readOldMap, readTrialTerrain } from '../../src/studio-v2/import/old-map/read-sources'
 import type { DryRunReport, OldMapExport, TrialTerrainExport } from '../../src/studio-v2/import/old-map/types'
@@ -83,6 +83,9 @@ async function runApply(args: string[]): Promise<number> {
   const { old, trial, hash } = await readExports()
   if (!saved.ok) throw new Error('The dry-run report is not OK: fix its problems first.')
   if (saved.exportHash !== hash) throw new Error('The export files changed since the dry run: run dry-run again.')
+  const members = JSON.parse(readFileSync(MEMBERS_FILE, 'utf8')) as Array<{ user_id: string; role: string }>
+  const actorProblem = ownerActorProblem(actor, members)
+  if (actorProblem) throw new Error(actorProblem)
 
   const { report, parts } = dryRun(old, trial, hash)
   if (!report.ok) throw new Error('The dry run no longer passes: run dry-run again.')

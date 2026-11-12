@@ -19,6 +19,22 @@ export interface ApplyInput {
   message: string
 }
 
+/** The save changes for a brand-new campus: tiles as put-bin, everything else as put. */
+export function saveChanges(parts: PartRecord[]) {
+  return parts.map((p) =>
+    p.contentBase64 !== undefined
+      ? { partKey: p.key, expectedVersion: 0, op: 'put-bin', contentBase64: p.contentBase64 }
+      : { partKey: p.key, expectedVersion: 0, op: 'put', content: p.content, sortKey: p.sortKey },
+  )
+}
+
+/** null when `actor` owns the trial campus; otherwise why it cannot be used. */
+export function ownerActorProblem(actor: string, members: Array<{ user_id: string; role: string }>): string | null {
+  return members.some((m) => m.user_id === actor && m.role === 'owner')
+    ? null
+    : `--actor ${actor} is not an owner of the trial campus (see trial-members.json); refusing to create a campus nobody can edit.`
+}
+
 function post(body: unknown, session?: string): Request {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (session) headers[STUDIO_SESSION_HEADER] = session
@@ -57,11 +73,7 @@ export async function applyImport(input: ApplyInput): Promise<ApplyResult> {
     const lockBody = (await read(locked.clone())) as { denied?: unknown[] } | null
     if (!locked.ok || (lockBody?.denied?.length ?? 0) > 0) return stop('locks', locked, true)
 
-    const changes = parts.map((p) =>
-      p.contentBase64 !== undefined
-        ? { partKey: p.key, expectedVersion: 0, op: 'put-bin', contentBase64: p.contentBase64 }
-        : { partKey: p.key, expectedVersion: 0, op: 'put', content: p.content, sortKey: p.sortKey },
-    )
+    const changes = saveChanges(parts)
     const saved = await handlers.save(
       post({ campusId, mutationId: crypto.randomUUID(), baseCommit: 0, message: input.message, changes }, session),
     )

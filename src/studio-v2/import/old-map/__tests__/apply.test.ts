@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { createStudioHandlers, type VerifiedPrincipalResult } from '@/studio-v2/server/handlers'
 import type { StudioRepo } from '@/studio-v2/server/studio-repo'
-import { applyImport } from '../apply'
+import { applyImport, ownerActorProblem } from '../apply'
 import { dryRun } from '../dry-run'
 import { oldMapFixture, trialTerrainFixture } from './fixture'
 
@@ -70,6 +70,17 @@ function setup() {
   const input = { handlers, campusId: CAMPUS, name: 'ASU Ibajay (imported)', settings: { campusName: 'NAVI – ASU Ibajay Campus' }, parts, message: MESSAGE }
   return { memory, parts, input }
 }
+
+describe('ownerActorProblem', () => {
+  const members = [{ user_id: 'owner-1', role: 'owner' }, { user_id: 'editor-2', role: 'editor' }]
+  it('accepts an id that owns the trial campus', () => {
+    expect(ownerActorProblem('owner-1', members)).toBeNull()
+  })
+  it('rejects a mistyped or non-owner id, naming it', () => {
+    expect(ownerActorProblem('owner-l', members)).toContain('owner-l')
+    expect(ownerActorProblem('editor-2', members)).toContain('editor-2')
+  })
+})
 
 describe('applyImport', () => {
   it('creates the campus, saves all parts in one save, releases zones, and reads back the same keys', async () => {
