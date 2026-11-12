@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CONNECTIVITY_CONTRACT_VERSION } from '@navi/core'
 import { buildImportDocument } from '../build-document'
 import { oldMapFixture, trialTerrainFixture } from './fixture'
 
@@ -25,8 +26,17 @@ describe('buildImportDocument', () => {
     expect(doc.roadJunctions).toEqual(old.document.roadJunctions)
     expect(doc.pois).toEqual(old.document.pois)
     expect(Object.keys(doc).sort()).toEqual(
-      [...Object.keys(old.document), 'boundary', 'terrain', 'terrainTiles'].sort(),
+      [...Object.keys(old.document), 'boundary', 'terrain', 'terrainTiles', 'connectivitySemanticsVersion'].sort(),
     )
+  })
+
+  it('stamps the Save v2 campus format like the campus wizard, so the editor does not rebuild it (and drop terrain) on open', () => {
+    const old = oldMapFixture()
+    old.document.schemaVersion = 2
+    delete old.document.connectivitySemanticsVersion
+    const doc = buildImportDocument(old, trialTerrainFixture())
+    expect(doc.connectivitySemanticsVersion).toBe(CONNECTIVITY_CONTRACT_VERSION)
+    expect(doc.schemaVersion).toBe(1)
   })
 
   it('does not mutate its inputs', () => {
