@@ -12,7 +12,7 @@ Written by Claude for Codex. Read this whole file before acting. Work in `D:\COD
 
 ## Current state
 
-- **Local Studio is running** at `http://localhost:3001`, from this worktree.
+- **Local Studio is running** at `http://localhost:3001`, from this worktree, in its **own PowerShell window**, independent of Claude. The memory watchdog runs in a second, minimized PowerShell window and logs to `scripts/save-v2/import-data/watchdog.log`. Both scripts are kept (git-ignored) in `scripts/save-v2/import-data/`: `start-savev2-local.ps1` and `watchdog-savev2.ps1`. To restart: `powershell -NoExit -ExecutionPolicy Bypass -File scripts\save-v2\import-data\start-savev2-local.ps1`.
   - It was started by `C:\Users\ADMINI~1\AppData\Local\Temp\claude\8e5ebb08636ed23f\08959897-4712-4faf-9cf6-dd65d5bde6a3\scratchpad\start-savev2-local.ps1`. That file is a temporary copy; recreate it from the "Start the local server" section below if it's gone.
   - It loads `NAVI_STUDIO_DATABASE_URL` from `.env.import.local` and sets `NAVI_STUDIO_ALLOWED_DB_REF=ztbnicoiwjghzttchqmp`, `NEXT_PUBLIC_NAVI_SAVE_V2=1`, `NAVI_SAVE_V2_PUBLIC_READ=1`, `NEXT_PUBLIC_MOCK_AUTH=true`, `NEXT_PUBLIC_SUPABASE_URL` and the public anon key, `NODE_OPTIONS=--max-old-space-size=3072` and `NODE_USE_SYSTEM_CA=1`.
   - **`NODE_USE_SYSTEM_CA=1` is required.** Without it the database connection fails with `SELF_SIGNED_CERT_IN_CHAIN`.
