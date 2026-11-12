@@ -22,8 +22,8 @@ import { createStudioRepo } from '../../src/studio-v2/server/studio-repo'
 
 const OLD_CAMPUS = 'map-map-1-repe'
 const TRIAL_CAMPUS = 'map-map-5-0y27'
-const TARGET_CAMPUS = 'map-asu-ibajay-imported'
-const TARGET_NAME = 'ASU Ibajay (imported)'
+const TARGET_CAMPUS = 'map-asu-ibajay'
+const TARGET_NAME = 'ASU-IBAJAY'
 const MESSAGE = 'Import old ASU Ibajay map (map-map-1-repe) with trial terrain'
 
 const DIR = path.join('scripts', 'save-v2', 'import-data')
