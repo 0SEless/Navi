@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 
@@ -17,18 +17,21 @@ export interface BoundaryLayerProps {
 
 export function BoundaryLayer({ map, boundary }: BoundaryLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes so the data effect runs even if setup happened outside React.
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
 
   useEffect(() => {
     if (!map || initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -46,7 +49,7 @@ export function BoundaryLayer({ map, boundary }: BoundaryLayerProps) {
         paint: { 'line-color': '#94A3B8', 'line-width': 2, 'line-dasharray': [4, 2], 'line-opacity': 0.5 },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -92,7 +95,7 @@ export function BoundaryLayer({ map, boundary }: BoundaryLayerProps) {
         properties: {},
       }],
     })
-  }, [map, boundary])
+  }, [map, boundary, readyTick])
 
   return null
 }

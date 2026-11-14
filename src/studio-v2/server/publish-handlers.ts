@@ -113,7 +113,7 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
    * Publish's build of a saved commit — parts → join → route gate (R33) → compile → visitor package → validate —
    * with no writes. Returns the artifacts, or the refusal response. Shared by publish and preview (2026-11-07).
    */
-  async function buildCommit(campusId: string, commitNo: number): Promise<PublishArtifactsPayload | Response> {
+  async function buildCommit(campusId: string, commitNo: number, relaxed = false): Promise<PublishArtifactsPayload | Response> {
     const atCommit = await repo.partsAtCommit(campusId, commitNo)
     switch (atCommit.status) {
       case 'not_found':
@@ -144,7 +144,8 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
 
     // R33: PublishService's hard gate. Route errors block publishing, even forced.
     const routeErrors = validateRouteNetwork(document, 'publish').filter((issue) => issue.severity === 'error')
-    if (routeErrors.length > 0) return json(422, { code: 'ROUTE_INVALID', diagnostics: routeErrors })
+    // Relaxed (local preview only): route problems are reported, not blocking. Publish never passes relaxed.
+    if (routeErrors.length > 0 && !relaxed) return json(422, { code: 'ROUTE_INVALID', diagnostics: routeErrors })
 
     let compiled: ReturnType<CampusCompiler['compileV2']>
     try {
@@ -190,7 +191,7 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
       terrainAreas: artifacts.terrainAreas,
       terrainVerticalDatum: artifacts.terrainVerticalDatum,
     })
-    if (!validation.valid) {
+    if (!validation.valid && !relaxed) {
       return json(422, { code: 'ARTIFACT_INVALID', diagnostics: validation.errors, warnings: validation.warnings })
     }
     return artifacts
@@ -209,7 +210,9 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
           if (role === null) return json(404, { code: 'CAMPUS_NOT_FOUND' })
           if (role !== 'owner' && role !== 'editor') return json(403, { code: 'FORBIDDEN' })
         }
-        const built = await buildCommit(campusId, commitNo)
+        // "Show anyway": never on a production build, whatever the request says.
+        const relaxed = body.relaxed === true && process.env.NODE_ENV !== 'production'
+        const built = await buildCommit(campusId, commitNo, relaxed)
         if (built instanceof Response) return built
         const blob = buildArtifactsBlob(built, campusId, commitNo, commitNo)
         return Response.json({ commitNo, campus: publicCampusPayload(campusId, blob as Record<string, unknown>) }, { status: 200, headers: { 'cache-control': 'no-store' } })

@@ -47,5 +47,32 @@ export function FloorArchitectureLayer({ map, architecture }: FloorArchitectureL
       for (const kind of kinds) { const id = `floor-architecture-${kind}`; if (map.getSource(id)) map.removeSource(id) }
     }
   }, [map, architecture])
+
+  // While a floor of a building is shown, open that building up: hide its shell and its terrain block,
+  // so the walls, doors, windows and stairs inside are visible. Other buildings stay as they are.
+  const openBuildingId = architecture?.buildingId
+  useEffect(() => {
+    if (!map || !openBuildingId) return
+    const apply = () => {
+      try {
+        if (map.getLayer(SHELL_LAYER)) map.setFilter(SHELL_LAYER, ['!=', ['get', 'id'], openBuildingId])
+        if (map.getLayer(SLAB_LAYER)) map.setFilter(SLAB_LAYER, ['!=', ['get', 'buildingId'], openBuildingId])
+      } catch { /* map removed */ }
+    }
+    apply()
+    // The shell and site layers may be created after this one (terrain campuses load late).
+    map.on('sourcedata', apply)
+    return () => {
+      map.off('sourcedata', apply)
+      try {
+        if (map.getLayer(SHELL_LAYER)) map.setFilter(SHELL_LAYER, null)
+        if (map.getLayer(SLAB_LAYER)) map.setFilter(SLAB_LAYER, null)
+      } catch { /* map removed */ }
+    }
+  }, [map, openBuildingId])
   return null
 }
+
+/** The translucent building shell (BuildingLayer) and the solid terrain block (SiteLayers). */
+const SHELL_LAYER = 'buildings-extrusion'
+const SLAB_LAYER = 'site-slabs'

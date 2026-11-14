@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { WallRenderData, OpeningRenderData } from '@/components/map/NavigationRenderModel'
 import { cssVar } from '@/components/map/mapTheme'
@@ -26,6 +26,8 @@ export interface WallLayerProps {
 
 // ── Helpers ────────────────────────────────────────────────────
 
+const METRES_PER_DEGREE = 111320
+
 /**
  * Build a rectangular polygon for a wall segment from start to end.
  */
@@ -34,14 +36,16 @@ function wallSegmentPolygon(
   end: { lng: number; lat: number },
   thickness: number,
 ): [number, number][] {
-  const dx = end.lng - start.lng
-  const dy = end.lat - start.lat
+  // Work in metres around the wall (thickness is metres), then convert the offset back to degrees.
+  const perLat = METRES_PER_DEGREE, perLng = METRES_PER_DEGREE * Math.cos(start.lat * Math.PI / 180)
+  const dx = (end.lng - start.lng) * perLng
+  const dy = (end.lat - start.lat) * perLat
   const len = Math.sqrt(dx * dx + dy * dy)
-  if (len === 0) return []
+  if (len === 0 || !Number.isFinite(len)) return []
 
   const halfThick = thickness / 2
-  const nx = (-dy / len) * halfThick
-  const ny = (dx / len) * halfThick
+  const nx = ((-dy / len) * halfThick) / perLng
+  const ny = ((dx / len) * halfThick) / perLat
 
   return [
     [start.lng + nx, start.lat + ny],
@@ -73,10 +77,11 @@ function wallToSegmentPolygons(
   const wallLenDeg = Math.sqrt(dx * dx + dy * dy)
   if (wallLenDeg < 1e-10) return []
 
-  // Wall length in meters (same approximation as wallToPolygon)
+  // Wall length in metres (longitude degrees shrink with latitude)
   const wallLenM = Math.sqrt(
-    (end.lng - start.lng) ** 2 + (end.lat - start.lat) ** 2
-  ) * 111320
+    ((end.lng - start.lng) * METRES_PER_DEGREE * Math.cos(start.lat * Math.PI / 180)) ** 2
+    + ((end.lat - start.lat) * METRES_PER_DEGREE) ** 2,
+  )
 
   // Conversion factor: meters → degrees along this wall
   const mToDeg = wallLenDeg / wallLenM
@@ -191,20 +196,24 @@ export function WallLayer({
   indoorContext,
 }: WallLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes, so the data effect below runs even if setup happened
+  // outside React (a late 'load'/'sourcedata' event while terrain tiles keep the style loading).
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
   const hasPopulatedRef = useRef(false)
 
   useEffect(() => {
     if (!map) return
     if (initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -233,7 +242,7 @@ export function WallLayer({
         },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -307,7 +316,7 @@ export function WallLayer({
   useEffect(() => {
     if (!map || !initializedRef.current || hasPopulatedRef.current) return
     setData()
-  }, [map, walls, openings, indoorContext])
+  }, [map, walls, openings, indoorContext, readyTick])
 
   return null
 }

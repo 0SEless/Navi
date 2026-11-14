@@ -432,6 +432,24 @@ describe('route-network hard gate (R33)', () => {
     expect(repo.recordPublication).not.toHaveBeenCalled()
   })
 
+  it('local "show anyway" preview (relaxed) is not stopped by route problems; nothing is recorded', async () => {
+    const repo = withParts(danglingEntranceId())
+    const { handlers } = setup(owner, repo)
+    const response = await handlers.preview(post({ campusId: 'asu-ibajay', commitNo: 7, relaxed: true }))
+    expect((await bodyOf(response)).code).not.toBe('ROUTE_INVALID')
+    expect(repo.recordPublication).not.toHaveBeenCalled()
+  })
+
+  it('relaxed is ignored by Publish and by production servers', async () => {
+    const repo = withParts(danglingEntranceId())
+    const { handlers } = setup(owner, repo)
+    expect((await bodyOf(await handlers.publish(post({ campusId: 'asu-ibajay', commitNo: 7, relaxed: true })))).code).toBe('ROUTE_INVALID')
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      expect((await bodyOf(await handlers.preview(post({ campusId: 'asu-ibajay', commitNo: 7, relaxed: true })))).code).toBe('ROUTE_INVALID')
+    } finally { vi.unstubAllEnvs() }
+  })
+
   it('publish without terrain omits site', async () => {
     const doc = fixtureFull()
     delete doc.boundary

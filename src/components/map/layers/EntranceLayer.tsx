@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { EntranceRenderData } from '@/components/map/NavigationRenderModel'
 import { cssVar } from '@/components/map/mapTheme'
@@ -15,18 +15,21 @@ export interface EntranceLayerProps {
 
 export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes so the data effect runs even if setup happened outside React.
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
 
   useEffect(() => {
     if (!map || initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -49,7 +52,7 @@ export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
         },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -84,7 +87,7 @@ export function EntranceLayer({ map, entrances }: EntranceLayerProps) {
     }))
 
     src.setData({ type: 'FeatureCollection', features })
-  }, [map, entrances])
+  }, [map, entrances, readyTick])
 
   return null
 }

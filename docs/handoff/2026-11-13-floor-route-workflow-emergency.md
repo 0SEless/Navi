@@ -103,3 +103,15 @@ Final review done (fresh reviewer): 3 fixes applied with tests (legacy "open" do
 
 ## Committed 2026-11-14
 Owner approved "all work, no scratch": commit 2e7d847 on feat/save-v2 (225 files; not pushed). Left uncommitted: .superpowers/brainstorm/ and test-results/p13-connects-down.png. Includes the door-disconnect junction fix. Pre-existing failures still open: 9 compiler integration tests (fixture HALLWAY_DISCONNECTED) and the navigate dev-simulator panel test.
+
+## NAVI Web check — 2026-11-14 (Claude, local Preview of map-map-1-375k save #13, read-only)
+Pushed f98f666; Vercel preview READY: https://navi-next-git-feat-save-v2-navi01.vercel.app
+Findings (to fix):
+1. BLOCKER: on any campus with a published site/terrain, every app layer (buildings, rooms, walls, doors, stairs, entrances, POIs) stays EMPTY. Map style stays "loading" (terrain tiles), layers init later from a 'sourcedata' event, but nothing pushes their data afterwards (setData only runs from React effects before init). Seen live: source 'buildings' 0 features, site-slabs 5. Effects: no buildings in 2D, buildings not tappable, no info sheet, no indoor view, no floor selector. 11 layers share the pattern (src/components/map/layers/*Layer.tsx, map.on('sourcedata', init)).
+2. Indoor 2.5D: FloorArchitectureLayer only shows after a building is tapped AND the map is tilted; the building's opaque site slab (site-slabs, opacity 1) and the translucent shell (buildings-extrusion 0.55) stay full height, so the interior would be hidden. Needs: hide/cut the selected building's slab + shell to the viewed floor when indoor.
+3. Indoor turns on only by tapping a building, not by zooming in.
+4. Preview opens framed on the old boundary box (empty area); buildings sit outside it.
+5. Visitor app is empty until a campus is published ("Welcome to Your campus", no name); the landing page "/" shows a fallback "ASU Main Campus, Tempe" text and an empty map card.
+Fixed 2026-11-14 (after the check above): (1) all 11 NAVI Web layers now push their data after a late setup (readyTick); (2) the building you are inside opens up (its shell and terrain block are filtered out while its floor is shown); RouteLine teardown no longer crashes on a removed map; flat wall layer used metres as degrees (walls were ~16 km thick) — fixed. Local "show anyway" Preview: /studio/<id>/preview?commit=N&relaxed=1 (dev servers only; Publish unchanged). ASU save #7 shows: 20 buildings, terrain, 26 roads, Computer Science GF in 2.5D.
+ASU publish blockers found via relaxed preview: (a) ROUTE_INVALID — the 2 CS GF entrances have no outdoor route assignment; (b) ARTIFACT_INVALID — 215 doors carry a roomId that is not emitted as a room component (imported data). The loose-roads compile error no longer appears.
+Older test failures seen (not from today): publish.test "a commit whose parts differ…" expects no buildings (outdated by 6d18d43); StudioWorkspace/validation-workspace mocks lack useWorkflow (8); HomeDashboard layout (2); navigate dev panel (1); compiler fixture (9).

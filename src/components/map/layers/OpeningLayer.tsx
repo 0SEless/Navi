@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { OpeningRenderData, WallRenderData } from '@/components/map/NavigationRenderModel'
 import { cssVar } from '@/components/map/mapTheme'
@@ -155,20 +155,24 @@ export function OpeningLayer({
   indoorContext,
 }: OpeningLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes, so the data effect below runs even if setup happened
+  // outside React (a late 'load'/'sourcedata' event while terrain tiles keep the style loading).
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
   const hasPopulatedRef = useRef(false)
 
   useEffect(() => {
     if (!map) return
     if (initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -247,7 +251,7 @@ export function OpeningLayer({
         },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -320,7 +324,7 @@ export function OpeningLayer({
   useEffect(() => {
     if (!map || !initializedRef.current || hasPopulatedRef.current) return
     setData()
-  }, [map, openings, walls, indoorContext])
+  }, [map, openings, walls, indoorContext, readyTick])
 
   return null
 }

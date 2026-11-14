@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { BuildingRenderData } from '@/components/map/NavigationRenderModel'
 
@@ -85,6 +85,10 @@ export function BuildingLayer({
   onBuildingClick,
 }: BuildingLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes, so the data effect below runs even if setup happened
+  // outside React (a late 'load'/'sourcedata' event while terrain tiles keep the style loading).
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
   // Track whether we've ever populated data, to handle late-arriving buildings
   const hasPopulatedRef = useRef(false)
 
@@ -93,14 +97,14 @@ export function BuildingLayer({
     if (!map) return
     if (initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -166,7 +170,7 @@ export function BuildingLayer({
         })
       }
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     // If style is already loaded, init immediately; otherwise wait
@@ -220,7 +224,7 @@ export function BuildingLayer({
     if (!map || !initializedRef.current || hasPopulatedRef.current) return
     setData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, buildings])
+  }, [map, buildings, readyTick])
 
   // Sync selection state
   const selectedBuildingRef = useRef<string | null>(null)

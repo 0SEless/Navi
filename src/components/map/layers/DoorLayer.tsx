@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import { MercatorCoordinate } from 'maplibre-gl'
 import type { DoorRenderData } from '@/components/map/NavigationRenderModel'
@@ -81,20 +81,24 @@ export function DoorLayer({
   indoorContext,
 }: DoorLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes, so the data effect below runs even if setup happened
+  // outside React (a late 'load'/'sourcedata' event while terrain tiles keep the style loading).
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
   const hasPopulatedRef = useRef(false)
 
   useEffect(() => {
     if (!map) return
     if (initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -117,7 +121,7 @@ export function DoorLayer({
         },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -178,7 +182,7 @@ export function DoorLayer({
   useEffect(() => {
     if (!map || !initializedRef.current || hasPopulatedRef.current) return
     setData()
-  }, [map, doors, indoorContext])
+  }, [map, doors, indoorContext, readyTick])
 
   // Click handler
   useEffect(() => {

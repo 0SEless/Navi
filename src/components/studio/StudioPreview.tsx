@@ -9,13 +9,13 @@ import { findRoute, parsePublicCampus } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
 
 export type PreviewResult = { ok: true; campus: unknown } | { ok: false; code: string; problems: string[] }
-export type PreviewLoad = (campusId: string, commitNo: number) => Promise<PreviewResult>
+export type PreviewLoad = (campusId: string, commitNo: number, relaxed?: boolean) => Promise<PreviewResult>
 
-export const loadPreview: PreviewLoad = async (campusId, commitNo) => {
+export const loadPreview: PreviewLoad = async (campusId, commitNo, relaxed = false) => {
   let response: Response
   try {
     response = await fetch('/api/studio/v2/preview', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ campusId, commitNo }), cache: 'no-store',
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ campusId, commitNo, ...(relaxed ? { relaxed: true } : {}) }), cache: 'no-store',
     })
   } catch {
     return { ok: false, code: 'NETWORK', problems: ['The preview could not be reached. Check the connection and try again.'] }
@@ -28,21 +28,22 @@ export const loadPreview: PreviewLoad = async (campusId, commitNo) => {
 
 const bar: React.CSSProperties = { padding: '8px 14px', background: 'var(--navi-warning-bg, #fef3c7)', color: 'var(--navi-text, #1f2937)', fontSize: 13, fontWeight: 600, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }
 
-export function StudioPreview({ campusId, commitNo, load = loadPreview }: { campusId: string; commitNo: number; load?: PreviewLoad }) {
+/** `relaxed`: local "show anyway" view — problems that would block publishing are ignored (dev servers only). */
+export function StudioPreview({ campusId, commitNo, relaxed = false, load = loadPreview }: { campusId: string; commitNo: number; relaxed?: boolean; load?: PreviewLoad }) {
   const [result, setResult] = useState<{ bundle: CampusBundle } | { problems: string[] } | null>(null)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
   useEffect(() => {
     let live = true
-    void load(campusId, commitNo).then((r) => {
+    void load(campusId, commitNo, relaxed).then((r) => {
       if (!live) return
       if (!r.ok) return setResult({ problems: r.problems })
       const parsed = parsePublicCampus(r.campus, campusId)
       setResult(parsed ? { bundle: parsed.bundle } : { problems: ['The preview did not contain this campus.'] })
     })
     return () => { live = false }
-  }, [campusId, commitNo, load])
+  }, [campusId, commitNo, relaxed, load])
 
   const bundle = result && 'bundle' in result ? result.bundle : null
   const places = useMemo(() => (bundle?.searchEntries ?? []).filter((e) => e.nodeId), [bundle])
@@ -58,6 +59,7 @@ export function StudioPreview({ campusId, commitNo, load = loadPreview }: { camp
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div role="status" style={bar}>
         <span>Preview — not published. Showing save #{commitNo}.</span>
+        {relaxed && <span style={{ color: '#b45309' }}>Shown anyway (local only): problems that would block publishing are ignored.</span>}
         {bundle && bundle.nodes.length === 0 && (
           <span style={{ fontWeight: 400 }}>No routes yet: directions won&apos;t work until you add roads and routes.</span>
         )}

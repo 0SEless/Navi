@@ -56,6 +56,7 @@ vi.mock('@/components/map/layers/OpeningLayer', () => ({ OpeningLayer: () => nul
 vi.mock('@/components/map/layers/EntranceLayer', () => ({ EntranceLayer: () => null }))
 vi.mock('@/components/map/layers/POILayer', () => ({ POILayer: () => null }))
 vi.mock('@/components/map/layers/TerrainLayer', () => ({ TerrainLayer: () => null }))
+vi.mock('@/components/map/layers/FloorArchitectureLayer', async (actual) => ({ ...(await actual<typeof import('@/components/map/layers/FloorArchitectureLayer')>()), FloorArchitectureLayer: () => null }))
 vi.mock('@/components/map/FloorSelector', () => ({ FloorSelector: () => null }))
 vi.mock('@/components/map/NavigationPositionMarker', () => ({ default: () => null }))
 

@@ -53,3 +53,19 @@ describe('canonical public architecture layer', () => {
     expect([...map.handlers.values()].every(set => set.size === 0)).toBe(true)
   })
 })
+
+describe('the building you are inside opens up', () => {
+  it('hides that building\'s shell and terrain block while its floor is shown, and restores them after', () => {
+    const map = mapFixture() as ReturnType<typeof mapFixture> & { filters: Record<string, unknown> }
+    map.filters = {}
+    ;(map as unknown as { setFilter: (id: string, f: unknown) => void }).setFilter = (id, f) => { map.filters[id] = f }
+    map.layers.set('buildings-extrusion', { paint: {} }); map.layers.set('site-slabs', { paint: {} })
+    map.style._loaded = true; (map as unknown as { isStyleLoaded: () => boolean }).isStyleLoaded = () => true
+    const view = render(<FloorArchitectureLayer map={map as never} architecture={record} />)
+    expect(map.filters['buildings-extrusion']).toEqual(['!=', ['get', 'id'], 'b'])
+    expect(map.filters['site-slabs']).toEqual(['!=', ['get', 'buildingId'], 'b'])
+    view.rerender(<FloorArchitectureLayer map={map as never} architecture={undefined} />)
+    expect(map.filters['buildings-extrusion']).toBeNull()
+    expect(map.filters['site-slabs']).toBeNull()
+  })
+})

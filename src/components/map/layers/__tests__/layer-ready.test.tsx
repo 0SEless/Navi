@@ -38,3 +38,44 @@ describe('map layers set up even when the style is still loading (Task 15)', () 
     expect(map.layers).toContain('buildings-fill')
   })
 })
+
+/** Same as loadingMap, but records every setData so we can see whether data ever reaches the source. */
+function recordingMap() {
+  const map = loadingMap() as ReturnType<typeof loadingMap> & { data: Map<string, { features: unknown[] }> }
+  const sources = new Map<string, { setData: (d: { features: unknown[] }) => void }>()
+  map.data = new Map()
+  map.getSource = (id: string) => sources.get(id) as never
+  map.addSource = (id: string, spec?: { data?: { features: unknown[] } }) => { sources.set(id, { setData: (d) => { map.data.set(id, d) } }); if (spec?.data) map.data.set(id, spec.data) }
+  return map
+}
+const square = (lat: number, lng: number) => [{ lat, lng }, { lat, lng: lng + 0.001 }, { lat: lat + 0.001, lng: lng + 0.001 }, { lat: lat + 0.001, lng }]
+
+describe('late-initialised layers receive their data (terrain campuses)', () => {
+  it('BuildingLayer pushes its buildings once it sets up after a sourcedata event', async () => {
+    const map = recordingMap()
+    render(<BuildingLayer map={map as never} buildings={[{ id: 'b', name: 'B', footprint: square(11, 122), color: '#888', height: 9, floors: 3, entrances: [], nodeIds: [] }] as never} />)
+    map.state.loaded = true
+    act(() => map.fire('sourcedata'))
+    expect(map.data.get('buildings')?.features).toHaveLength(1)
+  })
+
+  it('RoomLayer pushes its rooms once it sets up after a sourcedata event', async () => {
+    const { RoomLayer } = await import('../RoomLayer')
+    const map = recordingMap()
+    render(<RoomLayer map={map as never} rooms={[{ id: 'r', name: 'R', buildingId: 'b', floor: 0, polygon: square(11, 122), center: { lat: 11.0005, lng: 122.0005 } }]} indoorContext={{ active: true, buildingId: 'b', floorId: 0 }} />)
+    map.state.loaded = true
+    act(() => map.fire('sourcedata'))
+    expect(map.data.get('rooms')?.features).toHaveLength(1)
+  })
+})
+
+describe('late-initialised entrance and boundary layers receive their data', () => {
+  it('EntranceLayer pushes entrances after a late setup', async () => {
+    const { EntranceLayer } = await import('../EntranceLayer')
+    const map = recordingMap()
+    render(<EntranceLayer map={map as never} entrances={[{ id: 'e', label: 'E', position: { lat: 11, lng: 122 }, buildingId: 'b', floor: 0 }] as never} />)
+    map.state.loaded = true
+    act(() => map.fire('sourcedata'))
+    expect([...map.data.values()].some(d => d.features.length === 1)).toBe(true)
+  })
+})

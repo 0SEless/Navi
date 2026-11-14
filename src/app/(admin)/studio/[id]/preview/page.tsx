@@ -13,7 +13,10 @@ const StudioPreview = dynamic(() => import('@/components/studio/StudioPreview').
 /** Preview before publishing: the saved version (?commit=<save number>) as visitors will see it on NAVI Web. */
 export default function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const commit = Number(useSearchParams().get('commit'))
+  const search = useSearchParams()
+  const commit = Number(search.get('commit'))
+  // ?relaxed=1: local "show anyway" view (ignored by production servers).
+  const relaxed = search.get('relaxed') === '1'
   if (!Number.isInteger(commit) || commit < 1) {
     return (
       <div style={{ padding: 16, fontSize: 13 }}>
@@ -21,5 +24,5 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
       </div>
     )
   }
-  return <StudioPreview campusId={id} commitNo={commit} />
+  return <StudioPreview campusId={id} commitNo={commit} relaxed={relaxed} />
 }

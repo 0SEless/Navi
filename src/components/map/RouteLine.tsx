@@ -40,12 +40,16 @@ const ACTIVE_COLOR: ExpressionSpecification = [
   ROUTE_DIM,
 ]
 
-function removeRouteLayers(map: maplibregl.Map | null | undefined) {
+export function removeRouteLayers(map: maplibregl.Map | null | undefined) {
   if (!map) return
-  for (const id of LAYER_IDS) {
-    if (map.getLayer(id)) map.removeLayer(id)
+  try {
+    for (const id of LAYER_IDS) {
+      if (map.getLayer(id)) map.removeLayer(id)
+    }
+    if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+  } catch {
+    // The map was already removed (its style is gone, e.g. on page change); nothing left to clean up.
   }
-  if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
 }
 
 export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {

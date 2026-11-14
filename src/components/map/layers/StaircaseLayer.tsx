@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { StairRenderData } from '@/components/map/NavigationRenderModel'
 import { cssVar } from '@/components/map/mapTheme'
@@ -101,20 +101,24 @@ export function StaircaseLayer({
   indoorContext,
 }: StaircaseLayerProps) {
   const initializedRef = useRef(false)
+  // Bumped when setup completes, so the data effect below runs even if setup happened
+  // outside React (a late 'load'/'sourcedata' event while terrain tiles keep the style loading).
+  const [readyTick, setReadyTick] = useState(0)
+  const markInitialized = () => { if (!initializedRef.current) { initializedRef.current = true; setReadyTick(t => t + 1) } }
   const hasPopulatedRef = useRef(false)
 
   useEffect(() => {
     if (!map) return
     if (initializedRef.current) return
     if (map.getSource(SRC)) {
-      initializedRef.current = true
+      markInitialized()
       return
     }
 
     const init = () => {
       if (initializedRef.current) return
       if (map.getSource(SRC)) {
-        initializedRef.current = true
+        markInitialized()
         return
       }
 
@@ -194,7 +198,7 @@ export function StaircaseLayer({
         },
       })
 
-      initializedRef.current = true
+      markInitialized()
     }
 
     if (map.isStyleLoaded()) {
@@ -259,7 +263,7 @@ export function StaircaseLayer({
   useEffect(() => {
     if (!map || !initializedRef.current || hasPopulatedRef.current) return
     setData()
-  }, [map, stairs, indoorContext])
+  }, [map, stairs, indoorContext, readyTick])
 
   return null
 }
