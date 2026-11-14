@@ -71,6 +71,7 @@ export type RoadLinkIndex = Map<string, string>
  * vertical edge falls back to ROUTE_NETWORK_THRESHOLDS.verticalEdgeFallbackMeters.
  */
 export type ElevationIndex = ReadonlyMap<string, number>
+export interface AuthoredFloorPorts { doors: ReadonlyMap<string, string | null>; features: ReadonlyMap<string, string | null> }
 
 export function connectPrimitives(
   graph: PrimitiveGraph,
@@ -79,6 +80,7 @@ export function connectPrimitives(
   _maxRoadDistance = 50,
   elevations?: ElevationIndex,
   canonicalAccess?: CanonicalAccessResult,
+  authoredPorts?: AuthoredFloorPorts,
 ): ConnectResult {
   const edges: PrimitiveEdge[] = []
   const diagnostics: CompilerDiagnostic[] = []
@@ -107,7 +109,10 @@ export function connectPrimitives(
   for (const spec of doorSpecs) {
     if (canonicalAccess?.canonicalRoomIds.has(spec.roomId)) continue
 
-    const waypoint = findNearestWaypoint(spec.position, nodes, spec.floor, spec.buildingId)
+    const authoredDoor = authoredPorts?.doors.has(spec.doorId)
+    const targetDoorId = authoredPorts?.doors.get(spec.doorId)
+    if (authoredDoor && targetDoorId === null) continue
+    const waypoint = authoredDoor ? nodes.find(n=>n.id===targetDoorId && n.floor===spec.floor && n.buildingId===spec.buildingId) ?? null : findNearestWaypoint(spec.position, nodes, spec.floor, spec.buildingId)
     if (!waypoint) {
       diagnostics.push({
         severity: 'warning',
@@ -236,7 +241,10 @@ export function connectPrimitives(
     if (node.kind !== 'transition') continue
     const tNode = node as import('../types').TransitionNode
     if (canonicalAccess?.canonicalFeatureIds.has(tNode.connectorId)) continue
-    const nearest = findNearestWaypoint(node.position, nodes, node.floor, node.buildingId)
+    const portKey=JSON.stringify([node.buildingId,node.floor,node.source.entityId])
+    const authored=authoredPorts?.features.has(portKey),targetId=authoredPorts?.features.get(portKey)
+    if (authored && targetId === null) continue
+    const nearest = authored ? nodes.find(n=>n.id===targetId && n.floor===node.floor && n.buildingId===node.buildingId) ?? null : findNearestWaypoint(node.position, nodes, node.floor, node.buildingId)
     if (nearest) {
       edges.push({
         id: nextId('AE'),

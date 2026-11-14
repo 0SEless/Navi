@@ -1,4 +1,4 @@
-import type { LocalCoord } from '@navi/core'
+import type { LocalCoord, RoomDoor } from '@navi/core'
 
 export type FloorRectangleTool = 'door' | 'stairs' | 'elevator'
 
@@ -9,6 +9,8 @@ export interface FloorRectangle {
   width: number
   depth: number
   points: LocalCoord[]
+  rotation?: number
+  wallAttachment?: NonNullable<RoomDoor['wallAttachment']>
 }
 
 interface FloorRectangleEditTarget {
@@ -39,8 +41,9 @@ export function buildFloorRectangleCommand(tool: FloorRectangleTool, rectangle: 
           buildingId: context.buildingId, floorId: context.floorId,
           door: {
             id: context.entityId, name: 'Door', doorType: 'standard', position: rectangle.center,
-            width: rectangle.width, depth: rectangle.depth, rotation: 0,
-            geometry: { type: 'rectangle', min: rectangle.min, max: rectangle.max, rotation: 0 }, metadata: {},
+            width: rectangle.width, depth: rectangle.depth, rotation: rectangle.rotation ?? 0,
+            ...(rectangle.wallAttachment ? { wallAttachment: rectangle.wallAttachment } : {}),
+            geometry: { type: 'rectangle', min: rectangle.min, max: rectangle.max, rotation: rectangle.rotation ?? 0 }, metadata: {},
           },
         },
       },
@@ -62,7 +65,7 @@ export function buildFloorRectangleCommand(tool: FloorRectangleTool, rectangle: 
   }
 }
 
-export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget, points: LocalCoord[]) {
+export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget, points: LocalCoord[], options: { snapDoorToWall?: boolean } = {}) {
   if (points.length !== 4) throw new Error('A rectangle edit requires exactly four corners')
 
   const center = points.reduce(
@@ -74,6 +77,7 @@ export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget,
   const rotation = Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x)
 
   if (target.type === 'door') {
+    if (options.snapDoorToWall) return { id: 'door.update', label: 'Move door onto wall', payload: { doorId: target.id, snapToWall: true, patch: { position: center } } }
     return {
       id: 'door.update',
       label: 'Edit door',

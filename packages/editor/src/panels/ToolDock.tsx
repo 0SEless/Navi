@@ -275,6 +275,7 @@ export function buildInteriorToolGroups(
         makeTool('space', 'Room'),
         makeTool('wall', 'Wall'),
         makeTool('door', 'Door'),
+        makeTool('window', 'Window'),
       ].filter((tool): tool is ToolGroupItem => tool !== null)],
       ['connections', [
         makeTool('entrance', 'Entrance'),

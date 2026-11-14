@@ -25,6 +25,7 @@ describe('NavigationCameraControls', () => {
     expect(onModeChange).toHaveBeenCalledWith('POV')
 
     fireEvent.contextMenu(viewButton)
+    expect(screen.getByRole('menu')).toHaveTextContent('2.5D terrain and stairs view')
     expect(screen.getByRole('button', { name: 'Top view' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Follow view' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'POV view' })).toHaveAttribute('aria-pressed', 'false')

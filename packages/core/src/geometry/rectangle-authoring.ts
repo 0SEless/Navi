@@ -32,15 +32,17 @@ export function rotateRectangleFootprint(points: LocalCoord[], deltaRadians: num
   })
 }
 
-/** Anchored corner resize in the rectangle's current axes. */
-export function resizeRectangleFootprint(points: LocalCoord[], cornerIndex: number, dragged: LocalCoord): LocalCoord[] | null {
+/** Resize in the current axes. Doors can opt into thin footprints and an unchanged center. */
+export function resizeRectangleFootprint(points: LocalCoord[], cornerIndex: number, dragged: LocalCoord, options: { minimumDepth?: number; fixedCenter?: boolean } = {}): LocalCoord[] | null {
   if (points.length !== 4 || cornerIndex < 0 || cornerIndex > 3) return null
+  const minimumDepth = options.minimumDepth ?? 0.2
+  if (!Number.isFinite(minimumDepth) || minimumDepth <= 0 || ![...points, dragged].every(point => Number.isFinite(point.x) && Number.isFinite(point.y))) return null
   const origin = points[0]
   const edgeU = { x: points[1].x - origin.x, y: points[1].y - origin.y }
   const edgeV = { x: points[3].x - origin.x, y: points[3].y - origin.y }
   const lengthU = Math.hypot(edgeU.x, edgeU.y)
   const lengthV = Math.hypot(edgeV.x, edgeV.y)
-  if (lengthU < 0.2 || lengthV < 0.2) return null
+  if (lengthU < 0.2 || lengthV < minimumDepth) return null
   const u = { x: edgeU.x / lengthU, y: edgeU.y / lengthU }
   const v = { x: edgeV.x / lengthV, y: edgeV.y / lengthV }
   const project = (point: LocalCoord) => {
@@ -49,11 +51,14 @@ export function resizeRectangleFootprint(points: LocalCoord[], cornerIndex: numb
   }
   const anchor = project(points[(cornerIndex + 2) % 4])
   const target = project(dragged)
-  const minX = Math.min(anchor.x, target.x)
-  const maxX = Math.max(anchor.x, target.x)
-  const minY = Math.min(anchor.y, target.y)
-  const maxY = Math.max(anchor.y, target.y)
-  if (maxX - minX < 0.2 || maxY - minY < 0.2) return null
+  const center = project(rectangleCenter(points))
+  const halfWidth = Math.abs(target.x - center.x)
+  const halfDepth = Math.abs(target.y - center.y)
+  const minX = options.fixedCenter ? center.x - halfWidth : Math.min(anchor.x, target.x)
+  const maxX = options.fixedCenter ? center.x + halfWidth : Math.max(anchor.x, target.x)
+  const minY = options.fixedCenter ? center.y - halfDepth : Math.min(anchor.y, target.y)
+  const maxY = options.fixedCenter ? center.y + halfDepth : Math.max(anchor.y, target.y)
+  if (maxX - minX < 0.2 || maxY - minY < minimumDepth) return null
   const unproject = (x: number, y: number): LocalCoord => ({ x: origin.x + u.x * x + v.x * y, y: origin.y + u.y * x + v.y * y })
   return [unproject(minX, minY), unproject(maxX, minY), unproject(maxX, maxY), unproject(minX, maxY)]
 }

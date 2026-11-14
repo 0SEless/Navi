@@ -11,6 +11,7 @@ import { hallwayCreateHandler, hallwayDeleteHandler } from '../commands/hallway-
 import { staircaseCreateHandler, staircaseDeleteHandler } from '../commands/staircase-handlers'
 import { elevatorCreateHandler, elevatorDeleteHandler } from '../commands/elevator-handlers'
 import { entranceCreateHandler, entranceDeleteHandler } from '../commands/entrance-handlers'
+import { entranceOutdoorConnectHandler, floorRouteDrawHandler, floorConnectionsApplyHandler } from '../commands/floor-route-workflow'
 import { connectEntranceHandler, disconnectEntranceHandler } from '../commands/relationship-handlers'
 import { buildingCreateHandler, buildingDeleteHandler } from '../commands/building-handlers'
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
@@ -25,7 +26,7 @@ import { buildingSetGroundHandler, buildingsFollowGroundHandler } from '../comma
 import { structureHandlers } from '../commands/structure-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from '../commands/feature-handlers'
-import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingDeleteHandler } from '../commands/feature-handlers'
+import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler, doorApplyAppearanceToSimilarHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingUpdateHandler, openingDeleteHandler } from '../commands/feature-handlers'
 import { doorOwnershipReconcileHandler } from '../commands/door-ownership'
 import { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from '../commands/route-network-handlers'
 import { roomAccessAssignHandler, roomAccessUnassignHandler, entranceAccessAssignHandler, entranceAccessUnassignHandler } from '../commands/route-access-handlers'
@@ -846,6 +847,7 @@ export function createEditorContext(
   // P1-T6 (R2.4/D7): RoomDoor as an independent entity
   registryCmd.register(doorCreateHandler)
   registryCmd.register(doorUpdateHandler)
+  registryCmd.register(doorApplyAppearanceToSimilarHandler)
   registryCmd.register(doorDeleteHandler)
   registryCmd.register(doorDuplicateHandler)
   registryCmd.register(doorRouteConnectHandler)
@@ -853,6 +855,7 @@ export function createEditorContext(
   registryCmd.register(doorOwnershipReconcileHandler)
   // W7A: canonical wall-attached openings (doors + windows)
   registryCmd.register(openingCreateHandler)
+  registryCmd.register(openingUpdateHandler)
   registryCmd.register(openingDeleteHandler)
   // P1-T7 (R2.5/R8.1/D3): route network as a first-class entity
   registryCmd.register(routeNodeCreateHandler)
@@ -864,6 +867,9 @@ export function createEditorContext(
   registryCmd.register(roomAccessAssignHandler)
   registryCmd.register(roomAccessUnassignHandler)
   registryCmd.register(entranceAccessAssignHandler)
+  registryCmd.register(entranceOutdoorConnectHandler)
+  registryCmd.register(floorRouteDrawHandler)
+  registryCmd.register(floorConnectionsApplyHandler)
   registryCmd.register(entranceAccessUnassignHandler)
   // P1-T9 (R2.6/R8.4): per-floor feature placement (levels)
   registryCmd.register(featureLevelUpdateHandler)

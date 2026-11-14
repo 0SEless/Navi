@@ -3341,3 +3341,60 @@
 - Next: owner checks ASU-IBAJAY in Studio (Validate, terrain under buildings, entrance links, Preview before publishing), then publishes. Note: the trial campus is also named ASU-IBAJAY - use the id. Nothing pushed.
 - Studio check 2026-11-12 (local :3001, test login): campus opens, 20 buildings, floors/2.5D OK. Publish blocked by 5 loose roads (T-5-2vfn, T-1-43qo, T-1-s0k2, T-30-m7ld, T-1-z25a); 188 doors lack connectedToId; Tourism GF stair unlinked; trial's +200/-130 m spike came over in tile 1_0.
 - INCIDENT: the check's terrain "Done" saved commit 2, which dropped the terrain (import lacked connectivitySemanticsVersion -> editor rebuilt the doc from its graph on open). Repaired as commit 3 (owner approved; terrain = commit 1, verified visible). Importer fixed (9d76eed). Latent Studio risk: any campus without connectivitySemanticsVersion can lose terrain the same way.
+
+## 2026-11-12: Door validation repair (uncommitted)
+- Approved scope: repair duplicate issue IDs and modern/legacy door validation; read-only route-authoring/mobile UX review.
+- T1: 27 regression cases; 14 failed on original implementation, including duplicate React keys.
+- T2: new suite 27/27 passes; related run 195 passing tests across 13 files. Seven unchanged workspace-panel tests fail before exercising the rule because their mock omits useWorkflow. Targeted ESLint and diff whitespace checks pass.
+- Live check: Studio save #4 validates to 20 issues: 1 error, 18 warnings, 1 info. Existing Tourism staircase and graph-summary issues remain. No Save/Done/Publish, recovery/autofix, extra server, or editor locks.
+- Rollback checkpoint: scripts/save-v2/import-data/door-validation-checkpoint-20261112; includes original rule, baseline Git state and test logs. Independent review and final patch packaging pending.
+- UX review: source-based audit only; prioritize explicit cancel/error feedback, a continuous door-connection queue, larger route picking targets, adaptive phone panels, and clear public unmapped-room messaging. No UI implementation in this task.
+- Final verification: 201/201 focused tests pass across 13 files; targeted ESLint and diff whitespace checks pass. Independent review's two Important findings fixed with five RED-to-GREEN cases (canonical semantic room identity and malformed legacy destinations). Added an engine-level route-edge invalidation regression. Final new suite: 33 cases. No remaining review finding.
+- Ruling: use the existing core collectCanonicalRoomIds helper rather than invent a semantic ID fallback. Explicit malformed legacy destination values remain errors; only genuinely absent/unassigned destinations become mapping warnings.
+- UX finding scope: source-based mobile-web/Studio audit, not a phone emulator or native app test. UI improvements and compiler/export repair remain proposals, not implemented here.
+- Final task patch and guarded rollback script retained in the ignored checkpoint. HEAD/index unchanged; saved map remains #4 with 151 parts.
+
+## 2026-11-13: Approved direct 2.5D floor architecture
+- Added wall-face window placement/move/resize, whole-wall height dragging, precise changed-only window inspector and built-in Open/Fixed/Two-pane styles. New windows default fixed; legacy absence stays open. Appearance survives commands, serialization, parts, compiler and runtime conversion.
+- Verification: 14 files / 170 focused tests and one explicit compiler-retention test passed, one worker/512 MB. Independent final source review approved with no remaining material findings. Real browser completed full unsaved workflow and second camera bearing with zero page errors; test save12 / nine part checksums unchanged, own locks released.
+- Prevented: ground-plane projection misuse, off-wall drift, stale host/selection/projection commits, occluded handles, lock-loss editing, optional-field precision loss, strict forward validation breaking inverse restoration, and renderer-side document writes.
+- Decisions: optional flat windowAppearance enum; old absence remains open. No redundant post-design approval gate after explicit implement approval. Existing floor datum stays zero. No commits, staging, saved-map edits, public stacked architecture, ASU Preview repair or benchmark.
+- Handoff: docs/handoff/2026-11-13-direct-25d-architecture.md. Byte checkpoint: scripts/save-v2/import-data/direct-25d-architecture-20261113. Older checkpoints preserved.
+
+## 2026-11-13: Stair/door assets shared with public rendering
+- Added procedural raised stairs/landings and framed solid/glass/open door styles. Shared local-meter geometry feeds Studio and active-building/floor public2.5D layers, with legacy fallback handling. Added canonical solid selection and appearance inspector; export/runtime retain all visual construction fields. Cosmetic style edits preserve geometry and routing exactly.
+- Final proof:304 focused tests across22 files passed; new modules lint clean with no added errors vs originals; core semantic4 errors match4 baseline (0 introduced). Actual Studio unsaved demo plus real public component fixture passed: steps, door styles, public floor/building/camera gates, canonical selection, zero page/duplicate-key errors. Saved test campus head12/nine part checksums unchanged; own locks released.
+- Review findings repaired: hidden new assets losing selection, full-wall void restoring opaque fallback, cosmetic commands mutating routes. Browser caught duplicate inspector keys; fixed and verified. Fallback door width meter/degree bug corrected with three-angle tests.
+- Limits: authored straight stairs and illustrative known-rise rectangles; unsupported turning/nonrectangular paths remain diagnostic fallback. No published ASU/Preview repair, full stack/roof/terrain policy change or benchmark. No commits/staging/map saves.
+- Handoff: docs/handoff/2026-11-13-stair-door-assets.md. New checkpoint: scripts/save-v2/import-data/stair-door-assets-20261113; prior source work/checkpoints retained.
+
+## 2026-11-13: Screenshot stair-direction regression and configurable doors
+- Corrected freeform rise to follow the existing ordered2D arrow; authored directions now share actual canonical corner logic across Studio/public glyphs and3D solids. Added render-only closed default, Closed/Ajar/Open controls and single/double solid/glass styles, with additive persistence and purely cosmetic updates.
+- Verified339 tests/19 files, real shared-component browser fixture wide/tall/square cosine1 agreement plus double-glass open->closed, zero page errors/map writes. User's unsaved tab/lock untouched. Core semantic4 errors unchanged; touched lint baseline unchanged. Review's two imported-door exact-undo gaps reproduced and fixed.
+- Existing localhost script restarted only after confirming port3001 unused; independent server/watchdog active and HTTP200 verified; /studio launched in browser. No commits/staging/map saves or data migrations.
+- Handoff:docs/handoff/2026-11-13-stair-direction-door-pose.md. Checkpoint:scripts/save-v2/import-data/stair-direction-door-pose-20261113. Prior feature/checkpoints preserved; unsupported turning stair forms remain diagnostic fallbacks.
+
+
+## 2026-11-13: Stair dimensions and editor workspace
+- Working stair width/depth source edits, degrees, adjustable rise and floor-height reset; live field commit, atomic validation, exact undo/export.
+- Right inspector scroll/resize, mounted outliner collapse, adjustable/collapsible admin navigation and map resize.
+- Verification:150 focused tests/11files; browser width/rise/undo/reset/focus/scroll/resize proof, no errors/writes. Independent review approved after both interaction defects fixed. Existing lint counts unchanged.
+- Localhost3001 HTTP200, single watchdog. Uncommitted, saved data and user draft untouched. Guarded checkpoint: scripts/save-v2/import-data/stair-size-workspace-20261113.
+
+
+## 2026-11-13: Door duplicate wall behavior
+- Duplicate retains visual settings and a validated wall attachment; drag body onto another wall snaps/aligns/validates, including older detached copies. Routing references remain separate; source immutable; exact undo.
+-153 focused tests/9files pass; real command/builder/renderer browser duplicate+drag+2.5D+reject+undo proof, zero errors or map writes. Independent review approved after tight-gap regression fix. No new scoped lint errors; syntax0.
+- Uncommitted, prior work preserved, user draft/locks and campus saves untouched. Latest checkpoint: scripts/save-v2/import-data/door-duplicate-wall-20261113.
+- Duplicate success now hands off to Select before selecting the copy; failed placement retains the active tool. Regression reproduced RED before fix.
+
+
+## 2026-11-13: Floor route workflow T1
+- Approved implementation underway with emergency handoff at docs/handoff/2026-11-13-floor-route-workflow-emergency.md.
+- Tile source capped19; recoverable background state; exact segment projection. RED2/GREEN16 tests. No saved-map writes or commits. T2 independent entrance connections next.
+
+## 2026-11-13 — Floor route workflow T2–T4 verified
+Implemented independent entrance outdoor terminals, free route starts/explicit junctions/one-shot completion; additive authored floor ports for doors/entrances/stair landings/elevator stops; conservative straight-line suggestion preview, draggable projected endpoints, per-item include/edit/disconnect, atomic Confirm, Cancel and revision-guarded Undo. Compiler honors explicit ports and managed disconnect; references persist through parts serialization; source moves/copies/deletes and node cleanup preserve graph ownership. Redo snapshots retain generated identities; legacy nested doors use canonical fallback.
+Proof:343 tests/23 affected suites pass serial512MB; isolated real-command/HistoryStack browser proof passes pointer correction/all4 kinds/Cancel/Confirm/exact Undo/preserve/disconnect/undo/Escape, zero errors/network writes, no user tabs/locks. Independent review2 P2 findings reproduced and fixed, re-review clear; final owner-delete sanity review clear. Lint/type comparisons and final graph/checkpoint verification are recorded in route-workflow-20261113. Existing3001 had been stopped by watchdog at3110MB; relaunched existing scripts independently, watchdog3072MB active, HTTP200. No saved-map changes/staging/commits. Next: user review on a disposable draft; all-campus publish diagnostics remain separate.
+
+Floor route workflow T5 complete: single-worker graph refreshed2577 files; final lint/syntax and targeted types introduce0 errors; independent review clear. Reverse task patch and rollback check-only pass52 guarded files. Emergency handoff finalized; no remaining required implementation work. HEAD/branch unchanged, index empty.

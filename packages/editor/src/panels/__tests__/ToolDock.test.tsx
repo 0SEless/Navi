@@ -2,7 +2,7 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 
 afterEach(cleanup)
-import { ToolDock, INTERIOR_TOOL_GROUPS, CAMPUS_TOOL_GROUPS, useToolDockShortcuts } from '../ToolDock'
+import { ToolDock, INTERIOR_TOOL_GROUPS, CAMPUS_TOOL_GROUPS, useToolDockShortcuts, buildInteriorToolGroups } from '../ToolDock'
 import type { ToolGroup } from '../ToolDock'
 import { toolRegistry } from '../../tools/tool-registry'
 
@@ -23,6 +23,14 @@ function renderDock(props?: { activeTool?: string; onActivate?: () => void }) {
 }
 
 describe('ToolDock', () => {
+  it('exposes Window in the actual Architecture menu and activates it', () => {
+    const activate = vi.fn()
+    const groups = buildInteriorToolGroups(toolRegistry, {}, 'architecture')
+    render(<ToolDock groups={groups} activeTool="select" onActivateTool={activate} />)
+    fireEvent.click(screen.getByTitle(/^Window/))
+    expect(activate).toHaveBeenCalledWith('window')
+    expect(buildInteriorToolGroups(toolRegistry, {}, 'navigation').flatMap(group => group.tools).some(tool => tool.id === 'window')).toBe(false)
+  })
   it('renders all interior tool groups', () => {
     renderDock()
     expect(screen.getByTitle(/Navigate/)).toBeDefined()

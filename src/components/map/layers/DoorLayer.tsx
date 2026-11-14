@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import type maplibregl from 'maplibre-gl'
+import { MercatorCoordinate } from 'maplibre-gl'
 import type { DoorRenderData } from '@/components/map/NavigationRenderModel'
 import { cssVar } from '@/components/map/mapTheme'
 
@@ -40,6 +41,10 @@ export function buildDoorGeoJSON(doors: DoorRenderData[]) {
       const dy = half * Math.sin(a)
       const lng = d.position.lng
       const lat = d.position.lat
+      const center = MercatorCoordinate.fromLngLat({lng,lat})
+      const scale = center.meterInMercatorCoordinateUnits()
+      const start = new MercatorCoordinate(center.x-dx*scale,center.y+dy*scale).toLngLat()
+      const end = new MercatorCoordinate(center.x+dx*scale,center.y-dy*scale).toLngLat()
       return {
         type: 'Feature' as const,
         id: d.id,
@@ -56,8 +61,8 @@ export function buildDoorGeoJSON(doors: DoorRenderData[]) {
         geometry: {
           type: 'LineString' as const,
           coordinates: [
-            [lng - dx, lat - dy],
-            [lng + dx, lat + dy],
+            [start.lng, start.lat],
+            [end.lng, end.lat],
           ] as [number, number][],
         },
       }

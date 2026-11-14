@@ -302,3 +302,11 @@ export function getNavigationInstruction(
     stepIndex,
   }
 }
+
+/** First non-empty instruction after the currently presented route step. */
+export function getUpcomingInstruction(route: NavRoute | null, stepIndex: number): NavigationInstructionView | null {
+  if (!route) return null
+  const nextIndex = route.instructions.findIndex((instruction, index) => index > stepIndex && instruction.text.trim().length > 0)
+  const next = route.instructions[nextIndex]
+  return next ? { type: next.type, text: next.text, distance: next.distance, stepIndex: nextIndex } : null
+}

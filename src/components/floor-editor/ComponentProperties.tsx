@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useEditor, useEditingEngine, useDocumentVersion } from '@navi/editor'
+import type { CurrentToolStore } from '@navi/editor'
 import { FeatureLinks } from './FeatureLinks'
+import { FeatureDimensionsProperties } from './FeatureDimensionsProperties'
 import { canonicalRoomId, SpatialQueryService } from '@navi/core'
 import type { Road } from '@navi/core'
 import { RelationshipService, RelationshipSuggestionService } from '@navi/editor'
@@ -180,6 +182,7 @@ function EntranceRoadSection({
 // ── Main Component ───────────────────────────────────────────────────────────
 
 interface ComponentPropertiesProps {
+  dimensionsDisabled?: boolean
   componentId: string | null
   onClose: () => void
   validationChecks?: ValidationCheck[]
@@ -188,7 +191,7 @@ interface ComponentPropertiesProps {
   onSelectComponent?: (id: string) => void
 }
 
-export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker, onStartRouteConnect, onSelectComponent }: ComponentPropertiesProps) {
+export function ComponentProperties({ componentId, onClose, validationChecks, onOpenOutdoorRoutePicker, onStartRouteConnect, onSelectComponent, dimensionsDisabled }: ComponentPropertiesProps) {
   const component = useFloorComponent(componentId)
   const { services, document } = useEditor()
   const documentVersion = useDocumentVersion()
@@ -213,6 +216,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
   const [entranceIndoorRouteNodeId, setEntranceIndoorRouteNodeId] = useState('')
   const [entranceOutdoorNodeId, setEntranceOutdoorNodeId] = useState('')
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const [duplicateError, setDuplicateError] = useState('')
 
   useEffect(() => {
     setName(component?.name ?? '')
@@ -330,7 +334,8 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     : entranceAccess?.outdoorRouteId
       ? `Route ${entranceAccess.outdoorRouteId} junction`
       : readableOutdoorRoutePoint(undefined)
-  const connectedIndoorRouteLabel = readableIndoorRoutePoint(routeNodesForAccess, entranceAccess?.indoorRouteNodeId)
+  const entranceHasIndoorPath = componentFloor?.routeNetwork?.edges.some(edge=>edge.from===(entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId)||edge.to===(entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId)) ?? false
+  const connectedIndoorRouteLabel = entranceHasIndoorPath ? readableIndoorRoutePoint(routeNodesForAccess, entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId) : 'No indoor path yet'
 
   if (!component) return null
 
@@ -450,6 +455,10 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
       return
     }
 
+    if (isStairOrElevator) {
+      dispatcher.execute({ id: 'feature.update', label: 'Rename feature', payload: { featureId: component.featureId ?? component.id, level: component.floor, patch: { name } } })
+      return
+    }
     const changes: Record<string, unknown> = { name }
     if (isEntranceType(component.type)) {
       changes.label = name
@@ -461,36 +470,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
       editEngine.begin({ kind: 'assign', entityId: component.id, property: 'dimensions', value: changes.dimensions })
       editEngine.doCommit()
     }
-    if (isStairOrElevator) {
-      const featureId = component.featureId || (component.id.includes('-') ? component.id.split('-')[0] : component.id)
-      // Floors connect through links now (2026-11-08, FeatureLinks below), not a from/to range.
-      dispatcher.execute({
-        id: 'feature.update',
-        label: 'Update Feature Properties',
-        payload: {
-          featureId,
-          level: component.floor,
-          patch: {
-            name,
-            ...(verticalLevelGeometry ? (() => {
-              const rotation = doorRotationDegrees * Math.PI / 180
-              const center = verticalLevelGeometry.position
-              const localCorners = [
-                { x: -width / 2, y: -height / 2 }, { x: width / 2, y: -height / 2 },
-                { x: width / 2, y: height / 2 }, { x: -width / 2, y: height / 2 },
-              ]
-              const cos = Math.cos(rotation)
-              const sin = Math.sin(rotation)
-              return {
-                position: { ...center },
-                rotation,
-                polygon: { points: localCorners.map((point) => ({ x: center.x + point.x * cos - point.y * sin, y: center.y + point.x * sin + point.y * cos })) },
-              }
-            })() : {}),
-          },
-        },
-      })
-    } else {
+    {
       dispatcher.execute({
         id: 'entity.update',
         label: 'Update Properties',
@@ -548,7 +528,12 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
   const handleDuplicateDoor = () => {
     if (!isDoor) return
     const result = dispatcher.execute({ id: 'door.duplicate', label: 'Duplicate Door', payload: { doorId: component.id } })
-    if (result?.success && typeof result.entityId === 'string') onSelectComponent?.(result.entityId)
+    setDuplicateError(result?.success === false ? result.error ?? 'Could not place the duplicated door.' : '')
+    if (result?.success && typeof result.entityId === 'string') {
+      const toolStore = services.get('toolRegistry') as CurrentToolStore | undefined
+      toolStore?.activate('select')
+      onSelectComponent?.(result.entityId)
+    }
   }
 
 
@@ -785,6 +770,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                 style={{ width: '100%', padding: '5px 0', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                 Duplicate
               </button>
+              {duplicateError && <p role="alert" style={{ fontSize: 11, color: 'var(--navi-error)', margin: '4px 0' }}>{duplicateError}</p>}
             </div>
           )}
 
@@ -801,7 +787,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
             <div style={{ marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--navi-border)' }}>
               <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>INDOOR ROUTE ACCESS</label>
               <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)', lineHeight: 1.35, marginBottom: 5 }}>
-                Connect this Entrance to an indoor Route point and an outdoor navigation point.
+                Connect this entrance outdoors independently. Draw or attach its indoor path whenever you choose.
               </div>
               {onOpenOutdoorRoutePicker && (
                 <button
@@ -822,7 +808,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                 </div>
               ) : (
                 <div style={{ padding: '5px 6px', borderRadius: 4, background: 'var(--navi-content)', color: 'var(--navi-text-secondary)', fontSize: 10 }}>
-                  Choose an outdoor point above, then create the indoor Route from this Entrance.
+                  This entrance can remain unconnected. Connect outdoors or draw a floor route when needed.
                 </div>
               )}
               {routeNodesForAccess.length > 0 && outdoorNodeOptions.length > 0 && (
@@ -850,8 +836,8 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
             </div>
           )}
 
-          {isEntranceType(component.type) && (
-            <EntranceRoadSection
+          {isEntranceType(component.type) && connectedRoad && (
+            <details><summary style={{fontSize:10}}>Legacy road connection</summary><EntranceRoadSection
               component={component}
               connectedRoad={connectedRoad}
               hasNoRoadWarning={validationChecks?.some(c => c.entityId === component.id && (c.code === 'ENTRANCE_NO_ROAD' || c.code === 'ROUTE_ENTRANCE_ACCESS')) ?? false}
@@ -865,32 +851,20 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                   payload: { entranceId: component.id, roadId },
                 })
               }}
-            />
+            /></details>
           )}
 
           {isStairOrElevator && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block' }}>WIDTH</label>
-                  <input aria-label={`${component.type === 'stair' ? 'Stair' : 'Elevator'} width`} type="number" min={0.2} step={0.1} value={width} onChange={(event) => setWidth(Number(event.target.value))} onKeyDown={handlePropertyKeyDown}
-                    style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block' }}>DEPTH</label>
-                  <input aria-label={`${component.type === 'stair' ? 'Stair' : 'Elevator'} depth`} type="number" min={0.2} step={0.1} value={height} onChange={(event) => setHeight(Number(event.target.value))} onKeyDown={handlePropertyKeyDown}
-                    style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block' }}>ROTATION</label>
-                  <input aria-label={`${component.type === 'stair' ? 'Stair' : 'Elevator'} rotation`} type="number" step={1} value={Number(doorRotationDegrees.toFixed(3))} onChange={(event) => setDoorRotationDegrees(Number(event.target.value))} onKeyDown={handlePropertyKeyDown}
-                    style={{ width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)', background: 'var(--navi-content)', color: 'var(--navi-text)', fontSize: 11, boxSizing: 'border-box' }} />
-                </div>
-              </div>
+              {verticalLevelGeometry && <FeatureDimensionsProperties
+                kind={component.type === 'stair' ? 'stair' : 'elevator'}
+                geometry={verticalLevelGeometry} floorHeight={componentFloor?.height} disabled={dimensionsDisabled}
+                onUpdate={patch => dispatcher.execute({ id:'feature.update', label:'Edit feature dimensions', payload:{ featureId:component.featureId ?? component.id, level:component.floor, patch } })}
+              />}
               {(() => {
                 const building = document.buildings.find((candidate) => candidate.id === component.buildingId)
                 const featureType = component.type === 'stair' ? 'staircase' : 'elevator'
-                const featureId = component.featureId ?? (component.id.includes('-') ? component.id.split('-')[0] : component.id)
+                const featureId = component.featureId ?? component.id
                 return building ? (
                   <FeatureLinks
                     building={building} featureType={featureType} featureId={featureId}

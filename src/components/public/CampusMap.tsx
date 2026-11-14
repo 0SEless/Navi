@@ -12,7 +12,7 @@ import { FloorSelector } from '@/components/map/FloorSelector'
  * Presentational explore-campus map with indoor room rendering.
  *
  * Building polygons come from `deriveBuildingFootprint`.
- * Room polygons come from `bundle.components` filtered by activeFloor.
+ * Room polygons come from `bundle.components` filtered by the viewed floor.
  *
  * Interaction contract:
  *  - hover building → pointer cursor + highlight
@@ -101,8 +101,10 @@ export function CampusMap({ bundle }: CampusMapProps) {
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
   const activeFloor = usePublicStore((s) => s.activeFloor)
-  const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
+  const viewedFloorId = usePublicStore((s) => s.viewedFloorId)
+  const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
   const indoorContext = usePublicStore((s) => s.indoorContext)
+  const displayFloor = viewedFloorId ?? indoorContext.floorId ?? activeFloor
 
   // Collect all floor levels across buildings for the floor selector
   const floors = Array.from(new Set(
@@ -318,10 +320,12 @@ export function CampusMap({ bundle }: CampusMapProps) {
 
         syncFeatures(map, bundle)
         syncEdges(map, bundle)
-        syncRooms(map, bundle, activeFloor, indoorContext)
-        syncEntrances(map, bundle, activeFloor, indoorContext)
-        syncStairs(map, bundle, activeFloor, indoorContext)
-        syncHallways(map, bundle, activeFloor, indoorContext)
+        const state = usePublicStore.getState()
+        const floor = state.viewedFloorId ?? state.indoorContext.floorId ?? state.activeFloor
+        syncRooms(map, bundle, floor, state.indoorContext)
+        syncEntrances(map, bundle, floor, state.indoorContext)
+        syncStairs(map, bundle, floor, state.indoorContext)
+        syncHallways(map, bundle, floor, state.indoorContext)
         fitToBundle(map, bundle)
       } catch (err) {
         console.error('[CampusMap] load handler threw:', err)
@@ -377,16 +381,16 @@ export function CampusMap({ bundle }: CampusMapProps) {
     if (!map.getSource(SRC_BUILDINGS)) return
     syncFeatures(map, bundle)
     syncEdges(map, bundle)
-    syncRooms(map, bundle, activeFloor, indoorContext)
-    syncEntrances(map, bundle, activeFloor, indoorContext)
-    syncStairs(map, bundle, activeFloor, indoorContext)
-    syncHallways(map, bundle, activeFloor, indoorContext)
-  }, [bundle, activeFloor, indoorContext])
+    syncRooms(map, bundle, displayFloor, indoorContext)
+    syncEntrances(map, bundle, displayFloor, indoorContext)
+    syncStairs(map, bundle, displayFloor, indoorContext)
+    syncHallways(map, bundle, displayFloor, indoorContext)
+  }, [bundle, displayFloor, indoorContext])
 
   return (
     <>
       <div ref={containerRef} className="h-full w-full" />
-      <FloorSelector floors={floors} activeFloor={activeFloor} onChange={setActiveFloor} />
+      <FloorSelector floors={floors} activeFloor={displayFloor} onChange={setViewedFloor} />
     </>
   )
 }
@@ -448,7 +452,6 @@ function syncRooms(map: maplibregl.Map, bundle: CampusBundle, activeFloor: numbe
     if (c.type !== 'room') continue
     // W16C: Gate by indoor context building and floor
     if (indoorContext.buildingId && c.buildingId !== indoorContext.buildingId) continue
-    if (indoorContext.floorId !== undefined && c.floor !== indoorContext.floorId) continue
     // Also apply floor filter for backward compatibility
     if (c.floor !== activeFloor) continue
     if (!c.polygon || c.polygon.length < 3) continue
@@ -480,8 +483,6 @@ function syncEntrances(map: maplibregl.Map, bundle: CampusBundle, activeFloor: n
     // W16C: Gate by indoor context building
     if (indoorContext.buildingId && b.id !== indoorContext.buildingId) continue
     for (const e of b.entrances ?? []) {
-      // W16C: Gate by indoor context floor
-      if (indoorContext.floorId !== undefined && e.floor !== indoorContext.floorId) continue
       if (e.floor !== activeFloor) continue
       features.push({
         type: 'Feature',
@@ -509,7 +510,6 @@ function syncStairs(map: maplibregl.Map, bundle: CampusBundle, activeFloor: numb
     if (c.type !== 'stair' && c.type !== 'elevator') continue
     // W16C: Gate by indoor context building and floor
     if (indoorContext.buildingId && c.buildingId !== indoorContext.buildingId) continue
-    if (indoorContext.floorId !== undefined && c.floor !== indoorContext.floorId) continue
     if (c.floor !== activeFloor) continue
     features.push({
       type: 'Feature',
@@ -536,7 +536,6 @@ function syncHallways(map: maplibregl.Map, bundle: CampusBundle, activeFloor: nu
     if (c.type !== 'hallway') continue
     // W16C: Gate by indoor context building and floor
     if (indoorContext.buildingId && c.buildingId !== indoorContext.buildingId) continue
-    if (indoorContext.floorId !== undefined && c.floor !== indoorContext.floorId) continue
     if (c.floor !== activeFloor) continue
     if (!c.polygon || c.polygon.length < 3) continue
     const ring = [

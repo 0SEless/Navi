@@ -163,6 +163,45 @@ export function HomeDashboard() {
         </button>
       </section>
 
+      <section data-home-section="quick-places" aria-labelledby="home-explore-heading" className="mb-7 min-w-0">
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h2 id="home-explore-heading" className="text-base font-semibold tracking-tight text-[var(--navi-text)]">
+              Quick places
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => openExplore()}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navi-primary)] focus-visible:ring-offset-2"
+          >
+            Open map
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {homeContent.featuredPlaces.length > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {homeContent.featuredPlaces.slice(0, 6).map((place) => (
+              <button
+                key={place.id}
+                type="button"
+                data-home-building-id={place.id}
+                onClick={() => openExplore(place.id)}
+                className="group flex min-h-[5.5rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] px-2 py-3 text-center shadow-sm transition-colors hover:border-[var(--navi-primary)] hover:bg-[var(--navi-primary-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navi-primary)] focus-visible:ring-offset-2"
+                aria-label={`Open ${place.title} in Explore`}
+              >
+                <Building2 className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" aria-hidden="true" />
+                <span className="block w-full truncate text-xs font-semibold text-[var(--navi-text)]">{place.title}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--navi-border)] bg-[var(--navi-card)] px-4 py-5 text-sm text-[var(--navi-text-secondary)]">
+            Campus places will appear here when the public map data is available.
+          </div>
+        )}
+      </section>
+
       <section data-home-section="hero" className="mb-10">
         <div className="mb-3 flex items-end justify-between gap-4">
           <div>
@@ -182,59 +221,6 @@ export function HomeDashboard() {
           reducedMotion={reducedMotion}
           onAction={handleHeroAction}
         />
-      </section>
-
-      <section data-home-section="explore" aria-labelledby="home-explore-heading" className="mb-10 min-w-0">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div className="min-w-0">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--navi-primary)]">
-              Discover
-            </p>
-            <h2 id="home-explore-heading" className="text-xl font-semibold tracking-tight text-[var(--navi-text)] sm:text-2xl">
-              Explore Our Campus
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => openExplore()}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navi-primary)] focus-visible:ring-offset-2"
-          >
-            Open map
-            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-        {homeContent.featuredPlaces.length > 0 ? (
-          <div className="flex min-w-0 gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin">
-            {homeContent.featuredPlaces.map((place) => (
-              <button
-                key={place.id}
-                type="button"
-                data-home-building-id={place.id}
-                onClick={() => openExplore(place.id)}
-                className="group flex min-h-36 w-[min(78vw,18rem)] shrink-0 snap-start flex-col justify-between rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)] p-4 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--navi-primary-light)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--navi-primary)] focus-visible:ring-offset-2 sm:w-72"
-                aria-label={`Open ${place.title} in Explore`}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--navi-primary-light)] text-[var(--navi-primary)]" aria-hidden="true">
-                    <Building2 className="h-5 w-5" />
-                  </span>
-                  <ArrowUpRight className="h-4 w-4 text-[var(--navi-text-secondary)] transition-colors group-hover:text-[var(--navi-primary)]" aria-hidden="true" />
-                </span>
-                <span className="mt-5 min-w-0">
-                  <span className="block truncate text-base font-semibold text-[var(--navi-text)]">{place.title}</span>
-                  <span className="mt-1 block truncate text-xs text-[var(--navi-text-secondary)]">{place.subtitle}</span>
-                  <span className="mt-2 block text-xs text-[var(--navi-text-secondary)]">
-                    {place.floorCount > 0 ? `${place.floorCount} ${place.floorCount === 1 ? 'floor' : 'floors'}` : 'Floor details unavailable'}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--navi-border)] bg-[var(--navi-card)] px-4 py-5 text-sm text-[var(--navi-text-secondary)]">
-            Campus places will appear here when the public map data is available.
-          </div>
-        )}
       </section>
 
       <section data-home-section="recent" aria-labelledby="home-recent-heading" className="mb-10 min-w-0">

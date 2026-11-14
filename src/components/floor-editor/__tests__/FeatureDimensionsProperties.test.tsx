@@ -1,0 +1,45 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { FeatureDimensionsProperties } from '../FeatureDimensionsProperties'
+afterEach(cleanup)
+const geometry={position:{x:2,y:1},rotation:45,polygon:{points:[{x:0,y:0},{x:4,y:0},{x:4,y:2},{x:0,y:2},{x:0,y:0}]}}
+it('keeps the focused input mounted when a dimension commit or undo changes canonical props',()=>{
+ const update=vi.fn(()=>({success:true}))
+ const view=render(<FeatureDimensionsProperties kind="stair" geometry={geometry} floorHeight={3.5} onUpdate={update}/>)
+ const depth=screen.getByLabelText('Stair depth (m)');depth.focus()
+ view.rerender(<FeatureDimensionsProperties kind="stair" geometry={{...geometry,polygon:{points:[{x:-1,y:0},{x:5,y:0},{x:5,y:2},{x:-1,y:2}]}}} floorHeight={3.5} onUpdate={update}/>)
+ expect(screen.getByLabelText('Stair depth (m)')).toBe(depth);expect(document.activeElement).toBe(depth)
+ expect((screen.getByLabelText('Stair width (m)') as HTMLInputElement).value).toBe('6')
+ view.rerender(<FeatureDimensionsProperties kind="stair" geometry={geometry} floorHeight={3.5} onUpdate={update}/>)
+ expect((screen.getByLabelText('Stair width (m)') as HTMLInputElement).value).toBe('4');expect(document.activeElement).toBe(depth)
+})
+it('reads closed geometry, uses degrees, applies on blur and keeps inherited height absent',()=>{
+ const update=vi.fn(()=>({success:true}))
+ render(<FeatureDimensionsProperties kind="stair" geometry={geometry} floorHeight={3.5} onUpdate={update}/>)
+ expect((screen.getByLabelText('Stair width (m)') as HTMLInputElement).value).toBe('4')
+ expect((screen.getByLabelText('Stair rotation (degrees)') as HTMLInputElement).value).toBe('45')
+ fireEvent.change(screen.getByLabelText('Stair width (m)'),{target:{value:'6'}})
+ fireEvent.blur(screen.getByLabelText('Stair width (m)'))
+ expect(update).toHaveBeenCalledExactlyOnceWith({width:6})
+})
+it('applies height, resets inheritance, and reports invalid values without a command',()=>{
+ const update=vi.fn(()=>({success:true}))
+ render(<FeatureDimensionsProperties kind="stair" geometry={{...geometry,height:2.5}} floorHeight={3.5} onUpdate={update}/>)
+ fireEvent.change(screen.getByLabelText('Stair rise height (m)'),{target:{value:'0'}})
+ fireEvent.click(screen.getByRole('button',{name:'Apply dimensions'}))
+ expect(update).not.toHaveBeenCalled();expect(screen.getByRole('alert')).toBeTruthy()
+ fireEvent.change(screen.getByLabelText('Stair rise height (m)'),{target:{value:'2.8'}})
+ fireEvent.blur(screen.getByLabelText('Stair rise height (m)'))
+ expect(update).toHaveBeenLastCalledWith({height:2.8})
+ fireEvent.click(screen.getByRole('button',{name:'Use floor height'}))
+ expect(update).toHaveBeenLastCalledWith({height:null})
+})
+it('does not execute unchanged or disabled controls and displays command errors',()=>{
+ const update=vi.fn(()=>({success:false,error:'Lock lost'}))
+ const view=render(<FeatureDimensionsProperties kind="stair" geometry={geometry} floorHeight={3.5} onUpdate={update}/>)
+ fireEvent.click(screen.getByRole('button',{name:'Apply dimensions'}));expect(update).not.toHaveBeenCalled()
+ fireEvent.change(screen.getByLabelText('Stair depth (m)'),{target:{value:'7'}})
+ fireEvent.click(screen.getByRole('button',{name:'Apply dimensions'}));expect(screen.getByRole('alert').textContent).toContain('Lock lost')
+ view.rerender(<FeatureDimensionsProperties kind="stair" geometry={geometry} floorHeight={3.5} onUpdate={update} disabled/>)
+ expect((screen.getByRole('button',{name:'Apply dimensions'}) as HTMLButtonElement).disabled).toBe(true)
+})

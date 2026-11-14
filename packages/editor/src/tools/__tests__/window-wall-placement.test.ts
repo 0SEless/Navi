@@ -1,0 +1,12 @@
+import { describe, expect, it, vi } from 'vitest'
+import { WindowTool } from '../window-tool'
+import type { ToolContext, ToolPointerEvent } from '../types'
+const event=(x:number,y=0):ToolPointerEvent=>({x,y,lng:0,lat:0,button:0,shiftKey:false,ctrlKey:false,altKey:false})
+function context(){ const execute=vi.fn(()=>({success:true})); const floor={id:'f',walls:[{id:'w',start:{x:0,y:0},end:{x:10,y:0},height:3.5,thickness:0.15}]}; return {execute,floor,ctx:{document:{buildings:[{id:'b',floors:[floor]}]},services:{dispatcher:{execute},viewport:{activeBuildingId:'b',activeFloorId:'f'}}} as unknown as ToolContext} }
+describe('WindowTool canonical wall placement',()=>{
+ it('authors a canonical opening on the selected floor',()=>{const {ctx,execute}=context();const tool=new WindowTool();tool.onPointerDown(event(2),ctx);tool.onPointerUp(event(4),ctx);expect(execute).toHaveBeenCalledWith(expect.objectContaining({id:'opening.create',payload:expect.objectContaining({buildingId:'b',floorId:'f',opening:expect.objectContaining({type:'window',wallId:'w',offset:2,width:2,height:1.2,sillHeight:0.9})})}));expect(tool.state.placing).toBe(false)})
+ it('refuses wallless placement and equally close hosts',()=>{const {ctx,execute,floor}=context();const tool=new WindowTool();tool.onPointerDown(event(2,4),ctx);tool.onPointerUp(event(3,4),ctx);expect(execute).not.toHaveBeenCalled();floor.walls.push({...floor.walls[0],id:'parallel'});tool.onPointerDown(event(2),ctx);tool.onPointerUp(event(3),ctx);expect(execute).not.toHaveBeenCalled()})
+ it('cancels without mutation on Escape or floor switch',()=>{const {ctx,execute}=context();const tool=new WindowTool();tool.onPointerDown(event(2),ctx);tool.onKeyDown({key:'Escape'} as KeyboardEvent,ctx);tool.onPointerUp(event(4),ctx);expect(execute).not.toHaveBeenCalled();tool.onPointerDown(event(2),ctx);ctx.services.viewport.activeFloorId='other';tool.onPointerUp(event(4),ctx);expect(execute).not.toHaveBeenCalled()})
+ it('retains placement and exposes command rejection',()=>{const {ctx,execute}=context();execute.mockReturnValue({success:false,error:'Overlap'} as never);const tool=new WindowTool();tool.onPointerDown(event(2),ctx);tool.onPointerUp(event(4),ctx);expect(tool.state.placing).toBe(true);expect(tool.state.error).toBe('Overlap')})
+ it('refuses changed host geometry before release',()=>{const {ctx,execute,floor}=context();const tool=new WindowTool();tool.onPointerDown(event(2),ctx);floor.walls[0].end.x=5;tool.onPointerUp(event(4),ctx);expect(execute).not.toHaveBeenCalled()})
+})

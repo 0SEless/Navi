@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FloorEditorCanvas } from '../FloorEditorCanvas'
 import type { Building } from '@/types/nav-types'
@@ -12,8 +12,10 @@ let mockRemoveComponent = vi.fn()
 let mockUpdateComponent = vi.fn()
 let mockSaveGraph = vi.fn()
 let mockMoveLayer = vi.fn()
+let mockQueryFeatures = vi.fn((_point: unknown, _options: { layers: string[] }) => [] as unknown[])
 
 interface MockMapLike {
+  fire: (event: string, ...args: unknown[]) => void
   getSource: (id: string) => { setData: ReturnType<typeof vi.fn> } | null
 }
 interface MockEditorValue {
@@ -21,7 +23,7 @@ interface MockEditorValue {
   services: { get: () => { execute: ReturnType<typeof vi.fn> } | null }
   transformer: {
     buildingLocalToWorld: (point: { x: number; y: number }) => { lat: number; lng: number }
-    worldToBuildingLocal: () => null
+    worldToBuildingLocal: (point: { lat: number; lng: number }, buildingId?: string) => { x: number; y: number } | null
   }
 }
 let mockMapInstance: MockMapLike | null = null
@@ -98,7 +100,9 @@ vi.mock('maplibre-gl', () => {
       this._layoutProps[layer][prop] = value
     }
     getCanvas() { return this._canvas }
-    queryRenderedFeatures() { return [] }
+    project(point: { lng: number; lat: number }) { return { x: point.lng, y: point.lat } }
+    unproject(point: [number, number]) { return { lng: point[0], lat: point[1] } }
+    queryRenderedFeatures(point: unknown, options: { layers: string[] }) { return mockQueryFeatures(point, options) }
     getContainer() { return document.createElement('div') }
     remove() {}
     resize() {}
@@ -140,8 +144,9 @@ vi.mock('@/hooks/floor-graph-selectors', () => ({
 
 vi.mock('@navi/editor', () => ({
   ENABLE_CANVAS_EDITOR: false,
+  genId: () => 'authored-door',
   useEditor: () => mockEditorValue,
-  findBuilding: () => null,
+  findBuilding: (document: { buildings: Array<{ id: string }> }, id: string) => document.buildings.find(building => building.id === id),
   useEditingEngine: () => ({
     snapshot: { operation: null, preview: null, state: 'idle', isDirty: false, geometryDirty: false, metadataDirty: false, compilerDirty: false, assetDirty: false },
     session: { subscribe: () => () => {}, get version() { return 0 } },
@@ -195,6 +200,7 @@ describe('FloorEditorCanvas', () => {
   beforeEach(() => {
     mockDispatcherExecute = vi.fn()
     mockMoveLayer = vi.fn()
+    mockQueryFeatures = vi.fn(() => [])
     mockMapInstance = null
     mockGraphComponents = []
     mockFloorComponentsById = {}
@@ -592,7 +598,7 @@ describe('FloorEditorCanvas', () => {
                 nodes: [{ id: 'rn-g', type: 'room', position: { x: 1, y: 1 }, floor: -1 }],
                 edges: [],
               },
-              rooms: [{ id: 'room-g', name: 'Room-G', polygon: { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+              rooms: [{ id: 'room-g', name: 'Room-G', roomDoors: [], polygon: { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
             },
             {
               id: 'floor-one', level: 2, label: '1F', elevation: 3.5, height: 3.5,
@@ -601,7 +607,7 @@ describe('FloorEditorCanvas', () => {
                 nodes: [{ id: 'rn-1', type: 'room', position: { x: 2, y: 2 }, floor: 2 }],
                 edges: [],
               },
-              rooms: [{ id: 'room-1', name: 'Room-1', polygon: { points: [{ x: 2, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+              rooms: [{ id: 'room-1', name: 'Room-1', roomDoors: [], polygon: { points: [{ x: 2, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
             },
             {
               id: 'floor-two', level: 7, label: '2F', elevation: 7, height: 3.5,
@@ -610,7 +616,7 @@ describe('FloorEditorCanvas', () => {
                 nodes: [{ id: 'rn-2', type: 'room', position: { x: 4, y: 4 }, floor: 7 }],
                 edges: [],
               },
-              rooms: [{ id: 'room-2', name: 'Room-2', polygon: { points: [{ x: 4, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
+              rooms: [{ id: 'room-2', name: 'Room-2', roomDoors: [], polygon: { points: [{ x: 4, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 1 }] } }], hallways: [], staircases: [], elevators: [], entrances: [], connectorStops: [], parametricComponents: [], metadata: {},
             },
           ],
           verticalConnectors: [],
@@ -764,4 +770,86 @@ describe('FloorEditorCanvas', () => {
     const data = calls[calls.length - 1][0] as { features: Array<{ properties: Record<string, unknown> }> }
     expect(data.features[0].properties).toMatchObject({ id: 'entrance-1', selected: true, activeRouteSource: true })
   })
+  it('keeps window hover passive and selects the window ahead of its host wall on click', async () => {
+    const onSelect = vi.fn()
+    const onWallSelect = vi.fn()
+    render(<FloorEditorCanvas building={building} floor={0} tool="select" layers={layers} selectedId={null} onSelect={onSelect} onWallSelect={onWallSelect} />)
+    await waitFor(() => expect(mockMapInstance?.getSource('floor-openings')).toBeTruthy())
+    const feature = (id: string) => ({ type: 'Feature', properties: { id }, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 0]] } })
+    mockQueryFeatures.mockImplementation((_point, options) => {
+      if (options.layers.includes('floor-openings-window')) return [feature('window-1')]
+      if (options.layers.includes('floor-walls-line')) return [feature('wall-1')]
+      return []
+    })
+    onSelect.mockClear(); onWallSelect.mockClear()
+    const event = { point: { x: 10, y: 10 }, lngLat: { lng: 0, lat: 0 }, originalEvent: new MouseEvent('mousemove') }
+    act(() => mockMapInstance!.fire('mousemove', event))
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onWallSelect).not.toHaveBeenCalled()
+    act(() => mockMapInstance!.fire('click', event))
+    expect(onSelect).toHaveBeenLastCalledWith('window-1')
+    expect(onWallSelect).not.toHaveBeenCalledWith('wall-1')
+  })
+
+  it('Escape cancels an idle-mode door drag before mouse release', async () => {
+    mockEditorValue = makeEditorValue({ buildings: [{ id: 'BLD01', floors: [{ id: 'floor', level: 0, rooms: [], doors: [], walls: [{ id: 'wall', start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, height: 3.5, thickness: 0.15 }] }] }] })
+    mockEditorValue.transformer = { buildingLocalToWorld: p => ({ lng: p.x, lat: p.y }), worldToBuildingLocal: p => ({ x: p.lng, y: p.lat }) }
+    render(<FloorEditorCanvas building={building} activeFloorId="floor" floor={0} tool="door" layers={layers} selectedId={null} onSelect={vi.fn()} />)
+    await waitFor(() => expect(mockMapInstance?.getSource('floor-draw-preview')).toBeTruthy())
+    const event = (x: number) => ({ point: { x, y: 0 }, lngLat: { lng: x, lat: 0 }, originalEvent: new MouseEvent('mousedown', { button: 0 }) })
+    act(() => mockMapInstance!.fire('mousedown', event(2)))
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })))
+    act(() => mockMapInstance!.fire('mouseup', event(4)))
+    expect(mockDispatcherExecute.mock.calls.some(([command]) => command.id === 'door.create')).toBe(false)
+  })
+
+  it.each([true,false])('resizes thin door handles once and reports a rejected resize (accepted=%s)', async accepted => {
+    const polygon=[{lng:2.5,lat:-.075},{lng:3.5,lat:-.075},{lng:3.5,lat:.075},{lng:2.5,lat:.075}]
+    mockEditorValue=makeEditorValue({roads:[],buildings:[{id:'BLD01',verticalConnectors:[],floors:[{id:'floor',level:0,rooms:[],entrances:[],hallways:[],staircases:[],elevators:[],connectorStops:[],doors:[{id:'door',doorType:'standard',metadata:{},position:{x:3,y:0},width:1,depth:.15,wallAttachment:{wallId:'wall',offset:3,openingHeight:2.1}}],walls:[{id:'wall',start:{x:0,y:0},end:{x:10,y:0},height:3.5,thickness:.15}]}]}]})
+    mockEditorValue.transformer={buildingLocalToWorld:p=>({lng:p.x,lat:p.y}),worldToBuildingLocal:p=>({x:p.lng,y:p.lat})}
+    mockFloorComponentsById={floor:[{id:'door',type:'door',floor:0,buildingId:'BLD01',name:'Door',position:{lng:3,lat:0},polygon}]}
+    const handle={type:'Feature',properties:{type:'vertex',vertexIndex:2,componentId:'door'},geometry:{type:'Point',coordinates:[3.5,.075]}}
+    mockQueryFeatures.mockImplementation((_point,options)=>options.layers.includes('floor-vertex-handles-layer')?[handle]:[])
+    render(<FloorEditorCanvas building={building} activeFloorId="floor" floor={0} tool="door" layers={layers} selectedId="door" onSelect={vi.fn()}/> )
+    await waitFor(()=>expect(mockMapInstance?.getSource('floor-vertex-handles')?.setData).toHaveBeenCalled())
+    mockDispatcherExecute.mockReturnValue(accepted?{success:true}:{success:false,error:'Door extends beyond the host wall'})
+    const event=(x:number,y:number)=>({point:{x,y},lngLat:{lng:x,lat:y},features:[handle],originalEvent:new MouseEvent('mousedown',{button:0})})
+    act(()=>mockMapInstance!.fire('mousedown',event(3.5,.075)))
+    act(()=>mockMapInstance!.fire('mousemove',event(4,.5)))
+    act(()=>mockMapInstance!.fire('mouseup',event(4,.5)))
+    const commands=mockDispatcherExecute.mock.calls.map(([command])=>command)
+    expect(commands.filter(command=>command.id==='door.create')).toHaveLength(0)
+    expect(commands.filter(command=>command.id==='door.update')).toHaveLength(1)
+    expect(commands.find(command=>command.id==='door.update')).toMatchObject({payload:{doorId:'door',patch:{position:{x:3,y:0},width:2,rotation:0}}})
+    expect(commands.find(command=>command.id==='door.update').payload.patch.depth).toBeCloseTo(1)
+    if(!accepted)expect(screen.getByText(/Door extends beyond the host wall/)).toBeTruthy()
+  })
+
+  it('selects the door footprint ahead of the wall so its resize handles can be reopened', async () => {
+    const onSelect=vi.fn()
+    render(<FloorEditorCanvas building={building} floor={0} tool="select" layers={layers} selectedId={null} onSelect={onSelect}/> )
+    await waitFor(()=>expect(mockMapInstance?.getSource('floor-door-areas')).toBeTruthy())
+    const feature=(id:string)=>({type:'Feature',properties:{id},geometry:{type:'Polygon',coordinates:[]}})
+    mockQueryFeatures.mockImplementation((_point,options)=>options.layers.includes('floor-door-areas-fill')?[feature('door')]:options.layers.includes('floor-walls-line')?[feature('wall')]:[])
+    act(()=>mockMapInstance!.fire('click',{point:{x:1,y:1},lngLat:{lng:0,lat:0},originalEvent:new MouseEvent('click')}))
+    expect(onSelect).toHaveBeenLastCalledWith('door')
+  })
+
+
+it('routes a door body drag through fresh wall snapping without treating it as resize or creation',async()=>{
+ const polygon=[{lng:2.5,lat:-.1},{lng:3.5,lat:-.1},{lng:3.5,lat:.1},{lng:2.5,lat:.1}]
+ mockEditorValue=makeEditorValue({roads:[],buildings:[{id:'BLD01',verticalConnectors:[],floors:[{id:'floor',level:0,rooms:[],entrances:[],hallways:[],staircases:[],elevators:[],connectorStops:[],doors:[{id:'copy',doorType:'standard',metadata:{},position:{x:3,y:0},width:1,depth:.2,wallAttachment:{wallId:'wall',offset:3,openingHeight:2.1}}],walls:[{id:'wall',start:{x:0,y:0},end:{x:10,y:0},height:3,thickness:.2},{id:'destination',start:{x:10,y:0},end:{x:10,y:10},height:3,thickness:.2}]}]}]})
+ mockEditorValue.transformer={buildingLocalToWorld:p=>({lng:p.x,lat:p.y}),worldToBuildingLocal:p=>({x:p.lng,y:p.lat})}
+ mockFloorComponentsById={floor:[{id:'copy',type:'door',floor:0,buildingId:'BLD01',name:'Door',position:{lng:3,lat:0},polygon}]}
+ render(<FloorEditorCanvas building={building} activeFloorId="floor" floor={0} tool="select" layers={layers} selectedId="copy" onSelect={vi.fn()}/> )
+ await waitFor(()=>expect(mockMapInstance?.getSource('floor-door-areas')).toBeTruthy())
+ const event=(lng:number,lat:number)=>({point:{x:lng,y:lat},lngLat:{lng,lat},originalEvent:new MouseEvent('mousedown',{button:0}),features:[{properties:{id:'copy'}}]})
+ act(()=>mockMapInstance!.fire('mousedown',event(3,0)))
+ act(()=>mockMapInstance!.fire('mousemove',event(10.1,4)))
+ act(()=>mockMapInstance!.fire('mouseup',event(10.1,4)))
+ const updates=mockDispatcherExecute.mock.calls.map(([c])=>c).filter(c=>c.id==='door.update')
+ expect(updates).toHaveLength(1);expect(updates[0]).toMatchObject({payload:{doorId:'copy',snapToWall:true,patch:{position:{x:expect.closeTo(10.1),y:expect.closeTo(4)}}}})
+ expect(updates[0].payload.patch).not.toHaveProperty('width')
+})
+
 })

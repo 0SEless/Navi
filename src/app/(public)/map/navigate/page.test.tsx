@@ -21,6 +21,7 @@ const navigationMock = vi.hoisted(() => ({
     onModeChange?: (mode: string) => void
     onToggleHeadingFollow?: (enabled: boolean) => void
   } | null,
+  routePath: [] as string[],
 }))
 
 const qrNavigationMock = vi.hoisted(() => ({
@@ -28,8 +29,9 @@ const qrNavigationMock = vi.hoisted(() => ({
 }))
 
 vi.mock('next/dynamic', () => ({
-  default: () => function ExploreMapStub({ camera }: { camera?: typeof navigationMock.camera }) {
+  default: () => function ExploreMapStub({ camera, route }: { camera?: typeof navigationMock.camera; route?: { path: string[] } | null }) {
     navigationMock.camera = camera ?? null
+    navigationMock.routePath = route?.path ?? []
     return (
       <div
         data-testid="navigate-map-stub"
@@ -81,6 +83,8 @@ vi.mock('@/components/map/NavigationSession', async () => {
           sessionActive={active}
           isOffRoute={active && navigationMock.isOffRoute}
           arrived={active && navigationMock.arrived}
+          progressMode="gps"
+          progressLabel="Following GPS"
         >
           {children}
         </NavigationProvider>
@@ -215,6 +219,7 @@ afterEach(() => {
   navigationMock.progressIndex = 0
   navigationMock.sessionPoiId = null
   navigationMock.camera = null
+  navigationMock.routePath = []
   qrNavigationMock.state = { status: 'idle', retry: vi.fn() }
   usePublicStore.setState({
     campus: null,
@@ -420,9 +425,18 @@ describe('Navigate setup and route preview', () => {
     expect(screen.getByText('Route preview')).toBeInTheDocument()
     expect(screen.getByTestId('navigate-map-stub')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start navigation' })).toBeInTheDocument()
-    expect(screen.getByText('CS 301')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'CS 301' })).toBeInTheDocument()
     expect(screen.queryByText('Active navigation')).toBeNull()
     expect(screen.queryByRole('button', { name: 'End navigation' })).toBeNull()
+  })
+
+  it('trims completed route steps from the map after active progress advances', () => {
+    setReadyCampus({ fromNode: start.id, toNode: destination.id })
+    navigationMock.progressIndex = 1
+    render(<NavigatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start navigation' }))
+
+    expect(navigationMock.routePath).toEqual(route.path.slice(1))
   })
 
   it('keeps route preview TOP-only and passes route bounds to the camera seam', () => {
@@ -433,6 +447,32 @@ describe('Navigate setup and route preview', () => {
     expect(map).toHaveAttribute('data-camera-surface', 'route-preview')
     expect(map).toHaveAttribute('data-camera-mode', 'TOP')
     expect(map).toHaveAttribute('data-camera-has-bounds', 'true')
+  })
+
+  it('keeps the map in its own flex viewport while route steps expand above a persistent Start action', () => {
+    setReadyCampus({ fromNode: start.id, toNode: destination.id })
+    render(<NavigatePage />)
+
+    const map = screen.getByTestId('navigate-map-stub')
+    const mapViewport = screen.getByTestId('navigation-map-viewport')
+    const dock = screen.getByTestId('route-preview-dock')
+    expect(map.closest('[data-testid="navigation-map-viewport"]')).toBe(mapViewport)
+    expect(map.closest('[data-testid="route-preview-dock"]')).toBeNull()
+    expect(mapViewport.parentElement).toBe(dock.parentElement)
+    expect(dock).toHaveClass('shrink-0')
+    expect(screen.getByRole('button', { name: 'Start navigation' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'All steps' }))
+
+    expect(screen.getByRole('list', { name: 'Route steps' })).toBeInTheDocument()
+    expect(screen.getByText('Continue to East Upper Entrance')).toBeInTheDocument()
+    expect(screen.getByText('Enter via East Upper Entrance')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start navigation' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Fewer details' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer details' }))
+    expect(screen.queryByRole('list', { name: 'Route steps' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Start navigation' })).toBeInTheDocument()
   })
 
   it('shows an explicit route failure instead of a fake preview', () => {
@@ -491,6 +531,38 @@ describe('Navigate setup and route preview', () => {
         configurable: true,
         value: originalGeolocation,
       })
+    }
+  })
+
+  it('asks before accepting a good GPS start and rejects rough fixes', () => {
+    const originalGeolocation = navigator.geolocation
+    const getCurrentPosition = vi.fn((success: PositionCallback) => success({
+      coords: { latitude: destination.position.lat, longitude: destination.position.lng, accuracy: 9 } as GeolocationCoordinates,
+      timestamp: Date.now(),
+    } as GeolocationPosition))
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition } })
+    try {
+      setReadyCampus({ campus: { ...campus, edges: [{ id: 'start-to-destination', from: start.id, to: destination.id, distance: 200, type: 'walkway' }] } })
+      render(<NavigatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'Set starting point' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }))
+      expect(screen.getByText(/You seem to be near CS 301 \(±9 m\)/)).toBeInTheDocument()
+      expect(usePublicStore.getState().fromNode).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+      expect(usePublicStore.getState().fromNode).toBe(destination.id)
+
+      usePublicStore.setState({ fromNode: null, toNode: null })
+      getCurrentPosition.mockImplementationOnce((success: PositionCallback) => success({
+        coords: { latitude: destination.position.lat, longitude: destination.position.lng, accuracy: 25 } as GeolocationCoordinates,
+        timestamp: Date.now(),
+      } as GeolocationPosition))
+      fireEvent.click(screen.getByRole('button', { name: 'From CS 301' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }))
+      expect(screen.getByText('Location too rough (±25 m): scan a QR or search where you are')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Yes' })).toBeNull()
+      expect(usePublicStore.getState().fromNode).toBeNull()
+    } finally {
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: originalGeolocation })
     }
   })
 
@@ -710,7 +782,7 @@ describe('Navigate setup and route preview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start navigation' }))
 
-    expect(screen.getByText("You've arrived at your destination.")).toBeInTheDocument()
+    expect(screen.getByText("You've arrived at CS 301")).toBeInTheDocument()
     expect(screen.getByText('CS 301 · Computer Studies Building · 3F')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start 360' })).toBeNull()
 
@@ -734,7 +806,7 @@ describe('Navigate setup and route preview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start navigation' }))
 
-    expect(screen.getByText("You've arrived at your destination.")).toBeInTheDocument()
+    expect(screen.getByText("You've arrived at CS 301")).toBeInTheDocument()
     expect(screen.queryByText("You're off the route.")).toBeNull()
   })
 

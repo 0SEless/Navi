@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Building, Component, NavEdge, NavNode } from '@/types/nav-types'
 import { OutdoorRoutePicker } from '../OutdoorRoutePicker'
 
@@ -17,7 +17,7 @@ vi.mock('maplibre-gl', () => {
     isStyleLoaded = vi.fn(() => true)
     loaded = vi.fn(() => true)
 
-    constructor() {
+    constructor(public options: any) {
       mapMocks.lastMap = this
       setTimeout(() => this.fire('load'), 0)
     }
@@ -207,7 +207,7 @@ describe('OutdoorRoutePicker', () => {
 
     await waitFor(() => expect(screen.getByText('Selected outdoor target')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /Walkway A/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(mapMocks.lastMap.getSource('picker-pending-access').data.features).toHaveLength(1)
+    await waitFor(() => expect(mapMocks.lastMap.getSource('picker-pending-access').data.features).toHaveLength(1))
     expect(mapMocks.lastMap.getSource('picker-pending-access').data.features[0].properties).toEqual(expect.objectContaining({
       sourceId: 'entrance-1',
       targetId: 'outdoor-1',
@@ -253,4 +253,15 @@ describe('OutdoorRoutePicker', () => {
 
     expect(onCancel).toHaveBeenCalledOnce()
   })
+})
+
+it('caps only raster tiles at19 and retains vector route selection after tile failure',async()=>{
+ const confirm=vi.fn();render(<OutdoorRoutePicker open building={building} entrance={entrance} nodes={nodes} edges={edges} onCancel={vi.fn()} onConfirm={confirm}/>)
+ await waitFor(()=>expect(mapMocks.lastMap.getSource('picker-outdoor-nodes')).not.toBeNull())
+ expect(mapMocks.lastMap.options.style.sources.osm.maxzoom).toBe(19)
+ act(()=>mapMocks.lastMap.fire('error',{sourceId:'osm',error:new Error('AJAXError tile.openstreetmap.org failed')}))
+ expect(screen.getByText(/Background map unavailable/)).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:/Walkway A/}))
+ expect(screen.getByText(/Background map unavailable/)).toBeTruthy()
+ expect(mapMocks.lastMap.getSource('picker-outdoor-nodes')).not.toBeNull()
 })

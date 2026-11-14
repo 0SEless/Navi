@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CampusDocument, RoomDoor } from '@navi/core'
 import { buildDuplicatedDoor } from '../duplicate-helpers'
-import { doorCreateHandler, doorDeleteHandler, doorDuplicateHandler, doorRouteConnectHandler } from '../feature-handlers'
+import { doorCreateHandler, doorDeleteHandler, doorDuplicateHandler, doorRouteConnectHandler, doorUpdateHandler } from '../feature-handlers'
 
 function doc(): CampusDocument {
   return {
@@ -220,4 +220,78 @@ describe('door.duplicate', () => {
     expect(JSON.stringify(floor.doors)).toBe(before)
     expect(floor.doors).toHaveLength(1)
   })
+})
+
+
+describe('wall-aware door copies and body moves',()=>{
+ function attached(){
+  const document=doc(),floor=floorOf(document)
+  floor.walls=[{id:'w',start:{x:0,y:0},end:{x:10,y:0},height:3,thickness:.2},{id:'vertical',start:{x:10,y:0},end:{x:10,y:10},height:3,thickness:.2}]
+  floor.doors=[sourceDoor({position:{x:2,y:0},width:1,depth:.25,doorAppearance:'double-glass',doorPose:'ajar',wallAttachment:{wallId:'w',offset:2,openingHeight:2.2}})]
+  return document
+ }
+ it('copies style and pose while keeping an attached, nonoverlapping copy on the source wall',()=>{
+  const document=attached(),floor=floorOf(document),source=structuredClone(floor.doors![0]),network=structuredClone(floor.routeNetwork)
+  const result=doorDuplicateHandler.execute(document,{doorId:source.id})
+  expect(result.success).toBe(true)
+  const copy=floor.doors!.find(d=>d.id===result.entityId)!
+  expect(copy).toMatchObject({doorAppearance:'double-glass',doorPose:'ajar',width:1,depth:.25,wallAttachment:{wallId:'w',openingHeight:2.2}})
+  expect(copy.position.y).toBe(0);expect(Math.abs(copy.position.x-source.position.x)).toBeGreaterThanOrEqual(1)
+  expect(copy.wallAttachment!.offset).toBe(copy.position.x);expect(copy.routeConnection).toBeUndefined()
+  expect(floor.doors![0]).toEqual(source);expect(floor.routeNetwork).toEqual(network)
+  const inverse=doorDuplicateHandler.inverse!({doorId:source.id},result)!
+  doorDeleteHandler.execute(document,inverse.payload);expect(floor.doors).toEqual([source])
+ })
+ it('copies onto an explicit destination wall and adopts its angle without sharing source attachment objects',()=>{
+  const document=attached(),floor=floorOf(document)
+  const result=doorDuplicateHandler.execute(document,{doorId:'door-src',offset:{x:8.1,y:4}})
+  expect(result.success).toBe(true)
+  const copy=floor.doors!.find(d=>d.id===result.entityId)!
+  expect(copy.position).toEqual({x:10,y:4});expect(copy.rotation).toBeCloseTo(Math.PI/2)
+  expect(copy.wallAttachment).toEqual({wallId:'vertical',offset:4,openingHeight:2.2})
+  expect(copy.wallAttachment).not.toBe(floor.doors![0].wallAttachment)
+ })
+ it('refuses an attached copy with no valid free wall span without mutating anything',()=>{
+  const document=attached(),floor=floorOf(document)
+  floor.walls=[{...floor.walls![0],end:{x:3,y:0}}];floor.doors![0].width=3;floor.doors![0].position.x=1.5;floor.doors![0].wallAttachment!.offset=1.5
+  const before=JSON.stringify(document)
+  expect(doorDuplicateHandler.execute(document,{doorId:'door-src'}).success).toBe(false)
+  expect(JSON.stringify(document)).toBe(before)
+ })
+ it('fits a copy in a valid narrow gap without imposing an extra clearance requirement',()=>{
+  const document=attached(),floor=floorOf(document)
+  floor.walls=[floor.walls![0]]
+  floor.openings=[{id:'left',type:'door',wallId:'w',offset:0,width:1,height:2.1},{id:'middle',type:'door',wallId:'w',offset:2.5,width:2.5,height:2.1},{id:'right',type:'door',wallId:'w',offset:6.1,width:3.9,height:2.1}]
+  const result=doorDuplicateHandler.execute(document,{doorId:'door-src'})
+  expect(result.success).toBe(true)
+  const copy=floor.doors!.find(d=>d.id===result.entityId)!
+  expect(copy.wallAttachment!.offset).toBeGreaterThanOrEqual(5.5)
+  expect(copy.wallAttachment!.offset).toBeLessThanOrEqual(5.6)
+ })
+ it('snaps a moved copy onto another wall, preserves physical settings and exactly undoes',()=>{
+  const document=attached(),floor=floorOf(document),before=structuredClone(floor.doors![0]),network=structuredClone(floor.routeNetwork)
+  const payload={doorId:'door-src',snapToWall:true,patch:{position:{x:10.1,y:4}}}
+  const result=doorUpdateHandler.execute(document,payload)
+  expect(result.success).toBe(true)
+  expect(floor.doors![0]).toMatchObject({position:{x:10,y:4},doorAppearance:'double-glass',doorPose:'ajar',width:1,depth:.25,wallAttachment:{wallId:'vertical',offset:4,openingHeight:2.2}})
+  expect(floor.doors![0].rotation).toBeCloseTo(Math.PI/2)
+  const inverse=doorUpdateHandler.inverse!(payload,result)!
+  expect(doorUpdateHandler.execute(document,inverse.payload).success).toBe(true)
+  expect(floor.doors![0]).toEqual(before);expect(floor.routeNetwork).toEqual(network)
+ })
+ it.each([{x:10,y:.1},{x:30,y:30},{x:10,y:9.9}])('refuses ambiguous, distant and overhanging moves atomically %j',position=>{
+  const document=attached(),before=JSON.stringify(document)
+  expect(doorUpdateHandler.execute(document,{doorId:'door-src',snapToWall:true,patch:{position}}).success).toBe(false)
+  expect(JSON.stringify(document)).toBe(before)
+ })
+ it('refuses overlap with another opening, and permits attaching a legacy freeform copy',()=>{
+  const document=attached(),floor=floorOf(document)
+  delete floor.doors![0].wallAttachment
+  floor.openings=[{id:'window',type:'window',wallId:'vertical',offset:3,width:2,height:1,sillHeight:1}]
+  const before=JSON.stringify(document)
+  expect(doorUpdateHandler.execute(document,{doorId:'door-src',snapToWall:true,patch:{position:{x:10,y:4}}}).success).toBe(false)
+  expect(JSON.stringify(document)).toBe(before)
+  expect(doorUpdateHandler.execute(document,{doorId:'door-src',snapToWall:true,patch:{position:{x:10,y:7}}}).success).toBe(true)
+  expect(floor.doors![0].wallAttachment?.wallId).toBe('vertical')
+ })
 })

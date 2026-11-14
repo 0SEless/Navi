@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ResizableSidePanel } from "./ResizableSidePanel";
 import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard,
@@ -128,24 +129,28 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
       </header>
 
       {/* Body */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
         {/* Left Sidebar */}
-        <aside
-          className="navi-admin-sidebar"
+        <ResizableSidePanel label="Admin navigation" side="left" defaultWidth={200} minWidth={160} maxWidth={280} maxWidthRatio={0.22}
+          collapsed={sidebarCollapsed} collapsedWidth={48} keepCollapsedContent className="navi-admin-sidebar">
+        <div
           style={{
-            width: sidebarCollapsed ? 48 : 200,
+            width: '100%',
+            minHeight: '100%',
             background: "var(--navi-sidebar)",
             borderRight: "1px solid var(--navi-sidebar-border)",
             flexShrink: 0,
             display: "flex",
             flexDirection: "column",
-            transition: "width 0.15s ease",
             overflow: "hidden",
           }}
         >
           {/* Collapse toggle */}
           <div style={{ display: "flex", justifyContent: sidebarCollapsed ? "center" : "flex-end", padding: "6px 4px" }}>
             <button
+              type="button"
+              aria-label={sidebarCollapsed ? "Expand admin navigation" : "Collapse admin navigation"}
+              aria-expanded={!sidebarCollapsed}
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               style={{
                 background: "transparent",
@@ -226,10 +231,11 @@ export function AppLayout({ currentScreen, onNavigate, children }: AppLayoutProp
               {!sidebarCollapsed && <span>Sign Out</span>}
             </button>
           </div>
-        </aside>
+        </div>
+        </ResizableSidePanel>
 
         {/* Main content */}
-        <main style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <main style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {children}
         </main>
       </div>

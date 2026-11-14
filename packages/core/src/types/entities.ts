@@ -21,6 +21,13 @@ import type {
   RoadDirection,
   POICategory,
   DoorType,
+  DoorOperation,
+  HingeSide,
+  SwingSide,
+  OpeningMaterial,
+  GlassType,
+  WindowAppearance,
+  WindowPose,
 } from './enums'
 import type { RouteNetwork } from './routing'
 import type { GroundFit } from '../terrain/types'
@@ -149,6 +156,8 @@ export interface Floor {
 }
 
 export interface RoomDoor {
+  /** Explicit editor access intent; disconnected ports must not use legacy nearest fallback. */
+  routeConnectionManaged?: boolean
   id: string
   roomId?: string             // owning room; absent means explicitly unassigned/ambiguous
   ownership?:
@@ -164,6 +173,20 @@ export interface RoomDoor {
   // P1-T6 (R2.4/D7): closed DoorType enum (see enums.ts). 'opening' is a
   // wall opening — always traversable; the rest are closed doors.
   doorType: DoorType
+  /** Decorative only; absence renders a solid panel (open doorways stay open). */
+  doorAppearance?: 'open' | 'solid' | 'glass' | 'double-solid' | 'double-glass'
+  /** Decorative panel pose only; missing means closed. */
+  doorPose?: 'closed' | 'ajar' | 'open'
+  /** Decorative only (2026-11-13 assets): how the leaf moves; absent derives from doorType. */
+  doorOperation?: DoorOperation
+  /** Decorative only: hinge end along the host wall; absent = 'start'. */
+  hingeSide?: HingeSide
+  /** Decorative only: swing side of the wall; absent = 'left' (today's rendering). */
+  swingSide?: SwingSide
+  /** Decorative only: built-in catalog preset id (assets/opening-catalog.ts). */
+  assetPreset?: string
+  material?: OpeningMaterial
+  glass?: GlassType
   position: LocalCoord        // wall position of the door
   width: number               // meters
   depth?: number
@@ -171,6 +194,8 @@ export interface RoomDoor {
   geometry?: Extract<PointOfInterestGeometry, { type: 'rectangle' }>
   name?: string
   angle?: number              // degrees — door leaf angle (0 = E–W line)
+  /** Center offset along the canonical host wall; absent on legacy free doors. */
+  wallAttachment?: { wallId: string; offset: number; openingHeight: number }
   routeConnection?: {
     anchorNodeId: string
     targetRouteNodeId: string
@@ -208,6 +233,19 @@ export interface Opening {
   width: number         // meters
   height?: number       // meters (optional initially)
   sillHeight?: number   // meters (optional initially)
+  windowAppearance?: WindowAppearance // absent legacy windows remain open
+  /** Casement and awning windows only; decorative. */
+  windowPose?: WindowPose
+  doorAppearance?: 'open' | 'solid' | 'glass' | 'double-solid' | 'double-glass'
+  doorPose?: 'closed' | 'ajar' | 'open'
+  /** Door openings only; decorative (see RoomDoor). */
+  doorOperation?: DoorOperation
+  hingeSide?: HingeSide
+  swingSide?: SwingSide
+  /** Decorative catalog fields (doors and windows). */
+  assetPreset?: string
+  material?: OpeningMaterial
+  glass?: GlassType
   orientation?: number  // degrees — user-drawn door leaf angle (A→B direction)
   metadata?: Record<string, unknown>
 }
@@ -485,7 +523,11 @@ export interface Staircase {
 }
 
 export interface StairLevelGeometry {
+  routeConnectionManaged?: boolean
+  routeConnection?: RoomDoor['routeConnection']
   position: LocalCoord          // per-level position (editable)
+  /** Optional visual rise in meters; absent inherits the floor height. */
+  height?: number
   rotation: number              // per-level orientation (editable)
   polygon?: LocalPolygon        // RESOLVED physical geometry (never "authoritative")
   landing?: {
@@ -520,6 +562,8 @@ export interface Elevator {
 }
 
 export interface ElevatorLevelGeometry {
+  routeConnectionManaged?: boolean
+  routeConnection?: RoomDoor['routeConnection']
   position: LocalCoord          // per-level position (editable)
   rotation: number              // per-level orientation (editable)
   polygon?: LocalPolygon        // RESOLVED physical geometry (never "authoritative")
@@ -589,6 +633,10 @@ export interface VerticalConnector {
 }
 
 export interface Entrance {
+  routeConnectionManaged?: boolean
+  routeConnection?: RoomDoor['routeConnection']
+  /** Explicit floor-side terminal. A terminal alone does not imply an indoor path. */
+  routeNodeId?: string
   id: string
   label: string
   position: LocalCoord     // building-local meters (D9); world LatLng derived via CoordinateTransformer only

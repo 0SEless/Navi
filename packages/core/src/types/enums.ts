@@ -110,6 +110,20 @@ export function isDoorType(value: unknown): value is DoorType {
   return typeof value === 'string' && (DOOR_TYPES as readonly string[]).includes(value)
 }
 
+// ── Door/window assets (2026-11-13): decorative only, never read by navigation ──
+export type DoorOperation = 'hinged' | 'sliding' | 'folding' | 'rolling' | 'none'
+export const DOOR_OPERATIONS: readonly DoorOperation[] = ['hinged', 'sliding', 'folding', 'rolling', 'none']
+/** End of the opening the hinge sits at, along the host wall's direction. */
+export type HingeSide = 'start' | 'end'
+export const HINGE_SIDES: readonly HingeSide[] = ['start', 'end']
+/** Side of the wall the leaf swings toward, looking from wall start to wall end. */
+export type SwingSide = 'left' | 'right'
+export const SWING_SIDES: readonly SwingSide[] = ['left', 'right']
+export type OpeningMaterial = 'wood' | 'painted-steel' | 'aluminium' | 'fire-red'
+export const OPENING_MATERIALS: readonly OpeningMaterial[] = ['wood', 'painted-steel', 'aluminium', 'fire-red']
+export type GlassType = 'clear' | 'frosted' | 'tinted'
+export const GLASS_TYPES: readonly GlassType[] = ['clear', 'frosted', 'tinted']
+
 // ── P1-T7 (R2.5/R8.1/D10): route network vocabulary ──
 // ONE vocabulary owned by the compiler; consumers use it through @navi/runtime
 // with no ad-hoc normalization (D10). Node types:
@@ -154,3 +168,9 @@ export const ROUTE_EDGE_TYPES: readonly RouteEdgeType[] = [
 export function isRouteEdgeType(value: unknown): value is RouteEdgeType {
   return typeof value === 'string' && (ROUTE_EDGE_TYPES as readonly string[]).includes(value)
 }
+/** Window look. 'open', 'fixed' and 'two-pane' are the original three; absent = 'open'. */
+export type WindowAppearance = 'open' | 'fixed' | 'two-pane' | 'jalousie' | 'sliding' | 'casement' | 'awning' | 'transom' | 'vent-block'
+export const WINDOW_APPEARANCES: readonly WindowAppearance[] = ['open', 'fixed', 'two-pane', 'jalousie', 'sliding', 'casement', 'awning', 'transom', 'vent-block']
+/** Casement, awning and jalousie windows only; absent = 'closed'. */
+export type WindowPose = 'closed' | 'open'
+export const WINDOW_POSES: readonly WindowPose[] = ['closed', 'open']

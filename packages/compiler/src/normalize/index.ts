@@ -102,12 +102,12 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
         const localCenter = polygonCentroid(pts)
         const centroid = localToLatLng(localCenter.x, localCenter.y, origin.lat, origin.lng)
 
-        const doors: NormalizedRoomDoor[] = (room.roomDoors || []).map(door => ({
+        const doors: NormalizedRoomDoor[] = (room.roomDoors || []).filter(door => !(floor.doors ?? []).some(canonical => canonical.id === door.id)).map(door => ({
           id: door.id,
           roomId: room.id,
           position: localToLatLng(door.position.x, door.position.y, origin.lat, origin.lng),
           width: door.width,
-          properties: { ...door.metadata, doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType },
+          properties: { ...door.metadata, doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType, ...(door.routeConnection?{routeConnection:structuredClone(door.routeConnection)}:{}), ...(door.routeConnectionManaged!==undefined?{routeConnectionManaged:door.routeConnectionManaged}:{}) },
         }))
         // Doors drawn in the floor editor live on the floor with their owning room (2026-11-08); they are this
         // room's doors too (assigned ones only: an unassigned or ambiguous door has no room to lead into).
@@ -119,7 +119,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
             roomId: room.id,
             position: localToLatLng(door.position.x, door.position.y, origin.lat, origin.lng),
             width: door.width,
-            properties: { ...(door.metadata ?? {}), doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType },
+            properties: { ...(door.metadata ?? {}), doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType, ...(door.routeConnection?{routeConnection:structuredClone(door.routeConnection)}:{}), ...(door.routeConnectionManaged!==undefined?{routeConnectionManaged:door.routeConnectionManaged}:{}) },
           })
         }
 
@@ -262,7 +262,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
             levels: Object.fromEntries(
               Object.entries(st.levels ?? {}).map(([k, geom]) => [
                 Number(k),
-                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
+                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng), ...(geom.routeConnection?{routeConnection:structuredClone(geom.routeConnection)}:{}), ...(geom.routeConnectionManaged!==undefined?{routeConnectionManaged:geom.routeConnectionManaged}:{}) },
               ]),
             ),
             ...(st.links ? { links: { ...st.links } } : {}),
@@ -278,7 +278,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
             levels: Object.fromEntries(
               Object.entries(el.levels ?? {}).map(([k, geom]) => [
                 Number(k),
-                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng) },
+                { position: localToLatLng(geom.position.x, geom.position.y, origin.lat, origin.lng), ...(geom.routeConnection?{routeConnection:structuredClone(geom.routeConnection)}:{}), ...(geom.routeConnectionManaged!==undefined?{routeConnectionManaged:geom.routeConnectionManaged}:{}) },
               ]),
             ),
             ...(el.links ? { links: { ...el.links } } : {}),

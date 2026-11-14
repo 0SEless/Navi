@@ -1,3 +1,5 @@
+import { resolveStairDirectionCorners } from '@navi/core'
+
 export interface Point2D {
   x: number
   y: number
@@ -32,20 +34,21 @@ function interpolateLatLng(a: { lat: number; lng: number }, b: { lat: number; ln
 
 /**
  * Generate architectural staircase graphic elements (parallel tread steps and walk arrow)
- * from a 4-point polygon or rectangle.
+ * from a 4-point polygon or rectangle. Authored directions use canonical
+ * polygonizeRect corner order; freeform arrows preserve the polygon's order.
  */
 export function generateStairGraphicsLatLng(
   polygonPoints: Array<{ lat: number; lng: number }>,
-  stepCount = 8
+  stepCount = 8,
+  direction?: string,
 ): { outline: Array<{ lat: number; lng: number }>; treads: Array<Array<{ lat: number; lng: number }>>; arrow: Array<{ lat: number; lng: number }> } {
   if (polygonPoints.length < 4) {
     return { outline: polygonPoints, treads: [], arrow: [] }
   }
 
-  const p0 = polygonPoints[0]
-  const p1 = polygonPoints[1]
-  const p2 = polygonPoints[2]
-  const p3 = polygonPoints[3]
+  const cornerOrder = resolveStairDirectionCorners(direction)
+  if (!cornerOrder) return { outline: polygonPoints, treads: [], arrow: [] }
+  const [p0, p1, p2, p3] = cornerOrder.map(index => polygonPoints[index])
 
   const treads: Array<Array<{ lat: number; lng: number }>> = []
   const count = Math.max(3, Math.min(20, stepCount))

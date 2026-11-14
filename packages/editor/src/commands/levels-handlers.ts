@@ -1,3 +1,4 @@
+import {syncFeatureRoutePort,featureRouteNetworkSnapshot,restoreFeatureRouteNetwork} from '../geometry/feature-route-port'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord, Staircase, Elevator, StairLevelGeometry, ElevatorLevelGeometry } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
@@ -42,6 +43,13 @@ export const featureLevelUpdateHandler: CommandHandler = {
     const current = levels[floor]
     if (!current) return { success: false, error: `Placement not found on floor ${floor} for ${featureId}` }
 
+    if ('restoreLevel' in payload) {
+      levels[floor] = structuredClone(payload.restoreLevel as StairLevelGeometry | ElevatorLevelGeometry)
+      restoreFeatureRouteNetwork(found.building, floor, payload.restoreRouteNetwork as ReturnType<typeof featureRouteNetworkSnapshot>)
+      recordChange(document, { entityId: featureId, entityType: featureType, operation: 'restored' })
+      return { success: true, entityId: featureId }
+    }
+
     if (patch.position !== undefined) {
       const pos = patch.position as LocalCoord
       if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
@@ -55,14 +63,21 @@ export const featureLevelUpdateHandler: CommandHandler = {
     // Verbatim snapshot for undo (R15.9 — exact key-presence).
     const old = JSON.parse(JSON.stringify(current)) as StairLevelGeometry | ElevatorLevelGeometry
 
+    const previousNetwork = featureRouteNetworkSnapshot(found.building, floor)
     if (patch.position != null) {
       const pos = patch.position as LocalCoord
       current.position = { x: pos.x, y: pos.y }
     }
     if (patch.rotation != null) current.rotation = patch.rotation as number
 
+    const error = syncFeatureRoutePort(found.building, feature, floor)
+    if (error) {
+      levels[floor] = old
+      restoreFeatureRouteNetwork(found.building, floor, previousNetwork)
+      return { success: false, error }
+    }
     recordChange(document, { entityId: featureId, entityType: featureType, operation: 'updated' })
-    return { success: true, entityId: featureId, data: { old, floor, featureType } }
+    return { success: true, entityId: featureId, data: { old, floor, featureType, previousNetwork } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
     const old = result.data?.old as StairLevelGeometry | ElevatorLevelGeometry | undefined
@@ -74,7 +89,8 @@ export const featureLevelUpdateHandler: CommandHandler = {
         featureId: payload.featureId as string,
         featureType: payload.featureType as FeatureType,
         floor: result.data?.floor as number,
-        patch: { position: { ...old.position }, ...(old.rotation !== undefined ? { rotation: old.rotation } : {}) },
+        restoreLevel: old,
+        restoreRouteNetwork: result.data?.previousNetwork,
       },
     }
   },
@@ -99,6 +115,7 @@ export const featureLevelCopyHandler: CommandHandler = {
       } else {
         levels[toFloor] = JSON.parse(JSON.stringify(payload.restore)) as StairLevelGeometry | ElevatorLevelGeometry
       }
+      if ('restoreRouteNetwork' in payload)restoreFeatureRouteNetwork(found.building,toFloor,payload.restoreRouteNetwork as ReturnType<typeof featureRouteNetworkSnapshot>)
       recordChange(document, { entityId: featureId, entityType: featureType, operation: 'restored' })
       return { success: true, entityId: featureId }
     }
@@ -115,11 +132,20 @@ export const featureLevelCopyHandler: CommandHandler = {
       ? JSON.parse(JSON.stringify(levels[toFloor])) as StairLevelGeometry | ElevatorLevelGeometry
       : null
 
-    // Explicit align: overwrite the target floor's placement verbatim.
-    levels[toFloor] = JSON.parse(JSON.stringify(source)) as StairLevelGeometry | ElevatorLevelGeometry
+    const previousNetwork=featureRouteNetworkSnapshot(found.building,toFloor)
+    const copied=structuredClone(source)
+    delete copied.routeConnection
+    delete copied.routeConnectionManaged
+    if(previousTarget?.routeConnection)copied.routeConnection=structuredClone(previousTarget.routeConnection)
+    if(previousTarget?.routeConnectionManaged!==undefined)copied.routeConnectionManaged=previousTarget.routeConnectionManaged
+    else if(source.routeConnection||source.routeConnectionManaged)copied.routeConnectionManaged=true
+    levels[toFloor]=copied
+    const error=syncFeatureRoutePort(found.building,feature,toFloor)
+    if(error){if(previousTarget)levels[toFloor]=previousTarget;else delete levels[toFloor];restoreFeatureRouteNetwork(found.building,toFloor,previousNetwork);return {success:false,error}}
+
 
     recordChange(document, { entityId: featureId, entityType: featureType, operation: 'updated' })
-    return { success: true, entityId: featureId, data: { previousTarget, toFloor, featureType } }
+    return { success: true, entityId: featureId, data: { previousTarget, toFloor, featureType,previousNetwork } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
     if (!result.data) return null
@@ -131,6 +157,7 @@ export const featureLevelCopyHandler: CommandHandler = {
         featureType: payload.featureType as FeatureType,
         toFloor: result.data?.toFloor as number,
         restore: result.data?.previousTarget as StairLevelGeometry | ElevatorLevelGeometry | null,
+        restoreRouteNetwork: result.data?.previousNetwork,
       },
     }
   },

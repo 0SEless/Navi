@@ -109,13 +109,15 @@ export interface NavigationCameraController {
   setHeadingFollowEnabled: (enabled: boolean, heading?: number | null) => void
   resetCompass: () => void
   fitRoute: (bounds: NavigationCameraBounds) => void
+  /** Refit the same route after the map viewport changes size. */
+  refitRoute: (bounds: NavigationCameraBounds) => void
   getState: () => NavigationCameraControllerState
   destroy: () => void
 }
 
 const FOLLOW_OFFSET: NavigationCameraOffset = [0, 110]
 const POV_OFFSET: NavigationCameraOffset = [0, 150]
-const ROUTE_PREVIEW_PADDING = { top: 184, right: 32, bottom: 168, left: 32 }
+const ROUTE_PREVIEW_PADDING = { top: 80, right: 64, bottom: 24, left: 24 }
 const ROUTE_PREVIEW_DURATION_MS = 400
 const ROUTE_PREVIEW_MAX_ZOOM = NAVIGATION_TOP_MAX_ZOOM
 
@@ -342,16 +344,16 @@ export function createNavigationCameraController(
     if (target.bearing !== undefined) state.bearing = target.bearing
   }
 
-  const fitRoute = (bounds: NavigationCameraBounds): void => {
+  const fitRoute = (bounds: NavigationCameraBounds, force = false): void => {
     if (!isReady() || !isValidBounds(bounds)) return
     const nextBoundsKey = boundsKey(bounds)
-    if (nextBoundsKey === lastRouteBoundsKey) return
+    if (!force && nextBoundsKey === lastRouteBoundsKey) return
 
     map.fitBounds(
       [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
       {
         padding: ROUTE_PREVIEW_PADDING,
-        duration: reducedMotion ? 0 : ROUTE_PREVIEW_DURATION_MS,
+        duration: reducedMotion || force ? 0 : ROUTE_PREVIEW_DURATION_MS,
         maxZoom: ROUTE_PREVIEW_MAX_ZOOM,
       },
     )
@@ -700,7 +702,8 @@ export function createNavigationCameraController(
     recenter,
     resetCompass,
     setHeadingFollowEnabled,
-    fitRoute,
+    fitRoute: bounds => fitRoute(bounds),
+    refitRoute: bounds => fitRoute(bounds, true),
     getState: () => ({ ...state }),
     destroy,
   }

@@ -74,6 +74,9 @@ function SessionProbe() {
     'data-heading': String(context.heading ?? ''),
     'data-heading-source': context.headingSource,
     'data-heading-status': context.headingStatus,
+    'data-progress-mode': context.progressMode,
+    'data-progress-label': context.progressLabel,
+    'data-gps-accuracy': String(context.gpsAccuracy ?? ''),
   })
 }
 
@@ -447,5 +450,36 @@ describe('NavigationSession active boundary and projection context', () => {
       expect(screen.getByTestId('session-context')).toHaveAttribute('data-arrived', 'false')
     })
     expect(onArrival).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses step progress for rough GPS and advances the camera position with Next', async () => {
+    vi.mocked(useGeolocation).mockReturnValue({
+      latitude: floorRoute.steps[0].position.lat,
+      longitude: floorRoute.steps[0].position.lng,
+      accuracy: 40,
+      timestamp: Date.now(),
+      heading: null,
+      speed: null,
+      error: null,
+      loading: false,
+    })
+    render(createElement(NavigationSession, {
+      route: floorRoute,
+      active: true,
+      activeFloor: 0,
+      setActiveFloor: vi.fn(),
+    }, createElement(() => {
+      const context = useNavigationContext()
+      return createElement('div', null,
+        createElement(SessionProbe),
+        createElement('button', { onClick: context.nextStep }, 'Next step'),
+      )
+    })))
+
+    await waitFor(() => expect(screen.getByTestId('session-context')).toHaveAttribute('data-progress-mode', 'step'))
+    expect(screen.getByTestId('session-context')).toHaveAttribute('data-progress-label', 'Tap Next at each step')
+    expect(screen.getByTestId('session-context')).toHaveAttribute('data-lat', String(floorRoute.steps[0].position.lat))
+    screen.getByRole('button', { name: 'Next step' }).click()
+    await waitFor(() => expect(screen.getByTestId('session-context')).toHaveAttribute('data-lat', String(floorRoute.steps[1].position.lat)))
   })
 })

@@ -605,7 +605,7 @@ export interface NormalizedFeatureLevels {
   toLevel: number
   /** Keys are ACCESS floors only — absent floors simply absent (never
    *  zero-filled); each entry carries that floor's own position. */
-  levels: Record<number, { position: LatLng }>
+  levels: Record<number, { position: LatLng; routeConnection?: import('@navi/core').RoomDoor['routeConnection']; routeConnectionManaged?: boolean }>
   /** Floor-to-floor connection (2026-11-08): the same-kind item directly below / above. */
   links?: { below?: string; above?: string }
 }

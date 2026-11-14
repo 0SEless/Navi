@@ -4,6 +4,7 @@ import {
   estimatePresentationEtaMinutes,
   formatNavigationDistance,
   getNavigationInstruction,
+  getUpcomingInstruction,
   getNavigationRouteComposition,
   getNavigationRouteKey,
   getVisibleNavigationStep,
@@ -253,5 +254,11 @@ describe('navigation presentation contracts', () => {
       stepIndex: 0,
     })
     expect(getNavigationInstruction(route, 1)).toBeNull()
+    route.instructions.push(
+      { type: 'walk', text: '   ', distance: 0, fromNode: 'b', toNode: 'b' },
+      { type: 'stairs', text: 'Take the stairs', distance: 10, fromNode: 'b', toNode: 'c' },
+    )
+    expect(getUpcomingInstruction(route, 0)).toMatchObject({ text: 'Take the stairs', stepIndex: 2 })
+    expect(getUpcomingInstruction(route, 2)).toBeNull()
   })
 })

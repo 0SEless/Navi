@@ -478,3 +478,25 @@ describe('terrain plan parts', () => {
     expect(stripVolatile(joined)).toEqual(stripVolatile(doc))
   })
 })
+
+describe('door/window asset style fields (2026-11-13)', () => {
+  it('round-trips a floor whose door and opening carry hingeSide end, swingSide right, doorOperation sliding', () => {
+    const doc = fixtureFull()
+    const floor = doc.buildings[0].floors[0] as unknown as Record<string, any>
+    floor.doors = [...(floor.doors ?? []), { id: 'style-door', doorType: 'standard', position: { x: 1, y: 1 }, width: 1, metadata: {}, hingeSide: 'end', swingSide: 'right', doorOperation: 'sliding' }]
+    floor.openings = [...(floor.openings ?? []), { id: 'style-opening', type: 'door', wallId: 'w-any', offset: 0, width: 1, hingeSide: 'end', swingSide: 'right', doorOperation: 'sliding' }]
+    const joined = joinParts(splitDocument(doc).parts)
+    expect(stripVolatile(joined)).toEqual(stripVolatile(doc))
+    const jf = joined.buildings[0].floors[0] as unknown as Record<string, any>
+    expect(jf.doors.find((d: any) => d.id === 'style-door')).toMatchObject({ hingeSide: 'end', swingSide: 'right', doorOperation: 'sliding' })
+    expect(jf.openings.find((o: any) => o.id === 'style-opening')).toMatchObject({ hingeSide: 'end', swingSide: 'right', doorOperation: 'sliding' })
+  })
+  it('round-trips window jalousie/casement fields', () => {
+    const doc = fixtureFull()
+    const floor = doc.buildings[0].floors[0] as unknown as Record<string, any>
+    floor.openings = [...(floor.openings ?? []), { id: 'style-window', type: 'window', wallId: 'w-any', offset: 0, width: 1.2, windowAppearance: 'casement', windowPose: 'open', assetPreset: 'window.casement', material: 'aluminium', glass: 'tinted' }]
+    const joined = joinParts(splitDocument(doc).parts)
+    expect(stripVolatile(joined)).toEqual(stripVolatile(doc))
+    expect((joined.buildings[0].floors[0] as any).openings.find((o: any) => o.id === 'style-window')).toMatchObject({ windowAppearance: 'casement', windowPose: 'open', assetPreset: 'window.casement' })
+  })
+})

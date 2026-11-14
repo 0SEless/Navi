@@ -75,7 +75,7 @@ export interface IndoorContext {
   active: boolean
   /** The building the user has entered. */
   buildingId?: string
-  /** The floor the user is viewing. */
+  /** Floor required by the active indoor route/context, not the map's view selection. */
   floorId?: number
 }
 
@@ -100,6 +100,12 @@ export interface PublicState {
   campusData: CampusData | null
   campusStatus: CampusStatus
   campusError: string | null
+  /** Floor currently rendered by the map; independent of route and positioning state. */
+  viewedFloorId: number | null
+  /** Floor reported by a validated QR checkpoint or explicit user confirmation. */
+  positionFloorId: number | null
+  positionBuildingId: string | null
+  positionFloorSource: 'unknown' | 'qr' | 'manual'
   activeFloor: number
 
   /** W16C: Explicit indoor context — gates indoor layer visibility. */
@@ -138,6 +144,8 @@ export interface PublicState {
   setAccessibilityPreferences: (preferences: Partial<AccessibilityPreferences>) => void
   selectBuilding: (b: Building | null) => void
   selectNode: (n: NavNode | null) => void
+  setViewedFloor: (floor: number | null) => void
+  setPositionFloorManually: (floor: number, buildingId: string) => void
   setActiveFloor: (floor: number) => void
   /** W16C: Enter indoor mode for a specific building and floor. */
   enterIndoorContext: (buildingId: string, floorId: number) => void
@@ -167,6 +175,11 @@ const ONBOARDING_KEY = 'navi-onboarded'
 const DEFAULT_CAMPUS_KEY = 'navi-default-campus'
 const LEGACY_CAMPUS_KEY = 'navi-selected-campus'
 const MAX_RECENT = 8
+
+function isLocalV22PreviewEnabled(): boolean {
+  return process.env.NODE_ENV === 'development'
+    && process.env.NEXT_PUBLIC_NAVI_V22_DEMO_PREVIEW === '1'
+}
 
 function loadDefaultCampusId(): string | null {
   if (typeof window === 'undefined') return null
@@ -799,6 +812,10 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
   campusData: null,
   campusStatus: 'idle',
   campusError: null,
+  viewedFloorId: null,
+  positionFloorId: null,
+  positionBuildingId: null,
+  positionFloorSource: 'unknown',
   activeFloor: 0,
 
   /** W16C: Indoor context starts inactive — Campus Mode (no rooms, no walls). */
@@ -828,9 +845,19 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
   setMapMode: (mode) => set({ mapMode: mode }),
 
   setFrom: (nodeId) => set({ fromNode: nodeId, qrLocation: null }),
-  setQrLocation: (location) => set({
-    qrLocation: location,
-    fromNode: location?.nodeId ?? null,
+  setQrLocation: (location) => set(() => {
+    const resolvedPosition = location?.source === 'qr'
+      && location.nodeId !== null
+      && location.anchor !== 'none'
+    return {
+      qrLocation: location,
+      fromNode: location?.nodeId ?? null,
+      ...(resolvedPosition ? {
+        positionFloorId: location.floor ?? null,
+        positionBuildingId: location.buildingId ?? null,
+        positionFloorSource: 'qr' as const,
+      } : {}),
+    }
   }),
   setTo: (nodeId) => set({ toNode: nodeId, poiDestination: null }),
   setPoiDestination: (poiId) => set({
@@ -855,19 +882,26 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
 
   selectBuilding: (b) => {
     set({ selectedBuilding: b })
-    // W16C: Entering a building activates indoor context, exiting clears it
+    // Selecting a building enables indoor browsing; its default floor is a view choice only.
     if (b) {
       const floorId = b.floors?.[0] ?? 0
       set({
-        indoorContext: { active: true, buildingId: b.id, floorId },
-        activeFloor: floorId,
+        indoorContext: { active: true, buildingId: b.id },
+        viewedFloorId: floorId,
       })
     } else {
-      // Exiting building clears indoor context (return to Campus Mode)
-      set({ indoorContext: { active: false } })
+      set({ indoorContext: { active: false }, viewedFloorId: null })
     }
   },
   selectNode: (n) => set({ selectedNode: n }),
+
+  setViewedFloor: (floor) => set({ viewedFloorId: floor }),
+
+  setPositionFloorManually: (floor, buildingId) => set({
+    positionFloorId: floor,
+    positionBuildingId: buildingId,
+    positionFloorSource: 'manual',
+  }),
 
   setActiveFloor: (floor) => {
     set({ activeFloor: floor })
@@ -882,6 +916,7 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
     set({
       indoorContext: { active: true, buildingId, floorId },
       activeFloor: floorId,
+      viewedFloorId: null,
     })
   },
 
@@ -889,10 +924,55 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
     set({
       indoorContext: { active: false },
       selectedBuilding: null,
+      viewedFloorId: null,
     })
   },
 
   fetchCampusData: (campusId?: string) => {
+    if (isLocalV22PreviewEnabled()) {
+      const previewCampusId = 'navi-v22-preview'
+      if (get().currentCampusId === previewCampusId && get().campus) return Promise.resolve()
+      return import('@/lib/navi-v22-preview-campus').then(({ naviV22PreviewCampus, naviV22PreviewBoundary }) => {
+        const bundle = naviV22PreviewCampus
+        set({
+          campus: bundle,
+          campusData: {
+            campusId: previewCampusId,
+            campusName: bundle.campusName,
+            source: 'demo',
+            buildings: bundle.buildings,
+            components: bundle.components ?? [],
+            nodes: bundle.nodes,
+            edges: bundle.edges,
+            boundary: naviV22PreviewBoundary,
+          },
+          currentCampusId: previewCampusId,
+          campusStatus: 'ready',
+          campusError: null,
+          campusLoading: false,
+          campusOrigin: null,
+          campusRevision: 'local-preview-fixture',
+          isRefreshing: false,
+          refreshError: null,
+          fromNode: 'main-gate',
+          toNode: null,
+          poiDestination: null,
+          selectedBuilding: null,
+          selectedNode: null,
+          viewedFloorId: null,
+          positionFloorId: null,
+          positionBuildingId: null,
+          positionFloorSource: 'unknown',
+          activeFloor: 0,
+          indoorContext: { active: false },
+          qrLocation: null,
+          recentDestinations: [],
+          recentSearches: [],
+          revealedPoiIds: [],
+        })
+      })
+    }
+
     const id = campusId ?? get().defaultCampusId ?? loadDefaultCampusId()
     if (!id) return Promise.resolve()
     if (inFlight?.campusId === id) return inFlight.promise

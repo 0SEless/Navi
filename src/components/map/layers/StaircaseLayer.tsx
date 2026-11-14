@@ -33,7 +33,7 @@ export function buildStairGeoJSON(stairs: StairRenderData[]) {
 
   for (const s of stairs) {
     if (s.polygon && s.polygon.length >= 3) {
-      const graphics = generateStairGraphicsLatLng(s.polygon)
+      const graphics = generateStairGraphicsLatLng(s.polygon, s.drawing?.properties.stepCount, s.drawing?.properties.direction)
 
       // 1. Staircase shaft fill & outline
       const coords = [...graphics.outline.map(p => [p.lng, p.lat] as [number, number]), [graphics.outline[0].lng, graphics.outline[0].lat] as [number, number]]

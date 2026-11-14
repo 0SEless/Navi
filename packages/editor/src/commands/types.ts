@@ -9,6 +9,8 @@ export interface Command {
 export interface CommandHandler {
   id: string
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult
+  /** Replay a successful command with its original generated identities. */
+  redo?(payload: Record<string, unknown>, result: MutationResult): Command | null
   inverse?(payload: Record<string, unknown>, result: MutationResult): Command | null
 }
 

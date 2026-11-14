@@ -29,6 +29,8 @@ export function buildDuplicatedDoor(source: RoomDoor, id: string, offset: LocalC
   return {
     id,
     doorType: source.doorType,
+    ...(source.doorAppearance !== undefined ? { doorAppearance: source.doorAppearance } : {}),
+    ...(source.doorPose !== undefined ? { doorPose: source.doorPose } : {}),
     position: { x: source.position.x + offset.x, y: source.position.y + offset.y },
     width: source.width,
     ...(source.depth !== undefined ? { depth: source.depth } : {}),

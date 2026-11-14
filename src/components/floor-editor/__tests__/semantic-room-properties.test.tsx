@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   document: { buildings: [], roads: [] } as any,
   graphNodes: [] as any[],
   execute: vi.fn(),
+  activateTool: vi.fn(),
   begin: vi.fn(),
   doCommit: vi.fn(),
 }))
@@ -30,7 +31,7 @@ vi.mock('@navi/editor', async (importOriginal) => ({
   useDocumentVersion: () => 0,
   useEditor: () => ({
     document: mocks.document,
-    services: { get: (name: string) => name === 'dispatcher' ? { execute: mocks.execute } : undefined },
+    services: { get: (name: string) => name === 'dispatcher' ? { execute: mocks.execute } : name === 'toolRegistry' ? { activate: mocks.activateTool } : undefined },
   }),
   useEditingEngine: () => ({ begin: mocks.begin, doCommit: mocks.doCommit }),
   RelationshipService: class {},
@@ -159,6 +160,7 @@ beforeEach(() => {
   mocks.document = editorDocument()
   mocks.graphNodes = [{ id: 'outdoor-node-7', type: 'outdoor', name: 'North Campus Walk', position: { lat: 11.81, lng: 122.09 } }]
   mocks.execute.mockReset()
+  mocks.activateTool.mockReset()
   mocks.begin.mockReset()
   mocks.doCommit.mockReset()
 })
@@ -476,7 +478,7 @@ describe('entrance route access properties', () => {
     render(<ComponentProperties componentId="entrance-1" onClose={vi.fn()} />)
 
     expect(screen.getByText('North Campus Walk')).toBeInTheDocument()
-    expect(screen.getByText('Route point 1')).toBeInTheDocument()
+    expect(screen.getByText('No indoor path yet')).toBeInTheDocument()
     expect(screen.queryByText('outdoor-node-7')).not.toBeInTheDocument()
     expect(screen.getByText('Advanced route assignment')).toBeInTheDocument()
   })
@@ -573,6 +575,7 @@ describe('Door properties', () => {
       payload: { doorId: 'door-1' },
     }))
     expect(onSelectComponent).toHaveBeenCalledWith('door-dup')
+    expect(mocks.activateTool).toHaveBeenCalledExactlyOnceWith('select')
   })
 
   it('keeps the current selection when the duplicate command creates no Door', () => {
@@ -582,6 +585,16 @@ describe('Door properties', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
 
     expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({ id: 'door.duplicate' }))
+    expect(onSelectComponent).not.toHaveBeenCalled()
+  })
+
+  it('shows a duplicate wall-placement rejection while retaining the selected door',()=>{
+    mocks.execute.mockReturnValueOnce({success:false,error:'No free span on this wall'})
+    const onSelectComponent=vi.fn()
+    render(<ComponentProperties componentId="door-1" onClose={vi.fn()} onSelectComponent={onSelectComponent}/>)
+    fireEvent.click(screen.getByRole('button',{name:'Duplicate'}))
+    expect(screen.getByRole('alert').textContent).toContain('No free span on this wall')
+    expect(mocks.activateTool).not.toHaveBeenCalled()
     expect(onSelectComponent).not.toHaveBeenCalled()
   })
 
@@ -605,16 +618,16 @@ describe('vertical rectangle properties', () => {
     }]
 
     render(<ComponentProperties componentId="stairs-1-0" onClose={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('Stair width'), { target: { value: '4' } })
-    fireEvent.change(screen.getByLabelText('Stair depth'), { target: { value: '2' } })
-    fireEvent.change(screen.getByLabelText('Stair rotation'), { target: { value: '90' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.change(screen.getByLabelText('Stair width (m)'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Stair depth (m)'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Stair rotation (degrees)'), { target: { value: '90' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply dimensions' }))
 
     expect(mocks.execute).toHaveBeenCalledWith(expect.objectContaining({
       id: 'feature.update',
       payload: expect.objectContaining({
         featureId: 'stairs-1', level: 0,
-        patch: expect.objectContaining({ position: { x: 5, y: 6 }, rotation: Math.PI / 2, polygon: { points: [{ x: 6, y: 4 }, { x: 6, y: 8 }, { x: 4, y: 8 }, { x: 4, y: 4 }] } }),
+        patch: { width:4, depth:2, rotation:90 },
       }),
     }))
   })

@@ -41,7 +41,7 @@ const MODE_OPTIONS: Array<{
 }> = [
   { mode: 'TOP', label: 'Top', description: 'Flat campus overview' },
   { mode: 'FOLLOW', label: 'Follow', description: 'Heading-up with forward view' },
-  { mode: 'POV', label: 'POV', description: 'Steeper forward perspective' },
+  { mode: 'POV', label: 'POV', description: '2.5D terrain and stairs view' },
 ]
 
 function modeLabel(mode: NavigationCameraMode): string {

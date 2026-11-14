@@ -131,6 +131,8 @@ describe('Route multi-click reliability', () => {
     act(() => { probe.click(11.8195, 122.0922, 1) })
     await waitFor(() => expect(probe.previewFeatures()).toHaveLength(3))
 
+    // Scope initialization may restore pan before the active Route effect disables it.
+    probe.dragPan.enable.mockClear()
     act(() => { view.result.current.cancel() })
 
     expect(probe.dragPan.enable).not.toHaveBeenCalled()

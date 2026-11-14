@@ -826,20 +826,21 @@ function translatePoints(points: Array<{ x: number; y: number }>, offset: { x: n
 
 function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
   interface FloorSlot {
+    height?: number
     level: number
     label: string
     elevation: number
     offset: { x: number; y: number }
     rooms: Array<{ id: string; name: string; number: string; polygon: { points: Array<{ x: number; y: number }> } }>
     hallways: Array<{ id: string; name: string; polyline: { points: Array<{ x: number; y: number }> } }>
-    staircases: Array<{ id: string; name: string; position: { x: number; y: number }; rotation: number; polygon?: { points: Array<{ x: number; y: number }> } }>
+    staircases: import('@navi/core').FloorGeometryFloor['staircases']
     elevators: Array<{ id: string; name: string; position: { x: number; y: number }; rotation: number; polygon?: { points: Array<{ x: number; y: number }> } }>
-    doors: Array<{ id: string; roomId: string; doorType: string; position: { x: number; y: number }; width: number }>
+    doors: import('@navi/core').FloorGeometryFloor['doors']
     pois: Array<{ id: string; name: string; category: string; position: { x: number; y: number } }>
     qrCheckpoints: Array<{ id: string; label: string; code: string; position: { x: number; y: number } }>
     // W15E: wall-first architectural data
     walls: Array<{ id: string; start: { x: number; y: number }; end: { x: number; y: number }; thickness: number; height: number }>
-    openings: Array<{ id: string; type: 'door' | 'window'; wallId: string; offset: number; width: number; height?: number; sillHeight?: number; orientation?: number }>
+    openings: NonNullable<import('@navi/core').FloorGeometryFloor['openings']>
     roomAttributes: Array<{ roomId: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
     routeNetwork?: import('@navi/core').RouteNetwork
     roomAccess?: import('@navi/core').RoomAccess[]
@@ -885,9 +886,25 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
           id: d.id,
           roomId: d.roomId,
           doorType: d.doorType,
+          ...(d.doorAppearance !== undefined ? { doorAppearance: d.doorAppearance } : {}),
+          ...(d.doorPose !== undefined ? { doorPose: d.doorPose } : {}),
+          ...(d.doorOperation !== undefined ? { doorOperation: d.doorOperation } : {}),
+          ...(d.hingeSide !== undefined ? { hingeSide: d.hingeSide } : {}),
+          ...(d.swingSide !== undefined ? { swingSide: d.swingSide } : {}),
+          ...(d.assetPreset !== undefined ? { assetPreset: d.assetPreset } : {}),
+          ...(d.material !== undefined ? { material: d.material } : {}),
+          ...(d.glass !== undefined ? { glass: d.glass } : {}),
           position: { x: d.position.x + offset.x, y: d.position.y + offset.y },
           width: d.width ?? 0.9,
           ...(d.angle !== undefined ? { angle: d.angle } : {}),
+          ...(d.depth !== undefined ? { depth: d.depth } : {}),
+          ...(d.rotation !== undefined ? { rotation: d.rotation } : {}),
+          ...(d.wallAttachment ? { wallAttachment: { ...d.wallAttachment } } : {}),
+          ...(d.geometry ? { geometry: {
+            ...d.geometry,
+            min: { x: d.geometry.min.x + offset.x, y: d.geometry.min.y + offset.y },
+            max: { x: d.geometry.max.x + offset.x, y: d.geometry.max.y + offset.y },
+          } } : {}),
         }
       })
 
@@ -932,6 +949,16 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         width: o.width,
         ...(o.height !== undefined ? { height: o.height } : {}),
         ...(o.sillHeight !== undefined ? { sillHeight: o.sillHeight } : {}),
+        ...(o.windowAppearance !== undefined ? { windowAppearance: o.windowAppearance } : {}),
+        ...(o.windowPose !== undefined ? { windowPose: o.windowPose } : {}),
+          ...(o.doorAppearance !== undefined ? { doorAppearance: o.doorAppearance } : {}),
+          ...(o.doorPose !== undefined ? { doorPose: o.doorPose } : {}),
+          ...(o.doorOperation !== undefined ? { doorOperation: o.doorOperation } : {}),
+          ...(o.hingeSide !== undefined ? { hingeSide: o.hingeSide } : {}),
+          ...(o.swingSide !== undefined ? { swingSide: o.swingSide } : {}),
+          ...(o.assetPreset !== undefined ? { assetPreset: o.assetPreset } : {}),
+          ...(o.material !== undefined ? { material: o.material } : {}),
+          ...(o.glass !== undefined ? { glass: o.glass } : {}),
         ...(o.orientation !== undefined ? { orientation: o.orientation } : {}),
       }))
 
@@ -951,6 +978,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         level: floor.level,
         label: floor.label,
         elevation: floor.elevation,
+        ...(floor.height !== undefined ? { height: floor.height } : {}),
         offset,
         rooms,
         hallways,
@@ -984,6 +1012,13 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
           name: st.name,
           position: { x: geom.position.x + offsetFor(b, level).x, y: geom.position.y + offsetFor(b, level).y },
           rotation: geom.rotation ?? 0,
+          ...((geom.height ?? slot.height) !== undefined ? { height: geom.height ?? slot.height } : {}),
+          ...(geom.drawing ? { drawing: structuredClone(geom.drawing) } : {}),
+          ...(geom.landing ? { landing: {
+            ...structuredClone(geom.landing),
+            position: { x: geom.landing.position.x + offsetFor(b, level).x, y: geom.landing.position.y + offsetFor(b, level).y },
+            ...(geom.landing.polygon ? { polygon: { points: translatePoints(geom.landing.polygon.points, offsetFor(b, level)) } } : {}),
+          } } : {}),
           ...(geom.polygon ? { polygon: { points: translatePoints(geom.polygon.points, offsetFor(b, level)) } } : {}),
         })
       }
@@ -1013,6 +1048,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         level: f.level,
         label: f.label,
         elevation: f.elevation,
+        ...(f.height !== undefined ? { height: f.height } : {}),
         offset: f.offset,
         rooms: f.rooms,
         hallways: f.hallways,

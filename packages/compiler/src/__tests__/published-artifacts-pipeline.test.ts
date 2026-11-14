@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import { CampusCompiler } from '../pipeline/campus-compiler'
-import type { CampusDocument } from '@navi/core'
+import type { CampusDocument, FloorGeometryFile } from '@navi/core'
+import { toRuntimeFloorGeometry } from '../../../runtime/src/loader/runtime-converter'
 
 function createSampleDocument(): CampusDocument {
   return {
@@ -88,6 +89,26 @@ function createSampleDocument(): CampusDocument {
 }
 
 describe('Published Artifacts Pipeline Integration', () => {
+  test('explicit compiler fields preserve appearance presets and legacy absence', () => {
+    const doc = createSampleDocument()
+    const floor = doc.buildings[0].floors[0]
+    floor.rooms = []
+    floor.entrances = []
+    doc.roads = []
+    floor.walls = [{ id: 'host', start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, height: 3.5, thickness: 0.2 }]
+    floor.openings = [undefined, 'open', 'fixed', 'two-pane'].map((windowAppearance, index) => ({ id: `win-${index}`, type: 'window' as const, wallId: 'host', offset: index * 2, width: 1, ...(windowAppearance !== undefined ? { windowAppearance: windowAppearance as 'open' | 'fixed' | 'two-pane' } : {}) }))
+    const result = new CampusCompiler().compileV2(doc)
+    expect(result.success).toBe(true)
+    const output = result.artifacts!.floorGeometry!.buildings[0].floors[0].openings!
+    expect(output).toEqual(floor.openings)
+    expect(Object.hasOwn(output[0], 'windowAppearance')).toBe(false)
+    const artifact = result.artifacts!.floorGeometry!
+    const file = JSON.parse(JSON.stringify({ ...artifact, schemaVersion: String(artifact.schemaVersion) })) as FloorGeometryFile
+    const consumed = toRuntimeFloorGeometry(file).buildings[0].floors[0].openings!
+    expect(consumed).toEqual(floor.openings)
+    expect(Object.hasOwn(consumed[0], 'windowAppearance')).toBe(false)
+    expect(consumed).not.toBe(file.buildings[0].floors[0].openings)
+  })
   test('compileV2 produces complete buildingIndex with footprint and floorPlanUrls', () => {
     const compiler = new CampusCompiler()
     const doc = createSampleDocument()

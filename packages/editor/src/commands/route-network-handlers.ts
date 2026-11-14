@@ -1,3 +1,4 @@
+import {getFloorPorts} from '../geometry/floor-connections'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, EntityChange, LocalCoord, RouteNetwork, RouteNode, RouteEdge, RouteNodeType, RouteEdgeType } from '@navi/core'
 import { isRouteNodeType, isRouteEdgeType } from '@navi/core'
@@ -308,6 +309,14 @@ export const routeNodeUpdateHandler: CommandHandler = {
     const found = findRouteNode(document, nodeId)
     if (!found) return { success: false, error: `Route node not found: ${nodeId}` }
     const { node } = found
+    if (patch.position !== undefined) {
+      for (const building of document.buildings) for (const floor of building.floors) {
+        if (floor.routeNetwork !== found.network) continue
+        const owned = getFloorPorts(building, floor).some(p => p.connection?.anchorNodeId === nodeId)
+          || floor.entrances?.some(e => e.routeNodeId === nodeId && node.type === 'entrance')
+        if (owned) return { success: false, error: 'Move the connected item to move its access point. Use Suggest connections to change its route target.' }
+      }
+    }
 
     if (patch.type !== undefined && !isRouteNodeType(patch.type)) {
       return { success: false, error: `Invalid route node type: ${String(patch.type)}. Must be one of the RouteNodeType enum values.` }

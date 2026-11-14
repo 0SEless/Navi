@@ -223,7 +223,7 @@ describe('Feature Handlers (P1 Commands)', () => {
   })
 })
 
-// ── P1-T5 (R2.2): POIs + POICategory ──
+// â”€â”€ P1-T5 (R2.2): POIs + POICategory â”€â”€
 
 describe('POI Handlers (P1-T5)', () => {
   it('poi.create creates a POI with enum category, building-local position, and optional metadata', () => {
@@ -245,7 +245,7 @@ describe('POI Handlers (P1-T5)', () => {
     expect(poi.id).toBe(result.entityId)
     expect(poi.name).toBe('Vending Machine')
     expect(poi.category).toBe('vending_machine')
-    // R2.2: positions are building-local meters — never world LatLng
+    // R2.2: positions are building-local meters â€” never world LatLng
     expect(poi.position).toEqual({ x: 3.5, y: 7.25 })
     expect(poi.position).not.toHaveProperty('lat')
     expect(poi.metadata).toEqual({ vendor: 'acme' })
@@ -382,14 +382,14 @@ describe('POI Handlers (P1-T5)', () => {
       id: 'poi-x', name: 'Study Area', category: 'study_area', position: { x: 0, y: 0 },
     }
     expect(poi.category).toBe('study_area')
-    // @ts-expect-error — a POI must never be usable where a Room is required
+    // @ts-expect-error â€” a POI must never be usable where a Room is required
     const room: Room = poi
     expect(room).toBeDefined()
   })
 })
 
 describe('Door Handlers (P1-T6)', () => {
-  /** Fixture with one room so doors have an owner; roomDoors stays empty —
+  /** Fixture with one room so doors have an owner; roomDoors stays empty â€”
    *  P1-T6 doors live at Floor.doors (extracted from Room nesting). */
   function createDocWithRoom(): CampusDocument {
     const doc = createTestDoc()
@@ -544,5 +544,51 @@ describe('Door Handlers (P1-T6)', () => {
     const res = doorDeleteHandler.execute(doc, { doorId: 'ghost-door' })
     expect(res.success).toBe(false)
     expect(res.error).toMatch(/not found/i)
+  })
+})
+
+
+describe('stair inspector dimensions', () => {
+  function fixture(parametric = false) {
+    const doc = createTestDoc()
+    featureCreateHandler.execute(doc, { id:'stair-size', buildingId:'bld-1', featureType:'staircase', floor:0, position:{x:4,y:5}, rotation:0,
+      polygon:{points:[{x:2,y:4},{x:6,y:4},{x:6,y:6},{x:2,y:6}]},
+      ...(parametric ? {drawing:{definitionId:'stair',properties:{stepCount:10,stepWidth:4,stepDepth:.2,direction:'north',preset:'straight'}}} : {}) })
+    return doc
+  }
+  it('resizes the actual footprint, stores degrees and preserves ordered arrow direction',()=>{
+    const doc=fixture(),st=doc.buildings[0].staircases![0]
+    const result=featureUpdateHandler.execute(doc,{featureId:st.id,level:0,patch:{width:8,depth:6,rotation:90,height:2.4}})
+    expect(result.success).toBe(true)
+    expect(st.levels[0]).toMatchObject({rotation:90,height:2.4,position:{x:4,y:5}})
+    const p=st.levels[0].polygon!.points
+    expect(Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)).toBeCloseTo(8)
+    expect(Math.hypot(p[2].x-p[1].x,p[2].y-p[1].y)).toBeCloseTo(6)
+    expect(p[1].y).toBeGreaterThan(p[0].y)
+  })
+  it('resizes parametric source dimensions rather than an ignored polygon cache',()=>{
+    const doc=fixture(true),st=doc.buildings[0].staircases![0]
+    expect(featureUpdateHandler.execute(doc,{featureId:st.id,level:0,patch:{width:2,depth:5}}).success).toBe(true)
+    expect(st.levels[0].drawing!.properties).toMatchObject({stepWidth:2,stepDepth:.5,stepCount:10,direction:'north'})
+    const p=st.levels[0].polygon!.points
+    expect(Math.hypot(p[1].x-p[0].x,p[1].y-p[0].y)).toBeCloseTo(2)
+    expect(Math.hypot(p[2].x-p[1].x,p[2].y-p[1].y)).toBeCloseTo(5)
+  })
+  it.each([{width:0},{width:null},{depth:-1},{depth:NaN},{height:0},{height:Infinity},{rotation:NaN}])('rejects invalid dimensions atomically: %j',patch=>{
+    const doc=fixture(),before=JSON.stringify(doc)
+    expect(featureUpdateHandler.execute(doc,{featureId:'stair-size',level:0,patch}).success).toBe(false)
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+  it('undo restores absent height and exact imported polygon, then reset inherits floor rise',()=>{
+    const doc=fixture(true),before=structuredClone(doc.buildings[0].staircases![0])
+    const payload={featureId:'stair-size',level:0,patch:{width:3,depth:4,height:2.5}}
+    const result=featureUpdateHandler.execute(doc,payload)
+    const inverse=featureUpdateHandler.inverse!(payload,result)!
+    expect(featureUpdateHandler.execute(doc,inverse.payload).success).toBe(true)
+    expect(doc.buildings[0].staircases![0]).toEqual(before)
+    featureUpdateHandler.execute(doc,{featureId:'stair-size',level:0,patch:{height:2}})
+    expect(doc.buildings[0].staircases![0].levels[0]).toHaveProperty('height',2)
+    featureUpdateHandler.execute(doc,{featureId:'stair-size',level:0,patch:{height:null}})
+    expect(doc.buildings[0].staircases![0].levels[0]).not.toHaveProperty('height')
   })
 })

@@ -2,6 +2,8 @@ import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+import { prepareWallAttachmentUpdate, applyWallAttachmentState, snapshotWallAttachmentState } from '../geometry/door-wall-attachment'
+import type { WallAttachmentState } from '../geometry/door-wall-attachment'
 
 const DEFAULT_WALL_THICKNESS = 0.15
 const DEFAULT_WALL_HEIGHT = 3.5
@@ -26,10 +28,10 @@ export const wallCreateHandler: CommandHandler = {
 
     const thickness = (payload.thickness as number) ?? DEFAULT_WALL_THICKNESS
     const height = (payload.height as number) ?? DEFAULT_WALL_HEIGHT
-    if (thickness <= 0) {
+    if (!Number.isFinite(thickness) || thickness <= 0) {
       return { success: false, error: 'wall thickness must be greater than 0' }
     }
-    if (height <= 0) {
+    if (!Number.isFinite(height) || height <= 0) {
       return { success: false, error: 'wall height must be greater than 0' }
     }
 
@@ -98,6 +100,31 @@ export const wallUpdateHandler: CommandHandler = {
 
     const patch = payload.patch as Record<string, unknown> | undefined
     if (!patch) return { success: false, error: 'patch is required' }
+    const restoreAttachmentState = payload.restoreAttachmentState as WallAttachmentState | undefined
+
+    for (const key of ['height', 'thickness'] as const) {
+      if (patch[key] !== undefined && (typeof patch[key] !== 'number' || !Number.isFinite(patch[key]) || (patch[key] as number) <= 0)) {
+        return { success: false, error: 'Wall ' + key + ' must be a positive finite number' }
+      }
+    }
+    if (patch.height !== undefined && !restoreAttachmentState) {
+      for (const opening of floor.openings ?? []) {
+        if (opening.wallId !== wallId) continue
+        const top = (opening.sillHeight ?? (opening.type === 'window' ? 0.9 : 0)) + (opening.height ?? (opening.type === 'window' ? 1.2 : 2.1))
+        if (top > (patch.height as number) + 1e-8) return { success: false, error: 'Opening ' + opening.id + ' exceeds the proposed wall height' }
+      }
+    }
+
+    const nextWall = { ...wall, ...patch } as typeof wall
+    if (![nextWall.start?.x, nextWall.start?.y, nextWall.end?.x, nextWall.end?.y].every(value => typeof value === 'number' && Number.isFinite(value)) || Math.hypot(nextWall.end.x - nextWall.start.x, nextWall.end.y - nextWall.start.y) < 1e-8) {
+      return { success: false, error: 'Wall endpoints must be finite and distinct' }
+    }
+    // An inverse restores authored state exactly, including pre-existing imported defects.
+    // Ordinary edits still require all changed wall attachments to fit before mutation.
+    const attachmentUpdate = restoreAttachmentState
+      ? { ok: true as const, state: restoreAttachmentState, before: snapshotWallAttachmentState(floor), changedDoorIds: (restoreAttachmentState.doors ?? []).filter(door => JSON.stringify(door) !== JSON.stringify(floor.doors?.find(current => current.id === door.id))).map(door => door.id) }
+      : prepareWallAttachmentUpdate(floor, floor.walls.map(candidate => candidate.id === wallId ? nextWall : candidate))
+    if (!attachmentUpdate.ok) return { success: false, error: attachmentUpdate.error }
 
     const snapshot = {
       start: { ...wall.start },
@@ -113,8 +140,10 @@ export const wallUpdateHandler: CommandHandler = {
     if (patch.height !== undefined) wall.height = patch.height as number
     if (patch.metadata !== undefined) wall.metadata = patch.metadata as Record<string, unknown>
 
+    applyWallAttachmentState(floor, (payload.restoreAttachmentState as WallAttachmentState | undefined) ?? attachmentUpdate.state)
+    for (const doorId of attachmentUpdate.changedDoorIds) recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
     recordChange(document, { entityId: wallId, entityType: 'wall', operation: 'updated' })
-    return { success: true, entityId: wallId, data: { snapshot } }
+    return { success: true, entityId: wallId, data: { snapshot, attachmentState: attachmentUpdate.before } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
     const snapshot = result.data?.snapshot as {
@@ -133,6 +162,7 @@ export const wallUpdateHandler: CommandHandler = {
         buildingId: payload.buildingId,
         floorId: payload.floorId,
         patch: snapshot,
+        restoreAttachmentState: result.data?.attachmentState,
       },
     }
   },
@@ -158,6 +188,8 @@ export const wallDeleteHandler: CommandHandler = {
     const index = floor.walls.findIndex(w => w.id === wallId)
     if (index === -1) return { success: false, error: `Wall not found: ${wallId}` }
 
+    const attachments = prepareWallAttachmentUpdate(floor, floor.walls.filter(candidate => candidate.id !== wallId))
+    if (!attachments.ok) return { success: false, error: attachments.error }
     const removed = floor.walls.splice(index, 1)[0]
 
     recordChange(document, { entityId: wallId, entityType: 'wall', operation: 'deleted' })

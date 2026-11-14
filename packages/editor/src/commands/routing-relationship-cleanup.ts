@@ -1,3 +1,4 @@
+import {collectFloorDoors} from '@navi/core'
 import type { CampusDocument, RoomAttributes, VerticalTransition } from '@navi/core'
 
 /**
@@ -44,7 +45,16 @@ export function cleanupRoadRoutingReferences(document: CampusDocument, roadId: s
   }
 }
 
+type PortReferenceOwner = {routeNodeId?:string;routeConnection?:{anchorNodeId:string;targetRouteNodeId:string;connectorEdgeId:string};routeConnectionManaged?:boolean}
+function portReferenceOwners(building:CampusDocument['buildings'][number],floor:CampusDocument['buildings'][number]['floors'][number]):Array<{key:string;owner:PortReferenceOwner}>{return [
+ ...(floor.entrances??[]).map(owner=>({key:`entrance:${owner.id}`,owner})),...(collectFloorDoors({...floor,rooms:floor.rooms??[]})).map(owner=>({key:`door:${owner.id}`,owner})),
+ ...[...(building.staircases??[]),...(building.elevators??[])].flatMap(feature=>{const owner=feature.levels?.[floor.level];return owner?[{key:`feature:${feature.id}`,owner}]:[]}),
+]}
+const portFields=['routeNodeId','routeConnection','routeConnectionManaged'] as const
+function capturePortReferences(building:CampusDocument['buildings'][number],floor:CampusDocument['buildings'][number]['floors'][number]) {return portReferenceOwners(building,floor).map(({key,owner})=>({key,fields:Object.fromEntries(portFields.map(field=>[field,{present:Object.hasOwn(owner,field),value:structuredClone(owner[field])}]))}))}
+
 export interface RouteNodeRelationshipSnapshot {
+  routePorts?:ReturnType<typeof capturePortReferences>
   roomAttributes: RoomAttributes[] | undefined
   entranceAccess: NonNullable<CampusDocument['buildings'][number]['floors'][number]['entranceAccess']> | undefined
   verticalTransitions: VerticalTransition[] | undefined
@@ -61,6 +71,7 @@ export function cleanupRouteNodeRoutingReferences(
   if (!building || !floor) return undefined
 
   const snapshot: RouteNodeRelationshipSnapshot = {
+    routePorts:capturePortReferences(building,floor),
     roomAttributes: floor.roomAttributes === undefined
       ? undefined
       : JSON.parse(JSON.stringify(floor.roomAttributes)) as RoomAttributes[],
@@ -72,6 +83,10 @@ export function cleanupRouteNodeRoutingReferences(
       : JSON.parse(JSON.stringify(building.verticalTransitions)) as VerticalTransition[],
   }
 
+  for(const {owner} of portReferenceOwners(building,floor)){
+    if(owner.routeNodeId===routeNodeId)delete owner.routeNodeId
+    if(owner.routeConnection&&(owner.routeConnection.anchorNodeId===routeNodeId||owner.routeConnection.targetRouteNodeId===routeNodeId)){delete owner.routeConnection;owner.routeConnectionManaged=true}
+  }
   if (floor.roomAttributes) {
     for (const room of floor.roomAttributes) {
       if (room.accessPoints) {
@@ -105,7 +120,7 @@ export function collectDoorConnectorEdgeIds(document: CampusDocument): Set<strin
   const connectorEdgeIds = new Set<string>()
   for (const building of document.buildings) {
     for (const floor of building.floors) {
-      for (const door of floor.doors ?? []) {
+      for (const {owner:door} of portReferenceOwners(building,floor)) {
         const connectorEdgeId = door.routeConnection?.connectorEdgeId
         if (connectorEdgeId) connectorEdgeIds.add(connectorEdgeId)
       }
@@ -129,6 +144,7 @@ export function isRouteNodeReferencedByAccessRelationships(
   const building = document.buildings.find(candidate => candidate.id === buildingId)
   const floor = building?.floors.find(candidate => candidate.id === floorId)
   if (!building || !floor) return false
+  if (portReferenceOwners(building,floor).some(({owner})=>owner.routeNodeId===routeNodeId||owner.routeConnection?.anchorNodeId===routeNodeId||owner.routeConnection?.targetRouteNodeId===routeNodeId))return true
   if (floor.entranceAccess?.some(access => access.indoorRouteNodeId === routeNodeId)) return true
   if (floor.roomAttributes?.some(attributes =>
     attributes.accessPoints?.some(point => point.routeNodeId === routeNodeId)) ?? false) return true
@@ -147,6 +163,9 @@ export function restoreRouteNodeRoutingReferences(
   const floor = building?.floors.find(candidate => candidate.id === floorId)
   if (!building || !floor) return
 
+  for(const item of snapshot.routePorts??[]){const owner=portReferenceOwners(building,floor).find(p=>p.key===item.key)?.owner;if(!owner)continue
+    for(const key of portFields){if(item.fields[key].present)Object.assign(owner,{[key]:structuredClone(item.fields[key].value)});else delete owner[key]}
+  }
   floor.roomAttributes = snapshot.roomAttributes === undefined
     ? undefined
     : JSON.parse(JSON.stringify(snapshot.roomAttributes)) as RoomAttributes[]

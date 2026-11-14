@@ -624,7 +624,7 @@ describe('Production Route Characterization — Canvas OFF (MapLibre)', () => {
       ])
     })
 
-    it('rejects the first Route click until an Entrance has been connected', async () => {
+    it('accepts a free Route start before any Entrance has been connected', async () => {
       const onRouteStartRejected = vi.fn()
       renderCanvasWithRealContext({ tool: 'hallway', onRouteStartRejected })
 
@@ -633,8 +633,8 @@ describe('Production Route Characterization — Canvas OFF (MapLibre)', () => {
       })
       act(() => simulateMapClick(11.8195, 122.0920))
 
-      expect(onRouteStartRejected).toHaveBeenCalledWith(expect.stringMatching(/Select an Entrance/i))
-      expect(screen.queryByRole('button', { name: /finish route/i })).not.toBeInTheDocument()
+      expect(onRouteStartRejected).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: /finish route/i })).toBeInTheDocument()
     })
 
     it('connects the new Route first node to the selected Entrance after confirmation', async () => {
@@ -1081,7 +1081,7 @@ describe('Production Route Characterization — Canvas OFF (MapLibre)', () => {
       const walls = [
         { id: 'wall-1', start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, thickness: 0.2, height: 3 },
       ]
-      mockRenderedFeatures = [{
+      mockRenderedFeaturesByLayer['floor-walls-line'] = [{
         type: 'Feature',
         properties: { id: 'wall-1' },
         geometry: { type: 'LineString', coordinates: [[122.0920, 11.8195], [122.0921, 11.8195]] },

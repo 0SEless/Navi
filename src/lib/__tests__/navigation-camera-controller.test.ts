@@ -4,22 +4,19 @@ import {
   type NavigationCameraMap,
 } from '../navigation-camera-controller'
 
-type Handler = {
-  enable: ReturnType<typeof vi.fn>
-  disable: ReturnType<typeof vi.fn>
-  isEnabled: ReturnType<typeof vi.fn>
-  enableRotation?: ReturnType<typeof vi.fn>
-  disableRotation?: ReturnType<typeof vi.fn>
+function createHandler() {
+  return {
+    enable: vi.fn<NavigationCameraMap['dragPan']['enable']>(),
+    disable: vi.fn<NavigationCameraMap['dragPan']['disable']>(),
+    isEnabled: vi.fn<NonNullable<NavigationCameraMap['dragPan']['isEnabled']>>(() => true),
+  }
 }
 
-function createHandler(withRotation = false): Handler {
+function createTouchHandler() {
   return {
-    enable: vi.fn(),
-    disable: vi.fn(),
-    isEnabled: vi.fn(() => true),
-    ...(withRotation
-      ? { enableRotation: vi.fn(), disableRotation: vi.fn() }
-      : {}),
+    ...createHandler(),
+    enableRotation: vi.fn<NavigationCameraMap['touchZoomRotate']['enableRotation']>(),
+    disableRotation: vi.fn<NavigationCameraMap['touchZoomRotate']['disableRotation']>(),
   }
 }
 
@@ -30,8 +27,21 @@ function createMap(initialBearing = 0, initialMaxPitch = 85) {
   let zoom = 15
   let maxZoom = 22
   const maxPitch = initialMaxPitch
-  const listeners = new Map<string, (event?: { originalEvent?: unknown }) => void>()
+  const listeners = new Map<
+    Parameters<NavigationCameraMap['on']>[0],
+    Parameters<NavigationCameraMap['on']>[1]
+  >()
   const stop = vi.fn()
+  const easeTo = vi.fn<NavigationCameraMap['easeTo']>((options) => {
+    if (options.bearing !== undefined) bearing = options.bearing
+    if (options.pitch !== undefined) pitch = options.pitch
+    if (options.zoom !== undefined) zoom = options.zoom
+  })
+  const fitBounds = vi.fn<NavigationCameraMap['fitBounds']>()
+  const on = vi.fn<NavigationCameraMap['on']>((type, listener) => { listeners.set(type, listener) })
+  const off = vi.fn<NavigationCameraMap['off']>((type, listener) => {
+    if (listeners.get(type) === listener) listeners.delete(type)
+  })
   const map = {
     isStyleLoaded: vi.fn(() => ready),
     getBearing: vi.fn(() => bearing),
@@ -41,28 +51,17 @@ function createMap(initialBearing = 0, initialMaxPitch = 85) {
     getMaxPitch: vi.fn(() => maxPitch),
     setMaxZoom: vi.fn((value: number) => { maxZoom = value }),
     stop,
-    easeTo: vi.fn((options) => {
-      if (options.bearing !== undefined) bearing = options.bearing
-      if (options.pitch !== undefined) pitch = options.pitch
-      if (options.zoom !== undefined) zoom = options.zoom
-    }),
-    fitBounds: vi.fn(),
-    on: vi.fn((type, listener) => { listeners.set(type, listener) }),
-    off: vi.fn((type, listener) => {
-      if (listeners.get(type) === listener) listeners.delete(type)
-    }),
+    easeTo,
+    fitBounds,
+    on,
+    off,
     dragPan: createHandler(),
     dragRotate: createHandler(),
     scrollZoom: createHandler(),
     doubleClickZoom: createHandler(),
-    touchZoomRotate: createHandler(true),
+    touchZoomRotate: createTouchHandler(),
     touchPitch: createHandler(),
-  } as NavigationCameraMap & {
-    getZoom: ReturnType<typeof vi.fn>
-    getMaxZoom: ReturnType<typeof vi.fn>
-    setMaxZoom: ReturnType<typeof vi.fn>
-    stop: ReturnType<typeof vi.fn>
-  }
+  } satisfies NavigationCameraMap
 
   return {
     map,
@@ -432,13 +431,28 @@ describe('public navigation camera controller', () => {
     expect(fixture.map.fitBounds).toHaveBeenCalledWith(
       [[routeBounds.minLng, routeBounds.minLat], [routeBounds.maxLng, routeBounds.maxLat]],
       {
-        padding: { top: 184, right: 32, bottom: 168, left: 32 },
+        padding: { top: 80, right: 64, bottom: 24, left: 24 },
         duration: 400,
         maxZoom: 16,
       },
     )
     expect(fixture.map.easeTo).not.toHaveBeenCalled()
     expect(controller.getState().mode).toBe('TOP')
+  })
+
+  it('refits the same route after the map viewport resizes', () => {
+    const fixture = createMap()
+    const controller = createNavigationCameraController(fixture.map, { reducedMotion: true })
+
+    controller.update({ surface: 'route-preview', mode: 'TOP', routeBounds })
+    fixture.map.fitBounds.mockClear()
+    controller.refitRoute(routeBounds)
+
+    expect(fixture.map.fitBounds).toHaveBeenCalledTimes(1)
+    expect(fixture.map.fitBounds).toHaveBeenCalledWith(
+      [[routeBounds.minLng, routeBounds.minLat], [routeBounds.maxLng, routeBounds.maxLat]],
+      expect.objectContaining({ duration: 0 }),
+    )
   })
 
   it('clamps pitch repair to the map-reported maximum', () => {

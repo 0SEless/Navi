@@ -1,7 +1,7 @@
 ﻿import type { LatLng, LocalCoord, LocalPolygon, LocalPolyline } from './coordinates'
 import type { QrIndex } from './qr'
 import type { RouteNetwork } from './routing'
-import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, RoadRouting, WorldPOIGeometry, TerrainArea, TerrainVerticalDatum } from './entities'
+import type { PointOfInterestAppearance, PointOfInterestVisibility, RoomAccess, EntranceAccess, RoadRouting, RoomDoor, WorldPOIGeometry, TerrainArea, TerrainVerticalDatum } from './entities'
 import type { PlanAlignment } from './coordinates'
 
 export interface BoundingBox {
@@ -238,6 +238,8 @@ export interface FloorGeometryBuilding {
 }
 
 export interface FloorGeometryFloor {
+  /** Authored floor-to-floor height in meters; absent in legacy packages. */
+  height?: number
   level: number
   label: string
   elevation: number
@@ -248,13 +250,13 @@ export interface FloorGeometryFloor {
   hallways: Array<{ id: string; name: string; polyline: LocalPolyline }>
   staircases: FloorGeometryFeature[]
   elevators: FloorGeometryFeature[]
-  doors: Array<{ id: string; roomId: string; doorType: string; position: LocalCoord; width: number; angle?: number }>
+doors: Array<{ id: string; roomId?: string; doorType: string; position: LocalCoord; width: number; angle?: number; depth?: number; rotation?: number; geometry?: RoomDoor['geometry']; wallAttachment?: RoomDoor['wallAttachment']; doorAppearance?: RoomDoor['doorAppearance']; doorPose?: RoomDoor['doorPose']; doorOperation?: RoomDoor['doorOperation']; hingeSide?: RoomDoor['hingeSide']; swingSide?: RoomDoor['swingSide']; assetPreset?: string; material?: RoomDoor['material']; glass?: RoomDoor['glass'] }>
   pois: Array<{ id: string; name: string; category: string; position: LocalCoord }>
   qrCheckpoints: Array<{ id: string; label: string; code: string; position: LocalCoord }>
   /** W15E: canonical wall-first structural geometry (P2). */
   walls?: Array<{ id: string; start: LocalCoord; end: LocalCoord; thickness: number; height: number }>
   /** W15E: canonical wall-attached openings (W7A). */
-  openings?: Array<{ id: string; type: 'door' | 'window'; wallId: string; offset: number; width: number; height?: number; sillHeight?: number; orientation?: number }>
+  openings?: Array<{ id: string; type: 'door' | 'window'; wallId: string; offset: number; width: number; height?: number; sillHeight?: number; orientation?: number; windowAppearance?: import('./enums').WindowAppearance; windowPose?: import('./enums').WindowPose; doorAppearance?: RoomDoor['doorAppearance']; doorPose?: RoomDoor['doorPose']; doorOperation?: RoomDoor['doorOperation']; hingeSide?: RoomDoor['hingeSide']; swingSide?: RoomDoor['swingSide']; assetPreset?: string; material?: RoomDoor['material']; glass?: RoomDoor['glass'] }>
   /** W15E: derived room metadata from wall topology (W6 semantic attributes). */
   roomAttributes?: Array<{ roomId: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
   /** W15E: authored route network (P1-T7). */
@@ -270,6 +272,10 @@ export interface FloorGeometryFeature {
   name: string
   position: LocalCoord
   rotation: number
+  /** Optional authored visual construction, retained without materializing defaults. */
+  drawing?: import('./entities').StairLevelGeometry['drawing']
+  landing?: import('./entities').StairLevelGeometry['landing']
+  height?: number
   /** Resolved physical geometry (from feature-graphics resolution) when
    *  available â€” absent = position-only placement. */
   polygon?: LocalPolygon

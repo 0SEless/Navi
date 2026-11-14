@@ -265,7 +265,10 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
 
   return (
     <div style={{
-      width: 200,
+      width: '100%',
+      height: '100%',
+      minHeight: 0,
+      minWidth: 0,
       background: 'var(--navi-card)',
       borderRight: '1px solid var(--navi-border)',
       display: 'flex',
@@ -299,7 +302,7 @@ export function FloorOutliner({ building, activeFloor, mapId, selectedId, onSele
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 0' }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
           fontSize: 11, fontWeight: 600, color: 'var(--navi-text)',

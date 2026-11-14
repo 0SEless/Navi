@@ -3,6 +3,9 @@ import type { NavigationGraph } from '@navi/core'
 import type { NavNode as CompilerNavNode, NavEdge as CompilerNavEdge } from '@navi/core'
 import type { FloorGeometryArtifact, FloorGeometryBuilding, FloorGeometryFloor, LocalCoord } from '@navi/core'
 import { CoordinateTransformer } from '@navi/core'
+import { buildFloorArchitectureAssets, type FloorArchitectureAssets } from '@/lib/floor-architecture-assets'
+import type { StairAssetInput } from '@navi/core'
+import type { RoomDoor } from '@navi/core'
 import { deriveBuildingFootprint } from '@/lib/campus-geometry'
 
 // ── Types ─────────────────────────────────────────────────────
@@ -53,6 +56,10 @@ export interface StairRenderData {
   floor: number
   position: LatLng
   polygon?: LatLng[]
+  rotation?: number
+  drawing?: StairAssetInput['drawing']
+  landing?: StairAssetInput['landing']
+  height?: number
 }
 
 export interface ElevatorRenderData {
@@ -75,6 +82,18 @@ export interface DoorRenderData {
   width: number
   /** Opening bearing in degrees (0 = E–W line). Consumed by DoorLayer to rotate the wall-opening line. */
   angle?: number
+  depth?: number
+  rotation?: number
+  geometry?: RoomDoor['geometry']
+  wallAttachment?: RoomDoor['wallAttachment']
+  doorAppearance?: 'open' | 'solid' | 'glass' | 'double-solid' | 'double-glass'
+  doorPose?: 'closed' | 'ajar' | 'open'
+  doorOperation?: 'hinged' | 'sliding' | 'folding' | 'rolling' | 'none'
+  hingeSide?: 'start' | 'end'
+  swingSide?: 'left' | 'right'
+  assetPreset?: string
+  material?: 'wood' | 'painted-steel' | 'aluminium' | 'fire-red'
+  glass?: 'clear' | 'frosted' | 'tinted'
   /** Optional (P1-T6): unlinked/exterior doors may have no target. */
   connectedToId?: string
   isExterior: boolean
@@ -117,9 +136,22 @@ export interface OpeningRenderData {
   sillHeight?: number
   /** Opening bearing in degrees (0 = E–W line). Consumed by OpeningLayer to rotate the opening line. */
   orientation?: number
+  windowAppearance?: 'open' | 'fixed' | 'two-pane' | 'jalousie' | 'sliding' | 'casement' | 'awning' | 'transom' | 'vent-block'
+  windowPose?: 'closed' | 'open'
+  doorAppearance?: 'open' | 'solid' | 'glass' | 'double-solid' | 'double-glass'
+  doorPose?: 'closed' | 'ajar' | 'open'
+  doorOperation?: 'hinged' | 'sliding' | 'folding' | 'rolling' | 'none'
+  hingeSide?: 'start' | 'end'
+  swingSide?: 'left' | 'right'
+  assetPreset?: string
+  material?: 'wood' | 'painted-steel' | 'aluminium' | 'fire-red'
+  glass?: 'clear' | 'frosted' | 'tinted'
 }
 
+export interface FloorArchitectureRenderData extends FloorArchitectureAssets { buildingId: string; floor: number }
+
 export interface IndoorRenderData {
+  architecture?: FloorArchitectureRenderData[]
   rooms: RoomRenderData[]
   hallways: HallwayRenderData[]
   stairs: StairRenderData[]
@@ -299,12 +331,17 @@ function buildIndoorFromFloorGeometry(
   const pois: PoiRenderData[] = []
   const walls: WallRenderData[] = []
   const openings: OpeningRenderData[] = []
+  const architecture: FloorArchitectureRenderData[] = []
 
   for (const fgBuilding of floorGeometry.buildings) {
     const buildingId = fgBuilding.id
 
     for (const fgFloor of fgBuilding.floors) {
       const floorLevel = fgFloor.level
+      architecture.push({ buildingId, floor: floorLevel, ...buildFloorArchitectureAssets({
+        buildingId, transformer, walls: fgFloor.walls ?? [], openings: fgFloor.openings ?? [], doors: fgFloor.doors,
+        stairs: fgFloor.staircases.map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })), base: 0,
+      }) })
 
       // Rooms
       for (const r of fgFloor.rooms) {
@@ -352,6 +389,10 @@ function buildIndoorFromFloorGeometry(
           : undefined
         stairs.push({
           id: s.id,
+          rotation: s.rotation,
+          drawing: s.drawing,
+          landing: s.landing,
+          height: s.height ?? fgFloor.height,
           name: s.name,
           buildingId,
           floor: floorLevel,
@@ -383,7 +424,20 @@ function buildIndoorFromFloorGeometry(
         if (!position) continue
         doors.push({
           id: d.id,
-          roomId: d.roomId,
+          roomId: d.roomId ?? '',
+          angle: d.angle,
+          depth: d.depth,
+          rotation: d.rotation,
+          geometry: d.geometry,
+          wallAttachment: d.wallAttachment,
+          doorAppearance: d.doorAppearance,
+          doorPose: d.doorPose,
+          doorOperation: d.doorOperation,
+          hingeSide: d.hingeSide,
+          swingSide: d.swingSide,
+          assetPreset: d.assetPreset,
+          material: d.material,
+          glass: d.glass,
           buildingId,
           floor: floorLevel,
           position,
@@ -436,6 +490,16 @@ function buildIndoorFromFloorGeometry(
           height: o.height,
           sillHeight: o.sillHeight,
           orientation: o.orientation,
+          windowAppearance: o.windowAppearance,
+          windowPose: o.windowPose,
+          doorAppearance: o.doorAppearance,
+          doorPose: o.doorPose,
+          doorOperation: o.doorOperation,
+          hingeSide: o.hingeSide,
+          swingSide: o.swingSide,
+          assetPreset: o.assetPreset,
+          material: o.material,
+          glass: o.glass,
         })
       }
 
@@ -445,7 +509,7 @@ function buildIndoorFromFloorGeometry(
     }
   }
 
-  return { rooms, hallways, stairs, elevators, doors, pois, walls, openings }
+  return { rooms, hallways, stairs, elevators, doors, pois, walls, openings, architecture }
 }
 
 // ── Type Mappers ───────────────────────────────────────────────

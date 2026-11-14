@@ -7,7 +7,7 @@ import { useEditor, useEditingEngine, useSelection, ENABLE_CANVAS_EDITOR, Intera
 import type { Command } from '@navi/editor'
 import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId, isSemanticRoomComponent, resolveFloorScope } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
-import type { CoordinateTransformer, LocalCoord, PlanAlignment, Wall } from '@navi/core'
+import type { CoordinateTransformer, LocalCoord, PlanAlignment, Wall, Floor } from '@navi/core'
 import { resizeRectangleFootprint, rotateRectangleFootprint } from '@navi/core'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { DEFAULT_SNAP_MODE, SNAP_CONFIGS, useFloorDrawing } from './useFloorDrawing'
@@ -26,7 +26,9 @@ import { genId } from '@navi/editor'
 import { generateStairGraphicsLatLng, generateElevatorGraphicsLatLng } from '@navi/editor/src/rendering/feature-graphics'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
-import { wallsToExtrusionCollection, FLOOR_PRESENTATION_DATUM } from '@navi/editor/src/geometry/wall-to-polygon'
+import { buildFloorArchitecturePreview } from './floor-architecture-preview'
+import { doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
+import { Architecture3DController } from './Architecture3DController'
 import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src/geometry/opening-position'
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
@@ -153,7 +155,7 @@ function addSourcesAndLayers(map: maplibregl.Map) {
 
   if (!map.getSource('floor-door-areas')) {
     map.addSource('floor-door-areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-    map.addLayer({ id: 'floor-door-areas-fill', type: 'fill', source: 'floor-door-areas', paint: { 'fill-color': '#10B981', 'fill-opacity': 0.38 } })
+    map.addLayer({ id: 'floor-door-areas-fill', type: 'fill', source: 'floor-door-areas', paint: { 'fill-color': '#10B981', 'fill-opacity': 0.2 } })
     map.addLayer({ id: 'floor-door-areas-outline', type: 'line', source: 'floor-door-areas', paint: { 'line-color': '#047857', 'line-width': 2 } })
     map.addLayer({ id: 'floor-door-areas-extrusion', type: 'fill-extrusion', source: 'floor-door-areas', paint: {
       'fill-extrusion-color': '#10B981',
@@ -384,10 +386,12 @@ interface FloorEditorCanvasProps {
   layers: LayerVisibility
   selectedId?: string | null
   onSelect?: (id: string | null) => void
+  onWallSelect?: (id: string | null) => void
   planAlignment?: PlanAlignment
   floorPlanUrl?: string
   alignMode?: boolean
   readOnly?: boolean
+  architecture3DEditable?: boolean
   locked?: boolean
   overlayLocked?: boolean
   aspectRatioLocked?: boolean
@@ -524,10 +528,11 @@ function setSourceData(map: maplibregl.Map, sourceId: string, features: GeoJSON.
   if (source) source.setData({ type: 'FeatureCollection', features })
 }
 
-export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers, selectedId, onSelect, planAlignment, floorPlanUrl, alignMode, readOnly, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
+export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers, selectedId, onSelect, onWallSelect, planAlignment, floorPlanUrl, alignMode, readOnly, architecture3DEditable = false, locked, overlayLocked, aspectRatioLocked, onAspectRatioLockedChange, onAlignmentChange, calibrationMode, calibrationStep, onCalibrationClick, onCalibrationImageLoaded, viewMode = '2d', onCameraSnapshot, cameraSnapshot, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired, routeConnectPick, onRouteConnectResolved, onRouteConnectCancel }: FloorEditorCanvasProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
+  const [architectureMap, setArchitectureMap] = useState<maplibregl.Map | null>(null)
   const readyRef = useRef(false)
 
   const floorComponents = useFloorComponents(building.id, floor, activeFloorId)
@@ -570,10 +575,22 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
   // structural geometry, not a legacy polygon Component, so selecting one
   // must never route edits through entity.update or Floor.rooms[].polygon.
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
+  useEffect(() => { onWallSelect?.(selectedWallId) }, [selectedWallId, onWallSelect])
   const selectedWallIdRef = useRef<string | null>(null)
   const wallDragRef = useRef<WallJunctionDrag | null>(null)
   const snapModeRef = useRef(snapMode ?? DEFAULT_SNAP_MODE)
   const [wallEditError, setWallEditError] = useState<string | null>(null)
+  const [architectureDraft, setArchitectureDraft] = useState<Floor | null>(null)
+  const canonicalArchitectureFloor = editor.document.buildings.find(candidate => candidate.id === building.id)
+    ?.floors.find(candidate => activeFloorId ? candidate.id === activeFloorId : candidate.level === floor)
+  const architecturePreview = useMemo(() => {
+    const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+    const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
+    return canonicalFloor && transformer ? buildFloorArchitecturePreview(architectureDraft ?? canonicalFloor, building.id, transformer, canonicalBuilding?.staircases) : null
+    // The mutable editor document publishes geometry changes through renderVersion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, architectureDraft])
+  const architectureDiagnostics = architecturePreview?.diagnostics.map(issue => issue.message) ?? []
   const routeNodeDragRef = useRef<RouteNodeDrag | null>(null)
   const [routeNodePreview, setRouteNodePreview] = useState<{ nodeId: string; position: LocalCoord } | null>(null)
   const [doorConnectPrompt, setDoorConnectPrompt] = useState<{ edgeId: string; position: LatLng } | null>(null)
@@ -645,7 +662,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
   }, [])
 
   // Wire drawing interactions (state-driven so hook sees map after init)
-  const { drawMode, pendingPolygon, rectangleMessage, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired })
+  const { drawMode, pendingPolygon, rectangleMessage, confirm: confirmDrawing, cancel: cancelDrawing, removeLastPoint, routeConnectionPrompt, acceptRouteConnection, declineRouteConnection } = useFloorDrawing({ map: mapRef.current, mapReady, buildingId: building.id, campusId, floor, tool, readOnly, onSelect, editEngine, snapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired })
 
   // ---- New Architecture: Linear Geometry Editing for Hallways ----
 
@@ -755,6 +772,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       addSourcesAndLayers(map)
       readyRef.current = true
       setMapReady(true)
+      setArchitectureMap(map)
       if (buildingFp.length >= 2) {
         const bounds = new maplibregl.LngLatBounds()
         buildingFp.forEach((p: LatLng) => bounds.extend([p.lng, p.lat]))
@@ -769,6 +787,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       try { map.remove() } catch { /* zombie map — already destroyed */ }
       mapRef.current = null
       setMapReady(false)
+      setArchitectureMap(null)
       readyRef.current = false
     }
   }, [building])
@@ -891,7 +910,11 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
           geometry: { type: 'Polygon', coordinates: [coords] },
         })
       } else if (c.type === 'stair' && c.polygon && c.polygon.length >= 3) {
-        const graphics = generateStairGraphicsLatLng(c.polygon)
+        const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+        const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
+        const drawing = canonicalFloor && canonicalBuilding?.staircases
+          ?.find(stair => stair.id === (c.featureId ?? c.id))?.levels[canonicalFloor.level]?.drawing
+        const graphics = generateStairGraphicsLatLng(c.polygon, drawing?.properties.stepCount, drawing?.properties.direction)
         const coords = [...graphics.outline.map((p) => [p.lng, p.lat] as [number, number]), [graphics.outline[0].lng, graphics.outline[0].lat] as [number, number]]
         stairAreaFeatures.push({
           type: 'Feature',
@@ -984,7 +1007,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { console.warn('FloorEditorCanvas: source not ready for setData') }
-  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId])
+  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId, editor.document, building.id, activeFloorId, floor])
 
 
   // Sync roads from document to floor-roads source (for interaction mode)
@@ -1086,49 +1109,25 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     if (!transformer) return
 
     try {
-      const bld = editor.document.buildings.find((b) => b.id === building.id)
-      if (!bld) return
-      const fl = resolveFloorScope(bld.floors, activeFloorId, floor)
-      if (!fl?.walls || fl.walls.length === 0) {
-        const src = map.getSource('floor-walls-3d') as maplibregl.GeoJSONSource | undefined
-        if (src) src.setData({ type: 'FeatureCollection', features: [] })
-        return
-      }
-
-      // Build local-space extrusion collection, then transform each polygon to world.
-      // Vertical contract (spec/FLOOR-ELEVATION-ACTIVE-FLOW.md): this view renders
-      // exactly one floor, so the active floor's own base plane IS z=0 — every
-      // renderable (rooms, derived rooms, doors, route edges, plan raster, 2D
-      // overlays) is pinned to the presentation datum, and the wall extrusion must
-      // match. `fl.elevation` is the stacking datum for multi-floor contexts and
-      // is never applied here; authored wall coordinates are untouched.
-      const localCollection = wallsToExtrusionCollection(fl.walls, FLOOR_PRESENTATION_DATUM)
-      const worldFeatures: GeoJSON.Feature[] = []
-
-      for (const feature of localCollection.features) {
-        const geom = feature.geometry as GeoJSON.Polygon
-        const ring = geom.coordinates[0] as [number, number][]
-        const worldCoords: [number, number][] = []
-        let valid = true
-
-        for (const [lx, ly] of ring) {
-          const world = transformer.buildingLocalToWorld({ x: lx, y: ly }, building.id)
-          if (!world) { valid = false; break }
-          worldCoords.push([world.lng, world.lat])
-        }
-        if (!valid || worldCoords.length < 4) continue
-
-        worldFeatures.push({
-          type: 'Feature',
-          properties: feature.properties,
-          geometry: { type: 'Polygon', coordinates: [worldCoords] },
-        })
-      }
-
       const src = map.getSource('floor-walls-3d') as maplibregl.GeoJSONSource | undefined
-      if (src) src.setData({ type: 'FeatureCollection', features: worldFeatures })
+      if (src) src.setData(architecturePreview?.collection ?? { type: 'FeatureCollection', features: [] })
+      for (const [id, data] of [['floor-window-frames-3d', architecturePreview?.frames], ['floor-window-glass-3d', architecturePreview?.glass], ['floor-door-panels-3d', architecturePreview?.panels], ['floor-stair-solids-3d', architecturePreview?.stairs]] as const) {
+        if (!map.getSource(id)) {
+          map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+          map.addLayer({ id, source: id, type: 'fill-extrusion', paint: { 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-color': doorExtrusionColor(id.includes('glass') ? '#7dd3fc' : id.includes('panels') ? '#a88463' : id.includes('stair') ? '#94a3b8' : '#334155'), 'fill-extrusion-opacity': id.includes('glass') ? .38 : 1 } })
+        }
+        ;(map.getSource(id) as maplibregl.GeoJSONSource).setData(data ?? { type: 'FeatureCollection', features: [] })
+        map.setLayoutProperty(id, 'visibility', viewMode === '2.5d' ? 'visible' : 'none')
+      }
+      // Door swing arcs / window plan symbols (visible in 2D and 2.5D from zoom 18).
+      syncOpeningSymbolLayers(map, architecturePreview?.symbols, true)
+      const unmodeled = (ids: string[]): maplibregl.FilterSpecification => ['!', ['in', ['get', 'id'], ['literal', viewMode === '2.5d' ? ids : []]]]
+      const modeledStairs = (architecturePreview?.modeledIds.stairs ?? []).map(id => floorComponents.find(component => component.type === 'stair' && (component.featureId === id || component.id === id))?.id ?? id)
+      if (map.getLayer('floor-door-areas-extrusion')) map.setFilter('floor-door-areas-extrusion', unmodeled(architecturePreview?.modeledIds.doors ?? []))
+      for (const id of ['floor-stair-areas-fill','floor-stair-areas-outline','floor-stair-treads-line','floor-stair-arrows-line']) if (map.getLayer(id)) map.setFilter(id, unmodeled(modeledStairs))
+      for (const id of ['floor-items-stairs','floor-items-stairs-label']) if (map.getLayer(id)) map.setFilter(id, ['all', ['==', ['get', 'type'], 'stair'], unmodeled(modeledStairs)])
     } catch { console.warn('FloorEditorCanvas: wall-3d source not ready') }
-  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
+  }, [architecturePreview, transformer, mapReady, viewMode, floorComponents])
 
   // Sync openings (doors/windows) from document to floor-openings source
   useEffect(() => {
@@ -1556,9 +1555,9 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       'floor-labels-layer': in2_5D || layers.labels,
       'floor-room-labels-layer': in2_5D,
       'floor-openings-door': in2_5D || layers.rooms,
-      'floor-openings-window': in2_5D || layers.rooms,
+      'floor-openings-window': !in2_5D && layers.rooms,
       'floor-openings-door-label': in2_5D || layers.rooms,
-      'floor-openings-window-label': in2_5D || layers.rooms,
+      'floor-openings-window-label': !in2_5D && layers.rooms,
       'floor-route-nodes-circle': in2_5D || layers.nodes,
       'floor-route-edges-line': layers.edges,
       'floor-route-edges-3d-extrusion': in2_5D && layers.edges,
@@ -1576,6 +1575,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
   const moveDragRef = useRef<{ componentId: string; originalPolygon: LatLng[]; startLatLng: { lat: number; lng: number } } | null>(null)
   const rotationDragRef = useRef<{ componentId: string; originalLocal: LocalCoord[]; center: LocalCoord; startAngle: number } | null>(null)
   const workingPolygonRef = useRef<LatLng[] | null>(null)
+  const [rectangleEditError, setRectangleEditError] = useState<{ buildingId: string; floor: number; message: string } | null>(null)
 
   const deleteVertex = useCallback((cId: string, vIdx: number) => {
     const comp = floorComponentsRef.current.find((c) => c.id === cId)
@@ -1801,6 +1801,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
         return
       }
       if (vIdx == null) return
+      setRectangleEditError(null)
       const isRectangle = comp.type === 'door' || comp.type === 'stair' || comp.type === 'elevator'
       const originalLocal = isRectangle && transformer
         ? comp.polygon.map((point) => transformer.worldToBuildingLocal(point, building.id)).filter((point): point is LocalCoord => Boolean(point))
@@ -1893,7 +1894,12 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       if (dragRef.current) {
         if (dragRef.current.originalLocal && transformer) {
           const pointer = transformer.worldToBuildingLocal({ lat: e.lngLat.lat, lng: e.lngLat.lng }, building.id)
-          const resized = pointer ? resizeRectangleFootprint(dragRef.current.originalLocal, dragRef.current.vertexIndex, pointer) : null
+          const draggedComponent = floorComponentsRef.current.find(component => component.id === dragRef.current?.componentId)
+          const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+          const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
+          const attachedDoor = draggedComponent?.type === 'door' && canonicalFloor?.doors?.find(door => door.id === draggedComponent.id)?.wallAttachment
+          const resizeOptions = draggedComponent?.type === 'door' ? { minimumDepth: 0.01, fixedCenter: Boolean(attachedDoor) } : undefined
+          const resized = pointer ? resizeRectangleFootprint(dragRef.current.originalLocal, dragRef.current.vertexIndex, pointer, resizeOptions) : null
           const worldPoints = resized
             ?.map((point) => transformer.buildingLocalToWorld(point, building.id))
             .filter((point): point is LatLng => Boolean(point))
@@ -2053,12 +2059,26 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
         }
         const isRectangle = comp.type === 'door' || comp.type === 'stair' || comp.type === 'elevator'
         if (isRectangle && localPoints.length === 4) {
-          dispatcher.execute(buildFloorRectangleEditCommand({
+          const currentBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+          const currentFloor = currentBuilding && resolveFloorScope(currentBuilding.floors, activeFloorId, floor)
+          const result = dispatcher.execute(buildFloorRectangleEditCommand({
             id: comp.id,
             ...(comp.featureId ? { featureId: comp.featureId } : {}),
             type: comp.type as 'door' | 'stair' | 'elevator',
             floor: comp.floor,
-          }, localPoints) as Command)
+          }, localPoints, { snapDoorToWall: Boolean(bodyDrag && comp.type === 'door' && currentFloor?.walls?.length) }) as Command)
+          if (result?.success === false) {
+            setRectangleEditError({ buildingId: building.id, floor, message: result.error ?? 'The rectangle edit was rejected.' })
+            const sourceId = comp.type === 'door' ? 'floor-door-areas' : comp.type === 'stair' ? 'floor-stair-areas' : 'floor-elevator-areas'
+            const originalFeatures = floorComponentsRef.current.filter(component => component.type === comp.type && component.polygon).map(component => componentToFeature(component)).filter((feature): feature is GeoJSON.Feature => Boolean(feature))
+            setSourceData(map, sourceId, originalFeatures)
+            setSourceData(map, 'floor-vertex-handles', rectangleHandleFeatures(map, comp.id, comp.polygon!))
+            const coordinates = [...comp.polygon!.map(point => [point.lng, point.lat]), [comp.polygon![0].lng, comp.polygon![0].lat]]
+            setSourceData(map, 'floor-selection', [
+              { type: 'Feature', properties: { type: 'fill' }, geometry: { type: 'Polygon', coordinates: [coordinates] } },
+              { type: 'Feature', properties: { type: 'line' }, geometry: { type: 'LineString', coordinates } },
+            ])
+          } else setRectangleEditError(null)
           return
         }
 
@@ -2263,6 +2283,15 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
 
       // Normal select mode
       if (curTool !== 'select') return
+      const openingLayers = ['floor-door-areas-fill', 'floor-door-areas-extrusion', 'floor-openings-window', 'floor-openings-door'].filter(id => map.getLayer(id))
+      const openingFeatures = openingLayers.length ? map.queryRenderedFeatures(e.point, { layers: openingLayers }) : []
+      const openingId = openingFeatures[0]?.properties?.id as string | undefined
+      if (openingId) {
+        selectedWallIdRef.current = null
+        setSelectedWallId(null)
+        onSelectRef.current?.(openingId)
+        return
+      }
       const wallFeatures = map.queryRenderedFeatures(e.point, { layers: SELECTABLE_WALL_LAYERS })
       if (wallFeatures.length > 0) {
         const wallId = (wallFeatures[0].properties as Record<string, unknown> | undefined)?.id as string | undefined
@@ -2415,7 +2444,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       }
 
       if (e.key === 'Escape') {
-        if (drawMode !== 'idle') {
+        if (drawMode !== 'idle' || toolRef.current === 'door' || toolRef.current === 'window') {
           cancelDrawing()
         } else if (selectedId) {
           onSelect?.(null)
@@ -2501,6 +2530,14 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       </div>
       {/* MapLibre — always renders (geographic context) */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+      {mapReady && architectureMap && viewMode === '2.5d' && architecture3DEditable && transformer && canonicalArchitectureFloor && (
+        <Architecture3DController map={architectureMap} transformer={transformer} buildingId={building.id} floor={canonicalArchitectureFloor}
+          tool={tool} selectedId={selectedId} selectedWallId={selectedWallId}
+          assetFeatures={architecturePreview?.selectionVolumes.features}
+          assetSelectionIds={Object.fromEntries(floorComponents.filter(component => component.featureId).map(component => [component.featureId!, component.id]))}
+          onSelect={id => onSelect?.(id)} onWallSelect={setSelectedWallId} onPreview={setArchitectureDraft}
+          execute={command => dispatcher.execute(command)} />
+      )}
       {/* Canvas overlay — renders when flag is ON (indoor authoring) */}
       {ENABLE_CANVAS_EDITOR && (
         <CanvasFloorView
@@ -2624,7 +2661,10 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
             style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #475569', background: '#334155', color: '#E2E8F0', fontSize: 11, cursor: 'pointer' }}>No</button>
         </div>
       )}
-      {rectangleMessage && (
+      {rectangleEditError?.buildingId === building.id && rectangleEditError.floor === floor && (
+        <div role="alert" style={{ position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)', background: '#7F1D1D', color: '#FFFFFF', padding: '8px 12px', borderRadius: 6, zIndex: 14 }}>{rectangleEditError.message}</div>
+      )}
+      {rectangleMessage && viewMode !== '2.5d' && (
         <div
           role="status"
           aria-live="polite"
@@ -2646,7 +2686,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
           background: '#1E293B', color: '#F8FAFC', borderRadius: 6, padding: '6px 9px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 11,
         }}>
-          <span>Wall selected — drag an orange corner handle to reshape</span>
+          <span>{viewMode === '2.5d' ? 'Wall selected - drag the blue height arrow' : 'Wall selected - drag an orange corner handle to reshape'}</span>
           <span style={{ color: '#94A3B8' }}>Escape cancels a drag</span>
           {wallEditError && <span style={{ color: '#FCA5A5' }}>{wallEditError}</span>}
           {!readOnly && (
@@ -2657,6 +2697,12 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
             </button>
           )}
         </div>
+      )}
+      {architectureDiagnostics.length > 0 && viewMode === '2.5d' && (
+        <details style={{ position: 'absolute', top: 12, right: 12, maxWidth: 260, padding: 8, background: 'var(--navi-card)', color: 'var(--navi-text)', fontSize: 11 }}>
+          <summary>Architectural preview: {architectureDiagnostics.length} items need review</summary>
+          {architectureDiagnostics.map((message, index) => <p key={index}>{message}</p>)}
+        </details>
       )}
       {selectedId && selectedComponent && (
         <div style={{

@@ -71,28 +71,28 @@
    The public surface owns its palette locally so the protected admin shell and
    indoor route semantics keep their existing colors. */
 .navi-public-shell {
-  --navi-primary: #0F6B3A;
-  --navi-primary-bright: #22A06B;
-  --navi-primary-light: #E8F5EC;
-  --navi-primary-soft: #E8F5EC;
-  --navi-primary-dark: #0B512B;
+  --navi-primary: #086B43;
+  --navi-primary-bright: #168253;
+  --navi-primary-light: #E8F3EC;
+  --navi-primary-soft: #E8F3EC;
+  --navi-primary-dark: #075536;
   --navi-info: #2563EB;
   --navi-accent: #22A06B;
   --navi-success: #0F6B3A;
   --navi-warning: #F59E0B;
-  --navi-error: #DC2626;
+  --navi-error: #B42318;
   --navi-sidebar: #FFFFFF;
   --navi-sidebar-hover: #F3FAF5;
-  --navi-content: #F9FAFB;
+  --navi-content: #F7F9F7;
   --navi-card: #FFFFFF;
-  --navi-text: #1F2937;
-  --navi-text-secondary: #6B7280;
-  --navi-text-sidebar: #6B7280;
-  --navi-text-sidebar-active: #1F2937;
-  --navi-border: #E5E7EB;
-  --navi-sidebar-border: #E5E7EB;
-  --navi-shadow-sm: 0 1px 2px rgba(31, 41, 55, 0.05);
-  --navi-shadow: 0 1px 3px rgba(31, 41, 55, 0.08), 0 1px 2px rgba(31, 41, 55, 0.04);
+  --navi-text: #172B23;
+  --navi-text-secondary: #56665F;
+  --navi-text-sidebar: #56665F;
+  --navi-text-sidebar-active: #172B23;
+  --navi-border: #DEE6E0;
+  --navi-sidebar-border: #DEE6E0;
+  --navi-shadow-sm: 0 1px 2px rgba(23, 43, 35, 0.05);
+  --navi-shadow: 0 2px 8px rgba(23, 43, 35, 0.08);
   --navi-tint-blue: #EFF6FF;
   --navi-tint-sky: #F0F9FF;
   --navi-tint-amber: #FFFBEB;
@@ -102,7 +102,7 @@
 }
 
 .navi-public-shell[data-theme="dark"] {
-  --navi-primary: #22A06B;
+  --navi-primary: #168253;
   --navi-primary-bright: #8FE0B5;
   --navi-primary-light: #153C27;
   --navi-primary-soft: #153C27;
@@ -126,6 +126,16 @@
   --navi-tint-sky: #0C4A6E;
   --navi-tint-amber: #451A03;
   --navi-tint-red: #450A0A;
+}
+
+/* Active guidance uses the full mobile canvas so its progress actions stay above
+   the browser's safe area without leaving a blank tab-bar strip underneath. */
+.navi-public-shell:has([data-navigation-phase="active"]) nav.fixed {
+  display: none;
+}
+
+.navi-public-shell:has([data-navigation-phase="active"]) [data-public-app-frame] {
+  padding-bottom: 0;
 }
 
 .navi-public-shell[data-reduced-motion="true"] *,

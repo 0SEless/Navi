@@ -1,3 +1,4 @@
+import { prepareWallAttachmentUpdate, applyWallAttachmentState, snapshotWallAttachmentState, type WallAttachmentState } from '../geometry/door-wall-attachment'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord, Wall, Opening } from '@navi/core'
 import { migrateOpeningsOnSplit, migrateOpeningsOnMerge } from '../geometry/opening-position'
@@ -46,7 +47,7 @@ function findWall(floor: { walls?: Wall[] }, wallId: string) {
 
 // ── wall.split ──
 
-export const wallSplitHandler: CommandHandler = {
+const wallSplitHandlerBase: CommandHandler = {
   id: 'wall.split',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -145,7 +146,7 @@ export const wallSplitHandler: CommandHandler = {
 
 // ── wall.split.undo ──
 
-export const wallSplitUndoHandler: CommandHandler = {
+const wallSplitUndoHandlerBase: CommandHandler = {
   id: 'wall.split.undo',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -203,7 +204,7 @@ export const wallSplitUndoHandler: CommandHandler = {
 
 // ── wall.crossingSplit ──
 
-export const wallCrossingSplitHandler: CommandHandler = {
+const wallCrossingSplitHandlerBase: CommandHandler = {
   id: 'wall.crossingSplit',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -343,7 +344,7 @@ export const wallCrossingSplitHandler: CommandHandler = {
 
 // ── wall.crossingSplit.undo ──
 
-export const wallCrossingSplitUndoHandler: CommandHandler = {
+const wallCrossingSplitUndoHandlerBase: CommandHandler = {
   id: 'wall.crossingSplit.undo',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -389,7 +390,7 @@ export const wallCrossingSplitUndoHandler: CommandHandler = {
 
 // ── wall.tJunctionSplit ──
 
-export const wallTJunctionSplitHandler: CommandHandler = {
+const wallTJunctionSplitHandlerBase: CommandHandler = {
   id: 'wall.tJunctionSplit',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -471,7 +472,7 @@ export const wallTJunctionSplitHandler: CommandHandler = {
 
 // ── wall.merge ──
 
-export const wallMergeHandler: CommandHandler = {
+const wallMergeHandlerBase: CommandHandler = {
   id: 'wall.merge',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -493,11 +494,16 @@ export const wallMergeHandler: CommandHandler = {
       wallsToMerge.push({ wall: result.wall, index: result.index })
     }
 
+    if (new Set(wallIds).size !== wallIds.length) return { success: false, error: 'Duplicate wallIds cannot be merged' }
+    const dimensions = wallsToMerge[0].wall
+    if (wallsToMerge.some(({wall}) => !Number.isFinite(wall.height) || !Number.isFinite(wall.thickness) || wall.height !== dimensions.height || wall.thickness !== dimensions.thickness)) {
+      return { success: false, error: 'Walls must have matching height and thickness before merging' }
+    }
     // Convert to segments for merge algorithm
     const segments: WallSegment[] = wallsToMerge.map(({ wall }) => wallToSegment(wall))
     const merged = mergeWalls(segments)
 
-    if (merged.length === segments.length) {
+    if (merged.length !== 1) {
       return { success: false, error: 'Walls are not collinear or do not share endpoints — merge not possible' }
     }
 
@@ -586,7 +592,7 @@ export const wallMergeHandler: CommandHandler = {
 
 // ── wall.merge.undo ──
 
-export const wallMergeUndoHandler: CommandHandler = {
+const wallMergeUndoHandlerBase: CommandHandler = {
   id: 'wall.merge.undo',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const buildingId = payload.buildingId as string
@@ -632,3 +638,54 @@ export const wallMergeUndoHandler: CommandHandler = {
     return { success: true, entityId: mergedId, data: { buildingId, floorId } }
   },
 }
+
+/** Stage topology and attachment changes together so failed preflight never mutates the document. */
+function withAttachments(handler: CommandHandler): CommandHandler {
+  return {
+    id: handler.id,
+    execute(document, payload) {
+      const buildingId=payload.buildingId as string, floorId=payload.floorId as string
+      const building=document.buildings.find(b=>b.id===buildingId), floor=building?.floors.find(f=>f.id===floorId)
+      if(!building||!floor)return {success:false,error:'Building/floor not found'}
+      const draftFloor=structuredClone(floor)
+      const draft:CampusDocument={...document,buildings:document.buildings.map(b=>b===building?{...b,floors:b.floors.map(f=>f===floor?draftFloor:f)}:b)}
+      if(document._changeJournal)draft._changeJournal=structuredClone(document._changeJournal)
+      let result:MutationResult
+      try { result=handler.execute(draft,payload) } catch(error) { return {success:false,error:error instanceof Error?error.message:'Invalid wall attachment migration'} }
+      if(!result.success)return result
+      const before=snapshotWallAttachmentState(floor), wallsBefore=structuredClone(floor.walls)
+      let state=payload.restoreAttachmentState as WallAttachmentState|undefined
+      if(!state){
+        const hostMap:Record<string,string[]>={}
+        // Current command identities are authoritative; historical lineage can be inherited.
+        if(handler.id==='wall.split'||handler.id==='wall.tJunctionSplit')hostMap[(payload.wallId??payload.hostWallId) as string]=[result.data!.leftId as string,result.data!.rightId as string]
+        if(handler.id==='wall.crossingSplit'){
+          const ids=result.data!.newIds as string[]
+          hostMap[payload.wallIdA as string]=ids.slice(0,2)
+          hostMap[payload.wallIdB as string]=ids.slice(2,4)
+        }
+        if(handler.id==='wall.merge')for(const id of payload.wallIds as string[])hostMap[id]=[result.data!.mergedId as string]
+        const prepared=prepareWallAttachmentUpdate(floor,draftFloor.walls??[],hostMap)
+        if(!prepared.ok)return {success:false,error:prepared.error}
+        state=prepared.state
+      }
+      floor.walls=(payload.restoreWalls as Wall[]|undefined) ?? draftFloor.walls
+      applyWallAttachmentState(floor,state)
+      document.version=draft.version
+      if(Object.hasOwn(draft,'_changeJournal'))document._changeJournal=draft._changeJournal
+      return {...result,data:{...result.data,attachmentBefore:before,wallsBefore}}
+    },
+    ...(handler.inverse?{inverse(payload:Record<string,unknown>,result:MutationResult){
+      const command=handler.inverse!(payload,result)
+      if(command){command.payload.restoreAttachmentState=result.data?.attachmentBefore;command.payload.restoreWalls=result.data?.wallsBefore}
+      return command
+    }}:{}),
+  }
+}
+export const wallSplitHandler = withAttachments(wallSplitHandlerBase)
+export const wallSplitUndoHandler = withAttachments(wallSplitUndoHandlerBase)
+export const wallCrossingSplitHandler = withAttachments(wallCrossingSplitHandlerBase)
+export const wallCrossingSplitUndoHandler = withAttachments(wallCrossingSplitUndoHandlerBase)
+export const wallTJunctionSplitHandler = withAttachments(wallTJunctionSplitHandlerBase)
+export const wallMergeHandler = withAttachments(wallMergeHandlerBase)
+export const wallMergeUndoHandler = withAttachments(wallMergeUndoHandlerBase)

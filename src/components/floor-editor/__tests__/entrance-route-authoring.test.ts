@@ -28,8 +28,8 @@ describe('entrance-first Route authoring', () => {
     if (!result.accepted) expect(result.reason).toMatch(/Start the Route at the selected Entrance/)
   })
 
-  it('requires a confirmed Entrance anchor before starting the first Route network', () => {
-    expect(routeStartError({ hasExistingRoute: false, hasEntranceAnchor: false })).toMatch(/select an Entrance/i)
+  it('allows the first Route to start freely without an entrance', () => {
+    expect(routeStartError({ hasExistingRoute: false, hasEntranceAnchor: false })).toBeNull()
     expect(routeStartError({ hasExistingRoute: false, hasEntranceAnchor: true })).toBeNull()
   })
 

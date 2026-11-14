@@ -176,14 +176,20 @@ export function resolveOutdoorRoutePick(
   if (!routeId) return null
 
   const anchor = pick.anchor ?? pick.lngLat
+  const cosine = Math.cos((from.position.lat + to.position.lat) / 2 * Math.PI / 180)
+  const dx = (to.position.lng - from.position.lng) * cosine, dy = to.position.lat - from.position.lat
+  const lengthSquared = dx * dx + dy * dy
+  if (!Number.isFinite(lengthSquared) || lengthSquared <= 0) return null
+  const fraction = Math.max(0, Math.min(1, (((pick.lngLat.lng - from.position.lng) * cosine) * dx + (pick.lngLat.lat - from.position.lat) * dy) / lengthSquared))
+  const position = { lat: from.position.lat + dy * fraction, lng: from.position.lng + (to.position.lng - from.position.lng) * fraction }
   return {
     source: 'edge',
     candidate: {
       id: `segment:${edge.id}`,
       label: `New junction on ${routeId}`,
       type: 'intersection',
-      position: { ...pick.lngLat },
-      distanceMeters: distanceMeters(anchor, pick.lngLat),
+      position,
+      distanceMeters: distanceMeters(anchor, position),
       targetKind: 'segment',
       routeId,
       edgeId: edge.id,

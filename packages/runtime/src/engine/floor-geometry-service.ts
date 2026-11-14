@@ -17,6 +17,7 @@ export interface FloorResult {
   readonly level: number
   readonly label: string
   readonly elevation: number
+  readonly height?: number
   readonly offset: LocalCoord
 }
 
@@ -35,10 +36,17 @@ export interface HallwayResult {
 
 export interface DoorResult {
   readonly id: string
-  readonly roomId: string
+  readonly roomId?: string
   readonly doorType: string
+  readonly doorAppearance?: FloorGeometryFloor['doors'][number]['doorAppearance']
+  readonly doorPose?: FloorGeometryFloor['doors'][number]['doorPose']
   readonly position: LocalCoord
   readonly width: number
+  readonly angle?: number
+  readonly depth?: number
+  readonly rotation?: number
+  readonly geometry?: FloorGeometryFloor['doors'][number]['geometry']
+  readonly wallAttachment?: FloorGeometryFloor['doors'][number]['wallAttachment']
 }
 
 export interface WallSegment {
@@ -108,6 +116,7 @@ export class FloorGeometryService {
       level: floor.level,
       label: floor.label,
       elevation: floor.elevation,
+      ...(floor.height !== undefined ? { height: floor.height } : {}),
       offset: { x: floor.offset.x, y: floor.offset.y },
     }
   }
@@ -147,8 +156,15 @@ export class FloorGeometryService {
       id: d.id,
       roomId: d.roomId,
       doorType: d.doorType,
+      ...(d.doorAppearance !== undefined ? { doorAppearance: d.doorAppearance } : {}),
+      ...(d.doorPose !== undefined ? { doorPose: d.doorPose } : {}),
       position: { x: d.position.x, y: d.position.y },
       width: d.width,
+      ...(d.angle !== undefined ? { angle: d.angle } : {}),
+      ...(d.depth !== undefined ? { depth: d.depth } : {}),
+      ...(d.rotation !== undefined ? { rotation: d.rotation } : {}),
+      ...(d.geometry ? { geometry: structuredClone(d.geometry) } : {}),
+      ...(d.wallAttachment ? { wallAttachment: { ...d.wallAttachment } } : {}),
     }))
   }
 
@@ -161,6 +177,9 @@ export class FloorGeometryService {
       name: s.name,
       position: { x: s.position.x, y: s.position.y },
       rotation: s.rotation,
+      ...(s.height !== undefined ? { height: s.height } : {}),
+      ...(s.drawing ? { drawing: structuredClone(s.drawing) } : {}),
+      ...(s.landing ? { landing: structuredClone(s.landing) } : {}),
       polygon: s.polygon ? { points: s.polygon.points.map(p => ({ x: p.x, y: p.y })) } : undefined,
     }))
   }

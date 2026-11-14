@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildNavRoute, computeRouteProgress, computeSegments } from '../nav-route-helpers'
+import { buildNavRoute, computeRouteProgress, computeSegments, progressAtStep, remainingRoutePath } from '../nav-route-helpers'
 import { findNavRoute } from '../findRoute'
 import type { NavNode, NavEdge, PathResult } from '../../types/nav-types'
 import type { NavRoute } from '../../types/route-types'
@@ -226,6 +226,24 @@ describe('computeRouteProgress', () => {
     const result = computeRouteProgress(route, pos)
     expect(result.index).toBe(3) // last step
     expect(result.remainingDistance).toBeLessThan(500) // some small distance
+  })
+})
+
+describe('manual step progress and remaining route', () => {
+  const route = buildNavRoute(pathResult, nodes, edges)!
+  it('clamps manual progress and measures only the remaining step legs', () => {
+    const progress = progressAtStep(route, 1)
+    expect(progress.index).toBe(1)
+    expect(progress.snappedPosition).toEqual(route.steps[1].position)
+    expect(progress.remainingDistance).toBeGreaterThan(200)
+    expect(progress.remainingDistance).toBeLessThan(240)
+    expect(progressAtStep(route, 9)).toMatchObject({ index: 3, remainingDistance: 0 })
+  })
+
+  it('returns the full path without progress and a lead-in when between steps', () => {
+    expect(remainingRoutePath(route, null)).toEqual({ path: route.path, leadIn: null })
+    const mid = { ...progressAtStep(route, 1), snappedPosition: { lat: 11.8215, lng: 122.168 } }
+    expect(remainingRoutePath(route, mid)).toEqual({ path: route.path.slice(2), leadIn: mid.snappedPosition })
   })
 })
 

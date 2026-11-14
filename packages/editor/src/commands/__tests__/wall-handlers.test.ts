@@ -493,3 +493,60 @@ describe('backward compatibility', () => {
     expect(doc.buildings[0].floors[0].walls).toHaveLength(1)
   })
 })
+
+describe('wall dimension safety', () => {
+  const payload = { buildingId: 'bld-1', floorId: 'flr-1', id: 'wall-dim', start: { x: 0, y: 0 }, end: { x: 10, y: 0 } }
+  it.each([NaN, Infinity, -Infinity, 0, -1])('rejects invalid creation height %s without mutation', height => {
+    const doc = createDoc(); const before = JSON.stringify(doc)
+    expect(wallCreateHandler.execute(doc, { ...payload, height }).success).toBe(false)
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+  it.each([NaN, Infinity, -Infinity, 0, -1])('rejects invalid update thickness %s atomically', thickness => {
+    const doc = createDoc(); wallCreateHandler.execute(doc, payload)
+    const before = JSON.stringify(doc)
+    expect(wallUpdateHandler.execute(doc, { ...payload, wallId: 'wall-dim', patch: { thickness, height: 1 } }).success).toBe(false)
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+  it('rejects lowering a wall through an existing window', () => {
+    const doc = createDoc(); wallCreateHandler.execute(doc, payload)
+    doc.buildings[0].floors[0].openings = [{ id: 'win', type: 'window', wallId: 'wall-dim', offset: 2, width: 1.2, sillHeight: 0.9, height: 1.2 }]
+    const before = JSON.stringify(doc)
+    const result = wallUpdateHandler.execute(doc, { ...payload, wallId: 'wall-dim', patch: { height: 1 } })
+    expect(result.success).toBe(false); expect(result.error).toContain('win')
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+  it('changes wall dimensions without moving floors or room topology and can undo', () => {
+    const doc = createDoc(); wallCreateHandler.execute(doc, payload)
+    const beforeFloor = structuredClone(doc.buildings[0].floors[0])
+    const command = { ...payload, wallId: 'wall-dim', patch: { height: 1.1, thickness: 0.2 } }
+    const result = wallUpdateHandler.execute(doc, command)
+    expect(result.success).toBe(true)
+    expect(doc.buildings[0].floors[0].elevation).toBe(beforeFloor.elevation)
+    expect(doc.buildings[0].floors[0].rooms).toEqual(beforeFloor.rooms)
+    const inverse = wallUpdateHandler.inverse!(command, result)!
+    expect(wallUpdateHandler.execute(doc, inverse.payload).success).toBe(true)
+    expect(doc.buildings[0].floors[0].walls).toEqual(beforeFloor.walls)
+  })
+})
+
+describe('wall update repair undo', () => {
+  it.each(['canonical', 'legacy-window', 'attached-door'])('restores the exact old invalid %s aperture when undoing a wall-height repair', kind => {
+    const doc = createDoc()
+    wallCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', id: 'repair-wall', start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, height: 3.5, thickness: 0.2 })
+    const floor = doc.buildings[0].floors[0]
+    const wallId = floor.walls![0].id
+    if (kind === 'canonical') floor.openings = [{ id: 'old-opening', type: 'window', wallId, offset: 2, width: 1, height: 3, sillHeight: 1 }]
+    if (kind === 'legacy-window') floor.windows = [{ id: 'old-window', wallId, offset: 2, width: 1, sillHeight: 3, metadata: {} }]
+    if (kind === 'attached-door') floor.doors = [{ id: 'old-door', position: { x: 2, y: 0 }, width: 1, doorType: 'standard', metadata: {}, wallAttachment: { wallId, offset: 2, openingHeight: 4 } }]
+    const before = structuredClone(floor)
+    const payload = { buildingId: 'bld-1', floorId: 'flr-1', wallId, patch: { height: 4.5 } }
+    const result = wallUpdateHandler.execute(doc, payload)
+    expect(result.success).toBe(true)
+    const inverse = wallUpdateHandler.inverse!(payload, result)!
+    expect(wallUpdateHandler.execute(doc, inverse.payload).success).toBe(true)
+    expect(floor).toEqual(before)
+    const restored = JSON.stringify(doc)
+    expect(wallUpdateHandler.execute(doc, { ...payload, patch: { height: 3 } }).success).toBe(false)
+    expect(JSON.stringify(doc)).toBe(restored)
+  })
+})

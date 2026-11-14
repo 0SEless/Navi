@@ -3373,3 +3373,61 @@ Track every error encountered during implementation. Each entry includes:
 - **Fix**: none needed for code; the clean re-run on identical content was green (close-out commit 8cc1332). The T3 test-hook lock gate stays.
 - **Prevention**: a multi-test failure with one shared server-side signature (session never mounts + API 404s) across unrelated spec files is an environment suspect first - re-run once on identical content before touching product code; write the ledger entry before reports/ artifacts can be cleaned.
 - **Related tasks**: Section 2 T3, Section 2 T4 close-out (8cc1332)
+
+## 2026-11-12: Door validation duplicated issue keys and misread modern assignments
+- **Error**: save #4 produced 188 legacy destination errors; several doors in a room shared a React key, repeating Next.js console errors.
+- **Cause**: issue identity omitted the door ID, and the rule checked legacy connectedToId without considering modern routeConnection or persisted semantic room identity.
+- **Fix**: scoped stable issue IDs; modern anchor/target/edge validation; explicit legacy-reference errors retained; unassigned doors are warnings, aggregated per floor when indoor routes are not mapped. No map writes, publishing changes, or commits.
+- **Prevention**: regression coverage includes React rerendering, malformed/broken assignments, cross-floor targets, semantic rooms, legacy fallback and immutability. Single-worker tests limit memory. A separate unchanged workspace-panel test mock lacks useWorkflow (7 failures); do not hide or conflate it with this patch.
+- **Related tasks**: door-validation-checkpoint-20261112 T1-T3.
+- **Review follow-up**: fixed canonical semantic room fallback via collectCanonicalRoomIds and preserved errors for malformed legacy destination types; five additional regression cases failed first and now pass. Engine-level incremental validation also covered. Final focused suite: 201/201; existing unrelated panel mock failure remains separately documented.
+
+## 2026-11-13: Direct facade editing exposed MapLibre defaults and incomplete cancellation
+- **Error**: Browser capture initially threw on undefined projection, then produced no frame/hover with zero-height inner canvas and a pending tile-loaded readiness gate. Review found hidden handles, stale projection drags, lost building locks and imported-style delete undo needed explicit guards.
+- **Cause**: Mocks assumed explicit Mercator, nonzero inner height and fully loaded tiles. New enum validation also affected inverse creation; overlay handles and lock lifetime required independent checks.
+- **Fix**: Default omitted projection to Mercator; outer CSS viewport; existing styleReady plus style.load; aperture-aware handle visibility; live-capture/selection cancellation with pointer/camera cleanup; onLost/onReleased access hook; inverse-only exact deleted snapshot restoration.
+- **Prevention**: Reproducing RED tests for each material defect, then 170 focused tests plus compiler retention passed. Real browser completes placement/resize/move/style/numeric/Undo/Escape/height/second-bearing workflow with no page errors; saved checksums unchanged. UTF-8 sources and single-worker tests retained.
+- **Related tasks**: 2026-11-13-direct-25d-architecture Tasks1-4. Full compiler integration fixtures independently fail HALLWAY_DISCONNECTED; target retention case is isolated. No map references cleared.
+
+## 2026-11-13: Stair/door rendering parity and cosmetic edits
+- **Error**: Stairs were only flat lines; doors lacked actual panels publicly. Export dropped appearance/stair construction. Review found selection hit targets disappeared, full-wall apertures re-enabled an opaque fallback, and appearance-only door edits normalized geometry and routes. New inspector panels initially shared React keys. Fallback door lines added meters directly to degrees.
+- **Cause**: Separate Studio/public representations and explicit field whitelists; fallback classification equated zero emitted solids with failure; old physical update path reused for cosmetic changes; adjacent inspector keys reused entity JSON.
+- **Fix**: Shared pure assets and coordinate projection; additive export/readers; canonical ray-prism selection; valid empty-wall classification; appearance-only update branch preserving physical/network snapshots; uniquely prefixed panel keys; Mercator meter conversion for fallback doors.
+- **Prevention**: RED/GREEN regressions and final304 tests/22 files passed, serial512MB. Real Studio and actual-public-component fixture browser proof passed with zero page/duplicate-key errors; saved versions/checksums unchanged, own locks released. Unsupported turning paths retain diagnostic fallbacks rather than fabricated straight stairs.
+- **Tooling lessons**: Isolated fixture HTML/JS must declare UTF8 (Greek identifiers otherwise decoded as windows1252 and fail parsing), and Vite library React builds must define process.env.NODE_ENV. Source probing uses GeoJSONSource.getData, not private serialized _data. Placement test uses Navigation/Stair rectangle drag. No application fix was inferred from those harness failures.
+- **Related tasks**: 2026-11-13-stair-door-assets T1-T4. Core semantic check has4 baseline errors and0 introduced; new modules lint0, old file lint counts unchanged.
+
+## 2026-11-13: Stair arrow/rise disagreement and door pose controls
+- **Error**: Wide freeform stairs rose across their longest axis while2D arrows followed polygon order. Doors had a fixed30-degree visual pose without user choice. Review found imported unresolved attachment/owner snapshots could fail undo.
+- **Cause**: Separate direction inference in2D/3D, presentation convention hardcoded in leaf transform, and inverse restoration running forward validation.
+- **Fix**: Shared corner-direction authority, actual arrow/rise agreement tests, closed/ajar/open poses and mirrored double styles, additive reader/writer fields, changed-only cosmetic inspectors and early exact snapshot restore with identity guards.
+- **Prevention**:339 tests/19 files pass serial512MB, including screenshot-shaped rectangles and real polygonizeRect corner order. Actual component browser fixture confirms cosine1 arrow/rise and open/closed controls with no errors/map writes. Core4 baseline errors remain unchanged; no added touched-source lint errors. User draft/tab/lock untouched.
+- **Related tasks**:2026-11-13-stair-direction-door-pose. Test fixture alias failure fixed by importing the already exported core helper through its barrel; no new module path convention introduced. Reused lint script must exclude untouched files missing before snapshots rather than label their old errors introduced.
+
+
+## 2026-11-13: Stair sizing and panel clipping
+- **Error**: Inspector width/depth fields changed a cached polygon or used radians for canonical degree rotation; stair rise was always the floor height. Closed footprints could show generic default sizes. Right inspector clipped lower properties.
+- **Cause**: Parametric source geometry bypassed by generic inspector updates; no per-level height override; flex overflow hidden with no usable shared scroll viewport.
+- **Fix**: Validated canonical feature dimensions, source drawing updates/freeform ordered scaling, per-level rise inheritance/reset, dedicated inspector and bounded scrolling/resizable panels. Exact undo snapshots preserve imports.
+- **Prevention**:150 focused tests/11files, actual component browser proof, no map writes. Reviewer reset blur defect reproduced RED and fixed; keyed remount focus loss reproduced RED and fixed with guarded canonical prop adjustment. No new touched-source lint errors.
+- **Tooling**: Python read_text defaults to Windows encoding; specify UTF8 and preserve before bytes. Fixture editor barrel requires process.env stub; never load secrets. Update old tests to assert correct degrees, not old buggy radians.
+- **Related tasks**:2026-11-13-stair-size-workspace T1-T3.
+
+
+## 2026-11-13: Door Duplicate lost wall behavior
+- **Error**: Duplicated doors lost appearance/pose/attachment and body drops could not attach to a destination wall.
+- **Cause**: Older copy whitelist and generic rectangle movement bypassed current wall-placement selection and validation.
+- **Fix**: Preserve optional styles, resolve a validated attached copy, snap body moves through existing door.update with room ownership and exact undo; show rejected duplicate errors. Keep route identity separate.
+- **Prevention**:153 focused tests/9files and isolated browser duplicate/drag/2.5D/reject/undo proof; no map writes. Review found clearance candidates could falsely reject a narrow valid gap; reproducing RED fixed with exact boundary fallback.
+- **Tooling**: Canvas test must live inside existing setup and include mandatory floor arrays. Resolve the active floor within drop scope; first integration run caught an undefined canonicalFloor reference. Assert floating-point center coordinates approximately.
+- **Related tasks**:2026-11-13-door-duplicate-wall T1-T3.
+- **Follow-up verification**: new tool-selection mock initially retained calls from the preceding success test; reset it in shared beforeEach, matching the existing dispatcher mocks. Success/failure tool-handoff regression then verifies per-action behavior.
+
+## 2026-11-13: Floor route workflow regression prevention
+- **Error**: Outdoor mini-map requested unsupported OSM zoom22 tiles; selection could mask basemap errors. Outdoor assignment forced indoor authoring and a second entrance; stairs/elevators relied on proximity instead of authored floor access.
+- **Cause**: Missing source maxzoom/error separation, coupled tool lifecycle, implicit compiler nearest-point fallback.
+- **Fix**: Source maxzoom19/attribution and recoverable status; exact projected segment picks; independent real terminal with zero indoor edges; free drawing and explicit additive ports; compiler authoritative managed links; inert Suggest Connections review.
+- **Prevention**:343 focused tests/23 suites and isolated browser proof. Test all four port kinds on the same split segment, blocked walls/stale signatures/no partial writes, scoped one-step undo, per-floor move/copy/delete and dependent redo.
+- **Review discoveries**: Redo regenerated IDs and broke later routes referencing original junctions (RED2 together with missing legacy nested doors). Optional stable redo command and canonical fallback fixed both; GREEN31 history/cleanup, independent re-review clear. Owner deletion left false backbone stubs (RED2); remove only owned connector and unreferenced anchor, exact door/index/network undo; GREEN76 related suites.
+- **Verification/tooling**: Minimal campus fixture has no rooms/roads; construct complete synthetic inputs, and assert publish diagnostics separately from access graph generation. Command commits replace scoped arrays: read authoritative updated entities instead of stale object references. Baseline virtualization confirmed two preexisting fixture failures: generic wall hit also matched door layers; drag-pan reset occurred before cancellation assertion. Use layer-specific hits and clear pre-gesture mocks. Picker selection effect is asynchronous: await preview source update. Type check caught Entrance.label vs nonexistent name; corrected. Core4/compiler21/editor entrypoint2 existing diagnostics unchanged; no introduced errors.
+- **Related tasks**:2026-11-13-floor-route-workflow T1–T5. No suppression of actual validation errors, no saved campus writes.

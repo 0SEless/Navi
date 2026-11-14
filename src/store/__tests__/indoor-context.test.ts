@@ -25,6 +25,10 @@ describe('W16C: IndoorContext', () => {
     usePublicStore.setState({
       selectedBuilding: null,
       activeFloor: 0,
+      viewedFloorId: null,
+      positionFloorId: null,
+      positionFloorSource: 'unknown',
+      positionBuildingId: null,
       indoorContext: { active: false },
     })
   })
@@ -65,13 +69,16 @@ describe('W16C: IndoorContext', () => {
       expect(indoorContext.buildingId).toBe('b1')
     })
 
-    it('6. selectBuilding sets floorId to first floor', () => {
+    it('6. selectBuilding sets only the viewed floor to the first floor', () => {
       const building = makeBuilding({ id: 'b1', floors: [0, 1, 2] })
       usePublicStore.getState().selectBuilding(building)
 
-      const { indoorContext, activeFloor } = usePublicStore.getState()
-      expect(indoorContext.floorId).toBe(0)
+      const { indoorContext, activeFloor, viewedFloorId, positionFloorId, positionFloorSource } = usePublicStore.getState()
+      expect(indoorContext.floorId).toBeUndefined()
       expect(activeFloor).toBe(0)
+      expect(viewedFloorId).toBe(0)
+      expect(positionFloorId).toBeNull()
+      expect(positionFloorSource).toBe('unknown')
     })
 
     it('7. selectBuilding sets selectedBuilding', () => {
@@ -117,14 +124,61 @@ describe('W16C: IndoorContext', () => {
   // ── T4: Floor Selection ────────────────────────────────────
 
   describe('Floor Selection', () => {
-    it('11. setActiveFloor updates indoorContext.floorId when active', () => {
+    it('11. route-floor updates leave the separately reported position unchanged', () => {
       const building = makeBuilding({ id: 'b1', floors: [0, 1, 2] })
       usePublicStore.getState().selectBuilding(building)
+      usePublicStore.getState().setPositionFloorManually(0, 'b1')
       usePublicStore.getState().setActiveFloor(1)
 
-      const { indoorContext, activeFloor } = usePublicStore.getState()
+      const { indoorContext, activeFloor, positionFloorId, positionFloorSource } = usePublicStore.getState()
       expect(indoorContext.floorId).toBe(1)
       expect(activeFloor).toBe(1)
+      expect(positionFloorId).toBe(0)
+      expect(positionFloorSource).toBe('manual')
+    })
+
+    it('viewing another floor changes rendering selection without changing route or position floors', () => {
+      usePublicStore.getState().enterIndoorContext('b1', 1)
+      usePublicStore.getState().setPositionFloorManually(1, 'b1')
+
+      usePublicStore.getState().setViewedFloor(2)
+
+      const state = usePublicStore.getState()
+      expect(state.viewedFloorId).toBe(2)
+      expect(state.activeFloor).toBe(1)
+      expect(state.indoorContext.floorId).toBe(1)
+      expect(state.positionFloorId).toBe(1)
+      expect(state.positionFloorSource).toBe('manual')
+    })
+
+    it('only a routable QR checkpoint updates the position floor as QR sourced', () => {
+      usePublicStore.getState().setQrLocation({
+        source: 'qr', campusId: 'campus', checkpointId: 'cp1', label: 'Stairs',
+        buildingId: 'b1', floor: 1, nodeId: 'qr-node', anchor: 'graph-node',
+      })
+
+      expect(usePublicStore.getState()).toMatchObject({
+        positionFloorId: 1, positionFloorSource: 'qr', positionBuildingId: 'b1',
+      })
+
+      usePublicStore.getState().setQrLocation({
+        source: 'qr', campusId: 'campus', checkpointId: 'bad', label: 'Unresolved',
+        buildingId: 'b1', floor: 2, nodeId: null, anchor: 'none',
+      })
+
+      expect(usePublicStore.getState()).toMatchObject({
+        positionFloorId: 1, positionFloorSource: 'qr', positionBuildingId: 'b1',
+      })
+    })
+
+    it('a manual floor report is marked manual and does not change the viewed floor', () => {
+      usePublicStore.getState().setViewedFloor(2)
+
+      usePublicStore.getState().setPositionFloorManually(1, 'b1')
+
+      expect(usePublicStore.getState()).toMatchObject({
+        viewedFloorId: 2, positionFloorId: 1, positionFloorSource: 'manual', positionBuildingId: 'b1',
+      })
     })
 
     it('12. setActiveFloor does not affect indoorContext when inactive', () => {
@@ -206,7 +260,8 @@ describe('W16C: IndoorContext', () => {
       usePublicStore.getState().selectBuilding(building)
 
       const { indoorContext } = usePublicStore.getState()
-      expect(indoorContext.floorId).toBe(0)
+      expect(indoorContext.floorId).toBeUndefined()
+      expect(usePublicStore.getState().viewedFloorId).toBe(0)
     })
 
     it('20. enterIndoorContext with floor 0 works', () => {

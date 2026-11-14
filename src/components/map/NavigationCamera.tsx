@@ -131,6 +131,24 @@ export default function NavigationCamera({
     })
   }, [effectiveMode, effectivePosition, heading, headingFollowEnabled, initialSetup, isReady, reducedMotion, routeBounds, surface, topOrientation])
 
+  useEffect(() => {
+    if (!map || !isReady || surface !== 'route-preview' || !routeBounds) return
+    let frame = 0
+    const refitAfterResize = () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        controllerRef.current?.refitRoute(routeBounds)
+      })
+    }
+
+    map.on('resize', refitAfterResize)
+    return () => {
+      map.off('resize', refitAfterResize)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [isReady, map, routeBounds, surface])
+
   const compassBearing = bearing ?? heading ?? null
   const compassVisible = isNavigationCompassVisible(compassBearing)
   const hasLocation = effectivePosition !== null && effectivePosition !== undefined

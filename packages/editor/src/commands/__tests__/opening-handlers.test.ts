@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { CampusDocument, LocalCoord, Wall, Opening } from '@navi/core'
 import { getChangesSince, serializeDocument, deserializeDocument } from '@navi/core'
-import { openingCreateHandler, openingDeleteHandler } from '../feature-handlers'
+import { openingCreateHandler, openingDeleteHandler, openingUpdateHandler } from '../feature-handlers'
 import { wallCreateHandler } from '../wall-handlers'
 import { wallSplitHandler, wallSplitUndoHandler, wallMergeHandler, wallMergeUndoHandler } from '../wall-topology-handlers'
 import { deriveOpeningPosition, computeOffsetFromPosition } from '../../geometry/opening-position'
@@ -49,6 +49,57 @@ function pt(x: number, y: number): LocalCoord {
 }
 
 // ── Position derivation tests ──
+describe('window appearance commands', () => {
+  it.each(['open', 'fixed', 'two-pane'])('retains %s through create, update and delete undo', windowAppearance => {
+    const doc = createDocWithWalls([{ id: 'w1', sx: 0, sy: 0, ex: 10, ey: 0 }])
+    expect(openingCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', opening: { id: 'o', type: 'window', wallId: 'w1', offset: 1, width: 1, windowAppearance } }).success).toBe(true)
+    expect(getOpenings(doc)[0].windowAppearance).toBe(windowAppearance)
+    const before = structuredClone(getOpenings(doc)[0])
+    const payload = { openingId: 'o', patch: { windowAppearance: 'fixed' } }
+    const result = openingUpdateHandler.execute(doc, payload)
+    const inverse = openingUpdateHandler.inverse(payload, result)!
+    expect(openingUpdateHandler.execute(doc, inverse.payload).success).toBe(true)
+    expect(getOpenings(doc)[0]).toEqual(before)
+    const deleted = openingDeleteHandler.execute(doc, { openingId: 'o' })
+    const restore = openingDeleteHandler.inverse({}, deleted)!
+    expect(openingCreateHandler.execute(doc, restore.payload).success).toBe(true)
+    expect(getOpenings(doc)[0]).toEqual(before)
+  })
+  it.each([null, '', 'stained', 1, {}])('rejects invalid appearance %s atomically', windowAppearance => {
+    const doc = createDocWithWalls([{ id: 'w1', sx: 0, sy: 0, ex: 10, ey: 0 }])
+    const before = structuredClone(doc)
+    expect(openingCreateHandler.execute(doc, { buildingId: 'bld-1', floorId: 'flr-1', opening: { type: 'window', wallId: 'w1', offset: 1, width: 1, windowAppearance } }).success).toBe(false)
+    expect(doc).toEqual(before)
+    doc.buildings[0].floors[0].openings = [{ id: 'o', type: 'window', wallId: 'w1', offset: 1, width: 1 }]
+    const old = structuredClone(doc)
+    expect(openingUpdateHandler.execute(doc, { openingId: 'o', patch: { windowAppearance } }).success).toBe(false)
+    expect(doc).toEqual(old)
+  })
+  it('restores imported invalid appearance exactly while keeping forward edits strict', () => {
+    const doc = createDocWithWalls([{ id: 'w1', sx: 0, sy: 0, ex: 10, ey: 0 }])
+    const old = { id: 'o', type: 'window', wallId: 'w1', offset: 1, width: 1, windowAppearance: 'old-style', metadata: { imported: true } } as unknown as Opening
+    doc.buildings[0].floors[0].openings = [structuredClone(old)]
+    const payload = { openingId: 'o', patch: { windowAppearance: 'fixed' } }
+    const result = openingUpdateHandler.execute(doc, payload)
+    expect(result.success).toBe(true)
+    expect(openingUpdateHandler.execute(doc, openingUpdateHandler.inverse(payload, result)!.payload).success).toBe(true)
+    expect(getOpenings(doc)[0]).toEqual(old)
+  })
+  it('undoes deletion of an imported appearance using its exact snapshot', () => {
+    const doc = createDocWithWalls([{ id: 'w1', sx: 0, sy: 0, ex: 10, ey: 0 }])
+    const old = { id: 'o', type: 'window', wallId: 'w1', offset: 1, width: 1, windowAppearance: 'old-style', metadata: { imported: true } } as unknown as Opening
+    doc.buildings[0].floors[0].openings = [structuredClone(old)]
+    const deleted = openingDeleteHandler.execute(doc, { openingId: 'o' })
+    expect(deleted.success).toBe(true)
+    expect(getOpenings(doc)).toHaveLength(0)
+    const inverse = openingDeleteHandler.inverse({}, deleted)!
+    expect(openingCreateHandler.execute(doc, inverse.payload).success).toBe(true)
+    expect(getOpenings(doc)[0]).toStrictEqual(old)
+    expect(getOpenings(doc)[0].metadata).not.toBe(old.metadata)
+    expect(Object.hasOwn(getOpenings(doc)[0], 'height')).toBe(false)
+    expect(openingCreateHandler.execute(doc, inverse.payload).success).toBe(false)
+  })
+})
 
 describe('opening position derivation', () => {
   it('derives position from wall geometry and offset', () => {
@@ -360,7 +411,7 @@ describe('opening migration on wall split', () => {
     expect(openings[0].orientation).toBe(30)
   })
 
-  it('opening at split point is removed', () => {
+  it('opening leading edge at split point moves to the right child', () => {
     const doc = createDocWithWalls([
       { id: 'w1', sx: 0, sy: 0, ex: 10, ey: 0 },
     ])
@@ -374,7 +425,8 @@ describe('opening migration on wall split', () => {
       wallId: 'w1', point: pt(5, 0),
     })
 
-    expect(getOpenings(doc)).toHaveLength(0)
+    expect(getOpenings(doc)).toHaveLength(1)
+    expect(getOpenings(doc)[0]).toMatchObject({ id: 'o1', wallId: 'w1-R', offset: 0, width: 0.9 })
   })
 
   it('openings on other walls are unaffected', () => {

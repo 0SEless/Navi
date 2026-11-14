@@ -28,6 +28,10 @@ afterEach(() => {
     campusOrigin: null,
     campusRevision: null,
     qrLocation: null,
+    viewedFloorId: null,
+    positionFloorId: null,
+    positionBuildingId: null,
+    positionFloorSource: 'unknown',
     fromNode: null,
     toNode: null,
   })
@@ -148,6 +152,11 @@ describe('useQrNavigateDeepLink', () => {
       anchor: 'graph-node',
     })
     expect(usePublicStore.getState().fromNode).toBe('campus-a-qr-node')
+    expect(usePublicStore.getState()).toMatchObject({
+      positionFloorId: 0,
+      positionBuildingId: 'building-1',
+      positionFloorSource: 'qr',
+    })
     expect(usePublicStore.getState().toNode).toBe(toNodeId)
     expect(window.location.pathname).toBe('/map/navigate')
     expect(window.location.search).toBe(`?to=${toNodeId}`)
@@ -238,6 +247,11 @@ describe('useQrNavigateDeepLink', () => {
     expect(usePublicStore.getState().fromNode).toBe('existing-origin')
     expect(usePublicStore.getState().toNode).toBe('existing-destination')
     expect(usePublicStore.getState().qrLocation).toBeNull()
+    expect(usePublicStore.getState()).toMatchObject({
+      positionFloorId: null,
+      positionBuildingId: null,
+      positionFloorSource: 'unknown',
+    })
     expect(window.location.search).toBe('?qr=campus-a-checkpoint')
     expect(fetchMock).not.toHaveBeenCalled()
   })

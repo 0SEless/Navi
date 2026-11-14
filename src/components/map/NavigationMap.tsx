@@ -170,6 +170,20 @@ export default function NavigationMap({
     )
   }, [bounds, fitBoundsOnChange, map])
 
+  // MapLibre listens to window resize events, but flex siblings (such as the
+  // expanding route dock) can resize this container without resizing the window.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!map || !container || typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (container.clientWidth === 0 || container.clientHeight === 0) return
+      map.resize()
+    })
+    resizeObserver.observe(container)
+    return () => resizeObserver.disconnect()
+  }, [map])
+
   return (
     <NavigationMapContext.Provider value={{ map, isReady }}>
       <div

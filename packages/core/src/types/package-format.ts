@@ -1,5 +1,6 @@
 import type {
   BoundingBox,
+  FloorGeometryFloor,
   POIProvenance,
   PublishedFloorPlanVisual,
   RoadEdgeRouting,
@@ -243,6 +244,7 @@ export interface FloorGeometryBuildingFile {
 }
 
 export interface FloorGeometryFloorFile {
+  height?: number
   level: number
   label: string
   elevation: number
@@ -251,10 +253,15 @@ export interface FloorGeometryFloorFile {
   hallways: Array<{ id: string; name: string; polyline: { points: Array<{ x: number; y: number }> } }>
   staircases: FloorGeometryFeatureFile[]
   elevators: FloorGeometryFeatureFile[]
-  doors: Array<{ id: string; roomId: string; doorType: string; position: { x: number; y: number }; width: number; angle?: number }>
+  doors: FloorGeometryFloor['doors']
   pois: Array<{ id: string; name: string; category: string; position: { x: number; y: number }; showOnMap?: boolean }>
   qrCheckpoints: Array<{ id: string; label: string; code: string; position: { x: number; y: number } }>
-  openings?: Array<{ id: string; type: 'door' | 'window'; wallId: string; offset: number; width: number; height?: number; sillHeight?: number; orientation?: number }>
+  walls?: FloorGeometryFloor['walls']
+  openings?: FloorGeometryFloor['openings']
+  roomAttributes?: FloorGeometryFloor['roomAttributes']
+  routeNetwork?: FloorGeometryFloor['routeNetwork']
+  roomAccess?: FloorGeometryFloor['roomAccess']
+  entranceAccess?: FloorGeometryFloor['entranceAccess']
 }
 
 export interface FloorGeometryFeatureFile {

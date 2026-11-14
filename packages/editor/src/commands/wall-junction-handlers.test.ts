@@ -129,7 +129,7 @@ describe('wall junction update command', () => {
       patches: [{ wallId: 'north', patch: { start: { x: -1, y: 0 }, end: { x: 11, y: 0 } } }],
     }, result)
 
-    expect(inverse).toEqual({
+    expect(inverse).toMatchObject({
       id: 'wall.junction.update',
       label: 'Undo Move Wall Junction',
       payload: {

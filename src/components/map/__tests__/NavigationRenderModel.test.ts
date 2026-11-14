@@ -844,3 +844,23 @@ describe('W16B — floorGeometry Runtime Data Wiring', () => {
     expect(wall.end.lng).toBeGreaterThan(wall.start.lng)
   })
 })
+
+describe('canonical architecture assets', () => {
+  it('retains physical door and stair fields and projects architecture once', () => {
+    const fg = makeFloorGeometry()
+    const floor = fg.buildings[0].floors[0]
+    Object.assign(floor.doors[0], { angle: 72, depth: 0.14, rotation: 0.4, doorAppearance: 'glass', wallAttachment: { wallId: 'wall-assets', offset: 2, openingHeight: 2.1 } })
+    floor.walls = [{ id: 'wall-assets', start: { x: 0, y: 0 }, end: { x: 8, y: 0 }, thickness: 0.2, height: 3 }]
+    const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
+    expect(model.indoor.doors[0]).toMatchObject({ angle: 72, depth: 0.14, rotation: 0.4, doorAppearance: 'glass', wallAttachment: { wallId: 'wall-assets', offset: 2, openingHeight: 2.1 } })
+    expect(model.indoor.stairs[0].rotation).toBe(floor.staircases[0].rotation)
+    const architecture = model.indoor.architecture?.find(a => a.buildingId === fg.buildings[0].id && a.floor === floor.level)
+    expect(architecture?.walls.features.length).toBeGreaterThan(0)
+    expect(architecture?.glass.features.length).toBeGreaterThan(0)
+    expect(architecture?.modeledIds.doors).toContain(floor.doors[0].id)
+    const coordinate = architecture!.walls.features[0].geometry.coordinates[0][0]
+    expect(Math.abs(coordinate[0] - fg.buildings[0].anchor.origin.lng)).toBeLessThan(0.001)
+    expect(Math.abs(coordinate[1] - fg.buildings[0].anchor.origin.lat)).toBeLessThan(0.001)
+    expect(architecture!.walls.features.every(f => f.properties!.base >= 0 && f.properties!.height > f.properties!.base)).toBe(true)
+  })
+})

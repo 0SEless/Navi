@@ -1,11 +1,13 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import dynamic from 'next/dynamic'
 import {
   ArrowLeftRight,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Crosshair,
   Locate,
   MapPin,
@@ -17,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { usePublicStore } from '@/store/public-store'
-import type { SearchEntry } from '@/types/nav-types'
+import type { CampusBundle, SearchEntry } from '@/types/nav-types'
 import { resolveNearestNode } from '@/lib/location-resolver'
 import { stripNavigateSessionParameters } from '@/lib/navigation-deep-link'
 import { findPublicPoi } from '@/lib/findRoute'
@@ -25,6 +27,7 @@ import {
   estimatePresentationEtaMinutes,
   formatNavigationDistance,
   getNavigationInstruction,
+  getUpcomingInstruction,
   getNavigationRouteComposition,
   getNavigationRouteKey,
   resolveNavigationStatus,
@@ -32,10 +35,14 @@ import {
 } from '@/lib/navigation-experience'
 import { QRScanSheet } from '@/components/map/QRScanSheet'
 import { NavigationSession } from '@/components/map/NavigationSession'
+import { LocationSuggestion } from '@/components/map/LocationSuggestion'
 import { useNavigationContext } from '@/components/map/NavigationContext'
 import { useNavigationIndoorController } from '@/hooks/useNavigationIndoorController'
 import { useQrNavigateDeepLink } from '@/hooks/useQrNavigateDeepLink'
+import { remainingRoutePath } from '@/lib/nav-route-helpers'
+import { GPS_GOOD_ACCURACY_M } from '@/lib/navigation-progress-source'
 import type { NavRoute } from '@/types/route-types'
+import type { LatLng } from '@/types/nav-types'
 import type { QrLocation } from '@/lib/qr-location'
 import type { NavigationCameraMode, TopCameraOrientation } from '@/lib/navigation-camera-policy'
 import type { NavigationMapView } from '@/lib/public-preferences'
@@ -48,6 +55,29 @@ const ExploreMap = dynamic(() => import('@/components/public/ExploreMap'), {
     </div>
   ),
 })
+
+function NavigationRouteMap({
+  bundle,
+  route,
+  active,
+  navigationTargetBuildingId,
+  camera,
+}: {
+  bundle: CampusBundle
+  route: NavRoute | null
+  active: boolean
+  navigationTargetBuildingId?: string
+  camera: ComponentProps<typeof ExploreMap>['camera']
+}) {
+  const { routeProgress } = useNavigationContext()
+  const remaining = route ? remainingRoutePath(route, active ? routeProgress : null) : null
+  return <ExploreMap
+    bundle={bundle}
+    route={route && remaining ? { ...remaining, cost: route.totalDistance } : null}
+    navigationTargetBuildingId={navigationTargetBuildingId}
+    camera={camera}
+  />
+}
 
 type PickerRole = 'from' | 'to'
 
@@ -124,6 +154,7 @@ interface ActiveNavigationGuidanceProps {
   targetBuildingName?: string
   destinationFloorLabel: string | null
   onEnd: () => void
+  onRecalculate: (location: LatLng | null) => void
 }
 
 function ActiveNavigationGuidance({
@@ -133,6 +164,7 @@ function ActiveNavigationGuidance({
   targetBuildingName,
   destinationFloorLabel,
   onEnd,
+  onRecalculate,
 }: ActiveNavigationGuidanceProps) {
   const {
     routeProgress,
@@ -140,10 +172,18 @@ function ActiveNavigationGuidance({
     arrived,
     geoError,
     navigationSegment,
+    progressMode,
+    progressLabel,
+    gpsLostNotice,
+    nextStep,
+    previousStep,
+    location,
   } = useNavigationContext()
   const preferences = usePublicStore((state) => state.preferences)
   const setNavigationPreferences = usePublicStore((state) => state.setNavigationPreferences)
   const [previewedStep, setPreviewedStep] = useState<number | null>(null)
+  const [offRouteDismissed, setOffRouteDismissed] = useState(false)
+  useEffect(() => { if (!isOffRoute) setOffRouteDismissed(false) }, [isOffRoute])
 
   const stepCount = route.steps.length
   const actualStep = routeProgress && stepCount > 0
@@ -157,6 +197,7 @@ function ActiveNavigationGuidance({
     ? { ...instruction, text: `Continue to ${destinationLabel}` }
     : instruction
   const isManualPreview = previewedStep !== null && previewedStep !== actualStep
+  const upcomingInstruction = visibleStep === null ? null : getUpcomingInstruction(route, visibleStep)
   const remainingDistance = routeProgress?.remainingDistance ?? route.totalDistance
   const etaMinutes = estimatePresentationEtaMinutes(remainingDistance)
   const navigationStatus = resolveNavigationStatus({ arrived, isOffRoute })
@@ -190,6 +231,7 @@ function ActiveNavigationGuidance({
 
       <div className="flex items-center justify-between gap-3 text-xs text-[var(--navi-text-secondary)]">
         <span>{navigationSegmentLabel(navigationSegment)}</span>
+        <span data-testid="progress-mode-label">{progressLabel}</span>
         {actualStep === null ? (
           <span>Waiting for current location</span>
         ) : (
@@ -197,10 +239,15 @@ function ActiveNavigationGuidance({
         )}
       </div>
 
-      {navigationStatus === 'off-route' ? (
+      {gpsLostNotice ? <p className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-800" role="status">GPS signal lost: tap Next at each step</p> : null}
+
+      {navigationStatus === 'off-route' && !offRouteDismissed ? (
         <div className="rounded-xl border border-[var(--navi-error)]/40 bg-[var(--navi-error)]/10 p-3 text-sm text-[var(--navi-error)]" role="alert">
-          <p className="font-semibold">You&apos;re off the route.</p>
-          <p className="mt-1">No automatic reroute has been applied. Follow the mapped route or end navigation to choose a new destination.</p>
+          <p className="font-semibold">You seem off the route</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => onRecalculate(location)} className="min-h-11 rounded-lg bg-[var(--navi-error)] px-3 font-semibold text-white">Recalculate</button>
+            <button type="button" onClick={() => setOffRouteDismissed(true)} className="min-h-11 rounded-lg border border-[var(--navi-error)] px-3 font-semibold">I&apos;m fine</button>
+          </div>
         </div>
       ) : null}
 
@@ -212,7 +259,7 @@ function ActiveNavigationGuidance({
 
       {navigationStatus === 'arrived' ? (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4" role="status" aria-live="polite">
-          <p className="text-sm font-semibold text-[var(--navi-text)]">You&apos;ve arrived at your destination.</p>
+          <p className="text-sm font-semibold text-[var(--navi-text)]">You&apos;ve arrived at {destinationLabel}</p>
           <p className="mt-1 text-sm text-[var(--navi-text-secondary)]">
             {[destinationLabel, targetBuildingName, destinationFloorLabel].filter(Boolean).join(' · ')}
           </p>
@@ -239,12 +286,22 @@ function ActiveNavigationGuidance({
             ) : null}
           </div>
 
-          {isManualPreview ? (
+          {upcomingInstruction && !isManualPreview ? (
+            <p className="mt-2 text-xs text-[var(--navi-text-secondary)]">Then: {upcomingInstruction.text}</p>
+          ) : null}
+
+          {isManualPreview && visibleStep !== null ? (
             <p className="mt-3 text-xs font-medium text-[var(--navi-primary)]">Viewing step {visibleStep + 1} of {stepCount}</p>
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
+            {progressMode === 'step' ? <button
+              type="button"
+              onClick={previousStep}
+              disabled={visibleStep === null || visibleStep <= 0}
+              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
+              aria-label="Back one step"
+            ><ChevronLeft className="h-4 w-4" aria-hidden="true" />Back</button> : <button
               type="button"
               onClick={() => movePreview(-1)}
               disabled={visibleStep === null || visibleStep <= 0}
@@ -253,8 +310,14 @@ function ActiveNavigationGuidance({
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               Previous
-            </button>
-            <button
+            </button>}
+            {progressMode === 'step' ? <button
+              type="button"
+              onClick={nextStep}
+              disabled={visibleStep === null || visibleStep >= stepCount - 1}
+              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-primary)] px-3 text-sm font-semibold text-[var(--navi-primary)] disabled:opacity-40"
+              aria-label="Next step"
+            >Next<ChevronRight className="h-4 w-4" aria-hidden="true" /></button> : <button
               type="button"
               onClick={() => movePreview(1)}
               disabled={visibleStep === null || visibleStep >= stepCount - 1}
@@ -263,7 +326,7 @@ function ActiveNavigationGuidance({
             >
               Next
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </button>}
             {isManualPreview && actualStep !== null ? (
               <button
                 type="button"
@@ -313,6 +376,28 @@ function NavigationIndoorBridge() {
   return null
 }
 
+function NavigationQrScanSheet({
+  open,
+  onClose,
+  onResolved,
+  onAnchored,
+}: {
+  open: boolean
+  onClose: () => void
+  onResolved: (location: QrLocation, mode: 'start' | 'destination') => void
+  onAnchored: (location: QrLocation) => void
+}) {
+  const context = useNavigationContext()
+  return <QRScanSheet open={open} onClose={onClose} onResolved={(location, mode) => {
+    if (mode === 'start' && context.sessionActive && location.nodeId && context.anchorAtNode(location.nodeId)) {
+      onAnchored(location)
+      onClose()
+      return
+    }
+    onResolved(location, mode)
+  }} />
+}
+
 export default function NavigatePage() {
   return (
     <Suspense fallback={
@@ -351,10 +436,13 @@ function NavigatePageContent() {
 
   const [picker, setPicker] = useState<PickerRole | null>(null)
   const [query, setQuery] = useState('')
+  const [expandedRouteKey, setExpandedRouteKey] = useState<string | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
+  const [locationSuggestion, setLocationSuggestion] = useState<{ nodeId: string; label: string; accuracyM: number } | null>(null)
   const [startedRouteKey, setStartedRouteKey] = useState<string | null>(null)
+  const restartAfterRerouteRef = useRef(false)
   const [activeCameraMode, setActiveCameraMode] = useState<NavigationCameraMode>('TOP')
   const [activeHeadingFollow, setActiveHeadingFollow] = useState(() => preferences.navigation.headingFollow)
   const [activeTopOrientation, setActiveTopOrientation] = useState<TopCameraOrientation>(
@@ -400,6 +488,7 @@ function NavigatePageContent() {
   ), [routeCandidate])
 
   const routeKey = getNavigationRouteKey(route)
+  const routeStepsExpanded = expandedRouteKey !== null && expandedRouteKey === routeKey
   const activePoiDestination = useMemo(
     () => poiDestination && campus
       ? findPublicPoi(campus.poi, poiDestination.poiId)
@@ -419,6 +508,20 @@ function NavigatePageContent() {
     : startedRouteKey === routeKey
       ? 'active'
       : 'route-preview'
+
+  useEffect(() => {
+    if (!restartAfterRerouteRef.current || !routeKey || routeKey === startedRouteKey) return
+    restartAfterRerouteRef.current = false
+    setStartedRouteKey(routeKey)
+  }, [routeKey, startedRouteKey])
+
+  const recalculateFromLocation = useCallback((location: LatLng | null) => {
+    if (!location) { showToast('Current location unavailable'); return }
+    const nearest = resolveNearestNode(nodes, location, undefined, routeEdges)
+    if (!nearest) { showToast('No nearby route starting point is available'); return }
+    restartAfterRerouteRef.current = true
+    setFrom(nearest.node.id)
+  }, [nodes, routeEdges, setFrom, showToast])
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
   const visibleQrLocation = qrLocation
@@ -502,6 +605,14 @@ function NavigatePageContent() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false)
+        const accuracyM = position.coords.accuracy
+        if (!Number.isFinite(accuracyM) || accuracyM > GPS_GOOD_ACCURACY_M) {
+          setLocationSuggestion(null)
+          showToast(Number.isFinite(accuracyM)
+            ? `Location too rough (±${Math.round(accuracyM)} m): scan a QR or search where you are`
+            : 'Location accuracy unavailable: scan a QR or search where you are')
+          return
+        }
         // Only a point the route network reaches can start a route.
         const resolved = resolveNearestNode(nodes, {
           lat: position.coords.latitude,
@@ -511,8 +622,7 @@ function NavigatePageContent() {
           showToast('Location unavailable — choose a supported origin')
           return
         }
-        setFrom(resolved.node.id)
-        showToast(`Current location set: ${resolved.node.label}`)
+        setLocationSuggestion({ nodeId: resolved.node.id, label: resolved.node.label, accuracyM })
       },
       () => {
         setLocating(false)
@@ -556,6 +666,7 @@ function NavigatePageContent() {
     setPoiDestination(null)
     setActiveFloor(0)
     setStartedRouteKey(null)
+    setExpandedRouteKey(null)
     setActiveCameraMode('TOP')
     setActiveTopOrientation(headingFollow ? 'heading-follow' : 'free')
     setActiveHeadingFollow(headingFollow)
@@ -574,6 +685,7 @@ function NavigatePageContent() {
     setActiveCameraMode(cameraModeForPreference(navigationPreferences.defaultMapView))
     setActiveHeadingFollow(navigationPreferences.headingFollow)
     setActiveTopOrientation(navigationPreferences.headingFollow ? 'heading-follow' : 'free')
+    setExpandedRouteKey(null)
     setStartedRouteKey(routeKey)
   }
 
@@ -612,7 +724,6 @@ function NavigatePageContent() {
   const pickerSurface = picker ? (
     <div
       className="absolute inset-x-0 top-0 z-30 border-b border-[var(--navi-border)] bg-[var(--navi-card)] p-4 shadow-xl"
-      style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--navi-border)] px-3">
@@ -623,7 +734,7 @@ function NavigatePageContent() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="min-w-0 flex-1 bg-transparent text-sm text-[var(--navi-text)] outline-none"
-            placeholder={picker === 'from' ? 'Search a supported origin' : 'Search building, room, or place'}
+            placeholder={picker === 'from' ? 'Search where you are (room, building, place)' : 'Search building, room, or place'}
             aria-label={picker === 'from' ? 'Search origin' : 'Search destination'}
           />
           <button
@@ -679,7 +790,6 @@ function NavigatePageContent() {
   const idleSurface = experiencePhase === 'setup' ? (
     <div
       className="pointer-events-none absolute inset-x-0 top-0 z-10 p-3 sm:p-4"
-      style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
       data-testid="navigate-idle-surface"
     >
       <div className="mx-auto w-full max-w-xl space-y-1.5">
@@ -779,37 +889,59 @@ function NavigatePageContent() {
   ) : null
 
   const mapSurface = (
-    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-navigation-phase={experiencePhase}>
-      <ExploreMap
-        bundle={campus}
-        route={route ? { path: route.path, cost: route.totalDistance } : null}
-        navigationTargetBuildingId={composition.targetBuildingId ?? undefined}
-        camera={{
-          surface: experiencePhase === 'route-preview' ? 'route-preview' : 'active',
-          mode: experiencePhase === 'route-preview' ? 'TOP' : activeCameraMode,
-          initialSetup: experiencePhase === 'setup',
-          topOrientation: experiencePhase === 'route-preview' ? 'free' : activeTopOrientation,
-          headingFollowEnabled: activeHeadingFollow,
-          onModeChange: (mode) => {
-            setActiveCameraMode(mode)
-            if (mode === 'POV') {
-              setActiveHeadingFollow(true)
-              setActiveTopOrientation('heading-follow')
-              setNavigationPreferences({ headingFollow: true })
-            }
-          },
-          onToggleHeadingFollow: (enabled: boolean) => {
-            setActiveHeadingFollow(enabled)
-            setActiveTopOrientation(enabled ? 'heading-follow' : 'free')
-            setNavigationPreferences({ headingFollow: enabled })
-          },
-          routeBounds: cameraBounds,
-          reducedMotion: preferences.accessibility.reducedMotion,
-          showControls: true,
-        }}
-      />
-      {idleSurface}
-      {experiencePhase !== 'setup' && route ? (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-navigation-phase={experiencePhase}>
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="navigation-map-viewport">
+        <NavigationRouteMap
+          bundle={campus}
+          route={route}
+          active={experiencePhase === 'active'}
+          navigationTargetBuildingId={composition.targetBuildingId ?? undefined}
+          camera={{
+            surface: experiencePhase === 'route-preview' ? 'route-preview' : 'active',
+            mode: experiencePhase === 'route-preview' ? 'TOP' : activeCameraMode,
+            initialSetup: experiencePhase === 'setup',
+            topOrientation: experiencePhase === 'route-preview' ? 'free' : activeTopOrientation,
+            headingFollowEnabled: activeHeadingFollow,
+            onModeChange: (mode) => {
+              setActiveCameraMode(mode)
+              if (mode === 'POV') {
+                setActiveHeadingFollow(true)
+                setActiveTopOrientation('heading-follow')
+                setNavigationPreferences({ headingFollow: true })
+              }
+            },
+            onToggleHeadingFollow: (enabled: boolean) => {
+              setActiveHeadingFollow(enabled)
+              setActiveTopOrientation(enabled ? 'heading-follow' : 'free')
+              setNavigationPreferences({ headingFollow: enabled })
+            },
+            routeBounds: cameraBounds,
+            reducedMotion: preferences.accessibility.reducedMotion,
+            showControls: true,
+          }}
+        />
+        {idleSurface}
+        {locationSuggestion && experiencePhase === 'setup' ? <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-40 mx-auto max-w-md"><LocationSuggestion
+          label={locationSuggestion.label}
+          accuracyM={locationSuggestion.accuracyM}
+          onConfirm={() => { setFrom(locationSuggestion.nodeId); showToast(`Current location set: ${locationSuggestion.label}`); setLocationSuggestion(null) }}
+          onReject={() => setLocationSuggestion(null)}
+        /></div> : null}
+        {experiencePhase === 'route-preview' && route ? (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-3 sm:p-4">
+            <button
+              type="button"
+              onClick={() => setPicker('to')}
+              className="pointer-events-auto mx-auto flex min-h-12 w-full max-w-xl items-center gap-3 rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)] px-4 text-left text-sm font-semibold text-[var(--navi-text)] shadow-md"
+              aria-label={`Change destination, ${toLabel ?? route.toLabel}`}
+            >
+              <MapPin className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{toLabel ?? route.toLabel}</span>
+              <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+        {experiencePhase === 'active' && route ? (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4 sm:p-6">
           <section
             className="pointer-events-auto mx-auto w-full max-w-xl rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-4 shadow-xl backdrop-blur"
@@ -838,76 +970,114 @@ function NavigatePageContent() {
             </button>
           </div>
 
-          {experiencePhase === 'route-preview' ? (
-            <>
-              <div className="mt-4 grid grid-cols-2 gap-2" aria-label="Route summary">
-                <div className="rounded-xl bg-[var(--navi-content)] px-3 py-2">
-                  <span className="block text-[11px] uppercase tracking-wide text-[var(--navi-text-secondary)]">Distance</span>
-                  <span className="mt-1 block text-sm font-semibold text-[var(--navi-text)]">{formatNavigationDistance(route.totalDistance)}</span>
-                </div>
-                <div className="rounded-xl bg-[var(--navi-content)] px-3 py-2">
-                  <span className="block text-[11px] uppercase tracking-wide text-[var(--navi-text-secondary)]">Estimated walk</span>
-                  <span className="mt-1 block text-sm font-semibold text-[var(--navi-text)]">{previewEta === null ? '—' : `${previewEta} min`}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-2 text-sm text-[var(--navi-text-secondary)]">
-                <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />You: {fromLabel}</div>
-                {composition.selectedEntrance ? (
-                  <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[var(--navi-primary)]" aria-hidden="true" />Enter via {composition.selectedEntrance.label}{entranceFloor ? ` · ${entranceFloor}` : ''}</div>
-                ) : null}
-                {destinationFloor ? (
-                  <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[var(--navi-primary)]" aria-hidden="true" />Destination floor {destinationFloor}</div>
-                ) : null}
-              </div>
-
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                {canStartNavigation ? (
-                  <button
-                    type="button"
-                    onClick={startNavigation}
-                    className="min-h-12 flex-1 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white shadow-sm"
-                    aria-label="Start navigation"
-                  >
-                    Start navigation
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setPicker('to')}
-                  className="min-h-12 rounded-xl border border-[var(--navi-border)] px-4 text-sm font-semibold text-[var(--navi-text)]"
-                  aria-label="Change destination"
-                >
-                  Change destination
-                </button>
-                {!isPoiRoute ? (
-                  <button
-                    type="button"
-                    onClick={swapRoute}
-                    className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--navi-border)] px-4 text-sm font-semibold text-[var(--navi-text)]"
-                    aria-label="Swap start and destination"
-                  >
-                    <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-                    Swap
-                  </button>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <ActiveNavigationGuidance
-              route={route}
-              destinationLabel={toLabel ?? route.toLabel}
-              isPoiDestination={isPoiRoute}
-              targetBuildingName={targetBuilding?.name}
-              destinationFloorLabel={destinationFloor}
-              onEnd={clearRoute}
-            />
-          )}
+          <ActiveNavigationGuidance
+            route={route}
+            destinationLabel={toLabel ?? route.toLabel}
+            isPoiDestination={isPoiRoute}
+            targetBuildingName={targetBuilding?.name}
+            destinationFloorLabel={destinationFloor}
+            onEnd={clearRoute}
+            onRecalculate={recalculateFromLocation}
+          />
           </section>
         </div>
       ) : null}
       {pickerSurface}
       {toast ? <div className="absolute bottom-6 left-4 right-4 z-30 mx-auto max-w-md rounded-xl bg-[var(--navi-text)] px-4 py-3 text-center text-sm text-[var(--navi-card)] shadow-lg" role="status">{toast}</div> : null}
+      </div>
+      {experiencePhase === 'route-preview' && route ? (
+        <section
+          className="relative z-20 flex max-h-[min(48dvh,28rem)] shrink-0 flex-col overflow-hidden border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-4px_16px_rgba(23,43,35,0.08)]"
+          data-testid="route-preview-dock"
+          aria-labelledby="route-surface-title"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--navi-primary)]">Route preview</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setExpandedRouteKey(routeStepsExpanded ? null : routeKey)}
+                className="flex min-h-11 items-center gap-1 rounded-xl px-2 text-xs font-semibold text-[var(--navi-primary)] hover:bg-[var(--navi-primary-light)]"
+                aria-expanded={routeStepsExpanded}
+                aria-controls="route-preview-steps"
+              >
+                {routeStepsExpanded ? 'Fewer details' : 'All steps'}
+                {routeStepsExpanded ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+              </button>
+              <button
+                type="button"
+                onClick={clearRoute}
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--navi-text-secondary)] hover:bg-[var(--navi-content)]"
+                aria-label="Clear route"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div className="shrink-0 px-4 pb-2">
+            <h1 id="route-surface-title" className="text-lg font-semibold leading-tight text-[var(--navi-text)]">{toLabel ?? route.toLabel}</h1>
+            <p className="mt-0.5 text-xs text-[var(--navi-text-secondary)]">From {fromLabel}{destinationFloor ? ` · ${destinationFloor}` : ''}</p>
+            <div className="mt-2 flex items-center gap-2" aria-label="Route summary">
+              <strong className="text-xl leading-none text-[var(--navi-text)]">{previewEta === null ? '—' : `${previewEta} min`}</strong>
+              <span className="text-xs text-[var(--navi-text-secondary)]">{formatNavigationDistance(route.totalDistance)}</span>
+              <span className="ml-auto rounded-full border border-[var(--navi-border)] bg-[var(--navi-content)] px-3 py-1 text-xs font-medium text-[var(--navi-text)]">Walking</span>
+            </div>
+            {composition.selectedEntrance ? (
+              <p className="mt-1 text-xs text-[var(--navi-text-secondary)]">Enter via {composition.selectedEntrance.label}{entranceFloor ? ` · ${entranceFloor}` : ''}</p>
+            ) : null}
+          </div>
+          {routeStepsExpanded ? (
+            <ol
+              id="route-preview-steps"
+              className="min-h-0 flex-1 divide-y divide-[var(--navi-border)] overflow-y-auto border-t border-[var(--navi-border)] px-4"
+              role="list"
+              aria-label="Route steps"
+            >
+              {route.steps.map((step, index) => {
+                const instruction = getNavigationInstruction(route, index)
+                const distance = instruction?.distance ?? 0
+                return (
+                  <li key={`${step.nodeId}:${index}`} className="flex min-h-11 items-center gap-3 py-2 text-sm">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--navi-primary-light)] text-xs font-semibold text-[var(--navi-primary)]">{index + 1}</span>
+                    <span className="min-w-0 flex-1 text-[var(--navi-text)]">{instruction?.text ?? step.label}</span>
+                    <span className="shrink-0 text-xs text-[var(--navi-text-secondary)]">{distance > 0 ? formatNavigationDistance(distance) : index === 0 ? 'Start' : ''}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
+          <div className="flex shrink-0 items-center gap-2 border-t border-[var(--navi-border)] px-4 py-2">
+            {canStartNavigation ? (
+              <button
+                type="button"
+                onClick={startNavigation}
+                className="min-h-12 flex-1 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--navi-primary-dark)]"
+                aria-label="Start navigation"
+              >
+                Start navigation
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setPicker('to')}
+              className="min-h-12 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-semibold text-[var(--navi-text)]"
+              aria-label="Change destination"
+            >
+              Change
+            </button>
+            {!isPoiRoute ? (
+              <button
+                type="button"
+                onClick={swapRoute}
+                className="flex min-h-12 items-center justify-center rounded-xl border border-[var(--navi-border)] px-3 text-sm font-semibold text-[var(--navi-text)]"
+                aria-label="Swap start and destination"
+              >
+                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 
@@ -923,7 +1093,12 @@ function NavigatePageContent() {
       <NavigationIndoorBridge />
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {mapSurface}
-        <QRScanSheet open={scanOpen} onClose={() => setScanOpen(false)} onResolved={handleScanResolved} />
+        <NavigationQrScanSheet
+          open={scanOpen}
+          onClose={() => setScanOpen(false)}
+          onResolved={handleScanResolved}
+          onAnchored={(location) => { setQrLocation(location); showToast(`Progress anchored at ${location.label}`) }}
+        />
       </div>
     </NavigationSession>
   )

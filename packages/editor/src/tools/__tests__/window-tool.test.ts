@@ -19,7 +19,9 @@ function makeEvent(overrides: Partial<ToolPointerEvent> = {}): ToolPointerEvent 
 
 function makeCtx(dispatcher?: { execute: ReturnType<typeof vi.fn> }): ToolContext {
   return {
+    document: { buildings: [{ id: 'building', floors: [{ id: 'floor', walls: [{ id: 'wall', start: { x: 0, y: 2 }, end: { x: 20, y: 2 }, height: 3.5, thickness: 0.15 }] }] }] } as unknown as NonNullable<ToolContext['document']>,
     services: {
+      viewport: { activeBuildingId: 'building', activeFloorId: 'floor' },
       dispatcher: (dispatcher ?? { execute: vi.fn() }) as unknown as CommandDispatcher,
     } as ToolContext['services'],
   }
@@ -67,26 +69,29 @@ describe('WindowTool', () => {
       expect(tool.state.position).toBeNull()
     })
 
-    it('dispatches window.create on pointer up', () => {
+    it('dispatches canonical opening.create on pointer up', () => {
       const execute = vi.fn()
       const ctx = makeCtx({ execute })
 
       tool.onPointerDown(makeEvent({ x: 1, y: 2 }), ctx)
-      tool.onPointerUp(makeEvent({ x: 5, y: 8 }), ctx)
+      tool.onPointerUp(makeEvent({ x: 5, y: 2 }), ctx)
 
       expect(execute).toHaveBeenCalledOnce()
       expect(execute).toHaveBeenCalledWith({
-        id: 'window.create',
+        id: 'opening.create',
         label: 'Create Window',
         payload: {
-          buildingId: '',
-          floorId: '',
-          window: {
-            wallId: '',
-            offset: 0,
-            width: 1.2,
+          buildingId: 'building',
+          floorId: 'floor',
+          opening: {
+            id: expect.any(String),
+            type: 'window',
+            wallId: 'wall',
+            offset: 1,
+            width: 4,
+            height: 1.2,
             sillHeight: 0.9,
-            metadata: {},
+            windowAppearance: 'fixed',
           },
         },
       })
@@ -95,7 +100,7 @@ describe('WindowTool', () => {
     it('resets state after pointer up', () => {
       const ctx = makeCtx()
       tool.onPointerDown(makeEvent({ x: 1, y: 2 }), ctx)
-      tool.onPointerUp(makeEvent({ x: 5, y: 8 }), ctx)
+      tool.onPointerUp(makeEvent({ x: 5, y: 2 }), ctx)
 
       expect(tool.state.placing).toBe(false)
       expect(tool.state.position).toBeNull()
@@ -157,48 +162,48 @@ describe('WindowTool', () => {
       const execute = vi.fn()
       const ctx = makeCtx({ execute })
 
-      tool.onPointerDown(makeEvent({ x: 0, y: 0 }), ctx)
-      tool.onPointerUp(makeEvent({ x: 10, y: 5 }), ctx)
+      tool.onPointerDown(makeEvent({ x: 0, y: 2 }), ctx)
+      tool.onPointerUp(makeEvent({ x: 10, y: 2 }), ctx)
 
       const command = execute.mock.calls[0][0]
       const payload = command.payload
 
       expect(payload).toHaveProperty('buildingId')
       expect(payload).toHaveProperty('floorId')
-      expect(payload).toHaveProperty('window')
+      expect(payload).toHaveProperty('opening')
 
-      const win = payload.window
+      const win = payload.opening
       expect(win).toHaveProperty('wallId')
       expect(win).toHaveProperty('offset')
       expect(win).toHaveProperty('width')
       expect(win).toHaveProperty('sillHeight')
-      expect(win).toHaveProperty('metadata')
+      expect(win).toHaveProperty('height')
 
       expect(typeof win.wallId).toBe('string')
       expect(typeof win.offset).toBe('number')
       expect(typeof win.width).toBe('number')
       expect(typeof win.sillHeight).toBe('number')
-      expect(typeof win.metadata).toBe('object')
+      expect(win.type).toBe('window')
     })
 
-    it('uses default width 1.2', () => {
+    it('uses the dragged wall span as width', () => {
       const execute = vi.fn()
       const ctx = makeCtx({ execute })
 
-      tool.onPointerDown(makeEvent({ x: 0, y: 0 }), ctx)
-      tool.onPointerUp(makeEvent({ x: 1, y: 1 }), ctx)
+      tool.onPointerDown(makeEvent({ x: 0, y: 2 }), ctx)
+      tool.onPointerUp(makeEvent({ x: 1, y: 2 }), ctx)
 
-      expect(execute.mock.calls[0][0].payload.window.width).toBe(1.2)
+      expect(execute.mock.calls[0][0].payload.opening.width).toBe(1)
     })
 
     it('uses default sillHeight 0.9', () => {
       const execute = vi.fn()
       const ctx = makeCtx({ execute })
 
-      tool.onPointerDown(makeEvent({ x: 0, y: 0 }), ctx)
-      tool.onPointerUp(makeEvent({ x: 1, y: 1 }), ctx)
+      tool.onPointerDown(makeEvent({ x: 0, y: 2 }), ctx)
+      tool.onPointerUp(makeEvent({ x: 1, y: 2 }), ctx)
 
-      expect(execute.mock.calls[0][0].payload.window.sillHeight).toBe(0.9)
+      expect(execute.mock.calls[0][0].payload.opening.sillHeight).toBe(0.9)
     })
   })
 })

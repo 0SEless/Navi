@@ -12,6 +12,7 @@ export interface HistoryEntry {
   command: Command
   handlerId: string
   inverse: Command | null
+  redoCommand?: Command
   beforeHash: string
   afterHash: string
   snapshotBefore?: CampusDocument
@@ -118,6 +119,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     const beforeHash = this.pendingBeforeHash || hash(this.document)
     const afterHash = hash(this.document)
     const inverse = handler.inverse ? handler.inverse(command.payload, { success: true, entityId: result.entityId, data: result.data }) : null
+    const redoCommand = handler.redo?.(command.payload, { success: true, entityId: result.entityId, data: result.data }) ?? undefined
     const needsSnapshot = inverse === null
 
     if (needsSnapshot && !this.pendingSnapshot) {
@@ -130,11 +132,12 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
       command,
       handlerId: command.id,
       inverse,
+      ...(redoCommand ? { redoCommand } : {}),
       beforeHash,
       afterHash,
       snapshotBefore,
       snapshotAfter,
-      estimatedSize: estimateSize({ command, inverse, snapshotBefore, snapshotAfter }),
+      estimatedSize: estimateSize({ command, inverse, redoCommand, snapshotBefore, snapshotAfter }),
     }
     if (this.touchedPartsResolver) {
       entry.touchedParts = this.touchedPartsResolver(this.pendingSnapshot ?? snapshotBefore ?? this.document, this.document)
@@ -176,7 +179,7 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
     if (entry.snapshotAfter) {
       this.restoreSnapshot(entry.snapshotAfter)
     } else {
-      this.dispatcher.execute(entry.command, { skipHooks: true })
+      this.dispatcher.execute(entry.redoCommand ?? entry.command, { skipHooks: true })
     }
 
     this.past.push(entry)

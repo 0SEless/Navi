@@ -1,14 +1,48 @@
+import {floorConnectionProblem} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
-import { recordChange } from '@navi/core'
+import { recordChange, collectFloorDoors } from '@navi/core'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
-import { isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
+import { DOOR_OPERATIONS, HINGE_SIDES, SWING_SIDES, OPENING_MATERIALS, GLASS_TYPES, findDoorPreset, findWindowPreset, resolveDoorStyle, resolveWindowStyle, WINDOW_APPEARANCES, WINDOW_POSES, isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
+import { syncFeatureRoutePort,featureRouteNetworkSnapshot,restoreFeatureRouteNetwork,removeFeatureRoutePort } from '../geometry/feature-route-port'
 import { resolveLevelGeometry } from '../geometry/resolve-level-geometry'
+import { featureDimensions, resizeFeatureGeometry } from '../geometry/feature-dimensions'
 import { cleanupFeatureRoutingReferences, collectDoorConnectorEdgeIds, isRouteNodeReferencedByAccessRelationships } from './routing-relationship-cleanup'
 import { applyRouteJunctionSplit } from './route-junctions'
 import { collectFloorRoomOwnershipPolygons, resolveUniqueRoomOwner } from '../geometry/room-ownership'
 import { buildDuplicatedDoor } from './duplicate-helpers'
+import { placeDuplicatedDoor } from '../geometry/door-duplicate-placement'
+import { findPlacementWall } from '../geometry/door-placement'
+import { validateDoorWallAttachment } from '../geometry/door-wall-attachment'
+import { computeOffsetFromPosition } from '../geometry/opening-position'
+const DOOR_APPEARANCES = ['open','solid','glass','double-solid','double-glass']
+const DOOR_POSES = ['closed','ajar','open']
+/** Decorative door fields: edits touching only these never normalize geometry or routing. */
+const COSMETIC_DOOR_KEYS = ['doorAppearance','doorPose','doorOperation','hingeSide','swingSide','assetPreset','material','glass'] as const
+/** First invalid decorative style field, or undefined. Absent (undefined) fields are valid. */
+export function doorStyleFieldError(fields: Record<string, unknown>): string | undefined {
+  if (fields.doorOperation !== undefined && !(DOOR_OPERATIONS as readonly unknown[]).includes(fields.doorOperation)) return 'Door operation must be hinged, sliding, folding, rolling or none'
+  if (fields.hingeSide !== undefined && !(HINGE_SIDES as readonly unknown[]).includes(fields.hingeSide)) return 'Hinge side must be start or end'
+  if (fields.swingSide !== undefined && !(SWING_SIDES as readonly unknown[]).includes(fields.swingSide)) return 'Swing side must be left or right'
+  if (fields.assetPreset !== undefined && (typeof fields.assetPreset !== 'string' || !findDoorPreset(fields.assetPreset))) return 'Unknown door preset'
+  if (fields.material !== undefined && !(OPENING_MATERIALS as readonly unknown[]).includes(fields.material)) return 'Material must be wood, painted-steel, aluminium or fire-red'
+  if (fields.glass !== undefined && !(GLASS_TYPES as readonly unknown[]).includes(fields.glass)) return 'Glass must be clear, frosted or tinted'
+  return undefined
+}
+/** First invalid decorative window field, or undefined. A window pose needs a casement, awning or jalousie look. */
+export function windowStyleFieldError(fields: Record<string, unknown>): string | undefined {
+  if (fields.windowAppearance !== undefined && !(WINDOW_APPEARANCES as readonly unknown[]).includes(fields.windowAppearance)) return 'Window appearance must be one of ' + WINDOW_APPEARANCES.join(', ')
+  if (fields.assetPreset !== undefined && (typeof fields.assetPreset !== 'string' || !findWindowPreset(fields.assetPreset))) return 'Unknown window preset'
+  if (fields.material !== undefined && !(OPENING_MATERIALS as readonly unknown[]).includes(fields.material)) return 'Material must be wood, painted-steel, aluminium or fire-red'
+  if (fields.glass !== undefined && !(GLASS_TYPES as readonly unknown[]).includes(fields.glass)) return 'Glass must be clear, frosted or tinted'
+  if (fields.windowPose !== undefined) {
+    if (!(WINDOW_POSES as readonly unknown[]).includes(fields.windowPose)) return 'Window position must be closed or open'
+    const type = resolveWindowStyle(fields as Parameters<typeof resolveWindowStyle>[0]).type
+    if (type !== 'casement' && type !== 'awning' && type !== 'jalousie') return 'Window position applies to casement, awning and jalousie windows only'
+  }
+  return undefined
+}
 
 // ── P1-T5 (R2.2): POI handlers ──
 // POIs are floor-local discovery landmarks — NOT rooms, never destination
@@ -454,11 +488,29 @@ export const doorCreateHandler: CommandHandler = {
     const floor = building.floors.find(f => f.id === floorId)
     if (!floor) return { success: false, error: `Floor not found: ${floorId}` }
     const requestedRoomId = payload.roomId as string | undefined
+    const doorInput = (payload.door as Record<string, unknown>) ?? {}
+    if (payload.restoreDoor !== undefined) {
+      const restored = structuredClone(payload.restoreDoor) as RoomDoor
+      if (!restored?.id || typeof restored.id !== 'string' || !restored.position) return { success: false, error: 'Invalid door snapshot' }
+      if (collectFloorDoors(floor).some(door => door.id === restored.id)) return { success: false, error: 'Door already exists: ' + restored.id }
+      if (!floor.doors) floor.doors = []
+      const restoreIndex = typeof payload.restoreIndex === 'number' ? payload.restoreIndex : floor.doors.length
+      floor.doors.splice(restoreIndex, 0, restored)
+      if ('restoreNetwork' in payload) {
+        const state = payload.restoreNetwork as { present: boolean; value: RouteNetwork | undefined }
+        if (state.present) floor.routeNetwork = structuredClone(state.value)
+        else delete floor.routeNetwork
+      }
+      recordChange(document, { entityId: restored.id, entityType: 'door', operation: 'created' })
+      return { success: true, entityId: restored.id, data: { id: restored.id, buildingId, floorId } }
+    }
     if (requestedRoomId !== undefined && !isKnownRoomId(floor, requestedRoomId)) {
       return { success: false, error: `Room not found: ${requestedRoomId}` }
     }
-
-    const doorInput = (payload.door as Record<string, unknown>) ?? {}
+    if (doorInput.doorAppearance !== undefined && !DOOR_APPEARANCES.includes(doorInput.doorAppearance as string)) return { success: false, error: 'Invalid door appearance' }
+    if (doorInput.doorPose !== undefined && !DOOR_POSES.includes(doorInput.doorPose as string)) return { success: false, error: 'Door position must be closed, ajar or open' }
+    const styleError = doorStyleFieldError(doorInput)
+    if (styleError) return { success: false, error: styleError }
     if (doorInput.doorType !== undefined && !isDoorType(doorInput.doorType)) {
       return { success: false, error: `Invalid doorType: ${String(doorInput.doorType)}. Must be one of the DoorType enum values.` }
     }
@@ -472,7 +524,7 @@ export const doorCreateHandler: CommandHandler = {
     const owner = requestedRoomId
       ? { status: 'assigned' as const, roomId: requestedRoomId }
       : resolveUniqueRoomOwner(position, collectFloorRoomOwnershipPolygons(floor))
-    const door: RoomDoor = {
+    let door: RoomDoor = {
       id,
       ...(owner.status === 'assigned' ? { roomId: owner.roomId, ownership: { status: 'assigned' as const } } : {}),
       ...(owner.status === 'unassigned' ? { ownership: { status: 'unassigned' as const } } : {}),
@@ -481,6 +533,14 @@ export const doorCreateHandler: CommandHandler = {
       connectedToType: (doorInput.connectedToType as RoomDoor['connectedToType']) ?? 'room',
       // R2.4: closed enum with 'opening' (wall opening) included.
       doorType: (doorInput.doorType as RoomDoor['doorType']) ?? 'standard',
+      ...(doorInput.doorAppearance !== undefined ? { doorAppearance: doorInput.doorAppearance as RoomDoor['doorAppearance'] } : {}),
+      ...(doorInput.doorPose !== undefined ? { doorPose: doorInput.doorPose as RoomDoor['doorPose'] } : {}),
+      ...(doorInput.doorOperation !== undefined ? { doorOperation: doorInput.doorOperation as RoomDoor['doorOperation'] } : {}),
+      ...(doorInput.hingeSide !== undefined ? { hingeSide: doorInput.hingeSide as RoomDoor['hingeSide'] } : {}),
+      ...(doorInput.swingSide !== undefined ? { swingSide: doorInput.swingSide as RoomDoor['swingSide'] } : {}),
+      ...(doorInput.assetPreset !== undefined ? { assetPreset: doorInput.assetPreset as string } : {}),
+      ...(doorInput.material !== undefined ? { material: doorInput.material as RoomDoor['material'] } : {}),
+      ...(doorInput.glass !== undefined ? { glass: doorInput.glass as RoomDoor['glass'] } : {}),
       position: { x: position.x, y: position.y },
       width: (doorInput.width as number) ?? 0.9,
       ...(doorInput.depth !== undefined ? { depth: doorInput.depth as number } : {}),
@@ -489,6 +549,16 @@ export const doorCreateHandler: CommandHandler = {
       ...(doorInput.name !== undefined ? { name: doorInput.name as string } : {}),
       ...(doorInput.routeConnection !== undefined ? { routeConnection: structuredClone(doorInput.routeConnection) as NonNullable<RoomDoor['routeConnection']> } : {}),
       metadata: (doorInput.metadata as Record<string, unknown>) ?? {},
+      ...(doorInput.wallAttachment !== undefined ? { wallAttachment: structuredClone(doorInput.wallAttachment) as NonNullable<RoomDoor['wallAttachment']> } : {}),
+    }
+    const attached = validateDoorWallAttachment(floor, door)
+    if (!attached.ok) return { success: false, error: attached.error }
+    door = attached.door
+    if (door.wallAttachment && !requestedRoomId) {
+      const resolved = resolveUniqueRoomOwner(door.position, collectFloorRoomOwnershipPolygons(floor))
+      delete door.roomId
+      door.ownership = resolved.status === 'assigned' ? { status: 'assigned' } : resolved.status === 'ambiguous' ? { status: 'ambiguous', candidateRoomIds: resolved.candidateRoomIds } : { status: 'unassigned' }
+      if (resolved.status === 'assigned') door.roomId = resolved.roomId
     }
     if (!floor.doors) floor.doors = []
     floor.doors.push(door)
@@ -510,77 +580,162 @@ export const doorUpdateHandler: CommandHandler = {
   id: 'door.update',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const doorId = payload.doorId as string
-    const patch = (payload.patch as Record<string, unknown>) ?? {}
-
     const ctx = findFloorAndDoor(document, doorId)
-    if (!ctx) return { success: false, error: `Door not found: ${doorId}` }
-
-    if (patch.doorType !== undefined && !isDoorType(patch.doorType)) {
-      return { success: false, error: `Invalid doorType: ${String(patch.doorType)}. Must be one of the DoorType enum values.` }
-    }
-
+    if (!ctx) return { success: false, error: 'Door not found: ' + doorId }
     const old = structuredClone(ctx.door)
-    const oldNetwork = patch.position != null && ctx.door.routeConnection && ctx.floor.routeNetwork
-      ? structuredClone(ctx.floor.routeNetwork)
-      : undefined
-
-    if (patch.position != null) {
-      const pos = patch.position as LocalCoord
-      ctx.door.position = { x: pos.x, y: pos.y }
+    const oldNetwork = structuredClone(ctx.floor.routeNetwork)
+    // Trusted history inverses restore exact imported snapshots, including
+    // unresolved attachments/ownership; forward edits still validate below.
+    if (payload.restoreDoor !== undefined) {
+      const restored = structuredClone(payload.restoreDoor) as RoomDoor
+      if (!restored || restored.id !== doorId) return { success: false, error: 'Door identity cannot change' }
+      ctx.floor.doors![ctx.floor.doors!.findIndex(door => door.id === doorId)] = restored
+      if ('restoreNetwork' in payload) {
+        if (payload.restoreNetwork === undefined) delete ctx.floor.routeNetwork
+        else ctx.floor.routeNetwork = structuredClone(payload.restoreNetwork) as RouteNetwork
+      }
+      recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
+      return { success: true, entityId: doorId, data: { old, oldNetwork } }
     }
-    if (patch.width != null) ctx.door.width = patch.width as number
-    if ('depth' in patch) ctx.door.depth = patch.depth as number | undefined
-    if ('rotation' in patch) ctx.door.rotation = patch.rotation as number | undefined
-    if ('geometry' in patch) ctx.door.geometry = patch.geometry === undefined ? undefined : structuredClone(patch.geometry) as RoomDoor['geometry']
-    if ('name' in patch) ctx.door.name = patch.name as string | undefined
-    if (patch.doorType != null) ctx.door.doorType = patch.doorType as RoomDoor['doorType']
-    // `in` checks (not !=null) so the undo path can restore `undefined`.
-    if ('connectedToId' in patch) ctx.door.connectedToId = patch.connectedToId as string | undefined
-    if ('connectedToType' in patch) ctx.door.connectedToType = patch.connectedToType as RoomDoor['connectedToType']
-    if ('routeConnection' in patch) ctx.door.routeConnection = patch.routeConnection === undefined ? undefined : structuredClone(patch.routeConnection) as NonNullable<RoomDoor['routeConnection']>
-
-    if ('roomId' in patch) {
-      const roomId = patch.roomId as string | undefined
-      const knownRoom = roomId === undefined || isKnownRoomId(ctx.floor, roomId)
-      if (!knownRoom) return { success: false, error: `Room not found: ${roomId}` }
-      ctx.door.roomId = roomId
-      ctx.door.ownership = roomId ? { status: 'assigned' } : { status: 'unassigned' }
-    } else if (patch.position != null || patch.geometry != null) {
-      const owner = resolveUniqueRoomOwner(ctx.door.position, collectFloorRoomOwnershipPolygons(ctx.floor))
-      ctx.door.roomId = owner.status === 'assigned' ? owner.roomId : undefined
-      ctx.door.ownership = owner.status === 'assigned'
-        ? { status: 'assigned' }
-        : owner.status === 'ambiguous'
-          ? { status: 'ambiguous', candidateRoomIds: owner.candidateRoomIds }
-          : { status: 'unassigned' }
+    const patch = (payload.patch as Record<string, unknown>) ?? {}
+    if (patch.doorAppearance !== undefined && !DOOR_APPEARANCES.includes(patch.doorAppearance as string)) return { success: false, error: 'Invalid door appearance' }
+    if (patch.doorPose !== undefined && !DOOR_POSES.includes(patch.doorPose as string)) return { success: false, error: 'Door position must be closed, ajar or open' }
+    const patchStyleError = doorStyleFieldError(patch)
+    if (patchStyleError) return { success: false, error: patchStyleError }
+    // Cosmetic edits must not normalize imported physical geometry or move
+    // route anchors. The existing inverse carries the exact prior snapshots.
+    const cosmeticKeys: readonly string[] = COSMETIC_DOOR_KEYS
+    if (payload.restoreDoor === undefined && Object.keys(patch).length > 0 && Object.keys(patch).every(key => cosmeticKeys.includes(key))) {
+      const next = structuredClone(ctx.door) as unknown as Record<string, unknown>
+      for (const key of COSMETIC_DOOR_KEYS) {
+        if (!(key in patch)) continue
+        if (patch[key] === undefined) delete next[key]
+        else next[key] = patch[key]
+      }
+      ctx.floor.doors![ctx.floor.doors!.findIndex(door => door.id === doorId)] = next as unknown as RoomDoor
+      recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
+      return { success: true, entityId: doorId, data: { old, oldNetwork } }
     }
-
-    if (patch.position != null && ctx.door.routeConnection && ctx.floor.routeNetwork) {
-      const connection = ctx.door.routeConnection
-      const anchor = ctx.floor.routeNetwork.nodes.find(node => node.id === connection.anchorNodeId)
-      const target = ctx.floor.routeNetwork.nodes.find(node => node.id === connection.targetRouteNodeId)
-      const edge = ctx.floor.routeNetwork.edges.find(candidate => candidate.id === connection.connectorEdgeId)
-      if (anchor) anchor.position = { ...ctx.door.position }
-      if (edge && target) edge.distance = Math.hypot(target.position.x - ctx.door.position.x, target.position.y - ctx.door.position.y)
+    if ('depth' in patch && (typeof patch.depth !== 'number' || !Number.isFinite(patch.depth) || patch.depth <= 0)) return { success: false, error: 'Door depth must be a positive finite number' }
+    if ('roomId' in patch && patch.roomId !== undefined && !isKnownRoomId(ctx.floor, patch.roomId as string)) return { success: false, error: 'Room not found: ' + patch.roomId }
+    if (patch.doorType !== undefined && !isDoorType(patch.doorType)) return { success: false, error: 'Invalid doorType: ' + patch.doorType }
+    let next = structuredClone(ctx.door)
+    const allowed = ['position','width','depth','rotation','geometry','name','doorType','doorAppearance','doorPose','doorOperation','hingeSide','swingSide','assetPreset','material','glass','connectedToId','connectedToType','routeConnection','roomId','ownership','wallAttachment'] as const
+    for (const key of allowed) {
+      if (key in patch) (next as unknown as Record<string, unknown>)[key] = structuredClone(patch[key])
     }
-
+    if (payload.restoreDoor !== undefined) next = structuredClone(payload.restoreDoor) as RoomDoor
+    if (next.id !== doorId) return { success: false, error: 'Door identity cannot change' }
+    if (!Number.isFinite(next.position?.x) || !Number.isFinite(next.position?.y) || !Number.isFinite(next.width) || next.width <= 0) return { success: false, error: 'Door position and width must be finite and width must be positive' }
+    if (payload.snapToWall === true) {
+      const chosen = findPlacementWall(ctx.floor.walls ?? [], next.position)
+      if (!chosen.ok) return { success: false, error: chosen.reason }
+      next.wallAttachment = { wallId: chosen.wall.id, offset: computeOffsetFromPosition(next.position, chosen.wall), openingHeight: next.wallAttachment?.openingHeight ?? Math.min(2.1, chosen.wall.height) }
+    } else if (next.wallAttachment && patch.position !== undefined && !('wallAttachment' in patch) && payload.restoreDoor === undefined) {
+      const host = ctx.floor.walls?.find(wall => wall.id === next.wallAttachment!.wallId)
+      if (!host) return { success: false, error: 'Host wall is missing' }
+      next.wallAttachment = { ...next.wallAttachment, offset: computeOffsetFromPosition(next.position,host) }
+    }
+    const attached = validateDoorWallAttachment(ctx.floor,next)
+    if (!attached.ok) return { success: false, error: attached.error }
+    if (payload.restoreDoor === undefined) next = attached.door
+    if (payload.restoreDoor === undefined) {
+      if ('roomId' in patch) next.ownership = next.roomId ? { status: 'assigned' } : { status: 'unassigned' }
+      else if (payload.snapToWall === true || (!next.wallAttachment && (patch.position != null || patch.geometry != null))) {
+        const owner = resolveUniqueRoomOwner(next.position,collectFloorRoomOwnershipPolygons(ctx.floor))
+        next.roomId = owner.status === 'assigned' ? owner.roomId : undefined
+        next.ownership = owner.status === 'assigned' ? { status:'assigned' } : owner.status === 'ambiguous' ? {status:'ambiguous',candidateRoomIds:owner.candidateRoomIds} : {status:'unassigned'}
+      }
+    }
+    const network = structuredClone(ctx.floor.routeNetwork)
+    const anchor = next.routeConnection && network?.nodes.find(node => node.id === next.routeConnection!.anchorNodeId)
+    if (anchor && network) {
+      if (next.routeConnectionManaged) {
+        const target = network.nodes.find(n => n.id === next.routeConnection!.targetRouteNodeId)
+        if (!target) return { success: false, error: 'Reconnect this door before moving it.' }
+        const problem = floorConnectionProblem({key:`door:${doorId}`,kind:'door',id:doorId,label:next.name ?? 'Door',position:next.position,hostWallId:next.wallAttachment?.wallId},target.position,ctx.floor)
+        if (problem) return { success: false, error: problem }
+      }
+      anchor.position = { ...next.position }
+      for (const edge of network.edges) {
+        if (edge.from !== anchor.id && edge.to !== anchor.id) continue
+        const a=network.nodes.find(node=>node.id===edge.from),b=network.nodes.find(node=>node.id===edge.to)
+        if(a&&b)edge.distance=Math.hypot(a.position.x-b.position.x,a.position.y-b.position.y)
+      }
+    }
+    const index=ctx.floor.doors!.findIndex(door=>door.id===doorId)
+    ctx.floor.doors![index]=next
     if ('restoreNetwork' in payload) {
-      ctx.floor.routeNetwork = payload.restoreNetwork === undefined
-        ? undefined
-        : structuredClone(payload.restoreNetwork) as RouteNetwork
-    }
+      if (payload.restoreNetwork === undefined) delete ctx.floor.routeNetwork
+      else ctx.floor.routeNetwork=structuredClone(payload.restoreNetwork) as RouteNetwork
+    } else if (network) ctx.floor.routeNetwork=network
+    recordChange(document,{entityId:doorId,entityType:'door',operation:'updated'})
+    return {success:true,entityId:doorId,data:{old,oldNetwork}}
+  },
+  inverse(payload:Record<string,unknown>,result:MutationResult):Command|null {
+    if (!result.data?.old) return null
+    return {id:'door.update',label:'Undo Door Update',payload:{doorId:payload.doorId,restoreDoor:result.data.old,restoreNetwork:result.data.oldNetwork}}
+  },
+}
 
-    recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
-    return { success: true, entityId: doorId, data: { old, oldNetwork } }
+/** Look fields that apply-to-similar may copy. Hinge and swing are left out of the panel's default because they depend on each door's spot. */
+export const SIMILAR_DOOR_FIELDS = ['assetPreset', 'material', 'glass', 'doorAppearance', 'doorOperation', 'doorPose', 'hingeSide', 'swingSide'] as const
+type SimilarDoorField = typeof SIMILAR_DOOR_FIELDS[number]
+
+/** Doors on the same floor with the same effective operation and |width - source width| <= 0.1 m (source excluded). */
+export function findSimilarDoors(floor: { doors?: RoomDoor[] }, sourceDoorId: string): RoomDoor[] {
+  const doors = floor.doors ?? []
+  const source = doors.find(door => door.id === sourceDoorId)
+  if (!source) return []
+  const operation = resolveDoorStyle(source).operation
+  return doors.filter(door => door.id !== sourceDoorId && resolveDoorStyle(door).operation === operation && Math.abs(door.width - source.width) <= 0.1 + 1e-9)
+}
+
+/**
+ * Copy look fields from one door to every similar door on its floor, as one undoable command.
+ * All-or-nothing: any refusal leaves the document untouched (and so no history entry).
+ * The inverse restores every target's exact prior record.
+ */
+export const doorApplyAppearanceToSimilarHandler: CommandHandler = {
+  id: 'door.applyAppearanceToSimilar',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    const floor = document.buildings.find(b => b.id === payload.buildingId)?.floors.find(f => f.id === payload.floorId)
+    if (!floor) return { success: false, error: 'Floor not found' }
+    if (floor.locked) return { success: false, error: 'This floor is locked; nothing was changed.' }
+    if (Array.isArray(payload.restoreDoors)) {
+      const restores = payload.restoreDoors as RoomDoor[]
+      if (!restores.every(door => floor.doors?.some(other => other.id === door.id))) return { success: false, error: 'A door to restore is missing' }
+      const old = restores.map(door => structuredClone(floor.doors!.find(other => other.id === door.id)!))
+      for (const door of restores) floor.doors![floor.doors!.findIndex(other => other.id === door.id)] = structuredClone(door)
+      for (const door of restores) recordChange(document, { entityId: door.id, entityType: 'door', operation: 'updated' })
+      return { success: true, entityId: payload.sourceDoorId as string, data: { old, count: restores.length } }
+    }
+    const fields = payload.fields as unknown
+    if (!Array.isArray(fields) || fields.length === 0 || !fields.every(field => (SIMILAR_DOOR_FIELDS as readonly string[]).includes(field))) return { success: false, error: 'Only door look fields can be applied to similar doors' }
+    const source = floor.doors?.find(door => door.id === payload.sourceDoorId)
+    if (!source) return { success: false, error: 'Door not found: ' + String(payload.sourceDoorId) }
+    const values: Partial<Record<SimilarDoorField, unknown>> = {}
+    for (const field of fields as SimilarDoorField[]) values[field] = (source as unknown as Record<string, unknown>)[field]
+    const invalid = doorStyleFieldError(values)
+      ?? (values.doorAppearance !== undefined && !DOOR_APPEARANCES.includes(values.doorAppearance as string) ? 'Invalid door appearance' : undefined)
+      ?? (values.doorPose !== undefined && !DOOR_POSES.includes(values.doorPose as string) ? 'Door position must be closed, ajar or open' : undefined)
+    if (invalid) return { success: false, error: invalid }
+    const targets = findSimilarDoors(floor, source.id)
+    if (targets.length === 0) return { success: false, error: 'No similar doors on this floor' }
+    const old = targets.map(door => structuredClone(door))
+    const next = targets.map(door => {
+      const record = structuredClone(door) as unknown as Record<string, unknown>
+      for (const [key, value] of Object.entries(values)) { if (value === undefined) delete record[key]; else record[key] = structuredClone(value) }
+      return record as unknown as RoomDoor
+    })
+    // Every check is done; now apply all at once.
+    for (const door of next) floor.doors![floor.doors!.findIndex(other => other.id === door.id)] = door
+    for (const door of next) recordChange(document, { entityId: door.id, entityType: 'door', operation: 'updated' })
+    return { success: true, entityId: source.id, data: { old, count: next.length } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
-    const old = result.data?.old as RoomDoor | undefined
-    if (!old) return null
-    return {
-      id: 'door.update',
-      label: 'Undo Door Update',
-      payload: { doorId: payload.doorId as string, patch: old, ...(result.data?.oldNetwork !== undefined ? { restoreNetwork: result.data.oldNetwork } : {}) },
-    }
+    if (!result.success || !Array.isArray(result.data?.old)) return null
+    return { id: 'door.applyAppearanceToSimilar', label: 'Undo Apply To Similar Doors', payload: { buildingId: payload.buildingId, floorId: payload.floorId, sourceDoorId: payload.sourceDoorId, restoreDoors: result.data.old } }
   },
 }
 
@@ -591,14 +746,17 @@ export const doorDeleteHandler: CommandHandler = {
     const ctx = findFloorAndDoor(document, doorId)
     if (!ctx) return { success: false, error: `Door not found: ${doorId}` }
 
-    const oldDoor = JSON.parse(JSON.stringify(ctx.door)) as RoomDoor
+    const oldDoor = structuredClone(ctx.door)
+    const oldNetwork = { present: Object.hasOwn(ctx.floor, 'routeNetwork'), value: structuredClone(ctx.floor.routeNetwork) }
+    const oldIndex = ctx.floor.doors!.findIndex(d => d.id === doorId)
     ctx.floor.doors = ctx.floor.doors!.filter(d => d.id !== doorId)
+    if (oldDoor.routeConnection) removeFeatureRoutePort(ctx.floor, oldDoor.routeConnection, ctx.building)
 
     recordChange(document, { entityId: doorId, entityType: 'door', operation: 'deleted' })
     return {
       success: true,
       entityId: doorId,
-      data: { oldDoor, buildingId: ctx.building.id, floorId: ctx.floor.id, roomId: ctx.door.roomId },
+      data: { oldDoor, oldNetwork, oldIndex, buildingId: ctx.building.id, floorId: ctx.floor.id, roomId: ctx.door.roomId },
     }
   },
   inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -608,6 +766,9 @@ export const doorDeleteHandler: CommandHandler = {
       id: 'door.create',
       label: 'Undo Delete Door',
       payload: {
+        restoreDoor: structuredClone(oldDoor),
+        restoreIndex: result.data?.oldIndex,
+        restoreNetwork: result.data?.oldNetwork,
         buildingId: result.data?.buildingId as string,
         floorId: result.data?.floorId as string,
         roomId: oldDoor.roomId,
@@ -620,6 +781,7 @@ export const doorDeleteHandler: CommandHandler = {
           ...(oldDoor.rotation !== undefined ? { rotation: oldDoor.rotation } : {}),
           ...(oldDoor.geometry !== undefined ? { geometry: oldDoor.geometry } : {}),
           ...(oldDoor.name !== undefined ? { name: oldDoor.name } : {}),
+          ...(oldDoor.wallAttachment !== undefined ? { wallAttachment: oldDoor.wallAttachment } : {}),
           ...(oldDoor.routeConnection !== undefined ? { routeConnection: oldDoor.routeConnection } : {}),
           ...(oldDoor.connectedToId !== undefined ? { connectedToId: oldDoor.connectedToId } : {}),
           connectedToType: oldDoor.connectedToType,
@@ -653,7 +815,9 @@ export const doorDuplicateHandler: CommandHandler = {
     // graph identity, or the other-side reference; room ownership is
     // re-evaluated by containment at the new position (same resolution
     // as door.create).
-    const duplicate = buildDuplicatedDoor(ctx.door, id, offset)
+    const placed = placeDuplicatedDoor(ctx.floor, ctx.door, buildDuplicatedDoor(ctx.door, id, offset), payload.offset !== undefined ? offset : undefined)
+    if (!placed.ok) return { success: false, error: placed.error }
+    const duplicate = placed.door
     const owner = resolveUniqueRoomOwner(duplicate.position, collectFloorRoomOwnershipPolygons(ctx.floor))
     if (owner.status === 'assigned') {
       duplicate.roomId = owner.roomId
@@ -841,13 +1005,15 @@ export const doorRouteDisconnectHandler: CommandHandler = {
     // referencing the removed anchor node.
     network.nodes = network.nodes.filter(node => node.id !== connection.anchorNodeId)
     network.edges = network.edges.filter(edge => edge.from !== connection.anchorNodeId && edge.to !== connection.anchorNodeId)
+    // Drop this door's link first: the reference check counts door route ports,
+    // and the door being disconnected must not keep its own junction alive.
+    delete ctx.door.routeConnection
     if (!isRouteNodeReferencedByAccessRelationships(document, ctx.building.id, ctx.floor.id, connection.targetRouteNodeId)) {
       const mergedEdgeId = rejoinOrphanedJunction(network, connection.targetRouteNodeId)
       if (mergedEdgeId) {
         recordChange(document, { entityId: mergedEdgeId, entityType: 'route-edge', operation: 'created' })
       }
     }
-    delete ctx.door.routeConnection
 
     recordChange(document, { entityId: doorId, entityType: 'door', operation: 'updated' })
     return { success: true, entityId: doorId, data: { oldNetwork, oldRouteConnection } }
@@ -1029,10 +1195,40 @@ export const featureUpdateHandler: CommandHandler = {
     let levelGeom = feature.levels[level]
     const oldLevelGeom = levelGeom ? JSON.parse(JSON.stringify(levelGeom)) : null
     const oldFeatureProperties = { name: feature.name, fromLevel: feature.fromLevel, toLevel: feature.toLevel }
+    const oldFeatureRouteNetwork=featureRouteNetworkSnapshot(ctx.building,level)
+
+    // Internal history restores the exact prior snapshot, including absent optional
+    // fields and imported cache geometry; never run forward resizing on an inverse.
+    if (Object.prototype.hasOwnProperty.call(payload, 'restoreLevelGeometry')) {
+      if (payload.restoreLevelGeometry === null) delete feature.levels[level]
+      else feature.levels[level] = structuredClone(payload.restoreLevelGeometry) as typeof levelGeom
+      const properties = payload.restoreFeatureProperties as typeof oldFeatureProperties | undefined
+      if (properties) Object.assign(feature, properties)
+      if ('restoreFeatureRouteNetwork' in payload) restoreFeatureRouteNetwork(ctx.building,level,payload.restoreFeatureRouteNetwork as ReturnType<typeof featureRouteNetworkSnapshot>)
+      recordChange(document, { entityId: featureId, entityType: featureType, operation: 'updated' })
+      return { success: true, entityId: featureId, data: { oldLevelGeom, oldFeatureProperties } }
+    }
+    if ('height' in patch && (featureType !== 'staircase' || (patch.height !== null && (typeof patch.height !== 'number' || !Number.isFinite(patch.height) || patch.height <= 0)))) {
+      return { success: false, error: 'Stair rise must be positive finite meters, or use floor height.' }
+    }
+    if ('rotation' in patch && (typeof patch.rotation !== 'number' || !Number.isFinite(patch.rotation))) return { success: false, error: 'Rotation must be finite degrees.' }
+    let resized: typeof levelGeom | undefined
+    if ('width' in patch || 'depth' in patch || ('rotation' in patch && !patch.polygon && !patch.drawing)) {
+      if (!levelGeom) return { success: false, error: 'Feature level geometry is missing.' }
+      const size = featureDimensions(levelGeom)
+      try {
+        resized = resizeFeatureGeometry(levelGeom, ('width' in patch ? patch.width : size?.width) as number, ('depth' in patch ? patch.depth : size?.depth) as number, (patch.rotation ?? levelGeom.rotation) as number)
+      } catch (error) { return { success: false, error: (error as Error).message } }
+    }
 
     if (!levelGeom) {
       levelGeom = { position: { x: 0, y: 0 }, rotation: 0 }
       feature.levels[level] = levelGeom
+    }
+    if (resized) { levelGeom = resized; feature.levels[level] = resized }
+    if ('height' in patch && featureType === 'staircase') {
+      if (patch.height === null) delete (levelGeom as import('@navi/core').StairLevelGeometry).height
+      else (levelGeom as import('@navi/core').StairLevelGeometry).height = patch.height as number
     }
 
     if (patch.name != null) (feature as any).name = patch.name as string
@@ -1043,9 +1239,9 @@ export const featureUpdateHandler: CommandHandler = {
     if (patch.landing) levelGeom.landing = { ...(patch.landing as any) }
 
 
-    if (levelGeom.drawing && patch.drawing) {
+    if (levelGeom.drawing && (patch.drawing || resized)) {
       const drawPatch = patch.drawing as any
-      if (drawPatch.properties) {
+      if (drawPatch?.properties) {
         levelGeom.drawing.properties = {
           ...levelGeom.drawing.properties,
           ...drawPatch.properties,
@@ -1058,19 +1254,21 @@ export const featureUpdateHandler: CommandHandler = {
       levelGeom.polygon = { ...(patch.polygon as LocalPolygon) }
     }
 
+    const portError=syncFeatureRoutePort(ctx.building,feature,level)
+    if(portError){if(oldLevelGeom)feature.levels[level]=oldLevelGeom;else delete feature.levels[level];Object.assign(feature,oldFeatureProperties);restoreFeatureRouteNetwork(ctx.building,level,oldFeatureRouteNetwork);return {success:false,error:portError}}
     recordChange(document, { entityId: featureId, entityType: featureType as string, operation: 'updated' })
-    return { success: true, entityId: featureId, data: { featureId, level, oldLevelGeom, oldFeatureProperties } }
+    return { success: true, entityId: featureId, data: { featureId, level, oldLevelGeom, oldFeatureProperties,oldFeatureRouteNetwork } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
     const featureId = payload.featureId as string
     const level = payload.level as number
     const oldLevelGeom = result.data?.oldLevelGeom
-    if (!oldLevelGeom) return null
+    if (!Object.prototype.hasOwnProperty.call(result.data ?? {}, 'oldLevelGeom')) return null
     const oldFeatureProperties = result.data?.oldFeatureProperties as { name?: string; fromLevel?: number; toLevel?: number } | undefined
     return {
       id: 'feature.update',
       label: 'Undo Feature Update',
-      payload: { featureId, level, patch: { ...oldLevelGeom, ...oldFeatureProperties } },
+      payload: { featureId, level, restoreLevelGeometry: oldLevelGeom, restoreFeatureProperties: oldFeatureProperties,restoreFeatureRouteNetwork:result.data?.oldFeatureRouteNetwork },
     }
   },
 }
@@ -1160,6 +1358,7 @@ export const featureDeleteHandler: CommandHandler = {
       }
     }
 
+    for(const [level,geometry] of Object.entries(feature.levels)){const floor=building.floors.find(f=>f.level===Number(level));if(floor&&geometry.routeConnection)removeFeatureRoutePort(floor,geometry.routeConnection,building)}
     recordChange(document, { entityId: feature.id, entityType: featureType as string, operation: 'deleted' })
     return { success: true, entityId: feature.id, data: { oldFeature, buildingId: building.id, featureType, verticalTransitions } }
 
@@ -1401,6 +1600,26 @@ function findFloorAndOpening(document: CampusDocument, openingId: string) {
   return null
 }
 
+export function validateOpeningAssignment(floor: CampusDocument['buildings'][number]['floors'][number], opening: Opening): string | undefined {
+  if (opening.doorAppearance !== undefined && (opening.type !== 'door' || !DOOR_APPEARANCES.includes(opening.doorAppearance))) return 'Invalid door appearance or opening type'
+  if (opening.doorPose !== undefined && (opening.type !== 'door' || !DOOR_POSES.includes(opening.doorPose))) return 'Door position must be closed, ajar or open and belong to a door'
+  const hasDoorStyle = opening.doorOperation !== undefined || opening.hingeSide !== undefined || opening.swingSide !== undefined
+  if (hasDoorStyle && opening.type !== 'door') return 'Door operation, hinge and swing belong to door openings only'
+  if ((opening.windowAppearance !== undefined || opening.windowPose !== undefined) && opening.type !== 'window') return 'Window appearance and position belong to window openings only'
+  const openingStyleError = opening.type === 'window'
+    ? windowStyleFieldError(opening as unknown as Record<string, unknown>)
+    : doorStyleFieldError(opening as unknown as Record<string, unknown>)
+  if (openingStyleError) return openingStyleError
+  const wall=floor.walls?.find(wall=>wall.id===opening.wallId)
+  if(!wall)return 'Opening host wall not found: '+opening.wallId
+  const length=Math.hypot(wall.end.x-wall.start.x,wall.end.y-wall.start.y)
+  const bottom=opening.sillHeight??(opening.type==='window'?0.9:0),height=opening.height??(opening.type==='window'?1.2:2.1)
+  if(![opening.offset,opening.width,bottom,height,length,wall.height].every(Number.isFinite)||opening.offset<0||opening.width<0.2||height<=0||bottom<0||opening.offset+opening.width>length+1e-7||bottom+height>wall.height+1e-7)return 'Opening '+opening.id+' must fit within its wall with positive finite dimensions'
+  const spans=[...(floor.windows??[]).filter(w=>floor.walls?.some(wall=>wall.id===w.wallId)).map(w=>({id:w.id,wallId:w.wallId,start:w.offset,end:w.offset+w.width,bottom:w.sillHeight,top:w.sillHeight+1.2})),...(floor.openings??[]).filter(o=>o.id!==opening.id).map(o=>({id:o.id,wallId:o.wallId,start:o.offset,end:o.offset+o.width,bottom:o.sillHeight??(o.type==='window'?0.9:0),top:(o.sillHeight??(o.type==='window'?0.9:0))+(o.height??(o.type==='window'?1.2:2.1))})),...(floor.doors??[]).filter(d=>d.wallAttachment).map(d=>({id:d.id,wallId:d.wallAttachment!.wallId,start:d.wallAttachment!.offset-d.width/2,end:d.wallAttachment!.offset+d.width/2,bottom:0,top:d.wallAttachment!.openingHeight}))]
+  const overlap=spans.find(span=>span.wallId===opening.wallId&&Math.min(opening.offset+opening.width,span.end)-Math.max(opening.offset,span.start)>1e-7&&Math.min(bottom+height,span.top)-Math.max(bottom,span.bottom)>1e-7)
+  return overlap?'Opening '+opening.id+' overlaps attachment '+overlap.id:undefined
+}
+
 export const openingCreateHandler: CommandHandler = {
   id: 'opening.create',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
@@ -1410,6 +1629,20 @@ export const openingCreateHandler: CommandHandler = {
     if (!building) return { success: false, error: `Building not found: ${buildingId}` }
     const floor = building.floors.find(f => f.id === floorId)
     if (!floor) return { success: false, error: `Floor not found: ${floorId}` }
+
+    // Internal inverse snapshot, matching opening.update: imported values must
+    // remain exactly undoable even when forward validation becomes stricter.
+    if (payload.restoreOpening !== undefined) {
+      const opening = structuredClone(payload.restoreOpening) as Opening
+      if (!opening || typeof opening.id !== 'string' || !opening.id || !['door', 'window'].includes(opening.type)) {
+        return { success: false, error: 'Opening identity/type is invalid' }
+      }
+      if (findFloorAndOpening(document, opening.id)) return { success: false, error: `Opening already exists: ${opening.id}` }
+      if (!floor.openings) floor.openings = []
+      floor.openings.push(opening)
+      recordChange(document, { entityId: opening.id, entityType: 'opening', operation: 'created' })
+      return { success: true, entityId: opening.id, data: { id: opening.id, buildingId, floorId } }
+    }
 
     const openingInput = (payload.opening as Record<string, unknown>) ?? {}
     const wallId = openingInput.wallId as string
@@ -1435,12 +1668,19 @@ export const openingCreateHandler: CommandHandler = {
       type: openingType as 'door' | 'window',
       wallId,
       offset,
-      width: (openingInput.width as number) ?? 0.9,
+      width: (openingInput.width as number) ?? (openingType === 'window' ? 1.2 : 0.9),
       ...(orientation !== undefined ? { orientation } : {}),
       ...(openingInput.height !== undefined ? { height: openingInput.height as number } : {}),
       ...(openingInput.sillHeight !== undefined ? { sillHeight: openingInput.sillHeight as number } : {}),
+      ...(openingInput.windowAppearance !== undefined ? { windowAppearance: openingInput.windowAppearance as Opening['windowAppearance'] } : {}),
+      ...(openingInput.doorAppearance !== undefined ? { doorAppearance: openingInput.doorAppearance as Opening['doorAppearance'] } : {}),
+      ...(openingInput.doorPose !== undefined ? { doorPose: openingInput.doorPose as Opening['doorPose'] } : {}),
+      ...Object.fromEntries((['windowPose', 'doorOperation', 'hingeSide', 'swingSide', 'assetPreset', 'material', 'glass'] as const)
+        .filter(key => openingInput[key] !== undefined).map(key => [key, openingInput[key]])),
       ...(openingInput.metadata !== undefined ? { metadata: openingInput.metadata as Record<string, unknown> } : {}),
     }
+    const invalid = validateOpeningAssignment(floor, opening)
+    if (invalid) return { success: false, error: invalid }
     if (!floor.openings) floor.openings = []
     floor.openings.push(opening)
 
@@ -1457,6 +1697,29 @@ export const openingCreateHandler: CommandHandler = {
   },
 }
 
+export const openingUpdateHandler: CommandHandler = {
+  id: 'opening.update',
+  execute(document:CampusDocument,payload:Record<string,unknown>):MutationResult {
+    const ctx=findFloorAndOpening(document,payload.openingId as string)
+    if(!ctx)return {success:false,error:'Opening not found: '+payload.openingId}
+    const oldOpening=structuredClone(ctx.opening)
+    const candidate=payload.restoreOpening!==undefined?structuredClone(payload.restoreOpening) as Opening:{...ctx.opening,...structuredClone((payload.patch as Partial<Opening>)??{})}
+    if(candidate.id!==ctx.opening.id||!['door','window'].includes(candidate.type))return {success:false,error:'Opening identity/type is invalid'}
+    // Undo restores an exact prior snapshot, including unresolved imported defects.
+    // Forward edits remain strict so repairing an old defect is safely reversible.
+    if(payload.restoreOpening===undefined){
+      const error=validateOpeningAssignment(ctx.floor,candidate)
+      if(error)return {success:false,error}
+    }
+    ctx.floor.openings![ctx.floor.openings!.findIndex(o=>o.id===candidate.id)]=candidate
+    recordChange(document,{entityId:candidate.id,entityType:'opening',operation:'updated'})
+    return {success:true,entityId:candidate.id,data:{oldOpening}}
+  },
+  inverse(payload:Record<string,unknown>,result:MutationResult):Command|null {
+    return result.data?.oldOpening?{id:'opening.update',label:'Undo Opening Update',payload:{openingId:payload.openingId,restoreOpening:result.data.oldOpening}}:null
+  },
+}
+
 export const openingDeleteHandler: CommandHandler = {
   id: 'opening.delete',
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
@@ -1464,7 +1727,7 @@ export const openingDeleteHandler: CommandHandler = {
     const ctx = findFloorAndOpening(document, openingId)
     if (!ctx) return { success: false, error: `Opening not found: ${openingId}` }
 
-    const oldOpening = JSON.parse(JSON.stringify(ctx.opening)) as Opening
+    const oldOpening = structuredClone(ctx.opening)
     ctx.floor.openings = ctx.floor.openings!.filter(o => o.id !== openingId)
 
     recordChange(document, { entityId: openingId, entityType: 'opening', operation: 'deleted' })
@@ -1479,6 +1742,7 @@ export const openingDeleteHandler: CommandHandler = {
       payload: {
         buildingId: result.data?.buildingId as string,
         floorId: result.data?.floorId as string,
+        restoreOpening: structuredClone(oldOpening),
         opening: {
           id: oldOpening.id,
           type: oldOpening.type,
@@ -1488,6 +1752,7 @@ export const openingDeleteHandler: CommandHandler = {
           orientation: oldOpening.orientation,
           height: oldOpening.height,
           sillHeight: oldOpening.sillHeight,
+          windowAppearance: oldOpening.windowAppearance,
           metadata: oldOpening.metadata,
         },
       },

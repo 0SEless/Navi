@@ -22,6 +22,7 @@ const OSM_STYLE = {
       type: 'raster' as const,
       tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
+      maxzoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
     },
   },
@@ -75,6 +76,7 @@ export interface OutdoorRoutePickerProps {
 
 function isStyleReady(map: maplibregl.Map): boolean {
   try {
+    if (typeof map.getStyle === 'function' && map.getStyle()?.version === 8) return true
     if (typeof map.isStyleLoaded === 'function') return map.isStyleLoaded()
     if (typeof map.loaded === 'function') return map.loaded()
   } catch {
@@ -259,6 +261,7 @@ export function OutdoorRoutePicker({ open, building, entrance, nodes, edges, cam
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [basemapUnavailable, setBasemapUnavailable] = useState(false)
   const [fullCampus, setFullCampus] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedCandidate, setSelectedCandidate] = useState<OutdoorRouteCandidate | null>(null)
@@ -311,11 +314,18 @@ export function OutdoorRoutePicker({ open, building, entrance, nodes, edges, cam
         return [center.lng, center.lat] as [number, number]
       })(),
       zoom: 18,
-      attributionControl: false,
+      attributionControl: { compact: true },
     })
     mapRef.current = map
     setMapReady(false)
     setMapError(null)
+    setBasemapUnavailable(false)
+    const handleError = (event: maplibregl.ErrorEvent) => {
+      if (!active) return
+      if ((event as maplibregl.ErrorEvent & { sourceId?: string }).sourceId === 'osm' || event.error?.message?.includes('tile.openstreetmap.org')) setBasemapUnavailable(true)
+      else setMapError(event.error?.message ?? 'The map could not load. Outdoor targets remain available in the list.')
+    }
+    map.on('error', handleError)
 
     const initialize = () => {
       if (!active || initialized || !isStyleReady(map)) return
@@ -336,6 +346,7 @@ export function OutdoorRoutePicker({ open, building, entrance, nodes, edges, cam
 
     return () => {
       active = false
+      map.off('error', handleError)
       window.clearInterval(retryTimer)
       try { map.off('load', initialize) } catch { /* map may already be removed */ }
       try { map.off('idle', initialize) } catch { /* map may already be removed */ }
@@ -478,6 +489,7 @@ export function OutdoorRoutePicker({ open, building, entrance, nodes, edges, cam
             </div>
           )}
 
+          {basemapUnavailable && <div role="status" style={{ padding: 8, color: '#FDE68A', fontSize: 11 }}>Background map unavailable. Campus routes and outdoor targets remain selectable.</div>}
           {allCandidates.length === 0 ? (
             <div style={{ padding: '7px', borderRadius: 4, background: '#1E293B', color: '#94A3B8', fontSize: 10 }}>No outdoor route points are available on this campus yet.</div>
           ) : (

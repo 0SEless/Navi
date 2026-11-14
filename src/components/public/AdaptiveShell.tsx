@@ -58,7 +58,7 @@ export function AdaptiveShell({ children }: AdaptiveShellProps) {
   return (
     <PublicPreferencesSync>
       <SplashOnboarding />
-      <div className="flex h-dvh w-full min-w-0 flex-col bg-[var(--navi-content)] lg:pl-56 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <div data-public-app-frame className="flex h-dvh w-full min-w-0 flex-col bg-[var(--navi-content)] pt-[env(safe-area-inset-top)] lg:pl-56 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto">
           {children}
         </main>

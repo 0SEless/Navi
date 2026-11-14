@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { distanceMeters } from '@navi/core'
 import { buildRoomGeoJSON } from '../RoomLayer'
 import { buildHallwayGeoJSON } from '../HallwayLayer'
 import { buildStairGeoJSON } from '../StaircaseLayer'
@@ -213,10 +214,10 @@ describe('buildDoorGeoJSON', () => {
     expect(geojson.features).toHaveLength(1)
     expect(geojson.features[0].geometry.type).toBe('LineString')
     // width 1.2 -> half 0.6, angle default 0 -> horizontal opening centered on position.
-    expect(geojson.features[0].geometry.coordinates).toEqual([
-      [122.1686 - 0.6, 11.8195],
-      [122.1686 + 0.6, 11.8195],
-    ])
+    const [start,end]=geojson.features[0].geometry.coordinates
+    expect((start[0]+end[0])/2).toBeCloseTo(122.1686,8)
+    expect(start[1]).toBeCloseTo(11.8195,8)
+    expect(distanceMeters({lng:start[0],lat:start[1]},{lng:end[0],lat:end[1]})).toBeCloseTo(1.2,2)
   })
 
   it('includes door-specific properties', () => {

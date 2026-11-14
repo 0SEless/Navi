@@ -1,3 +1,4 @@
+import { mergeWalls } from './wall-topology'
 import type { LocalCoord, Wall, Opening } from '@navi/core'
 
 /**
@@ -113,28 +114,23 @@ export function migrateOpeningsOnMerge(
   mergedWallId: string,
   wallsBefore: Array<{ id: string; start: LocalCoord; end: LocalCoord }>,
 ): Opening[] {
-  const removedSet = new Set(removedWallIds)
-  const result: Opening[] = []
-
-  for (const opening of openings) {
-    if (!removedSet.has(opening.wallId)) {
-      result.push(opening)
-      continue
-    }
-    // Find the original wall to rebase offset
-    const originalWall = wallsBefore.find(w => w.id === opening.wallId)
-    if (!originalWall) {
-      // Can't rebase — keep with mergedWallId (best-effort)
-      result.push({ ...opening, wallId: mergedWallId })
-      continue
-    }
-    const dx = originalWall.end.x - originalWall.start.x
-    const dy = originalWall.end.y - originalWall.start.y
-    const origLen = Math.sqrt(dx * dx + dy * dy)
-    // Simple rebase: offset stays relative to the merged wall start.
-    // For collinear merged walls, the offset is the cumulative distance
-    // from the merged wall start.
-    result.push({ ...opening, wallId: mergedWallId })
-  }
-  return result
+  const sourceIds = new Set([...removedWallIds, mergedWallId])
+  const hosts=wallsBefore.filter(w=>sourceIds.has(w.id))
+  const merged=mergeWalls(hosts)
+  if(merged.length!==1)throw new Error('Opening migration requires one connected collinear merged wall')
+  const target=merged[0],len=Math.hypot(target.end.x-target.start.x,target.end.y-target.start.y)
+  if(!Number.isFinite(len)||len<1e-10)throw new Error('Invalid merged wall')
+  return openings.map(opening=>{
+    if(!sourceIds.has(opening.wallId))return opening
+    const original=hosts.find(w=>w.id===opening.wallId)
+    if(!original)throw new Error(`Missing opening host ${opening.wallId}`)
+    const oldLength=Math.hypot(original.end.x-original.start.x,original.end.y-original.start.y)
+    if(!Number.isFinite(oldLength)||oldLength<1e-10)throw new Error('Invalid original wall')
+    const offsets=[opening.offset,opening.offset+opening.width].map(offset=>{
+      const x=original.start.x+(original.end.x-original.start.x)*offset/oldLength
+      const y=original.start.y+(original.end.y-original.start.y)*offset/oldLength
+      return ((x-target.start.x)*(target.end.x-target.start.x)+(y-target.start.y)*(target.end.y-target.start.y))/len
+    })
+    return {...opening,wallId:mergedWallId,offset:Math.min(...offsets)}
+  })
 }

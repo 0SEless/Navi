@@ -1,3 +1,4 @@
+import {removeFeatureRoutePort} from '../geometry/feature-route-port'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord, EntranceType } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
@@ -55,8 +56,9 @@ export const entranceDeleteHandler: CommandHandler = {
       for (const flr of bld.floors) {
         const index = flr.entrances.findIndex(e => e.id === entranceId)
         if (index !== -1) {
-          flr.entrances.splice(index, 1)
+          const [entrance] = flr.entrances.splice(index, 1)
           cleanupEntranceRoutingReferences(document, entranceId)
+          if (entrance.routeConnection) removeFeatureRoutePort(flr, entrance.routeConnection, bld)
           recordChange(document, { entityId: entranceId, entityType: 'entrance', operation: 'deleted' })
           return { success: true, entityId: entranceId }
         }

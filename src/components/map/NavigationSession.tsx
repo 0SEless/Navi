@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useRef, useMemo, useState, useSyncExternalStore, useCallback, type ReactNode } from 'react'
 import { NavigationProvider } from './NavigationContext'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { useNavigationHeading } from '@/hooks/useNavigationHeading'
-import { computeRouteProgress } from '@/lib/nav-route-helpers'
+import { computeRouteProgress, progressAtStep } from '@/lib/nav-route-helpers'
 import { getNavigationRouteKey, resolveNavigationStatus } from '@/lib/navigation-experience'
 import { haversine } from '@/engine/geo-utils'
 import { isPoiArrival, type PoiArrivalContext } from '@navi/runtime/routing'
@@ -12,16 +12,17 @@ import type { POI } from '@navi/core'
 import type { NavRoute } from '@/types/route-types'
 import type { LatLng } from '@/types/nav-types'
 import { isNavigationDevSimulationEnabled } from '@/lib/navigation-dev-simulation'
+import { GPS_DROP_GRACE_MS, isGoodFix, nextProgressMode, progressModeLabel, shouldWarnOffRoute, type ProgressMode } from '@/lib/navigation-progress-source'
 
 /** Arrival threshold — positional distance to destination node (meters). */
 const ARRIVAL_THRESHOLD_M = 15
 /** Deviation threshold — perpendicular distance from route polyline (meters). */
-const DEVIATION_THRESHOLD_M = 30
 export interface NavigationSessionLocationOverride {
   position: LatLng
   heading?: number | null
   speed?: number | null
   timestamp?: number | null
+  accuracy?: number | null
 }
 
 export type NavigationSessionLocationContext = PoiArrivalContext
@@ -105,6 +106,7 @@ export function NavigationSession({
     heading: gpsHeading,
     speed,
     timestamp,
+    accuracy,
     error: geoError,
   } = useGeolocation({ watch: true })
 
@@ -117,6 +119,7 @@ export function NavigationSession({
   const headingInput = devLocationOverride ? devLocationOverride.heading ?? null : gpsHeading
   const speedInput = devLocationOverride ? devLocationOverride.speed ?? null : speed
   const timestampInput = devLocationOverride ? devLocationOverride.timestamp ?? null : timestamp
+  const accuracyInput = devLocationOverride ? devLocationOverride.accuracy ?? null : accuracy
   const headingEnabled = true
 
   // Heading is a presentation signal only. The Capture resolver owns sensor
@@ -133,11 +136,78 @@ export function NavigationSession({
     enabled: headingEnabled,
   })
 
-  // ---- Progress computation (polyline projection, authoritative) ----
-  const progress = useMemo(
+  const routeKey = getNavigationRouteKey(route)
+  const [progressMode, setProgressMode] = useState<ProgressMode>('step')
+  const progressModeRef = useRef<ProgressMode>('step')
+  const lastGoodFixAtRef = useRef<number | null>(null)
+  const [manualIndex, setManualIndex] = useState(0)
+  const [gpsLostNotice, setGpsLostNotice] = useState(false)
+  const progressRef = useRef<ReturnType<typeof computeRouteProgress> | null>(null)
+  const currentCandidate = useMemo(
     () => (active && route && position ? computeRouteProgress(route, position) : null),
     [active, route, position],
   )
+  progressRef.current = currentCandidate
+  const progressRouteKeyRef = useRef(routeKey)
+  useEffect(() => {
+    if (routeKey === progressRouteKeyRef.current) return
+    progressRouteKeyRef.current = routeKey
+    setManualIndex(0)
+    setProgressMode('step')
+    progressModeRef.current = 'step'
+    lastGoodFixAtRef.current = null
+    setGpsLostNotice(false)
+  }, [routeKey])
+  const routeResetPending = progressRouteKeyRef.current !== routeKey
+  const indoors = Boolean(route?.steps[(progressMode === 'gps' ? currentCandidate?.index : manualIndex) ?? manualIndex]?.buildingId)
+  const updateProgressMode = useCallback((now: number) => {
+    if (!active) {
+      progressModeRef.current = 'step'
+      setProgressMode('step')
+      return
+    }
+    const fix = accuracyInput === null ? null : { accuracy: accuracyInput, timestamp: timestampInput ?? now }
+    const goodFreshFix = isGoodFix(fix) && fix !== null
+      && now - fix.timestamp >= 0
+      && now - fix.timestamp <= GPS_DROP_GRACE_MS
+    if (goodFreshFix && fix) {
+      lastGoodFixAtRef.current = fix.timestamp
+    }
+    const next = nextProgressMode({ previous: progressModeRef.current, fix, now, lastGoodFixAt: lastGoodFixAtRef.current, indoors })
+    if (progressModeRef.current === 'gps' && next === 'step') {
+      setManualIndex(progressRef.current?.index ?? manualIndex)
+      if (!indoors && !goodFreshFix) setGpsLostNotice(true)
+    }
+    progressModeRef.current = next
+    setProgressMode(next)
+  }, [accuracyInput, active, indoors, manualIndex, timestampInput])
+  useEffect(() => { updateProgressMode(Date.now()) }, [updateProgressMode, position, geoError])
+  useEffect(() => {
+    if (!active) return
+    const timer = window.setInterval(() => updateProgressMode(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [active, updateProgressMode])
+  const progress = useMemo(() => {
+    if (!active || !route) return null
+    if (routeResetPending) return progressAtStep(route, 0)
+    return progressMode === 'gps' ? currentCandidate : progressAtStep(route, manualIndex)
+  }, [active, currentCandidate, manualIndex, progressMode, route, routeResetPending])
+  const effectiveLocation = progressMode === 'step' && progress ? progress.snappedPosition : position
+  const nextStep = useCallback(() => {
+    if (!route) return
+    setGpsLostNotice(false)
+    setManualIndex(index => Math.min(index + 1, route.steps.length - 1))
+  }, [route])
+  const previousStep = useCallback(() => setManualIndex(index => Math.max(index - 1, 0)), [])
+  const anchorAtNode = useCallback((nodeId: string) => {
+    const index = route?.steps.findIndex(step => step.nodeId === nodeId) ?? -1
+    if (index < 0) return false
+    setManualIndex(index)
+    setProgressMode('step')
+    progressModeRef.current = 'step'
+    setGpsLostNotice(false)
+    return true
+  }, [route])
 
   // ---- Current node from progress (NOT independent resolveNearestNode) ----
   const currentNodeId = useMemo(() => {
@@ -156,7 +226,6 @@ export function NavigationSession({
     return route.steps.find(s => s.nodeId === currentNodeId)?.buildingId
   }, [route, currentNodeId])
 
-  const routeKey = getNavigationRouteKey(route)
   const [arrivalLatch] = useState(createNavigationArrivalLatch)
   const latchedRouteKey = useSyncExternalStore(
     arrivalLatch.subscribe,
@@ -203,11 +272,11 @@ export function NavigationSession({
 
   // ---- Arrival detection ----
   const arrivalCondition = useMemo(() => {
-    if (!active || !route || !position) return false
+    if (!active || !route || !effectiveLocation || routeResetPending) return false
 
     if (route.destination?.entityType === 'poi') {
       return activePoiDestination
-        ? isPoiArrival(position, activePoiDestination, poiArrivalContext)
+        ? isPoiArrival(effectiveLocation, activePoiDestination, poiArrivalContext)
         : false
     }
 
@@ -215,11 +284,11 @@ export function NavigationSession({
     if (!destNode) return false
 
     // Dual condition: positional distance < threshold OR currentNode = destination
-    const distMeters = haversine(position, destNode.position)
+    const distMeters = haversine(effectiveLocation, destNode.position)
     const atDestination = currentNodeId === route.arrival.nodeId
     const withinThreshold = distMeters < ARRIVAL_THRESHOLD_M
     return atDestination || withinThreshold
-  }, [active, activePoiDestination, currentNodeId, poiArrivalContext, position, route])
+  }, [active, activePoiDestination, currentNodeId, effectiveLocation, poiArrivalContext, route, routeResetPending])
 
   useEffect(() => {
     if (!active || routeKey === null || !arrivalCondition) return
@@ -238,14 +307,14 @@ export function NavigationSession({
 
   const isOffRoute = useMemo(() => {
     if (!active || !route || !position || !progress) return false
-    return haversine(position, progress.snappedPosition) > DEVIATION_THRESHOLD_M
-  }, [active, position, progress, route])
+    return shouldWarnOffRoute({ mode: progressMode, accuracy: accuracyInput, distanceFromRouteM: haversine(position, progress.snappedPosition) })
+  }, [accuracyInput, active, position, progress, progressMode, route])
 
   const navigationStatus = resolveNavigationStatus({ arrived, isOffRoute })
 
   return (
     <NavigationProvider
-      location={position}
+      location={effectiveLocation}
       heading={headingEnabled ? direction.heading : null}
       headingSource={headingEnabled ? direction.source : 'none'}
       headingStatus={headingEnabled ? direction.status : 'location-only'}
@@ -260,6 +329,13 @@ export function NavigationSession({
       isOffRoute={navigationStatus === 'off-route'}
       arrived={navigationStatus === 'arrived'}
       geoError={devLocationOverride ? null : geoError}
+      progressMode={progressMode}
+      progressLabel={progressModeLabel(progressMode)}
+      gpsAccuracy={accuracyInput}
+      gpsLostNotice={gpsLostNotice}
+      nextStep={nextStep}
+      previousStep={previousStep}
+      anchorAtNode={anchorAtNode}
     >
       {children}
     </NavigationProvider>

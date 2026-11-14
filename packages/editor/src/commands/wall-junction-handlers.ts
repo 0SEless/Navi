@@ -1,3 +1,4 @@
+import { prepareWallAttachmentUpdate, applyWallAttachmentState, type WallAttachmentState } from '../geometry/door-wall-attachment'
 import { recordChange } from '@navi/core'
 import type { CampusDocument, LocalCoord, RoomAttributes, Wall } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
@@ -154,7 +155,10 @@ export const wallJunctionUpdateHandler: CommandHandler = {
       return { success: false, error: `Wall edit would detach semantic Room ${roomLabel} from face ${detached.faceId}` }
     }
 
+    const attachments = prepareWallAttachmentUpdate(context.floor, nextWalls)
+    if (!attachments.ok) return { success: false, error: attachments.error }
     context.floor.walls = nextWalls
+    applyWallAttachmentState(context.floor, (payload.restoreAttachmentState as WallAttachmentState | undefined) ?? attachments.state)
     for (const entry of parsed.patches) {
       recordChange(document, { entityId: entry.wallId, entityType: 'wall', operation: 'updated' })
     }
@@ -162,7 +166,7 @@ export const wallJunctionUpdateHandler: CommandHandler = {
     return {
       success: true,
       entityId: parsed.patches[0].wallId,
-      data: { buildingId, floorId, previousPatches },
+      data: { buildingId, floorId, previousPatches, attachmentBefore: attachments.before },
     }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
@@ -175,6 +179,7 @@ export const wallJunctionUpdateHandler: CommandHandler = {
         buildingId: result.data?.buildingId ?? payload.buildingId,
         floorId: result.data?.floorId ?? payload.floorId,
         patches: previousPatches,
+        restoreAttachmentState: result.data?.attachmentBefore,
       },
     }
   },

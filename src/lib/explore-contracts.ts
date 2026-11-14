@@ -150,7 +150,7 @@ export function resolveExploreBuildingColor(
 export function resolveStableExploreDestination(
   bundle: CampusBundle,
   input: { entryId?: string; buildingId?: string },
-): Pick<SearchEntry, 'id' | 'nodeId' | 'type'> | null {
+): (Pick<SearchEntry, 'id' | 'type'> & { nodeId: string }) | null {
   const entry = input.entryId
     ? bundle.searchEntries.find(candidate => candidate.id === input.entryId)
     : bundle.searchEntries.find((candidate) => {

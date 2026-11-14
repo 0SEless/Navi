@@ -234,7 +234,8 @@ export default function CampusMap({
 
   const campus = usePublicStore((s) => s.campus)
   const activeFloor = usePublicStore((s) => s.activeFloor)
-  const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
+  const viewedFloorId = usePublicStore((s) => s.viewedFloorId)
+  const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
   const navCtx = useOptionalNavigationContext()
@@ -325,12 +326,12 @@ export default function CampusMap({
       if (building) {
         selectBuilding(building)
         const def = building.floors?.find((fl) => fl === activeFloor) ?? building.floors?.[0] ?? 0
-        setActiveFloor(def)
+        setViewedFloor(def)
       }
     }
     map.on('click', LYR.BUILDINGS_FILL, handler)
     return () => { try { map.off('click', LYR.BUILDINGS_FILL, handler) } catch {} }
-  }, [buildings, activeFloor, selectBuilding, setActiveFloor])
+  }, [buildings, activeFloor, selectBuilding, setViewedFloor])
 
   const getNodePosition = useCallback((nodeId: string) => {
     const node = campus?.nodes.find((n) => n.id === nodeId)
@@ -347,7 +348,7 @@ export default function CampusMap({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
-      <FloorSelector floors={floors} activeFloor={activeFloor} onChange={setActiveFloor} />
+      <FloorSelector floors={floors} activeFloor={viewedFloorId ?? activeFloor} onChange={setViewedFloor} />
       <RouteLine
         map={mapInstance}
         route={route}

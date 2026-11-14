@@ -8,7 +8,7 @@ import type { NavigationSegment } from '@/components/map/NavigationContext'
 
 interface RouteLineProps {
   map: maplibregl.Map | null
-  route: { path: string[]; cost: number } | null
+  route: { path: string[]; cost: number; leadIn?: { lat: number; lng: number } | null } | null
   getNodePosition: (nodeId: string) => { lat: number; lng: number } | undefined
   /** Floor of a route node — enables per-floor emphasis. */
   getNodeFloor?: (nodeId: string) => number | undefined
@@ -54,10 +54,15 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
 
   useEffect(() => {
     if (!map) return
+    return () => removeRouteLayers(map)
+  }, [map])
 
-    removeRouteLayers(map)
-
-    if (!route || route.path.length < 2) return
+  useEffect(() => {
+    if (!map) return
+    if (!route || (route.path.length < 2 && !route.leadIn)) {
+      removeRouteLayers(map)
+      return
+    }
 
     const posById = new Map<string, [number, number]>()
     for (const nodeId of route.path) {
@@ -80,6 +85,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
         const c = posById.get(nodeId)
         if (c) coords.push(c)
       }
+      if (seg === segments[0] && route.leadIn && coords.length > 0) coords.unshift([route.leadIn.lng, route.leadIn.lat])
       if (coords.length < 2) continue
       allCoords.push(...coords)
       // Emphasis: floor-based when multi-floor; otherwise driven by the
@@ -94,14 +100,23 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
         geometry: { type: 'LineString', coordinates: coords },
       })
     }
-    if (features.length === 0) return
+    if (features.length === 0) {
+      removeRouteLayers(map)
+      return
+    }
 
-    map.addSource(SOURCE_ID, {
+    const routeData: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features }
+    const existingSource = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+    if (existingSource) {
+      existingSource.setData(routeData)
+    } else {
+      map.addSource(SOURCE_ID, {
       type: 'geojson',
-      data: { type: 'FeatureCollection', features },
-    })
+        data: routeData,
+      })
+    }
 
-    map.addLayer({
+    if (!map.getLayer('route-glow')) map.addLayer({
       id: 'route-glow',
       type: 'line',
       source: SOURCE_ID,
@@ -113,7 +128,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       },
     })
 
-    map.addLayer({
+    if (!map.getLayer('route-core')) map.addLayer({
       id: 'route-core',
       type: 'line',
       source: SOURCE_ID,
@@ -124,7 +139,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       },
     })
 
-    map.addLayer({
+    if (!map.getLayer('route-flow')) map.addLayer({
       id: 'route-flow',
       type: 'line',
       source: SOURCE_ID,
@@ -149,9 +164,6 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       }
     }
 
-    return () => {
-      try { removeRouteLayers(map) } catch { /* map may be gone */ }
-    }
   }, [activeFloor, fitCamera, getNodeFloor, getNodePosition, map, navigationSegment, route])
 
   return null

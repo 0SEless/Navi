@@ -13,7 +13,8 @@ import { resolveEntranceFinishAccess, routeStartError, snapRouteStartToEntrance 
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
 import { isPolygonAuthoringTool } from './semantic-room-interaction'
 import { localRectangleFromDrag, normalizeLocalRectangle } from '@navi/core'
-import type { EntranceAccess } from '@navi/core'
+import type { EntranceAccess, Wall } from '@navi/core'
+import { findPlacementWall, projectWallDoorRectangle, projectWallWindow } from '@navi/editor/src/geometry/door-placement'
 import { buildFloorRectangleCommand } from './floor-rectangle-authoring'
 import type { FloorRectangleTool } from './floor-rectangle-authoring'
 import { resolveRouteTargetHit, ROUTE_TARGET_LAYER_IDS } from './route-target-authoring'
@@ -40,6 +41,7 @@ interface DoorDrawState {
   startLocal: SnapPoint2D | null
   wallId: string | null
   startOffset: number | null
+  host?: Wall
 }
 
 /** Snap modes for wall drawing */
@@ -197,6 +199,8 @@ interface RectangleDrawState {
   tool: FloorRectangleTool
   start: SnapPoint2D
   current: SnapPoint2D
+  wall?: Wall
+  floorId?: string
 }
 
 function rectangleToolLabel(tool: FloorRectangleTool): string {
@@ -204,7 +208,9 @@ function rectangleToolLabel(tool: FloorRectangleTool): string {
 }
 
 function rectangleReadyMessage(tool: StudioTool): string | null {
-  if (tool !== 'door' && tool !== 'stairs' && tool !== 'elevator') return null
+  if (tool === 'window') return 'Window: click the start and end of the span on one wall.'
+  if (tool === 'door') return 'Door: start on a wall. Drag along it for width and away from it for depth.'
+  if (tool !== 'stairs' && tool !== 'elevator') return null
   return `${rectangleToolLabel(tool)}: click and drag to draw a rectangle.`
 }
 
@@ -238,8 +244,6 @@ export function snapWallAuthoringPoint(
 }
 
 const DOOR_OPENING_THRESHOLD = 2.0 // meters — max distance from wall to place a door/window
-const DEFAULT_WINDOW_WIDTH = 1.2
-const DEFAULT_WINDOW_SILL = 0.9
 
 /**
  * Find the nearest wall segment to a building-local point within the threshold.
@@ -341,7 +345,7 @@ function openingWindowFeature(
   }
 }
 
-type RoutePointInput = { x: number; y: number; existingNodeId?: string; junction?: { edgeId: string; position: { x: number; y: number } } }
+type RoutePointInput = { x: number; y: number; entranceId?: string; existingNodeId?: string; junction?: { edgeId: string; position: { x: number; y: number } } }
 
 /**
  * Result of committing pending Route points. `rejected` carries the command
@@ -375,6 +379,7 @@ interface UseFloorDrawingOptions {
   campusId: string
   floor: number
   tool: StudioTool
+  readOnly?: boolean
   onSelect?: (id: string | null) => void
   editEngine?: { begin: (op: any) => void; doCommit: () => { committed: boolean } }
   snapMode?: SnapMode
@@ -385,7 +390,9 @@ interface UseFloorDrawingOptions {
   onEntranceAccessRequired?: (request: EntranceAccessRequiredRequest) => void
 }
 
-export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, tool, onSelect, editEngine, snapMode: externalSnapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired }: UseFloorDrawingOptions) {
+export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, tool, readOnly = false, onSelect, editEngine, snapMode: externalSnapMode, onSnapModeChange, pendingRouteAnchor, onRouteStartRejected, onRouteAccessAssigned, onEntranceAccessRequired }: UseFloorDrawingOptions) {
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
   const editor = useEditor()
   const doc = editor.document
   const transformer = editor.transformer
@@ -398,6 +405,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   const toolRef = useRef(tool)
   useEffect(() => { toolRef.current = tool }, [tool])
   const routeStartedRef = useRef(false)
+  const routeStartTargetRef = useRef<RoutePointInput | null>(null)
   const [routeConnectionPrompt, setRouteConnectionPrompt] = useState<{ edgeId: string; position: LatLng } | null>(null)
   const seededRouteAnchorRef = useRef<EntranceRouteAnchor | null>(null)
   const lastClickPositionRef = useRef<{ lat: number; lng: number } | null>(null)
@@ -450,42 +458,45 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     }
   }, [map, mapReady])
 
-  // Reset state on tool change
+  // Drop every active gesture when its editing scope or permission changes.
   useEffect(() => {
     dispatch({ type: 'RESET' })
     routeStartedRef.current = false
+    routeStartTargetRef.current = null
     seededRouteAnchorRef.current = null
     setRouteConnectionPrompt(null)
     setWallDraw({ start: null, startLocal: null })
-    setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
+    doorDrawRef.current = { start: null, startLocal: null, wallId: null, startOffset: null }
+    setDoorDraw(doorDrawRef.current)
     updateRectangleDraw(null)
     setRectangleMessage(rectangleReadyMessage(tool))
     if (map && mapReady) clearPreview(map)
-  }, [tool, map, mapReady, updateRectangleDraw])
+    if (map) map.dragPan?.enable()
+  }, [tool, floor, buildingId, map, mapReady, readOnly, updateRectangleDraw])
 
   // Route authoring parity with the Road tool: every press must stay a click.
   // MapLibre converts presses that move past clickTolerance into pans and drops
   // the click event, which reads as "my corner click did nothing".
   useEffect(() => {
     if (!map || !mapReady) return
-    if (tool !== 'hallway') return
+    if (readOnly || tool !== 'hallway') return
     map.dragPan?.disable()
     return () => {
       map.dragPan?.enable()
     }
-  }, [map, mapReady, tool])
+  }, [map, mapReady, tool, readOnly])
 
   // A confirmed outdoor target fixes the first indoor Route vertex to the
   // exact Entrance position. The author only needs to click the next point;
   // this avoids a fragile pixel-perfect hit on the Entrance marker while
   // preserving the existing Route creation and access-assignment transaction.
   useEffect(() => {
-    if (tool !== 'hallway' || !pendingRouteAnchor || drawState.pendingPolygon.length > 0) return
+    if (readOnly || tool !== 'hallway' || !pendingRouteAnchor || drawState.pendingPolygon.length > 0) return
     if (seededRouteAnchorRef.current === pendingRouteAnchor) return
     seededRouteAnchorRef.current = pendingRouteAnchor
     dispatch({ type: 'ADD_POLYGON_POINT', point: { ...pendingRouteAnchor.position } })
     routeStartedRef.current = true
-  }, [drawState.pendingPolygon.length, pendingRouteAnchor, tool])
+  }, [drawState.pendingPolygon.length, pendingRouteAnchor, tool, readOnly])
 
   // Update preview
   useEffect(() => {
@@ -521,7 +532,18 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       })
     }
     if (rectangleDraw && transformer) {
-      const localPoints = localRectangleFromDrag(rectangleDraw.start, rectangleDraw.current)
+      const projected = rectangleDraw.tool === 'door' && rectangleDraw.wall
+        ? projectWallDoorRectangle(rectangleDraw.wall, rectangleDraw.start, rectangleDraw.current)
+        : null
+      if (rectangleDraw.wall) {
+        const guide = [rectangleDraw.wall.start, rectangleDraw.wall.end]
+          .map(point => transformer.buildingLocalToWorld(point, buildingId))
+          .filter((point): point is LatLng => point !== null)
+        if (guide.length === 2) features.push(pointsToLine(guide))
+      }
+      const localPoints = rectangleDraw.tool === 'door'
+        ? projected?.ok ? projected.rectangle.points : []
+        : localRectangleFromDrag(rectangleDraw.start, rectangleDraw.current)
       const worldPoints = localPoints
         .map(point => transformer.buildingLocalToWorld(point, buildingId))
         .filter((point): point is LatLng => point !== null)
@@ -531,6 +553,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   }, [map, mapReady, drawState.drawMode, drawState.pendingPoints, drawState.pendingPolygon, rectangleDraw, transformer, buildingId])
 
   const commitRoutePoints = useCallback((localPoints: RoutePointInput[]): RouteCommitOutcome => {
+    if (readOnlyRef.current) return { status: 'skipped' }
     const currentTool = toolRef.current
     const bld = findBuilding(doc, buildingId)
     const fl = bld?.floors?.find((f: any) => f.level === floor)
@@ -539,8 +562,9 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     if (!floorId || !transformer || !map) return { status: 'skipped' }
 
     if (currentTool === 'hallway') {
+      if (routeStartTargetRef.current && localPoints.length) localPoints[0] = {...routeStartTargetRef.current}
       const result = dispatcher.execute({
-        id: 'route.path.create', label: 'Create Route',
+        id: localPoints.some(point => point.entranceId) ? 'floor.route.draw' : 'route.path.create', label: 'Create Route',
         payload: { buildingId, floorId, points: localPoints, nodeType: 'waypoint', edgeType: 'walk' },
       })
       if (!result?.success) return { status: 'rejected', error: result?.error ?? 'The Route could not be created.' }
@@ -611,6 +635,9 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
       const selectedId = pendingRouteAnchor?.entranceId ?? (typeof result.entityId === 'string' ? result.entityId : null)
       routeStartedRef.current = false
+      routeStartTargetRef.current = null
+      const store = editor.services.get('toolRegistry') as {activate?: (id:string)=>void} | undefined
+      store?.activate?.('select')
       setRouteConnectionPrompt(null)
       dispatch({ type: 'RESET' })
       clearPreview(map)
@@ -664,66 +691,13 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     const local = transformer.worldToBuildingLocal(position, buildingId)
     if (!local) return
     const localPoints = buildPendingLocalPoints()
-    localPoints.push({ x: local.x, y: local.y })
+    localPoints.push({ x: local.x, y: local.y, entranceId })
     const outcome = commitRoutePoints(localPoints)
-    if (outcome.status === 'rejected') {
-      onRouteStartRejected?.(outcome.error)
-      return
-    }
-    if (outcome.status !== 'ok' || !outcome.data) return
-    const routeData = outcome.data
-    const nodeIds = Array.isArray(routeData.nodeIds) ? routeData.nodeIds as string[] : []
-    const indoorRouteNodeId = nodeIds.at(-1)
-    if (!indoorRouteNodeId) return
-
-    const access = resolveEntranceFinishAccess(fl, entranceId)
-    if (access.kind === 'required') {
-      onEntranceAccessRequired?.({
-        entranceId, buildingId, floorId: fl.id, indoorRouteNodeId,
-        restore: {
-          buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork,
-          ...(routeData.anchorAccessRestore ? { anchorAccessRestore: routeData.anchorAccessRestore } : {}),
-        },
-      })
-      return
-    }
-
-    const result = dispatcher.execute({
-      id: 'entrance.access.assign',
-      label: 'Connect Entrance to Route',
-      payload: {
-        buildingId, floorId: fl.id, entranceId, indoorRouteNodeId,
-        outdoorNodeId: access.outdoorNodeId,
-        ...(access.outdoorRouteId !== undefined && access.outdoorPosition !== undefined
-          ? { outdoorRouteId: access.outdoorRouteId, outdoorPosition: access.outdoorPosition }
-          : {}),
-      },
-    })
-    if (!result?.success) {
-      dispatcher.execute({
-        id: 'route.path.create',
-        label: 'Restore Route after failed Entrance connection',
-        payload: { restore: true, buildingId, floorId: fl.id, hadNetwork: Boolean(routeData.hadNetwork), previousNetwork: routeData.previousNetwork },
-      })
-      const anchorAccessRestore = routeData.anchorAccessRestore
-      if (anchorAccessRestore) {
-        dispatcher.execute({
-          id: 'entrance.access.unassign',
-          label: 'Restore Entrance Access after failed finish',
-          payload: {
-            buildingId, floorId: fl.id,
-            entranceId: anchorAccessRestore.entranceId,
-            restoreEntranceAccess: anchorAccessRestore.previousEntranceAccess,
-          },
-        })
-      }
-      onRouteStartRejected?.(result?.error ?? 'The Route was restored because the Entrance connection could not be saved.')
-      return
-    }
-    onRouteAccessAssigned?.({ entranceId, outdoorNodeId: access.outdoorNodeId, indoorRouteNodeId })
-  }, [transformer, doc, buildingId, floor, buildPendingLocalPoints, commitRoutePoints, dispatcher, onEntranceAccessRequired, onRouteStartRejected, onRouteAccessAssigned])
+    if (outcome.status === 'rejected') onRouteStartRejected?.(outcome.error)
+  }, [transformer, doc, buildingId, floor, buildPendingLocalPoints, commitRoutePoints, onRouteStartRejected])
 
   const confirmPolygon = useCallback(() => {
+    if (readOnlyRef.current) return
     const currentTool = toolRef.current
     if (!isPolygonAuthoringTool(currentTool)) return
     const minPoints = currentTool === 'hallway' ? 2 : 3
@@ -758,6 +732,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   }, [routeConnectionPrompt, drawState.pendingPolygon, transformer, buildingId])
 
   const acceptRouteConnection = useCallback(() => {
+    if (readOnlyRef.current) return
     if (!routeConnectionPrompt || !transformer) return
     const localPoints = buildPromptLocalPoints()
     const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
@@ -776,6 +751,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints, onRouteStartRejected])
 
   const declineRouteConnection = useCallback(() => {
+    if (readOnlyRef.current) return
     if (!routeConnectionPrompt || !transformer) return
     const localPoints = buildPromptLocalPoints()
     const promptLocal = transformer.worldToBuildingLocal(routeConnectionPrompt.position, buildingId)
@@ -792,6 +768,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
   }, [routeConnectionPrompt, transformer, buildingId, buildPromptLocalPoints, commitRoutePoints, onRouteStartRejected])
 
   const placeComponent = useCallback((position: LatLng, type: ComponentType) => {
+    if (readOnlyRef.current) return
     const id = genId(type)
     let selectedComponentId = id
     const bld = findBuilding(doc, buildingId)
@@ -857,6 +834,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
   // Map click handler
   const handleMapClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    if (readOnlyRef.current) return
     const clickPosition: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng }
     const previousClick = lastClickPositionRef.current
     lastClickPositionRef.current = { ...clickPosition }
@@ -903,6 +881,19 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         break
       case 'hallway':
         if (!routeStartedRef.current && drawState.pendingPolygon.length === 0) {
+          routeStartTargetRef.current = null
+          const hits = map?.queryRenderedFeatures(e.point, {layers:[...ROUTE_TARGET_LAYER_IDS]}) ?? []
+          const target = resolveRouteTargetHit(hits as never,pos)
+          if (target && transformer && !pendingRouteAnchor) {
+            const local=transformer.worldToBuildingLocal(target.position,buildingId)
+            if (local) {
+              routeStartTargetRef.current = {...local,...(target.kind==='entrance'?{entranceId:target.id}:target.kind==='node'?{existingNodeId:target.id}:{junction:{edgeId:target.id,position:local}})}
+              dispatch({type:'ADD_POLYGON_POINT',point:target.position})
+              routeStartedRef.current=true
+              break
+            }
+          }
+
           const bld = findBuilding(doc, buildingId)
           const fl = bld?.floors?.find((candidate: any) => candidate.level === floor)
           const hasExistingRoute = (fl?.routeNetwork?.nodes?.length ?? 0) > 0
@@ -980,129 +971,49 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       case 'door':
         break
       case 'window': {
-        // Two-point door/window placement on wall
         if (!transformer) break
         const bld = findBuilding(doc, buildingId)
-        const fl = bld?.floors?.find((f: any) => f.level === floor)
-        const floorId = fl?.id
-        if (!floorId) break
-
+        const fl = bld?.floors.find(candidate => candidate.level === floor)
         const localRaw = transformer.worldToBuildingLocal(pos, buildingId)
-        if (!localRaw) break
-
-        const walls: WallSegment[] = (fl.walls || []).map((w: any) => ({
-          id: w.id,
-          start: { x: w.start.x, y: w.start.y },
-          end: { x: w.end.x, y: w.end.y },
-        }))
-        const hit = findNearestWall(localRaw, walls)
+        if (!fl || !localRaw) break
         const ds = doorDrawRef.current
-        if (!hit) {
-          // Too far from any wall — reject
-          if (map) {
-            const feedback = placedItem(pos, 'Too far from wall')
-            updatePreview(map, [feedback])
-            setTimeout(() => { if (map) clearPreview(map) }, 1500)
-          }
+        if (!ds.start) {
+          const chosen = findPlacementWall(fl.walls ?? [], localRaw)
+          if (!chosen.ok) { setRectangleMessage(chosen.reason); break }
+          const host = chosen.wall
+          const hit = findNearestWall(localRaw, [host])!
+          const next = { start: pos, startLocal: localRaw, wallId: host.id, startOffset: hit.offset, host }
+          doorDrawRef.current = next
+          setDoorDraw(next)
+          setRectangleMessage('Window: choose the end point on the highlighted wall. Escape cancels.')
+          const guide = [host.start, host.end]
+            .map(point => transformer.buildingLocalToWorld(point, buildingId))
+            .filter((point): point is LatLng => point !== null)
+          updatePreview(map, [...(guide.length === 2 ? [pointsToLine(guide)] : []), placedItem(pos, 'Window start')], mapReady)
           break
         }
-
-        if (!ds.start) {
-          // First click: store wallId, offset, and start position
-          setDoorDraw({ start: pos, startLocal: localRaw, wallId: hit.wallId, startOffset: hit.offset })
-          if (map) {
-            const src = map.getSource(DRAW_SRC) as maplibregl.GeoJSONSource
-            if (src) {
-              src.setData({
-                type: 'FeatureCollection',
-                features: [{
-                  type: 'Feature', properties: { type: 'vertex', index: 0 },
-                  geometry: { type: 'Point', coordinates: [pos.lng, pos.lat] },
-                }],
-              })
-            }
-          }
-        } else {
-          // Second click: verify same wall, compute width, validate, create opening
-          // Try to find the originally selected wall with a larger threshold
-          let matchedWallId = hit.wallId
-          let matchedOffset = hit.offset
-
-          if (hit.wallId !== ds.wallId) {
-            // Different wall detected — try to find the original wall with larger threshold
-            const originalWallHit = findNearestWall(localRaw, walls, DOOR_OPENING_THRESHOLD * 3)
-            if (originalWallHit && originalWallHit.wallId === ds.wallId) {
-              matchedWallId = originalWallHit.wallId
-              matchedOffset = originalWallHit.offset
-            } else {
-              // Still different wall — reject
-              if (map) {
-                const feedback = placedItem(pos, 'Click on same wall')
-                updatePreview(map, [feedback])
-                setTimeout(() => { if (map) clearPreview(map) }, 1500)
-              }
-              break
-            }
-          }
-
-          const openingType = 'window'
-          const sillHeight = DEFAULT_WINDOW_SILL
-
-          // Compute width as distance between offsets along wall
-          const width = Math.abs(matchedOffset - ds.startOffset!)
-          const offset = Math.min(matchedOffset, ds.startOffset!)
-
-          // Validation
-          const MIN_DOOR_WIDTH = 0.3
-          if (width < MIN_DOOR_WIDTH) {
-            if (map) {
-              const feedback = placedItem(pos, `Min width: ${MIN_DOOR_WIDTH}m`)
-              updatePreview(map, [feedback])
-              setTimeout(() => { if (map) clearPreview(map) }, 1500)
-            }
-            break
-          }
-
-          // Check if opening extends beyond wall endpoints
-          const wall = walls.find((w) => w.id === ds.wallId)
-          if (wall) {
-            const wallLength = Math.sqrt(
-              (wall.end.x - wall.start.x) ** 2 + (wall.end.y - wall.start.y) ** 2
-            )
-            if (offset + width > wallLength) {
-              if (map) {
-                const feedback = placedItem(pos, 'Extends beyond wall')
-                updatePreview(map, [feedback])
-                setTimeout(() => { if (map) clearPreview(map) }, 1500)
-              }
-              break
-            }
-          }
-
-          const id = genId('opening')
-          dispatcher.execute({
-            id: 'opening.create', label: 'Create Window',
-            payload: {
-              buildingId, floorId,
-              opening: {
-                id,
-                type: openingType,
-                wallId: ds.wallId!,
-                offset,
-                width,
-                ...(sillHeight !== undefined ? { sillHeight } : {}),
-              },
-            },
-          })
-
-          onSelect?.(id)
-          setDoorDraw({ start: null, startLocal: null, wallId: null, startOffset: null })
-          if (map) {
-            const feedback = placedItem(pos, 'Window')
-            updatePreview(map, [feedback])
-            setTimeout(() => { if (map) clearPreview(map) }, 1500)
-          }
+        const host = fl.walls?.find(wall => wall.id === ds.wallId)
+        if (!host || !ds.host || JSON.stringify(host) !== JSON.stringify(ds.host)) {
+          setRectangleMessage('The original wall changed. Cancel and start this window again.')
+          break
         }
+        const projected = projectWallWindow(ds.host, ds.startLocal!, localRaw)
+        if (!projected.ok) { setRectangleMessage(projected.reason); break }
+        const id = genId('opening')
+        const result = dispatcher.execute({
+          id: 'opening.create', label: 'Create Window',
+          payload: { buildingId, floorId: fl.id, opening: { id, ...projected.opening, windowAppearance: 'fixed' } },
+        })
+        if (result?.success === false) {
+          setRectangleMessage(`No window created — ${result.error || 'the editor rejected the opening.'}`)
+          break
+        }
+        onSelect?.(id)
+        const next = { start: null, startLocal: null, wallId: null, startOffset: null }
+        doorDrawRef.current = next
+        setDoorDraw(next)
+        setRectangleMessage('Window created. Choose another wall span to place another.')
+        clearPreview(map, mapReady)
         break
       }
       case 'wall': {
@@ -1170,76 +1081,76 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
     }
   }, [map, mapReady, placeComponent, onSelect, buildingId, floor, doc, transformer, dispatcher, drawState.pendingPolygon, pendingRouteAnchor, onRouteStartRejected, commitRoutePoints, finishRouteAtEntrance])
 
-  // Door, Stair, and Elevator share the same click-drag-release rectangle gesture.
+  // Doors use the same drag gesture, with a host wall frozen at pointer-down.
   useEffect(() => {
     if (!map) return
     const isRectangleTool = (value: string): value is FloorRectangleTool => value === 'door' || value === 'stairs' || value === 'elevator'
     const toLocal = (event: maplibregl.MapMouseEvent) => transformer?.worldToBuildingLocal({ lat: event.lngLat.lat, lng: event.lngLat.lng }, buildingId) ?? null
-
+    const activeFloor = () => findBuilding(doc, buildingId)?.floors.find(candidate => candidate.level === floor)
     const handleMouseDown = (event: maplibregl.MapMouseEvent) => {
+      if (readOnlyRef.current) return
       const currentTool = toolRef.current
       if (!isRectangleTool(currentTool) || event.originalEvent.button !== 0) return
-      const local = toLocal(event)
-      const label = rectangleToolLabel(currentTool)
-      if (!local) {
-        setRectangleMessage(`${label} could not start because floor coordinates are unavailable.`)
-        return
+      // Editing an existing footprint takes priority over starting another rectangle.
+      if (queryRenderedFeatures(map, event.point, ['floor-vertex-handles-layer', 'floor-midpoint-handles-layer', 'floor-rotation-handle-layer']).length > 0) return
+      const local = toLocal(event), currentFloor = activeFloor()
+      if (!local || !currentFloor) { setRectangleMessage('The active floor coordinates are unavailable.'); return }
+      let wall: Wall | undefined
+      if (currentTool === 'door') {
+        const host = findPlacementWall(currentFloor.walls ?? [], local)
+        if (!host.ok) { setRectangleMessage(host.reason); return }
+        wall = host.wall
       }
       map.dragPan?.disable()
-      updateRectangleDraw({ tool: currentTool, start: local, current: local })
-      setRectangleMessage(`${label}: drag to size, then release to create.`)
+      updateRectangleDraw({ tool: currentTool, start: local, current: local, wall, floorId: currentFloor.id })
+      setRectangleMessage(currentTool === 'door' ? 'Door: drag along the wall for width and away from it for depth. Release to place.' : `${rectangleToolLabel(currentTool)}: drag to size, then release to create.`)
     }
-
     const handleMouseMove = (event: maplibregl.MapMouseEvent) => {
+      if (readOnlyRef.current) return
       const current = rectangleDrawRef.current
       if (!current) return
+      if (current.tool !== toolRef.current) { updateRectangleDraw(null); map.dragPan?.enable(); return }
       const local = toLocal(event)
-      if (!local) return
-      updateRectangleDraw({ ...current, current: local })
+      if (local) updateRectangleDraw({ ...current, current: local })
     }
-
     const handleMouseUp = (event: maplibregl.MapMouseEvent) => {
+      if (readOnlyRef.current) return
       const current = rectangleDrawRef.current
       if (!current) return
-      const end = toLocal(event)
-      const label = rectangleToolLabel(current.tool)
+      const end = toLocal(event), currentFloor = activeFloor(), label = rectangleToolLabel(current.tool)
       updateRectangleDraw(null)
       map.dragPan?.enable()
-      if (!end) {
-        setRectangleMessage(`No ${label} created — floor coordinates were unavailable at release.`)
+      if (!end || !currentFloor || current.floorId !== currentFloor.id || current.tool !== toolRef.current) {
+        setRectangleMessage(`${label} placement cancelled because the floor or tool changed.`)
         clearPreview(map, mapReady)
         return
       }
-      const bounds = normalizeLocalRectangle(current.start, end)
-      const width = bounds.max.x - bounds.min.x
-      const depth = bounds.max.y - bounds.min.y
-      if (width < 0.2 || depth < 0.2) {
-        clearPreview(map, mapReady)
-        setRectangleMessage(`No ${label} created — drag at least 0.2 m wide and deep.`)
-        return
+      let rectangle
+      if (current.tool === 'door') {
+        const host = currentFloor.walls?.find(wall => wall.id === current.wall?.id)
+        if (!host || !current.wall || JSON.stringify(host) !== JSON.stringify(current.wall)) {
+          setRectangleMessage('The host wall changed. Start door placement again.')
+          clearPreview(map, mapReady)
+          return
+        }
+        const projected = projectWallDoorRectangle(current.wall, current.start, end)
+        if (!projected.ok) { setRectangleMessage(projected.reason); clearPreview(map, mapReady); return }
+        rectangle = projected.rectangle
+      } else {
+        const bounds = normalizeLocalRectangle(current.start, end)
+        const width = bounds.max.x - bounds.min.x, depth = bounds.max.y - bounds.min.y
+        if (width < 0.2 || depth < 0.2) { setRectangleMessage(`No ${label} created — drag at least 0.2 m wide and deep.`); clearPreview(map, mapReady); return }
+        rectangle = { min: bounds.min, max: bounds.max, center: { x: (bounds.min.x+bounds.max.x)/2, y: (bounds.min.y+bounds.max.y)/2 }, width, depth, points: localRectangleFromDrag(bounds.min,bounds.max) }
       }
-      const building = findBuilding(doc, buildingId)
-      const activeFloor = building?.floors.find(candidate => candidate.level === floor)
-      if (!activeFloor) {
-        setRectangleMessage(`No ${label} created — the active floor is unavailable.`)
-        clearPreview(map, mapReady)
-        return
-      }
-      const points = localRectangleFromDrag(bounds.min, bounds.max)
       const entityId = genId(current.tool === 'door' ? 'door' : current.tool === 'stairs' ? 'stair' : 'elev')
-      const authored = buildFloorRectangleCommand(current.tool, {
-        min: bounds.min, max: bounds.max, center: { x: (bounds.min.x + bounds.max.x) / 2, y: (bounds.min.y + bounds.max.y) / 2 }, width, depth, points,
-      }, { buildingId, floorId: activeFloor.id, floorLevel: floor, entityId })
+      const authored = buildFloorRectangleCommand(current.tool, rectangle, { buildingId, floorId: currentFloor.id, floorLevel: floor, entityId })
       const result = dispatcher.execute(authored.command)
       if (result?.success !== false) {
         onSelect?.(authored.selectedId)
-        setRectangleMessage(`${label} created. Drag to place another, or choose Navigate to edit it.`)
-      } else {
-        setRectangleMessage(`No ${label} created — ${result.error || 'the editor rejected the command.'}`)
-      }
+        setRectangleMessage(current.tool === 'door' ? 'Door created. Drag its corner dots to resize; its center stays on the wall. Drag elsewhere on a wall to place another.' : `${label} created. Drag to place another, or choose Navigate to edit.`)
+      } else setRectangleMessage(`No ${label} created — ${result.error || 'the editor rejected the command.'}`)
       clearPreview(map, mapReady)
     }
-
     map.on('mousedown', handleMouseDown)
     map.on('mousemove', handleMouseMove)
     map.on('mouseup', handleMouseUp)
@@ -1250,7 +1161,6 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
       if (rectangleDrawRef.current) map.dragPan?.enable()
     }
   }, [buildingId, dispatcher, doc, floor, map, mapReady, onSelect, transformer, updateRectangleDraw])
-
   // Right-click to cancel
   useEffect(() => {
     if (!map) return
@@ -1268,6 +1178,7 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
 
   // Double-click confirms polygon drawing
   const handleDblClick = useCallback((e: maplibregl.MapMouseEvent) => {
+    if (readOnlyRef.current) return
     if (drawState.drawMode === 'idle') return
     e.originalEvent.preventDefault()
     confirmPolygon()

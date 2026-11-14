@@ -1,0 +1,11 @@
+# Stair direction correction and door pose/style controls
+
+Owner requests fixing screenshot-demonstrated sideways stair rise, selectable closed doors/additional styles, and launching existing localhost. No commits or saved-map writes; preserve current user draft and previous checkpoints.
+
+The regression is inconsistent direction authority: 2D uses polygon vertex order, while fallback3D guesses longest dimension. Freeform stairs must rise from midpoint(p0,p1) toward midpoint(p3,p2), matching their arrow regardless of aspect ratio, winding, rotation or square shape. Authored direction remains authoritative; 2D/3D must interpret it consistently. Use shared axis/reversal logic and test actual generated glyph arrow against increasing step heights. No geometry/data migrations.
+
+Door appearance remains decorative. Add optional doorPose closed/ajar/open; absent means closed, correcting previous hardcoded30-degree convention. Poses map0/30/90 degrees. Keep material/style separate: appearance open/solid/glass plus double-solid/double-glass. Double panels hinge at opposite jambs and swing in opposing directions. DoorType opening always remains an open passage regardless of pose/style. No animation, physical collision, navigation/access changes or hinge-side editor.
+
+Expose style and pose in RoomDoor and canonical Opening inspectors; unchanged Apply must preserve absent fields, one explicit cosmetic command per change. Both pose and appearance changes must bypass physical/route normalization. Strict forward enums, exact update/delete undo snapshots, compiler/parts/runtime/service/public model preservation. Default closure is render-only; old data remains absent. Preserve opacity and wall apertures; widths/heights and owner IDs remain authoritative.
+
+Verification: RED->GREEN wide/tall/square/rotated arrow-rise cases and closed/ajar/open single/double solid/glass geometry; strict enums, no-op inspector, cosmetic route invariance, roundtrip, existing regressions. Actual isolated public component browser proof and test-campus Studio if available without taking user's current lock/draft. No repeated lock-release approval inferred. Serial512MB tests, baseline lint/types, new guarded checkpoint. Server3001 via existing script/watchdog only, HTTP200 and browser open.

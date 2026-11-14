@@ -33,3 +33,9 @@ describe('production Floor rectangle authoring commands', () => {
     expect(Math.hypot(100 - 100, 80 - 56)).toBe(24)
   })
 })
+
+it('requests fresh wall placement only for body moves, preserving source door dimensions',()=>{
+ const points=[{x:9.6,y:3.9},{x:10.6,y:3.9},{x:10.6,y:4.1},{x:9.6,y:4.1}]
+ expect(buildFloorRectangleEditCommand({id:'copy',type:'door',floor:0},points,{snapDoorToWall:true})).toEqual({id:'door.update',label:'Move door onto wall',payload:{doorId:'copy',snapToWall:true,patch:{position:{x:expect.closeTo(10.1),y:expect.closeTo(4)}}}})
+ expect(buildFloorRectangleEditCommand({id:'copy',type:'door',floor:0},points).payload).not.toHaveProperty('snapToWall')
+})

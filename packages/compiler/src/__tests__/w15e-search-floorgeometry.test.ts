@@ -611,3 +611,78 @@ describe('W15E floorGeometry Gate', () => {
     expect(f.elevators[0]!.rotation).toBe(90)
   })
 })
+
+// Release A: emitted architecture must survive the real publisher/runtime path.
+import { build as buildPackage } from '../../../publisher/src/package-builder'
+import { toRuntimeFloorGeometry } from '../../../runtime/src/loader/runtime-converter'
+import { FloorGeometryService } from '../../../runtime/src/engine/floor-geometry-service'
+import { buildWallOpeningVolumes } from '@navi/core'
+import type { LoadedPackage } from '../../../runtime/src/loader/types'
+
+function architecturalFloor(): Floor {
+  return makeFloor('arch-floor', 1, {
+    height: 4.1, elevation: 4.7, offset: { x: 10, y: -3 },
+    rooms: [makeRoom('owner', 'Room', 'R', 0, 0)],
+    walls: [makeWall('arch-wall', 0, 0, 10, 0)],
+    openings: [{ id: 'window', type: 'window', wallId: 'arch-wall', offset: 6, width: 1.2, sillHeight: 0.9, height: 1.2 }],
+    doors: [{
+      id: 'attached-door', roomId: 'owner', doorType: 'standard', position: { x: 3, y: 0 }, width: 1,
+      depth: 0.2, rotation: 0, geometry: { type: 'rectangle', min: { x: 2.5, y: -0.1 }, max: { x: 3.5, y: 0.1 }, rotation: 0 },
+      wallAttachment: { wallId: 'arch-wall', offset: 3, openingHeight: 2.1 }, metadata: {},
+    }],
+  })
+}
+
+describe('architectural floor export round-trip', () => {
+  it('emits floor height and attached-door dimensions without changing source geometry', () => {
+    const floor = architecturalFloor()
+    const doc = makeDoc([makeBuilding('arch-building', 'Architecture', [floor])])
+    const before = JSON.stringify(doc)
+    const emitted = buildArtifacts(makeEmptyGraph(), makeNavGraph(), doc).floorGeometry!.buildings[0].floors[0]
+    expect(emitted.height).toBe(4.1)
+    expect(emitted.doors[0]).toMatchObject({
+      position: { x: 13, y: -3 }, depth: 0.2, rotation: 0,
+      wallAttachment: { wallId: 'arch-wall', offset: 3, openingHeight: 2.1 },
+      geometry: { min: { x: 12.5, y: -3.1 }, max: { x: 13.5, y: -2.9 } },
+    })
+    expect(emitted.openings![0]).toMatchObject(floor.openings![0])
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+
+  it('preserves wall apertures through publisher file emission and the runtime reader', () => {
+    const floor = architecturalFloor()
+    const artifacts = buildArtifacts(makeEmptyGraph(), makeNavGraph(), makeDoc([makeBuilding('arch-building', 'Architecture', [floor])]))
+    const file = buildPackage(artifacts, { campusId: 'test', campusName: 'Test', outputDir: 'unused-in-memory' }).floorGeometry!
+    const runtime = toRuntimeFloorGeometry(JSON.parse(JSON.stringify(file)))
+    const actualFloor = runtime.buildings[0].floors[0]
+    expect(actualFloor.height).toBe(floor.height)
+    expect(actualFloor.walls).toHaveLength(1)
+    expect(actualFloor.openings).toEqual(floor.openings)
+    expect(actualFloor.doors[0].wallAttachment).toEqual(floor.doors![0].wallAttachment)
+    const source = buildWallOpeningVolumes(floor.walls!, floor.openings!, floor.doors!, [], 0)
+    const expected = structuredClone(source.collection)
+    for (const feature of expected.features) {
+      for (const ring of feature.geometry.coordinates) for (const point of ring) { point[0] += 10; point[1] -= 3 }
+    }
+    const actual = buildWallOpeningVolumes(actualFloor.walls!, actualFloor.openings!, actualFloor.doors, [], 0)
+    expect(actual.collection).toEqual(expected)
+    expect(actual.diagnostics).toEqual([])
+    const service = new FloorGeometryService({ floorGeometry: runtime } as LoadedPackage)
+    expect(service.getFloor('arch-building', 1)?.height).toBe(4.1)
+    expect(service.getDoors('arch-building', 1)[0]).toMatchObject({ depth: 0.2, rotation: 0, wallAttachment: floor.doors![0].wallAttachment })
+  })
+
+  it('does not invent optional architecture data for legacy records', () => {
+    const floor = makeFloor('legacy-floor', 0)
+    delete (floor as Partial<Floor>).height
+    floor.doors = [{ id: 'legacy-door', roomId: 'owner', doorType: 'standard', position: { x: 1, y: 1 }, width: 0.9, metadata: {} }]
+    const artifacts = buildArtifacts(makeEmptyGraph(), makeNavGraph(), makeDoc([makeBuilding('legacy', 'Legacy', [floor])]))
+    const file = buildPackage(artifacts, { campusId: 'test', campusName: 'Test', outputDir: 'unused-in-memory' }).floorGeometry!
+    const loaded = toRuntimeFloorGeometry(file).buildings[0].floors[0]
+    expect(Object.hasOwn(loaded, 'height')).toBe(false)
+    expect(Object.hasOwn(loaded, 'walls')).toBe(false)
+    expect(Object.hasOwn(loaded.doors[0], 'wallAttachment')).toBe(false)
+    expect(Object.hasOwn(loaded.doors[0], 'depth')).toBe(false)
+    expect(Object.hasOwn(loaded.doors[0], 'geometry')).toBe(false)
+  })
+})

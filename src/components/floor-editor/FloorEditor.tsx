@@ -2,12 +2,20 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT, needsDoorOwnershipReconcile } from '@navi/editor'
+import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore, ContextHeader, ToolDock, ICONS, buildInteriorToolGroups, useToolDockShortcuts, toolRegistry, SUPPORTED_PLAN_ACCEPT, needsDoorOwnershipReconcile, findSimilarDoors } from '@navi/editor'
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents, useFloorWorkflowSaveState, deriveFloorHeaderStatus } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
 import { FloorOutliner } from './FloorOutliner'
+import { FloorConnectionReview } from './FloorConnectionReview'
+import { ResizableSidePanel } from '@/components/layout/ResizableSidePanel'
 import { ComponentProperties } from './ComponentProperties'
+import { DoorWallAttachmentProperties } from './DoorWallAttachmentProperties'
+import { DoorAppearanceProperties } from './DoorAppearanceProperties'
+import { collectFloorDoors } from '@navi/core'
+import { WallProperties } from './WallProperties'
+import { OpeningProperties } from './OpeningProperties'
+import { useArchitectureAccess } from './useArchitectureAccess'
 import { OutdoorRoutePicker } from './OutdoorRoutePicker'
 import type { OutdoorRouteCandidate } from './outdoor-route-picker-model'
 import type { EntranceAccessRequiredRequest } from './useFloorDrawing'
@@ -74,6 +82,8 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const floorAdapter = useFloorAdapter(viewport as Viewport, building ?? null, floor)
   const { lastSelected, select, clear } = useSelection()
   const selectedId = lastSelected?.id ?? null
+  const [wallSelection, setWallSelection] = useState<{ floorId: string; wallId: string } | null>(null)
+  const architectureAccess = useArchitectureAccess(buildingId)
   const selectedCount = lastSelected ? 1 : 0
 
   // "Saved" requires a server-confirmed graph sync AND a clean workflow
@@ -104,9 +114,8 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const [snapMode, setSnapMode] = useState<'architectural' | 'trace' | 'free'>('trace')
 
 
-  const canonicalFloor = editorDoc.buildings
-    .find((candidate) => candidate.id === buildingId)
-    ?.floors.find((candidate) => candidate.level === floor)
+  const canonicalBuilding = editorDoc.buildings.find(candidate=>candidate.id===buildingId)
+  const canonicalFloor = canonicalBuilding?.floors.find(candidate=>candidate.level===floor)
   const currentFloorData = building?.floorData?.find((fd: any) => fd.level === floor || (canonicalFloor?.id && fd.id === canonicalFloor.id))
   const currentFloorId = canonicalFloor?.id ?? ((currentFloorData as any)?.id as string | undefined)
   const currentLevel = canonicalFloor?.level ?? (typeof (currentFloorData as any)?.level === 'number' ? (currentFloorData as any).level : floor)
@@ -116,7 +125,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   // version subscription re-renders on every commit; the derived string only
   // changes when the canonical room set changes, so edits that leave the room
   // set untouched never re-dispatch the reconcile effect.
-  useDocumentVersion()
+  const documentVersion = useDocumentVersion()
 
 
 
@@ -205,15 +214,20 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const [navPreviewOpen, setNavPreviewOpen] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
   const floorComponents = useFloorComponents(buildingId, currentLevel, currentFloorId)
+  const handleWallSelect = useCallback((wallId: string | null) => {
+    setWallSelection(wallId && currentFloorId ? { floorId: currentFloorId, wallId } : null)
+  }, [currentFloorId])
+  const selectedWall = wallSelection?.floorId === canonicalFloor?.id
+    ? canonicalFloor?.walls?.find(wall => wall.id === wallSelection?.wallId) : undefined
 
   // Clear stale selection if the selected entity does not belong to the active floor
   useEffect(() => {
     if (!lastSelected) return
-    const belongsToFloor = floorComponents.some((comp) => comp.id === lastSelected.id)
+    const belongsToFloor = floorComponents.some((comp) => comp.id === lastSelected.id) || Boolean(canonicalFloor?.openings?.some(opening => opening.id === lastSelected.id))
     if (!belongsToFloor) {
       clear()
     }
-  }, [currentFloorId, currentLevel, floorComponents, lastSelected, clear])
+  }, [currentFloorId, currentLevel, floorComponents, canonicalFloor?.openings, lastSelected, clear])
   const graphNodes = useGraphStore((state) => state.graph.nodes)
   const graphEdges = useGraphStore((state) => state.graph.edges)
   const graphBuildings = useGraphStore((state) => state.graph.buildings)
@@ -256,13 +270,14 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }, [floorComponents])
   const handleOutdoorRouteConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
     if (!selectedEntranceForPicker) return
-    setPendingEntranceRoute({ entranceId: selectedEntranceForPicker.id, candidate })
+    if (!currentFloorId) return
+    const result=services.get('dispatcher')?.execute({id:'entrance.outdoor.connect',label:'Connect entrance outdoors',payload:{buildingId,floorId:currentFloorId,entranceId:selectedEntranceForPicker.id,outdoorNodeId:candidate.id,...(candidate.routeId?{outdoorRouteId:candidate.routeId,outdoorPosition:candidate.position}:{})}})
+    if (!result?.success) {setRouteAuthoringMessage(result?.error??'The outdoor connection could not be created.');return}
     setOutdoorPickerEntranceId(null)
-    setEditorMode('navigation')
-    setMode('mapping')
-    setRouteAuthoringMessage('Outdoor target selected. The Route starts at the selected Entrance; click each next turn or branch point.')
-    activateTool('hallway')
-  }, [activateTool, selectedEntranceForPicker])
+    setPendingEntranceRoute(null)
+    setRouteAuthoringMessage('Outdoor connection established. You can draw the floor route whenever you choose.')
+    activateTool('select')
+  }, [activateTool, selectedEntranceForPicker, currentFloorId, services, buildingId])
   const handleOutdoorRouteCancel = useCallback(() => setOutdoorPickerEntranceId(null), [])
   const handleRouteStartRejected = useCallback((reason: string) => setRouteAuthoringMessage(reason), [])
   const handleRouteAccessAssigned = useCallback(() => {
@@ -360,7 +375,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }, [])
 
   // Tools that create geometry — disabled in 2.5D preview mode
-  const CREATION_TOOLS_2_5D = useMemo(() => new Set(['wall', 'door', 'window', 'hallway']), [])
+  const CREATION_TOOLS_2_5D = useMemo(() => new Set(['door', 'hallway']), [])
 
   const handleToolActivate = useCallback((toolId: string) => {
     if (viewMode === '2.5d' && CREATION_TOOLS_2_5D.has(toolId)) return
@@ -389,7 +404,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   )
 
   // Find the active tool ID in the groups (reverse mapping)
-  const dockActiveTool = mode === 'setup' ? 'select' : viewMode === '2.5d' ? 'select' : activeTool
+  const dockActiveTool = mode === 'setup' ? 'select' : activeTool
 
   useToolDockShortcuts(dockToolGroups, dockActiveTool, handleToolActivate)
 
@@ -456,7 +471,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   const floorExists = (building?.floors ? building.floors.includes(floor) : false) || !!canonicalFloor
   const floorLabel = floor === 0 ? 'GF' : floor > 0 ? `${floor}F` : `${floor}F`
-  const canvasTool = mode === 'setup' ? 'select' : viewMode === '2.5d' ? 'select' : activeTool
+  const canvasTool = mode === 'setup' ? 'select' : activeTool
 
   const [editorAlignment, setEditorAlignment] = useState(planAlignment)
   useEffect(() => setEditorAlignment(planAlignment), [planAlignment])
@@ -671,7 +686,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
 
   return (
     <InteractionProvider>
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: '100%', minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
       {!building ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
           Building not found
@@ -694,11 +709,20 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <FloorOutliner building={building} activeFloor={currentLevel} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} activeFloorId={currentFloorId} />
+      {canonicalBuilding && canonicalFloor && editorMode==='navigation' && <FloorConnectionReview building={canonicalBuilding} floor={canonicalFloor} revision={documentVersion} disabled={mode!=='mapping'||!architectureAccess}
+        onApply={payload=>{
+          if(!architectureAccess)return {success:false,error:'Editing access was lost.'}
+          const result=services.get('dispatcher')!.execute({id:'floor.connections.apply',label:'Apply floor connections',payload})
+          const store=services.get('documentStore') as {version?:number}|undefined
+          return {...result,revision:store?.version??documentVersion+1}
+        }} onUndo={()=>historyRef.current?.undo()}/>}
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+        <ResizableSidePanel label="Floor outliner" side="left" defaultWidth={200} minWidth={160} maxWidth={300} maxWidthRatio={0.25} showCollapseToggle>
+          <FloorOutliner building={building} activeFloor={currentLevel} mapId={mapId} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} activeFloorId={currentFloorId} />
+        </ResizableSidePanel>
 
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <FloorEditorCanvas building={building} activeFloorId={currentFloorId} floor={currentLevel} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+<FloorEditorCanvas architecture3DEditable={mode === 'mapping' && editorMode === 'architecture' && architectureAccess} onWallSelect={handleWallSelect} building={building} activeFloorId={currentFloorId} floor={currentLevel} tool={canvasTool} layers={layers} selectedId={selectedId} onSelect={(id) => id ? select(id) : clear()} planAlignment={editorAlignment} floorPlanUrl={planImageUrl} alignMode={mode === 'setup'} readOnly={viewMode === '2.5d'} locked={locked} overlayLocked={!!editorAlignment?.locked} aspectRatioLocked={aspectRatioLocked} onAspectRatioLockedChange={setAspectRatioLocked} onAlignmentChange={commitAlignment} calibrationMode={twoPointCalibration} calibrationStep={calibrationStep} onCalibrationClick={handleCalibrationClick} onCalibrationImageLoaded={(w, h) => { setCalImageWidth(w); setCalImageHeight(h) }} viewMode={viewMode} onCameraSnapshot={(snap) => { cameraSnapshotRef.current = snap }} cameraSnapshot={cameraSnapshotRef.current} snapMode={snapMode} onSnapModeChange={setSnapMode} pendingRouteAnchor={pendingRouteAnchor} onRouteStartRejected={handleRouteStartRejected} onRouteAccessAssigned={handleRouteAccessAssigned} onEntranceAccessRequired={handleEntranceAccessRequired} routeConnectPick={doorRoutePick} onRouteConnectResolved={handleRouteConnectResolved} onRouteConnectCancel={handleRouteConnectCancel} />
           {selectedEntranceForPicker && (
             <OutdoorRoutePicker
               open
@@ -868,10 +892,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
           </div>
         </div>
 
-        <div style={{
-          width: 220, background: 'var(--navi-card)', borderLeft: '1px solid var(--navi-border)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0,
-        }}>
+        <ResizableSidePanel label="Floor inspector" side="right" defaultWidth={260} minWidth={200} maxWidth={420}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--navi-border)' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--navi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
               Floor Setup
@@ -1031,10 +1052,33 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
               />
             </div>
           )}
-          {selectedId && (
-            <ComponentProperties key={selectedId} componentId={selectedId} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} onStartRouteConnect={handleStartRouteConnect} onSelectComponent={(id) => select(id)} />
+          {selectedWall && canonicalFloor && editorMode === 'architecture' && (
+            <WallProperties key={selectedWall.id + ':' + selectedWall.height + ':' + selectedWall.thickness}
+              wall={selectedWall} floorHeight={canonicalFloor.height ?? 3.5} disabled={mode !== 'mapping' || !architectureAccess}
+              onUpdate={patch => services.get('dispatcher')!.execute({ id: 'wall.update', label: 'Edit wall dimensions', payload: { buildingId, floorId: canonicalFloor.id, wallId: selectedWall.id, patch } })} />
           )}
-        </div>
+          {selectedId && canonicalFloor?.openings?.some(opening => opening.id === selectedId) && (() => {
+            const opening = canonicalFloor.openings.find(item => item.id === selectedId)!
+            const wall = canonicalFloor.walls?.find(item => item.id === opening.wallId)
+            return <OpeningProperties key={JSON.stringify(opening)} opening={opening} wallHeight={wall?.height ?? 0} disabled={mode !== 'mapping' || editorMode !== 'architecture' || !architectureAccess}
+              onUpdate={patch => services.get('dispatcher')!.execute({ id: 'opening.update', label: 'Edit window opening', payload: { openingId: opening.id, patch } })} />
+          })()}
+          {selectedId && canonicalFloor && editorMode === 'architecture' && (() => {
+            const door = collectFloorDoors(canonicalFloor).find(item => item.id === selectedId)
+            return door ? <DoorAppearanceProperties key={'door-appearance:' + JSON.stringify(door)} door={door} disabled={mode !== 'mapping' || !architectureAccess}
+              onUpdate={patch => services.get('dispatcher')!.execute({id:'door.update',label:'Edit door appearance',payload:{doorId:door.id,patch}})}
+              similarCount={canonicalFloor.doors?.some(item => item.id === door.id) ? findSimilarDoors(canonicalFloor, door.id).length : 0}
+              onApplyToSimilar={fields => services.get('dispatcher')!.execute({id:'door.applyAppearanceToSimilar',label:'Apply door look to similar doors',payload:{buildingId:canonicalBuilding!.id,floorId:canonicalFloor.id,sourceDoorId:door.id,fields}})} /> : null
+          })()}
+          {selectedId && canonicalFloor?.doors?.some(door => door.id === selectedId) && (() => {
+            const door = canonicalFloor.doors.find(item => item.id === selectedId)!
+            return <DoorWallAttachmentProperties key={'door-attachment:' + JSON.stringify(door)} floor={canonicalFloor} door={door} disabled={viewMode === '2.5d' || !locked}
+              onUpdate={patch => services.get('dispatcher')!.execute({ id: 'door.update', label: 'Attach door to wall', payload: { doorId: door.id, patch } })} />
+          })()}
+          {selectedId && !canonicalFloor?.openings?.some(opening => opening.id === selectedId) && (
+            <ComponentProperties key={selectedId} componentId={selectedId} dimensionsDisabled={mode !== 'mapping' || !architectureAccess} onClose={() => clear()} validationChecks={validationChecks} onOpenOutdoorRoutePicker={handleOpenOutdoorRoutePicker} onStartRouteConnect={handleStartRouteConnect} onSelectComponent={(id) => select(id)} />
+          )}
+        </ResizableSidePanel>
       </div>
       {showUnlockWarning && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>

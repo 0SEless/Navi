@@ -133,6 +133,16 @@ export function generatePrimitives(
       elevations.set(elevationKey(building.id, floor.level), floor.elevation)
     }
   }
+  const authoredPorts={doors:new Map<string,string|null>(),features:new Map<string,string|null>()}
+  for(const building of document.buildings){
+    for(const feature of [...(building.staircases??[]),...(building.elevators??[])])for(const [level,geometry] of Object.entries(feature.levels)){
+      if(geometry.routeConnection||geometry.routeConnectionManaged)authoredPorts.features.set(JSON.stringify([building.id,Number(level),feature.id]),geometry.routeConnection?`R-${geometry.routeConnection.anchorNodeId}`:null)
+    }
+    for(const floor of building.floors)for(const room of floor.rooms)for(const door of room.doors){
+      const connection=door.properties?.routeConnection as {anchorNodeId?:string}|undefined
+      if(connection||door.properties?.routeConnectionManaged)authoredPorts.doors.set(door.id,connection?.anchorNodeId?`R-${connection.anchorNodeId}`:null)
+    }
+  }
   const connection = connectPrimitives(
     primitiveGraph,
     doorSpecs,
@@ -140,6 +150,7 @@ export function generatePrimitives(
     context.maxEntranceRoadDistance ?? 50,
     elevations,
     canonicalAccess,
+    authoredPorts,
   )
   allEdges.push(...connection.edges)
   allDiagnostics.push(...connection.diagnostics)

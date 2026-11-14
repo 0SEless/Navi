@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { NavigationProvider } from '@/components/map/NavigationContext'
+import { NavigationProvider, useNavigationContext } from '@/components/map/NavigationContext'
 import { usePublicStore } from '@/store/public-store'
 import { buildFromCampusBundle } from '@/components/map/NavigationRenderModel'
 import type { CampusBundle } from '@/types/nav-types'
@@ -34,12 +34,24 @@ vi.mock('@/components/map/RouteLine', () => ({
 }))
 
 vi.mock('@/components/map/FloorSelector', () => ({
-  FloorSelector: ({ floors, activeFloor }: { floors: number[]; activeFloor: number }) => floors.length > 1 ? (
-    <output
-      data-testid="explore-floor-selector"
-      data-floors={floors.join(',')}
-      data-active-floor={String(activeFloor)}
-    />
+  FloorSelector: ({ floors, activeFloor, onChange, onConfirmFloor }: {
+    floors: number[]
+    activeFloor: number
+    onChange?: (floor: number) => void
+    onConfirmFloor?: (floor: number) => void
+  }) => floors.length > 1 ? (
+    <div data-testid="explore-floor-selector" data-floors={floors.join(',')} data-active-floor={String(activeFloor)}>
+      {floors.map((floor) => (
+        <button type="button" key={floor} onClick={() => onChange?.(floor)} aria-label={`Switch to ${floor}F`}>
+          {floor}F
+        </button>
+      ))}
+      {onConfirmFloor ? (
+        <button type="button" onClick={() => onConfirmFloor(activeFloor)} aria-label={`Confirm I am on ${activeFloor}F`}>
+          Confirm current floor
+        </button>
+      ) : null}
+    </div>
   ) : null,
 }))
 
@@ -136,6 +148,10 @@ afterEach(() => {
     selectedBuilding: null,
     indoorContext: { active: false },
     activeFloor: 0,
+    viewedFloorId: null,
+    positionFloorId: null,
+    positionFloorSource: 'unknown',
+    positionBuildingId: null,
   })
   vi.clearAllMocks()
   routeLineProps.current = null
@@ -159,6 +175,17 @@ const buildingBundle = {
     height: 12,
   }],
 } satisfies CampusBundle
+
+function NavigationStateProbe() {
+  const context = useNavigationContext()
+  return (
+    <output
+      data-testid="navigation-state"
+      data-current-node={context.currentNodeId ?? ''}
+      data-route-floor={String(context.floor ?? '')}
+    />
+  )
+}
 
 describe('ExploreMap public navigation context boundary', () => {
   it('passes published terrain and datum into the common Explore/Navigate map layer', () => {
@@ -317,5 +344,60 @@ describe('ExploreMap public navigation context boundary', () => {
     )
 
     expect(navigationCameraProps.current).toMatchObject({ fitBoundsOnChange: true })
+  })
+
+  it('lets the user view another route floor without changing position or route progress', () => {
+    usePublicStore.setState({
+      campus: buildingBundle,
+      selectedBuilding: null,
+      indoorContext: { active: true, buildingId: 'b1', floorId: 3 },
+      activeFloor: 3,
+      viewedFloorId: null,
+      positionFloorId: 3,
+      positionFloorSource: 'qr',
+      positionBuildingId: 'b1',
+    })
+
+    render(
+      <NavigationProvider buildingId="b1" floor={3} route={route} currentNodeId="entry-3f" sessionActive>
+        <ExploreMap
+          bundle={buildingBundle}
+          route={{ path: route.path, cost: route.totalDistance }}
+          camera={{
+            surface: 'active',
+            mode: 'TOP',
+            position: [122.168, 11.82],
+            routeBounds: { minLng: 122.168, maxLng: 122.169, minLat: 11.82, maxLat: 11.821 },
+            showControls: true,
+          }}
+        />
+        <NavigationStateProbe />
+      </NavigationProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to 2F' }))
+
+    expect(screen.getByTestId('room-layer-context')).toHaveAttribute('data-floor', '2')
+    expect(screen.getByTestId('navigation-state')).toHaveAttribute('data-current-node', 'entry-3f')
+    expect(screen.getByTestId('navigation-state')).toHaveAttribute('data-route-floor', '3')
+    expect(navigationCameraProps.current).toMatchObject({ fitBoundsOnChange: false })
+    expect(routeLineProps.current).toMatchObject({ fitCamera: false })
+    expect(usePublicStore.getState()).toMatchObject({
+      activeFloor: 3,
+      viewedFloorId: 2,
+      positionFloorId: 3,
+      positionFloorSource: 'qr',
+      indoorContext: { active: true, buildingId: 'b1', floorId: 3 },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm I am on 2F' }))
+    expect(usePublicStore.getState()).toMatchObject({
+      activeFloor: 3,
+      viewedFloorId: 2,
+      positionFloorId: 2,
+      positionFloorSource: 'manual',
+      indoorContext: { floorId: 3 },
+    })
+    expect(screen.getByTestId('navigation-state')).toHaveAttribute('data-current-node', 'entry-3f')
   })
 })

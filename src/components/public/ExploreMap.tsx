@@ -9,6 +9,7 @@ import { HallwayLayer } from '@/components/map/layers/HallwayLayer'
 import { StaircaseLayer } from '@/components/map/layers/StaircaseLayer'
 import { ElevatorLayer } from '@/components/map/layers/ElevatorLayer'
 import { DoorLayer } from '@/components/map/layers/DoorLayer'
+import { FloorArchitectureLayer, selectFloorArchitecture, floorArchitectureFallback } from '@/components/map/layers/FloorArchitectureLayer'
 import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
 import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
@@ -28,6 +29,7 @@ import {
 import { buildFromCampusBundle, type NavigationRenderModel } from '@/components/map/NavigationRenderModel'
 import { usePublicStore } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
+import type { CaptureDirectionSource, CaptureDirectionStatus } from '@/features/capture/direction'
 import {
   getExploreFloors,
   resolveExploreBuildingColor,
@@ -36,12 +38,20 @@ import {
 } from '@/lib/explore-contracts'
 import { NAVIGATION_POV_PREFERRED_PITCH } from '@/lib/navigation-camera-policy'
 
+function toCameraHeadingStatus(
+  status: CaptureDirectionStatus,
+  source: CaptureDirectionSource,
+): NavigationCameraConfig['headingStatus'] {
+  if (status === 'permission-required' || status === 'denied' || status === 'unsupported') return status
+  return source
+}
+
 // ── Props ──────────────────────────────────────────────────────
 
 export interface ExploreMapProps {
   bundle: CampusBundle
   /** Optional active route — seam for the Navigate phase (null in Explore). */
-  route?: { path: string[]; cost: number } | null
+  route?: { path: string[]; cost: number; leadIn?: { lat: number; lng: number } | null } | null
   /** Route-backed visual emphasis; does not activate Explore indoor context. */
   navigationTargetBuildingId?: string
   /** Opt-in canonical camera bridge; absent keeps the legacy Explore controls. */
@@ -83,7 +93,7 @@ function ExploreLayers({
 }: {
   model: NavigationRenderModel
   bundle: CampusBundle
-  route?: { path: string[]; cost: number } | null
+  route?: { path: string[]; cost: number; leadIn?: { lat: number; lng: number } | null } | null
   indoorContext: { active: boolean; buildingId?: string; floorId?: number }
   activeFloor: number
   selectedBuildingId?: string
@@ -109,6 +119,8 @@ function ExploreLayers({
     return () => { map.off('pitch', onPitch) }
   }, [map])
 
+  const architecture = selectFloorArchitecture(model.indoor.architecture, indoorContext, activeFloor, threeD)
+
   const handleBuildingClick = (buildingId: string) => {
     // Look up the full Building from the bundle (not the render model)
     const building = bundle.buildings.find((b) => b.id === buildingId)
@@ -128,7 +140,7 @@ function ExploreLayers({
   )
   // The route's points for the 3D ribbon.
   const routePath = useMemo(
-    () => (route?.path ?? []).map(getNodePosition).filter((p): p is { lat: number; lng: number } => Boolean(p)),
+    () => [...(route?.leadIn ? [route.leadIn] : []), ...(route?.path ?? []).map(getNodePosition).filter((p): p is { lat: number; lng: number } => Boolean(p))],
     [route, getNodePosition],
   )
   const getNodeFloor = useCallback(
@@ -162,15 +174,16 @@ function ExploreLayers({
         floor={activeFloor}
         indoorContext={indoorContext}
       />
+      <FloorArchitectureLayer map={map} architecture={architecture} />
       <WallLayer
         map={map}
-        walls={model.indoor.walls}
+        walls={floorArchitectureFallback(model.indoor.walls, architecture, 'walls')}
         floor={activeFloor}
         indoorContext={indoorContext}
       />
       <StaircaseLayer
         map={map}
-        stairs={model.indoor.stairs}
+        stairs={floorArchitectureFallback(model.indoor.stairs, architecture, 'stairs')}
         floor={activeFloor}
         indoorContext={indoorContext}
       />
@@ -182,13 +195,13 @@ function ExploreLayers({
       />
       <DoorLayer
         map={map}
-        doors={model.indoor.doors}
+        doors={floorArchitectureFallback(model.indoor.doors, architecture, 'doors')}
         floor={activeFloor}
         indoorContext={indoorContext}
       />
       <OpeningLayer
         map={map}
-        openings={model.indoor.openings}
+        openings={floorArchitectureFallback(model.indoor.openings, architecture, 'openings')}
         walls={model.indoor.walls}
         floor={activeFloor}
         indoorContext={indoorContext}
@@ -233,22 +246,34 @@ function ExploreFloorSelector({
   bundle,
   context,
   activeFloor,
+  viewedFloorId,
 }: {
   bundle: CampusBundle
   context: ExploreContext
   activeFloor: number
+  viewedFloorId: number | null
 }) {
-  const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
+  const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
+  const setPositionFloorManually = usePublicStore((s) => s.setPositionFloorManually)
 
   const floors = useMemo(() => {
-    if (context.surface !== 'building') return []
-    return getExploreFloors(bundle, context.buildingId)
-  }, [bundle, context.buildingId, context.surface])
+    if (!context.buildingId) return []
+    const publishedFloors = getExploreFloors(bundle, context.buildingId)
+    const routeFloors = context.surface === 'active-navigation'
+      ? context.routeFloors.filter((floor) => publishedFloors.includes(floor))
+      : []
+    return [...new Set([...publishedFloors, ...routeFloors])].sort((a, b) => b - a)
+  }, [bundle, context.buildingId, context.routeFloors, context.surface])
 
-  if (context.surface !== 'building' || !context.indoorActive) return null
+  if (!context.indoorActive || !context.buildingId) return null
 
   return (
-    <FloorSelector floors={floors} activeFloor={activeFloor} onChange={setActiveFloor} />
+    <FloorSelector
+      floors={floors}
+      activeFloor={viewedFloorId ?? activeFloor}
+      onChange={setViewedFloor}
+      onConfirmFloor={(floor) => setPositionFloorManually(floor, context.buildingId!)}
+    />
   )
 }
 
@@ -293,11 +318,11 @@ function ExploreMapControls({
   ]
 
   return (
-    <div className="absolute right-4 top-20 z-20 flex flex-col gap-1.5">
+    <div className="absolute right-4 top-20 z-20 flex flex-col gap-2">
       <button
         type="button"
         onClick={cycleView}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
         aria-label="Cycle camera view"
         title="Cycle view"
       >
@@ -306,7 +331,7 @@ function ExploreMapControls({
       <button
         type="button"
         onClick={recenter}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
         aria-label="Recenter map"
         title="Recenter map"
       >
@@ -315,7 +340,7 @@ function ExploreMapControls({
       <button
         type="button"
         onClick={resetView}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-lg"
+        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
         aria-label="Reset map view"
         title="Reset map view"
       >
@@ -375,6 +400,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
   // location + route state.
   const selectedBuilding = usePublicStore((s) => s.selectedBuilding)
   const activeFloor = usePublicStore((s) => s.activeFloor)
+  const viewedFloorId = usePublicStore((s) => s.viewedFloorId)
   const indoorContext = usePublicStore((s) => s.indoorContext)
   const parentNavigationContext = useOptionalNavigationContext()
   const exploreContext = useMemo(
@@ -386,7 +412,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     }),
     [activeFloor, indoorContext, parentNavigationContext, selectedBuilding?.id],
   )
-  const effectiveFloor = exploreContext.floor ?? activeFloor
+  const effectiveFloor = viewedFloorId ?? exploreContext.floor ?? activeFloor
   const effectiveIndoorContext = exploreContext.surface === 'outdoors'
     ? { active: false }
     : {
@@ -395,11 +421,14 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         floorId: effectiveFloor,
       }
 
-  const cameraWithContext = camera && parentNavigationContext
+  const cameraWithContext: NavigationCameraConfig | undefined = camera && parentNavigationContext
     ? {
         ...camera,
         heading: camera.heading ?? parentNavigationContext.heading,
-        headingStatus: camera.headingStatus ?? parentNavigationContext.headingStatus,
+        headingStatus: camera.headingStatus ?? toCameraHeadingStatus(
+          parentNavigationContext.headingStatus,
+          parentNavigationContext.headingSource,
+        ),
         canRequestHeadingPermission: camera.canRequestHeadingPermission
           ?? parentNavigationContext.canRequestHeadingPermission,
         onRequestHeadingPermission: camera.onRequestHeadingPermission
@@ -457,7 +486,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         />
       ) : <ExploreMapControls bounds={mapBounds} />}
       <NavigationPositionMarker />
-      <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} />
+      <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} viewedFloorId={viewedFloorId} />
     </NavigationMap>
   )
 }

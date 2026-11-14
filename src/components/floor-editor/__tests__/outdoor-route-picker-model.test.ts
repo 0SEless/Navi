@@ -157,3 +157,9 @@ describe('outdoor route picker model', () => {
     expect(campusEdges.map((candidate) => candidate.id)).toEqual(['outer-1', 'outer-2'])
   })
 })
+
+it('projects a wide-hit click onto the selected outdoor segment centerline',()=>{
+ const nodes=[node({id:'a',type:'outdoor',position:{lat:12,lng:122},metadata:{traceId:'road'}}),node({id:'b',type:'outdoor',position:{lat:12,lng:122.001},metadata:{traceId:'road'}})]
+ const pick=resolveOutdoorRoutePick({kind:'edge',edgeId:'edge',lngLat:{lat:12.00002,lng:122.0005}},nodes,[{id:'edge',from:'a',to:'b',type:'outdoor',distance:100,campusId:'c'}])
+ expect(pick?.candidate.position).toEqual({lat:12,lng:122.0005})
+})

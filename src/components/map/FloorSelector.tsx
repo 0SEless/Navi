@@ -6,6 +6,7 @@ interface FloorSelectorProps {
   floors: number[]
   activeFloor: number
   onChange: (floor: number) => void
+  onConfirmFloor?: (floor: number) => void
 }
 
 function formatFloorLabel(level: number): string {
@@ -14,8 +15,8 @@ function formatFloorLabel(level: number): string {
   return `B${Math.abs(level)}`
 }
 
-export function FloorSelector({ floors, activeFloor, onChange }: FloorSelectorProps) {
-  if (!floors || floors.length <= 1) return null
+export function FloorSelector({ floors, activeFloor, onChange, onConfirmFloor }: FloorSelectorProps) {
+  if (!floors || floors.length === 0 || (floors.length <= 1 && !onConfirmFloor)) return null
 
   // Sort floors descending (top floor on top, ground floor at bottom)
   const sortedFloors = [...new Set(floors)].sort((a, b) => b - a)
@@ -72,6 +73,25 @@ export function FloorSelector({ floors, activeFloor, onChange }: FloorSelectorPr
           </button>
         )
       })}
+      {onConfirmFloor && (
+        <button
+          type="button"
+          onClick={() => onConfirmFloor(activeFloor)}
+          aria-label={`Confirm I am on ${formatFloorLabel(activeFloor)}`}
+          style={{
+            minHeight: 36,
+            border: '1px solid var(--navi-border, #334155)',
+            borderRadius: 6,
+            background: 'var(--navi-card, #1E293B)',
+            color: 'var(--navi-text, #F8FAFC)',
+            fontSize: 10,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          I&apos;m on {formatFloorLabel(activeFloor)}
+        </button>
+      )}
     </div>
   )
 }

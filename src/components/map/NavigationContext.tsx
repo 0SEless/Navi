@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { LatLng } from '@/types/nav-types'
 import type { NavRoute, NavRouteDestination, NavSegmentType, RouteProgress } from '@/types/route-types'
 import type { CaptureDirectionSource, CaptureDirectionStatus } from '@/features/capture/direction'
+import type { ProgressMode } from '@/lib/navigation-progress-source'
 
 /** The four continuous-navigation segments from the approved visual-language spec (§2.1). */
 export type NavigationSegment = NavSegmentType
@@ -41,6 +42,13 @@ export interface NavigationContextValue {
   arrived: boolean
   /** Last geolocation error, if the browser could not provide a position. */
   geoError: string | null
+  progressMode: ProgressMode
+  progressLabel: string
+  gpsAccuracy: number | null
+  gpsLostNotice: boolean
+  nextStep: () => void
+  previousStep: () => void
+  anchorAtNode: (nodeId: string) => boolean
 }
 
 export interface NavigationProviderProps {
@@ -59,6 +67,13 @@ export interface NavigationProviderProps {
   isOffRoute?: boolean
   arrived?: boolean
   geoError?: string | null
+  progressMode?: ProgressMode
+  progressLabel?: string
+  gpsAccuracy?: number | null
+  gpsLostNotice?: boolean
+  nextStep?: () => void
+  previousStep?: () => void
+  anchorAtNode?: (nodeId: string) => boolean
   children: ReactNode
 }
 
@@ -129,6 +144,13 @@ export function NavigationProvider({
   isOffRoute = false,
   arrived = false,
   geoError = null,
+  progressMode = 'step',
+  progressLabel = progressMode === 'gps' ? 'Following GPS' : 'Tap Next at each step',
+  gpsAccuracy = null,
+  gpsLostNotice = false,
+  nextStep = () => undefined,
+  previousStep = () => undefined,
+  anchorAtNode = () => false,
   children,
 }: NavigationProviderProps) {
   // Memoized to keep a stable reference (prevents React #185 update loops).
@@ -155,6 +177,13 @@ export function NavigationProvider({
       isOffRoute,
       arrived,
       geoError,
+      progressMode,
+      progressLabel,
+      gpsAccuracy,
+      gpsLostNotice,
+      nextStep,
+      previousStep,
+      anchorAtNode,
     }),
     [
       location,
@@ -174,6 +203,13 @@ export function NavigationProvider({
       isOffRoute,
       arrived,
       geoError,
+      progressMode,
+      progressLabel,
+      gpsAccuracy,
+      gpsLostNotice,
+      nextStep,
+      previousStep,
+      anchorAtNode,
     ],
   )
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>

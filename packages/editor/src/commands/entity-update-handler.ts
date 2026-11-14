@@ -1,3 +1,4 @@
+import { floorConnectionProblem } from '../geometry/floor-connections'
 import { recordChange } from '@navi/core'
 import type { CampusDocument } from '@navi/core'
 import type { CommandHandler, MutationResult } from './types'
@@ -56,6 +57,33 @@ export const entityUpdateHandler: CommandHandler = {
       oldValues[key] = entity[key]
     }
 
+    // Move only the physical entrance terminal; legacy access may reference a
+    // shared corridor waypoint, which must stay in place.
+    const entranceFloor = document.buildings.flatMap(b => b.floors).find(f => f.entrances?.some(e => e.id === entityId))
+    const previousEntranceNetwork = entranceFloor ? { present: Object.hasOwn(entranceFloor, 'routeNetwork'), value: structuredClone(entranceFloor.routeNetwork) } : undefined
+    let nextEntranceNetwork = entranceFloor?.routeNetwork && structuredClone(entranceFloor.routeNetwork)
+    if (entranceFloor && changes.position !== undefined && !('restoreEntranceNetwork' in payload)) {
+      const position = changes.position as { x: number; y: number }
+      if (!Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return { success: false, error: 'Entrance position must be finite.' }
+      const entrance = entranceFloor.entrances.find(e => e.id === entityId)!
+      const connection = entrance.routeConnection
+      const anchor = nextEntranceNetwork?.nodes.find(n => n.id === (connection?.anchorNodeId ?? entrance.routeNodeId))
+      if (connection) {
+        const target = nextEntranceNetwork?.nodes.find(n => n.id === connection.targetRouteNodeId)
+        if (!anchor || !target) return { success: false, error: 'Reconnect this entrance before moving it.' }
+        const problem = floorConnectionProblem({ key: `entrance:${entityId}`, kind: 'entrance', id: entityId, label: entrance.label ?? 'Entrance', position }, target.position, entranceFloor)
+        if (problem) return { success: false, error: problem }
+      }
+      if (anchor && (connection || anchor.type === 'entrance')) {
+        anchor.position = { ...position }
+        for (const edge of nextEntranceNetwork!.edges) {
+          if (edge.from !== anchor.id && edge.to !== anchor.id) continue
+          const a = nextEntranceNetwork!.nodes.find(n => n.id === edge.from), b = nextEntranceNetwork!.nodes.find(n => n.id === edge.to)
+          if (a && b) edge.distance = Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y)
+        }
+      }
+    }
+
     const junctionMoveRequest = payload.junctionMove as RoadJunctionMoveRequest | undefined
     let junctionMoveUndo: RoadJunctionMoveRequest | undefined
     if (junctionMoveRequest) {
@@ -85,6 +113,14 @@ export const entityUpdateHandler: CommandHandler = {
       entity[key] = value
     }
 
+    if (entranceFloor) {
+      if ('restoreEntranceNetwork' in payload) {
+        const state = payload.restoreEntranceNetwork as typeof previousEntranceNetwork
+        if (state?.present) entranceFloor.routeNetwork = structuredClone(state.value)
+        else delete entranceFloor.routeNetwork
+      } else if (nextEntranceNetwork) entranceFloor.routeNetwork = nextEntranceNetwork
+    }
+
     const entityType = detectEntityType(document, entityId)
     if (!junctionMoveRequest || Object.keys(changes).some((key) => key !== 'polyline')) {
       recordChange(document, { entityId, entityType, operation: 'updated' })
@@ -103,7 +139,7 @@ export const entityUpdateHandler: CommandHandler = {
       if (bld) recalculateBuilding(bld)
     }
 
-    return { success: true, entityId, data: { oldValues, ...(junctionMoveUndo ? { junctionMoveUndo } : {}) } }
+    return { success: true, entityId, data: { oldValues, ...(previousEntranceNetwork ? { previousEntranceNetwork } : {}), ...(junctionMoveUndo ? { junctionMoveUndo } : {}) } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): any {
     const entityId = payload.entityId as string
@@ -112,7 +148,7 @@ export const entityUpdateHandler: CommandHandler = {
     return {
       id: 'entity.update',
       label: 'Undo Property Edit',
-      payload: { entityId, changes: oldValues, ...(junctionMoveUndo ? { junctionMove: junctionMoveUndo } : {}) },
+      payload: { entityId, changes: oldValues, ...(result.data?.previousEntranceNetwork ? { restoreEntranceNetwork: result.data.previousEntranceNetwork } : {}), ...(junctionMoveUndo ? { junctionMove: junctionMoveUndo } : {}) },
     }
   },
 }

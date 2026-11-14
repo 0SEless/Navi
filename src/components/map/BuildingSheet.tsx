@@ -64,12 +64,12 @@ function getPublishedEntrances(bundle: CampusBundle, building: Building) {
       floor: entry.floor,
     }))
   const seen = new Set<string>()
-  return [...declared, ...indexed].filter((entrance) => {
+  return [...declared, ...indexed].filter((entrance): entrance is { id: string; label: string; floor: number } => {
     const key = `${entrance.label}:${entrance.floor}`
     if (seen.has(entrance.id) || seen.has(key)) return false
     seen.add(entrance.id)
     seen.add(key)
-    return Number.isFinite(entrance.floor)
+    return typeof entrance.floor === 'number' && Number.isFinite(entrance.floor)
   })
 }
 
@@ -94,7 +94,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
   const exitIndoorContext = usePublicStore((s) => s.exitIndoorContext)
-  const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
+  const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
   const setTo = usePublicStore((s) => s.setTo)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
   const [activeTab, setActiveTab] = useState<BuildingTab>('overview')
@@ -144,11 +144,11 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
     )
   }
 
-  const panelMaxHeight = sheetState === 'full' ? 'calc(100% - 1rem)' : 'min(72vh, 40rem)'
+  const panelMaxHeight = sheetState === 'full' ? 'calc(100% - 1rem)' : 'min(70dvh, 40rem)'
 
   return (
     <section
-      className="absolute inset-x-0 bottom-0 z-30 min-w-0 overflow-y-auto rounded-t-2xl border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-8px_24px_rgba(0,0,0,0.15)] md:inset-y-4 md:bottom-auto md:left-auto md:right-4 md:w-[min(26rem,calc(100%-2rem))] md:rounded-2xl md:border"
+      className="absolute inset-x-0 bottom-0 z-30 min-w-0 overflow-y-auto rounded-t-[1.25rem] border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-4px_16px_rgba(23,43,35,0.1)] md:inset-y-4 md:bottom-auto md:left-auto md:right-4 md:w-[min(26rem,calc(100%-2rem))] md:rounded-2xl md:border"
       style={{ maxHeight: panelMaxHeight }}
       role="dialog"
       aria-label={`${building.name} details`}
@@ -246,7 +246,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
                 <button
                   type="button"
                   key={floor}
-                  onClick={() => setActiveFloor(floor)}
+                  onClick={() => setViewedFloor(floor)}
                   className="flex min-h-11 items-center justify-between rounded-xl border border-[var(--navi-border)] px-3 text-left text-sm font-semibold text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
                 >
                   <span>{formatFloorLabel(floor)}</span>
@@ -268,7 +268,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
                   key={room.id}
                   onClick={() => {
                     setSelectedRoom(room)
-                    if (room.floor !== undefined) setActiveFloor(room.floor)
+                    if (room.floor !== undefined) setViewedFloor(room.floor)
                   }}
                   className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl border border-[var(--navi-border)] px-3 text-left hover:bg-[var(--navi-content)]"
                   aria-pressed={selectedRoom?.id === room.id}
@@ -309,7 +309,9 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
                 <button
                   type="button"
                   key={entrance.id}
-                  onClick={() => setActiveFloor(entrance.floor)}
+                  onClick={() => {
+                    if (entrance.floor !== undefined) setViewedFloor(entrance.floor)
+                  }}
                   className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl border border-[var(--navi-border)] px-3 text-left hover:bg-[var(--navi-content)]"
                 >
                   <MapPin className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" aria-hidden="true" />
@@ -324,7 +326,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
         )}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-[var(--navi-border)] p-4 sm:flex-row">
+      <div className="sticky bottom-0 flex flex-col gap-2 border-t border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-4 backdrop-blur sm:flex-row">
         <button
           type="button"
           onClick={handleDirections}

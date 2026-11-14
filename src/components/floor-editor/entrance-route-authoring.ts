@@ -35,9 +35,8 @@ export function snapRouteStartToEntrance(
   return { accepted: true, position: { ...anchor.position }, distanceMeters: distance }
 }
 
-export function routeStartError({ hasExistingRoute, hasEntranceAnchor }: { hasExistingRoute: boolean; hasEntranceAnchor: boolean }): string | null {
-  if (hasExistingRoute || hasEntranceAnchor) return null
-  return 'Select an Entrance, connect it to an outdoor route point, then start the first Route there.'
+export function routeStartError(_state: { hasExistingRoute: boolean; hasEntranceAnchor: boolean }): string | null {
+  return null
 }
 
 export interface EntranceFinishAccess {

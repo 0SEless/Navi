@@ -30,6 +30,7 @@ export function HomeHeroCarousel({
 
   const slideCount = slides.length
   const visibleIndex = slideCount > 0 ? Math.min(activeIndex, slideCount - 1) : 0
+  const hasAnyImage = slides.some(slide => isSafeLocalImage(slide.image))
 
   useEffect(() => {
     if (reducedMotion || isPaused || slideCount <= 1) return
@@ -93,14 +94,15 @@ export function HomeHeroCarousel({
       <div className="relative overflow-hidden rounded-[1.75rem] border border-[var(--navi-border)] bg-[var(--navi-card)] shadow-sm">
         <div
           data-home-hero-track
-          className={`flex aspect-[16/9] w-full lg:aspect-[5/2] ${
+          className={`flex w-full ${hasAnyImage ? 'aspect-[16/9] lg:aspect-[5/2]' : 'h-40 sm:h-44'} ${
             reducedMotion ? 'transition-none' : 'transition-transform duration-500 ease-out'
           }`}
           style={{ transform: `translate3d(-${visibleIndex * 100}%, 0, 0)` }}
         >
           {slides.map((slide, index) => {
             const active = index === visibleIndex
-            const hasImage = isSafeLocalImage(slide.image)
+            const imageSrc = isSafeLocalImage(slide.image) ? slide.image : null
+            const hasImage = imageSrc !== null
 
             return (
               <article
@@ -114,7 +116,7 @@ export function HomeHeroCarousel({
               >
                 {hasImage ? (
                   <Image
-                    src={slide.image}
+                    src={imageSrc}
                     alt={active ? (slide.imageAlt ?? `${slide.title} campus highlight`) : ''}
                     fill
                     sizes="(min-width: 1024px) 760px, 100vw"

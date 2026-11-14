@@ -270,6 +270,43 @@ export function computeRouteProgress(
   }
 }
 
+/** Progress anchored to a visitor-confirmed route step (no location required). */
+export function progressAtStep(route: NavRoute, index: number): RouteProgress {
+  const lastIndex = Math.max(route.steps.length - 1, 0)
+  const safeIndex = Math.min(Math.max(Math.floor(index) || 0, 0), lastIndex)
+  const step = route.steps[safeIndex]
+  if (!step) {
+    return { index: 0, remainingDistance: route.totalDistance, currentSegment: 'outdoor', snappedPosition: { lat: 0, lng: 0 } }
+  }
+  let remainingDistance = 0
+  for (let i = safeIndex; i < route.steps.length - 1; i++) {
+    remainingDistance += haversine(route.steps[i].position, route.steps[i + 1].position)
+  }
+  return {
+    index: safeIndex,
+    remainingDistance,
+    currentSegment: stepTypeToSegmentType(step.type),
+    snappedPosition: step.position,
+  }
+}
+
+/** Return only the route still ahead, plus the current position when mid-leg. */
+export function remainingRoutePath(
+  route: NavRoute,
+  progress: RouteProgress | null,
+): { path: string[]; leadIn: LatLng | null } {
+  if (!progress) return { path: route.path, leadIn: null }
+  const index = Math.min(Math.max(Math.floor(progress.index), 0), Math.max(route.path.length - 1, 0))
+  const stepPosition = route.steps[index]?.position
+  const snapped = progress.snappedPosition
+  const isAtStep = !!stepPosition
+    && haversine(stepPosition, snapped) < 0.01
+  // GPS progress.index names the segment's starting step while mid-leg. Keep
+  // the segment's end as the next waypoint so the trimmed line never doubles
+  // back through the walked portion.
+  return { path: route.path.slice(isAtStep ? index : Math.min(index + 1, route.path.length)), leadIn: isAtStep ? null : snapped }
+}
+
 // ---------------------------------------------------------------------------
 // computeSegments
 // ---------------------------------------------------------------------------
