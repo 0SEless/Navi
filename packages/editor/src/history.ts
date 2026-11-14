@@ -221,6 +221,8 @@ export class HistoryStack extends BaseEditorService implements PreHook, PostHook
   }
 
   get canUndo(): boolean { return this.past.length > 0 }
+  /** Command id of the step Undo would revert next (undefined when there is none). */
+  get lastCommandId(): string | undefined { return this.past.at(-1)?.command.id }
   get canRedo(): boolean { return this.future.length > 0 }
   get undoCount(): number { return this.past.length }
   get redoCount(): number { return this.future.length }

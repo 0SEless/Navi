@@ -43,6 +43,16 @@ describe('HistoryStack', () => {
     dispatcher.addPostHook(history)
   })
 
+  it('lastCommandId names the latest undoable command, including after undo and redo', () => {
+    expect(history.lastCommandId).toBeUndefined()
+    dispatcher.execute({ id: 'building.create', label: 'Create', payload: { name: 'A', code: 'A' } })
+    expect(history.lastCommandId).toBe('building.create')
+    history.undo()
+    expect(history.lastCommandId).toBeUndefined()
+    history.redo()
+    expect(history.lastCommandId).toBe('building.create')
+  })
+
   it('starts with no undo/redo', () => {
     expect(history.canUndo).toBe(false)
     expect(history.canRedo).toBe(false)

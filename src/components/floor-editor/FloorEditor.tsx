@@ -709,7 +709,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
 
-      {canonicalBuilding && canonicalFloor && editorMode==='navigation' && <FloorConnectionReview building={canonicalBuilding} floor={canonicalFloor} revision={documentVersion} disabled={mode!=='mapping'||!architectureAccess}
+      {canonicalBuilding && canonicalFloor && editorMode==='navigation' && <FloorConnectionReview building={canonicalBuilding} floor={canonicalFloor} revision={documentVersion} disabled={mode!=='mapping'||!architectureAccess} undoAvailable={(historyRef.current as {lastCommandId?:string}|undefined)?.lastCommandId==='floor.connections.apply'}
         onApply={payload=>{
           if(!architectureAccess)return {success:false,error:'Editing access was lost.'}
           const result=services.get('dispatcher')!.execute({id:'floor.connections.apply',label:'Apply floor connections',payload})

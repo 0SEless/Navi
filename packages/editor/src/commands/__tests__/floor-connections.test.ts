@@ -134,3 +134,28 @@ it('removes a deleted entrance owned stub while preserving the main route',()=>{
  expect(entranceDeleteHandler.execute(doc,{entranceId:'e'}).success).toBe(true)
  expect(floor.routeNetwork.edges).toEqual(backbone);expect(floor.routeNetwork.nodes.some((n:any)=>n.id===conn.anchorNodeId)).toBe(false)
 })
+it('an imported door with no wall attachment may pass its own wall, but no other wall',()=>{
+ const imported=(position:{x:number;y:number})=>{const {floor,building}=fixture();floor.doors=[{id:'old',name:'Old door',width:.9,depth:.2,doorType:'standard',position,metadata:{}}];return {floor,building}}
+ // Sits 12 cm off the wall's centre line (typical of old imported doors): its own wall is exempt.
+ let {floor,building}=imported({x:2,y:-.12})
+ expect(suggestFloorConnections(building,floor).find(r=>r.portKey==='door:old')).toMatchObject({accepted:true})
+ // A door 1.5 m away from any wall gets no exemption.
+ ;({floor,building}=imported({x:2,y:-1.5}))
+ expect(suggestFloorConnections(building,floor).find(r=>r.portKey==='door:old')).toMatchObject({accepted:false,message:'Connection crosses a wall. Choose an accessible route segment.'})
+ // A second wall between the door and the route still blocks.
+ ;({floor,building}=imported({x:2,y:-.12}));floor.walls.push({id:'barrier',start:{x:0,y:2},end:{x:10,y:2},height:3,thickness:.2})
+ expect(suggestFloorConnections(building,floor).find(r=>r.portKey==='door:old')).toMatchObject({accepted:false})
+})
+it('a connected imported door (no wall attachment) can still be nudged along its own wall',()=>{
+ const {doc,floor,building}=fixture();floor.rooms=[];floor.doors=[{id:'old',name:'Old door',width:.9,depth:.2,doorType:'standard',position:{x:2,y:-.12},metadata:{}}]
+ const row=suggestFloorConnections(building,floor).find(r=>r.portKey==='door:old')!
+ expect(floorConnectionsApplyHandler.execute(doc,{buildingId:'b',floorId:'f',connections:[row]}).success).toBe(true)
+ const moved=doorUpdateHandler.execute(doc,{doorId:'old',patch:{position:{x:2.3,y:-.12}}})
+ expect(moved.success,moved.error).toBe(true)
+})
+it('entrance.create refuses a position without finite building-local x/y',async()=>{
+ const {entranceCreateHandler}=await import('../entrance-handlers')
+ const {doc}=fixture();doc.buildings[0].floors[0].entrances=[];const before=JSON.stringify(doc)
+ for(const position of [{lat:11,lng:121},{x:NaN,y:0},{x:1}])expect(entranceCreateHandler.execute(doc,{buildingId:'b',floorId:'f',label:'E',position}).success).toBe(false)
+ expect(JSON.stringify(doc)).toBe(before)
+})

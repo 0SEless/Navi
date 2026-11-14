@@ -2,9 +2,11 @@
 import {useEffect,useRef,useState} from 'react'
 import type {Building,Floor,LocalCoord} from '@navi/core'
 import {floorBackboneEdges,floorConnectionProblem,floorConnectionSignature,getFloorPorts,nearestFloorTarget,projectFloorPoint,suggestFloorConnections,type FloorConnectionProposal} from '@navi/editor/src/geometry/floor-connections'
-interface Props {building:Building;floor:Floor;revision:number;disabled?:boolean;onApply:(payload:Record<string,unknown>)=>{success:boolean;error?:string;revision?:number};onUndo:()=>unknown}
+/** `undoAvailable`: the latest undoable step is a connections batch (true again after Redo). When omitted,
+ * the button follows this panel's own last Confirm. */
+interface Props {building:Building;floor:Floor;revision:number;disabled?:boolean;undoAvailable?:boolean;onApply:(payload:Record<string,unknown>)=>{success:boolean;error?:string;revision?:number};onUndo:()=>unknown}
 const buttonStyle={padding:'6px 10px',border:'1px solid var(--navi-border)',borderRadius:5,background:'var(--navi-card)',color:'var(--navi-text)',cursor:'pointer',fontSize:12}
-export function FloorConnectionReview({building,floor,revision,disabled,onApply,onUndo}:Props){
+export function FloorConnectionReview({building,floor,revision,disabled,undoAvailable,onApply,onUndo}:Props){
  const [review,setReview]=useState<{signature:string;rows:FloorConnectionProposal[]}|null>(null),[error,setError]=useState(''),[undoRevision,setUndoRevision]=useState<number|null>(null)
  const launch=useRef<HTMLButtonElement>(null),cancel=useRef<HTMLButtonElement>(null),svg=useRef<SVGSVGElement>(null),drag=useRef<string|null>(null)
  const ports=getFloorPorts(building,floor),edges=floorBackboneEdges(building,floor),signature=floorConnectionSignature(building,floor)
@@ -32,7 +34,9 @@ export function FloorConnectionReview({building,floor,revision,disabled,onApply,
  return <>
   <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',borderBottom:'1px solid var(--navi-border)',flexShrink:0}}>
    <button ref={launch} type="button" style={buttonStyle} disabled={disabled} onClick={open}>Suggest connections</button>
-   {undoRevision!==null&&<button type="button" style={buttonStyle} disabled={disabled||revision!==undoRevision} onClick={()=>{if(revision===undoRevision&&!disabled){onUndo();setUndoRevision(null)}}}>Undo connections</button>}
+   {undoAvailable!==undefined
+    ? undoAvailable&&<button type="button" style={buttonStyle} disabled={disabled} onClick={()=>{if(!disabled)onUndo()}}>Undo connections</button>
+    : undoRevision!==null&&<button type="button" style={buttonStyle} disabled={disabled||revision!==undoRevision} onClick={()=>{if(revision===undoRevision&&!disabled){onUndo();setUndoRevision(null)}}}>Undo connections</button>}
    <span style={{fontSize:11,color:'var(--navi-text-secondary)'}}>Review door, entrance, stair and elevator access to this floor’s routes.</span>
   </div>
   {review&&<div style={{position:'fixed',inset:0,zIndex:110,background:'#0f172a88',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -62,7 +66,7 @@ export function FloorConnectionReview({building,floor,revision,disabled,onApply,
       {review.rows.map(row=>{const port=ports.find(p=>p.key===row.portKey);if(!port)return null;const problem=row.target&&floorConnectionProblem(port,row.target.position,floor);return <section key={row.portKey} data-port-key={row.portKey} style={{padding:'10px 0',borderBottom:'1px solid var(--navi-border)'}}>
        <label style={{fontSize:12,fontWeight:600}}><input type="checkbox" aria-label={`${row.existing?'Edit':'Include'} ${port.label}`} checked={row.accepted} disabled={disabled||stale||port.manualConnected||!row.target||!!problem} onChange={e=>patchRow(row.portKey,{accepted:e.target.checked,disconnect:false})}/> {port.label} <span style={{fontWeight:400,color:'var(--navi-text-secondary)'}}>· {port.kind}</span></label>
        {row.message&&<p style={{fontSize:11,margin:'5px 0',color:problem?'#b45309':'var(--navi-text-secondary)'}}>{row.message}</p>}
-       {!port.manualConnected&&<label style={{fontSize:11}}>Route segment<select aria-label={`Route segment for ${port.label}`} value={row.target?.edgeId??''} disabled={disabled||stale} style={{width:'100%',marginTop:4}} onChange={e=>{
+       {!port.manualConnected&&<label style={{display:'block',fontSize:11,marginTop:6}}>Route segment<select aria-label={`Route segment for ${port.label}`} value={row.target?.edgeId??''} disabled={disabled||stale} style={{width:'100%',marginTop:4}} onChange={e=>{
         const edge=edges.find(edge=>edge.id===e.target.value),a=floor.routeNetwork?.nodes.find(n=>n.id===edge?.from),b=floor.routeNetwork?.nodes.find(n=>n.id===edge?.to);if(!edge||!a||!b)return
         const position=projectFloorPoint(port.position,a.position,b.position),message=floorConnectionProblem(port,position,floor)
         patchRow(row.portKey,{target:{edgeId:edge.id,position},accepted:!message,disconnect:false,message})

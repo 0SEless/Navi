@@ -781,9 +781,12 @@ export function useFloorDrawing({ map, mapReady, buildingId, campusId, floor, to
         editEngine.begin({ kind: 'create', entityType: 'entrance', geometry: position, properties: { name: 'Entrance', buildingId, floorId } })
         editEngine.doCommit()
       }
+      // Entrances are stored in building-local metres; the click arrives as longitude/latitude.
+      const local = transformer.worldToBuildingLocal(position, buildingId)
+      if (!local || !Number.isFinite(local.x) || !Number.isFinite(local.y)) return
       dispatcher.execute({
         id: 'entrance.create', label: 'Create Entrance',
-        payload: { buildingId, floorId, id, label: 'Entrance', position, level: floor, type: 'side' },
+        payload: { buildingId, floorId, id, label: 'Entrance', position: { x: local.x, y: local.y }, level: floor, type: 'side' },
       })
     } else if (type === 'stair' || type === 'stairs' as any) {
       const localPos = transformer.worldToBuildingLocal(position, buildingId) ?? { x: 0, y: 0 }

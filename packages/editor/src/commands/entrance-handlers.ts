@@ -32,6 +32,7 @@ export const entranceCreateHandler: CommandHandler = {
     const connectorRoadId = payload.connectorRoadId as string | undefined
 
     if (!position) return { success: false, error: 'Entrance position is required' }
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return { success: false, error: 'Entrance position must be building-local x/y metres' }
 
     ctx.floor.entrances.push({ id, label, position, level, type, hasQR, hasPanorama, connectorRoadId })
 

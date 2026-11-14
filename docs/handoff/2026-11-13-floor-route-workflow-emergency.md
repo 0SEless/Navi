@@ -100,3 +100,6 @@ Server: my launcher + watchdog on :3001. The stale Turbopack cache was moved to 
 Pre-existing failures still open: door-gesture-feedback.test.tsx (2, door-tool hint text from the checkpoint), compiler integration HALLWAY_DISCONNECTED (11).
 NEXT: final whole-change review, then owner decides on commit.
 Final review done (fresh reviewer): 3 fixes applied with tests (legacy "open" door look no longer blocks presets; apply-to-similar copies the legacy look; symbol line colours/widths). Final gate 23 files 335/335. 4 minors deferred (ledger). Nothing committed; owner decides.
+
+## Committed 2026-11-14
+Owner approved "all work, no scratch": commit 2e7d847 on feat/save-v2 (225 files; not pushed). Left uncommitted: .superpowers/brainstorm/ and test-results/p13-connects-down.png. Includes the door-disconnect junction fix. Pre-existing failures still open: 9 compiler integration tests (fixture HALLWAY_DISCONNECTED) and the navigate dev-simulator panel test.

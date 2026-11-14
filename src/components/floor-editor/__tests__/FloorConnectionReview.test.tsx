@@ -27,3 +27,17 @@ it('includes existing connections only after explicit edit, or disconnects them'
  fireEvent.click(screen.getByRole('button',{name:'Disconnect Door'}));fireEvent.click(screen.getByRole('button',{name:'Confirm connections'}))
  expect(apply.mock.calls[0][0].connections[0]).toMatchObject({portKey:'door:door',disconnect:true})
 })
+it('shows Undo connections whenever the latest undoable step is the connections batch (so it returns after Redo)',()=>{
+ const {floor,building}=fixture(),undo=vi.fn()
+ const view=render(<FloorConnectionReview floor={floor} building={building} revision={5} undoAvailable onApply={vi.fn(()=>({success:true}))} onUndo={undo}/>)
+ const button=screen.getByRole('button',{name:'Undo connections'}) as HTMLButtonElement
+ expect(button.disabled).toBe(false);fireEvent.click(button);expect(undo).toHaveBeenCalledOnce()
+ view.rerender(<FloorConnectionReview floor={floor} building={building} revision={6} undoAvailable={false} onApply={vi.fn(()=>({success:true}))} onUndo={undo}/>)
+ expect(screen.queryByRole('button',{name:'Undo connections'})).toBeNull()
+})
+it('puts "Route segment" on its own line under the item name and type',()=>{
+ const {floor,building}=fixture();render(<FloorConnectionReview floor={floor} building={building} revision={1} onApply={vi.fn(()=>({success:true}))} onUndo={vi.fn()}/>)
+ fireEvent.click(screen.getByRole('button',{name:'Suggest connections'}))
+ const select=screen.getAllByRole('combobox')[0],label=select.closest('label') as HTMLLabelElement
+ expect(label.style.display).toBe('block')
+})

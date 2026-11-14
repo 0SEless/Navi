@@ -2,7 +2,22 @@ import {collectFloorDoors} from '@navi/core'
 import type { Building, Floor, LocalCoord, RoomDoor } from '@navi/core'
 import { deriveAttachedDoor } from './door-wall-attachment'
 export type FloorPortKind='door'|'entrance'|'stair'|'elevator'
-export interface FloorPort { key:string; kind:FloorPortKind; id:string; label:string; position:LocalCoord; hostWallId?:string; connection?:RoomDoor['routeConnection']; manualConnected?:boolean; issue?:string }
+export interface FloorPort { key:string; kind:FloorPortKind; id:string; label:string; position:LocalCoord; hostWallId?:string; connection?:RoomDoor['routeConnection']; manualConnected?:boolean; issue?:string
+ /** Old imported doors carry no wall attachment. The wall they sit in (nearest, within `ownWallReach`)
+  * may be crossed at the very start of their link, like an attached door's host wall. */
+ ownWallId?:string; ownWallReach?:number }
+/** Distance from a point to a wall's centre line. */
+function distanceToWall(point:LocalCoord,wall:{start:LocalCoord;end:LocalCoord}):number{const q=projectFloorPoint(point,wall.start,wall.end);return Math.hypot(q.x-point.x,q.y-point.y)}
+/** The single wall an unattached door sits in: the nearest wall whose centre line is within half the door depth
+ * plus half the wall thickness plus 15 cm (old imports sit up to ~15 cm off the centre line). */
+export function ownWallOf(door:Pick<RoomDoor,'position'|'depth'>,floor:Pick<Floor,'walls'>):{id:string;reach:number}|undefined{
+ let best:{id:string;reach:number;distance:number}|undefined
+ for(const wall of floor.walls??[]){
+  const reach=(Number.isFinite(door.depth)&&door.depth!>0?door.depth!:.2)/2+wall.thickness/2+.15,distance=distanceToWall(door.position,wall)
+  if(Number.isFinite(distance)&&distance<=reach&&(!best||distance<best.distance))best={id:wall.id,reach,distance}
+ }
+ return best&&{id:best.id,reach:best.reach}
+}
 export interface FloorConnectionTarget { edgeId:string; position:LocalCoord }
 export interface FloorConnectionProposal {portKey:string;target?:FloorConnectionTarget;accepted:boolean;existing?:boolean;disconnect?:boolean;message?:string;distance?:number}
 export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
@@ -10,7 +25,8 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
  for(const door of collectFloorDoors({...floor,rooms:floor.rooms??[]})){
   const wall=floor.walls?.find(w=>w.id===door.wallAttachment?.wallId)
   const physical=door.wallAttachment&&wall?deriveAttachedDoor(door,wall):door
-  ports.push({key:`door:${door.id}`,kind:'door',id:door.id,label:door.name??'Door',position:{...physical.position},hostWallId:door.wallAttachment?.wallId,connection:door.routeConnection,...(door.wallAttachment&&!wall?{issue:'Host wall is missing.'}:{})})
+  const own=door.wallAttachment?undefined:ownWallOf(door,floor)
+  ports.push({key:`door:${door.id}`,kind:'door',id:door.id,label:door.name??'Door',position:{...physical.position},hostWallId:door.wallAttachment?.wallId,connection:door.routeConnection,...(door.wallAttachment&&!wall?{issue:'Host wall is missing.'}:{}),...(own?{ownWallId:own.id,ownWallReach:own.reach}:{})})
  }
  for(const entrance of floor.entrances??[]){
   const nodeId=entrance.routeNodeId??floor.entranceAccess?.find(a=>a.entranceId===entrance.id)?.indoorRouteNodeId
@@ -46,6 +62,7 @@ export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Fl
   const q={x:a.x-p.x,y:a.y-p.y},t=(q.x*s.y-q.y*s.x)/den,u=(q.x*r.y-q.y*r.x)/den
   if(t < -1e-7||t>1+1e-7||u < -1e-7||u>1+1e-7)continue
   if(t<=1e-6&&(port.hostWallId===wall.id||port.kind==='entrance'))continue
+  if(port.ownWallId===wall.id&&t*Math.hypot(r.x,r.y)<=port.ownWallReach!)continue
   return 'Connection crosses a wall. Choose an accessible route segment.'
  }
 }

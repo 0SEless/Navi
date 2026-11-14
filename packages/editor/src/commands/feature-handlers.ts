@@ -1,4 +1,4 @@
-import {floorConnectionProblem} from '../geometry/floor-connections'
+import {floorConnectionProblem,ownWallOf} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
 import { recordChange, collectFloorDoors } from '@navi/core'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
@@ -653,7 +653,8 @@ export const doorUpdateHandler: CommandHandler = {
       if (next.routeConnectionManaged) {
         const target = network.nodes.find(n => n.id === next.routeConnection!.targetRouteNodeId)
         if (!target) return { success: false, error: 'Reconnect this door before moving it.' }
-        const problem = floorConnectionProblem({key:`door:${doorId}`,kind:'door',id:doorId,label:next.name ?? 'Door',position:next.position,hostWallId:next.wallAttachment?.wallId},target.position,ctx.floor)
+        const own = next.wallAttachment ? undefined : ownWallOf(next, ctx.floor)
+        const problem = floorConnectionProblem({key:`door:${doorId}`,kind:'door',id:doorId,label:next.name ?? 'Door',position:next.position,hostWallId:next.wallAttachment?.wallId,...(own?{ownWallId:own.id,ownWallReach:own.reach}:{})},target.position,ctx.floor)
         if (problem) return { success: false, error: problem }
       }
       anchor.position = { ...next.position }
