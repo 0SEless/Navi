@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
-import { toLocal, type BrushSettings, type CampusDocument, type TerrainSampler } from '@navi/core'
+import { DEFAULT_TERRAIN_LOOK, toLocal, type BrushSettings, type CampusDocument, type TerrainSampler } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { contoursSetupPayload, lassoCommand, resetCommand, slopeCommand } from '@/lib/terrain/area-commands'
 import { tracingKey, tracingStore, type TracingImage } from '@/lib/terrain/tracing-store'
@@ -208,6 +208,12 @@ export function TerrainTools(props: {
       <TerrainLayersPanel
         layers={props.layers}
         onLayers={props.onLayers}
+        mapLook={document.terrain?.mapLook ?? DEFAULT_TERRAIN_LOOK}
+        mapLookDisabled={!editing || !document.terrain}
+        onMapLook={(look) => {
+          const result = dispatch({ id: 'terrain.set-look', label: 'Map look', payload: { look } })
+          if (result && !result.success) setMessage(result.error ?? 'The map look could not be changed.')
+        }}
         hasTracing={Boolean(tracing)}
         tracingOpacity={tracing?.opacity ?? 0.6}
         onTracingFile={(file) => {

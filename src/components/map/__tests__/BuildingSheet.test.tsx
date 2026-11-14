@@ -183,6 +183,28 @@ describe('BuildingSheet', () => {
     expect(screen.queryByTestId('tour-viewer')).toBeNull()
   })
 
+  it('picking a room goes to it on the map (highlighted) and lowers the sheet out of the way', () => {
+    setSelectedBuilding()
+    render(<BuildingSheet bundle={bundle} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Rooms' }))
+    fireEvent.click(screen.getByText('Room 201'))
+    expect(usePublicStore.getState().focusedRoom).toEqual({ roomId: 'room-201', buildingId: 'b1', floor: 3 })
+    expect(usePublicStore.getState().sheetState).toBe('collapsed')
+  })
+
+  it('opens at a size that leaves the map visible, and its handle resizes it', () => {
+    setSelectedBuilding()
+    render(<BuildingSheet bundle={bundle} />)
+    const sheet = screen.getByRole('dialog')
+    expect(sheet.style.maxHeight).toBe('min(42dvh, 24rem)')
+    fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
+    expect(usePublicStore.getState().sheetState).toBe('full')
+    fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
+    expect(usePublicStore.getState().sheetState).toBe('collapsed')
+    fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
+    expect(usePublicStore.getState().sheetState).toBe('half')
+  })
+
   it('closes by clearing selection, sheet state, and indoor context', () => {
     setSelectedBuilding()
     render(<BuildingSheet bundle={bundle} />)

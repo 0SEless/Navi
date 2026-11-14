@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { Building2, DoorOpen, Layers, MapPin, Navigation, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { usePublicStore } from '@/store/public-store'
+import { roomIdOfSearchEntry, usePublicStore } from '@/store/public-store'
 import type { Building, CampusBundle, SearchEntry } from '@/types/nav-types'
 import {
   getAvailablePanoramas,
@@ -95,6 +95,7 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
   const setSheet = usePublicStore((s) => s.setSheet)
   const exitIndoorContext = usePublicStore((s) => s.exitIndoorContext)
   const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
+  const focusRoom = usePublicStore((s) => s.focusRoom)
   const setTo = usePublicStore((s) => s.setTo)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
   const [activeTab, setActiveTab] = useState<BuildingTab>('overview')
@@ -144,7 +145,9 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
     )
   }
 
-  const panelMaxHeight = sheetState === 'full' ? 'calc(100% - 1rem)' : 'min(70dvh, 40rem)'
+  // Opens small enough to keep the map in view; the handle steps half → full → lowered → half.
+  const panelMaxHeight = sheetState === 'full' ? 'calc(100% - 1rem)' : sheetState === 'collapsed' ? '9.5rem' : 'min(42dvh, 24rem)'
+  const resize = () => setSheet(sheetState === 'full' ? 'collapsed' : sheetState === 'collapsed' ? 'half' : 'full')
 
   return (
     <section
@@ -153,7 +156,9 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
       role="dialog"
       aria-label={`${building.name} details`}
     >
-      <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-[var(--navi-border)] md:hidden" aria-hidden="true" />
+      <button type="button" onClick={resize} aria-label="Resize details" className="mx-auto flex h-5 w-16 items-center justify-center md:hidden">
+        <span className="h-1 w-10 rounded-full bg-[var(--navi-border)]" aria-hidden="true" />
+      </button>
       <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-3">
         <div className="flex min-w-0 items-start gap-3">
           <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--navi-primary-light)] text-[var(--navi-primary)]">
@@ -268,7 +273,11 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
                   key={room.id}
                   onClick={() => {
                     setSelectedRoom(room)
-                    if (room.floor !== undefined) setViewedFloor(room.floor)
+                    // Go to the room on the map (highlighted) and lower the sheet so the map shows.
+                    if (room.floor !== undefined) {
+                      focusRoom({ roomId: roomIdOfSearchEntry(room), buildingId: building.id, floor: room.floor })
+                      setSheet('collapsed')
+                    }
                   }}
                   className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-xl border border-[var(--navi-border)] px-3 text-left hover:bg-[var(--navi-content)]"
                   aria-pressed={selectedRoom?.id === room.id}

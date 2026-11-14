@@ -417,6 +417,8 @@ describe('W15E floorGeometry Gate', () => {
     expect(f.roomAttributes![0]!.name).toBe('Room 101')
     expect(f.roomAttributes![0]!.number).toBe('101')
     expect(f.roomAttributes![0]!.searchable).toBe(true)
+    // The wall-face link, so NAVI Web can find each room's shape from the published walls (labels, highlight).
+    expect(f.roomAttributes![0]!.faceId).toBe('f1')
   })
 
   it('G7b: emits canonical Room properties in floorGeometry', () => {

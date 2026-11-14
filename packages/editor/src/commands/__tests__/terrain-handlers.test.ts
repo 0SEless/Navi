@@ -107,3 +107,28 @@ describe('boundary and terrain', () => {
     expect(d.terrainTiles).toEqual({ '0_0': 'AAAA', '5_5': 'BBBB' })
   })
 })
+
+describe('terrain.set-look (map look on NAVI Web)', () => {
+  it('sets the owner\'s map look, undo puts back the previous look, and an unknown look is refused', async () => {
+    const { terrainSetLookHandler } = await import('../terrain-handlers')
+    const d = doc()
+    terrainSetupHandler.execute(d, { reference, base })
+    const result = terrainSetLookHandler.execute(d, { look: 'vivid' })
+    expect(result.success).toBe(true)
+    expect(d.terrain!.mapLook).toBe('vivid')
+    const undo = terrainSetLookHandler.inverse!({ look: 'vivid' }, result)!
+    expect(terrainRestoreHandler.execute(d, undo.payload).success).toBe(true)
+    expect(d.terrain).not.toHaveProperty('mapLook')
+    expect(terrainSetLookHandler.execute(d, { look: 'purple' }).success).toBe(false)
+  })
+
+  it('needs a terrain, and terrain.setup keeps an existing map look', async () => {
+    const { terrainSetLookHandler } = await import('../terrain-handlers')
+    expect(terrainSetLookHandler.execute(doc(), { look: 'sand' }).success).toBe(false)
+    const d = doc()
+    terrainSetupHandler.execute(d, { reference, base })
+    terrainSetLookHandler.execute(d, { look: 'sand' })
+    terrainSetupHandler.execute(d, { reference: { name: 'Other', zeroMeaning: 'Gate' } })
+    expect(d.terrain!.mapLook).toBe('sand')
+  })
+})

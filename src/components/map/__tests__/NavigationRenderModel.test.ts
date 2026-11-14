@@ -863,4 +863,56 @@ describe('canonical architecture assets', () => {
     expect(Math.abs(coordinate[1] - fg.buildings[0].anchor.origin.lat)).toBeLessThan(0.001)
     expect(architecture!.walls.features.every(f => f.properties!.base >= 0 && f.properties!.height > f.properties!.base)).toBe(true)
   })
+  it('builds each floor at its own height, so floors stack (1F stands on GF)', () => {
+    const fg = makeFloorGeometry()
+    const floor = fg.buildings[0].floors[0]
+    floor.walls = [{ id: 'wall-up', start: { x: 0, y: 0 }, end: { x: 8, y: 0 }, thickness: 0.2, height: 3.5 }]
+    floor.elevation = 3.5
+    const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
+    const architecture = model.indoor.architecture!.find(a => a.buildingId === fg.buildings[0].id && a.floor === floor.level)!
+    expect(Math.min(...architecture.walls.features.map(f => f.properties!.base))).toBeCloseTo(3.5)
+    expect(Math.max(...architecture.walls.features.map(f => f.properties!.height))).toBeCloseTo(7)
+    expect(architecture.elevation).toBe(3.5)
+  })
+})
+
+describe('rooms drawn by their walls', () => {
+  it('finds each named room from the published walls (by its wall face), so it can be labelled and highlighted', async () => {
+    const { deriveRooms } = await import('@navi/editor/src/geometry/room-derivation')
+    const fg = makeFloorGeometry()
+    const floor = fg.buildings[0].floors[0]
+    floor.rooms = []
+    floor.walls = [
+      { id: 'wa', start: { x: 0, y: 0 }, end: { x: 6, y: 0 }, thickness: 0.15, height: 3 },
+      { id: 'wb', start: { x: 6, y: 0 }, end: { x: 6, y: 4 }, thickness: 0.15, height: 3 },
+      { id: 'wc', start: { x: 6, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 3 },
+      { id: 'wd', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 3 },
+    ]
+    const faceId = deriveRooms(floor.walls.map(w => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), [])[0].faceId!
+    floor.roomAttributes = [{ roomId: 'room-cs103', faceId, name: 'CS103', searchable: true }]
+    const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
+    const room = model.indoor.rooms.find(r => r.id === 'room-cs103')!
+    expect(room).toMatchObject({ name: 'CS103', buildingId: fg.buildings[0].id, floor: floor.level })
+    expect(room.polygon.length).toBeGreaterThanOrEqual(4)
+    expect(Math.abs(room.center.lat - fg.buildings[0].anchor.origin.lat)).toBeLessThan(0.001)
+  })
+})
+
+describe('each floor knows the spaces its walls enclose', () => {
+  it('publishes every enclosed space of a floor (named or not) for its floor slab', () => {
+    const fg = makeFloorGeometry()
+    const floor = fg.buildings[0].floors[0]
+    floor.walls = [
+      { id: 'wa', start: { x: 0, y: 0 }, end: { x: 6, y: 0 }, thickness: 0.15, height: 3 },
+      { id: 'wb', start: { x: 6, y: 0 }, end: { x: 6, y: 4 }, thickness: 0.15, height: 3 },
+      { id: 'wc', start: { x: 6, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 3 },
+      { id: 'wd', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 3 },
+      { id: 'we', start: { x: 3, y: 0 }, end: { x: 3, y: 4 }, thickness: 0.15, height: 3 },
+    ]
+    floor.roomAttributes = []
+    const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
+    const architecture = model.indoor.architecture!.find(a => a.floor === floor.level)!
+    expect(architecture.floorFaces).toHaveLength(2)
+    expect(architecture.floorFaces[0].length).toBeGreaterThanOrEqual(4)
+  })
 })

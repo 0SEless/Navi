@@ -28,13 +28,14 @@ function doc(): CampusDocument {
 }
 
 describe('buildSlabFeatures', () => {
-  // Ground 10 m at the centroid, base 12 m (Fixed), floors at 0 / 3.5 / 7 m, 3.5 m high: roof at 22.5 m.
+  // Ground 10 m, base 12 m (Fixed), floors at 0 / 3.5 / 7 m, 3.5 m high: roof at 22.5 m. The building's outline
+  // is its own floor (owner 2026-11-14), so the ground under it is filled to 12 m and the block stands from there.
   it('each building is one solid block from the ground to its roof (walls, no floating roof)', () => {
     const d = doc()
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features
     expect(features).toHaveLength(1)
     expect(features[0].properties).toMatchObject({ kind: 'block', buildingId: 'b1', base: 0 })
-    expect(features[0].properties!.top).toBeCloseTo(12.5, 6)
+    expect(features[0].properties!.top).toBeCloseTo(10.5, 6)
   })
 
   it('a building standing on the ground: a block from the ground to its roof', () => {
@@ -67,7 +68,7 @@ describe('buildSlabFeatures', () => {
     const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features
     expect(features).toHaveLength(1)
     expect(features[0].properties).toMatchObject({ kind: 'cut', floorId: 'f2', base: 0 })
-    expect(features[0].properties!.top).toBeCloseTo(12 + 3.5 - 10, 6)
+    expect(features[0].properties!.top).toBeCloseTo(12 + 3.5 - 12, 6)
   })
 
   it('cut at a ground floor that sits on the ground keeps a slab of thickness (never zero height)', () => {
@@ -81,8 +82,8 @@ describe('buildSlabFeatures', () => {
     const d = doc()
     const sampler = createTerrainSampler(d)!
     const top = (fc: GeoJSON.FeatureCollection) => fc.features[0].properties!.top as number
-    // Base 9 (draft): roof at 9 + 10.5 = 19.5 m, 9.5 m above the ground.
-    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } }))).toBeCloseTo(9.5, 6)
-    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } }))).toBeCloseTo(12.5, 6)
+    // Base 9 (draft): roof at 9 + 10.5 = 19.5 m, 7.5 m above the saved floor pad (12 m) until the drag is saved.
+    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } }))).toBeCloseTo(7.5, 6)
+    expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } }))).toBeCloseTo(10.5, 6)
   })
 })

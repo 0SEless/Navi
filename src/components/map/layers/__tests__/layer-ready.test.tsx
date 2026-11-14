@@ -79,3 +79,15 @@ describe('late-initialised entrance and boundary layers receive their data', () 
     expect([...map.data.values()].some(d => d.features.length === 1)).toBe(true)
   })
 })
+
+describe('solid buildings on terrain campuses', () => {
+  it('BuildingLayer draws its 3D shell fully opaque when solid (no see-through, no white block behind)', () => {
+    const map = recordingMap() as ReturnType<typeof recordingMap> & { painted: Record<string, unknown> }
+    const added: Array<{ id: string; paint?: Record<string, unknown> }> = []
+    const addLayer = map.addLayer
+    map.addLayer = (layer: { id: string; paint?: Record<string, unknown> }) => { added.push(layer); addLayer(layer) }
+    map.state.loaded = true
+    render(<BuildingLayer map={map as never} buildings={[]} solid />)
+    expect(added.find(l => l.id === 'buildings-extrusion')?.paint?.['fill-extrusion-opacity']).toBe(1)
+  })
+})

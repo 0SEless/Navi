@@ -1,4 +1,4 @@
-import { gridOriginForBoundary, recordChange } from '@navi/core'
+import { gridOriginForBoundary, isTerrainLook, recordChange } from '@navi/core'
 import type { CampusDocument, CampusTerrain, TerrainBaseSource, TerrainReference, TileId } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
 
@@ -54,6 +54,7 @@ export const terrainSetupHandler: CommandHandler = {
       grid,
       ...(base ? { base } : {}),
       colorRange: isColorRange(payload.colorRange) ? { ...payload.colorRange } : document.terrain?.colorRange ?? { minM: 0, maxM: 40 },
+      ...(document.terrain?.mapLook ? { mapLook: document.terrain.mapLook } : {}),
     }
     document.terrain = terrain
     if (payload.clearTiles === true) delete document.terrainTiles
@@ -90,6 +91,23 @@ export const terrainApplyTilesHandler: CommandHandler = {
     const before = result.data?.before as Record<string, string | null> | undefined
     if (!before) return null
     return { id: 'terrain.apply-tiles', label: 'Undo terrain edit', payload: { tiles: before } }
+  },
+}
+
+/** Sets the campus's NAVI Web ground look (decorative; undo puts back the previous look or its absence). */
+export const terrainSetLookHandler: CommandHandler = {
+  id: 'terrain.set-look',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    if (!document.terrain) return { success: false, error: 'Set up the terrain first.' }
+    if (!isTerrainLook(payload.look)) return { success: false, error: 'Choose a map look: green, vivid, neutral or sand.' }
+    const previous = snapshot(document)
+    document.terrain = { ...document.terrain, mapLook: payload.look }
+    recordChange(document, { entityId: 'terrain', entityType: 'terrain', operation: 'updated' })
+    return { success: true, entityId: 'terrain', data: { previous } }
+  },
+  inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
+    const previous = result.data?.previous as ReturnType<typeof snapshot> | undefined
+    return previous ? restoreCommand(previous, 'Undo map look') : null
   },
 }
 

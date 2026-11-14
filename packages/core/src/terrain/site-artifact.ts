@@ -34,6 +34,8 @@ export interface SiteArtifact {
   presets: StructurePreset[]
   /** Effective building base heights. */
   buildings: Array<{ id: string; baseM: number }>
+  /** The owner's ground look for NAVI Web; absent = the default (green terraces). */
+  look?: import('./map-looks').TerrainLook
 }
 
 /** A flat sampler for campuses without terrain (0 m ground; pads and heights still resolve). */
@@ -79,6 +81,7 @@ export function buildSiteArtifact(doc: CampusDocument): SiteArtifact | null {
     structures,
     presets: (doc.structurePresets ?? []).filter((preset) => used.has(preset.id)),
     buildings: (doc.buildings ?? []).map((building) => ({ id: building.id, baseM: effectiveBuildingBase(building, sampler) })),
+    ...(doc.terrain?.mapLook ? { look: doc.terrain.mapLook } : {}),
   }
 }
 

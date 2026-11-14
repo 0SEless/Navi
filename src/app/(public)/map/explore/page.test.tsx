@@ -134,6 +134,17 @@ describe('ExplorePage discovery surface', () => {
     expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
+  it('a room result goes to that room on its floor (highlighted) with the sheet lowered', () => {
+    setReadyCampus()
+    render(<ExplorePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Search campus' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search campus places' }), { target: { value: '201' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Explore Room 201' }))
+    expect(usePublicStore.getState().selectedBuilding?.id).toBe('b1')
+    expect(usePublicStore.getState().focusedRoom).toEqual({ roomId: 'room-b1-201', buildingId: 'b1', floor: 2 })
+    expect(usePublicStore.getState().sheetState).toBe('collapsed')
+  })
+
   it('shows an authored POI in discovery and opens its building without routing', () => {
     setReadyCampus()
     render(<ExplorePage />)

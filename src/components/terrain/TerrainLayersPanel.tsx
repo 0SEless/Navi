@@ -1,5 +1,6 @@
 'use client'
 
+import { TERRAIN_LOOKS, terrainLookStyle, type TerrainLook } from '@navi/core'
 import type { TerrainLayers } from '@/lib/terrain/terrain-layers'
 import { secondaryButton } from './form-styles'
 
@@ -31,7 +32,11 @@ function Eye({ open }: { open: boolean }) {
 }
 
 /** Section 5: the left panel, like Studio's Explorer. Each layer has an eye; the tracing image stays on this computer. */
-export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing }: {
+export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing, mapLook, onMapLook, mapLookDisabled = false }: {
+  /** The campus's ground look on NAVI Web (saved with the campus); omitted = the picker is hidden. */
+  mapLook?: TerrainLook
+  onMapLook?: (look: TerrainLook) => void
+  mapLookDisabled?: boolean
   layers: TerrainLayers
   onLayers: (next: TerrainLayers) => void
   hasTracing: boolean
@@ -71,6 +76,19 @@ export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacit
           </div>
         )
       })}
+      {mapLook && onMapLook && (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 12, padding: '8px 4px 0', borderTop: '1px solid var(--navi-border, #e5e7eb)', fontSize: 12, color: 'var(--navi-text-secondary, #6b7280)' }}>
+          Map look on NAVI Web
+          <select
+            aria-label="Map look on NAVI Web" value={mapLook} disabled={mapLookDisabled}
+            onChange={(event) => onMapLook(event.target.value as TerrainLook)}
+            style={{ minHeight: 32, fontSize: 13 }}
+          >
+            {TERRAIN_LOOKS.map((look) => <option key={look} value={look}>{terrainLookStyle(look).label}</option>)}
+          </select>
+          <span style={{ fontSize: 11 }}>{mapLookDisabled ? 'Set up the terrain and start editing to change it.' : 'Visitors see this first and can switch on their phone. Saved with the campus.'}</span>
+        </label>
+      )}
       <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--navi-border, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--navi-text-secondary, #6b7280)' }}>
           Tracing image (this computer only)

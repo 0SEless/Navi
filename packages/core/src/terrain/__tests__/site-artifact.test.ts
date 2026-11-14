@@ -94,3 +94,10 @@ describe('createSiteSurface', () => {
     expect(createSiteGround(buildSiteArtifact(doc({}))!)(ll(5, 5))).toBe(0)
   })
 })
+
+describe('published map look', () => {
+  it('carries the owner\'s map look when one is set, and nothing otherwise', () => {
+    expect(buildSiteArtifact(doc({ terrain: terrain(2) }))!).not.toHaveProperty('look')
+    expect(buildSiteArtifact(doc({ terrain: { ...terrain(2), mapLook: 'sand' } as CampusTerrain }))!.look).toBe('sand')
+  })
+})

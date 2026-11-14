@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useCallback, useState } from 'react'
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Compass, LocateFixed, Navigation } from 'lucide-react'
 import NavigationMap, { useNavigationMap } from '@/components/map/NavigationMap'
 import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
@@ -10,6 +10,7 @@ import { StaircaseLayer } from '@/components/map/layers/StaircaseLayer'
 import { ElevatorLayer } from '@/components/map/layers/ElevatorLayer'
 import { DoorLayer } from '@/components/map/layers/DoorLayer'
 import { FloorArchitectureLayer, selectFloorArchitecture, floorArchitectureFallback } from '@/components/map/layers/FloorArchitectureLayer'
+import { RaisedRoomLabels } from '@/components/map/layers/RaisedRoomLabels'
 import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
 import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
@@ -18,6 +19,11 @@ import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
 import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
 import { RouteLine } from '@/components/map/RouteLine'
 import { SiteLayers } from '@/components/map/site/SiteLayers'
+import { TerrainLookSwitch } from '@/components/map/TerrainLookSwitch'
+import { autoIndoorDecision } from '@/lib/auto-indoor'
+import { focusCamera } from '@/lib/focus-camera'
+import { visitorPois, type PublishedPoi } from '@/lib/visitor-pois'
+import { DEFAULT_TERRAIN_LOOK, createSiteGround } from '@navi/core'
 import { FloorSelector } from '@/components/map/FloorSelector'
 import NavigationCamera, { type NavigationCameraConfig } from '@/components/map/NavigationCamera'
 import NavigationPositionMarker from '@/components/map/NavigationPositionMarker'
@@ -110,6 +116,7 @@ function ExploreLayers({
   // Task 15: with a published site the map is campus only; tilted (3D) shows its terrain, and the route
   // becomes a ribbon on the surface (2D keeps the route line).
   const site = bundle.site
+  const terrainLook = usePublicStore((s) => s.preferences.terrainLook)
   const [threeD, setThreeD] = useState(() => (map ? map.getPitch() > 2 : false))
   useEffect(() => {
     if (!map) return
@@ -119,7 +126,65 @@ function ExploreLayers({
     return () => { map.off('pitch', onPitch) }
   }, [map])
 
-  const architecture = selectFloorArchitecture(model.indoor.architecture, indoorContext, activeFloor, threeD)
+  // Zooming in on a building opens its floor; zooming back out closes it (only buildings opened this way).
+  const autoIndoorRef = useRef<string | null>(null)
+  const routeShown = Boolean(route && route.path.length > 0)
+  useEffect(() => {
+    if (!map || routeShown) return
+    const onMoveEnd = () => {
+      const { indoorContext: current, enterIndoorContext, exitIndoorContext } = usePublicStore.getState()
+      const open = current.active && current.buildingId ? current.buildingId : null
+      if (open !== autoIndoorRef.current) autoIndoorRef.current = null
+      const decision = autoIndoorDecision({
+        buildings: model.buildings,
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        indoor: open ? { buildingId: open, auto: autoIndoorRef.current === open } : null,
+      })
+      if (!decision) return
+      if ('exit' in decision) {
+        autoIndoorRef.current = null
+        exitIndoorContext()
+        return
+      }
+      const building = bundle.buildings.find((b) => b.id === decision.enter)
+      autoIndoorRef.current = decision.enter
+      enterIndoorContext(decision.enter, building?.floors?.[0] ?? 0)
+      // An open details sheet follows to the new building; a room highlighted in the old one is cleared.
+      const state = usePublicStore.getState()
+      if (state.focusedRoom && state.focusedRoom.buildingId !== decision.enter) state.focusRoom(null)
+      if (building && state.selectedBuilding && state.selectedBuilding.id !== decision.enter) state.selectBuilding(building)
+    }
+    map.on('moveend', onMoveEnd)
+    return () => { map.off('moveend', onMoveEnd) }
+  }, [map, model.buildings, bundle.buildings, routeShown])
+
+  const indoorActive = indoorContext.active
+  const indoorBuildingId = indoorContext.buildingId
+  const architecture = useMemo(
+    () => selectFloorArchitecture(model.indoor.architecture, { active: indoorActive, buildingId: indoorBuildingId }, activeFloor, threeD),
+    [model.indoor.architecture, indoorActive, indoorBuildingId, activeFloor, threeD],
+  )
+  // On 3D terrain every wall piece would be lifted by the ground under it (uneven on a slope): level them
+  // all to the building's floor.
+  const siteGround = useMemo(() => (site?.terrain ? createSiteGround(site) : null), [site])
+  const openBuildingId = architecture?.buildingId
+  // The open floor's own floor covers the outline and every room on it (no ground shows under it).
+  const openFloorAreas = useMemo(() => {
+    if (!openBuildingId) return undefined
+    const onFloor = <T extends { buildingId: string; floor: number; polygon: { lat: number; lng: number }[] }>(list: T[]) =>
+      list.filter((item) => item.buildingId === openBuildingId && item.floor === activeFloor).map((item) => item.polygon)
+    const outline = bundle.buildings.find((b) => b.id === openBuildingId)?.footprint ?? []
+    return [outline, ...onFloor(model.indoor.rooms)]
+  }, [bundle.buildings, openBuildingId, activeFloor, model.indoor.rooms])
+  const architectureLevel = useMemo(() => {
+    if (!siteGround || !site || !openBuildingId) return undefined
+    const published = site.buildings.find((b) => b.id === openBuildingId)?.baseM
+    const ring = bundle.buildings.find((b) => b.id === openBuildingId)?.footprint ?? []
+    const centre = ring.length ? { lat: ring.reduce((t, p) => t + p.lat, 0) / ring.length, lng: ring.reduce((t, p) => t + p.lng, 0) / ring.length } : null
+    const floorM = published ?? (centre ? siteGround(centre) : undefined)
+    return floorM === undefined ? undefined : { ground: siteGround, floorM }
+  }, [siteGround, site, openBuildingId, bundle.buildings])
 
   const handleBuildingClick = (buildingId: string) => {
     // Look up the full Building from the bundle (not the render model)
@@ -127,8 +192,46 @@ function ExploreLayers({
     if (building) {
       selectBuilding(building)
       setSheet('half')
+      // Close in on the building, above the sheet; close enough that zooming opens its floors.
+      const camera = map ? focusCamera(building.footprint ?? [], { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'building') : null
+      if (map && camera) map.fitBounds(camera.bounds, camera.options)
     }
   }
+
+  // Authored POIs: outdoor ones always, the open building's on the floor shown (hidden ones stay off the map
+  // unless a search reveals them).
+  const visiblePois = useMemo(() => {
+    const indoor = { active: indoorContext.active, buildingId: indoorContext.buildingId }
+    const floorPois = indoor.active ? model.indoor.pois.filter((p) => p.buildingId === indoor.buildingId && p.floor === activeFloor) : []
+    return [...visitorPois(bundle.poi as PublishedPoi[] | undefined, indoor, activeFloor), ...floorPois]
+  }, [bundle.poi, indoorContext.active, indoorContext.buildingId, activeFloor, model.indoor.pois])
+
+  // A room picked from a building's room list or search: go to it, and highlight it on its floor.
+  const focusedRoom = usePublicStore((s) => s.focusedRoom)
+  const focusedRoomShape = useMemo(() => {
+    if (!focusedRoom) return null
+    const room = model.indoor.rooms.find((r) => r.id === focusedRoom.roomId && r.buildingId === focusedRoom.buildingId)
+    if (!room) return null
+    const record = model.indoor.architecture?.find((a) => a.buildingId === room.buildingId && a.floor === room.floor)
+    return { room, elevation: record?.elevation ?? 0 }
+  }, [focusedRoom, model.indoor.rooms, model.indoor.architecture])
+  useEffect(() => {
+    if (!map || !focusedRoomShape) return
+    const camera = focusCamera(focusedRoomShape.room.polygon, { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'room')
+    if (camera) map.fitBounds(camera.bounds, camera.options)
+  }, [map, focusedRoomShape])
+  // Room names of the floor open in 2.5D, placed over the raised floor (not on the ground under it).
+  const openFloorRooms = useMemo(
+    () => (openBuildingId ? model.indoor.rooms.filter((r) => r.buildingId === openBuildingId && r.floor === activeFloor) : null),
+    [model.indoor.rooms, openBuildingId, activeFloor],
+  )
+  const openFloorSurfaceM = (architectureLevel?.floorM ?? 0) + (architecture?.elevation ?? 0) + 0.3
+  const roomHighlight = useMemo(
+    () => (focusedRoomShape && focusedRoomShape.room.floor === activeFloor && indoorContext.active && indoorContext.buildingId === focusedRoomShape.room.buildingId
+      ? { ring: focusedRoomShape.room.polygon, elevation: focusedRoomShape.elevation }
+      : undefined),
+    [focusedRoomShape, activeFloor, indoorContext.active, indoorContext.buildingId],
+  )
 
   // Node lookup for route rendering (seam for the Navigate phase).
   const getNodePosition = useCallback(
@@ -161,6 +264,7 @@ function ExploreLayers({
         buildings={model.buildings}
         selectedBuildingId={navigationTargetBuildingId ?? selectedBuildingId}
         onBuildingClick={handleBuildingClick}
+        solid={Boolean(site)}
       />
       <RoomLayer
         map={map}
@@ -174,7 +278,8 @@ function ExploreLayers({
         floor={activeFloor}
         indoorContext={indoorContext}
       />
-      <FloorArchitectureLayer map={map} architecture={architecture} />
+      <FloorArchitectureLayer map={map} architecture={architecture} level={threeD ? architectureLevel : undefined} floorAreas={openFloorAreas} highlight={roomHighlight} />
+      <RaisedRoomLabels map={map} rooms={openFloorRooms} surfaceM={openFloorSurfaceM} />
       <WallLayer
         map={map}
         walls={floorArchitectureFallback(model.indoor.walls, architecture, 'walls')}
@@ -217,9 +322,7 @@ function ExploreLayers({
       />
       <POILayer
         map={map}
-        pois={indoorContext.active ? model.indoor.pois : []}
-        buildingId={indoorContext.buildingId}
-        floor={activeFloor}
+        pois={visiblePois}
         revealedIds={revealedPoiIds}
       />
       <RouteLine
@@ -234,7 +337,7 @@ function ExploreLayers({
       {/* Last on purpose: the app's layers set up only on a loaded style, and the site's terrain tiles
           would keep it "loading". The site layers insert themselves underneath the app's layers. */}
       {site && (
-        <SiteLayers map={map} site={site} buildings={bundle.buildings} threeD={threeD} contours={false} routePath={routePath} />
+        <SiteLayers map={map} site={site} buildings={bundle.buildings} threeD={threeD} contours={false} routePath={routePath} look={terrainLook} />
       )}
     </div>
   )
@@ -279,10 +382,15 @@ function ExploreFloorSelector({
 
 function ExploreMapControls({
   bounds,
+  site,
 }: {
   bounds: CampusBundle['boundingBox']
+  site?: CampusBundle['site']
 }) {
   const { map } = useNavigationMap()
+  const terrainLook = usePublicStore((s) => s.preferences.terrainLook)
+  const setTerrainLook = usePublicStore((s) => s.setTerrainLook)
+  const campusLook = site?.look ?? DEFAULT_TERRAIN_LOOK
   const [viewIdx, setViewIdx] = useState(0)
 
   const cycleView = () => {
@@ -346,6 +454,7 @@ function ExploreMapControls({
       >
         <Compass className="h-4 w-4" aria-hidden="true" />
       </button>
+      {site?.terrain && <TerrainLookSwitch active={terrainLook ?? campusLook} campusDefault={campusLook} onChange={setTerrainLook} />}
     </div>
   )
 }
@@ -484,7 +593,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         <NavigationCamera
           {...cameraWithContext}
         />
-      ) : <ExploreMapControls bounds={mapBounds} />}
+      ) : <ExploreMapControls bounds={mapBounds} site={bundle.site} />}
       <NavigationPositionMarker />
       <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} viewedFloorId={viewedFloorId} />
     </NavigationMap>

@@ -258,7 +258,7 @@ doors: Array<{ id: string; roomId?: string; doorType: string; position: LocalCoo
   /** W15E: canonical wall-attached openings (W7A). */
   openings?: Array<{ id: string; type: 'door' | 'window'; wallId: string; offset: number; width: number; height?: number; sillHeight?: number; orientation?: number; windowAppearance?: import('./enums').WindowAppearance; windowPose?: import('./enums').WindowPose; doorAppearance?: RoomDoor['doorAppearance']; doorPose?: RoomDoor['doorPose']; doorOperation?: RoomDoor['doorOperation']; hingeSide?: RoomDoor['hingeSide']; swingSide?: RoomDoor['swingSide']; assetPreset?: string; material?: RoomDoor['material']; glass?: RoomDoor['glass'] }>
   /** W15E: derived room metadata from wall topology (W6 semantic attributes). */
-  roomAttributes?: Array<{ roomId: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
+  roomAttributes?: Array<{ roomId: string; faceId?: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
   /** W15E: authored route network (P1-T7). */
   routeNetwork?: RouteNetwork
   /** W15E: room-to-route-node access links (W9). */

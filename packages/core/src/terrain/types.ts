@@ -31,6 +31,8 @@ export interface CampusTerrain {
   base?: TerrainBaseSource
   /** Heights-view colour scale: green at minM, red at maxM. */
   colorRange: { minM: number; maxM: number }
+  /** NAVI Web ground look chosen by the campus owner; absent = the default (green terraces). Decorative only. */
+  mapLook?: import('./map-looks').TerrainLook
 }
 
 /** An axis-aligned rectangle in local metres (grid x east, y north). */

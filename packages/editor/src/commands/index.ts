@@ -41,7 +41,7 @@ export { floorManageHandler, buildingAdjustPositionHandler } from './ui-action-h
 export { boundarySetHandler, boundaryClearHandler } from './boundary-handlers'
 export { areaCreateHandler, areaDeleteHandler } from './area-handlers'
 export { terrainAreaCreateHandler, terrainAreaUpdateHandler, terrainAreaDeleteHandler } from './terrain-area-handlers'
-export { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler } from './terrain-handlers'
+export { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler, terrainSetLookHandler } from './terrain-handlers'
 export { buildingSetGroundHandler, buildingsFollowGroundHandler, DEFAULT_PAD } from './building-ground-handlers'
 export { structureHandlers } from './structure-handlers'
 export { stairConnectCommands, stairDisconnectCommands, STAIR_ROUTE_ID_PREFIX } from './stair-route'

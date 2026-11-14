@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { Building2, RotateCcw, Search, X } from 'lucide-react'
-import { usePublicStore } from '@/store/public-store'
+import { roomIdOfSearchEntry, usePublicStore } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
 import {
   filterExploreEntries,
@@ -43,6 +43,7 @@ function ExplorePageContent() {
   const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
+  const focusRoom = usePublicStore((s) => s.focusRoom)
   const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
   const setMapAppearance = usePublicStore((s) => s.setMapAppearance)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -79,7 +80,13 @@ function ExplorePageContent() {
     )
     if (!building) return
     selectBuilding(building)
-    setSheet('half')
+    if (entry.type === 'room' && entry.floor !== undefined) {
+      // Go to the room (highlighted on its floor) and keep the sheet low so the map shows it.
+      focusRoom({ roomId: roomIdOfSearchEntry(entry), buildingId: building.id, floor: entry.floor })
+      setSheet('collapsed')
+    } else {
+      setSheet('half')
+    }
     setSearchOpen(false)
     setQuery('')
     setCategory('all')

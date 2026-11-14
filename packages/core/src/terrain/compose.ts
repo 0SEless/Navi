@@ -110,7 +110,11 @@ export function effectiveBuildingBase(building: Building, sampler: TerrainSample
 // ── sampler ──────────────────────────────────────────────────────────────────
 
 interface Box { minX: number; minY: number; maxX: number; maxY: number }
-interface PadEntry { ring: Point[]; fit: GroundFit; base: () => number; box: Box }
+/** No pad: the outline plus a working space around it is flattened to the base; beyond that the ground is left as it is. */
+const FOOTPRINT_ONLY: GroundFit = { mode: 'both', blendMeters: 0 }
+const EXCAVATION_MARGIN_M = 2.5
+
+interface PadEntry { ring: Point[]; fit: GroundFit; base: () => number; box: Box; margin: number }
 interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number; box: Box }
 
 /** The points' box grown by `grow` metres: a fit only reaches points inside it (the fit index). */
@@ -179,12 +183,15 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
 
   const pads: PadEntry[] = []
   for (const building of doc.buildings ?? []) {
-    const fit = building.ground?.pad
-    if (!fit || fit.mode === 'off') continue
+    // Owner 2026-11-14: a building is always dug into / built up from the hill, so its own outline is its
+    // floor. The pad only decides how the ground around it blends; without one (or Off) nothing outside changes.
+    const pad = building.ground?.pad
+    const fit: GroundFit = pad && pad.mode !== 'off' ? pad : FOOTPRINT_ONLY
     const ring = outlineOf(building, grid)
     if (ring.length < 3) continue
     let cached: number | null = null
-    pads.push({ ring, fit, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)), box: boxOf(ring, fit.blendMeters + 0.01) })
+    const margin = fit === FOOTPRINT_ONLY ? EXCAVATION_MARGIN_M : 0
+    pads.push({ ring, fit, margin, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)), box: boxOf(ring, margin + fit.blendMeters + 0.01) })
   }
 
   const roads: RoadEntry[] = []
@@ -202,12 +209,12 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     for (const pad of pads) {
       if (!inBox(pad.box, x, y)) continue // the fit index: a pad never reaches beyond its box
       const inside = pointInPolygon(p, pad.ring)
-      const distance = inside ? 0 : distanceToSegments(p, pad.ring, true)
+      const distance = inside ? 0 : Math.max(0, distanceToSegments(p, pad.ring, true) - pad.margin)
       if (distance > pad.fit.blendMeters) continue
       if (bestPad && distance >= bestPad.distance) continue
       const delta = pad.base() - groundAt(x, y)
       if (!fitApplies(pad.fit.mode, delta)) continue
-      bestPad = { distance, delta: delta * (inside ? 1 : blendWeight(distance, pad.fit.blendMeters)) }
+      bestPad = { distance, delta: delta * (distance <= 0 ? 1 : blendWeight(distance, pad.fit.blendMeters)) }
     }
     if (bestPad) return bestPad.delta
     let bestRoad: { distance: number; delta: number } | null = null

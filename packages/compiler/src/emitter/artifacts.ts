@@ -841,7 +841,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
     // W15E: wall-first architectural data
     walls: Array<{ id: string; start: { x: number; y: number }; end: { x: number; y: number }; thickness: number; height: number }>
     openings: NonNullable<import('@navi/core').FloorGeometryFloor['openings']>
-    roomAttributes: Array<{ roomId: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
+    roomAttributes: Array<{ roomId: string; faceId?: string; name: string; type?: string; code?: string; description?: string; number?: string; category?: string; searchable: boolean }>
     routeNetwork?: import('@navi/core').RouteNetwork
     roomAccess?: import('@navi/core').RoomAccess[]
     entranceAccess?: import('@navi/core').EntranceAccess[]
@@ -965,6 +965,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
       // W15E: roomAttributes — derived room metadata from wall topology
       const roomAttributes = (floor.roomAttributes ?? []).map(ra => ({
         roomId: ra.roomId ?? ra.faceId,
+        ...(ra.faceId ? { faceId: ra.faceId } : {}),
         name: ra.name,
         ...(ra.type !== undefined ? { type: ra.type } : {}),
         ...(ra.code !== undefined ? { code: ra.code } : {}),

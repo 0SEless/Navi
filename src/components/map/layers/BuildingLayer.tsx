@@ -21,6 +21,8 @@ export interface BuildingLayerProps {
   buildings: BuildingRenderData[]
   showLabels?: boolean
   showExtrusion?: boolean
+  /** Opaque 3D shells (campuses with terrain): the building is drawn once, solid, standing on the ground. */
+  solid?: boolean
   selectedBuildingId?: string | null
   onBuildingClick?: (buildingId: string) => void
 }
@@ -81,6 +83,7 @@ export function BuildingLayer({
   buildings,
   showLabels = true,
   showExtrusion = true,
+  solid = false,
   selectedBuildingId,
   onBuildingClick,
 }: BuildingLayerProps) {
@@ -145,7 +148,7 @@ export function BuildingLayer({
             'fill-extrusion-color': ['get', 'color'],
             'fill-extrusion-height': ['get', 'height'],
             'fill-extrusion-base': ['get', 'base_elevation'],
-            'fill-extrusion-opacity': 0.55,
+            'fill-extrusion-opacity': solid ? 1 : 0.55,
           },
         })
       }
@@ -225,6 +228,12 @@ export function BuildingLayer({
     setData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, buildings, readyTick])
+
+  // Solid shells can switch on after setup (e.g. the campus package arrives later).
+  useEffect(() => {
+    if (!map || !initializedRef.current) return
+    try { if (map.getLayer(LYR.EXTRUSION)) map.setPaintProperty(LYR.EXTRUSION, 'fill-extrusion-opacity', solid ? 1 : 0.55) } catch { /* map removed */ }
+  }, [map, solid, readyTick])
 
   // Sync selection state
   const selectedBuildingRef = useRef<string | null>(null)

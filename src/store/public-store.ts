@@ -14,6 +14,7 @@ import type {
 } from '@/types/nav-types'
 import type { NavRoute } from '@/types/route-types'
 import type { PrimaryNavId } from '@/lib/public-app-contracts'
+import { readLocalPreview } from '@/lib/local-preview'
 import {
   loadPublicPreferences,
   mergePublicPreferences,
@@ -46,6 +47,13 @@ export type { CampusBundle, SearchEntry } from '@/types/nav-types'
 export type TabId = PrimaryNavId
 
 export type SheetState = 'collapsed' | 'half' | 'full' | 'hidden'
+
+export interface FocusedRoom { roomId: string; buildingId: string; floor: number }
+
+/** Room search entries are published as `search_room_<roomId>`. */
+export function roomIdOfSearchEntry(entry: { id: string }): string {
+  return entry.id.startsWith('search_room_') ? entry.id.slice('search_room_'.length) : entry.id
+}
 export type MapMode = 'explore' | 'navigate'
 export type CampusSource = 'supabase' | 'demo' | 'published_maps' | 'graph_snapshots' | 'empty'
 
@@ -102,6 +110,8 @@ export interface PublicState {
   campusError: string | null
   /** Floor currently rendered by the map; independent of route and positioning state. */
   viewedFloorId: number | null
+  /** The room picked from a building's room list or search: the map goes to it and highlights it. */
+  focusedRoom: FocusedRoom | null
   /** Floor reported by a validated QR checkpoint or explicit user confirmation. */
   positionFloorId: number | null
   positionBuildingId: string | null
@@ -139,12 +149,16 @@ export interface PublicState {
   setDefaultCampus: (campusId: string | null) => void
   setTheme: (theme: ThemePreference) => void
   setMapAppearance: (mode: PublicPreferences['mapAppearance']) => void
+  /** The visitor's ground look; null = follow the campus owner's look. */
+  setTerrainLook: (look: PublicPreferences['terrainLook'] | null) => void
   setNotifications: (enabled: boolean) => void
   setNavigationPreferences: (preferences: Partial<NavigationPreferences>) => void
   setAccessibilityPreferences: (preferences: Partial<AccessibilityPreferences>) => void
   selectBuilding: (b: Building | null) => void
   selectNode: (n: NavNode | null) => void
   setViewedFloor: (floor: number | null) => void
+  /** Opens the room's building on its floor and highlights the room; null clears it. */
+  focusRoom: (room: FocusedRoom | null) => void
   setPositionFloorManually: (floor: number, buildingId: string) => void
   setActiveFloor: (floor: number) => void
   /** W16C: Enter indoor mode for a specific building and floor. */
@@ -650,6 +664,21 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 async function fetchFromPublicCampus(campusId: string): Promise<PublicCampusResult | null> {
+  // Local "show anyway" view of a saved, unpublished campus (development servers only; see local-preview.ts).
+  const preview = readLocalPreview()
+  if (preview && preview.campusId === campusId) {
+    try {
+      const response = await fetch('/api/studio/v2/preview', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
+        body: JSON.stringify({ campusId, commitNo: preview.commitNo, relaxed: true }),
+      })
+      if (!response.ok) return null
+      const body = await response.json() as { campus?: unknown }
+      return parsePublicCampus(body.campus, campusId)
+    } catch {
+      return null
+    }
+  }
   return parsePublicCampus(await fetchJson(`/api/public-campus?campus_id=${encodeURIComponent(campusId)}`), campusId)
 }
 
@@ -813,6 +842,7 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
   campusStatus: 'idle',
   campusError: null,
   viewedFloorId: null,
+  focusedRoom: null,
   positionFloorId: null,
   positionBuildingId: null,
   positionFloorSource: 'unknown',
@@ -870,6 +900,10 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
   },
   setTheme: (theme) => updatePreferences((current) => ({ ...current, theme })),
   setMapAppearance: (mapAppearance) => updatePreferences((current) => ({ ...current, mapAppearance })),
+  setTerrainLook: (terrainLook) => updatePreferences((current) => {
+    const { terrainLook: _previous, ...rest } = current
+    return terrainLook ? { ...rest, terrainLook } : rest
+  }),
   setNotifications: (notifications) => updatePreferences((current) => ({ ...current, notifications })),
   setNavigationPreferences: (navigation) => updatePreferences((current) => ({
     ...current,
@@ -896,6 +930,16 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
   selectNode: (n) => set({ selectedNode: n }),
 
   setViewedFloor: (floor) => set({ viewedFloorId: floor }),
+
+  focusRoom: (room) => {
+    if (!room) { set({ focusedRoom: null }); return }
+    set({
+      focusedRoom: room,
+      indoorContext: { active: true, buildingId: room.buildingId, floorId: room.floor },
+      activeFloor: room.floor,
+      viewedFloorId: null,
+    })
+  },
 
   setPositionFloorManually: (floor, buildingId) => set({
     positionFloorId: floor,
@@ -925,6 +969,7 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
       indoorContext: { active: false },
       selectedBuilding: null,
       viewedFloorId: null,
+      focusedRoom: null,
     })
   },
 
@@ -973,7 +1018,7 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
       })
     }
 
-    const id = campusId ?? get().defaultCampusId ?? loadDefaultCampusId()
+    const id = campusId ?? readLocalPreview()?.campusId ?? get().defaultCampusId ?? loadDefaultCampusId()
     if (!id) return Promise.resolve()
     if (inFlight?.campusId === id) return inFlight.promise
     if (!inFlight && (get().campusLoading || get().campusStatus === 'loading')) {
@@ -1120,7 +1165,8 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
           refreshError: null,
         })
       }
-      const record = cacheRecord(network)
+      // A local preview is never stored in the offline cache (it is not the published campus).
+      const record = readLocalPreview()?.campusId === id ? null : cacheRecord(network)
       if (record) {
         try {
           await cache.put(record)

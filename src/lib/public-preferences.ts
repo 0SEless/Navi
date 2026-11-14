@@ -2,6 +2,7 @@ import {
   DEFAULT_MAP_APPEARANCE,
   type MapAppearanceMode,
 } from '@/lib/public-app-contracts'
+import { isTerrainLook, type TerrainLook } from '@navi/core'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type NavigationMapView = 'top' | 'follow' | 'pov'
@@ -23,6 +24,8 @@ export interface PublicPreferences {
   notifications: boolean
   navigation: NavigationPreferences
   accessibility: AccessibilityPreferences
+  /** The visitor's ground look for campus terrain; absent = the campus owner's look. */
+  terrainLook?: TerrainLook
 }
 
 export const DEFAULT_PUBLIC_PREFERENCES: PublicPreferences = {
@@ -109,6 +112,7 @@ export function mergePublicPreferences(input: unknown): PublicPreferences {
         ? rawAccessibility.reducedMotion
         : DEFAULT_PUBLIC_PREFERENCES.accessibility.reducedMotion,
     },
+    ...(isTerrainLook(raw.terrainLook) ? { terrainLook: raw.terrainLook } : {}),
   }
 }
 

@@ -1,3 +1,4 @@
+import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import type { NavNode, NavEdge, Building, LatLng, Component, DoorData } from '@/types/nav-types'
 import type { NavigationGraph } from '@navi/core'
 import type { NavNode as CompilerNavNode, NavEdge as CompilerNavEdge } from '@navi/core'
@@ -110,6 +111,10 @@ export interface PoiRenderData {
   category?: string
   /** Authored visibility; false = hidden from the public map by default. */
   showOnMap?: boolean
+  /** The POI's own shape (world ring) for a 2D or 2.5D look; absent = shown as a marker. */
+  shape?: LatLng[]
+  /** Authored look: marker, flat 2D shape, or a raised 2.5D shape (height in metres), and its colour. */
+  appearance?: { mode: 'marker' | '2d' | '2.5d'; color?: string; height?: number }
 }
 
 export interface WallRenderData {
@@ -148,7 +153,14 @@ export interface OpeningRenderData {
   glass?: 'clear' | 'frosted' | 'tinted'
 }
 
-export interface FloorArchitectureRenderData extends FloorArchitectureAssets { buildingId: string; floor: number }
+export interface FloorArchitectureRenderData extends FloorArchitectureAssets {
+  buildingId: string
+  floor: number
+  /** Metres above the building's base where this floor stands (its pieces are built from here). */
+  elevation: number
+  /** Every space this floor's walls enclose (world rings): the floor's own floor slab. */
+  floorFaces: LatLng[][]
+}
 
 export interface IndoorRenderData {
   architecture?: FloorArchitectureRenderData[]
@@ -338,9 +350,15 @@ function buildIndoorFromFloorGeometry(
 
     for (const fgFloor of fgBuilding.floors) {
       const floorLevel = fgFloor.level
-      architecture.push({ buildingId, floor: floorLevel, ...buildFloorArchitectureAssets({
+      // Each floor is built at its own height, so the floors of a building stack.
+      const elevation = Number.isFinite(fgFloor.elevation) ? fgFloor.elevation : 0
+      const derivedFaces = fgFloor.walls?.length
+        ? deriveRooms(fgFloor.walls.map(w => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), [])
+        : []
+      const floorFaces = derivedFaces.map(face => polygonToWorld(face.polygon.points, buildingId, transformer)).filter(ring => ring.length >= 3)
+      architecture.push({ buildingId, floor: floorLevel, elevation, floorFaces, ...buildFloorArchitectureAssets({
         buildingId, transformer, walls: fgFloor.walls ?? [], openings: fgFloor.openings ?? [], doors: fgFloor.doors,
-        stairs: fgFloor.staircases.map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })), base: 0,
+        stairs: fgFloor.staircases.map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })), base: elevation,
       }) })
 
       // Rooms
@@ -360,6 +378,23 @@ function buildIndoorFromFloorGeometry(
           polygon,
           center,
         })
+      }
+
+      // Rooms drawn by walls (the floor editor's rooms): their shapes come from the published walls, matched
+      // to their names by wall face, so NAVI Web can label and highlight them.
+      if (fgFloor.walls?.length && fgFloor.roomAttributes?.some(ra => ra.faceId)) {
+        const named = new Map(fgFloor.roomAttributes.filter(ra => ra.faceId).map(ra => [ra.faceId!, ra]))
+        for (const face of derivedFaces) {
+          const ra = face.faceId ? named.get(face.faceId) : undefined
+          if (!ra || rooms.some(r => r.id === ra.roomId)) continue
+          const polygon = polygonToWorld(face.polygon.points, buildingId, transformer)
+          if (polygon.length < 3) continue
+          const center = polygon.reduce(
+            (acc, p) => ({ lat: acc.lat + p.lat / polygon.length, lng: acc.lng + p.lng / polygon.length }),
+            { lat: 0, lng: 0 },
+          )
+          rooms.push({ id: ra.roomId, name: ra.name || ra.code || ra.number || '', buildingId, floor: floorLevel, polygon, center })
+        }
       }
 
       // Hallways

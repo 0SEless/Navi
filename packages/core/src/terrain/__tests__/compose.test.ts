@@ -115,9 +115,25 @@ describe('fits', () => {
     expect(sampler.heightAt(2, 5)).toBeCloseTo(5, 6)
   })
 
-  it('a fixed building without a pad does not change the ground', () => {
+  // Owner 2026-11-14: a building is dug into / built up from the hill, so no ground shows inside its outline.
+  it('a building without a pad still sits on its own flat floor; the ground outside is untouched', () => {
     const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [building('b2', rectFootprint(0, 0, 20, 10), { baseElevation: 3 })] }))!
-    expect(sampler.heightAt(15, 5)).toBeCloseTo(7.5, 6)
+    expect(sampler.heightAt(15, 5)).toBeCloseTo(3, 6)
+    expect(sampler.heightAt(2, 5)).toBeCloseTo(3, 6)
+    expect(sampler.heightAt(23, 5)).toBeCloseTo(11.5, 6)
+  })
+
+  it('without a pad the ground is dug 2.5 m beyond the walls (working space), then left as it is', () => {
+    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [building('b2', rectFootprint(0, 0, 20, 10), { baseElevation: 3 })] }))!
+    expect(sampler.heightAt(22.4, 5)).toBeCloseTo(3, 6)
+    expect(sampler.heightAt(22.6, 5)).toBeCloseTo(11.3, 6)
+  })
+
+  it('pad off also flattens the outline only (no blend around it)', () => {
+    const off = building('b3', rectFootprint(0, 0, 20, 10), { ground: { baseMode: 'follow-ground', pad: { mode: 'off', blendMeters: 3 } } })
+    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [off] }))!
+    expect(sampler.heightAt(15, 5)).toBeCloseTo(5, 6)
+    expect(sampler.heightAt(23, 5)).toBeCloseTo(11.5, 6)
   })
 })
 
