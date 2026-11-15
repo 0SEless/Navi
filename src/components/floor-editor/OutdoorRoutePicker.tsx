@@ -14,17 +14,12 @@ import {
   resolveOutdoorRoutePick,
   type OutdoorRouteCandidate,
 } from './outdoor-route-picker-model'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
+    osm: osmRasterSource(),
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }

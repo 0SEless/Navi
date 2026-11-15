@@ -4,14 +4,13 @@ import { useEffect, use } from 'react'
 import { StudioWorkspace } from '@/components/studio/StudioWorkspace'
 import { EditorBridge } from '@/components/studio/EditorBridge'
 import { useGraphStore } from '@/store/graph-store'
-import { useCampusMapStore } from '@/store/campus-map-store'
+import { useCampusMapLookup } from '@/components/studio/useCampusMapLookup'
 
 export default function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const loadMapData = useGraphStore((s) => s.loadMapData)
   const currentMapId = useGraphStore((s) => s.currentMapId)
-  const maps = useCampusMapStore((s) => s.maps)
-  const campusMap = maps.find((m) => m.id === id)
+  const { campusMap, state } = useCampusMapLookup(id)
 
   useEffect(() => {
     if (currentMapId !== id) {
@@ -22,7 +21,7 @@ export default function EditPage({ params }: { params: Promise<{ id: string }> }
   if (!campusMap) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--navi-text-secondary)', fontSize: 13 }}>
-        Map not found
+        {state === 'loading' ? 'Loading map…' : 'Map not found'}
       </div>
     )
   }

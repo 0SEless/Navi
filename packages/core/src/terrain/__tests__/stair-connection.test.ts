@@ -64,7 +64,7 @@ describe('suggestStairConnection', () => {
     expect(local(s.bottom!.position).x).toBeCloseTo(40, 3)
     expect(local(s.bottom!.position).y).toBeCloseTo(5, 1)
     // The centre line runs bottom (road) → top (building).
-    expect(local(s.centreline[0]).x).toBeCloseTo(40.8, 1)
+    expect(local(s.centreline[0]).x).toBeCloseTo(38, 1) // the stair stops at the road edge (2026-11-15); the route joins the centre line
     expect(local(s.centreline[s.centreline.length - 1]).x).toBeCloseTo(20, 3)
   })
 

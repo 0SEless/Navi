@@ -101,7 +101,10 @@ export function applyDab(
   const touched = new Set<TileId>()
   const target = s.targetM
   const deltas = cellsUnder(at, s, limit).map(({ cx, cy, w }) => {
-    if (s.mode === 'set') return { cx, cy, cm: target === undefined ? 0 : (target - sampler.heightAt(cx, cy)) * w * 100 }
+    // Compare with the sculpted ground (the layer the brush writes), never the final height: beside or over a
+    // building the final height is held by its floor or bank, so the same gap was added on every dab and the
+    // sculpting ran away to hundreds of metres (owner 2026-11-15).
+    if (s.mode === 'set') return { cx, cy, cm: target === undefined ? 0 : (target - sampler.sculptedAt(cx, cy)) * w * 100 }
     return { cx, cy, cm: (s.mode === 'raise' ? 1 : -1) * stepM * w * 100 }
   })
   for (const { cx, cy, cm } of deltas) {
@@ -118,8 +121,8 @@ export function smoothDab(tiles: Map<TileId, Int16Array>, loadTile: TileLoader, 
   const touched = new Set<TileId>()
   const deltas = cellsUnder(at, s, limit).map(({ cx, cy, w }) => {
     let sum = 0
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) sum += sampler.heightAt(cx + dx, cy + dy)
-    return { cx, cy, cm: (sum / 9 - sampler.heightAt(cx, cy)) * w * 100 }
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) sum += sampler.sculptedAt(cx + dx, cy + dy)
+    return { cx, cy, cm: (sum / 9 - sampler.sculptedAt(cx, cy)) * w * 100 }
   })
   for (const { cx, cy, cm } of deltas) {
     if (cm === 0) continue

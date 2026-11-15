@@ -34,14 +34,14 @@ function campus(form: Structure['form'] = 'stairs', withHall = true): CampusDocu
 }
 
 describe('structureCentreline', () => {
-  it('centreline runs from the slab edge to the road end, one point per metre', () => {
+  it('centreline runs from the slab edge to the road edge (2026-11-15: road ends land on the edge), one point per metre', () => {
     const d = campus()
     const line = structureCentreline(d, d.structures![0])!
-    expect(line).toHaveLength(21)
+    expect(line).toHaveLength(19)
     expect(local(line[0]).x).toBeCloseTo(20, 3)
     expect(local(line[0]).y).toBeCloseTo(5, 3)
-    expect(local(line[20]).x).toBeCloseTo(40, 3)
-    expect(local(line[20]).y).toBeCloseTo(5, 3)
+    expect(local(line[18]).x).toBeCloseTo(38, 3)
+    expect(local(line[18]).y).toBeCloseTo(5, 3)
   })
 
   it('an end on a deleted building (no last position) gives null', () => {
@@ -63,7 +63,7 @@ describe('stairMarking', () => {
     const xs = m.outline.map((p) => local(p).x)
     const ys = m.outline.map((p) => local(p).y)
     expect(Math.min(...xs)).toBeCloseTo(20, 3)
-    expect(Math.max(...xs)).toBeCloseTo(40, 3)
+    expect(Math.max(...xs)).toBeCloseTo(38, 3)
     expect(Math.min(...ys)).toBeCloseTo(4, 3)
     expect(Math.max(...ys)).toBeCloseTo(6, 3)
     expect(m.outline[0]).toEqual(m.outline[m.outline.length - 1])

@@ -69,3 +69,27 @@ describe('Terrain list', () => {
     expect((screen.getByRole('button', { name: 'Delete Court' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })
+
+describe('Remove spikes (owner 2026-11-15)', () => {
+  it('cleans broken sculpting in one step and says how many cells it fixed', async () => {
+    const { encodeTile, tileIdOf, TILE_CELLS } = await import('@navi/core')
+    const t = new Int16Array(TILE_CELLS * TILE_CELLS)
+    for (let i = 0; i < t.length; i++) t[i] = (i % TILE_CELLS) * 10
+    t[50 * TILE_CELLS + 50] = 6500
+    const id = tileIdOf(0, 0)
+    const d = { ...document, terrainTiles: { [id]: encodeTile(t) } } as unknown as CampusDocument
+    const dispatch = vi.fn(() => ({ success: true }))
+    render(<TerrainListPanel document={d} editing dispatch={dispatch as never} onOpenMesh={vi.fn()} onOpenRoad={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove spikes' }))
+    const call = (dispatch.mock.calls.at(-1) as unknown as [{ id: string; payload: { tiles: Record<string, string> } }])[0]
+    expect(call.id).toBe('terrain.apply-tiles')
+    expect(Object.keys(call.payload.tiles)).toEqual([id])
+    expect(screen.getByRole('status').textContent).toMatch(/Fixed 1 cell/)
+  })
+
+  it('says so when there is nothing to fix', () => {
+    const dispatch = vi.fn(() => ({ success: true }))
+    render(<TerrainListPanel document={{ ...document, terrainTiles: {} } as unknown as CampusDocument} editing dispatch={dispatch as never} onOpenMesh={vi.fn()} onOpenRoad={vi.fn()} />)
+    expect((screen.getByRole('button', { name: 'Remove spikes' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})

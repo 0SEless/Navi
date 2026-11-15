@@ -34,10 +34,12 @@ function padBoxes(doc: CampusDocument, grid: TerrainGrid): Rect[] {
   const boxes: Rect[] = [...meshReachBoxes(doc, grid)]
   // A graded road's profile depends on the ground along its whole length: an edit anywhere near it refreshes it all.
   for (const road of doc.roads ?? []) {
-    if (!road.grade || !road.groundFit || road.groundFit.mode === 'off') continue
+    // Every road owns its platform now (2026-11-15) unless its fit is explicitly Off.
+    if (road.groundFit?.mode === 'off') continue
     const points = (road.polyline?.points ?? []).map((p) => toLocal(grid, p))
     if (points.length < 2) continue
-    const grow = (road.width ?? 0) / 2 + road.groundFit.blendMeters + 1
+    // Edge width (shoulder) plus the bank back to the hill (2026-11-15).
+    const grow = (road.width ?? 0) / 2 + (road.groundFit?.blendMeters ?? 3) + 41
     boxes.push({
       minX: Math.min(...points.map((p) => p.x)) - grow, maxX: Math.max(...points.map((p) => p.x)) + grow,
       minY: Math.min(...points.map((p) => p.y)) - grow, maxY: Math.max(...points.map((p) => p.y)) + grow,

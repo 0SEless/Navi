@@ -90,8 +90,10 @@ export function GradeTool({ map, document, sampler, active, dispatch, requestedR
   }
 
   const line = (road.polyline?.points ?? []).map((q) => toLocal(grid, q))
-  const fit: GroundFit = road.groundFit ?? { mode: 'off', blendMeters: 3 }
-  const grade = road.grade ?? { smoothness: 0.5 }
+  // Every road owns its platform unless set Off (2026-11-15): no settings = Raise and lower, Platform shape.
+  const fit: GroundFit = road.groundFit ?? { mode: 'both', blendMeters: 3 }
+  const grade = road.grade ?? { smoothness: 1 }
+  const shape = grade.shape ?? 'platform'
   const pins: Pin[] = grade.pins ?? []
   const length = line.reduce((t, p, i) => (i ? t + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0)
   const send = (payload: Record<string, unknown>) => {
@@ -139,12 +141,22 @@ export function GradeTool({ map, document, sampler, active, dispatch, requestedR
         <input type="number" min={0} max={20} step={0.5} value={fit.blendMeters} style={{ width: 52 }}
           onChange={(e) => send({ groundFit: { ...fit, blendMeters: Math.max(0, Math.min(20, Number(e.target.value) || 0)) } })} />
       </label>
-      <p style={hint}>How far past the road edge the ground blends back into the hill.</p>
-      <label style={{ ...field, flexDirection: 'column', alignItems: 'stretch' }}>
-        <span style={{ display: 'flex', justifyContent: 'space-between' }}><span>Follow hill</span><span>Smooth</span></span>
-        <input type="range" aria-label="Smooth ↔ Follow hill" min={0} max={1} step={0.05} value={grade.smoothness}
-          onChange={(e) => send({ grade: { ...grade, smoothness: Number(e.target.value) } })} />
+      <p style={hint}>A level shoulder beside the road; past it the ground banks back to the hill at 1 in 2.</p>
+      <label style={field}>Shape
+        <select aria-label="Shape" value={shape} onChange={(e) => send({ grade: { ...grade, shape: e.target.value as 'platform' | 'follow' } })}>
+          <option value="platform">Platform (straight grades)</option>
+          <option value="follow">Follow the hill (smoothed)</option>
+        </select>
       </label>
+      {shape === 'platform'
+        ? <p style={hint}>Level across, with straight grades between its ends, your pins and where it crosses other roads.</p>
+        : (
+          <label style={{ ...field, flexDirection: 'column', alignItems: 'stretch' }}>
+            <span style={{ display: 'flex', justifyContent: 'space-between' }}><span>Follow hill</span><span>Smooth</span></span>
+            <input type="range" aria-label="Smooth ↔ Follow hill" min={0} max={1} step={0.05} value={grade.smoothness}
+              onChange={(e) => send({ grade: { ...grade, smoothness: Number(e.target.value) } })} />
+          </label>
+        )}
       {slice && (
         <ProfileStrip title="Side view · road" slice={slice}
           onDragHandle={(key, h) => {

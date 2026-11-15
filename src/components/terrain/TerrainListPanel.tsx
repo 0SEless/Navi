@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { CampusDocument } from '@navi/core'
+import { removeSpikes, type CampusDocument } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 
 /**
@@ -24,6 +24,7 @@ const name: React.CSSProperties = { ...icon, flex: 1, textAlign: 'left', color: 
 
 export function TerrainListPanel({ document, editing, dispatch, onOpenMesh, onOpenRoad }: TerrainListPanelProps) {
   const [askClear, setAskClear] = useState(false)
+  const [spikeNote, setSpikeNote] = useState<string | null>(null)
   const meshes = document.terrain?.meshes ?? []
   const roads = document.roads ?? []
   const send = (id: string, label: string, payload: Record<string, unknown>) => dispatch({ id, label, payload })
@@ -54,8 +55,17 @@ export function TerrainListPanel({ document, editing, dispatch, onOpenMesh, onOp
       <div style={{ ...head, display: 'flex', alignItems: 'center', gap: 4 }}>
         <span style={{ flex: 1 }}>Sculpting{hasSculpting ? '' : ' (none)'}</span>
         <button type="button" style={icon} disabled={!editing} aria-label={`${sculptingHidden ? 'Show' : 'Hide'} sculpting`} onClick={() => send('terrain.set-view', sculptingHidden ? 'Show sculpting' : 'Hide sculpting', { sculptingHidden: !sculptingHidden })}>{sculptingHidden ? 'show' : 'hide'}</button>
+        <button type="button" style={icon} disabled={!editing || !hasSculpting} aria-label="Remove spikes"
+          title="Put broken sculpting (cells far outside the hill) back in line with the ground around it"
+          onClick={() => {
+            // One undo step (owner 2026-11-15: a brush bug left −251 m … +65 m spikes beside buildings).
+            const { tiles, cells } = removeSpikes(document.terrainTiles ?? {})
+            if (cells > 0) send('terrain.apply-tiles', 'Remove spikes', { tiles })
+            setSpikeNote(cells > 0 ? `Fixed ${cells} cell${cells === 1 ? '' : 's'}.` : 'No spikes found.')
+          }}>spikes</button>
         <button type="button" style={{ ...icon, color: '#b91c1c' }} disabled={!editing || !hasSculpting} aria-label="Clear sculpting" onClick={() => setAskClear(true)}>clear</button>
       </div>
+      {spikeNote && <div role="status" style={{ ...item, color: 'var(--navi-text-secondary, #6b7280)' }}>{spikeNote}</div>}
       {askClear && (
         <div role="alertdialog" aria-label="Clear sculpting" style={{ ...item, flexWrap: 'wrap' }}>
           <span>Remove every painted change? You can undo it.</span>

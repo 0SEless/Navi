@@ -119,3 +119,30 @@ describe('applyDab', () => {
     expect(s.cell(22, 20)).toBe(0)
   })
 })
+
+describe('brushes beside or over a building never run away (owner 2026-11-15: spikes of −251 m / +65 m)', () => {
+  // A building with its floor fixed at 0 m on flat ground: inside it (and on its walkway) the final height stays at
+  // the floor whatever the sculpting says. Set to height and Smooth must edit the sculpting toward their target and
+  // stop there, not keep adding the same gap on every dab.
+  const ll = (x: number, y: number) => ({ lat: 11.8 + y / 111320, lng: 122.1 + x / (111320 * Math.cos((11.8 * Math.PI) / 180)) })
+  const withBuilding = () => ({
+    ...flatDoc(),
+    buildings: [{ id: 'b', name: 'b', footprint: { points: [ll(40, 40), ll(60, 40), ll(60, 60), ll(40, 60), ll(40, 40)] }, baseElevation: 0, ground: { baseMode: 'fixed', pad: { mode: 'off', blendMeters: 0 } }, floors: [], metadata: {} }],
+  }) as unknown as CampusDocument
+
+  it('Set to height 8 m over a building settles at 8 m of sculpting', () => {
+    const doc = withBuilding()
+    const st = stroke(doc)
+    for (let i = 0; i < 30; i++) applyDab(st.tiles, st.loadTile, st.sampler(), { x: 50, y: 50 }, { ...base, mode: 'set', targetM: 8 }, 0)
+    expect(st.cell(50, 50)).toBe(800)
+    expect(st.cell(52, 48)).toBe(800)
+  })
+
+  it('Smooth over a building edge stays within the heights around it', () => {
+    const doc = withBuilding()
+    const st = stroke(doc)
+    for (let i = 0; i < 10; i++) applyDab(st.tiles, st.loadTile, st.sampler(), { x: 40, y: 50 }, { ...base, mode: 'raise' }, 1)
+    for (let i = 0; i < 30; i++) smoothDab(st.tiles, st.loadTile, st.sampler(), { x: 40, y: 50 }, base)
+    for (let x = 34; x <= 46; x++) expect(Math.abs(st.cell(x, 50))).toBeLessThanOrEqual(1000)
+  })
+})

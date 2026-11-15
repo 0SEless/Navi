@@ -9,7 +9,7 @@ import { sampleBaseExtended } from './base-surface'
 import { decodeTile, tileIdOf, tileOfCell, toLocal } from './grid'
 import type { GroundFit, TerrainGrid, TileId } from './types'
 import { isValidMesh, meshFrame, meshValueAt, meshWeightAt, type TerrainMesh } from './mesh'
-import { alongOf, junctionPins, roadGradeProfile } from './road-grade'
+import { alongOf, junctionShapes, platformProfile, pointAlong, roadGradeProfile, type GradePin } from './road-grade'
 import { BANK_REACH_M, WALKWAY_M, groundAroundOf, type GroundAround } from './ground-around'
 
 type Point = { x: number; y: number }
@@ -130,13 +130,17 @@ export function effectiveBuildingBase(building: Building, sampler: TerrainSample
 interface Box { minX: number; minY: number; maxX: number; maxY: number }
 
 const EASE_M = 5
+/** A road without ground-fit settings: Raise and lower, 3 m shoulder (2026-11-15). */
+export const DEFAULT_ROAD_FIT: GroundFit = { mode: 'both', blendMeters: 3 }
+const ROAD_BANK_SLOPE = 0.5
+const ROAD_BANK_REACH_M = 40
 function smoothstep01(t: number): number {
   const u = Math.min(Math.max(t, 0), 1)
   return u * u * (3 - 2 * u)
 }
 
 interface PadEntry { ring: Point[]; around: GroundAround; slope: number; base: () => number; box: Box }
-interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number; box: Box }
+interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number; box: Box; yields: Array<[number, number]> }
 
 /** The points' box grown by `grow` metres: a fit only reaches points inside it (the fit index). */
 function boxOf(points: Point[], grow: number): Box {
@@ -236,30 +240,46 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
   const roads: RoadEntry[] = []
   // Graded roads (Grade tool): a smoothed profile through their pins, typed ends and shared junction heights.
   const graded: Array<{ id: string; line: Point[]; halfWidth: number; fit: GroundFit; grade: NonNullable<Road['grade']>; ends: { start?: number; end?: number } }> = []
+  // Owner 2026-11-15: every road owns its platform (level across, straight grades along) unless its ground fit is
+  // explicitly Off; a road without settings gets Raise and lower with a 3 m shoulder.
+  const profileOf = (g: { line: Point[]; grade: NonNullable<Road['grade']>; ends: { start?: number; end?: number } }, pins: GradePin[]) =>
+    (g.grade.shape === 'follow'
+      ? roadGradeProfile(g.line, groundAt, { ...g.grade, pins }, g.ends)
+      : platformProfile(g.line, groundAt, pins, g.ends))
   for (const road of doc.roads ?? []) {
-    const fit = road.groundFit
-    if (!fit || fit.mode === 'off') continue
+    const fit = road.groundFit ?? DEFAULT_ROAD_FIT
+    if (fit.mode === 'off') continue
+    // The walking route along a stair or ramp: the structure is its surface; it never shapes the ground.
+    if (road.routing?.structureId) continue
     const line = (road.polyline?.points ?? []).map((p) => toLocal(grid, p))
     if (line.length < 2) continue
     const halfWidth = (road.width ?? 0) / 2
-    if (road.grade) {
-      const typed = road.heightMode === 'typed'
-      graded.push({
-        id: road.id, line, halfWidth, fit, grade: road.grade,
-        ends: typed ? { start: road.routing?.startElevationMeters, end: road.routing?.endElevationMeters } : {},
-      })
-      continue
-    }
-    roads.push({ line, halfWidth, fit, heightAlong: roadProfile(road, line, groundAt), box: boxOf(line, halfWidth + fit.blendMeters + 0.01) })
+    const typed = road.heightMode === 'typed'
+    graded.push({
+      id: road.id, line, halfWidth, fit, grade: road.grade ?? { smoothness: 1 },
+      ends: typed ? { start: road.routing?.startElevationMeters, end: road.routing?.endElevationMeters } : {},
+    })
   }
   if (graded.length > 0) {
-    const first = graded.map((g) => ({ ...g, pins: g.grade.pins ?? [], profile: roadGradeProfile(g.line, groundAt, g.grade, g.ends) }))
-    const shared = junctionPins(first)
+    const first = graded.map((g) => ({ ...g, pins: g.grade.pins ?? [], profile: profileOf(g, g.grade.pins ?? []) }))
+    // Seamless junctions (2026-11-15): computed twice, so a side road meets the main road's final surface.
+    const zone = Math.max(0, ...first.map((g) => g.halfWidth)) + 1
+    const finalPins = (g: typeof first[number], junction: { pins: GradePin[]; yields: Array<[number, number]> } | undefined) => {
+      const jp = junction?.pins ?? []
+      const inYield = (s: number) => (junction?.yields ?? []).some(([a, b]) => s >= a - 1e-6 && s <= b + 1e-6)
+      // A road's own pins inside another road, or right beside a junction height, would make a step: the junction wins.
+      const own = g.pins.filter((p) => !inYield(p.alongM) && !jp.some((j) => Math.abs(j.alongM - p.alongM) < zone && Math.abs(j.heightM - p.heightM) > 1e-6))
+      return [...own, ...jp]
+    }
+    let current = first
+    let shapes = junctionShapes(current)
+    current = first.map((g) => ({ ...g, profile: profileOf(g, finalPins(g, shapes.get(g.id))) }))
+    shapes = junctionShapes(current.map((g) => ({ ...g, pins: g.pins })))
     for (const g of first) {
-      const pins = [...g.pins, ...(shared.get(g.id) ?? [])]
-      const profile = roadGradeProfile(g.line, groundAt, { ...g.grade, pins }, g.ends)
+      const junction = shapes.get(g.id)
+      const profile = profileOf(g, finalPins(g, junction))
       const heightAlong = (p: Point) => profile.heightAtAlong(alongOf(g.line, p).along)
-      roads.push({ line: g.line, halfWidth: g.halfWidth, fit: g.fit, heightAlong, box: boxOf(g.line, g.halfWidth + g.fit.blendMeters + 0.01) })
+      roads.push({ line: g.line, halfWidth: g.halfWidth, fit: g.fit, heightAlong, yields: junction?.yields ?? [], box: boxOf(g.line, g.halfWidth + g.fit.blendMeters + ROAD_BANK_REACH_M + 0.01) })
     }
   }
 
@@ -287,17 +307,36 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
       else if (pad.around === 'slopes' && ground < floor) target = Math.max(current, floor - rise - (floor - rise - ground > 0 ? (floor - rise - ground) * ease : 0))
     }
     const buildingDelta = target === null || ground === null ? 0 : target - ground
+    // Roads (owner 2026-11-15: a cut road showed a jagged wall beside it): on the surface the road height; beside
+    // it a level shoulder (Edge width) and then a bank at 1 in 2 back to the hill — cut where the hill is higher,
+    // filled where it is lower (by the road's mode). Like buildings, the deepest cut / highest fill wins.
     let bestRoad: { distance: number; delta: number } | null = null
+    let roadTarget: number | null = null
     for (const road of roads) {
       if (!inBox(road.box, x, y)) continue
       const centre = distanceToSegments(p, road.line, false)
       const outside = Math.max(0, centre - road.halfWidth)
-      if (outside > road.fit.blendMeters) continue
-      if (bestRoad && outside >= bestRoad.distance) continue
-      const delta = road.heightAlong(p) - groundAt(x, y)
-      if (!fitApplies(road.fit.mode, delta)) continue
-      bestRoad = { distance: outside, delta: delta * blendWeight(outside, road.fit.blendMeters) }
+      // Inside another road at a junction this road yields: the other road's surface is the ground there.
+      if (road.yields.length > 0 && outside <= 0) {
+        const s = alongOf(road.line, p).along
+        if (road.yields.some(([a, b]) => s > a + 1e-6 && s < b - 1e-6)) continue
+      }
+      if (outside > road.fit.blendMeters + ROAD_BANK_REACH_M) continue
+      ground ??= groundAt(x, y)
+      const roadH = road.heightAlong(p)
+      if (outside <= 0) {
+        const delta = roadH - ground
+        if (fitApplies(road.fit.mode, delta) && (!bestRoad || bestRoad.distance > 0)) bestRoad = { distance: 0, delta }
+        continue
+      }
+      const beyond = outside - road.fit.blendMeters
+      const rise = ROAD_BANK_SLOPE * Math.max(0, beyond)
+      const ease = smoothstep01((beyond - (ROAD_BANK_REACH_M - EASE_M)) / EASE_M)
+      const current = roadTarget ?? ground
+      if (ground > roadH + rise && fitApplies(road.fit.mode, -1)) roadTarget = Math.min(current, roadH + rise + (ground - roadH - rise) * ease)
+      else if (ground < roadH - rise && fitApplies(road.fit.mode, 1)) roadTarget = Math.max(current, roadH - rise - (roadH - rise - ground) * ease)
     }
+    if (!bestRoad && roadTarget !== null && ground !== null && roadTarget !== ground) bestRoad = { distance: 1, delta: roadTarget - ground }
     // On a road's own surface the road wins over a building's dig-out strip or blend beside it, so a road passing
     // close to a building stays level across (owner 2026-11-15: it was tilted and creased). Elsewhere buildings win.
     if (bestRoad && bestRoad.distance <= 0) return bestRoad.delta
@@ -376,6 +415,32 @@ export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSample
   const start = endOf(structure.start, structure.heightOverride?.start, structure.heightOffset?.start)
   const end = endOf(structure.end, structure.heightOverride?.end, structure.heightOffset?.end)
   if (!start || !end) return null
+  // A road end on the road surface lands on the road's edge facing the stair (owner 2026-11-15: stairs saved with
+  // an end in the middle of the road did not meet it).
+  const toEdge = (which: 'start' | 'end', at: { x: number; y: number; h: number }, other: { x: number; y: number }) => {
+    const e = structure[which]
+    if (e.kind !== 'road') return
+    const road = (doc.roads ?? []).find((r) => r.id === e.roadId)
+    const line = (road?.polyline?.points ?? []).map((q) => toLocal(grid, q))
+    const half = (road?.width ?? 0) / 2
+    if (!road || line.length < 2 || half <= 0) return
+    const { along, distance } = alongOf(line, at)
+    if (distance > half + 1e-6) return
+    const c = pointAlong(line, along)
+    const ahead = pointAlong(line, along + 0.05)
+    const behind = pointAlong(line, Math.max(0, along - 0.05))
+    let nx = -(ahead.y - behind.y)
+    let ny = ahead.x - behind.x
+    const len = Math.hypot(nx, ny) || 1
+    nx /= len; ny /= len
+    if (nx * (other.x - c.x) + ny * (other.y - c.y) < 0) { nx = -nx; ny = -ny }
+    at.x = c.x + nx * half
+    at.y = c.y + ny * half
+    const override = structure.heightOverride?.[which]
+    at.h = override ?? sampler.heightAt(at.x, at.y) + (structure.heightOffset?.[which] ?? 0)
+  }
+  toEdge('start', start, end)
+  toEdge('end', end, start)
   return {
     start: { x: start.x, y: start.y, h: start.h },
     end: { x: end.x, y: end.y, h: end.h },

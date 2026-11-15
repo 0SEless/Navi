@@ -12,16 +12,12 @@ import { saveNewCampus } from '@/studio-v2/client/new-campus'
 import { Search, ArrowLeft, Check, X, MapPin, Download, Loader2, Eye, EyeOff, Building2 } from 'lucide-react'
 import type { Building } from '@/types/nav-types'
 import { BuildingMetadataForm } from '@/components/shared/BuildingMetadataForm'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
+    osm: osmRasterSource(),
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }

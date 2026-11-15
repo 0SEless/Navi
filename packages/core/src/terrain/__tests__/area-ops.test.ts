@@ -60,3 +60,24 @@ describe('area operations', () => {
     expect(w.cell(25, 25)).toBe(250)
   })
 })
+
+describe('area tools over a building do not drift (owner 2026-11-15)', () => {
+  const ll = (x: number, y: number) => ({ lat: 11.8 + y / 111320, lng: 122.1 + x / (111320 * Math.cos((11.8 * Math.PI) / 180)) })
+  const withBuilding = () => ({
+    ...doc(),
+    buildings: [{ id: 'b', name: 'b', footprint: { points: [ll(5, 5), ll(25, 5), ll(25, 25), ll(5, 25), ll(5, 5)] }, baseElevation: 0, ground: { baseMode: 'fixed', pad: { mode: 'off', blendMeters: 0 } }, floors: [], metadata: {} }],
+  }) as unknown as CampusDocument
+
+  it('Lasso Set height twice over a building gives the same sculpting as once', () => {
+    const w = work(withBuilding())
+    lassoOp(w.tiles, w.loadTile, w.sampler, square, { kind: 'set', meters: 8 })
+    lassoOp(w.tiles, w.loadTile, w.sampler, square, { kind: 'set', meters: 8 })
+    expect(w.cell(15, 15)).toBe(800)
+  })
+
+  it('Slope over a building twice gives the same sculpting as once', () => {
+    const w = work(withBuilding())
+    for (let i = 0; i < 2; i++) slopeOp(w.tiles, w.loadTile, w.sampler, { x: 10, y: 15, h: 2 }, { x: 20, y: 15, h: 6 }, 2)
+    expect(w.cell(15, 15)).toBe(400)
+  })
+})

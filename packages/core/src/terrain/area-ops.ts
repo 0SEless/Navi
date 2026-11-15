@@ -64,7 +64,7 @@ export function lassoOp(
 ): Set<TileId> {
   const touched = new Set<TileId>()
   const cells = cellsIn(polygon)
-  const deltas = cells.map((c) => (op.kind === 'set' ? (op.meters - sampler.heightAt(c.x, c.y)) * 100 : (op.kind === 'raise-by' ? 1 : -1) * op.meters * 100))
+  const deltas = cells.map((c) => (op.kind === 'set' ? (op.meters - sampler.sculptedAt(c.x, c.y)) * 100 : (op.kind === 'raise-by' ? 1 : -1) * op.meters * 100))
   cells.forEach((c, k) => write(tiles, loadTile, touched, c.x, c.y, (cm) => cm + deltas[k]))
   return touched
 }
@@ -93,7 +93,7 @@ export function slopeOp(
       const distance = Math.abs((x - from.x) * dy - (y - from.y) * dx) / Math.sqrt(len2)
       if (distance > half + 1e-9) continue
       const target = from.h + (to.h - from.h) * Math.min(Math.max(t, 0), 1)
-      updates.push({ x, y, cm: (target - sampler.heightAt(x, y)) * 100 })
+      updates.push({ x, y, cm: (target - sampler.sculptedAt(x, y)) * 100 }) // the sculpting, not the final height (2026-11-15)
     }
   }
   for (const u of updates) write(tiles, loadTile, touched, u.x, u.y, (cm) => cm + u.cm)

@@ -20,7 +20,7 @@ const last = (d: ReturnType<typeof vi.fn>) => (d.mock.calls.at(-1) as unknown as
 
 describe('Grade tool', () => {
   it('shows the road\'s grading controls', () => {
-    setup()
+    setup(road({ grade: { smoothness: 0.5, shape: 'follow' } }))
     expect(screen.getByText('Gate road')).toBeTruthy()
     expect(screen.getByLabelText('Grade ground')).toBeTruthy()
     expect(screen.getByLabelText('Edge width (m)')).toBeTruthy()
@@ -34,9 +34,9 @@ describe('Grade tool', () => {
   })
 
   it('the slider and Off change only what they control', () => {
-    const d = setup(road({ groundFit: { mode: 'both', blendMeters: 3 }, grade: { smoothness: 0.5 } }))
+    const d = setup(road({ groundFit: { mode: 'both', blendMeters: 3 }, grade: { smoothness: 0.5, shape: 'follow' } }))
     fireEvent.change(screen.getByLabelText('Smooth ↔ Follow hill'), { target: { value: '0.9' } })
-    expect(last(d).payload).toEqual({ roadId: 'r1', grade: { smoothness: 0.9 } })
+    expect(last(d).payload).toEqual({ roadId: 'r1', grade: { smoothness: 0.9, shape: 'follow' } })
     fireEvent.change(screen.getByLabelText('Grade ground'), { target: { value: 'off' } })
     expect(last(d).payload).toEqual({ roadId: 'r1', groundFit: { mode: 'off', blendMeters: 3 } })
   })
@@ -132,5 +132,20 @@ describe('Grade tool: placing pins where you want (owner 2026-11-15)', () => {
     expect(side.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(list.style.overflowY).toBe('auto')
     expect(list.style.maxHeight).not.toBe('')
+  })
+})
+
+describe('Grade tool: roads are platforms (owner 2026-11-15)', () => {
+  it('a road without settings shows Raise and lower and the Platform shape (what the ground gets)', () => {
+    setup(road())
+    expect((screen.getByLabelText('Grade ground') as HTMLSelectElement).value).toBe('both')
+    expect((screen.getByLabelText('Shape') as HTMLSelectElement).value).toBe('platform')
+    expect(screen.queryByLabelText('Smooth ↔ Follow hill')).toBeNull()
+  })
+
+  it('choosing Follow the hill sends the shape and shows the Smooth slider', () => {
+    const d = setup(road({ groundFit: { mode: 'both', blendMeters: 3 }, grade: { smoothness: 0.5 } }))
+    fireEvent.change(screen.getByLabelText('Shape'), { target: { value: 'follow' } })
+    expect(last(d).payload).toEqual({ roadId: 'r1', grade: { smoothness: 0.5, shape: 'follow' } })
   })
 })

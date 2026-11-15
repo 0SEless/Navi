@@ -14,16 +14,12 @@ import type { LatLng, PathResult, Building, TracePath } from '@/types/nav-types'
 
 import { FloorSelector } from '@/components/map/FloorSelector'
 import { syncFloorPlanImageLayer, type FloorPlanMapLike } from '@/lib/floor-plan-map-source'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
+    osm: osmRasterSource(),
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }

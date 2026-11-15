@@ -1,4 +1,5 @@
 import type { StyleSpecification } from 'maplibre-gl'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 export type BaseStyleKey = 'osm' | 'satellite' | 'positron' | 'dark' | 'streets'
 
@@ -54,12 +55,7 @@ export const BASE_STYLES: Record<BaseStyleKey, BaseMapStyle> = {
     style: {
       version: 8,
       sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors',
-        },
+        osm: osmRasterSource(),
       },
       layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
     },

@@ -8,16 +8,12 @@ import { FloorSelector } from '@/components/map/FloorSelector'
 import { RouteLine } from '@/components/map/RouteLine'
 import { useOptionalNavigationContext } from '@/components/map/NavigationContext'
 import type { Building, LatLng, CampusBundle } from '@/types/nav-types'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
+    osm: osmRasterSource(),
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }

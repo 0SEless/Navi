@@ -680,7 +680,8 @@ export interface Road {
   /** Terrain plan: how the road reshapes the ground beside it. Absent = off. */
   groundFit?: GroundFit
   /** Terrain list: how a graded road's height follows the hill (0 = follow hill … 1 = smooth) and pinned heights along it. */
-  grade?: { smoothness: number; pins?: Array<{ alongM: number; heightM: number }> }
+  /** Road grading. shape: 'platform' (default, straight grades between ends, pins and crossings) or 'follow' (smoothed hill). */
+  grade?: { smoothness: number; pins?: Array<{ alongM: number; heightM: number }>; shape?: 'platform' | 'follow' }
   metadata: Record<string, unknown>
 }
 

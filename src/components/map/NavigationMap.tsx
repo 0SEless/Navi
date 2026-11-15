@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { SiteArtifact } from '@navi/core'
 import { exposeTerrainMapForProbe } from '@/studio-v2/client/test-hooks'
+import { osmRasterSource } from '@/lib/osm-basemap'
 
 // ── Map Context ────────────────────────────────────────────────
 
@@ -47,12 +48,7 @@ export interface NavigationMapProps {
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
-    osm: {
-      type: 'raster' as const,
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-    },
+    osm: osmRasterSource(),
   },
   layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' as const }],
 }
