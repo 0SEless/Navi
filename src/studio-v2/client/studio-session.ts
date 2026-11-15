@@ -7,7 +7,7 @@ import { parsePartKey, zoneOf, type PartKey, type ZoneKey } from '../parts/part-
 import { splitDocument, type PartRecord } from '../parts/split'
 import type { LoadOk, PartRecordWithVersion, StalePart } from '../server/types'
 import { createStudioApi, type StudioApi } from './api-client'
-import { draftStore as defaultDrafts, planRestore, type DraftStore, type V2DraftPart } from './draft-store'
+import { draftStore as defaultDrafts, planRestore, type DraftStore, type V2Draft, type V2DraftPart } from './draft-store'
 import { localReferenceStore as defaultReferences, type LocalReferenceStore } from './local-reference-store'
 import { mergeRemoteParts, withRemoteParts, type MergeContext } from './remote-merge'
 import { SaveController, binaryPartHash, partHash, type SaveControllerState, type SaveOutcome } from './save-controller'
@@ -16,6 +16,8 @@ import { getZoneClient } from './zone-registry'
 
 /** Drafts are per browser profile; the server identity is not known before the first save. */
 export const DRAFT_USER_ID = 'local-browser'
+/** Unsaved work the admin chose not to restore yet: set aside so autosaves never overwrite it (owner 2026-11-15). */
+export const KEPT_DRAFT_USER_ID = 'local-browser:kept'
 
 export const SAVE_FIRST = 'Save first'
 export const NOT_SAVED = 'Not saved — your work is kept on this computer'
@@ -45,6 +47,8 @@ export interface StudioSessionOptions {
   references?: LocalReferenceStore
   /** Asks the admin a yes/no question (restore a draft); defaults to window.confirm. */
   confirm?: (question: string) => boolean
+  /** "Restore on the next open" marker (per tab); defaults to sessionStorage. */
+  restoreFlag?: { take(campusId: string): boolean; set(campusId: string): void }
 }
 
 const THING_BY_KIND: Record<string, string> = {
@@ -131,6 +135,7 @@ export class StudioSession {
   private readonly drafts: DraftStore
   private readonly references: LocalReferenceStore
   private readonly confirm: (question: string) => boolean
+  private readonly restoreFlag: { take(campusId: string): boolean; set(campusId: string): void }
   private context: MergeContext | null = null
   private explicitSave = false
   private message: string | null = null
@@ -144,6 +149,7 @@ export class StudioSession {
     this.drafts = options.drafts ?? defaultDrafts
     this.references = options.references ?? defaultReferences
     this.confirm = options.confirm ?? ((question) => typeof window !== 'undefined' && window.confirm(question))
+    this.restoreFlag = options.restoreFlag ?? sessionRestoreFlag
     this.controller = new SaveController({ campusId: options.campusId, api: options.api, zones: options.zones })
     this.zones.setCleanCheck((zone) => !this.dirtyZones().has(zone))
     this.controller.subscribe((next) => this.publishState(next))
@@ -293,12 +299,36 @@ export class StudioSession {
     return new Set(this.controller.dirtyParts(doc).map(zoneOf).filter((zone): zone is ZoneKey => zone !== null))
   }
 
+  /** When unsaved work was set aside on this computer (Cancel on "Restore it?"), or null. */
+  async setAsideSince(): Promise<string | null> {
+    const kept = await this.drafts.read(this.campusId, KEPT_DRAFT_USER_ID).catch(() => null)
+    return kept && Object.keys(kept.parts).length > 0 ? kept.savedAt : null
+  }
+
+  /** Keeps the current edits on this computer and restores everything on the next open, without asking. */
+  async restoreOnNextOpen(): Promise<void> {
+    await this.writeDraft()
+    this.restoreFlag.set(this.campusId)
+  }
+
   /** Offer the local draft back (spec §6.3, R41); only parts that are safe to apply come back. */
   private async restoreDraft(doc: CampusDocument, load: LoadOk): Promise<CampusDocument> {
-    const draft = await this.drafts.read(this.campusId, DRAFT_USER_ID).catch(() => null)
-    if (!draft || Object.keys(draft.parts).length === 0) return doc
-    if (!this.confirm(`You have unsaved work on this computer from ${new Date(draft.savedAt).toLocaleString()}. Restore it?`)) {
-      await this.drafts.clearParts(this.campusId, DRAFT_USER_ID, Object.keys(draft.parts))
+    const main = await this.drafts.read(this.campusId, DRAFT_USER_ID).catch(() => null)
+    const kept = await this.drafts.read(this.campusId, KEPT_DRAFT_USER_ID).catch(() => null)
+    const parts = { ...(kept?.parts ?? {}), ...(main?.parts ?? {}) }
+    if (Object.keys(parts).length === 0) return doc
+    const savedAt = [main?.savedAt, kept?.savedAt].filter((t): t is string => !!t).sort().at(-1) ?? new Date().toISOString()
+    const draft: V2Draft = { campusId: this.campusId, userId: DRAFT_USER_ID, savedAt, parts }
+    // "Restore" pressed in the page (for browsers that cannot show the question) answers yes for this open.
+    const forced = this.restoreFlag.take(this.campusId)
+    if (!forced && !this.confirm(`You have unsaved work on this computer from ${new Date(draft.savedAt).toLocaleString()}. Restore it?`)) {
+      // Cancel (or a browser that blocks the question) keeps the work for next time; only a clear yes deletes it.
+      if (this.confirm('Delete it for good? Cancel keeps it for next time.')) {
+        await this.drafts.clearParts(this.campusId, KEPT_DRAFT_USER_ID, Object.keys(kept?.parts ?? {})).catch(() => undefined)
+      } else {
+        await this.drafts.write({ ...draft, userId: KEPT_DRAFT_USER_ID }).catch(() => undefined)
+      }
+      if (main) await this.drafts.clearParts(this.campusId, DRAFT_USER_ID, Object.keys(main.parts)).catch(() => undefined)
       return doc
     }
     await this.zones.poll()
@@ -306,8 +336,13 @@ export class StudioSession {
     const decisions = planRestore(draft, load, (zone) => !foreign.has(zone))
     const changed = decisions.filter((decision) => decision.action === 'conflict-changed')
     const useMine = changed.length > 0
-      && this.confirm(`${changed.length} of these were also changed by another admin. Use your version for them?`)
+      && (forced || this.confirm(`${changed.length} of these were also changed by another admin. Use your version for them?`))
     const restore = decisions.filter((decision) => decision.action === 'apply' || (useMine && decision.action === 'conflict-changed'))
+    // Restored parts leave the set-aside copy; anything that could not come back stays there.
+    if (kept) {
+      const back = new Set(restore.map(({ key }) => key))
+      await this.drafts.clearParts(this.campusId, KEPT_DRAFT_USER_ID, Object.keys(kept.parts).filter((key) => back.has(key))).catch(() => undefined)
+    }
     const incoming: PartRecordWithVersion[] = restore.map(({ key }) => {
       const part = draft.parts[key]
       const binary = typeof part.contentBase64 === 'string' ? part.contentBase64 : null
@@ -357,4 +392,18 @@ export function currentStudioSession(campusId?: string | null): StudioSession | 
 export function __resetStudioSessionsForTests(): void {
   sessions.clear()
   current = null
+}
+
+const RESTORE_FLAG = 'navi-studio-v2-restore:'
+const sessionRestoreFlag = {
+  take(campusId: string): boolean {
+    try {
+      const on = sessionStorage.getItem(RESTORE_FLAG + campusId) === '1'
+      sessionStorage.removeItem(RESTORE_FLAG + campusId)
+      return on
+    } catch { return false }
+  },
+  set(campusId: string): void {
+    try { sessionStorage.setItem(RESTORE_FLAG + campusId, '1') } catch { /* no storage: the question is asked instead */ }
+  },
 }

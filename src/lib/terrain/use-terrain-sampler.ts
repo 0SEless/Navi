@@ -54,7 +54,7 @@ function syncField(document: CampusDocument, grid: TerrainGrid): HeightField | n
     }
     return field
   }
-  field = createHeightField(document)
+  field = createHeightField(document, { studioView: true })
   fieldGrid = field ? grid : null
   if (field) worker.send(field)
   else worker.forget()
@@ -116,8 +116,14 @@ function changeAtLatLng(): ((lat: number, lng: number) => number) | null {
 export function useTerrainSampler(document: CampusDocument, documentVersion: number, opts?: TerrainSamplerOptions & { overrideVersion?: number }): { sampler: TerrainSampler | null; version: number } {
   const sampler = useMemo(
     (): TerrainSampler | null => {
-      const exact = createTerrainSampler(document, opts?.tilesOverride ? { tilesOverride: opts.tilesOverride } : {})
-      if (!exact || opts?.tilesOverride) return exact
+      // Studio's view: hidden meshes and a hidden Sculpting layer stay out of sight. A stroke's working tiles or the
+      // Mesh tool's draft read the exact composer (the in-memory field holds only saved edits).
+      const exact = createTerrainSampler(document, {
+        studioView: true,
+        ...(opts?.tilesOverride ? { tilesOverride: opts.tilesOverride } : {}),
+        ...(opts?.meshesOverride ? { meshesOverride: opts.meshesOverride } : {}),
+      })
+      if (!exact || opts?.tilesOverride || opts?.meshesOverride) return exact
       const f = syncField(document, exact.grid)
       if (!f) return exact
       const read: TerrainSampler = { ...exact, heightAt: (x: number, y: number) => f.heightAt(x, y), changeAt: (x: number, y: number) => f.changeAt(x, y) }
@@ -126,7 +132,7 @@ export function useTerrainSampler(document: CampusDocument, documentVersion: num
     },
     // documentVersion / overrideVersion stand for in-place changes of the document and the working tiles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [document, documentVersion, opts?.tilesOverride, opts?.overrideVersion],
+    [document, documentVersion, opts?.tilesOverride, opts?.meshesOverride, opts?.overrideVersion],
   )
   const [version, setVersion] = useState(0)
 

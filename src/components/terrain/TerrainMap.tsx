@@ -5,6 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { toLocal, type CampusDocument, type Structure, type TerrainSampler } from '@navi/core'
 import { demTileUrl } from '@/lib/terrain/dem-protocol'
+import { DEM_MAXZOOM } from '@/lib/terrain/dem-encode'
 import { buildSlabFeatures } from '@/lib/terrain/building-slabs'
 import { buildStructuresMesh } from '@/lib/terrain/structure-mesh'
 import { createMeshLayer, meshLayerByMap, type MeshLayer } from '@/lib/three-d/mesh-layer'
@@ -42,6 +43,8 @@ export interface TerrainMapProps {
   layers?: Partial<TerrainLayers>
   /** 3D: hide the floors above this one (and the roof). */
   cutAboveFloorId?: string | null
+  /** Drawn by its floors (one view with NAVI Web), so its block is left out. */
+  openBuildingId?: string | null
 }
 
 function boundaryOf(document: CampusDocument) {
@@ -82,7 +85,7 @@ function contourBox(document: CampusDocument, sampler: TerrainSampler | null) {
 }
 
 /** One terrain map (top view or 3D): hillshade, height or change colours, contours, campus outlines. */
-export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers: layersProp = {}, cutAboveFloorId = null, draft = null }: TerrainMapProps) {
+export function TerrainMap({ document, sampler, version, view, exaggeration, pitch, onMap, layers: layersProp = {}, cutAboveFloorId = null, draft = null, openBuildingId = null }: TerrainMapProps) {
   const layers: TerrainLayers = { ...DEFAULT_LAYERS, ...layersProp }
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -100,7 +103,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
     const ring = boundaryOf(latest.current.document)
     const lngs = ring.map((p) => p.lng)
     const lats = ring.map((p) => p.lat)
-    const dem = (scheme: string) => ({ type: 'raster-dem' as const, tiles: [demTileUrl(scheme, latest.current.version)], tileSize: 256, encoding: 'mapbox' as const, maxzoom: 16 })
+    const dem = (scheme: string) => ({ type: 'raster-dem' as const, tiles: [demTileUrl(scheme, latest.current.version)], tileSize: 256, encoding: 'mapbox' as const, maxzoom: DEM_MAXZOOM })
     const map = new maplibregl.Map({
       container,
       style: {
@@ -129,7 +132,7 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
           // Buildings as solid blocks with walls (3D only); see building-slabs.ts.
           { id: 'terrain-slabs', type: 'fill-extrusion', source: SLABS_SOURCE, layout: { visibility: pitch > 0 ? 'visible' : 'none' }, paint: {
             // Buildings are solid blocks (walls); a cut-away block (a floor in view) is a shade darker.
-            'fill-extrusion-color': ['match', ['get', 'kind'], 'cut', '#a3adba', '#d5dae1'],
+            'fill-extrusion-color': ['match', ['get', 'kind'], 'cut', '#a3adba', 'plinth', '#8f96a3', '#d5dae1'],
             'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1,
           } },
         ],
@@ -213,9 +216,9 @@ export function TerrainMap({ document, sampler, version, view, exaggeration, pit
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !sampler) return
-    ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(cutAboveFloorId ? { cutAboveFloorId } : {}), ...(draft?.buildingBase ? { baseOverride: draft.buildingBase } : {}) }))
+    ;(map.getSource(SLABS_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(buildSlabFeatures(document, sampler, { ...(openBuildingId ? { openBuildingId } : {}), ...(cutAboveFloorId ? { cutAboveFloorId } : {}), ...(draft?.buildingBase ? { baseOverride: draft.buildingBase } : {}) }))
     map.setLayoutProperty('terrain-slabs', 'visibility', tilted && layers.buildings ? 'visible' : 'none')
-  }, [ready, version, document, sampler, cutAboveFloorId, tilted, layers.buildings, draft?.buildingBase?.buildingId, draft?.buildingBase?.baseM])
+  }, [ready, version, document, sampler, cutAboveFloorId, openBuildingId, tilted, layers.buildings, draft?.buildingBase?.buildingId, draft?.buildingBase?.baseM])
 
   // Stairs and ramps: one 3D mesh around the terrain grid origin; flat on the map in the top view.
   useEffect(() => {

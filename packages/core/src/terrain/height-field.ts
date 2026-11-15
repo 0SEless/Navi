@@ -1,5 +1,6 @@
+import { BANK_REACH_M, WALKWAY_M, groundAroundOf } from './ground-around'
 import type { CampusDocument } from '../types/document'
-import { createTerrainSampler, type TerrainSampler } from './compose'
+import { createTerrainSampler, meshReachBoxes, type TerrainSampler } from './compose'
 import { GRID_MARGIN_METERS, toLocal } from './grid'
 import type { Rect, TerrainGrid, TileId } from './types'
 
@@ -26,15 +27,28 @@ export interface HeightField {
   snapshot(rect: Rect): { rect: Rect; heights: Float32Array; changes: Float32Array }
 }
 
-/** Each building pad's reach: its footprint box grown by the pad's blend (+1 m). */
+/**
+ * What an edit can reach beyond its own rectangle: every building with its walkway and bank reach and every terrain mesh, each grown by 1 m.
+ */
 function padBoxes(doc: CampusDocument, grid: TerrainGrid): Rect[] {
-  const boxes: Rect[] = []
+  const boxes: Rect[] = [...meshReachBoxes(doc, grid)]
+  // A graded road's profile depends on the ground along its whole length: an edit anywhere near it refreshes it all.
+  for (const road of doc.roads ?? []) {
+    if (!road.grade || !road.groundFit || road.groundFit.mode === 'off') continue
+    const points = (road.polyline?.points ?? []).map((p) => toLocal(grid, p))
+    if (points.length < 2) continue
+    const grow = (road.width ?? 0) / 2 + road.groundFit.blendMeters + 1
+    boxes.push({
+      minX: Math.min(...points.map((p) => p.x)) - grow, maxX: Math.max(...points.map((p) => p.x)) + grow,
+      minY: Math.min(...points.map((p) => p.y)) - grow, maxY: Math.max(...points.map((p) => p.y)) + grow,
+    })
+  }
   for (const building of doc.buildings ?? []) {
-    const fit = building.ground?.pad
-    if (!fit || fit.mode === 'off') continue
+    // Banks and plinths (2026-11-15): a building reshapes up to its walkway plus the bank reach around it.
+    const reach = groundAroundOf(building).around === 'leave' ? 0 : WALKWAY_M + BANK_REACH_M
     const points = (building.footprint?.points ?? []).map((p) => toLocal(grid, p))
     if (points.length < 3) continue
-    const grow = fit.blendMeters + 1
+    const grow = reach + 1
     boxes.push({
       minX: Math.min(...points.map((p) => p.x)) - grow, maxX: Math.max(...points.map((p) => p.x)) + grow,
       minY: Math.min(...points.map((p) => p.y)) - grow, maxY: Math.max(...points.map((p) => p.y)) + grow,
@@ -47,8 +61,9 @@ const overlaps = (a: Rect, b: Rect) => a.minX <= b.maxX && a.maxX >= b.minX && a
 const union = (a: Rect, b: Rect): Rect => ({ minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) })
 
 /** null without terrain or a boundary (the field covers the boundary's box). */
-export function createHeightField(doc: CampusDocument, opts: { marginM?: number } = {}): HeightField | null {
-  const first = createTerrainSampler(doc)
+export function createHeightField(doc: CampusDocument, opts: { marginM?: number; studioView?: boolean } = {}): HeightField | null {
+  const view = opts.studioView ? { studioView: true } : {}
+  const first = createTerrainSampler(doc, view)
   const ring = doc.boundary?.points ?? []
   if (!first || ring.length < 3) return null
   const grid = first.grid
@@ -97,7 +112,7 @@ export function createHeightField(doc: CampusDocument, opts: { marginM?: number 
     heightAt: (x, y) => read(heights, x, y),
     changeAt: (x, y) => read(changes, x, y),
     update(next, rect, tilesOverride) {
-      const s = createTerrainSampler(next, tilesOverride ? { tilesOverride } : {})
+      const s = createTerrainSampler(next, tilesOverride ? { tilesOverride, ...view } : view)
       if (!s) return rect
       let grown = rect
       for (const box of padBoxes(next, grid)) if (overlaps(box, rect)) grown = union(grown, box)

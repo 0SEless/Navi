@@ -132,3 +132,22 @@ describe('terrain.set-look (map look on NAVI Web)', () => {
     expect(d.terrain!.mapLook).toBe('sand')
   })
 })
+
+describe('terrain.set-road-style (road design on NAVI Web)', () => {
+  it('sets the road style, undo puts back the previous one, an unknown style is refused, and setup keeps it', async () => {
+    const { terrainSetRoadStyleHandler } = await import('../terrain-handlers')
+    expect(terrainSetRoadStyleHandler.execute(doc(), { style: 'night' }).success).toBe(false)
+    const d = doc()
+    terrainSetupHandler.execute(d, { reference, base })
+    const result = terrainSetRoadStyleHandler.execute(d, { style: 'brick' })
+    expect(result.success).toBe(true)
+    expect(d.terrain!.roadStyle).toBe('brick')
+    const undo = terrainSetRoadStyleHandler.inverse!({ style: 'brick' }, result)!
+    expect(terrainRestoreHandler.execute(d, undo.payload).success).toBe(true)
+    expect(d.terrain).not.toHaveProperty('roadStyle')
+    expect(terrainSetRoadStyleHandler.execute(d, { style: 'neon' }).success).toBe(false)
+    terrainSetRoadStyleHandler.execute(d, { style: 'minimal' })
+    terrainSetupHandler.execute(d, { reference, base })
+    expect(d.terrain!.roadStyle).toBe('minimal')
+  })
+})

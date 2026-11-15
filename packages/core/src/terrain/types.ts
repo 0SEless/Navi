@@ -33,6 +33,12 @@ export interface CampusTerrain {
   colorRange: { minM: number; maxM: number }
   /** NAVI Web ground look chosen by the campus owner; absent = the default (green terraces). Decorative only. */
   mapLook?: import('./map-looks').TerrainLook
+  /** The admin's road design for NAVI Web; absent = standard. */
+  roadStyle?: import('./road-styles').RoadStyleName
+  /** Terrain meshes (editable shapes over a lassoed area); list order = priority, later wins. */
+  meshes?: import('./mesh').TerrainMesh[]
+  /** Studio view only: hide the painted Sculpting layer (publishing always includes it). */
+  sculptingHidden?: boolean
 }
 
 /** An axis-aligned rectangle in local metres (grid x east, y north). */

@@ -55,3 +55,27 @@ describe('snapStructureEnd', () => {
     expect((end as { last: { lng: number } }).last.lng).toBeCloseTo(20.0005, 9)
   })
 })
+
+describe('attaching to buildings and road edges (owner 2026-11-15)', () => {
+  const M = 1 / 111320 // ≈ degrees per metre
+  function wideRoadDoc(): CampusDocument {
+    const d = doc() as unknown as { roads: Array<Record<string, unknown>> }
+    d.roads[0].width = 40
+    return d as unknown as CampusDocument
+  }
+
+  it('anywhere on a road the end lands on the road edge on the pointer side', () => {
+    const end = snapStructureEnd(wideRoadDoc(), { lat: 10.002 + 16 * M, lng: 20.001 }, project, {})
+    expect(end).toMatchObject({ kind: 'road', roadId: 'r1' })
+    const pos = (end as { position: { lat: number; lng: number } }).position
+    expect((pos.lat - 10.002) / M).toBeCloseTo(20, 0)
+    expect(pos.lng).toBeCloseTo(20.001, 7)
+    const south = snapStructureEnd(wideRoadDoc(), { lat: 10.002 - 5 * M, lng: 20.001 }, project, {}) as { position: { lat: number } }
+    expect((south.position.lat - 10.002) / M).toBeCloseTo(-20, 0)
+  })
+
+  it('pointing inside a building attaches to its nearest wall', () => {
+    const end = snapStructureEnd(doc(), { lat: 10.00018, lng: 20.0005 }, project, { floorId: 'f2' })
+    expect(end).toMatchObject({ kind: 'slab', buildingId: 'hall', floorId: 'f2', edgeIndex: 0 })
+  })
+})

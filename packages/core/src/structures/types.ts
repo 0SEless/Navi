@@ -25,8 +25,14 @@ export interface Structure {
   railings: 'none' | 'left' | 'right' | 'both'
   /** Stairs: fraction of the run where the flight starts and ends; absent = centred. */
   flight?: { startT: number; endT: number }
-  /** Ramps: fractions of the run where a 1.5 m level landing is centred. */
+  /** Fractions of the run where a level landing is centred (ramps; stairs too since 2026-11-15). */
   landings?: number[]
+  /** Landing length in metres (stairs 1.2, ramps 1.5 by default; 0.9–5). */
+  landingLengthM?: number
+  /** Typed landing heights, in the order of `landings`; null = automatic (the rise shared). */
+  landingHeightsM?: Array<number | null>
+  /** Gentle / Normal / Steep: step size for stairs, steepest slope for ramps. Absent = the original shape. */
+  steepness?: import('./structure-profile').Steepness
   /** Metres; absent = from the attachment. */
   heightOverride?: { start?: number; end?: number }
   /**

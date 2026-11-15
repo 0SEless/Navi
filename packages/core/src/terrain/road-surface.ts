@@ -69,8 +69,28 @@ export function offsetRoadLine(road: SiteRoadSurface, offsetM: number): Array<{ 
  * Each road as a polygon at its width (both sides offset by half the width), for MapLibre `fill`
  * layers that drape on the terrain. Properties: id, type, width, startHeightM, endHeightM.
  */
+/** Distance (m) from p to a polyline, all in one local frame. */
+function distanceToPolyline(p: { x: number; y: number }, line: Array<{ x: number; y: number }>): number {
+  let best = Infinity
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1], b = line[i]
+    const dx = b.x - a.x, dy = b.y - a.y
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+    best = Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)))
+  }
+  return best
+}
+
 export function roadSurfacePolygons(roads: SiteRoadSurface[]): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
+  // Every road in one frame, to tell a free road end from one that joins another road.
+  const first = roads.find((r) => r.polyline.length > 0)?.polyline[0]
+  const shared = { originLat: first?.lat ?? 0, originLng: first?.lng ?? 0 }
+  const lines = roads.filter((r) => r.polyline.length >= 2 && r.width > 0).map((r) => ({ id: r.id, hw: r.width / 2, line: r.polyline.map((p) => toLocal(shared, p)) }))
+  const joinsAnother = (roadId: string, end: { lat: number; lng: number }) => {
+    const p = toLocal(shared, end)
+    return lines.some((o) => o.id !== roadId && distanceToPolyline(p, o.line) <= o.hw + 0.5)
+  }
   for (const road of roads) {
     if (road.polyline.length < 2 || !(road.width > 0)) continue
     const frame = { originLat: road.polyline[0].lat, originLng: road.polyline[0].lng }
@@ -86,6 +106,17 @@ export function roadSurfacePolygons(roads: SiteRoadSurface[]): GeoJSON.FeatureCo
         return [q.lng, q.lat]
       })] },
     })
+    // Rounded free ends (dead ends); an end that joins another road just runs into it (no blob past its far side).
+    const ends = [{ local: line[0], world: road.polyline[0] }, { local: line[line.length - 1], world: road.polyline[road.polyline.length - 1] }]
+    for (const { local: end, world } of ends) {
+      if (joinsAnother(road.id, world)) continue
+      const disc = Array.from({ length: 25 }, (_, i) => {
+        const a = (i % 24) / 24 * Math.PI * 2
+        const q = toLatLng(frame, { x: end.x + Math.cos(a) * hw, y: end.y + Math.sin(a) * hw })
+        return [q.lng, q.lat]
+      })
+      features.push({ type: 'Feature', properties: { id: road.id, type: road.type, width: road.width, cap: true }, geometry: { type: 'Polygon', coordinates: [disc] } })
+    }
   }
   return { type: 'FeatureCollection', features }
 }

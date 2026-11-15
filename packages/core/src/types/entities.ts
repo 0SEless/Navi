@@ -76,7 +76,7 @@ export interface Building {
   metadata: Record<string, unknown>
 
   /** Terrain plan: how the base height follows the ground and the pad around it. Absent = fixed baseElevation, no pad. */
-  ground?: { baseMode: 'follow-ground' | 'fixed'; pad: GroundFit }
+  ground?: { baseMode: 'follow-ground' | 'fixed'; pad: GroundFit; around?: import('../terrain/ground-around').GroundAround; bankSlope?: import('../terrain/ground-around').BankSlope }
 }
 
 export interface Floor {
@@ -679,6 +679,8 @@ export interface Road {
   heightMode?: 'follow-surface' | 'typed'
   /** Terrain plan: how the road reshapes the ground beside it. Absent = off. */
   groundFit?: GroundFit
+  /** Terrain list: how a graded road's height follows the hill (0 = follow hill … 1 = smooth) and pinned heights along it. */
+  grade?: { smoothness: number; pins?: Array<{ alongM: number; heightM: number }> }
   metadata: Record<string, unknown>
 }
 

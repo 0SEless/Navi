@@ -23,3 +23,21 @@ describe('roadMarkings', () => {
     expect(roadMarkings([road('pedestrian', 6)]).features).toEqual([])
   })
 })
+
+describe('roads join naturally at junctions', () => {
+  const main: SiteRoadSurface = { id: 'main', polyline: [ll(0, 0), ll(100, 0)], width: 6, type: 'connector', startHeightM: 0, endHeightM: 0 }
+  const side: SiteRoadSurface = { id: 'side', polyline: [ll(50, 0), ll(50, 50)], width: 6, type: 'connector', startHeightM: 0, endHeightM: 0 }
+  const local = (f: GeoJSON.Feature) => (f.geometry as GeoJSON.LineString).coordinates.map(([lng, lat]) => toLocal(grid, { lat, lng }))
+
+  it('the main road\'s edge line on the junction side breaks where the side road joins', () => {
+    const fc = roadMarkings([main, side])
+    const near = fc.features.filter((f) => f.properties?.roadId === 'main' && f.properties?.kind === 'edge' && local(f).every((p) => p.y > 2))
+    expect(near.length).toBe(2)
+    for (const piece of near) for (const p of local(piece)) expect(Math.abs(p.x - 50)).toBeGreaterThan(2.5)
+  })
+
+  it('the side road\'s lines stop at the main road instead of running across it', () => {
+    const fc = roadMarkings([main, side])
+    for (const f of fc.features.filter((f) => f.properties?.roadId === 'side')) for (const p of local(f)) expect(p.y).toBeGreaterThan(2.9)
+  })
+})

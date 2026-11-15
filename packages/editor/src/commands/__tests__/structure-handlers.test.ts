@@ -78,3 +78,20 @@ describe('structure commands', () => {
     expect(d.structurePresets).toEqual([preset])
   })
 })
+
+describe('stair landings and steepness settings (owner 2026-11-15)', () => {
+  const structureReplaceHandler = structureHandlers.find((h) => h.id === 'structure.replace')!
+  it('rejects bad steepness, landing length and landing heights', () => {
+    const bad = [
+      [{ steepness: 'vertical' }, 'Choose a gentle, normal or steep stair.'],
+      [{ landingLengthM: 0.2 }, 'A landing must be from 0.9 to 5 metres long.'],
+      [{ landings: [1.5] }, 'A landing must be on the stair.'],
+      [{ landings: [0.5], landingHeightsM: ['x'] }, 'A landing height must be a number or empty.'],
+    ] as const
+    for (const [extra, error] of bad) {
+      const d = { structures: [{ id: 's', form: 'stairs', width: 2, start: { kind: 'ground', position: { lat: 0, lng: 0 } }, end: { kind: 'ground', position: { lat: 0, lng: 0.0001 } } }] } as never
+      const result = structureReplaceHandler.execute(d, { structure: { id: 's', form: 'stairs', width: 2, start: { kind: 'ground', position: { lat: 0, lng: 0 } }, end: { kind: 'ground', position: { lat: 0, lng: 0.0001 } }, ...extra } })
+      expect(result).toEqual({ success: false, error })
+    }
+  })
+})

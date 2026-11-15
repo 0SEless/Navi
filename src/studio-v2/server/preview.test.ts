@@ -123,3 +123,39 @@ describe('preview a saved commit', () => {
     expect(Math.abs(box.minLat)).toBeGreaterThan(1)
   })
 })
+
+describe('preview the latest save', () => {
+  it('commitNo "latest" builds the campus\'s newest save and says which one it was', async () => {
+    const { repo, handlers } = setup('editor')
+    ;(repo as unknown as { listCampuses: unknown }).listCampuses = vi.fn(async () => ({ status: 'ok', campuses: [{ id: 'asu-ibajay', name: 'ASU', settings: {}, headCommit: 29, createdAt: '', publishedAt: null }] }))
+    const response = await handlers.preview(post('preview', { campusId: 'asu-ibajay', commitNo: 'latest' }))
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as { commitNo: number }).commitNo).toBe(29)
+    expect((repo.partsAtCommit as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1]).toBe(29)
+  })
+
+  it('a campus with no saves yet has nothing to preview', async () => {
+    const { repo, handlers } = setup('editor')
+    ;(repo as unknown as { listCampuses: unknown }).listCampuses = vi.fn(async () => ({ status: 'ok', campuses: [{ id: 'asu-ibajay', name: 'ASU', settings: {}, headCommit: 0, createdAt: '', publishedAt: null }] }))
+    expect((await handlers.preview(post('preview', { campusId: 'asu-ibajay', commitNo: 'latest' }))).status).toBe(404)
+  })
+})
+
+describe('local "show anyway" with compile errors', () => {
+  it('relaxed preview shows a campus whose compile reported errors (a disconnected route piece); publish still refuses', async () => {
+    const { CampusCompiler } = await import('@navi/compiler')
+    const real = CampusCompiler.prototype.compileV2
+    const spy = vi.spyOn(CampusCompiler.prototype, 'compileV2').mockImplementation(function (this: InstanceType<typeof CampusCompiler>, doc) {
+      const result = real.call(this, doc)
+      return { ...result, success: false, errors: [{ code: 'HALLWAY_DISCONNECTED', message: 'Disconnected component #1' }] } as typeof result
+    })
+    try {
+      const { handlers } = setup('owner')
+      expect((await handlers.preview(post('preview', { campusId: 'asu-ibajay', commitNo: 7, relaxed: true }))).status).toBe(200)
+      expect((await handlers.preview(post('preview', { campusId: 'asu-ibajay', commitNo: 7 }))).status).toBe(422)
+      expect((await handlers.publish(post('publish', { campusId: 'asu-ibajay', commitNo: 7 }))).status).toBe(422)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})

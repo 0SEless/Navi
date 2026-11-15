@@ -19,3 +19,13 @@ it('is disabled with a hint until the terrain is set up or while not editing', (
   render(<TerrainLayersPanel {...base} mapLook="green" onMapLook={vi.fn()} mapLookDisabled />)
   expect((screen.getByLabelText('Map look on NAVI Web') as HTMLSelectElement).disabled).toBe(true)
 })
+
+it('picks the NAVI Web road style for the campus (five designs)', () => {
+  const onRoadStyle = vi.fn()
+  render(<TerrainLayersPanel {...base} mapLook="green" onMapLook={vi.fn()} roadStyle="standard" onRoadStyle={onRoadStyle} />)
+  const select = screen.getByLabelText('Road style on NAVI Web') as HTMLSelectElement
+  expect(select.value).toBe('standard')
+  expect([...select.options].map((o) => o.textContent)).toEqual(['Standard', 'Campus drive', 'Night', 'Brick paving', 'Minimal'])
+  fireEvent.change(select, { target: { value: 'night' } })
+  expect(onRoadStyle).toHaveBeenCalledExactlyOnceWith('night')
+})

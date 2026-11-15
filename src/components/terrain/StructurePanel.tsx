@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import {
-  BUILT_IN_MATERIALS, BUILT_IN_PRESETS,
-  type CampusDocument, type ResolvedStructure, type Structure, type StructurePreset,
+  BUILT_IN_MATERIALS, BUILT_IN_PRESETS, structurePath, structureProfile, usesProfile,
+  type CampusDocument, type ResolvedStructure, type Steepness, type Structure, type StructurePreset,
 } from '@navi/core'
 import type { Command, MutationResult } from '@navi/editor'
 import { presetFor } from '@/lib/terrain/structure-mesh'
@@ -69,6 +69,19 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
   const readout = resolved ? stairReadout(structure, resolved) : null
   const ramp = resolved ? rampReadout(structure, resolved) : null
   const rise = resolved ? resolved.end.h - resolved.start.h : 0
+  // Landings, steepness and landing heights (owner 2026-11-15).
+  const pathLength = resolved ? structurePath(resolved.start, resolved.end, resolved.bend).length : 0
+  const profile = resolved && usesProfile(structure) ? structureProfile(structure.form, resolved.start.h, rise, pathLength, structure) : null
+  const landingList = structure.landings ?? []
+  const heightsList = landingList.map((_, i) => structure.landingHeightsM?.[i] ?? null)
+  /** Landings and their typed heights stay paired, in order along the stair. */
+  const setLandings = (pairs: Array<[number, number | null]>, label: string) => {
+    const sorted = [...pairs].sort((a, b) => a[0] - b[0])
+    const next: Structure = { ...structure, landings: sorted.map(([t]) => t) }
+    if (sorted.some(([, h]) => h !== null) || structure.landingHeightsM !== undefined) next.landingHeightsM = sorted.map(([, h]) => h)
+    replace(next, label)
+  }
+  const pairs = landingList.map((t, i): [number, number | null] => [t, heightsList[i]])
   const orphans = [resolved?.orphanStart ? 'start' : null, resolved?.orphanEnd ? 'end' : null].filter(Boolean)
 
   /** A Shift+Z offset on a ground/road end: how far above/below its surface, and Back to ground. */
@@ -154,7 +167,21 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
       <span style={{ color: 'var(--navi-muted, #6b7280)' }}>
         Look: {PARTS.map(([part, name]) => `${name.toLowerCase()} ${BUILT_IN_MATERIALS[preset.look[part]]?.name.toLowerCase() ?? preset.look[part]}`).join(', ')}
       </span>
-      {readout && (
+      <label style={row}>
+        Steepness
+        <select aria-label="Steepness" value={structure.steepness ?? 'normal'} onChange={(event) => replace({ ...structure, steepness: event.target.value as Steepness }, 'Stair steepness')}>
+          <option value="gentle">{structure.form === 'stairs' ? 'Gentle (15 cm steps)' : 'Gentle (1 in 12)'}</option>
+          <option value="normal">{structure.form === 'stairs' ? 'Normal (17.5 cm steps)' : 'Normal (1 in 8)'}</option>
+          <option value="steep">{structure.form === 'stairs' ? 'Steep (19 cm steps)' : 'Steep (1 in 5)'}</option>
+        </select>
+      </label>
+      {structure.form === 'stairs' && profile && (
+        <div aria-label="Stair readout" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span>{profile.flights.filter((f) => f.steps > 0).length} flights · {profile.flights.reduce((n, f) => n + f.steps, 0)} steps · rise {rise.toFixed(2)} m</span>
+          {profile.hint && <span style={{ color: '#b45309' }}>{profile.hint}</span>}
+        </div>
+      )}
+      {readout && !profile && (
         <div aria-label="Stair readout" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span>{readout.steps} steps · riser {Math.abs(readout.riserM).toFixed(3)} m · tread {readout.treadM.toFixed(2)} m</span>
           <span>Flight {(readout.flightEndM - readout.flightStartM).toFixed(1)} m of {readout.length.toFixed(1)} m · rise {rise.toFixed(2)} m</span>
@@ -165,13 +192,49 @@ export function StructurePanel({ document, structure, resolved, dispatch, onDele
         <div aria-label="Ramp readout" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span>{ramp.slopeRatio === null ? 'Level' : `Slope 1:${ramp.slopeRatio.toFixed(1)}`} · rise {rise.toFixed(2)} m</span>
           <span>Runs {ramp.runsBetweenLandingsM.map((r) => `${r.toFixed(1)} m`).join(', ')}</span>
-          {(structure.landings ?? []).map((t, index) => (
-            <div key={index} style={row}>
-              <span>Landing {index + 1} at {(t * ramp.length).toFixed(1)} m</span>
-              <button type="button" aria-label={`Remove landing ${index + 1}`} onClick={() => replace({ ...structure, landings: (structure.landings ?? []).filter((_, i) => i !== index) }, 'Remove landing')}>Remove</button>
+          {profile?.hint && <span style={{ color: '#b45309' }}>{profile.hint}</span>}
+        </div>
+      )}
+      {resolved && (
+        <div aria-label="Landings" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {pairs.map(([t, h], index) => (
+            <div key={index} style={{ ...row, flexWrap: 'wrap' }}>
+              <span>Landing {index + 1}</span>
+              <input aria-label={`Landing ${index + 1} position (m)`} type="number" step={0.5} min={0} max={Math.round(pathLength * 10) / 10} style={{ width: 52 }}
+                value={Math.round(t * pathLength * 10) / 10}
+                onChange={(event) => {
+                  const m = Number(event.target.value)
+                  if (!Number.isFinite(m) || pathLength <= 0) return
+                  setLandings(pairs.map((p, k) => (k === index ? [Math.min(1, Math.max(0, m / pathLength)), p[1]] : p)), 'Move landing')
+                }} />
+              <input aria-label={`Landing ${index + 1} height (m)`} type="number" step={0.1} style={{ width: 56 }}
+                placeholder={profile?.landings[index] ? profile.landings[index].h.toFixed(2) : 'auto'}
+                value={h ?? ''}
+                onChange={(event) => {
+                  const text = event.target.value.trim()
+                  const next = text === '' ? null : Number(text)
+                  if (next !== null && !Number.isFinite(next)) return
+                  setLandings(pairs.map((p, k) => (k === index ? [p[0], next] : p)), next === null ? 'Landing height automatic' : 'Landing height')
+                }} />
+              <button type="button" aria-label={`Remove landing ${index + 1}`} onClick={() => setLandings(pairs.filter((_, k) => k !== index), 'Remove landing')}>Remove</button>
             </div>
           ))}
-          <button type="button" onClick={() => replace({ ...structure, landings: addLanding(structure, resolved) }, 'Add landing')}>Add landing</button>
+          {pairs.length > 0 && (
+            <label style={row}>
+              Landing length (m)
+              <input aria-label="Landing length (m)" type="number" step={0.1} min={0.9} max={5} style={{ width: 56 }}
+                value={structure.landingLengthM ?? (structure.form === 'stairs' ? 1.2 : 1.5)}
+                onChange={(event) => {
+                  const m = Number(event.target.value)
+                  if (Number.isFinite(m) && m >= 0.9 && m <= 5) replace({ ...structure, landingLengthM: m }, 'Landing length')
+                }} />
+            </label>
+          )}
+          <button type="button" onClick={() => {
+            const next = addLanding(structure, resolved)
+            const added = next.find((t) => !landingList.includes(t))
+            setLandings([...pairs, [added ?? next[next.length - 1], null]], 'Add landing')
+          }}>Add landing</button>
         </div>
       )}
       {saving ? (

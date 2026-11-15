@@ -5,6 +5,7 @@ import { isStudioLocalDraftModeEnabled, useGraphStore } from '@/store/graph-stor
 import { isStudioDurableScopedSaveEnabled, isStudioScopedHistoryEnabled } from '@/services/studio-scoped-history-flag'
 import { getSaveStatusModel, getV2SaveStatusModel } from './save-status-model'
 import { useStudioSession, useStudioSessionState } from './v2/useStudioSession'
+import { SetAsideWork } from './v2/SetAsideWork'
 
 /**
  * Compact save-state indicator for the Studio toolbar.
@@ -51,6 +52,7 @@ export function SaveStatus() {
     : null
 
   return (
+    <>
     <div
       role="status"
       aria-live="polite"
@@ -83,5 +85,7 @@ export function SaveStatus() {
         </span>
       )}
     </div>
+    <SetAsideWork session={v2Session} />
+    </>
   )
 }

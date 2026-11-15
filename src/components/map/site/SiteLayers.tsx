@@ -3,12 +3,13 @@
 import { useEffect, useRef } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { ExpressionSpecification } from 'maplibre-gl'
-import { buildRouteRibbon, createSiteGround, createSiteSurface, DEFAULT_TERRAIN_LOOK, roadSurfacePolygons, terrainLookRelief, terrainLookStyle, type SiteArtifact, type TerrainLook } from '@navi/core'
+import { buildRouteRibbon, createSiteGround, createSiteSurface, DEFAULT_ROAD_STYLE, DEFAULT_TERRAIN_LOOK, roadStyleSpec, roadSurfacePolygons, terrainLookRelief, terrainLookStyle, type SiteArtifact, type TerrainLook } from '@navi/core'
 import { demTileUrl, registerTerrainProtocol, terrainTileCache } from '@/lib/terrain/dem-protocol'
-import { PATH_COLOR, ROAD_COLOR, roadMarkings } from '@/lib/terrain/road-markings'
+import { DEM_MAXZOOM } from '@/lib/terrain/dem-encode'
+import { roadMarkings } from '@/lib/terrain/road-markings'
 import { createMeshLayer, type MeshLayer } from '@/lib/three-d/mesh-layer'
 import type { Building } from '@/types/nav-types'
-import { siteContourLines, siteGroundArea, siteOrigin, siteStructuresMesh } from './site-data'
+import { siteContourLines, siteGroundArea, siteOrigin, sitePlinthFeatures, siteStructuresMesh } from './site-data'
 
 type LatLng = { lat: number; lng: number }
 
@@ -33,6 +34,7 @@ export const SITE_LAYER = {
   roadEdges: 'site-road-edges',
   roadCentre: 'site-road-centre',
   slabs: 'site-slabs',
+  plinths: 'site-plinths',
   structures: 'site-structures',
   route: 'site-route',
 } as const
@@ -94,7 +96,7 @@ export function SiteLayers({ map, site, buildings, threeD, contours, routePath =
     track(SITE_LAYER.ground)
 
     if (site.terrain) {
-      const dem = { type: 'raster-dem' as const, tiles: [demTileUrl(SCHEME, version.current)], tileSize: 256, encoding: 'mapbox' as const, maxzoom: 17 }
+      const dem = { type: 'raster-dem' as const, tiles: [demTileUrl(SCHEME, version.current)], tileSize: 256, encoding: 'mapbox' as const, maxzoom: DEM_MAXZOOM }
       if (!map.getSource(DEM_HILLSHADE)) map.addSource(DEM_HILLSHADE, dem)
       if (!map.getSource(DEM_TERRAIN)) map.addSource(DEM_TERRAIN, dem)
       sources.push(DEM_HILLSHADE, DEM_TERRAIN)
@@ -123,12 +125,22 @@ export function SiteLayers({ map, site, buildings, threeD, contours, routePath =
     geojson(map, SITE_LAYER.roads, roadSurfacePolygons(site.roads))
     geojson(map, 'site-road-markings', roadMarkings(site.roads))
     sources.push(SITE_LAYER.roads, 'site-road-markings')
-    add({ id: SITE_LAYER.roads, type: 'fill', source: SITE_LAYER.roads, paint: { 'fill-color': ['match', ['get', 'type'], 'pedestrian', PATH_COLOR, ROAD_COLOR], 'fill-opacity': 0.95 } })
-    add({ id: SITE_LAYER.roadEdges, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'edge'], paint: { 'line-color': '#ffffff', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH } })
-    add({ id: SITE_LAYER.roadCentre, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'centre'], paint: { 'line-color': '#ffffff', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH, 'line-dasharray': [4, 4] } })
+    // The admin's road design (Studio, saved with the campus); absent = standard.
+    const roads = roadStyleSpec(site.roadStyle ?? DEFAULT_ROAD_STYLE)
+    add({ id: SITE_LAYER.roads, type: 'fill', source: SITE_LAYER.roads, paint: { 'fill-color': ['match', ['get', 'type'], 'pedestrian', roads.path, roads.road], 'fill-opacity': 1 } })
+    add({ id: SITE_LAYER.roadEdges, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'edge'], layout: { visibility: roads.edge ? 'visible' : 'none' }, paint: { 'line-color': roads.edge ?? '#ffffff', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH } })
+    add({ id: SITE_LAYER.roadCentre, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'centre'], layout: { visibility: roads.centre ? 'visible' : 'none' }, paint: { 'line-color': roads.centre ?? '#ffffff', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH, ...(roads.centreDash ? { 'line-dasharray': roads.centreDash } : {}) } })
     track(SITE_LAYER.roads)
     track(SITE_LAYER.roadEdges)
     track(SITE_LAYER.roadCentre)
+
+    // Plinths (banks and plinths, 2026-11-15): base walls where the ground is below a building's floor (3D only).
+    geojson(map, SITE_LAYER.plinths, sitePlinthFeatures(site, buildings))
+    sources.push(SITE_LAYER.plinths)
+    add({ id: SITE_LAYER.plinths, type: 'fill-extrusion', source: SITE_LAYER.plinths, layout: { visibility: 'none' }, paint: {
+      'fill-extrusion-color': '#8f96a3', 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-opacity': 1,
+    } })
+    track(SITE_LAYER.plinths)
 
     const { origin, mesh } = siteStructuresMesh(site)
     const structures = createMeshLayer(SITE_LAYER.structures, origin)
@@ -153,6 +165,7 @@ export function SiteLayers({ map, site, buildings, threeD, contours, routePath =
   useEffect(() => {
     if (!map) return
     map.setTerrain(threeD && site.terrain ? { source: DEM_TERRAIN, exaggeration: 1 } : null)
+    try { if (map.getLayer(SITE_LAYER.plinths)) map.setLayoutProperty(SITE_LAYER.plinths, 'visibility', threeD && site.terrain ? 'visible' : 'none') } catch { /* map removed */ }
     meshes.current?.structures.setVerticalScale(threeD ? 1 : 0)
     meshes.current?.route.setVerticalScale(threeD ? 1 : 0)
   }, [map, site, buildings, threeD])

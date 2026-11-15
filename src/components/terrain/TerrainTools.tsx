@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type maplibregl from 'maplibre-gl'
-import { DEFAULT_TERRAIN_LOOK, toLocal, type BrushSettings, type CampusDocument, type TerrainSampler } from '@navi/core'
+import { DEFAULT_ROAD_STYLE, DEFAULT_TERRAIN_LOOK, toLocal, type BrushSettings, type CampusDocument, type TerrainMesh, type TerrainSampler } from '@navi/core'
+import { MeshTool } from './tools/MeshTool'
+import { GradeTool } from './tools/GradeTool'
+import { TerrainListPanel } from './TerrainListPanel'
 import type { Command, MutationResult } from '@navi/editor'
 import { contoursSetupPayload, lassoCommand, resetCommand, slopeCommand } from '@/lib/terrain/area-commands'
 import { tracingKey, tracingStore, type TracingImage } from '@/lib/terrain/tracing-store'
@@ -18,11 +21,13 @@ import { TerrainImportPanel } from './TerrainImportPanel'
 import { useEnsureZone } from '@/components/studio/v2/ZoneProvider'
 import { StructureTool } from './tools/StructureTool'
 import { CursorHeight } from './CursorHeight'
+import type { OpenFloors } from '@/lib/terrain/terrain-floors'
 import { HeightEditMode } from './HeightEditMode'
 import type { TerrainMapProps } from './TerrainMap'
 import { MAP_CENTRE_X } from './form-styles'
 
 type LatLng = { lat: number; lng: number }
+const noop = () => {}
 const AREA_TOOLS: ReadonlySet<TerrainTool> = new Set(['lasso', 'slope', 'reset', 'contour-pen'])
 
 /** Tool rail, brush and area panels, Edit boundary, layers and the local tracing image. */
@@ -45,6 +50,10 @@ export function TerrainTools(props: {
   onHeightActive?: (active: boolean) => void
   /** Opened from the map editor on one stair (?stair=<id>). */
   requestedStairId?: string | null
+  /** Mesh tool: the mesh being edited (the ground follows it live). */
+  onMeshDraft?: (mesh: TerrainMesh | null) => void
+  /** The building whose floors the 3D view shows (one view with NAVI Web), and its floor on top. */
+  onOpenFloors?: (open: OpenFloors | null) => void
 }) {
   const { document, sampler, map: mainMap, editing, dispatch, tool } = props
   const campusId = document.metadata.campusId
@@ -56,6 +65,9 @@ export function TerrainTools(props: {
   const [selectedStairId, setSelectedStairId] = useState<string | null>(null)
   const [heightMode, setHeightMode] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [meshOpen, setMeshOpen] = useState(false)
+  const [requestedMeshId, setRequestedMeshId] = useState<string | null>(null)
+  const [requestedRoadId, setRequestedRoadId] = useState<string | null>(null)
   const ensureZone = useEnsureZone()
   const toolRef = useRef(tool)
   toolRef.current = tool
@@ -79,10 +91,12 @@ export function TerrainTools(props: {
   }, [campusId])
 
   const areaActive = editing && AREA_TOOLS.has(tool)
+  // The Mesh tool draws its lasso the same way while no mesh is open.
+  const meshLasso = editing && tool === 'mesh' && !meshOpen
   const draft = {
-    active: areaActive,
+    active: areaActive || meshLasso,
     points,
-    closed: tool === 'lasso' || tool === 'reset',
+    closed: tool === 'lasso' || tool === 'reset' || tool === 'mesh',
     onPoint: (p: LatLng) => setPoints((current) => (tool === 'slope' && current.length >= 2 ? [p] : [...current, p])),
   }
   // Buildings tool: click inside a building outline to select it.
@@ -112,14 +126,15 @@ export function TerrainTools(props: {
   const boundary = { active: editing && tool === 'boundary', document, dispatch, onMessage: setMessage }
   useBoundaryEditor(mainMap, boundary)
 
-  const run = (command: Command | null) => {
+  const run = (command: Command | null): MutationResult | undefined => {
     if (!command) {
       setMessage('Nothing changed.')
-      return
+      return undefined
     }
     const result = dispatch(command)
     setMessage(result && result.success === false ? result.error ?? 'That did not work.' : null)
     setPoints([])
+    return result
   }
   const groundAt = (p: LatLng) => {
     if (!sampler || !document.terrain) return null
@@ -137,6 +152,21 @@ export function TerrainTools(props: {
     ? [[Math.min(...ring.map((p) => p.lng)) - 0.0002, Math.min(...ring.map((p) => p.lat)) - 0.0002], [Math.max(...ring.map((p) => p.lng)) + 0.0002, Math.max(...ring.map((p) => p.lat)) + 0.0002]]
     : null
   const selectedBuilding = document.buildings.find((b) => b.id === selectedBuildingId) ?? null
+  // One view (owner 2026-11-15): the Buildings tool's building (up to Cut away above, else its top floor), or the
+  // building a selected stair/ramp attaches to (its floor), shows its floors like NAVI Web.
+  const selectedStair = tool === 'stairs' && selectedStairId ? (document.structures ?? []).find((s) => s.id === selectedStairId) ?? null : null
+  const stairSlab = selectedStair ? [selectedStair.start, selectedStair.end].find((e) => e.kind === 'slab') ?? null : null
+  const topFloorId = selectedBuilding ? [...selectedBuilding.floors].sort((a, b) => b.elevation - a.elevation)[0]?.id ?? null : null
+  const openKey = tool === 'pad' && selectedBuilding && topFloorId
+    ? `${selectedBuilding.id}|${props.cutAboveFloorId ?? topFloorId}`
+    : stairSlab && stairSlab.kind === 'slab' ? `${stairSlab.buildingId}|${stairSlab.floorId}` : ''
+  const onOpenFloors = props.onOpenFloors
+  useEffect(() => {
+    if (!onOpenFloors) return
+    if (!openKey) { onOpenFloors(null); return }
+    const [buildingId, floorId] = openKey.split('|')
+    onOpenFloors({ buildingId, floorId })
+  }, [openKey, onOpenFloors])
   const changeGround = async (change: GroundChange) => {
     if (!selectedBuilding) return
     // Ground settings belong to the building: they need its lock, never the terrain lock.
@@ -174,6 +204,12 @@ export function TerrainTools(props: {
           />
         </div>
       )}
+      <MeshTool
+        map={mainMap} document={document} sampler={sampler} active={editing && tool === 'mesh'}
+        lassoPoints={points} onLassoReset={() => setPoints([])} dispatch={dispatch}
+        onDraft={props.onMeshDraft ?? noop} requestedMeshId={requestedMeshId} onSessionChange={setMeshOpen}
+      />
+      <GradeTool map={mainMap} document={document} sampler={sampler} active={editing && tool === 'grade'} dispatch={dispatch} requestedRoadId={requestedRoadId} />
       {editing && tool === 'pad' && (
         <BuildingGroundPanel building={selectedBuilding} sampler={sampler} cutAboveFloorId={props.cutAboveFloorId} onChange={(change) => void changeGround(change)} onCutAbove={props.onCutAbove} />
       )}
@@ -206,6 +242,13 @@ export function TerrainTools(props: {
         </div>
       )}
       <TerrainLayersPanel
+        list={document.terrain ? (
+          <TerrainListPanel
+            document={document} editing={editing} dispatch={(command) => run(command)}
+            onOpenMesh={(id) => { props.onTool('mesh'); setRequestedMeshId(`${id}#${Date.now()}`) }}
+            onOpenRoad={(id) => { props.onTool('grade'); setRequestedRoadId(`${id}#${Date.now()}`) }}
+          />
+        ) : undefined}
         layers={props.layers}
         onLayers={props.onLayers}
         mapLook={document.terrain?.mapLook ?? DEFAULT_TERRAIN_LOOK}
@@ -213,6 +256,11 @@ export function TerrainTools(props: {
         onMapLook={(look) => {
           const result = dispatch({ id: 'terrain.set-look', label: 'Map look', payload: { look } })
           if (result && !result.success) setMessage(result.error ?? 'The map look could not be changed.')
+        }}
+        roadStyle={document.terrain?.roadStyle ?? DEFAULT_ROAD_STYLE}
+        onRoadStyle={(style) => {
+          const result = dispatch({ id: 'terrain.set-road-style', label: 'Road style', payload: { style } })
+          if (result && !result.success) setMessage(result.error ?? 'The road style could not be changed.')
         }}
         hasTracing={Boolean(tracing)}
         tracingOpacity={tracing?.opacity ?? 0.6}

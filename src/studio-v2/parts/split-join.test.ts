@@ -500,3 +500,20 @@ describe('door/window asset style fields (2026-11-13)', () => {
     expect((joined.buildings[0].floors[0] as any).openings.find((o: any) => o.id === 'style-window')).toMatchObject({ windowAppearance: 'casement', windowPose: 'open', assetPreset: 'window.casement' })
   })
 })
+
+describe('terrain list data round trip (2026-11-15)', () => {
+  it('meshes, the Sculpting view flag and a graded road survive split and join', async () => {
+    const { newMesh, levelMesh } = await import('@navi/core')
+    const doc = fixtureTerrain()
+    const g = doc.terrain!.grid
+    const ring = [{ lat: g.originLat + 0.0001, lng: g.originLng + 0.0001 }, { lat: g.originLat + 0.0001, lng: g.originLng + 0.0004 }, { lat: g.originLat + 0.0004, lng: g.originLng + 0.0004 }]
+    doc.terrain!.meshes = [newMesh('m1', 'Front gate slope', ring, g), { ...levelMesh(newMesh('m2', 'Court', ring, g), 3.5, () => 0, g), hidden: true }]
+    doc.terrain!.sculptingHidden = true
+    doc.roads[0].groundFit = { mode: 'both', blendMeters: 4 }
+    doc.roads[0].grade = { smoothness: 0.7, pins: [{ alongM: 5, heightM: 2.5 }] }
+    const joined = joinParts(splitDocument(doc).parts)
+    expect(joined.terrain).toEqual(doc.terrain)
+    expect(joined.roads[0].groundFit).toEqual(doc.roads[0].groundFit)
+    expect(joined.roads[0].grade).toEqual(doc.roads[0].grade)
+  })
+})

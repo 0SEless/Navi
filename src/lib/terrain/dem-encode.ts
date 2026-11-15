@@ -88,3 +88,14 @@ export class TerrainTileCache {
     }
   }
 }
+
+/**
+ * Finest zoom the height tiles are made at (Studio and NAVI Web). Zoom 18 is about 0.6 m per pixel at the campus,
+ * finer than the 1 m ground, so a flat road top and its edges stay flat and sharp in 3D (zoom 16 rounded them).
+ */
+export const DEM_MAXZOOM = 18
+
+/** Ground metres covered by one height-tile pixel at `lat` and zoom `z`. */
+export function demMetresPerPixel(lat: number, z: number, size = 256): number {
+  return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (2 ** z * size)
+}

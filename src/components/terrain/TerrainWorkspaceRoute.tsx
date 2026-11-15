@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type maplibregl from 'maplibre-gl'
-import type { BrushSettings, Rect, TileId } from '@navi/core'
+import type { BrushSettings, Rect, TerrainMesh, TileId } from '@navi/core'
 import { useRouter } from 'next/navigation'
 import { useDocumentVersion, useEditor, type Command, type MutationResult } from '@navi/editor'
 import { isSaveV2Enabled } from '@/studio-v2/client/flag'
@@ -14,6 +14,10 @@ import { useTerrainLock } from './useTerrainLock'
 import { TerrainStage } from './TerrainStage'
 import type { TerrainMapProps } from './TerrainMap'
 import { TerrainViewControls } from './TerrainViewControls'
+import { SteepToggle, useSteepLayer } from './layers/SteepLayer'
+import { SetAsideWork } from '@/components/studio/v2/SetAsideWork'
+import { TerrainFloorsLayer } from './layers/TerrainFloorsLayer'
+import type { OpenFloors } from '@/lib/terrain/terrain-floors'
 import { markTerrainDirty, NO_AREA, tilesBounds, useTerrainSampler } from '@/lib/terrain/use-terrain-sampler'
 import type { TerrainView } from '@/lib/terrain/terrain-view'
 import type { TerrainTool } from './TerrainToolRail'
@@ -81,7 +85,30 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
   const [heightActive, setHeightActive] = useState(false)
   const [draft, setDraft] = useState<TerrainMapProps['draft']>(null)
   const ensureZone = useEnsureZone()
-  const { sampler, version } = useTerrainSampler(document, documentVersion)
+  // Mesh tool: the mesh being edited replaces (or joins) the saved meshes in the sampler, so the ground follows live.
+  const [meshDraft, setMeshDraft] = useState<TerrainMesh | null>(null)
+  const meshesOverride = useMemo(() => {
+    if (!meshDraft) return undefined
+    const saved = document.terrain?.meshes ?? []
+    return saved.some((m) => m.id === meshDraft.id) ? saved.map((m) => (m.id === meshDraft.id ? meshDraft : m)) : [...saved, meshDraft]
+    // documentVersion stands for in-place document changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meshDraft, document, documentVersion])
+  const onMeshDraft = useCallback((mesh: TerrainMesh | null) => {
+    setMeshDraft((previous) => {
+      // Redraw only the tiles under the old and new outline (plus 2 m).
+      const ring = [...(previous?.outline ?? []), ...(mesh?.outline ?? [])]
+      if (ring.length > 0) {
+        const pad = 0.00002
+        markTerrainDirty({
+          west: Math.min(...ring.map((p) => p.lng)) - pad, east: Math.max(...ring.map((p) => p.lng)) + pad,
+          south: Math.min(...ring.map((p) => p.lat)) - pad, north: Math.max(...ring.map((p) => p.lat)) + pad,
+        })
+      }
+      return mesh
+    })
+  }, [])
+  const { sampler, version } = useTerrainSampler(document, documentVersion, meshesOverride ? { meshesOverride } : undefined)
   // The clay preview while painting: built once per route, never touches sampler/version state.
   const previewRef = useRef<TerrainPaintPreview | null>(null)
   if (previewRef.current == null) {
@@ -154,6 +181,9 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
     onPick: (heightM: number) => setSettings((current) => ({ ...current, mode: 'set', targetM: heightM })),
   }
   useTerrainStroke(mainMap, strokeOptions)
+  const [steep, setSteep] = useState(false)
+  const [openFloors, setOpenFloors] = useState<OpenFloors | null>(null)
+  useSteepLayer(mainMap, document.terrain?.grid ?? null, steep, version)
   useTerrainShortcuts({
     enabled: editing,
     heightMode: heightActive,
@@ -190,19 +220,23 @@ function TerrainWorkspaceConnected({ mapId, children }: { mapId: string; childre
       missingBoundary={settingsBoundary.loaded && (document.boundary?.points?.length ?? 0) < 3}
       topBarExtras={(
         <>
+          <SetAsideWork session={session} />
+          <SteepToggle on={steep} onChange={setSteep} />
           <TerrainViewControls view={view} exaggeration={exaggeration} onView={setView} onExaggeration={setExaggeration} threeD={tilted} onThreeD={toggleThreeD} />
           <button type="button" aria-label="Terrain guide" title="Show the terrain guide" onClick={() => setGuideOpen(true)}
             style={{ marginLeft: 8, width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--navi-border, #d1d5db)', background: 'var(--navi-card, #fff)', fontWeight: 700, cursor: 'pointer' }}>?</button>
         </>
       )}
     >
-      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} draft={draft} />
+      <TerrainStage document={document} sampler={sampler} version={version} view={view} exaggeration={exaggeration} onMainMap={setMainMap} layers={layers} cutAboveFloorId={cutAboveFloorId} draft={draft} openBuildingId={tilted ? openFloors?.buildingId ?? null : null} />
+      <TerrainFloorsLayer map={mainMap} document={document} sampler={sampler} open={openFloors} threeD={tilted} />
       <TerrainTools
         document={document} sampler={sampler} map={mainMap} editing={editing} dispatch={dispatch}
         tool={tool} onTool={setTool} settings={settings} onSettings={setSettings} layers={layers} onLayers={setLayers}
         cutAboveFloorId={cutAboveFloorId} onCutAbove={setCutAboveFloorId}
         requestedStairId={requestedStairId}
         onDraft={setDraft} onHeightActive={setHeightActive}
+        onMeshDraft={onMeshDraft} onOpenFloors={setOpenFloors}
       />
       <TerrainGuide open={guideOpen} onClose={closeGuide} />
       {children}

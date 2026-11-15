@@ -1,3 +1,4 @@
+import { structureProfile, usesProfile, type StructureProfile } from './structure-profile'
 import type { StructurePath } from './path'
 import { RAMP_LANDING_M, rampHeightAt } from './ramp-shape'
 import { stairShape } from './stair-shape'
@@ -15,6 +16,9 @@ export interface MeshInput {
   railings: Structure['railings']
   flight?: Structure['flight']
   landings?: number[]
+  landingLengthM?: number
+  landingHeightsM?: Array<number | null>
+  steepness?: import('./structure-profile').Steepness
   groundAt(x: number, y: number): number
   look: StructurePreset['look']
   materials: Record<string, StructureMaterial>
@@ -86,26 +90,30 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   const half = width / 2
 
   const stairs = input.form === 'stairs'
-  const shape = stairs ? stairShape(rise, length, input.flight) : null
+  // Landings, steepness, landing heights (2026-11-15): one profile drives the steps, landings and slope line.
+  const profile: StructureProfile | null = usesProfile(input) ? structureProfile(input.form, startH, rise, length, input) : null
+  const shape = stairs && !profile ? stairShape(rise, length, input.flight) : null
   const steps = shape?.steps ?? 0
   const fs = shape && steps > 0 ? shape.flightStartM : 0
   const fe = shape && steps > 0 ? shape.flightEndM : length
   const tr = shape?.treadM ?? 0
   const riser = shape?.riserM ?? 0
 
-  const landings = !stairs ? input.landings ?? [] : []
+  const landings = !stairs && !profile ? input.landings ?? [] : []
   /** The slope line: stairs flat outside the flight and linear over it; ramps level over each landing, linear between. */
-  const line = (s: number) => (!stairs
+  const line = profile ? (s: number) => profileLine(profile, s) : (s: number) => (!stairs
     ? rampHeightAt(startH, rise, length, landings, s)
     : s <= fs ? startH : s >= fe ? endH : startH + (rise * (s - fs)) / (fe - fs || 1))
   /** Step tops for stairs; the slope line for ramps. */
   const top = (s: number) => {
+    if (profile) return stairs ? profile.heightAt(s) : line(s)
     if (!stairs || steps === 0) return line(s)
     if (s <= fs + 1e-9) return startH
     if (s >= fe - 1e-9) return endH
     return startH + riser * Math.min(steps, Math.floor((s - fs) / tr) + 1)
   }
-  const bottom = (xy: [number, number], s: number) => (underneath === 'solid' ? input.groundAt(xy[0], xy[1]) - SOLID_DEPTH : line(s) - Math.abs(riser) - UNDERSIDE_THICKNESS)
+  const riserAbs = profile ? Math.max(0, ...profile.flights.map((f) => Math.abs(f.riserM))) : Math.abs(riser)
+  const bottom = (xy: [number, number], s: number) => (underneath === 'solid' ? input.groundAt(xy[0], xy[1]) - SOLID_DEPTH : line(s) - riserAbs - UNDERSIDE_THICKNESS)
   const edge = (s: number, offset: number): [number, number] => {
     const { p, n } = path.at(s)
     return [p.x + n.x * offset, p.y + n.y * offset]
@@ -116,6 +124,7 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   const marks = new Set<number>([0, length])
   for (let s = 0.25; s < length; s += 0.25) marks.add(Math.round(s * 1e6) / 1e6)
   if (stairs && steps > 0) for (let k = 0; k <= steps; k++) marks.add(Math.round((fs + k * tr) * 1e6) / 1e6)
+  if (profile) for (const m of profile.marks) marks.add(m)
   // Ramp landing edges, so each landing is exactly level.
   for (const t of landings) {
     const centre = Math.min(Math.max(t, 0), 1) * length
@@ -139,20 +148,26 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
     for (const [e0, e1] of [[L0, L1], [R0, R1]] as const) writer.quad(P(e0, t0), P(e1, t1), P(e1, bottom(e1, s1)), P(e0, bottom(e0, s0)), side)
   }
 
+  const risers: Array<{ s: number; from: number; to: number }> = []
   if (stairs && steps > 0) {
-    for (let k = 0; k <= steps; k++) {
-      const s = fs + k * tr
-      const from = startH + riser * k
-      const to = k === steps ? endH : startH + riser * (k + 1)
-      if (Math.abs(to - from) < 1e-9) continue
-      const l = edge(s, half)
-      const r = edge(s, -half)
-      writer.quad(P(l, from), P(r, from), P(r, to), P(l, to), riserColor)
+    for (let k = 0; k <= steps; k++) risers.push({ s: fs + k * tr, from: startH + riser * k, to: k === steps ? endH : startH + riser * (k + 1) })
+  }
+  if (profile && stairs) {
+    for (const f of profile.flights) {
+      for (let k = 0; k < f.steps; k++) risers.push({ s: f.startM + k * f.treadM, from: f.fromH + f.riserM * k, to: f.fromH + f.riserM * (k + 1) })
     }
+  }
+  for (const { s, from, to } of risers) {
+    if (Math.abs(to - from) < 1e-9) continue
+    const l = edge(s, half)
+    const r = edge(s, -half)
+    writer.quad(P(l, from), P(r, from), P(r, to), P(l, to), riserColor)
   }
 
   const sides = railings === 'both' ? [1, -1] : railings === 'left' ? [1] : railings === 'right' ? [-1] : []
   const railSet = new Set<number>([0, length, fs, fe])
+  if (profile) for (const f of profile.flights) { railSet.add(f.startM); railSet.add(f.endM) }
+  if (profile) for (const l of profile.landings) { railSet.add(l.startM); railSet.add(l.endM) }
   for (let s = 1; s < length; s += 1) railSet.add(s)
   const railMarks = [...railSet].filter((s) => s >= 0 && s <= length).sort((a, b) => a - b)
   for (const sign of sides) {
@@ -177,4 +192,16 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   }
 
   return writer.data()
+}
+
+/** The slope line of a profiled structure: level on landings and level parts, straight over each flight. */
+function profileLine(profile: StructureProfile, s: number): number {
+  for (const l of profile.landings) if (s >= l.startM && s <= l.endM) return l.h
+  let h = profile.flights[0]?.fromH ?? 0
+  for (const f of profile.flights) {
+    if (s < f.startM) return h
+    if (s <= f.endM) return f.endM - f.startM < 1e-9 ? f.toH : f.fromH + ((f.toH - f.fromH) * (s - f.startM)) / (f.endM - f.startM)
+    h = f.toH
+  }
+  return h
 }

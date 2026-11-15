@@ -18,7 +18,7 @@ function ring(fc: GeoJSON.FeatureCollection, index = 0) {
 describe('roadSurfacePolygons', () => {
   it('road polygon width equals road width ±1 cm at a straight segment', () => {
     const fc = roadSurfacePolygons([road([[0, 0], [100, 0]])])
-    expect(fc.features).toHaveLength(1)
+    expect(fc.features.filter((f) => !f.properties?.cap)).toHaveLength(1)
     const ys = ring(fc).map((p) => p.y)
     expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(6, 2)
     expect(fc.features[0].properties).toMatchObject({ id: 'r1', width: 6, startHeightM: 3, endHeightM: 5 })
@@ -71,5 +71,30 @@ describe('siteRoadSurfaces', () => {
       ],
     } as never
     expect(siteRoadSurfaces(doc, createTerrainSampler(doc)!).map((s) => s.id)).toEqual(['r1'])
+  })
+})
+
+describe('road ends', () => {
+  it('each road end is rounded (a disc the width of the road), so a road meeting another blends in', async () => {
+    const { roadSurfacePolygons, toLatLng: tl, toLocal: lo } = await import('../index')
+    const g = { originLat: 11.8, originLng: 122.1 }
+    const fc = roadSurfacePolygons([{ id: 'r', polyline: [tl(g, { x: 0, y: 0 }), tl(g, { x: 40, y: 0 })], width: 6, type: 'connector', startHeightM: 0, endHeightM: 0 }])
+    const caps = fc.features.filter((f) => f.properties?.cap)
+    expect(caps).toHaveLength(2)
+    const ring = (caps[1].geometry as GeoJSON.Polygon).coordinates[0].map(([lng, lat]) => lo(g, { lat, lng }))
+    expect(Math.max(...ring.map((p) => p.x))).toBeCloseTo(43, 1)
+    expect(caps[0].properties).toMatchObject({ id: 'r', type: 'connector' })
+  })
+})
+
+describe('road ends at junctions', () => {
+  it('an end that joins another road gets no rounded end (no blob past the far side); a free end does', async () => {
+    const { roadSurfacePolygons, toLatLng: tl } = await import('../index')
+    const g = { originLat: 11.8, originLng: 122.1 }
+    const main = { id: 'main', polyline: [tl(g, { x: 0, y: 0 }), tl(g, { x: 100, y: 0 })], width: 6, type: 'connector', startHeightM: 0, endHeightM: 0 }
+    const side = { id: 'side', polyline: [tl(g, { x: 50, y: 2 }), tl(g, { x: 50, y: 40 })], width: 6, type: 'connector', startHeightM: 0, endHeightM: 0 }
+    const caps = roadSurfacePolygons([main, side]).features.filter((f) => f.properties?.cap)
+    expect(caps.filter((f) => f.properties?.id === 'side')).toHaveLength(1)
+    expect(caps.filter((f) => f.properties?.id === 'main')).toHaveLength(2)
   })
 })

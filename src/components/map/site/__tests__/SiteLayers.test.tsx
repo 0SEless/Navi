@@ -83,9 +83,19 @@ describe('SiteLayers (NAVI Web, campus only)', () => {
     expect(map.terrain.at(-1)).toEqual({ source: 'site-dem-terrain', exaggeration: 1 })
     expect(ids(map)).not.toContain(SITE_LAYER.slabs)
     // ~1.2 m terrain pixels (the baked ground is 1 m): a building's dug-out floor keeps a sharp edge.
-    expect(map.sources.get('site-dem-terrain')!.maxzoom).toBe(17)
+    expect(map.sources.get('site-dem-terrain')!.maxzoom).toBe(18)
     rerender(<SiteLayers map={map as never} site={site()} buildings={[]} threeD={false} contours={false} />)
     expect(map.terrain.at(-1)).toBeNull()
+  })
+
+  it('plinths (banks and plinths, 2026-11-15): a dark base-wall layer, shown only in 3D', () => {
+    const map = fakeMap()
+    const { rerender } = render(<SiteLayers map={map as never} site={site()} buildings={[]} threeD={false} contours={false} />)
+    const layer = map.layers.find((l) => l.id === SITE_LAYER.plinths)
+    expect(layer?.type).toBe('fill-extrusion')
+    expect(visible(map, SITE_LAYER.plinths)).toBe(false)
+    rerender(<SiteLayers map={map as never} site={site()} buildings={[]} threeD contours={false} />)
+    expect(visible(map, SITE_LAYER.plinths)).toBe(true)
   })
 
   it('contours toggle adds and removes the contour layer', () => {
@@ -168,5 +178,31 @@ describe('SiteLayers (NAVI Web, campus only)', () => {
     // Counter-clockwise in lng/lat (positive area): walking it, the outside is on the visual right.
     expect(area(frameRing(square))).toBeGreaterThan(0)
     expect(area(frameRing([...square].reverse()))).toBeGreaterThan(0)
+  })
+})
+
+describe('road style', () => {
+  const layer = (map: ReturnType<typeof fakeMap>, id: string) => map.layers.find((l) => l.id === id)!
+  it('draws roads in the admin\'s chosen design', () => {
+    const map = fakeMap()
+    render(<SiteLayers map={map as never} site={{ ...site(), roadStyle: 'night' }} buildings={[]} threeD={false} contours={false} />)
+    expect(JSON.stringify(layer(map, SITE_LAYER.roads).paint!['fill-color'])).toContain('#2c3036')
+    expect(layer(map, SITE_LAYER.roadCentre).paint!['line-color']).toBe('#facc15')
+    expect(layer(map, SITE_LAYER.roadEdges).layout?.visibility ?? 'visible').toBe('visible')
+  })
+
+  it('hides the markings for a design without them', () => {
+    const map = fakeMap()
+    render(<SiteLayers map={map as never} site={{ ...site(), roadStyle: 'brick' }} buildings={[]} threeD={false} contours={false} />)
+    expect(layer(map, SITE_LAYER.roadEdges).layout?.visibility).toBe('none')
+    expect(layer(map, SITE_LAYER.roadCentre).layout?.visibility).toBe('none')
+    expect(JSON.stringify(layer(map, SITE_LAYER.roads).paint!['fill-color'])).toContain('#a5654c')
+  })
+
+  it('without a choice keeps the standard look', () => {
+    const map = fakeMap()
+    render(<SiteLayers map={map as never} site={site()} buildings={[]} threeD={false} contours={false} />)
+    expect(layer(map, SITE_LAYER.roadCentre).paint!['line-color']).toBe('#ffffff')
+    expect(layer(map, SITE_LAYER.roadCentre).paint!['line-dasharray']).toEqual([4, 4])
   })
 })

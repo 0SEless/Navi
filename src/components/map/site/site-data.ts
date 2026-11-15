@@ -1,5 +1,5 @@
 import {
-  BUILT_IN_MATERIALS, BUILT_IN_PRESETS, buildStructureMesh, contourSegments, createSiteGround, structurePath, toLatLng, toLocal,
+  BUILT_IN_MATERIALS, BUILT_IN_PRESETS, buildStructureMesh, contourSegments, createSiteGround, plinthFeatures, siteGroundSampler, structurePath, toLatLng, toLocal,
   type SiteArtifact,
 } from '@navi/core'
 import type { Building } from '@/types/nav-types'
@@ -40,6 +40,9 @@ export function siteStructuresMesh(site: SiteArtifact): { origin: LatLng; mesh: 
       startH: start.h, endH: end.h, form: s.form, width: s.width, underneath: s.underneath, railings: s.railings,
       ...(s.flight ? { flight: s.flight } : {}),
       ...(s.landings ? { landings: s.landings } : {}),
+      ...(s.steepness ? { steepness: s.steepness } : {}),
+      ...(s.landingLengthM !== undefined ? { landingLengthM: s.landingLengthM } : {}),
+      ...(s.landingHeightsM ? { landingHeightsM: s.landingHeightsM } : {}),
       groundAt: (x, y) => ground(toLatLng(frame, { x, y })),
       look: preset.look,
       materials: BUILT_IN_MATERIALS,
@@ -103,4 +106,21 @@ export function siteContourLines(site: SiteArtifact, stepM = 5): GeoJSON.Feature
       }
     })),
   }
+}
+
+/**
+ * Plinths (owner 2026-11-15, banks and plinths): where the ground outside a building is below its published
+ * floor, the base wall shows from the ground up to the floor (thin pieces along each wall, MapLibre fill-extrusion).
+ */
+export function sitePlinthFeatures(site: SiteArtifact, buildings: Building[]): GeoJSON.FeatureCollection {
+  if (!site.terrain) return { type: 'FeatureCollection', features: [] }
+  const { grid, groundAt } = siteGroundSampler(site)
+  const features: GeoJSON.Feature[] = []
+  for (const building of buildings) {
+    const ring = building.footprint ?? []
+    if (ring.length < 3) continue
+    const base = site.buildings.find((b) => b.id === building.id)?.baseM ?? building.baseElevation ?? 0
+    features.push(...plinthFeatures(ring, base, grid, groundAt, building.id))
+  }
+  return { type: 'FeatureCollection', features }
 }

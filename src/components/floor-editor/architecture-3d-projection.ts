@@ -104,7 +104,10 @@ export function createArchitectureProjection(map: LibreMap,transformer: Transfor
   getFrame:()=>frame?{...frame,matrix:Float64Array.from(frame.matrix)}:null,
   capture:()=>snapshot,
   subscribe(listener){listeners.add(listener);return()=>{listeners.delete(listener)}},
-  dispose(){if(disposed) return;disposed=true;map.off('resize',resize);map.off('styledata',style);map.off('style.load',style);canvas?.removeEventListener('webglcontextlost',contextLost);canvas?.removeEventListener('webglcontextrestored',contextLost);if(map.getLayer(id)) map.removeLayer(id);frame=null;snapshot=null;listeners.clear()},
+  dispose(){if(disposed) return;disposed=true;canvas?.removeEventListener('webglcontextlost',contextLost);canvas?.removeEventListener('webglcontextrestored',contextLost)
+  // The map may already be removed (switching floors tears the whole editor down): never throw here.
+  try{map.off('resize',resize);map.off('styledata',style);map.off('style.load',style);if(map.getLayer(id)) map.removeLayer(id)}catch{/* map already removed */}
+  frame=null;snapshot=null;listeners.clear()},
  }
 }
 

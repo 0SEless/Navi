@@ -101,3 +101,10 @@ describe('published map look', () => {
     expect(buildSiteArtifact(doc({ terrain: { ...terrain(2), mapLook: 'sand' } as CampusTerrain }))!.look).toBe('sand')
   })
 })
+
+describe('published road style', () => {
+  it('carries the admin\'s road style when one is set, and nothing otherwise', () => {
+    expect(buildSiteArtifact(doc({ terrain: terrain(2) }))!).not.toHaveProperty('roadStyle')
+    expect(buildSiteArtifact(doc({ terrain: { ...terrain(2), roadStyle: 'night' } as CampusTerrain }))!.roadStyle).toBe('night')
+  })
+})

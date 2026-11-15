@@ -1,6 +1,6 @@
 'use client'
 
-import { TERRAIN_LOOKS, terrainLookStyle, type TerrainLook } from '@navi/core'
+import { ROAD_STYLES, TERRAIN_LOOKS, roadStyleSpec, terrainLookStyle, type RoadStyleName, type TerrainLook } from '@navi/core'
 import type { TerrainLayers } from '@/lib/terrain/terrain-layers'
 import { secondaryButton } from './form-styles'
 
@@ -32,7 +32,10 @@ function Eye({ open }: { open: boolean }) {
 }
 
 /** Section 5: the left panel, like Studio's Explorer. Each layer has an eye; the tracing image stays on this computer. */
-export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing, mapLook, onMapLook, mapLookDisabled = false }: {
+export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacity, onTracingFile, onTracingOpacity, onRemoveTracing, mapLook, onMapLook, mapLookDisabled = false, roadStyle, onRoadStyle, list }: {
+  /** The campus's road design on NAVI Web (saved with the campus); omitted = the picker is hidden. */
+  roadStyle?: RoadStyleName
+  onRoadStyle?: (style: RoadStyleName) => void
   /** The campus's ground look on NAVI Web (saved with the campus); omitted = the picker is hidden. */
   mapLook?: TerrainLook
   onMapLook?: (look: TerrainLook) => void
@@ -44,6 +47,8 @@ export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacit
   onTracingFile: (file: File) => void
   onTracingOpacity: (value: number) => void
   onRemoveTracing: () => void
+  /** The Terrain list, shown above the layer toggles. */
+  list?: React.ReactNode
 }) {
   return (
     <section aria-label="Layers" style={{
@@ -51,6 +56,12 @@ export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacit
       padding: '12px 10px', fontSize: 13, overflowY: 'auto',
       background: 'var(--navi-card, #fff)', borderRight: '1px solid var(--navi-border, #e5e7eb)',
     }}>
+      {list && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'var(--navi-text-secondary, #6b7280)', padding: '0 4px 4px' }}>TERRAIN LIST</div>
+          {list}
+        </>
+      )}
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'var(--navi-text-secondary, #6b7280)', padding: '0 4px 8px' }}>LAYERS</div>
       {ROWS.map((row) => {
         const on = layers[row.key]
@@ -87,6 +98,18 @@ export function TerrainLayersPanel({ layers, onLayers, hasTracing, tracingOpacit
             {TERRAIN_LOOKS.map((look) => <option key={look} value={look}>{terrainLookStyle(look).label}</option>)}
           </select>
           <span style={{ fontSize: 11 }}>{mapLookDisabled ? 'Set up the terrain and start editing to change it.' : 'Visitors see this first and can switch on their phone. Saved with the campus.'}</span>
+        </label>
+      )}
+      {roadStyle && onRoadStyle && (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8, padding: '0 4px', fontSize: 12, color: 'var(--navi-text-secondary, #6b7280)' }}>
+          Road style on NAVI Web
+          <select
+            aria-label="Road style on NAVI Web" value={roadStyle} disabled={mapLookDisabled}
+            onChange={(event) => onRoadStyle(event.target.value as RoadStyleName)}
+            style={{ minHeight: 32, fontSize: 13 }}
+          >
+            {ROAD_STYLES.map((style) => <option key={style} value={style}>{roadStyleSpec(style).label}</option>)}
+          </select>
         </label>
       )}
       <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--navi-border, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>

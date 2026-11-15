@@ -1,4 +1,4 @@
-import { recordChange } from '@navi/core'
+import { isBankSlope, isGroundAround, recordChange } from '@navi/core'
 import type { Building, CampusDocument, GroundFit } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
 
@@ -43,8 +43,18 @@ export const buildingSetGroundHandler: CommandHandler = {
     if (baseMode !== 'follow-ground' && baseMode !== 'fixed') return { success: false, error: 'Base must follow the ground or be fixed.' }
     if (payload.baseElevation !== undefined && !Number.isFinite(payload.baseElevation)) return { success: false, error: 'The base height must be a number.' }
     if (payload.pad !== undefined && !isFit(payload.pad)) return { success: false, error: 'The pad needs a mode and a blend width.' }
+    if (payload.around !== undefined && !isGroundAround(payload.around)) return { success: false, error: 'Choose bank and plinth, slopes all round or leave the hill.' }
+    if (payload.bankSlope !== undefined && !isBankSlope(payload.bankSlope)) return { success: false, error: 'Choose a gentle, normal or steep bank.' }
     const previous = [snapshot(building)]
-    building.ground = { baseMode, pad: isFit(payload.pad) ? { ...payload.pad } : building.ground?.pad ?? { ...DEFAULT_PAD } }
+    // Ground around and Bank slope (banks and plinths, 2026-11-15) are kept unless this change sets them.
+    const around = isGroundAround(payload.around) ? payload.around : building.ground?.around
+    const bankSlope = isBankSlope(payload.bankSlope) ? payload.bankSlope : building.ground?.bankSlope
+    building.ground = {
+      baseMode,
+      pad: isFit(payload.pad) ? { ...payload.pad } : building.ground?.pad ?? { ...DEFAULT_PAD },
+      ...(around ? { around } : {}),
+      ...(bankSlope ? { bankSlope } : {}),
+    }
     if (typeof payload.baseElevation === 'number') building.baseElevation = payload.baseElevation
     recordChange(document, { entityId: building.id, entityType: 'building', operation: 'updated' })
     return { success: true, entityId: building.id, data: { previous } }
@@ -63,7 +73,7 @@ export const buildingsFollowGroundHandler: CommandHandler = {
     for (const building of document.buildings) {
       if (building.ground?.baseMode === 'fixed') continue
       previous.push(snapshot(building))
-      building.ground = { baseMode: 'follow-ground', pad: building.ground?.pad ?? { ...DEFAULT_PAD } }
+      building.ground = { ...building.ground, baseMode: 'follow-ground', pad: building.ground?.pad ?? { ...DEFAULT_PAD } }
       recordChange(document, { entityId: building.id, entityType: 'building', operation: 'updated' })
     }
     return { success: true, entityId: 'buildings', data: { previous } }

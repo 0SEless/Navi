@@ -107,3 +107,15 @@ describe('ramps', () => {
     }
   })
 })
+
+describe('stair landings in 3D (owner 2026-11-15)', () => {
+  it('a stair with a landing draws a flat landing halfway down, with steps on both sides', () => {
+    const mesh = buildStructureMesh(input({ landings: [0.5] }))
+    const treads = verticesOf(mesh, [1, 0, 0])
+    const onLanding = treads.filter(([x]) => x > 5.5 && x < 6.5)
+    expect(onLanding.length).toBeGreaterThan(0)
+    for (const [, , z] of onLanding) expect(z).toBeCloseTo(18.25, 3)
+    const heights = new Set(treads.map(([, , z]) => Math.round(z * 1000)))
+    expect(heights.size).toBeGreaterThan(15) // many distinct step tops
+  })
+})

@@ -15,6 +15,8 @@ export type TerrainTool =
   | 'boundary'
   | 'stairs'
   | 'pan'
+  | 'mesh'
+  | 'grade'
 
 /** `key`: the one key that selects the tool (section 4), shown on its button. */
 export interface ToolEntry { id: TerrainTool; label: string; hint: string; key: string }
@@ -27,6 +29,8 @@ export const TERRAIN_TOOLS: ToolEntry[] = [
   { id: 'flatten', label: 'Flatten', hint: 'Holds the height where the stroke starts', key: 'f' },
   { id: 'slope', label: 'Slope', hint: 'Two points: a straight slope between their heights', key: 'p' },
   { id: 'lasso', label: 'Lasso', hint: 'Set, raise or lower everything inside an area', key: 'l' },
+  { id: 'mesh', label: 'Mesh', hint: 'Lasso an area, then shape it with rows, columns and points', key: 'm' },
+  { id: 'grade', label: 'Grade', hint: 'Click a road to grade the ground under it', key: 'g' },
   { id: 'pad', label: 'Buildings', hint: 'Base height, pad and floors of a building (Shift+Z: height)', key: 'u' },
   { id: 'stairs', label: 'Stairs', hint: 'Click to place a stair, then drag its ends onto a floor edge and a road', key: 't' },
   { id: 'picker', label: 'Height picker', hint: 'Click to pick a height (or Alt+click with a brush)', key: 'h' },
@@ -49,6 +53,8 @@ const ICON_PATHS: Record<TerrainTool | 'import', string> = {
   'reset': 'M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4',
   'contour-pen': 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3',
   'boundary': 'M4 6l8-3 8 5-2 11-10 1z',
+  'mesh': 'M4 6l16-2v14L4 20zM9.5 5.3v14M15 4.6v14M4 11l16-1.5M4 15.5l16-1.7',
+  'grade': 'M3 18c4-1 6-6 9-6s5 3 9 3M3 21h18M8 12V8M16 14v-4',
   'import': 'M12 3v12M7 10l5 5 5-5M4 20h16',
 }
 

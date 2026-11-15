@@ -411,6 +411,19 @@ describe('Navigate setup and route preview', () => {
     expect(screen.queryByTestId('navigation-dev-panel')).toBeNull()
   })
 
+  it('starts the route at the campus entrance gate when no starting point is set', () => {
+    const findRoute = vi.fn(() => route)
+    setReadyCampus({
+      campus: { ...campus, poi: [{ id: 'poi-gate', label: 'ENTRANCE GATE', category: 'other', position: { lat: 11.82, lng: 122.16801 } }] },
+      toNode: destination.id,
+      findRoute,
+    })
+    render(<NavigatePage />)
+    expect(findRoute).toHaveBeenCalledWith(start.id, destination.id)
+    expect(screen.getByText(/From ENTRANCE GATE/)).toBeInTheDocument()
+    expect(screen.queryByText('Set your current location to preview a route.')).toBeNull()
+  })
+
   it('hands off a stable destination into route-preview without starting active guidance', () => {
     setReadyCampus({ fromNode: start.id })
     render(<NavigatePage />)

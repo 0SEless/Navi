@@ -1,4 +1,4 @@
-import { gridOriginForBoundary, isTerrainLook, recordChange } from '@navi/core'
+import { gridOriginForBoundary, isRoadStyle, isTerrainLook, recordChange } from '@navi/core'
 import type { CampusDocument, CampusTerrain, TerrainBaseSource, TerrainReference, TileId } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
 
@@ -20,14 +20,14 @@ function isColorRange(value: unknown): value is CampusTerrain['colorRange'] {
   return isRecord(value) && Number.isFinite(value.minM) && Number.isFinite(value.maxM)
 }
 
-function snapshot(document: CampusDocument): { terrain: CampusTerrain | null; tiles: Tiles | null } {
+export function snapshot(document: CampusDocument): { terrain: CampusTerrain | null; tiles: Tiles | null } {
   return {
     terrain: document.terrain ? structuredClone(document.terrain) : null,
     tiles: document.terrainTiles ? { ...document.terrainTiles } : null,
   }
 }
 
-function restoreCommand(previous: { terrain: CampusTerrain | null; tiles: Tiles | null }, label: string): Command {
+export function restoreCommand(previous: { terrain: CampusTerrain | null; tiles: Tiles | null }, label: string): Command {
   return { id: 'terrain.restore', label, payload: { terrain: previous.terrain, tiles: previous.tiles } }
 }
 
@@ -55,6 +55,9 @@ export const terrainSetupHandler: CommandHandler = {
       ...(base ? { base } : {}),
       colorRange: isColorRange(payload.colorRange) ? { ...payload.colorRange } : document.terrain?.colorRange ?? { minM: 0, maxM: 40 },
       ...(document.terrain?.mapLook ? { mapLook: document.terrain.mapLook } : {}),
+      ...(document.terrain?.roadStyle ? { roadStyle: document.terrain.roadStyle } : {}),
+      ...(document.terrain?.meshes ? { meshes: structuredClone(document.terrain.meshes) } : {}),
+      ...(document.terrain?.sculptingHidden ? { sculptingHidden: true } : {}),
     }
     document.terrain = terrain
     if (payload.clearTiles === true) delete document.terrainTiles
@@ -108,6 +111,23 @@ export const terrainSetLookHandler: CommandHandler = {
   inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
     const previous = result.data?.previous as ReturnType<typeof snapshot> | undefined
     return previous ? restoreCommand(previous, 'Undo map look') : null
+  },
+}
+
+/** The admin's road design on NAVI Web (one of five); undone through terrain.restore. */
+export const terrainSetRoadStyleHandler: CommandHandler = {
+  id: 'terrain.set-road-style',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    if (!document.terrain) return { success: false, error: 'Set up the terrain first.' }
+    if (!isRoadStyle(payload.style)) return { success: false, error: 'Choose a road style: standard, campus, night, brick or minimal.' }
+    const previous = snapshot(document)
+    document.terrain = { ...document.terrain, roadStyle: payload.style }
+    recordChange(document, { entityId: 'terrain', entityType: 'terrain', operation: 'updated' })
+    return { success: true, entityId: 'terrain', data: { previous } }
+  },
+  inverse(_payload: Record<string, unknown>, result: MutationResult): Command | null {
+    const previous = result.data?.previous as ReturnType<typeof snapshot> | undefined
+    return previous ? restoreCommand(previous, 'Undo road style') : null
   },
 }
 

@@ -36,6 +36,8 @@ export interface SiteArtifact {
   buildings: Array<{ id: string; baseM: number }>
   /** The owner's ground look for NAVI Web; absent = the default (green terraces). */
   look?: import('./map-looks').TerrainLook
+  /** The admin's road design; absent = standard. */
+  roadStyle?: import('./road-styles').RoadStyleName
 }
 
 /** A flat sampler for campuses without terrain (0 m ground; pads and heights still resolve). */
@@ -82,11 +84,12 @@ export function buildSiteArtifact(doc: CampusDocument): SiteArtifact | null {
     presets: (doc.structurePresets ?? []).filter((preset) => used.has(preset.id)),
     buildings: (doc.buildings ?? []).map((building) => ({ id: building.id, baseM: effectiveBuildingBase(building, sampler) })),
     ...(doc.terrain?.mapLook ? { look: doc.terrain.mapLook } : {}),
+    ...(doc.terrain?.roadStyle ? { roadStyle: doc.terrain.roadStyle } : {}),
   }
 }
 
 /** The site's local frame and its baked ground (bilinear, metres) at local x/y; 0 without terrain. */
-function siteGroundSampler(site: SiteArtifact): { grid: TerrainGrid; groundAt: (x: number, y: number) => number } {
+export function siteGroundSampler(site: SiteArtifact): { grid: TerrainGrid; groundAt: (x: number, y: number) => number } {
   const terrain = site.terrain
   const cells = terrain ? decodeInt16(terrain.heightsCm) : null
   const grid: TerrainGrid = terrain

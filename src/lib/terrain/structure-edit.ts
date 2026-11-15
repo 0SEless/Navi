@@ -52,16 +52,17 @@ export function rampReadout(structure: Structure, resolved: ResolvedStructure) {
   return { length, ...rampShape(resolved.end.h - resolved.start.h, length, structure.landings ?? []) }
 }
 
-/** The ramp's landings plus one in the middle of its longest sloped run (fractions of the run). */
+/** The stair's or ramp's landings plus one in the middle of its longest run between them (fractions of the run). */
 export function addLanding(structure: Structure, resolved: ResolvedStructure): number[] {
   const length = structurePath(resolved.start, resolved.end, resolved.bend).length || 1
   const landings = [...(structure.landings ?? [])].sort((a, b) => a - b)
+  const size = structure.landingLengthM ?? (structure.form === 'stairs' ? 1.2 : RAMP_LANDING_M)
   let best: [number, number] = [0, 0]
   let at = 0
   for (const t of [...landings, Number.POSITIVE_INFINITY]) {
-    const a = Number.isFinite(t) ? Math.max(0, t * length - RAMP_LANDING_M / 2) : length
+    const a = Number.isFinite(t) ? Math.max(0, t * length - size / 2) : length
     if (a - at > best[1] - best[0]) best = [at, a]
-    if (Number.isFinite(t)) at = Math.max(at, Math.min(length, t * length + RAMP_LANDING_M / 2))
+    if (Number.isFinite(t)) at = Math.max(at, Math.min(length, t * length + size / 2))
   }
   return [...landings, (best[0] + best[1]) / 2 / length].sort((a, b) => a - b)
 }

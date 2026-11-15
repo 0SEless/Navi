@@ -32,7 +32,7 @@ describe('buildSlabFeatures', () => {
   // is its own floor (owner 2026-11-14), so the ground under it is filled to 12 m and the block stands from there.
   it('each building is one solid block from the ground to its roof (walls, no floating roof)', () => {
     const d = doc()
-    const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features
+    const features = buildSlabFeatures(d, createTerrainSampler(d)!, {}).features.filter((f) => f.properties?.kind !== 'plinth')
     expect(features).toHaveLength(1)
     expect(features[0].properties).toMatchObject({ kind: 'block', buildingId: 'b1', base: 0 })
     expect(features[0].properties!.top).toBeCloseTo(10.5, 6)
@@ -65,7 +65,7 @@ describe('buildSlabFeatures', () => {
 
   it('cut away: the block stops at the chosen floor, whose floor shows on top', () => {
     const d = doc()
-    const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features
+    const features = buildSlabFeatures(d, createTerrainSampler(d)!, { cutAboveFloorId: 'f2' }).features.filter((f) => f.properties?.kind !== 'plinth')
     expect(features).toHaveLength(1)
     expect(features[0].properties).toMatchObject({ kind: 'cut', floorId: 'f2', base: 0 })
     expect(features[0].properties!.top).toBeCloseTo(12 + 3.5 - 12, 6)
@@ -85,5 +85,15 @@ describe('buildSlabFeatures', () => {
     // Base 9 (draft): roof at 9 + 10.5 = 19.5 m, 7.5 m above the saved floor pad (12 m) until the drag is saved.
     expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'b1', baseM: 9 } }))).toBeCloseTo(7.5, 6)
     expect(top(buildSlabFeatures(d, sampler, { baseOverride: { buildingId: 'other', baseM: 9 } }))).toBeCloseTo(10.5, 6)
+  })
+})
+
+describe('plinths (banks and plinths, 2026-11-15)', () => {
+  it('a building whose floor is above the ground shows plinth pieces down to the ground', () => {
+    const d = doc()
+    const sampler = createTerrainSampler(d)!
+    const plinths = buildSlabFeatures(d, sampler, {}).features.filter((f) => f.properties?.kind === 'plinth')
+    expect(plinths.length).toBeGreaterThan(0)
+    for (const p of plinths) expect(p.properties!.top).toBeCloseTo(2, 1)
   })
 })

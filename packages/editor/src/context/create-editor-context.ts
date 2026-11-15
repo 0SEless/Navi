@@ -21,7 +21,9 @@ import { floorManageHandler, buildingEditInteriorHandler, buildingAdjustPosition
 import { boundarySetHandler, boundaryClearHandler } from '../commands/boundary-handlers'
 import { areaCreateHandler, areaDeleteHandler } from '../commands/area-handlers'
 import { terrainAreaCreateHandler, terrainAreaUpdateHandler, terrainAreaDeleteHandler } from '../commands/terrain-area-handlers'
-import { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler, terrainSetLookHandler } from '../commands/terrain-handlers'
+import { terrainSetupHandler, terrainApplyTilesHandler, terrainRestoreHandler, terrainSetLookHandler, terrainSetRoadStyleHandler } from '../commands/terrain-handlers'
+import { terrainMeshAddHandler, terrainMeshUpdateHandler, terrainMeshRemoveHandler, terrainMeshReorderHandler, terrainMeshMergeHandler, terrainSculptingClearHandler, terrainSetViewHandler } from '../commands/terrain-mesh-handlers'
+import { roadSetGradeHandler, roadRestoreGradeHandler } from '../commands/road-grade-handlers'
 import { buildingSetGroundHandler, buildingsFollowGroundHandler } from '../commands/building-ground-handlers'
 import { structureHandlers } from '../commands/structure-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
@@ -838,6 +840,8 @@ export function createEditorContext(
   registryCmd.register(terrainApplyTilesHandler)
   registryCmd.register(terrainRestoreHandler)
   registryCmd.register(terrainSetLookHandler)
+  registryCmd.register(terrainSetRoadStyleHandler)
+  for (const handler of [terrainMeshAddHandler, terrainMeshUpdateHandler, terrainMeshRemoveHandler, terrainMeshReorderHandler, terrainMeshMergeHandler, terrainSculptingClearHandler, terrainSetViewHandler, roadSetGradeHandler, roadRestoreGradeHandler]) registryCmd.register(handler)
   registryCmd.register(buildingSetGroundHandler)
   registryCmd.register(buildingsFollowGroundHandler)
   for (const handler of structureHandlers) registryCmd.register(handler)

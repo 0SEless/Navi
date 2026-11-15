@@ -4,9 +4,13 @@ import type { Structure } from '../structures/types'
 import { structurePath } from '../structures/path'
 import { stairShape } from '../structures/stair-shape'
 import { rampHeightAt } from '../structures/ramp-shape'
+import { structureProfile, usesProfile } from '../structures/structure-profile'
 import { sampleBaseExtended } from './base-surface'
 import { decodeTile, tileIdOf, tileOfCell, toLocal } from './grid'
 import type { GroundFit, TerrainGrid, TileId } from './types'
+import { isValidMesh, meshFrame, meshValueAt, meshWeightAt, type TerrainMesh } from './mesh'
+import { alongOf, junctionPins, roadGradeProfile } from './road-grade'
+import { BANK_REACH_M, WALKWAY_M, groundAroundOf, type GroundAround } from './ground-around'
 
 type Point = { x: number; y: number }
 
@@ -16,7 +20,9 @@ export interface TerrainSampler {
   baseAt(x: number, y: number): number
   /** Metres from the change tiles (bilinear between cells). */
   changeAt(x: number, y: number): number
-  /** base + change (no fits): the ground buildings follow. */
+  /** base + change only (the painted ground, before meshes). */
+  sculptedAt(x: number, y: number): number
+  /** sculpted ground with the terrain meshes applied (no fits): the ground buildings and roads follow. */
   groundAt(x: number, y: number): number
   /** Metres delta from building pads and road fits. */
   fitAt(x: number, y: number): number
@@ -27,6 +33,18 @@ export interface TerrainSampler {
 export interface TerrainSamplerOptions {
   /** Working tiles of a stroke in progress; they replace the document's tiles with the same id. */
   tilesOverride?: Map<TileId, Int16Array>
+  /** The Mesh tool's live draft: replaces the document's meshes. */
+  meshesOverride?: TerrainMesh[]
+  /** Studio's view: honour `hidden` meshes and `sculptingHidden`. Publishing and baking never pass it. */
+  studioView?: boolean
+}
+
+/** Each valid mesh's reach (outline box + 1 m) in the terrain grid's metres. */
+export function meshReachBoxes(doc: CampusDocument, grid: TerrainGrid): Box[] {
+  return (doc.terrain?.meshes ?? []).filter(isValidMesh).map((mesh) => {
+    const { box } = meshFrame(mesh, grid)
+    return { minX: box.minX - 1, minY: box.minY - 1, maxX: box.maxX + 1, maxY: box.maxY + 1 }
+  })
 }
 
 // ── geometry helpers (local metres) ──────────────────────────────────────────
@@ -110,11 +128,14 @@ export function effectiveBuildingBase(building: Building, sampler: TerrainSample
 // ── sampler ──────────────────────────────────────────────────────────────────
 
 interface Box { minX: number; minY: number; maxX: number; maxY: number }
-/** No pad: the outline plus a working space around it is flattened to the base; beyond that the ground is left as it is. */
-const FOOTPRINT_ONLY: GroundFit = { mode: 'both', blendMeters: 0 }
-const EXCAVATION_MARGIN_M = 2.5
 
-interface PadEntry { ring: Point[]; fit: GroundFit; base: () => number; box: Box; margin: number }
+const EASE_M = 5
+function smoothstep01(t: number): number {
+  const u = Math.min(Math.max(t, 0), 1)
+  return u * u * (3 - 2 * u)
+}
+
+interface PadEntry { ring: Point[]; around: GroundAround; slope: number; base: () => number; box: Box }
 interface RoadEntry { line: Point[]; halfWidth: number; fit: GroundFit; heightAlong: (p: Point) => number; box: Box }
 
 /** The points' box grown by `grow` metres: a fit only reaches points inside it (the fit index). */
@@ -177,46 +198,95 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
     const cm = v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + v01 * (1 - fx) * fy + v11 * fx * fy
     return cm / 100
   }
-  const groundAt = (x: number, y: number) => baseAt(x, y) + changeAt(x, y)
+  const sculptingHidden = opts.studioView === true && terrain.sculptingHidden === true
+  const visibleChangeAt = sculptingHidden ? () => 0 : changeAt
+  const sculptedAt = (x: number, y: number) => baseAt(x, y) + visibleChangeAt(x, y)
+  // Meshes, in list order (a later mesh wins where they overlap); invalid ones are skipped.
+  const meshes = (opts.meshesOverride ?? terrain.meshes ?? [])
+    .filter(isValidMesh)
+    .filter((mesh) => !(opts.studioView === true && mesh.hidden === true))
+    .map((mesh) => ({ mesh, frame: meshFrame(mesh, grid) }))
+  const groundAt = meshes.length === 0 ? sculptedAt : (x: number, y: number) => {
+    let h = sculptedAt(x, y)
+    for (const { mesh, frame } of meshes) {
+      const weight = meshWeightAt(frame, mesh, { x, y })
+      if (weight <= 0) continue
+      const { u, v } = frame.toUV({ x, y })
+      const value = meshValueAt(mesh, u, v)
+      h += mesh.mode === 'keep-bumps' ? value * weight : (value - h) * weight
+    }
+    return h
+  }
 
-  const sampler: TerrainSampler = { grid, baseAt, changeAt, groundAt, fitAt: () => 0, heightAt: () => 0 }
+  const sampler: TerrainSampler = { grid, baseAt, changeAt: visibleChangeAt, sculptedAt, groundAt, fitAt: () => 0, heightAt: () => 0 }
 
   const pads: PadEntry[] = []
   for (const building of doc.buildings ?? []) {
-    // Owner 2026-11-14: a building is always dug into / built up from the hill, so its own outline is its
-    // floor. The pad only decides how the ground around it blends; without one (or Off) nothing outside changes.
-    const pad = building.ground?.pad
-    const fit: GroundFit = pad && pad.mode !== 'off' ? pad : FOOTPRINT_ONLY
+    // Owner 2026-11-14: a building's own outline is its floor (no ground inside any building).
+    // Owner 2026-11-15, banks and plinths: uphill a 1 m walkway then a bank at the building's slope; downhill the
+    // hill is left alone (the building shows a plinth), or filled for "Slopes all round".
     const ring = outlineOf(building, grid)
     if (ring.length < 3) continue
+    const { around, slope } = groundAroundOf(building)
     let cached: number | null = null
-    const margin = fit === FOOTPRINT_ONLY ? EXCAVATION_MARGIN_M : 0
-    pads.push({ ring, fit, margin, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)), box: boxOf(ring, margin + fit.blendMeters + 0.01) })
+    const reach = around === 'leave' ? 0 : WALKWAY_M + BANK_REACH_M
+    pads.push({ ring, around, slope, base: () => (cached ??= effectiveBuildingBase(building, sampler, grid)), box: boxOf(ring, reach + 0.01) })
   }
 
   const roads: RoadEntry[] = []
+  // Graded roads (Grade tool): a smoothed profile through their pins, typed ends and shared junction heights.
+  const graded: Array<{ id: string; line: Point[]; halfWidth: number; fit: GroundFit; grade: NonNullable<Road['grade']>; ends: { start?: number; end?: number } }> = []
   for (const road of doc.roads ?? []) {
     const fit = road.groundFit
     if (!fit || fit.mode === 'off') continue
     const line = (road.polyline?.points ?? []).map((p) => toLocal(grid, p))
     if (line.length < 2) continue
-    roads.push({ line, halfWidth: (road.width ?? 0) / 2, fit, heightAlong: roadProfile(road, line, groundAt), box: boxOf(line, (road.width ?? 0) / 2 + fit.blendMeters + 0.01) })
+    const halfWidth = (road.width ?? 0) / 2
+    if (road.grade) {
+      const typed = road.heightMode === 'typed'
+      graded.push({
+        id: road.id, line, halfWidth, fit, grade: road.grade,
+        ends: typed ? { start: road.routing?.startElevationMeters, end: road.routing?.endElevationMeters } : {},
+      })
+      continue
+    }
+    roads.push({ line, halfWidth, fit, heightAlong: roadProfile(road, line, groundAt), box: boxOf(line, halfWidth + fit.blendMeters + 0.01) })
+  }
+  if (graded.length > 0) {
+    const first = graded.map((g) => ({ ...g, pins: g.grade.pins ?? [], profile: roadGradeProfile(g.line, groundAt, g.grade, g.ends) }))
+    const shared = junctionPins(first)
+    for (const g of first) {
+      const pins = [...g.pins, ...(shared.get(g.id) ?? [])]
+      const profile = roadGradeProfile(g.line, groundAt, { ...g.grade, pins }, g.ends)
+      const heightAlong = (p: Point) => profile.heightAtAlong(alongOf(g.line, p).along)
+      roads.push({ line: g.line, halfWidth: g.halfWidth, fit: g.fit, heightAlong, box: boxOf(g.line, g.halfWidth + g.fit.blendMeters + 0.01) })
+    }
   }
 
   const fitAt = (x: number, y: number): number => {
     const p = { x, y }
-    let bestPad: { distance: number; delta: number } | null = null
+    // Buildings: inside an outline the floor always wins. Outside, every building's bank cuts (the deepest cut
+    // wins) and "Slopes all round" fills (the highest fill wins), so overlapping banks meet without a seam.
+    let ground: number | null = null
+    let target: number | null = null
     for (const pad of pads) {
-      if (!inBox(pad.box, x, y)) continue // the fit index: a pad never reaches beyond its box
-      const inside = pointInPolygon(p, pad.ring)
-      const distance = inside ? 0 : Math.max(0, distanceToSegments(p, pad.ring, true) - pad.margin)
-      if (distance > pad.fit.blendMeters) continue
-      if (bestPad && distance >= bestPad.distance) continue
-      const delta = pad.base() - groundAt(x, y)
-      if (!fitApplies(pad.fit.mode, delta)) continue
-      bestPad = { distance, delta: delta * (distance <= 0 ? 1 : blendWeight(distance, pad.fit.blendMeters)) }
+      if (!inBox(pad.box, x, y)) continue // a building never reaches beyond its box
+      ground ??= groundAt(x, y)
+      const d = distanceToSegments(p, pad.ring, true)
+      // On the walls counts as inside: no ground shows along a building's own walls.
+      if (d <= 1e-6 || pointInPolygon(p, pad.ring)) return pad.base() - ground
+      if (pad.around === 'leave') continue
+      if (d > WALKWAY_M + BANK_REACH_M) continue
+      const floor = pad.base()
+      const rise = pad.slope * Math.max(0, d - WALKWAY_M)
+      // Where the hill is as steep as the bank it never meets it: the last 5 m of the reach ease into the hill
+      // instead of leaving a cliff at the reach.
+      const ease = smoothstep01((d - (WALKWAY_M + BANK_REACH_M - EASE_M)) / EASE_M)
+      const current = target ?? ground
+      if (ground > floor) target = Math.min(current, floor + rise + (ground - floor - rise > 0 ? (ground - floor - rise) * ease : 0))
+      else if (pad.around === 'slopes' && ground < floor) target = Math.max(current, floor - rise - (floor - rise - ground > 0 ? (floor - rise - ground) * ease : 0))
     }
-    if (bestPad) return bestPad.delta
+    const buildingDelta = target === null || ground === null ? 0 : target - ground
     let bestRoad: { distance: number; delta: number } | null = null
     for (const road of roads) {
       if (!inBox(road.box, x, y)) continue
@@ -228,6 +298,10 @@ export function createTerrainSampler(doc: CampusDocument, opts: TerrainSamplerOp
       if (!fitApplies(road.fit.mode, delta)) continue
       bestRoad = { distance: outside, delta: delta * blendWeight(outside, road.fit.blendMeters) }
     }
+    // On a road's own surface the road wins over a building's dig-out strip or blend beside it, so a road passing
+    // close to a building stays level across (owner 2026-11-15: it was tilted and creased). Elsewhere buildings win.
+    if (bestRoad && bestRoad.distance <= 0) return bestRoad.delta
+    if (buildingDelta !== 0) return buildingDelta
     return bestRoad ? bestRoad.delta : 0
   }
 
@@ -315,6 +389,8 @@ export function resolveStructureEnds(doc: CampusDocument, sampler: TerrainSample
 export function structureTopAt(structure: Structure, resolved: ResolvedStructure, length: number, s: number): number {
   const { start, end } = resolved
   const rise = end.h - start.h
+  // Landings, steepness, landing heights (2026-11-15); older structures keep their original shape below.
+  if (usesProfile(structure)) return structureProfile(structure.form, start.h, rise, length, structure).heightAt(s)
   if (structure.form === 'stairs') {
     const shape = stairShape(rise, length, structure.flight)
     // The flight's top edge belongs to the start (slab or landing); each tread is one riser on.

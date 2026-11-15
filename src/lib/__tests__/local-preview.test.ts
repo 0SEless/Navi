@@ -25,3 +25,12 @@ it('never works on a production build', () => {
   window.history.replaceState(null, '', '/map?localPreview=map-asu-ibajay:7')
   expect(readLocalPreview()).toBeNull()
 })
+
+it('without a save number (or with :latest) it follows the newest save', () => {
+  window.history.replaceState(null, '', '/map?localPreview=map-asu-ibajay')
+  expect(readLocalPreview()).toEqual({ campusId: 'map-asu-ibajay', commitNo: 'latest' })
+  window.history.replaceState(null, '', '/map/explore')
+  expect(readLocalPreview()).toEqual({ campusId: 'map-asu-ibajay', commitNo: 'latest' })
+  window.history.replaceState(null, '', '/map?localPreview=map-asu-ibajay:latest')
+  expect(readLocalPreview()).toEqual({ campusId: 'map-asu-ibajay', commitNo: 'latest' })
+})

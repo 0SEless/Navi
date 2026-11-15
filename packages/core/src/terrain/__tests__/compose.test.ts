@@ -101,39 +101,35 @@ describe('fits', () => {
     for (const [x, y] of [[0, 0], [20, 0], [20, 10], [0, 10], [10, 5]]) expect(sampler.heightAt(x, y)).toBeCloseTo(5, 2)
   })
 
-  it('pad blend reaches ground at 3 m', () => {
+  // Owner 2026-11-15, banks and plinths (replaces the 2.5 m shelf and pad blends): uphill (east) a 1 m walkway at
+  // the floor, then a bank at 1 in 2; downhill (west) the hill is left alone. Every old pad value reads this way.
+  it('uphill: a 1 m walkway, then a 1-in-2 bank', () => {
     const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [pad('both')] }))!
-    expect(sampler.heightAt(23, 5)).toBeCloseTo(11.5, 6)
-    const mid = sampler.heightAt(21.5, 5)
-    expect(mid).toBeGreaterThan(5)
-    expect(mid).toBeLessThan(10.75)
+    expect(sampler.heightAt(20.5, 5)).toBeCloseTo(5, 6)
+    expect(sampler.heightAt(25, 5)).toBeCloseTo(5 + 0.5 * 4, 6)
   })
 
-  it('pad raise leaves higher ground untouched', () => {
-    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [pad('raise')] }))!
-    expect(sampler.heightAt(15, 5)).toBeCloseTo(7.5, 6)
-    expect(sampler.heightAt(2, 5)).toBeCloseTo(5, 6)
+  it('downhill the hill is left alone (the building shows a plinth), whatever the old pad said', () => {
+    for (const mode of ['raise', 'lower', 'both'] as const) {
+      const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [pad(mode)] }))!
+      expect(sampler.heightAt(15, 5)).toBeCloseTo(5, 6)
+      expect(sampler.heightAt(-4, 5)).toBeCloseTo(-2, 6)
+    }
   })
 
   // Owner 2026-11-14: a building is dug into / built up from the hill, so no ground shows inside its outline.
-  it('a building without a pad still sits on its own flat floor; the ground outside is untouched', () => {
+  it('a building without a pad sits on its own flat floor and gets the same bank', () => {
     const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [building('b2', rectFootprint(0, 0, 20, 10), { baseElevation: 3 })] }))!
     expect(sampler.heightAt(15, 5)).toBeCloseTo(3, 6)
     expect(sampler.heightAt(2, 5)).toBeCloseTo(3, 6)
-    expect(sampler.heightAt(23, 5)).toBeCloseTo(11.5, 6)
+    expect(sampler.heightAt(20.9, 5)).toBeCloseTo(3, 6)
+    expect(sampler.heightAt(23, 5)).toBeCloseTo(3 + 0.5 * 2, 6)
   })
 
-  it('without a pad the ground is dug 2.5 m beyond the walls (working space), then left as it is', () => {
-    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [building('b2', rectFootprint(0, 0, 20, 10), { baseElevation: 3 })] }))!
-    expect(sampler.heightAt(22.4, 5)).toBeCloseTo(3, 6)
-    expect(sampler.heightAt(22.6, 5)).toBeCloseTo(11.3, 6)
-  })
-
-  it('pad off also flattens the outline only (no blend around it)', () => {
-    const off = building('b3', rectFootprint(0, 0, 20, 10), { ground: { baseMode: 'follow-ground', pad: { mode: 'off', blendMeters: 3 } } })
-    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [off] }))!
-    expect(sampler.heightAt(15, 5)).toBeCloseTo(5, 6)
-    expect(sampler.heightAt(23, 5)).toBeCloseTo(11.5, 6)
+  it('where the hill is as steep as the bank, the bank eases into it at the end of its reach (no cliff)', () => {
+    const sampler = createTerrainSampler(doc({ terrain: terrainOf(slope), buildings: [pad('both')] }))!
+    expect(sampler.heightAt(20 + 31.5, 5)).toBeCloseTo(sampler.groundAt(51.5, 5), 6)
+    for (let x = 40; x < 52; x += 0.5) expect(sampler.heightAt(x + 0.5, 5) - sampler.heightAt(x, 5)).toBeLessThan(1.5)
   })
 })
 

@@ -73,3 +73,34 @@ describe('building ground commands', () => {
     expect(buildingSetGroundHandler.execute(doc(), { buildingId: 'nope', baseMode: 'fixed' }).success).toBe(false)
   })
 })
+
+describe('building.set-ground: ground around (banks and plinths, 2026-11-15)', () => {
+  it('stores Ground around and Bank slope; undo restores the previous ground', () => {
+    const d = doc()
+    const result = buildingSetGroundHandler.execute(d, { buildingId: 'b2', baseMode: 'fixed', around: 'slopes', bankSlope: 'steep' })
+    expect(result.success).toBe(true)
+    expect(d.buildings[1].ground).toEqual(expect.objectContaining({ around: 'slopes', bankSlope: 'steep' }))
+    const undo = buildingSetGroundHandler.inverse!({}, result)!
+    buildingSetGroundHandler.execute(d, undo.payload)
+    expect(d.buildings[1].ground).toEqual({ baseMode: 'fixed', pad: { mode: 'off', blendMeters: 3 } })
+  })
+
+  it('changing only the floor mode keeps Ground around and Bank slope', () => {
+    const d = doc()
+    buildingSetGroundHandler.execute(d, { buildingId: 'b2', baseMode: 'fixed', around: 'leave', bankSlope: 'gentle' })
+    buildingSetGroundHandler.execute(d, { buildingId: 'b2', baseMode: 'follow-ground' })
+    expect(d.buildings[1].ground).toEqual(expect.objectContaining({ baseMode: 'follow-ground', around: 'leave', bankSlope: 'gentle' }))
+  })
+
+  it('rejects unknown values', () => {
+    expect(buildingSetGroundHandler.execute(doc(), { buildingId: 'b2', baseMode: 'fixed', around: 'moat' })).toEqual({ success: false, error: 'Choose bank and plinth, slopes all round or leave the hill.' })
+    expect(buildingSetGroundHandler.execute(doc(), { buildingId: 'b2', baseMode: 'fixed', bankSlope: 'cliff' })).toEqual({ success: false, error: 'Choose a gentle, normal or steep bank.' })
+  })
+})
+
+it('Follow the ground for all buildings keeps each building’s Ground around', () => {
+  const d = doc()
+  d.buildings[1].ground = { baseMode: 'follow-ground', pad: { mode: 'off', blendMeters: 3 }, around: 'leave' }
+  buildingsFollowGroundHandler.execute(d, {})
+  expect(d.buildings[1].ground).toEqual(expect.objectContaining({ around: 'leave' }))
+})

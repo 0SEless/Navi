@@ -149,6 +149,10 @@ function checkStructure(kind: PartKind, ids: string[], content: unknown, invalid
       if (content.terrainAreas !== undefined && !Array.isArray(content.terrainAreas)) {
         invalid('/terrainAreas', '"terrainAreas" must be an array when present.')
       }
+      const terrain = content.terrain as { meshes?: unknown } | undefined
+      if (terrain && typeof terrain === 'object' && terrain.meshes !== undefined && !Array.isArray(terrain.meshes)) {
+        invalid('/terrain/meshes', '"terrain.meshes" must be an array when present.')
+      }
       return
     }
     case 'terrain-tile': {

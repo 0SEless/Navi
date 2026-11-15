@@ -23,6 +23,7 @@ import type { CampusBundle, SearchEntry } from '@/types/nav-types'
 import { resolveNearestNode } from '@/lib/location-resolver'
 import { stripNavigateSessionParameters } from '@/lib/navigation-deep-link'
 import { findPublicPoi } from '@/lib/findRoute'
+import { defaultStart } from '@/lib/default-start'
 import {
   estimatePresentationEtaMinutes,
   formatNavigationDistance,
@@ -417,7 +418,7 @@ function NavigatePageContent() {
   const campusLoading = usePublicStore((s) => s.campusLoading)
   const campusError = usePublicStore((s) => s.campusError)
   const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
-  const fromNode = usePublicStore((s) => s.fromNode)
+  const storedFrom = usePublicStore((s) => s.fromNode)
   const toNode = usePublicStore((s) => s.toNode)
   const poiDestination = usePublicStore((s) => s.poiDestination)
   const setFrom = usePublicStore((s) => s.setFrom)
@@ -475,6 +476,10 @@ function NavigatePageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // No start set (and no QR location): the route starts at the campus entrance gate; the visitor can change it.
+  const gateStart = useMemo(() => (campus ? defaultStart({ nodes: campus.nodes, poi: campus.poi }) : null), [campus])
+  const startsAtGate = !storedFrom && !qrLocation && Boolean(gateStart)
+  const fromNode = storedFrom ?? (startsAtGate ? gateStart!.nodeId : null)
   const nodes = useMemo(() => campus?.nodes ?? [], [campus])
   const routeEdges = useMemo(() => campus?.edges ?? [], [campus])
   const buildings = campus?.buildings ?? []
@@ -526,7 +531,9 @@ function NavigatePageContent() {
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
   const visibleQrLocation = qrLocation
     ?? (qrDeepLink.status === 'resolved' || qrDeepLink.status === 'non-routable' ? qrDeepLink.location : null)
-  const fromLabel = fromNode
+  const fromLabel = startsAtGate
+    ? gateStart!.label
+    : fromNode
     ? nodeById.get(fromNode)?.label ?? fromNode
     : visibleQrLocation?.label ?? 'My Location'
   const toEntry = entryForNode(campus, toNode)

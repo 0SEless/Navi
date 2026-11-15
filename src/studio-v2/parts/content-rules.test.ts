@@ -288,3 +288,12 @@ describe('terrain plan parts', () => {
     expect(checkPart({ key: partKey('terrain-tile', '0_0'), content: { cells: [] }, sortKey: null }).map((i) => i.code)).toContain('INVALID_PART')
   })
 })
+
+describe('terrain part meshes (2026-11-15)', () => {
+  it('meshes, when present, must be a list', () => {
+    const bad: PartRecord = { key: 'terrain', sortKey: '000000', content: { terrain: { meshes: {} } } }
+    const good: PartRecord = { key: 'terrain', sortKey: '000000', content: { terrain: { meshes: [] } } }
+    expect(codes(checkPart(bad))).toContain('INVALID_PART')
+    expect(checkPart(good)).toEqual([])
+  })
+})

@@ -156,7 +156,9 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
         diagnostics: [{ code: 'COMPILE_EXCEPTION', message: errorMessage(error, 'Internal compilation error') }],
       })
     }
-    if (!compiled.success || !compiled.graph) {
+    // Relaxed (local preview only): compile errors such as an unreachable route piece are shown anyway when the
+    // compiler still produced a graph; Publish never passes relaxed.
+    if (!compiled.graph || (!compiled.success && !relaxed)) {
       return json(422, { code: 'COMPILE_FAILED', diagnostics: compiled.errors })
     }
 
@@ -198,17 +200,24 @@ export function createPublishHandlers(deps: PublishHandlerDeps) {
   }
 
   return {
-    // POST /api/studio/v2/preview { campusId, commitNo } (2026-11-07): the visitor campus of a saved commit, built
+    // POST /api/studio/v2/preview { campusId, commitNo | 'latest' } (2026-11-07): the visitor campus of a saved commit, built
     // exactly as Publish builds it, recorded nowhere. Owners and editors (who can edit the campus) may preview.
     preview(request: Request): Promise<Response> {
       return runGuarded(verifyPrincipal, 'preview', request, async (actor) => {
         const body = await readBody(request)
         const campusId = requireCampusId(body.campusId)
-        const commitNo = requirePositiveInteger(body.commitNo, 'commitNo')
+        const latest = body.commitNo === 'latest'
+        let commitNo = latest ? 0 : requirePositiveInteger(body.commitNo, 'commitNo')
         if (!actor.isSuperAdmin) {
           const role = await repo.roleOf(campusId, actor.id)
           if (role === null) return json(404, { code: 'CAMPUS_NOT_FOUND' })
           if (role !== 'owner' && role !== 'editor') return json(403, { code: 'FORBIDDEN' })
+        }
+        // "latest": the campus's newest save (the local view follows each new save without a new link).
+        if (latest) {
+          const listed = await repo.listCampuses()
+          commitNo = listed.campuses.find((campus) => campus.id === campusId)?.headCommit ?? 0
+          if (commitNo <= 0) return json(404, { code: 'COMMIT_NOT_FOUND' })
         }
         // "Show anyway": never on a production build, whatever the request says.
         const relaxed = body.relaxed === true && process.env.NODE_ENV !== 'production'

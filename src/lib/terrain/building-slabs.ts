@@ -1,4 +1,4 @@
-import { effectiveBuildingBase, toLocal, type CampusDocument, type TerrainSampler } from '@navi/core'
+import { effectiveBuildingBase, plinthFeatures, toLocal, type CampusDocument, type TerrainSampler } from '@navi/core'
 
 const SLAB_THICKNESS = 0.25
 
@@ -13,9 +13,10 @@ const SLAB_THICKNESS = 0.25
 export function buildSlabFeatures(
   document: CampusDocument,
   sampler: TerrainSampler,
-  opts: { cutAboveFloorId?: string; baseOverride?: { buildingId: string; baseM: number } },
+  opts: { cutAboveFloorId?: string; baseOverride?: { buildingId: string; baseM: number }; openBuildingId?: string },
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
+  const plinths: GeoJSON.Feature[] = []
   for (const building of document.buildings) {
     const ring = building.footprint?.points ?? []
     if (ring.length < 3) continue
@@ -26,6 +27,10 @@ export function buildSlabFeatures(
     const base = opts.baseOverride?.buildingId === building.id ? opts.baseOverride.baseM : effectiveBuildingBase(building, sampler)
     const floors = [...building.floors].sort((a, b) => a.elevation - b.elevation)
     if (floors.length === 0) continue
+    // Plinth (banks and plinths, 2026-11-15): where the ground outside is below the floor, the base wall shows.
+    plinths.push(...plinthFeatures(ring, base, sampler.grid, (x, y) => sampler.heightAt(x, y), building.id))
+    // The open building is drawn by its floors (one view with NAVI Web), so its block is left out.
+    if (opts.openBuildingId === building.id) continue
     const geometry: GeoJSON.Polygon = { type: 'Polygon', coordinates: [ring.map((p) => [p.lng, p.lat])] }
     const cut = opts.cutAboveFloorId ? floors.find((f) => f.id === opts.cutAboveFloorId) : undefined
     if (cut) {
@@ -38,5 +43,5 @@ export function buildSlabFeatures(
     const roof = base + (building.height > 0 ? building.height : last.elevation + (last.height ?? 3.5))
     features.push({ type: 'Feature', geometry, properties: { kind: 'block', buildingId: building.id, base: 0, top: Math.max(roof - ground, SLAB_THICKNESS) } })
   }
-  return { type: 'FeatureCollection', features }
+  return { type: 'FeatureCollection', features: [...features, ...plinths] }
 }

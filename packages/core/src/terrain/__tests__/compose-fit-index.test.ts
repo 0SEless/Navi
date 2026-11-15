@@ -21,7 +21,7 @@ describe('fits only reach points near their building or road (fit index)', () =>
     expect(s.heightAt(c.x, c.y)).toBeCloseTo(s.groundAt(c.x, c.y) + fit, 9)
   })
 
-  it('without pads the ground changes only inside building outlines and their 2.5 m working space', () => {
+  it('the ground changes only inside building outlines and within their walkway + bank reach (31 m)', () => {
     const s = createTerrainSampler(ibajayDoc({ pads: false }))!
     const rings = ibajayCampus.footprints.map((f) => f.map(([lat, lng]) => toLocal(ibajayGrid, { lat, lng })))
     const inside = (x: number, y: number) => rings.some((ring) => {
@@ -38,7 +38,7 @@ describe('fits only reach points near their building or road (fit index)', () =>
         const b = ring[(i + 1) % ring.length]
         const dx = b.x - a.x, dy = b.y - a.y
         const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)))
-        return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) <= 2.5
+        return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) <= 31
       }))
       if (!inside(x, y) && !near) expect(s.fitAt(x, y)).toBe(0)
     }

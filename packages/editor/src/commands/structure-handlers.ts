@@ -1,4 +1,4 @@
-import { recordChange } from '@navi/core'
+import { isSteepness, recordChange } from '@navi/core'
 import type { CampusDocument, Structure, StructurePreset } from '@navi/core'
 import type { Command, CommandHandler, MutationResult } from './types'
 import { followStairRoute } from './stair-route'
@@ -16,6 +16,10 @@ function validStructure(value: unknown): string | null {
   if (value.form !== 'stairs' && value.form !== 'ramp') return 'The form must be stairs or a ramp.'
   if (typeof value.width !== 'number' || !(value.width >= 0.6 && value.width <= 10)) return 'The width must be from 0.6 to 10 metres.'
   if (!isRecord(value.start) || !isRecord(value.end)) return 'A stair needs two ends.'
+  if (value.steepness !== undefined && !isSteepness(value.steepness)) return 'Choose a gentle, normal or steep stair.'
+  if (value.landingLengthM !== undefined && !(typeof value.landingLengthM === 'number' && value.landingLengthM >= 0.9 && value.landingLengthM <= 5)) return 'A landing must be from 0.9 to 5 metres long.'
+  if (value.landings !== undefined && !(Array.isArray(value.landings) && value.landings.every((t) => typeof t === 'number' && t >= 0 && t <= 1))) return 'A landing must be on the stair.'
+  if (value.landingHeightsM !== undefined && !(Array.isArray(value.landingHeightsM) && value.landingHeightsM.every((h) => h === null || (typeof h === 'number' && Number.isFinite(h))))) return 'A landing height must be a number or empty.'
   return null
 }
 

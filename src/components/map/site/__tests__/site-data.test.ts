@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSiteArtifact, toLatLng, type CampusDocument, type SiteArtifact } from '@navi/core'
-import { siteContourLines, siteGroundArea, siteSlabFeatures, siteStructuresMesh } from '../site-data'
+import { siteContourLines, siteGroundArea, sitePlinthFeatures, siteSlabFeatures, siteStructuresMesh } from '../site-data'
 
 const grid = { originLat: 11.8, originLng: 122.1 }
 const ll = (x: number, y: number) => toLatLng(grid, { x, y })
@@ -55,5 +55,19 @@ describe('NAVI Web site data', () => {
     for (const f of lines.features) expect((f.properties!.elevation as number) % 5).toBeCloseTo(0, 6)
     const area = siteGroundArea(site())
     expect((area.geometry as GeoJSON.Polygon).coordinates[0]).toHaveLength(5)
+  })
+})
+
+describe('NAVI Web plinths (banks and plinths, 2026-11-15)', () => {
+  it('the downhill wall shows a plinth from the ground up to the floor; the uphill wall none', () => {
+    const fc = sitePlinthFeatures(site(), [hall as never])
+    expect(fc.features.length).toBeGreaterThan(0)
+    const westLng = ll(50, 5).lng // the floor (7 m) meets the hill at x = 50
+    for (const f of fc.features) {
+      expect(f.properties).toEqual(expect.objectContaining({ kind: 'plinth', buildingId: 'hall', base: 0 }))
+      expect((f.geometry as GeoJSON.Polygon).coordinates[0].every(([lng]) => lng < westLng)).toBe(true)
+      expect(f.properties!.top).toBeLessThan(1.3)
+      expect(f.properties!.top).toBeGreaterThanOrEqual(0.1)
+    }
   })
 })

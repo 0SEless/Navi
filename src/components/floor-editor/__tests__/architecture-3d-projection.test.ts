@@ -88,3 +88,14 @@ it('uses outer CSS viewport and installs as soon as style is ready while tiles r
  expect(adapter.project({x:0,y:0,z:0})).toEqual({x:410,y:300})
  adapter.dispose()
 })
+
+it('disposing after the map was already removed (switching floors) does not throw', () => {
+ const container = { clientWidth: 800, clientHeight: 600 }
+ let removed = false
+ const gone = () => { if (removed) throw new TypeError("Cannot read properties of undefined (reading 'getLayer')") }
+ const map = { getContainer: () => container, getCanvasContainer: () => container, getCanvas: () => null, getProjection: () => ({ type: 'mercator' }), addLayer: () => {}, getLayer: () => { gone(); return undefined }, on: () => {}, off: () => { gone() }, removeLayer: () => { gone() }, triggerRepaint: () => {}, isStyleLoaded: () => true } as unknown as LibreMap
+ const transformer = { buildingLocalToWorld: ({ x, y }: { x: number; y: number }) => ({ lng: x, lat: y }), worldToBuildingLocal: ({ lng, lat }: { lng: number; lat: number }) => ({ x: lng, y: lat }) }
+ const adapter = createArchitectureProjection(map, transformer, 'b')
+ removed = true
+ expect(() => adapter.dispose()).not.toThrow()
+})

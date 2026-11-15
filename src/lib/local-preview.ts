@@ -1,19 +1,26 @@
 /**
  * Local "show anyway" view of an unpublished campus in the visitor app (development servers only).
- * Open the app with ?localPreview=<campusId>:<save number>; it is remembered for this browser tab.
+ * Open the app with ?localPreview=<campusId> to follow the newest save (reload after saving), or
+ * ?localPreview=<campusId>:<save number> to pin one save. It is remembered for this browser tab.
  * ?localPreview=off clears it. Production builds ignore it entirely.
  */
 export const LOCAL_PREVIEW_KEY = 'navi-local-preview'
 
-export interface LocalPreview { campusId: string; commitNo: number }
+export interface LocalPreview { campusId: string; commitNo: number | 'latest' }
+
+const CAMPUS_ID = /^[A-Za-z0-9_-]+$/
 
 function parse(value: string | null): LocalPreview | null {
   if (!value) return null
   const at = value.lastIndexOf(':')
-  if (at <= 0) return null
+  if (at < 0) return CAMPUS_ID.test(value) ? { campusId: value, commitNo: 'latest' } : null
+  if (at === 0) return null
   const campusId = value.slice(0, at)
-  const commitNo = Number(value.slice(at + 1))
-  return /^[A-Za-z0-9_-]+$/.test(campusId) && Number.isInteger(commitNo) && commitNo > 0 ? { campusId, commitNo } : null
+  const save = value.slice(at + 1)
+  if (!CAMPUS_ID.test(campusId)) return null
+  if (save === 'latest') return { campusId, commitNo: 'latest' }
+  const commitNo = Number(save)
+  return Number.isInteger(commitNo) && commitNo > 0 ? { campusId, commitNo } : null
 }
 
 export function readLocalPreview(): LocalPreview | null {

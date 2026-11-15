@@ -37,9 +37,11 @@ describe('road surfaces in the terrain workspace', () => {
   it('one polygon per road; Follow ground reads the ground, Typed keeps its typed heights', () => {
     const d = doc()
     const fc = roadSurfaceData(d, createTerrainSampler(d))
-    expect(fc.features.map((f) => f.properties?.id)).toEqual(['r1', 'r2'])
-    expect(fc.features[0].properties).toMatchObject({ startHeightM: 0, endHeightM: 0 })
-    expect(fc.features[1].properties).toMatchObject({ startHeightM: 9, endHeightM: 11 })
+    // One surface per road (plus its two rounded ends).
+    const surfaces = fc.features.filter((f) => !f.properties?.cap)
+    expect(surfaces.map((f) => f.properties?.id)).toEqual(['r1', 'r2'])
+    expect(surfaces[0].properties).toMatchObject({ startHeightM: 0, endHeightM: 0 })
+    expect(surfaces[1].properties).toMatchObject({ startHeightM: 9, endHeightM: 11 })
   })
 
   it('no ground yet → no surfaces', () => {
