@@ -64,6 +64,14 @@ export const roadCreateHandler: CommandHandler = {
     // Stair route links: a road made over an outdoor stair carries its routing (feature + structureId) and height mode.
     const routing = payload.routing as Road['routing'] | undefined
     const heightMode = payload.heightMode === 'typed' || payload.heightMode === 'follow-surface' ? payload.heightMode : undefined
+    // Check every connection before the road is added (2026-11-17): a bad one used to throw after the push,
+    // leaving a half-made road the save did not know about.
+    for (const request of connections ?? []) {
+      const p = request?.position as { lat?: unknown; lng?: unknown } | undefined
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return { success: false, error: 'Each road connection needs a position (lat/lng).' }
+      if (!document.roads.some((r) => r.id === request.targetRoadId)) return { success: false, error: `Road connection target not found: ${request.targetRoadId}` }
+    }
+
     document.roads.push({
       id, name, polyline: { points: roadPoints }, width, surface, type, displayMode, connectorEntranceId,
       ...(routing ? { routing: structuredClone(routing) } : {}),

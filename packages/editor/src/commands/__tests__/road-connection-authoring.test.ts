@@ -200,3 +200,26 @@ describe('road.create connection authoring (Fix 1)', () => {
     expect(created.polyline.points[1]).toEqual({ lat: 0.001, lng: 0.0005 })
   })
 })
+
+describe('road.create refuses a bad connection without leaving a half-made road (2026-11-17)', () => {
+  it('a connection without a position: no road added, a clear error', () => {
+    const doc = docWithRoads([TARGET])
+    const result = roadCreateHandler.execute(doc, {
+      id: 'road-bad', points: [{ lat: 0.0005, lng: 0 }, TARGET_MID],
+      connections: [{ pointIndex: 1, action: 'connect', kind: 'road-segment', targetRoadId: 'road-target' }],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/connection/i)
+    expect(doc.roads.map((r) => r.id)).toEqual(['road-target'])
+  })
+
+  it('a connection to a road that does not exist: refused the same way', () => {
+    const doc = docWithRoads([TARGET])
+    const result = roadCreateHandler.execute(doc, {
+      id: 'road-bad', points: [{ lat: 0.0005, lng: 0 }, TARGET_MID],
+      connections: [{ pointIndex: 1, action: 'connect', kind: 'road-segment', targetRoadId: 'ghost', position: TARGET_MID }],
+    })
+    expect(result.success).toBe(false)
+    expect(doc.roads.map((r) => r.id)).toEqual(['road-target'])
+  })
+})
