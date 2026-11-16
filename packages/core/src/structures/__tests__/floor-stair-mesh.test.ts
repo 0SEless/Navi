@@ -118,3 +118,28 @@ describe('railings chosen per stair (owner 2026-11-17)', () => {
     expect(Math.max(...ys)).toBeLessThan(0)
   })
 })
+
+describe('terrain stair controls on floor stairs (owner 2026-11-17)', () => {
+  const straight = (props: Record<string, unknown>): StairAssetInput => ({
+    id: 't', position: { x: 0, y: 0 }, rotation: 90, height: 3.5,
+    drawing: { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', ...props } } as never,
+  })
+  const pts = (mesh: Float32Array) => { const v: Array<[number, number, number]> = []; for (let i = 0; i < mesh.length; i += 9) v.push([mesh[i], mesh[i + 1], mesh[i + 2]]); return v }
+
+  it('Underneath: solid reaches the ground under the top; open leaves it hollow', () => {
+    const lowUnderTop = (mesh: Float32Array) => Math.min(...pts(mesh).filter(([x]) => x < -2.5).map(([, , z]) => z))
+    expect(lowUnderTop(floorStairMesh([straight({})], 0, (p) => p))).toBeLessThan(0)
+    expect(lowUnderTop(floorStairMesh([straight({ underneath: 'open' })], 0, (p) => p))).toBeGreaterThan(2)
+  })
+
+  it('Landings: a level resting platform partway up, as long as set', () => {
+    const level = (mesh: Float32Array) => {
+      const mid = pts(mesh).filter(([, , z]) => z > 1.3 && z < 2.2)
+      const byZ = new Map<number, number[]>()
+      for (const [x, , z] of mid) { const k = Math.round(z * 1000); byZ.set(k, [...(byZ.get(k) ?? []), x]) }
+      return Math.max(0, ...[...byZ.values()].map((xs) => Math.max(...xs) - Math.min(...xs)))
+    }
+    expect(level(floorStairMesh([straight({ landings: [0.5], landingLengthM: 1.5 })], 0, (p) => p))).toBeGreaterThanOrEqual(1.4)
+    expect(level(floorStairMesh([straight({})], 0, (p) => p))).toBeLessThan(1)
+  })
+})

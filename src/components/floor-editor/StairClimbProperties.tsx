@@ -2,6 +2,7 @@
 
 // Floor-to-floor stair settings (2026-11-16, whole-building view), in the floor editor's properties panel: which
 // floor the stair climbs To, the climb it makes (from the floors' heights, never typed), Turn and Sides.
+import { useEffect, useState } from 'react'
 import { stairFlightFloor, stairHasTop, stairRise, type Building } from '@navi/core'
 
 const field: React.CSSProperties = {
@@ -11,7 +12,7 @@ const field: React.CSSProperties = {
 const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }
 const m = (n: number) => n.toFixed(2)
 
-type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; steepness?: 'gentle' | 'normal' | 'steep' }
 
 export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }: {
   building: Building
@@ -103,6 +104,82 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }
           </>
         )
       })()}
+      {props && <StairShapeControls featureId={featureId} props={props as never} onDrawing={onDrawing} />}
     </div>
   )
 }
+
+/** A number field that applies on leave or Enter (one change per edit). */
+function NumberField({ id, labelText, value, onApply }: { id: string; labelText: string; value: number; onApply(value: number): void }) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => setText(String(value)), [value])
+  const apply = () => {
+    const n = Number(text)
+    if (Number.isFinite(n) && n !== value) onApply(n)
+    else setText(String(value))
+  }
+  return (
+    <input id={id} aria-label={labelText} type="number" style={field} value={text}
+      onChange={(event) => setText(event.target.value)} onBlur={apply} onKeyDown={(event) => { if (event.key === 'Enter') apply() }} />
+  )
+}
+
+/**
+ * The terrain editor's stair shape controls on floor stairs (owner 2026-11-17): Underneath for every stair;
+ * Steepness, Landings (resting platforms partway up, each at a % of the way) and Landing length for a Straight stair.
+ */
+function StairShapeControls({ featureId, props, onDrawing }: {
+  featureId: string
+  props: { preset?: string; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; steepness?: 'gentle' | 'normal' | 'steep'; stepWidth?: number }
+  onDrawing(patch: DrawingPatch): void
+}) {
+  const straight = props.preset !== 'ushape'
+  const landings = [...(props.landings ?? [])].sort((a, b) => a - b)
+  const setLandings = (next: number[]) => onDrawing({ landings: next.filter((t) => t > 0 && t < 1).sort((a, b) => a - b) })
+  return (
+    <>
+      <div>
+        <label style={label} htmlFor={`stair-underneath-${featureId}`}>UNDERNEATH</label>
+        <select id={`stair-underneath-${featureId}`} aria-label="Underneath" style={field} value={props.underneath ?? 'solid'}
+          onChange={(event) => onDrawing({ underneath: event.target.value as 'open' | 'solid' })}>
+          <option value="solid">Solid</option>
+          <option value="open">Open</option>
+        </select>
+      </div>
+      {straight && (
+        <>
+          <div>
+            <label style={label} htmlFor={`stair-steepness-${featureId}`}>STEEPNESS</label>
+            <select id={`stair-steepness-${featureId}`} aria-label="Steepness" style={field} value={props.steepness ?? 'normal'}
+              onChange={(event) => onDrawing({ steepness: event.target.value as 'gentle' | 'normal' | 'steep' })}>
+              <option value="gentle">Gentle</option>
+              <option value="normal">Normal</option>
+              <option value="steep">Steep</option>
+            </select>
+          </div>
+          <div>
+            <span style={label}>LANDINGS</span>
+            {landings.map((t, i) => (
+              <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                <NumberField id={`stair-landing-${featureId}-${i}`} labelText={`Landing ${i + 1} position (%)`} value={Math.round(t * 100)}
+                  onApply={(pct) => setLandings(landings.map((x, j) => (j === i ? pct / 100 : x)))} />
+                <button type="button" aria-label={`Remove landing ${i + 1}`} style={{ ...field, width: 'auto', cursor: 'pointer' }}
+                  onClick={() => setLandings(landings.filter((_, j) => j !== i))}>Remove</button>
+              </div>
+            ))}
+            <button type="button" style={{ ...field, cursor: 'pointer' }}
+              onClick={() => setLandings([...landings, ((landings[landings.length - 1] ?? 0) + 1) / 2])}>Add landing</button>
+          </div>
+          {landings.length > 0 && (
+            <div>
+              <label style={label} htmlFor={`stair-landing-length-${featureId}`}>LANDING LENGTH (M)</label>
+              <NumberField id={`stair-landing-length-${featureId}`} labelText="Landing length (m)" value={props.landingLengthM ?? (props.stepWidth ?? 1.2)}
+                onApply={(m) => { if (m > 0) onDrawing({ landingLengthM: m }) }} />
+            </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+

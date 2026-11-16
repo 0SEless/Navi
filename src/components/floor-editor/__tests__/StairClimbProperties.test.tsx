@@ -83,5 +83,35 @@ describe('StairClimbProperties', () => {
     fireEvent.change(type, { target: { value: 'ushape' } })
     expect(onDrawing).toHaveBeenCalledWith({ preset: 'ushape' })
   })
+
+  it('terrain shape controls: Underneath, Steepness, Landings (add, move, remove) and Landing length', () => {
+    const b = building(1, 'straight')
+    ;(b.staircases![0].levels[0].drawing!.properties as Record<string, unknown>).landings = [0.5]
+    const { onDrawing } = show(b)
+    fireEvent.change(screen.getByLabelText('Underneath'), { target: { value: 'open' } })
+    expect(onDrawing).toHaveBeenCalledWith({ underneath: 'open' })
+    fireEvent.change(screen.getByLabelText('Steepness'), { target: { value: 'gentle' } })
+    expect(onDrawing).toHaveBeenCalledWith({ steepness: 'gentle' })
+    const pos = screen.getByLabelText('Landing 1 position (%)') as HTMLInputElement
+    expect(pos.value).toBe('50')
+    fireEvent.change(pos, { target: { value: '40' } })
+    fireEvent.blur(pos)
+    expect(onDrawing).toHaveBeenCalledWith({ landings: [0.4] })
+    fireEvent.click(screen.getByRole('button', { name: 'Add landing' }))
+    expect(onDrawing).toHaveBeenCalledWith({ landings: [0.5, 0.75] })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove landing 1' }))
+    expect(onDrawing).toHaveBeenCalledWith({ landings: [] })
+    const len = screen.getByLabelText('Landing length (m)') as HTMLInputElement
+    fireEvent.change(len, { target: { value: '2' } })
+    fireEvent.blur(len)
+    expect(onDrawing).toHaveBeenCalledWith({ landingLengthM: 2 })
+  })
+
+  it('a U-Shape stair has no Steepness or Landings (it has its own half-landing)', () => {
+    show(building(1))
+    expect(screen.queryByLabelText('Steepness')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add landing' })).toBeNull()
+    expect(screen.getByLabelText('Underneath')).toBeTruthy()
+  })
 })
 

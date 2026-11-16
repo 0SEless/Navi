@@ -49,9 +49,16 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       const a = place(mid(first[0], first[1])), b = place(mid(last[3], last[2]))
       // A flight longer than any real stair (or not finite) means a bad map conversion: draw nothing for it.
       if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || Math.hypot(b.x - a.x, b.y - a.y) > MAX_FLIGHT_M) continue
+      // The terrain editor's shape controls (owner 2026-11-17): Underneath for every stair; Landings, their length and
+      // Steepness for a Straight stair (a U-Shape has its own half-landing).
+      const shape = props as typeof props & { underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; steepness?: 'gentle' | 'normal' | 'steep' }
+      const straight = props?.preset !== 'ushape'
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h: startH } as never, { ...b, h: endH } as never), startH, endH, form: 'stairs', width: dist(first[0], first[1]),
-        underneath: 'solid', railings, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        underneath: shape?.underneath ?? 'solid', railings, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        ...(straight && shape?.landings?.length ? { landings: shape.landings.filter((t) => t > 0 && t < 1) } : {}),
+        ...(straight && shape?.landingLengthM !== undefined ? { landingLengthM: shape.landingLengthM } : {}),
+        ...(straight && shape?.steepness ? { steepness: shape.steepness } : {}),
       }))
     }
     // Level landings (the U-turn half-landing) and the top platform, as flat decks at their height. An outside
