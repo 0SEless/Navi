@@ -147,5 +147,18 @@ describe('stair.setToFloor', () => {
     cleanupFloorRoutingReferences(b.d, b.d.buildings[0], b.d.buildings[0].floors[0])
     expect(b.d.buildings[0].staircases ?? []).toHaveLength(0)
   })
+
+  it('a straight stair moved by position alone: its outline and its top follow it', () => {
+    const d = campus()
+    const e = editor(d)
+    const straight = { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', topLandingM: 2 } }
+    e.run('feature.create', { buildingId: 'b', floor: 0, id: 's', featureType: 'staircase', position: { x: 0, y: 13.6 }, rotation: 90, drawing: straight })
+    e.run('stair.setToFloor', { featureId: 's', toLevel: 1 })
+    const top = { ...stairOf(d).levels[1].position }
+    e.run('feature.update', { featureId: 's', level: 0, patch: { position: { x: 0, y: 12.55 } } })
+    const ys = stairOf(d).levels[0].polygon!.points.map((p) => p.y)
+    expect(Math.min(...ys)).toBeCloseTo(12.55 - 0.75, 6)
+    expect(stairOf(d).levels[1].position.y).toBeCloseTo(top.y - 1.05, 6)
+  })
 })
 

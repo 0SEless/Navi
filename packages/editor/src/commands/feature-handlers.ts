@@ -1242,7 +1242,8 @@ export const featureUpdateHandler: CommandHandler = {
     if (patch.landing) levelGeom.landing = { ...(patch.landing as any) }
 
 
-    if (levelGeom.drawing && (patch.drawing || resized)) {
+    // A drawn stair's outline is worked out from its position too (2026-11-16): moving it must move the outline.
+    if (levelGeom.drawing && (patch.drawing || resized || patch.position || patch.rotation != null)) {
       const drawPatch = patch.drawing as any
       if (drawPatch?.properties) {
         levelGeom.drawing.properties = {
