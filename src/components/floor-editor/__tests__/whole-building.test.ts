@@ -60,4 +60,17 @@ describe('whole-building view pieces', () => {
     expect(pieces.warnings.features).toHaveLength(1)
     expect(pieces.warnings.features[0].properties!.base).toBeCloseTo(3.5)
   })
+
+  it('upper floors draw their stairs smooth too (meshes at their height), not as step blocks', () => {
+    const b = building()
+    b.staircases!.push({ id: 's2', buildingId: 'b', name: 'S2', type: 'open', accessible: false, fromLevel: 1, toLevel: 2,
+      levels: { 1: { position: { x: 0, y: 0 }, rotation: 0, drawing }, 2: { role: 'top', position: { x: 0, y: 0 }, rotation: 0 } } } as never)
+    const pieces = wholeBuildingPieces(b, 0, new Set(), transformer)
+    expect(pieces.stairMeshes).toHaveLength(1)
+    let low = Infinity
+    for (let i = 2; i < pieces.stairMeshes[0].mesh.length; i += 9) low = Math.min(low, pieces.stairMeshes[0].mesh[i])
+    expect(low).toBeGreaterThan(3.5 - 0.5)
+    expect(pieces.stairs.features.filter((f) => f.properties!.partType === 'step')).toHaveLength(0)
+  })
 })
+

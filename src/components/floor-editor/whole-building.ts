@@ -5,7 +5,10 @@ import { buildFloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 
 type Polygons = GeoJSON.FeatureCollection<GeoJSON.Polygon>
 export type WholeBuildingKind = 'floors' | 'walls' | 'frames' | 'panels' | 'stairs' | 'glass' | 'warnings'
-export type WholeBuildingPieces = Record<WholeBuildingKind, Polygons>
+export type WholeBuildingPieces = Record<WholeBuildingKind, Polygons> & {
+  /** Smooth stairs of the floors above (2026-11-17), at their height above the edited floor. */
+  stairMeshes: Array<{ origin: { lat: number; lng: number }; mesh: Float32Array }>
+}
 
 /** Thickness of the floor slab drawn under each upper floor, metres. */
 const SLAB_M = 0.15
@@ -19,6 +22,7 @@ const SLAB_M = 0.15
  */
 export function wholeBuildingPieces(building: Building, activeLevel: number, hidden: ReadonlySet<number>, transformer: Pick<CoordinateTransformer, 'buildingLocalToWorld'>): WholeBuildingPieces {
   const out = Object.fromEntries((['floors', 'walls', 'frames', 'panels', 'stairs', 'glass', 'warnings'] as const).map((k) => [k, { type: 'FeatureCollection', features: [] }])) as unknown as WholeBuildingPieces
+  out.stairMeshes = []
   const active = building.floors.find((f) => f.level === activeLevel)
   if (!active) return out
   const toWorld = (p: { x: number; y: number }): [number, number] | null => {
@@ -39,7 +43,9 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     out.frames.features.push(...tag(assets.frames))
     out.panels.features.push(...tag(assets.panels))
     out.glass.features.push(...tag(assets.glass))
-    out.stairs.features.push(...tag(assets.stairs))
+    // Smooth stairs (2026-11-17): the mesh draws the flights; only stair tops stay as blocks.
+    if (assets.stairMesh) out.stairMeshes.push(assets.stairMesh)
+    out.stairs.features.push(...tag(assets.stairMesh ? { type: 'FeatureCollection', features: assets.stairs.features.filter((f) => f.properties?.fromLevel !== undefined) } : assets.stairs))
     // The floor itself: a thin slab over each space its walls enclose, open above stairs rising from inside.
     const walls = floor.walls ?? []
     const faces = walls.length ? deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), []) : []

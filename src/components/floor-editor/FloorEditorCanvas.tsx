@@ -604,7 +604,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     return canonicalBuilding && canonicalFloor ? wholeBuildingPieces(canonicalBuilding, canonicalFloor.level, hiddenFloors, transformer) : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, viewMode, wholeBuildingOn, hiddenFloors])
-  const floorStairMeshes = useMemo(() => [architecturePreview?.stairMesh ?? null], [architecturePreview])
+  const floorStairMeshes = useMemo(() => [architecturePreview?.stairMesh ?? null, ...(wholeBuilding?.stairMeshes ?? [])], [architecturePreview, wholeBuilding])
   const floorsAbove = (canonicalArchitectureFloor ? editor.document.buildings.find(candidate => candidate.id === building.id)?.floors ?? [] : [])
     .filter(candidate => candidate.level > (canonicalArchitectureFloor?.level ?? Infinity))
     .sort((a, b) => a.level - b.level)
