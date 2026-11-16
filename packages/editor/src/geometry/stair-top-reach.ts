@@ -1,8 +1,11 @@
 import { buildStairTopVolumes, stairFlightFloor, stairRise, type Building, type LocalCoord, type Staircase } from '@navi/core'
 import { deriveRooms } from './room-derivation'
 
-/** How close the top landing must come to the upper floor's walkable area, metres (spec). */
-export const STAIR_TOP_REACH_M = 1.5
+/**
+ * How close the top landing must come to the upper floor's walkable area, metres. Owner 2026-11-16: a stair 1.15 m
+ * off the wall "is just floating there" — the top must touch the floor, so only a small tolerance (half a wall).
+ */
+export const STAIR_TOP_REACH_M = 0.15
 
 type P = { x: number; y: number }
 export type StairTopReach =
@@ -37,7 +40,7 @@ function gap(a: readonly P[], b: readonly P[], bClosed: boolean): number {
 /**
  * Does a stair's top reach the floor it climbs to? (owner 2026-11-16: no doors — the top lands on the upper floor's
  * walkable floor.) Walkable = rooms and balconies drawn there, spaces its walls enclose, and its hallways (by their
- * width). The top landing reaches when it is within STAIR_TOP_REACH_M of one of them.
+ * width). The top landing reaches when it touches one of them (within STAIR_TOP_REACH_M).
  */
 export function stairTopReach(building: Building, stair: Staircase): StairTopReach {
   const from = stairFlightFloor(stair)

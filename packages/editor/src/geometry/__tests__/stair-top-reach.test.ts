@@ -23,10 +23,15 @@ const hallwayAt = (x: number) => ({ hallways: [{ id: 'h', name: 'Corridor', widt
 const stair = (b: Building) => b.staircases![0]
 
 describe('stair top reach', () => {
-  it('a top landing within 1.5 m of a Floor 2 hallway reaches it', () => {
-    const b = building(hallwayAt(5))
+  it('a top landing touching a Floor 2 hallway reaches it', () => {
+    const b = building(hallwayAt(4))
     const reach = stairTopReach(b, stair(b))
     expect(reach.ok).toBe(true)
+  })
+
+  it('a top landing 1 m short of the hallway does not reach (it would float; owner 2026-11-16)', () => {
+    const b = building(hallwayAt(5))
+    expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-walkable' })
   })
 
   it('a top landing 3 m from anything walkable on Floor 2 does not reach', () => {
@@ -35,7 +40,7 @@ describe('stair top reach', () => {
   })
 
   it('a balcony or room drawn on Floor 2 counts as walkable', () => {
-    const room = { rooms: [{ id: 'balcony', name: 'Balcony', polygon: { points: [{ x: 3.5, y: -2 }, { x: 6, y: -2 }, { x: 6, y: 2 }, { x: 3.5, y: 2 }] } }] }
+    const room = { rooms: [{ id: 'balcony', name: 'Balcony', polygon: { points: [{ x: 3.1, y: -2 }, { x: 6, y: -2 }, { x: 6, y: 2 }, { x: 3.1, y: 2 }] } }] }
     const b = building(room)
     expect(stairTopReach(b, stair(b)).ok).toBe(true)
   })
@@ -50,12 +55,12 @@ describe('stair top reach', () => {
     const issues = stairTopReachRule.execute({ document: doc } as unknown as ValidationContext)
     expect(issues).toHaveLength(1)
     expect(issues[0].message).toBe(`Tower stair: Top doesn't reach Floor 2's hallway`)
-    const ok = stairTopReachRule.execute({ document: { buildings: [building(hallwayAt(5))] } } as unknown as ValidationContext)
+    const ok = stairTopReachRule.execute({ document: { buildings: [building(hallwayAt(4))] } } as unknown as ValidationContext)
     expect(ok).toHaveLength(0)
   })
 
   it("Floor 2's connection review sees the stair top as a port to join to its route, at the top", () => {
-    const b = building(hallwayAt(5))
+    const b = building(hallwayAt(4))
     const ports = getFloorPorts(b, b.floors[1])
     const port = ports.find((p) => p.key === 'stair:s')
     expect(port?.position).toEqual({ x: 2, y: 0 })
