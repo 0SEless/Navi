@@ -81,3 +81,14 @@ describe('older multi-floor stairs publish exactly as before', () => {
   })
 })
 
+
+describe('outside stair doorway is published (2026-11-17)', () => {
+  it('the flight entry carries where its doorway is, so NAVI Web leaves that side of the platform open', () => {
+    const doc = campus()
+    const f2 = doc.buildings[0].floors[1] as unknown as Record<string, unknown>
+    f2.walls = [{ id: 'n', start: { x: -10, y: 5 }, end: { x: 10, y: 5 }, height: 3.5, thickness: 0.2 }]
+    f2.openings = [{ id: 's-top-opening', type: 'door', wallId: 'n', offset: 6, width: 2, height: 2.1, sillHeight: 0, doorAppearance: 'open', metadata: { stairId: 's' } }]
+    const one = new CampusCompiler().compileV2(doc).artifacts!.floorGeometry!.buildings[0]!.floors.find((f) => f.level === 0)!.staircases
+    expect(one[0].doorwayAt).toEqual({ x: -3, y: 5 })
+  })
+})

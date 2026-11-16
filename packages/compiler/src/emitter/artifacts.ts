@@ -1,6 +1,6 @@
 import type { ConnectivityGraph, NavigationGraph, NavigationArtifacts, SearchEntry, BuildingEntry, FloorEntry } from '../types'
 import type { CampusDocument, PanoramaIndex, PanoramaEntry, FloorGeometryArtifact, RoomAttributes } from '@navi/core'
-import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairFlightFloor, stairHasTop, stairRise } from '@navi/core'
+import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairDoorwayAt, stairFlightFloor, stairHasTop, stairRise } from '@navi/core'
 import { COMPILER_VERSION } from '../version'
 import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projection'
 
@@ -1021,6 +1021,8 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
           id: st.id,
           name: st.name,
           ...(isTop ? { role: 'top' as const, fromLevel: flightFloor } : {}),
+          // An outside stair's doorway (2026-11-17), so NAVI Web leaves that side of its top platform open.
+          ...(!isTop && stairDoorwayAt(st, b.floors) ? { doorwayAt: stairDoorwayAt(st, b.floors) } : {}),
           position: { x: geom.position.x + offsetFor(b, at).x, y: geom.position.y + offsetFor(b, at).y },
           rotation: geom.rotation ?? 0,
           ...(height !== undefined ? { height } : {}),

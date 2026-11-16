@@ -273,6 +273,8 @@ export interface FloorGeometryFeature {
   /** 'top' (2026-11-16): a stair arriving from `fromLevel`; position/drawing are its flight's, draw only its top. */
   role?: 'top'
   fromLevel?: number
+  /** Outside stair (2026-11-17): the middle of the doorway its top platform opens into. */
+  doorwayAt?: LocalCoord
   position: LocalCoord
   rotation: number
   /** Optional authored visual construction, retained without materializing defaults. */

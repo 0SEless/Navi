@@ -45,3 +45,33 @@ describe('smooth floor stairs never break drawing', () => {
     expect(floorStairMesh([u('wall')], 0, (p) => ({ x: p.x * 100000, y: p.y * 100000 })).length).toBe(0)
   })
 })
+
+describe('outside stair: open into its doorway, landing at its foot (owner 2026-11-17)', () => {
+  // Straight stair climbing west from x = +3 to x = -3 (20 × 0.3 m), 1.5 m wide (y -0.75..0.75), railings both
+  // sides; top platform x -3..-5. Its doorway is south of the platform (a wall at y < 0).
+  const outside = (doorwayAt?: { x: number; y: number }): StairAssetInput => ({
+    id: 'o', position: { x: 0, y: 0 }, rotation: 90, height: 3.5, ...(doorwayAt ? { doorwayAt } : {}),
+    drawing: { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', sides: 'railing', topLandingM: 2 } },
+  })
+  const vertices = (mesh: Float32Array) => { const v: Array<[number, number, number]> = []; for (let i = 0; i < mesh.length; i += 9) v.push([mesh[i], mesh[i + 1], mesh[i + 2]]); return v }
+  const railsOverPlatform = (mesh: Float32Array) => vertices(mesh).filter(([x, , z]) => x < -3.2 && z > 3.5 + 0.3)
+
+  it('without a doorway the top platform has rails on both sides', () => {
+    const ys = railsOverPlatform(floorStairMesh([outside()], 0, (p) => p)).map(([, y]) => y)
+    expect(Math.min(...ys)).toBeLessThan(-0.3)
+    expect(Math.max(...ys)).toBeGreaterThan(0.3)
+  })
+
+  it('with its doorway to the south, the platform is open on the south side and railed on the north', () => {
+    const ys = railsOverPlatform(floorStairMesh([outside({ x: -4, y: -0.9 })], 0, (p) => p)).map(([, y]) => y)
+    expect(ys.length).toBeGreaterThan(0)
+    expect(Math.min(...ys)).toBeGreaterThan(0.3)
+  })
+
+  it('an outside stair gets a ground landing beyond its foot', () => {
+    const at = vertices(floorStairMesh([outside({ x: -4, y: -0.9 })], 0, (p) => p))
+    expect(Math.max(...at.map(([x]) => x))).toBeGreaterThan(3 + 1)
+    const without = vertices(floorStairMesh([outside()], 0, (p) => p))
+    expect(Math.max(...without.map(([x]) => x))).toBeLessThan(3 + 0.5)
+  })
+})

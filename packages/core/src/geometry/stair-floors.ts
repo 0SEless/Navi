@@ -51,8 +51,11 @@ export function stairRise(stair: Staircase, floors: readonly Pick<Floor, 'level'
  * A floor's stair inputs for the 2.5D builders: the flights drawn here (rise from the floors) and the stairs arriving
  * from below (built from their flight's geometry on the From floor, so the top lines up with the flight).
  */
-export function floorStairInputs(stairs: readonly Staircase[], floors: readonly Pick<Floor, 'level' | 'elevation' | 'height'>[], level: number): { flights: StairAssetInput[]; tops: StairTopInput[] } {
-  const flights = stairFlightsOnFloor(stairs, level).map(({ stair, geometry }) => ({ id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors) }))
+export function floorStairInputs(stairs: readonly Staircase[], floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], level: number): { flights: StairAssetInput[]; tops: StairTopInput[] } {
+  const flights = stairFlightsOnFloor(stairs, level).map(({ stair, geometry }) => {
+    const doorwayAt = stairDoorwayAt(stair, floors)
+    return { id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(doorwayAt ? { doorwayAt } : {}) }
+  })
   const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, fromLevel }) => {
     const flight = stair.levels?.[fromLevel]
     return flight ? [{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel }] : []
@@ -72,5 +75,21 @@ export function stairTopPosition(stair: Staircase, floors: readonly Pick<Floor, 
   const ring = top?.geometry.coordinates[0].slice(0, -1) ?? []
   if (ring.length === 0) return undefined
   return { x: ring.reduce((sum, p) => sum + p[0], 0) / ring.length, y: ring.reduce((sum, p) => sum + p[1], 0) / ring.length }
+}
+
+/**
+ * The middle of an outside stair's automatic doorway (2026-11-17): the opening on its To floor marked with its id
+ * (metadata.stairId), on the wall it is cut in. Undefined for a stair without one.
+ */
+export function stairDoorwayAt(stair: Staircase, floors: readonly Partial<Pick<Floor, 'level' | 'walls' | 'openings'>>[]): LocalCoord | undefined {
+  if (!stairHasTop(stair)) return undefined
+  const to = floors.find((f) => f.level === stair.toLevel)
+  const opening = to?.openings?.find((o) => o.metadata?.stairId === stair.id)
+  const wall = opening && to?.walls?.find((w) => w.id === opening.wallId)
+  if (!opening || !wall) return undefined
+  const len = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+  if (!(len > 0)) return undefined
+  const t = (opening.offset + opening.width / 2) / len
+  return { x: wall.start.x + (wall.end.x - wall.start.x) * t, y: wall.start.y + (wall.end.y - wall.start.y) * t }
 }
 

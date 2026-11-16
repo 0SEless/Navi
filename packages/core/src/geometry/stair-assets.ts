@@ -12,6 +12,11 @@ export interface StairAssetInput {
   landing?: StairLevelGeometry['landing']
   /** Known floor-to-floor rise in meters. */
   height?: number
+  /**
+   * Outside stair (2026-11-17): the middle of the doorway its top platform opens into (building-local). The smooth
+   * mesh leaves that side of the platform open and adds a ground landing at the stair's foot.
+   */
+  doorwayAt?: LocalCoord
 }
 export interface StairAssetDiagnostic { entityId: string; code: string; message: string }
 export interface StairAssetVolumes {

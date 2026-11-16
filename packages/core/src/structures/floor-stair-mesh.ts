@@ -6,6 +6,8 @@ import { structurePath } from './path'
 type XY = { x: number; y: number }
 type Ring = number[][]
 
+/** Height of the ground landing in front of an outside stair's first step, metres (a low pad). */
+const FOOT_LANDING_M = 0.05
 /** No real flight or landing is longer than this, metres. */
 const MAX_FLIGHT_M = 60
 const PLAIN_STAIR = BUILT_IN_PRESETS.find((p) => p.id === 'plain-stair') ?? BUILT_IN_PRESETS[0]
@@ -48,16 +50,39 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
         underneath: 'solid', railings, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
       }))
     }
-    // Level landings (the U-turn half-landing) and the top platform, as flat decks at their height.
+    // Level landings (the U-turn half-landing) and the top platform, as flat decks at their height. An outside
+    // stair's top platform is open on its doorway's side (you walk off it into the doorway; owner 2026-11-17).
     for (const flat of solids.filter((f) => f.properties?.partType === 'landing' || f.properties?.partType === 'top-landing')) {
       const ring = flat.geometry.coordinates[0] as Ring
       const h = base + Number(flat.properties!.height)
-      const a = place(mid(ring[0], ring[1])), b = place(mid(ring[3], ring[2]))
+      const la = mid(ring[0], ring[1]), lb = mid(ring[3], ring[2])
+      const a = place(la), b = place(lb)
       if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || Math.hypot(b.x - a.x, b.y - a.y) > MAX_FLIGHT_M) continue
+      let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' ? railings : 'none'
+      if (deckRails === 'both' && flat.properties?.partType === 'top-landing' && input.doorwayAt) {
+        // Building-local and map metres keep the same handedness, so the side test can use building-local points.
+        const cross = (lb.x - la.x) * (input.doorwayAt.y - la.y) - (lb.y - la.y) * (input.doorwayAt.x - la.x)
+        deckRails = cross > 0 ? 'right' : 'left'
+      }
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width: dist(ring[0], ring[1]),
-        underneath: 'solid', railings: flat.properties?.partType === 'top-landing' ? railings : 'none', groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        underneath: 'solid', railings: deckRails, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
       }))
+    }
+    // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
+    if (input.doorwayAt) {
+      const first = steps[0].geometry.coordinates[0] as Ring
+      const lo = mid(first[0], first[1]), up = mid(first[3], first[2])
+      const len = Math.hypot(up.x - lo.x, up.y - lo.y) || 1
+      const width = dist(first[0], first[1])
+      const out = { x: lo.x - (up.x - lo.x) / len * width, y: lo.y - (up.y - lo.y) / len * width }
+      const a = place(out), b = place(lo), h = base + FOOT_LANDING_M
+      if ([a.x, a.y, b.x, b.y].every(Number.isFinite)) {
+        parts.push(buildStructureMesh({
+          path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width,
+          underneath: 'solid', railings: 'none', groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        }))
+      }
     }
   }
   const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0))

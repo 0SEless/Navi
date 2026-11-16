@@ -74,3 +74,16 @@ describe('floorStairInputs', () => {
     expect(two.tops[0].fromLevel).toBe(1)
   })
 })
+
+describe('floorStairInputs: outside stair doorway (2026-11-17)', () => {
+  it('a flight whose stair has an automatic doorway on its To floor carries the doorway middle', async () => {
+    const { floorStairInputs } = await import('../stair-floors')
+    const s = stair(1, 2, { 1: geom(), 2: geom({ role: 'top' }) })
+    const withDoor = [floors[0], { ...floors[1],
+      walls: [{ id: 'n', start: { x: -10, y: 5 }, end: { x: 10, y: 5 }, height: 3.5, thickness: 0.2 }],
+      openings: [{ id: 's-top-opening', type: 'door', wallId: 'n', offset: 6, width: 2, height: 2.1, sillHeight: 0, doorAppearance: 'open', metadata: { stairId: 's' } }] }]
+    const at = floorStairInputs([s], withDoor as never, 1).flights[0].doorwayAt
+    expect(at).toEqual({ x: -3, y: 5 })
+    expect(floorStairInputs([s], floors, 1).flights[0].doorwayAt).toBeUndefined()
+  })
+})
