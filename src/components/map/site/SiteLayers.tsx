@@ -33,6 +33,7 @@ export const SITE_LAYER = {
   roads: 'site-roads',
   roadEdges: 'site-road-edges',
   roadCentre: 'site-road-centre',
+  pathEdges: 'site-path-edges',
   slabs: 'site-slabs',
   plinths: 'site-plinths',
   structures: 'site-structures',
@@ -132,6 +133,9 @@ export function SiteLayers({ map, site, buildings, threeD, contours, routePath =
     add({ id: SITE_LAYER.roadCentre, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'centre'], layout: { visibility: roads.centre ? 'visible' : 'none' }, paint: { 'line-color': roads.centre ?? '#ffffff', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH, ...(roads.centreDash ? { 'line-dasharray': roads.centreDash } : {}) } })
     track(SITE_LAYER.roads)
     track(SITE_LAYER.roadEdges)
+    // Footpath edges (Campus walkway, owner 2026-11-17): a soft darker line along each side of a walkway.
+    add({ id: SITE_LAYER.pathEdges, type: 'line', source: 'site-road-markings', filter: ['==', ['get', 'kind'], 'path-edge'], layout: { visibility: roads.pathEdge ? 'visible' : 'none' }, paint: { 'line-color': roads.pathEdge ?? '#c9b79a', 'line-opacity': 0.9, 'line-width': MARKING_WIDTH } })
+    track(SITE_LAYER.pathEdges)
     track(SITE_LAYER.roadCentre)
 
     // Plinths (banks and plinths, 2026-11-15): base walls where the ground is below a building's floor (3D only).

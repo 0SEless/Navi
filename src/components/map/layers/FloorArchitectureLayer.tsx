@@ -1,9 +1,10 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import type maplibregl from 'maplibre-gl'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
 import { styleReady } from '@/lib/terrain/style-ready'
 import { levelOnGround } from '@/components/map/site/level-on-ground'
+import { StairMeshLayer } from './StairMeshLayer'
 import { OPENING_SYMBOL_LAYER_IDS, doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
 
 export type StackedFloorArchitecture = FloorArchitectureRenderData & {
@@ -13,6 +14,10 @@ export type StackedFloorArchitecture = FloorArchitectureRenderData & {
   stackFaces: Array<Array<Array<{ lat: number; lng: number }>>>
   /** Each stacked floor's own walls, in the same order (its floor plate). */
   stackWalls: GeoJSON.FeatureCollection[]
+  /** Each stacked floor's stairwell outlines (lng/lat rings, 2026-11-17), in the same order: cut out of its slab. */
+  stackWells: number[][][][]
+  /** Each stacked floor's smooth stair mesh (2026-11-16), in the same order; null where it has none. */
+  stackStairMeshes: Array<FloorArchitectureRenderData['stairMesh']>
 }
 
 const stackKinds = ['walls', 'frames', 'panels', 'stairs', 'glass'] as const
@@ -34,6 +39,8 @@ export function selectFloorArchitecture(records: FloorArchitectureRenderData[] |
     stackElevations: stack.map(record => Number.isFinite(record.elevation) ? record.elevation : 0),
     stackFaces: stack.map(record => record.floorFaces ?? []),
     stackWalls: stack.map(record => record.walls),
+    stackStairMeshes: stack.map(record => record.stairMesh ?? null),
+    stackWells: stack.map(record => (record.symbols?.lines?.features ?? []).filter(f => f.properties?.kind === 'stairwell').map(f => f.geometry.coordinates as number[][])),
   } as StackedFloorArchitecture
   for (const kind of stackKinds) merged[kind] = { type: 'FeatureCollection', features: stack.flatMap(record => record[kind]?.features ?? []) } as typeof chosen[typeof kind]
   return merged
@@ -102,7 +109,7 @@ function highlightPatch(highlight: FloorArchitectureLayerProps['highlight']): Ge
   return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { base: top, height: top + 0.06 }, geometry: { type: 'Polygon', coordinates: [ring] } }] }
 }
 
-/** One slab per stacked floor at its height; the lowest one reaches down into the ground. */
+/** One thin slab per stacked floor at its height. */
 /**
  * A floor's whole plate (rooms and open hallways): the area its own walls span, for a roughly box-shaped
  * building; null for an L-shaped one (its notch must stay open) or a floor without walls.
@@ -121,7 +128,17 @@ function floorPlate(outline: ReadonlyArray<{ lat: number; lng: number }> | undef
   return plate.length >= 3 ? plate.map(([lng, lat]) => ({ lat, lng })) : null
 }
 
-function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: GeoJSON.FeatureCollection, elevations: number[] = [0], faces: Array<Array<Array<{ lat: number; lng: number }>>> = [], levelWalls: GeoJSON.FeatureCollection[] = []): GeoJSON.FeatureCollection {
+/** Is a lng/lat point inside a lng/lat ring? */
+function inRing([x, y]: number[], ring: number[][]): boolean {
+  let hit = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [ax, ay] = ring[i], [bx, by] = ring[j]
+    if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) hit = !hit
+  }
+  return hit
+}
+
+function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: GeoJSON.FeatureCollection, elevations: number[] = [0], faces: Array<Array<Array<{ lat: number; lng: number }>>> = [], levelWalls: GeoJSON.FeatureCollection[] = [], levelWells: number[][][][] = []): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   const toWalls = wallHullArea(areas?.[0], walls)
   const levels = elevations.length ? elevations : [0]
@@ -136,12 +153,30 @@ function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: Geo
       const ring = area.map((p) => [p.lng, p.lat])
       const [first, last] = [ring[0], ring[ring.length - 1]]
       if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first])
-      const base = index === 0 ? -50 : elevation
-      features.push({ type: 'Feature', properties: { base, height: elevation + FLOOR_SLAB_TOP_M }, geometry: { type: 'Polygon', coordinates: [ring] } })
+      // Every floor is a thin floor at its own height, the ground floor too (owner 2026-11-16: "not a double floor
+      // in the ground floor"): no slab reaches down into the ground.
+      const base = elevation
+      // The floor is open over a stair coming up from below, inside its walls (owner 2026-11-17: "has no opening").
+      const holes = (levelWells[index] ?? []).filter(well => well.length >= 4 && well.every(p => inRing(p, ring)))
+      features.push({ type: 'Feature', properties: { base, height: elevation + FLOOR_SLAB_TOP_M }, geometry: { type: 'Polygon', coordinates: [ring, ...holes] } })
     }
   })
   return { type: 'FeatureCollection', features }
 }
+
+/** A floor stack's pieces by kind (floor slabs, walls, frames, panels, stairs, glass), before levelling on the ground. */
+export function floorArchitectureFeatures(architecture: FloorArchitectureRenderData, floorAreas?: FloorArchitectureLayerProps['floorAreas']): Record<Exclude<LayerKind, 'highlight'>, GeoJSON.FeatureCollection> {
+  const stacked = architecture as Partial<StackedFloorArchitecture>
+  const out = { floor: floorSlab(floorAreas, architecture.walls, stacked.stackElevations, stacked.stackFaces, stacked.stackWalls, stacked.stackWells) } as Record<Exclude<LayerKind, 'highlight'>, GeoJSON.FeatureCollection>
+  for (const kind of kinds) out[kind] = architecture[kind] ?? { type: 'FeatureCollection', features: [] }
+  // Smooth stairs (2026-11-16): where a stair mesh draws the flights, only stair tops stay as blocks.
+  const meshed = (stacked.stackStairMeshes ?? [architecture.stairMesh]).some(Boolean)
+  if (meshed) out.stairs = { type: 'FeatureCollection', features: out.stairs.features.filter(f => f.properties?.fromLevel !== undefined) }
+  return out
+}
+
+/** The terrain editor's colours for each piece (same as NAVI Web). */
+export const FLOOR_PIECE_COLORS = { floor: '#e9ebee', ...{ walls: '#cbd5e1', frames: '#64748b', panels: '#a88463', stairs: '#94a3b8', glass: '#7dd3fc' } } as const
 
 /** All polygons arrive in world coordinates; extrusion heights stay in meters. */
 export function FloorArchitectureLayer({ map, architecture, level, floorAreas, highlight }: FloorArchitectureLayerProps) {
@@ -158,7 +193,8 @@ export function FloorArchitectureLayer({ map, architecture, level, floorAreas, h
     const shaped = () => {
       const out = {} as Record<LayerKind, GeoJSON.FeatureCollection>
       for (const kind of layerKinds) {
-        const data = kind === 'highlight' ? highlightPatch(highlight) : !architecture ? empty : kind === 'floor' ? floorSlab(floorAreas, architecture.walls, (architecture as Partial<StackedFloorArchitecture>).stackElevations, (architecture as Partial<StackedFloorArchitecture>).stackFaces, (architecture as Partial<StackedFloorArchitecture>).stackWalls) : architecture[kind]
+        // On 3D terrain the stair blocks are drawn (the smooth stair mesh is for the flat map).
+        const data = kind === 'highlight' ? highlightPatch(highlight) : !architecture ? empty : kind === 'stairs' && level ? (architecture.stairs ?? empty) : floorArchitectureFeatures(architecture, floorAreas)[kind]
         out[kind] = level && architecture ? levelOnGround(data, groundAt, level.floorM) : data
       }
       return out
@@ -179,7 +215,8 @@ export function FloorArchitectureLayer({ map, architecture, level, floorAreas, h
           'fill-extrusion-color': kind === 'floor' ? FLOOR_SLAB_COLOR : kind === 'highlight' ? HIGHLIGHT_COLOR : doorExtrusionColor(colors[kind]), 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': kind === 'glass' ? 0.3 : kind === 'highlight' ? 0.85 : 1,
         } })
       }
-      syncOpeningSymbolLayers(map, architecture?.symbols, true)
+      // NAVI Web shows no door-swing arcs or window lines (owner 2026-11-17: "hide this door opening"); the floor editor keeps them.
+      syncOpeningSymbolLayers(map, architecture?.symbols, false)
       // Room names go above the 2.5D floor, so the floor never covers them.
       try { if (architecture && map.getLayer(ROOM_LABELS_LAYER)) map.moveLayer(ROOM_LABELS_LAYER) } catch { /* map removed */ }
     }
@@ -233,7 +270,12 @@ export function FloorArchitectureLayer({ map, architecture, level, floorAreas, h
       } catch { /* map removed */ }
     }
   }, [map, openBuildingId])
-  return null
+  // Smooth stairs (2026-11-16) on a flat map; on 3D terrain the stair blocks stay (the mesh is not levelled on it).
+  const stairMeshes = useMemo(() => {
+    const stacked = architecture as Partial<StackedFloorArchitecture> | undefined
+    return stacked?.stackStairMeshes ?? (architecture?.stairMesh ? [architecture.stairMesh] : [])
+  }, [architecture])
+  return <StairMeshLayer map={map} id="floor-architecture-stair-mesh" meshes={stairMeshes} visible={!!architecture && !level} />
 }
 
 /** The translucent building shell (BuildingLayer) and the solid terrain block (SiteLayers). */

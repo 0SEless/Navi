@@ -8,6 +8,8 @@ export const PATH_COLOR = '#ddd6c8'
 export const TWO_LANE_WIDTH_M = 5
 /** Edge lines sit this far inside the road's edge. */
 const EDGE_INSET_M = 0.3
+/** A footpath edge line sits this far inside the path's side, metres. */
+const PATH_EDGE_INSET_M = 0.1
 
 /**
  * Road markings (section 4): white edge lines along both sides of every road, and a dashed centre line
@@ -37,7 +39,7 @@ export function roadMarkings(roads: SiteRoadSurface[]): GeoJSON.FeatureCollectio
     .filter((r) => r.polyline.length >= 2 && r.width > 0)
     .map((r) => ({ id: r.id, line: r.polyline.map((p) => toLocal(frame, p)), reach: r.width / 2 + JUNCTION_GAP_M }))
   // A marking breaks where it crosses another road (junctions), so roads read as joined, not cut.
-  const line = (roadId: string, kind: 'edge' | 'centre', points: Array<{ lat: number; lng: number }>) => {
+  const line = (roadId: string, kind: 'edge' | 'centre' | 'path-edge', points: Array<{ lat: number; lng: number }>) => {
     const others = surfaces.filter((s) => s.id !== roadId)
     const local = points.map((p) => toLocal(frame, p))
     let run: P[] = []
@@ -59,7 +61,14 @@ export function roadMarkings(roads: SiteRoadSurface[]): GeoJSON.FeatureCollectio
     flush()
   }
   for (const road of roads) {
-    if (road.type === 'pedestrian' || road.polyline.length < 2 || !(road.width > 0)) continue
+    if (road.polyline.length < 2 || !(road.width > 0)) continue
+    if (road.type === 'pedestrian') {
+      // A footpath's own edge (Campus walkway, owner 2026-11-17): just inside its sides; shown only by designs that edge paths.
+      const side = Math.max(0.1, road.width / 2 - PATH_EDGE_INSET_M)
+      line(road.id, 'path-edge', offsetRoadLine(road, side))
+      line(road.id, 'path-edge', offsetRoadLine(road, -side))
+      continue
+    }
     const inset = Math.max(0.2, road.width / 2 - EDGE_INSET_M)
     line(road.id, 'edge', offsetRoadLine(road, inset))
     line(road.id, 'edge', offsetRoadLine(road, -inset))

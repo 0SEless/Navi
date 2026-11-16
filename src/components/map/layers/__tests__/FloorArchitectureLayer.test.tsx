@@ -171,14 +171,16 @@ describe('floors stack', () => {
     expect(shown.modeledIds.doors).toEqual(['d1'])
   })
 
-  it('each stacked floor gets its own floor slab at its height', () => {
+  // Owner 2026-11-16: floors back on every storey, but "not a double floor in the ground floor": the ground
+  // floor is a thin floor like the others, never a block reaching down into the ground.
+  it('each stacked floor gets its own thin floor slab at its height, the ground floor included', () => {
     const map = mapFixture()
     map.style._loaded = true; (map as unknown as { isStyleLoaded: () => boolean }).isStyleLoaded = () => true
     const shown = selectFloorArchitecture(records, { active: true, buildingId: 'b' }, 2, true)!
     const outline = [{ lat: 11, lng: 120 }, { lat: 11, lng: 120.0004 }, { lat: 11.0002, lng: 120.0004 }, { lat: 11.0002, lng: 120 }]
     render(<FloorArchitectureLayer map={map as never} architecture={shown} floorAreas={[outline]} />)
     const slabs = (map.sources.get('floor-architecture-floor')!.data as GeoJSON.FeatureCollection).features.map(f => [f.properties!.base, f.properties!.height])
-    expect(slabs).toEqual([[-50, 0.3], [3.5, 3.8], [7, 7.3]])
+    expect(slabs).toEqual([[0, 0.3], [3.5, 3.8], [7, 7.3]])
   })
 })
 
@@ -247,3 +249,17 @@ describe('the whole floor plate has a floor (hallways too)', () => {
     expect(Math.max(...lngs)).toBeCloseTo(120.0004, 7)
   })
 })
+
+describe('NAVI Web hides door and window plan symbols (owner 2026-11-17: "hide this door opening")', () => {
+  it('the door swing arcs and window lines are hidden in NAVI Web', () => {
+    const map = mapFixture() as ReturnType<typeof mapFixture> & { visibility: Record<string, string> }
+    map.visibility = {}
+    ;(map as unknown as { setLayoutProperty: (id: string, key: string, value: string) => void }).setLayoutProperty = (id, key, value) => { if (key === 'visibility') map.visibility[id] = value }
+    map.style._loaded = true
+    render(<FloorArchitectureLayer map={map as never} architecture={record} />)
+    const symbolLayers = Object.keys(map.visibility).filter((id) => /opening/.test(id))
+    expect(symbolLayers.length).toBeGreaterThan(0)
+    for (const id of symbolLayers) expect(map.visibility[id]).toBe('none')
+  })
+})
+

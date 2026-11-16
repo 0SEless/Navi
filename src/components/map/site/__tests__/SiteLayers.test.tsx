@@ -199,10 +199,24 @@ describe('road style', () => {
     expect(JSON.stringify(layer(map, SITE_LAYER.roads).paint!['fill-color'])).toContain('#a5654c')
   })
 
-  it('without a choice keeps the standard look', () => {
+  it('without a choice draws Campus walkway (owner 2026-11-17): grey roads, a thin solid yellow centre, no edge lines; edged paths', () => {
     const map = fakeMap()
     render(<SiteLayers map={map as never} site={site()} buildings={[]} threeD={false} contours={false} />)
+    expect(JSON.stringify(layer(map, SITE_LAYER.roads).paint!['fill-color'])).toContain('#8a8f96')
+    expect(JSON.stringify(layer(map, SITE_LAYER.roads).paint!['fill-color'])).toContain('#efe6d6')
+    expect(layer(map, SITE_LAYER.roadCentre).paint!['line-color']).toBe('#f2c94c')
+    expect(layer(map, SITE_LAYER.roadCentre).paint!['line-dasharray']).toBeUndefined()
+    expect(layer(map, SITE_LAYER.roadEdges).layout?.visibility).toBe('none')
+    expect(layer(map, SITE_LAYER.pathEdges).layout?.visibility ?? 'visible').toBe('visible')
+    expect(layer(map, SITE_LAYER.pathEdges).paint!['line-color']).toBe('#c9b79a')
+    expect(layer(map, SITE_LAYER.pathEdges).filter).toEqual(['==', ['get', 'kind'], 'path-edge'])
+  })
+
+  it('the Standard design keeps its look and draws no footpath edges', () => {
+    const map = fakeMap()
+    render(<SiteLayers map={map as never} site={{ ...site(), roadStyle: 'standard' }} buildings={[]} threeD={false} contours={false} />)
     expect(layer(map, SITE_LAYER.roadCentre).paint!['line-color']).toBe('#ffffff')
     expect(layer(map, SITE_LAYER.roadCentre).paint!['line-dasharray']).toEqual([4, 4])
+    expect(layer(map, SITE_LAYER.pathEdges).layout?.visibility).toBe('none')
   })
 })

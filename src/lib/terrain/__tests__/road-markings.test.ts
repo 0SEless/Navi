@@ -18,9 +18,16 @@ describe('roadMarkings', () => {
     expect(ys[1]).toBeCloseTo(2.7, 2)
   })
 
-  it('a narrow road: edge lines only; a path: no markings', () => {
+  it('a narrow road: edge lines only', () => {
     expect(kinds(roadMarkings([road('service', 4)]))).toEqual(['edge', 'edge'])
-    expect(roadMarkings([road('pedestrian', 6)]).features).toEqual([])
+  })
+
+  it('a footpath: only its own edge lines (path-edge), right at its sides (owner 2026-11-17: Campus walkway)', () => {
+    const fc = roadMarkings([road('pedestrian', 3)])
+    expect(kinds(fc)).toEqual(['path-edge', 'path-edge'])
+    const ys = fc.features.map((f) => toLocal(grid, { lng: (f.geometry as GeoJSON.LineString).coordinates[0][0], lat: (f.geometry as GeoJSON.LineString).coordinates[0][1] }).y).sort((a, b) => a - b)
+    expect(ys[0]).toBeCloseTo(-1.4, 2)
+    expect(ys[1]).toBeCloseTo(1.4, 2)
   })
 })
 
