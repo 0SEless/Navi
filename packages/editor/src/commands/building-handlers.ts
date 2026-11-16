@@ -30,7 +30,12 @@ export const buildingCreateHandler: CommandHandler = {
     const building = defaultBuilding(id, name, code)
     const footprint = payload.footprint as { points: Array<{ lat: number; lng: number }> } | undefined
     if (footprint?.points) {
-      building.footprint = footprint
+      // Saved closed (first point repeated at the end), as the campus format and Validate expect (2026-11-17:
+      // the Building tool sent open outlines, so every new building failed "footprint is not closed").
+      const pts = footprint.points
+      const first = pts[0], last = pts[pts.length - 1]
+      const closed = pts.length >= 3 && first && last && (first.lat !== last.lat || first.lng !== last.lng) ? [...pts, { ...first }] : pts
+      building.footprint = { ...footprint, points: closed }
     }
     const floors = payload.floors as Floor[] | undefined
     if (floors) building.floors = floors
