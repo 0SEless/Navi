@@ -1,3 +1,5 @@
+import { usePublicStore } from '@/store/public-store'
+import { flatSite } from '@/components/map/site/flat-site'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -86,9 +88,17 @@ const route = { path: ['a', 'b'], cost: 10 }
 describe('ExploreMap with a published site (campus only, Task 15)', () => {
   it('with site: the map is campus only and the site layers mount (2D: route line, no ribbon)', () => {
     render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} />)
-    expect(captured.mapProps?.site).toBe(site)
-    expect(captured.siteProps).toMatchObject({ site, threeD: false, contours: false })
+    // Flat ground by default (owner 2026-11-16, Thursday): the campus without its terrain.
+    expect(captured.mapProps?.site).toEqual(flatSite(site as never))
+    expect(captured.siteProps).toMatchObject({ site: flatSite(site as never), threeD: false, contours: false })
     expect(captured.routeLine?.route).toEqual(route)
+  })
+
+  it('a visitor who chose the terrain gets the published campus as it is', () => {
+    usePublicStore.setState((state) => ({ preferences: { ...state.preferences, ground: 'terrain' } }))
+    render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} />)
+    expect(captured.mapProps?.site).toBe(site)
+    usePublicStore.setState((state) => { const { ground: _g, ...rest } = state.preferences; return { preferences: rest } })
   })
 
   it('tilting turns on 3D: the route line hides and the route is drawn as a ribbon on the surface', () => {

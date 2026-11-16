@@ -19,6 +19,7 @@ import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
 import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
 import { RouteLine } from '@/components/map/RouteLine'
 import { SiteLayers } from '@/components/map/site/SiteLayers'
+import { flatSite } from '@/components/map/site/flat-site'
 import { TerrainLookSwitch } from '@/components/map/TerrainLookSwitch'
 import { autoIndoorDecision } from '@/lib/auto-indoor'
 import { focusCamera } from '@/lib/focus-camera'
@@ -115,7 +116,9 @@ function ExploreLayers({
   const { navigationSegment } = useNavigationContext()
   // Task 15: with a published site the map is campus only; tilted (3D) shows its terrain, and the route
   // becomes a ribbon on the surface (2D keeps the route line).
-  const site = bundle.site
+  // Flat ground unless the visitor chose the terrain (owner 2026-11-16: flat for Thursday, terrain as an option).
+  const ground = usePublicStore((s) => s.preferences.ground)
+  const site = useMemo(() => (ground === 'terrain' ? bundle.site : flatSite(bundle.site)), [bundle.site, ground])
   const terrainLook = usePublicStore((s) => s.preferences.terrainLook)
   const [threeD, setThreeD] = useState(() => (map ? map.getPitch() > 2 : false))
   useEffect(() => {
@@ -475,6 +478,9 @@ function ExploreMapControls({
 export default function ExploreMap({ bundle, route, navigationTargetBuildingId, camera }: ExploreMapProps) {
   // Build render model from bundle (memoized)
   const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
+  // Flat ground unless the visitor chose the terrain (owner 2026-11-16).
+  const preferredGround = usePublicStore((s) => s.preferences.ground)
+  const shownSite = useMemo(() => (preferredGround === 'terrain' ? bundle.site : flatSite(bundle.site)), [bundle.site, preferredGround])
   const mapBounds = useMemo(
     () => terrainAwareMapBounds(bundle.boundingBox, bundle.terrainAreas ?? []),
     [bundle.boundingBox, bundle.terrainAreas],
@@ -575,7 +581,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
   return (
     <NavigationMap
       bounds={mapBounds}
-      site={bundle.site ?? null}
+      site={shownSite ?? null}
       className="h-full w-full"
       pitch={initialPitch}
       maxPitch={camera ? NAVIGATION_POV_PREFERRED_PITCH : undefined}
@@ -593,7 +599,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
         <NavigationCamera
           {...cameraWithContext}
         />
-      ) : <ExploreMapControls bounds={mapBounds} site={bundle.site} />}
+      ) : <ExploreMapControls bounds={mapBounds} site={shownSite} />}
       <NavigationPositionMarker />
       <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} viewedFloorId={viewedFloorId} />
     </NavigationMap>

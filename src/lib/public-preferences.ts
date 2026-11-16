@@ -26,6 +26,8 @@ export interface PublicPreferences {
   accessibility: AccessibilityPreferences
   /** The visitor's ground look for campus terrain; absent = the campus owner's look. */
   terrainLook?: TerrainLook
+  /** Campus ground (2026-11-17): absent = flat (NAVI Web for Thursday); 'terrain' shows the campus terrain. */
+  ground?: 'flat' | 'terrain'
 }
 
 export const DEFAULT_PUBLIC_PREFERENCES: PublicPreferences = {
@@ -113,6 +115,7 @@ export function mergePublicPreferences(input: unknown): PublicPreferences {
         : DEFAULT_PUBLIC_PREFERENCES.accessibility.reducedMotion,
     },
     ...(isTerrainLook(raw.terrainLook) ? { terrainLook: raw.terrainLook } : {}),
+    ...(raw.ground === 'flat' || raw.ground === 'terrain' ? { ground: raw.ground } : {}),
   }
 }
 
