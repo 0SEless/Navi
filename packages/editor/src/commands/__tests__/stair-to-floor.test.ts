@@ -160,5 +160,65 @@ describe('stair.setToFloor', () => {
     expect(Math.min(...ys)).toBeCloseTo(12.55 - 0.75, 6)
     expect(stairOf(d).levels[1].position.y).toBeCloseTo(top.y - 1.05, 6)
   })
+
+  describe('outside stair: automatic opening in the wall it lands against (owner 2026-11-17)', () => {
+    const box = (level: number) => [
+      { id: `n${level}`, start: { x: -11.6, y: 11.7 }, end: { x: 11.6, y: 11.7 }, height: 3.5, thickness: 0.2 },
+      { id: `e${level}`, start: { x: 11.6, y: 11.7 }, end: { x: 11.6, y: -11.7 }, height: 3.5, thickness: 0.2 },
+      { id: `s${level}`, start: { x: 11.6, y: -11.7 }, end: { x: -11.6, y: -11.7 }, height: 3.5, thickness: 0.2 },
+      { id: `w${level}`, start: { x: -11.6, y: -11.7 }, end: { x: -11.6, y: 11.7 }, height: 3.5, thickness: 0.2 },
+    ]
+    const straight = { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', topLandingM: 2 } }
+    function walled(y = 12.55) {
+      const d = campus()
+      for (const f of d.buildings[0].floors) Object.assign(f, { walls: box(f.level), openings: [] })
+      const e = editor(d)
+      e.run('feature.create', { buildingId: 'b', floor: 0, id: 's', featureType: 'staircase', position: { x: 0, y }, rotation: 90, drawing: straight })
+      e.run('stair.setToFloor', { featureId: 's', toLevel: 1 })
+      return { d, e }
+    }
+    const openingsOn = (d: CampusDocument, level: number) => ((d.buildings[0].floors.find((f) => f.level === level) as unknown as { openings?: Array<Record<string, unknown>> }).openings ?? [])
+
+    it('cuts one open doorway in the north wall of Floor 2 where the top platform meets it', () => {
+      const { d } = walled()
+      const ops = openingsOn(d, 1)
+      expect(ops).toHaveLength(1)
+      expect(ops[0]).toMatchObject({ type: 'door', wallId: 'n1', doorAppearance: 'open', height: 2.1, sillHeight: 0 })
+      // the platform runs x -5..-3 along the wall (which starts at x -11.6): offset 6.6, width 2
+      expect(ops[0].offset as number).toBeCloseTo(6.6, 1)
+      expect(ops[0].width as number).toBeCloseTo(2, 1)
+      expect(openingsOn(d, 0)).toHaveLength(0)
+    })
+
+    it('moving the stair off the wall removes it; moving back brings it back; undo restores', () => {
+      const { d, e } = walled()
+      e.run('feature.update', { featureId: 's', level: 0, patch: { position: { x: 0, y: 20 } } })
+      expect(openingsOn(d, 1)).toHaveLength(0)
+      expect(e.history.undo()).toBe(true)
+      expect(openingsOn(d, 1)).toHaveLength(1)
+    })
+
+    it('undoing the To floor removes the opening; To = its own floor removes it', () => {
+      const a = walled()
+      expect(a.e.history.undo()).toBe(true)
+      expect(openingsOn(a.d, 1)).toHaveLength(0)
+      const b = walled()
+      b.e.run('stair.setToFloor', { featureId: 's', toLevel: 0 })
+      expect(openingsOn(b.d, 1)).toHaveLength(0)
+    })
+
+    it('deleting the stair removes its doorway; undo brings both back', () => {
+      const { d, e } = walled()
+      expect(e.run('feature.delete', { featureId: 's' }).success).toBe(true)
+      expect(openingsOn(d, 1)).toHaveLength(0)
+      expect(e.history.undo()).toBe(true)
+      expect(openingsOn(d, 1)).toHaveLength(1)
+    })
+
+    it('a stair inside the building never cuts the outer wall', () => {
+      const { d } = walled(9.5)
+      expect(openingsOn(d, 1)).toHaveLength(0)
+    })
+  })
 })
 

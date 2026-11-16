@@ -1352,6 +1352,10 @@ export const featureDeleteHandler: CommandHandler = {
           fl.staircases = fl.staircases.filter((s: any) => s.id !== feature.id && s.id !== featureId)
         }
       }
+      // Its automatic doorway (an outside stair's top, 2026-11-17) goes with it.
+      for (const fl of building.floors) {
+        if (fl.openings?.some(o => o.metadata?.stairId === feature.id)) fl.openings = fl.openings.filter(o => o.metadata?.stairId !== feature.id)
+      }
     } else if (featureType === 'elevator') {
       if (building.elevators) {
         const idx = building.elevators.findIndex(e => e.id === feature.id)

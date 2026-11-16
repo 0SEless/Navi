@@ -289,7 +289,7 @@ export const stairTopReachRule: ValidationRule = {
           issueId: `stair-top-reach:${stair.id}:${hash(stair.id)}`,
           ruleId: 'stair-top-reach',
           severity: 'warning',
-          message: `${stair.name || stair.id}: Top doesn't reach ${label}'s hallway`,
+          message: reach.reason === 'no-opening' ? `${stair.name || stair.id}: Top meets a wall with no opening on ${label}` : `${stair.name || stair.id}: Top doesn't reach ${label}'s hallway`,
           targets: [{ entityId: stair.id, entityType: 'staircase' }],
         })
       }

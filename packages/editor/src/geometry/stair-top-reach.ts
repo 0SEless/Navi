@@ -1,5 +1,33 @@
 import { buildStairTopVolumes, stairFlightFloor, stairRise, type Building, type LocalCoord, type Staircase } from '@navi/core'
+import type { Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
+
+/** How close a stair's top platform must be to a wall's face to land against it, metres. */
+export const AGAINST_WALL_M = 0.15
+
+/**
+ * The wall an OUTSIDE stair's top platform lands against (2026-11-17), with the stretch of it the platform covers
+ * (metres from the wall start). Undefined for a platform inside the building's walls or not against any wall.
+ */
+export function wallAgainstLanding(walls: readonly Wall[], landing: ReadonlyArray<{ x: number; y: number }>): { wall: Wall; t0: number; t1: number } | undefined {
+  if (walls.length === 0 || landing.length < 3) return undefined
+  const centre = { x: landing.reduce((s, p) => s + p.x, 0) / landing.length, y: landing.reduce((s, p) => s + p.y, 0) / landing.length }
+  const faces = deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), [])
+  if (faces.some((f) => inside(centre, f.polygon.points))) return undefined
+  let best: { wall: Wall; t0: number; t1: number; gap: number } | undefined
+  for (const wall of walls) {
+    const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y, len = Math.hypot(dx, dy)
+    if (!(len > 0)) continue
+    const ux = dx / len, uy = dy / len
+    const along = landing.map((p) => (p.x - wall.start.x) * ux + (p.y - wall.start.y) * uy)
+    const across = landing.map((p) => Math.abs(-(p.x - wall.start.x) * uy + (p.y - wall.start.y) * ux))
+    const t0 = Math.max(0, Math.min(...along)), t1 = Math.min(len, Math.max(...along))
+    const gap = Math.min(...across) - (wall.thickness ?? 0.2) / 2
+    if (t1 - t0 < 0.5 || gap > AGAINST_WALL_M) continue
+    if (!best || gap < best.gap) best = { wall, t0, t1, gap }
+  }
+  return best && { wall: best.wall, t0: best.t0, t1: best.t1 }
+}
 
 /**
  * How close the top landing must come to the upper floor's walkable area, metres. Owner 2026-11-16: a stair 1.15 m
@@ -10,7 +38,7 @@ export const STAIR_TOP_REACH_M = 0.15
 type P = { x: number; y: number }
 export type StairTopReach =
   | { ok: true; targetId: string; point: LocalCoord }
-  | { ok: false; reason: 'no-to-floor' | 'no-walkable' }
+  | { ok: false; reason: 'no-to-floor' | 'no-walkable' | 'no-opening' }
 
 const segDist = (p: P, a: P, b: P): number => {
   const dx = b.x - a.x, dy = b.y - a.y, len = dx * dx + dy * dy
@@ -68,6 +96,12 @@ export function stairTopReach(building: Building, stair: Staircase): StairTopRea
     if (!best || d < best.d) best = { id: c.id, d }
   }
   if (!best || best.d > STAIR_TOP_REACH_M) return { ok: false, reason: 'no-walkable' }
+  // Against a wall from outside: there must be an opening in that wall where the platform meets it.
+  const against = wallAgainstLanding(to.walls ?? [], landing)
+  if (against) {
+    const open = (to.openings ?? []).some((o) => o.wallId === against.wall.id && Math.min(o.offset + o.width, against.t1) - Math.max(o.offset, against.t0) >= 0.5)
+    if (!open) return { ok: false, reason: 'no-opening' }
+  }
   const centre = { x: landing.reduce((s, p) => s + p.x, 0) / landing.length, y: landing.reduce((s, p) => s + p.y, 0) / landing.length }
   return { ok: true, targetId: best.id, point: centre }
 }

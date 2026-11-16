@@ -11,7 +11,7 @@ const field: React.CSSProperties = {
 const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }
 const m = (n: number) => n.toFixed(2)
 
-type DrawingPatch = { turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number }
 
 export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }: {
   building: Building
@@ -50,6 +50,16 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }
         <div data-testid="stair-climb" style={{ fontSize: 11, color: 'var(--navi-text)' }}>
           {`Climbs ${m(rise)} m — ${fromFloor.label} (${m(fromFloor.elevation)} m) → ${toFloor.label} (${m(toFloor.elevation)} m)`
             + (steps ? ` · ${steps} × ${(rise / steps).toFixed(3)} m` : '')}
+        </div>
+      )}
+      {props && (
+        <div>
+          <label style={label} htmlFor={`stair-type-${featureId}`}>TYPE</label>
+          <select id={`stair-type-${featureId}`} aria-label="Type" style={field} value={props.preset === 'ushape' ? 'ushape' : 'straight'}
+            onChange={(event) => onDrawing({ preset: event.target.value as 'straight' | 'ushape' })}>
+            <option value="straight">Straight</option>
+            <option value="ushape">U-Shape</option>
+          </select>
         </div>
       )}
       {props?.preset === 'ushape' && (

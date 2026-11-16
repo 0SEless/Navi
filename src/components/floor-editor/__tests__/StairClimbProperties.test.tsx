@@ -62,5 +62,14 @@ describe('StairClimbProperties', () => {
     expect(screen.queryByTestId('stair-climb')).toBeNull()
     expect((screen.getByLabelText('To') as HTMLSelectElement).value).toBe('0')
   })
+
+  it('Type chooses Straight or U-Shape (owner 2026-11-17: "how can I add what I want")', () => {
+    const { onDrawing } = show(building(1, 'straight'))
+    const type = screen.getByLabelText('Type') as HTMLSelectElement
+    expect([...type.options].map((o) => o.textContent)).toEqual(['Straight', 'U-Shape'])
+    expect(type.value).toBe('straight')
+    fireEvent.change(type, { target: { value: 'ushape' } })
+    expect(onDrawing).toHaveBeenCalledWith({ preset: 'ushape' })
+  })
 })
 

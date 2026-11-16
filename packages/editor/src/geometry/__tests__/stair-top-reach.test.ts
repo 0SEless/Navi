@@ -72,4 +72,15 @@ describe('stair top reach', () => {
     delete (b.staircases![0].levels[1] as { role?: string }).role
     expect(stairTopReachRule.execute({ document: { buildings: [b] } } as unknown as ValidationContext)).toHaveLength(0)
   })
+
+  it('a top against a wall with no opening does not reach; with an opening there it does (owner 2026-11-17)', () => {
+    const wall = { id: 'wall', start: { x: 3.1, y: -5 }, end: { x: 3.1, y: 5 }, height: 3.5, thickness: 0.2 }
+    const closed = building({ ...hallwayAt(4), walls: [wall] })
+    expect(stairTopReach(closed, stair(closed))).toEqual({ ok: false, reason: 'no-opening' })
+    const open = building({ ...hallwayAt(4), walls: [wall], openings: [{ id: 'o', type: 'door', wallId: 'wall', offset: 4, width: 2, height: 2.1, sillHeight: 0, doorAppearance: 'open' }] })
+    expect(stairTopReach(open, stair(open)).ok).toBe(true)
+    const issues = stairTopReachRule.execute({ document: { buildings: [closed] } } as unknown as ValidationContext)
+    expect(issues[0].message).toBe("Tower stair: Top meets a wall with no opening on Floor 2")
+  })
 })
+
