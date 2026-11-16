@@ -11,7 +11,7 @@ const field: React.CSSProperties = {
 const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }
 const m = (n: number) => n.toFixed(2)
 
-type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' }
 
 export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }: {
   building: Building
@@ -72,17 +72,37 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }
           </select>
         </div>
       )}
-      {props && (
-        <div>
-          <label style={label} htmlFor={`stair-sides-${featureId}`}>SIDES</label>
-          <select id={`stair-sides-${featureId}`} aria-label="Sides" style={field} value={props.sides ?? 'open'}
-            onChange={(event) => onDrawing({ sides: event.target.value as DrawingPatch['sides'] })}>
-            <option value="open">Open</option>
-            <option value="railing">Railing</option>
-            <option value="wall">Solid wall</option>
-          </select>
-        </div>
-      )}
+      {props && (() => {
+        // Railings (owner 2026-11-17: choose which side and style, like the terrain editor); an older stair's Sides
+        // setting is shown the same way (open = None, railing = Both, wall = Both + Solid wall).
+        const p = props as typeof props & { railings?: DrawingPatch['railings']; railingStyle?: DrawingPatch['railingStyle'] }
+        const railings = p.railings ?? (p.sides === 'railing' || p.sides === 'wall' ? 'both' : 'none')
+        const style = p.railingStyle ?? (p.sides === 'wall' ? 'wall' : 'posts-rails')
+        return (
+          <>
+            <div>
+              <label style={label} htmlFor={`stair-railings-${featureId}`}>RAILINGS</label>
+              <select id={`stair-railings-${featureId}`} aria-label="Railings" style={field} value={railings}
+                onChange={(event) => onDrawing({ railings: event.target.value as DrawingPatch['railings'] })}>
+                <option value="none">None</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="both">Both</option>
+              </select>
+            </div>
+            <div>
+              <label style={label} htmlFor={`stair-railing-style-${featureId}`}>RAILING STYLE</label>
+              <select id={`stair-railing-style-${featureId}`} aria-label="Railing style" style={field} value={style}
+                onChange={(event) => onDrawing({ railingStyle: event.target.value as DrawingPatch['railingStyle'] })}>
+                <option value="posts-rails">Posts and rails</option>
+                <option value="bars">Bars</option>
+                <option value="glass">Glass</option>
+                <option value="wall">Solid wall</option>
+              </select>
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

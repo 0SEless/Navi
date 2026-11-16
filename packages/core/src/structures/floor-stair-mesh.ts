@@ -32,8 +32,12 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     const solids = buildStairAssetVolumes([plain], 0).collection.features
     const steps = solids.filter((f) => f.properties?.partType === 'step')
     if (steps.length === 0) continue
-    const look = { ...PLAIN_STAIR.look, railingStyle: sides === 'wall' ? 'wall' as const : 'posts-rails' as const }
-    const railings = sides === 'open' ? 'none' as const : 'both' as const
+    // Railings chosen per stair (owner 2026-11-17: which side, which style); older stairs keep their Sides look.
+    const chosen = (props as { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' } | undefined)
+    const style = chosen?.railingStyle ?? (sides === 'wall' ? 'wall' : 'posts-rails')
+    const look = { ...PLAIN_STAIR.look, railingStyle: style }
+    const railings = chosen?.railings ?? (sides === 'open' ? 'none' as const : 'both' as const)
+    const sideChosen = chosen?.railings !== undefined
     const n1 = props?.preset === 'ushape' ? Math.ceil(steps.length / 2) : steps.length
     const flights = [steps.slice(0, n1), steps.slice(n1)].filter((f) => f.length > 0)
     for (const flight of flights) {
@@ -59,7 +63,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       const a = place(la), b = place(lb)
       if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || Math.hypot(b.x - a.x, b.y - a.y) > MAX_FLIGHT_M) continue
       let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' ? railings : 'none'
-      if (deckRails === 'both' && flat.properties?.partType === 'top-landing' && input.doorwayAt) {
+      if (!sideChosen && deckRails === 'both' && flat.properties?.partType === 'top-landing' && input.doorwayAt) {
         // Building-local and map metres keep the same handedness, so the side test can use building-local points.
         const cross = (lb.x - la.x) * (input.doorwayAt.y - la.y) - (lb.y - la.y) * (input.doorwayAt.x - la.x)
         deckRails = cross > 0 ? 'right' : 'left'
@@ -68,6 +72,12 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
         path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width: dist(ring[0], ring[1]),
         underneath: 'solid', railings: deckRails, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
       }))
+      // An outside stair's top platform stands on a solid block down to the ground (owner 2026-11-17: "the stair
+      // has hollow, make sure to have a block in front of that").
+      if (input.doorwayAt && flat.properties?.partType === 'top-landing') {
+        const corners = ring.slice(0, 4).map((p) => place({ x: p[0], y: p[1] }))
+        if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, base, h, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
+      }
     }
     // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
     if (input.doorwayAt) {
@@ -90,3 +100,28 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
   for (const p of parts) { out.set(p, offset); offset += p.length }
   return out
 }
+
+/** A closed block (four sides and a top) on a quad footprint, from `low` to `high` metres; 9 floats per vertex. */
+function solidBlock(quad: XY[], low: number, high: number, hex: string): Float32Array {
+  const c = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1] ?? '9d978b'
+  const rgb = [parseInt(c.slice(0, 2), 16) / 255, parseInt(c.slice(2, 4), 16) / 255, parseInt(c.slice(4, 6), 16) / 255]
+  const out: number[] = []
+  const tri = (p: number[][], n: number[]) => { for (const v of p) out.push(v[0], v[1], v[2], n[0], n[1], n[2], rgb[0], rgb[1], rgb[2]) }
+  const cx = quad.reduce((s, p) => s + p.x, 0) / quad.length, cy = quad.reduce((s, p) => s + p.y, 0) / quad.length
+  for (let i = 0; i < quad.length; i++) {
+    const a = quad[i], b = quad[(i + 1) % quad.length]
+    let nx = b.y - a.y, ny = -(b.x - a.x)
+    const len = Math.hypot(nx, ny) || 1
+    nx /= len; ny /= len
+    // Face outward (away from the block's middle).
+    if (((a.x + b.x) / 2 - cx) * nx + ((a.y + b.y) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny }
+    const n = [nx, ny, 0]
+    tri([[a.x, a.y, low], [b.x, b.y, low], [b.x, b.y, high]], n)
+    tri([[a.x, a.y, low], [b.x, b.y, high], [a.x, a.y, high]], n)
+  }
+  const [p0, p1, p2, p3] = quad
+  tri([[p0.x, p0.y, high], [p1.x, p1.y, high], [p2.x, p2.y, high]], [0, 0, 1])
+  tri([[p0.x, p0.y, high], [p2.x, p2.y, high], [p3.x, p3.y, high]], [0, 0, 1])
+  return new Float32Array(out)
+}
+

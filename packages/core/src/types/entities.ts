@@ -539,7 +539,7 @@ export interface StairLevelGeometry {
   }
   drawing?: {                   // parametric mode; absent = freeform
     definitionId: 'stair'
-    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number }
+    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' }
   }
 }
 

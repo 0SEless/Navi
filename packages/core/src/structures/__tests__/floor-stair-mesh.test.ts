@@ -74,4 +74,47 @@ describe('outside stair: open into its doorway, landing at its foot (owner 2026-
     const without = vertices(floorStairMesh([outside()], 0, (p) => p))
     expect(Math.max(...without.map(([x]) => x))).toBeLessThan(3 + 0.5)
   })
+
+  it('the top platform of an outside stair is a closed solid block down to the ground (not hollow)', () => {
+    const mesh = floorStairMesh([outside({ x: -4, y: -0.9 })], 0, (p) => p)
+    // its far end at x = -5: a face (facing -x) reaching from the ground up to the platform (3.5 m)
+    const end: Array<[number, number, number]> = []
+    for (let i = 0; i < mesh.length; i += 9) if (Math.abs(mesh[i] + 5) < 0.02 && mesh[i + 3] < -0.9) end.push([mesh[i], mesh[i + 1], mesh[i + 2]])
+    expect(Math.min(...end.map(([, , z]) => z))).toBeLessThanOrEqual(0.001)
+    expect(Math.max(...end.map(([, , z]) => z))).toBeGreaterThanOrEqual(3.5 - 0.001)
+  })
+})
+
+
+describe('railings chosen per stair (owner 2026-11-17)', () => {
+  const stair = (props: Record<string, unknown>): StairAssetInput => ({
+    id: 'r', position: { x: 0, y: 0 }, rotation: 90, height: 3.5,
+    drawing: { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', ...props } } as never,
+  })
+  // climbing west (towards -x): "left" as you walk up is south (y < 0), "right" is north (y > 0);
+  // rails sit 6 cm inside the 0.75 m edge (y = ±0.69), unlike the solid sides at ±0.75
+  const railYs = (mesh: Float32Array) => { const ys: number[] = []; for (let i = 0; i < mesh.length; i += 9) if (mesh[i] > -2.5 && mesh[i] < 2.5 && mesh[i + 2] > 2.5 && Math.abs(Math.abs(mesh[i + 1]) - 0.69) < 0.05) ys.push(mesh[i + 1]); return ys }
+
+  it('Left only: rails on the left side as you walk up', () => {
+    const ys = railYs(floorStairMesh([stair({ railings: 'left' })], 0, (p) => p))
+    expect(ys.length).toBeGreaterThan(0)
+    expect(Math.max(...ys)).toBeLessThan(0)
+  })
+
+  it('Right only: rails on the right side', () => {
+    const ys = railYs(floorStairMesh([stair({ railings: 'right' })], 0, (p) => p))
+    expect(Math.min(...ys)).toBeGreaterThan(0)
+  })
+
+  it('None: no rails; Both: both sides', () => {
+    expect(railYs(floorStairMesh([stair({ railings: 'none' })], 0, (p) => p))).toHaveLength(0)
+    const ys = railYs(floorStairMesh([stair({ railings: 'both' })], 0, (p) => p))
+    expect(Math.min(...ys)).toBeLessThan(0)
+    expect(Math.max(...ys)).toBeGreaterThan(0)
+  })
+
+  it('a chosen side wins over the doorway rule (the owner decides)', () => {
+    const ys = railYs(floorStairMesh([{ ...stair({ railings: 'left' }), doorwayAt: { x: -4, y: -0.9 } }], 0, (p) => p))
+    expect(Math.max(...ys)).toBeLessThan(0)
+  })
 })

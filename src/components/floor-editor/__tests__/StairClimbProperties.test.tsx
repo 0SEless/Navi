@@ -38,16 +38,28 @@ describe('StairClimbProperties', () => {
     expect(onSetTo).not.toHaveBeenCalled()
   })
 
-  it('Turn is offered for U-Shape only; Sides for both', () => {
+  it('Turn is offered for U-Shape only; Railings and Railing style for both (owner 2026-11-17)', () => {
     show(building(1, 'straight'))
     expect(screen.queryByLabelText('Turn')).toBeNull()
-    expect(screen.getByLabelText('Sides')).toBeTruthy()
+    expect(screen.queryByLabelText('Sides')).toBeNull()
+    expect([...(screen.getByLabelText('Railings') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['None', 'Left', 'Right', 'Both'])
+    expect([...(screen.getByLabelText('Railing style') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['Posts and rails', 'Bars', 'Glass', 'Solid wall'])
     cleanup()
     const { onDrawing } = show(building(1))
     fireEvent.change(screen.getByLabelText('Turn'), { target: { value: 'left' } })
     expect(onDrawing).toHaveBeenCalledWith({ turn: 'left' })
-    fireEvent.change(screen.getByLabelText('Sides'), { target: { value: 'wall' } })
-    expect(onDrawing).toHaveBeenCalledWith({ sides: 'wall' })
+    fireEvent.change(screen.getByLabelText('Railings'), { target: { value: 'left' } })
+    expect(onDrawing).toHaveBeenCalledWith({ railings: 'left' })
+    fireEvent.change(screen.getByLabelText('Railing style'), { target: { value: 'wall' } })
+    expect(onDrawing).toHaveBeenCalledWith({ railingStyle: 'wall' })
+  })
+
+  it('an older stair shows its Sides setting as railings: open = None, wall = Both + Solid wall', () => {
+    const b = building(1, 'straight')
+    ;(b.staircases![0].levels[0].drawing!.properties as Record<string, unknown>).sides = 'wall'
+    show(b)
+    expect((screen.getByLabelText('Railings') as HTMLSelectElement).value).toBe('both')
+    expect((screen.getByLabelText('Railing style') as HTMLSelectElement).value).toBe('wall')
   })
 
   it('a one-floor stair shows no climb line', () => {
