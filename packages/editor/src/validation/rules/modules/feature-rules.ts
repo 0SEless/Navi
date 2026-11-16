@@ -1,6 +1,7 @@
 import type { ValidationRule, ValidationContext } from '../types'
 import type { ValidationIssue } from '../../snapshot'
-import { pointInPolygon } from '@navi/core'
+import { pointInPolygon, stairFlightFloor } from '@navi/core'
+import { stairTopReach } from '../../../geometry/stair-top-reach'
 
 function hash(s: string): string {
   let h = 0
@@ -257,6 +258,40 @@ export const featureUnconnectedRule: ValidationRule = {
             targets: [{ entityId: feature.id, entityType: kind }],
           })
         }
+      }
+    }
+    return issues
+  },
+}
+
+/**
+ * Stair top reach (2026-11-16): a stair that climbs to a floor must land on that floor's walkable area (hallway,
+ * balcony, room or a space its walls enclose), within 1.5 m.
+ */
+export const stairTopReachRule: ValidationRule = {
+  ruleId: 'stair-top-reach',
+  description: "A stair's top lands on the floor it climbs to",
+  category: 'connectivity',
+  defaultSeverity: 'warning',
+  profiles: ['draft', 'publish', 'strict'],
+  affinity: 'entity:building',
+
+  execute(context: ValidationContext): ReadonlyArray<ValidationIssue> {
+    const issues: ValidationIssue[] = []
+    for (const bld of context.document.buildings) {
+      for (const stair of bld.staircases ?? []) {
+        // Only stairs set to climb To a floor (their upper floor holds a top); older multi-floor stairs are left as they are.
+        if (!(stair.toLevel > stairFlightFloor(stair)) || !Object.values(stair.levels ?? {}).some((l) => l?.role === 'top')) continue
+        const reach = stairTopReach(bld, stair)
+        if (reach.ok) continue
+        const label = bld.floors.find((f) => f.level === stair.toLevel)?.label ?? `floor ${stair.toLevel}`
+        issues.push({
+          issueId: `stair-top-reach:${stair.id}:${hash(stair.id)}`,
+          ruleId: 'stair-top-reach',
+          severity: 'warning',
+          message: `${stair.name || stair.id}: Top doesn't reach ${label}'s hallway`,
+          targets: [{ entityId: stair.id, entityType: 'staircase' }],
+        })
       }
     }
     return issues

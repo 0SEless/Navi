@@ -28,6 +28,7 @@ import { buildingSetGroundHandler, buildingsFollowGroundHandler } from '../comma
 import { structureHandlers } from '../commands/structure-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from '../commands/feature-handlers'
+import { stairSetToFloorHandler } from '../commands/stair-to-floor-handler'
 import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler, doorApplyAppearanceToSimilarHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingUpdateHandler, openingDeleteHandler } from '../commands/feature-handlers'
 import { doorOwnershipReconcileHandler } from '../commands/door-ownership'
 import { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from '../commands/route-network-handlers'
@@ -58,7 +59,7 @@ import { orphanReferenceRule } from '../validation/rules/modules/orphan-referenc
 import { connectorConnectivityRule } from '../validation/rules/modules/connector-connectivity'
 import { roomDoorConnectivityRule } from '../validation/rules/modules/room-door-connectivity'
 import { roomDoorGeometryRule } from '../validation/rules/modules/room-door-geometry'
-import { featureExtentRule, featureOverlapRule, featureConnectivityRule, featureUnconnectedRule } from '../validation/rules/modules/feature-rules'
+import { featureExtentRule, featureOverlapRule, featureConnectivityRule, featureUnconnectedRule, stairTopReachRule } from '../validation/rules/modules/feature-rules'
 import { routeNetworkRules } from '../validation/rules/modules/route-network'
 
 import { GraphAnalysisPass, GeometryAnalysisPass, MetadataIndexPass } from '../validation/rules/analysis'
@@ -886,6 +887,7 @@ export function createEditorContext(
   registryCmd.register(featureLinkHandler)
   registryCmd.register(featureUnlinkHandler)
   registryCmd.register(featureUpdateHandler)
+  registryCmd.register(stairSetToFloorHandler)
   registryCmd.register(featureModeTransitionHandler)
   registryCmd.register(featureDeleteHandler)
   registryCmd.register(featureReplaceHandler)
@@ -947,6 +949,7 @@ export function createEditorContext(
   validationEngine.registerRule(roomDoorConnectivityRule)
   validationEngine.registerRule(roomDoorGeometryRule)
   validationEngine.registerRule(featureExtentRule)
+  validationEngine.registerRule(stairTopReachRule)
   validationEngine.registerRule(featureUnconnectedRule)
   validationEngine.registerRule(featureOverlapRule)
   validationEngine.registerRule(featureConnectivityRule)

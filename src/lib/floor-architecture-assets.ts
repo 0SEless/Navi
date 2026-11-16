@@ -1,4 +1,4 @@
-import { buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildOpeningPlanSymbols, type CoordinateTransformer, type StairAssetInput } from '@navi/core'
+import { buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildStairTopVolumes, buildOpeningPlanSymbols, type CoordinateTransformer, type StairAssetInput, type StairTopInput } from '@navi/core'
 
 type Polygons = GeoJSON.FeatureCollection<GeoJSON.Polygon>
 export interface FloorArchitectureAssets {
@@ -18,6 +18,8 @@ export interface FloorArchitectureAssetInput {
   doors: Parameters<typeof buildDoorAssetVolumes>[2]
   windows?: Parameters<typeof buildWallOpeningVolumes>[3]
   stairs: readonly StairAssetInput[]
+  /** Stairs arriving on this floor from below (2026-11-16): drawn as a top landing and a stairwell outline. */
+  stairTops?: readonly StairTopInput[]
   transformer: Pick<CoordinateTransformer, 'buildingLocalToWorld'>
   buildingId: string
   base?: number
@@ -29,7 +31,13 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   const wall = buildWallOpeningVolumes(walls, openings, doors, input.windows ?? [], base)
   const door = buildDoorAssetVolumes(walls, openings, doors, base)
   const window = buildWindowAssetVolumes(walls, openings, base)
-  const stair = buildStairAssetVolumes(stairs, base)
+  const stairAll = buildStairAssetVolumes(stairs, base)
+  // Stair sides (2026-11-16): parapets are drawn like walls, rails like door/window frames.
+  const ofPart = (keep: (part: unknown) => boolean): Polygons => ({ type: 'FeatureCollection', features: stairAll.collection.features.filter(f => keep(f.properties?.partType)) })
+  const stair = { ...stairAll, collection: ofPart(part => part !== 'parapet' && part !== 'rail') }
+  const parapets = ofPart(part => part === 'parapet'), rails = ofPart(part => part === 'rail')
+  const tops = buildStairTopVolumes(input.stairTops ?? [], base)
+  stair.collection.features.push(...tops.landings.features)
   const plan = buildOpeningPlanSymbols(walls, openings, doors)
   const diagnostics = [...wall.diagnostics, ...door.diagnostics, ...stair.diagnostics]
   const project = (collection: Polygons): Polygons => ({ type: 'FeatureCollection', features: collection.features.flatMap(feature => {
@@ -45,11 +53,11 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   }) })
   const toWorld = ([x, y]: number[]) => { const point = transformer.buildingLocalToWorld({ x, y }, buildingId); return point && Number.isFinite(point.lng) && Number.isFinite(point.lat) ? [point.lng, point.lat] : null }
   const symbols = {
-    lines: { type: 'FeatureCollection' as const, features: plan.lines.features.flatMap(feature => { const c = feature.geometry.coordinates.map(toWorld); return c.some(p => p === null) ? [] : [{ ...feature, geometry: { type: 'LineString' as const, coordinates: c as number[][] } }] }) },
+    lines: { type: 'FeatureCollection' as const, features: [...plan.lines.features, ...tops.wells.features.map(well => ({ type: 'Feature' as const, id: well.id, properties: { ...well.properties, kind: 'stairwell' }, geometry: { type: 'LineString' as const, coordinates: well.geometry.coordinates[0] } }))].flatMap(feature => { const c = feature.geometry.coordinates.map(toWorld); return c.some(p => p === null) ? [] : [{ ...feature, geometry: { type: 'LineString' as const, coordinates: c as number[][] } }] }) },
     markers: { type: 'FeatureCollection' as const, features: plan.markers.features.flatMap(feature => { const c = toWorld(feature.geometry.coordinates); return c ? [{ ...feature, geometry: { type: 'Point' as const, coordinates: c } }] : [] }) },
   }
   const result = {
-    walls: project(wall.collection), frames: project({ type: 'FeatureCollection', features: [...door.frames.features, ...window.frames.features] }),
+    walls: project({ type: 'FeatureCollection', features: [...wall.collection.features, ...parapets.features] }), frames: project({ type: 'FeatureCollection', features: [...door.frames.features, ...window.frames.features, ...rails.features] }),
     panels: project(door.panels), glass: project({ type: 'FeatureCollection', features: [...door.glass.features, ...window.glass.features] }), stairs: project(stair.collection), symbols, diagnostics,
   }
   const ids = (collections: Polygons[], key: string) => [...new Set(collections.flatMap(c => c.features.flatMap(f => typeof f.properties?.[key] === 'string' ? [f.properties[key] as string] : [])))]

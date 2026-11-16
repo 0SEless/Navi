@@ -1,6 +1,7 @@
 import {floorConnectionProblem,ownWallOf} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
-import { recordChange, collectFloorDoors } from '@navi/core'
+import { recordChange, collectFloorDoors, stairFlightFloor } from '@navi/core'
+import { syncStairTop } from './stair-to-floor-handler'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
 import { DOOR_OPERATIONS, HINGE_SIDES, SWING_SIDES, OPENING_MATERIALS, GLASS_TYPES, findDoorPreset, findWindowPreset, resolveDoorStyle, resolveWindowStyle, WINDOW_APPEARANCES, WINDOW_POSES, isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
@@ -1206,6 +1207,7 @@ export const featureUpdateHandler: CommandHandler = {
       const properties = payload.restoreFeatureProperties as typeof oldFeatureProperties | undefined
       if (properties) Object.assign(feature, properties)
       if ('restoreFeatureRouteNetwork' in payload) restoreFeatureRouteNetwork(ctx.building,level,payload.restoreFeatureRouteNetwork as ReturnType<typeof featureRouteNetworkSnapshot>)
+      if (featureType === 'staircase' && level === stairFlightFloor(feature as Staircase)) syncStairTop(ctx.building, feature as Staircase)
       recordChange(document, { entityId: featureId, entityType: featureType, operation: 'updated' })
       return { success: true, entityId: featureId, data: { oldLevelGeom, oldFeatureProperties } }
     }
@@ -1257,6 +1259,8 @@ export const featureUpdateHandler: CommandHandler = {
 
     const portError=syncFeatureRoutePort(ctx.building,feature,level)
     if(portError){if(oldLevelGeom)feature.levels[level]=oldLevelGeom;else delete feature.levels[level];Object.assign(feature,oldFeatureProperties);restoreFeatureRouteNetwork(ctx.building,level,oldFeatureRouteNetwork);return {success:false,error:portError}}
+    // A stair that climbs to a floor: its top follows the flight (review C1).
+    if (featureType === 'staircase' && level === stairFlightFloor(feature as Staircase)) syncStairTop(ctx.building, feature as Staircase)
     recordChange(document, { entityId: featureId, entityType: featureType as string, operation: 'updated' })
     return { success: true, entityId: featureId, data: { featureId, level, oldLevelGeom, oldFeatureProperties,oldFeatureRouteNetwork } }
   },

@@ -43,4 +43,17 @@ describe('fully consumed walls', () => {
     expect(missing.modeledIds.walls).toEqual([])
     expect(missing.diagnostics.some(d => d.code === 'PROJECTION_INVALID')).toBe(true)
   })
+  it('puts stair parapets with the walls and rails with the frames (2026-11-16)', () => {
+    const transformer = new CoordinateTransformer()
+    transformer.registerBuilding({ buildingId: 'b', origin: { lat: 12, lng: 122 }, rotation: 0 })
+    const stair = (sides: 'wall' | 'railing') => ({ id: 'u', position: { x: 0, y: 0 }, rotation: 0, height: 3.5,
+      drawing: { definitionId: 'stair' as const, properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', sides } } })
+    const wall = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair('wall')] })
+    expect(wall.walls.features.some(f => f.properties!.partType === 'parapet')).toBe(true)
+    expect(wall.stairs.features.some(f => f.properties!.partType === 'parapet')).toBe(false)
+    expect(wall.stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(20)
+    const rail = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair('railing')] })
+    expect(rail.frames.features.some(f => f.properties!.partType === 'rail')).toBe(true)
+    expect(rail.stairs.features.some(f => f.properties!.partType === 'rail')).toBe(false)
+  })
 })

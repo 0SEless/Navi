@@ -876,6 +876,26 @@ describe('canonical architecture assets', () => {
   })
 })
 
+describe('stairs from one floor to the next (2026-11-16)', () => {
+  it('draws the steps once on the From floor; the upper floor shows only the top landing', () => {
+    const fg = makeFloorGeometry()
+    const ground = fg.buildings[0].floors[0]
+    const drawing = { definitionId: 'stair' as const, properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', sides: 'wall' as const } }
+    ground.staircases = [{ id: 'u', name: 'U', position: { x: 5, y: 10 }, rotation: 0, height: 3.5, drawing }]
+    const upper = { ...structuredClone(ground), level: 1, label: '2F', elevation: 3.5, rooms: [], hallways: [], elevators: [], doors: [], pois: [], qrCheckpoints: [],
+      staircases: [{ id: 'u', name: 'U', role: 'top' as const, fromLevel: 0, position: { x: 5, y: 10 }, rotation: 0, height: 3.5, drawing }] }
+    fg.buildings[0].floors.push(upper)
+    const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
+    const at = (level: number) => model.indoor.architecture!.find(a => a.buildingId === fg.buildings[0].id && a.floor === level)!
+    expect(at(0).stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(20)
+    expect(at(0).walls.features.some(f => f.properties!.partType === 'parapet')).toBe(true)
+    expect(at(1).stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(0)
+    const top = at(1).stairs.features.filter(f => f.properties!.partType === 'top-landing')
+    expect(top).toHaveLength(1)
+    expect(top[0].properties!.base).toBeCloseTo(3.5)
+  })
+})
+
 describe('rooms drawn by their walls', () => {
   it('finds each named room from the published walls (by its wall face), so it can be labelled and highlighted', async () => {
     const { deriveRooms } = await import('@navi/editor/src/geometry/room-derivation')

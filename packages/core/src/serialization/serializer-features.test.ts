@@ -748,3 +748,17 @@ describe('P1-T9: stair/elevator levels cross-floor identity', () => {
     expect(serializeDocument(restored)).toBe(json)
   })
 })
+
+describe('serialization — floor-to-floor stair fields (2026-11-16)', () => {
+  it('keeps role, turn, sides and topLandingM through save and load', () => {
+    const doc = makeFeatureDoc()
+    const stair = doc.buildings[0].staircases![0]
+    const levels = Object.keys(stair.levels).map(Number).sort((a, b) => a - b)
+    const flight = stair.levels[levels[0]]
+    flight.drawing = { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', turn: 'left', sides: 'wall', topLandingM: 2 } }
+    stair.levels[levels[1]].role = 'top'
+    const restored = deserializeDocument(serializeDocument(doc)).buildings[0].staircases![0]
+    expect(restored.levels[levels[0]].drawing).toEqual(flight.drawing)
+    expect(restored.levels[levels[1]].role).toBe('top')
+  })
+})

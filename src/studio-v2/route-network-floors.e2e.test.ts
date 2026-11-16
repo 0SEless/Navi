@@ -13,6 +13,7 @@ import {
   roomAccessAssignHandler,
   routeEdgeCreateHandler,
   routeNodeCreateHandler,
+  stairSetToFloorHandler,
   type Command,
 } from '@navi/editor'
 import { DocumentEventBus } from '@navi/editor/src/eventbus'
@@ -53,7 +54,7 @@ function campus(): CampusDocument {
 
 function studio(document: CampusDocument) {
   const registry = new CommandRegistry()
-  for (const h of [entranceCreateHandler, entranceAccessAssignHandler, featureCreateHandler, roomAccessAssignHandler, routeNodeCreateHandler, routeEdgeCreateHandler]) registry.register(h)
+  for (const h of [entranceCreateHandler, entranceAccessAssignHandler, featureCreateHandler, roomAccessAssignHandler, routeNodeCreateHandler, routeEdgeCreateHandler, stairSetToFloorHandler]) registry.register(h)
   const dispatcher = new CommandDispatcher(registry, document, new DocumentEventBus())
   return (command: Omit<Command, 'label'>) => {
     const result = dispatcher.execute({ label: command.id, ...command } as Command)
@@ -147,4 +148,34 @@ describe('outdoor → indoor → stairs → upper floors', () => {
     expect(doc.buildings[0].staircases?.[0].links).toBeUndefined()
     expect(visitor(doc).errors.some((e) => e.startsWith('HALLWAY_DISCONNECTED'))).toBe(true)
   })
+
+  // 2026-11-16 (ComDev stair tower): an outside U-stair drawn on 1F that climbs To 2F; its foot is an entrance linked
+  // to the road, its top lands on 2F's route. Road → stair foot → climb → 2F → Lab 201, without the building's door.
+  it('an outside stair from 1F To 2F: road → stair foot → climbs → 2F → Lab 201', () => {
+    const doc = campus()
+    const run = studio(doc)
+    const node = (floorId: string, level: number, id: string, x: number, y: number, type = 'waypoint') =>
+      run({ id: 'route.node.create', payload: { buildingId: 'cs', floorId, node: { id, type, position: { x, y }, floor: level } } })
+    const drawing = { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', sides: 'wall' } }
+    run({ id: 'feature.create', payload: { buildingId: 'cs', floor: 0, id: 'tower', featureType: 'staircase', position: { x: 18, y: 0 }, rotation: 0, drawing } })
+    run({ id: 'stair.setToFloor', payload: { featureId: 'tower', toLevel: 1 } })
+    const top = doc.buildings[0].staircases![0].levels[1]
+    expect(top.role).toBe('top')
+    // 1F: the stair foot, an entrance linked to the road.
+    node('f1', 0, 'foot', 18, 0, 'entrance')
+    node('f1', 0, 'foot-stair', 18, 0.5, 'transition')
+    run({ id: 'route.edge.create', payload: { buildingId: 'cs', floorId: 'f1', edge: { from: 'foot', to: 'foot-stair', type: 'walk' } } })
+    run({ id: 'entrance.create', payload: { buildingId: 'cs', floorId: 'f1', id: 'e-foot', label: 'Stair foot', position: { x: 18, y: 0 }, level: 0, type: 'main' } })
+    run({ id: 'entrance.access.assign', payload: { buildingId: 'cs', floorId: 'f1', entranceId: 'e-foot', outdoorNodeId: 'x', indoorRouteNodeId: 'foot', outdoorPosition: ll(25, 0), outdoorRouteId: 'r1' } })
+    // 2F: from the top landing along the corridor to Lab 201.
+    node('f2', 1, 'f2-top', top.position.x, top.position.y, 'transition')
+    node('f2', 1, 'f2-west', -8, 0)
+    run({ id: 'route.edge.create', payload: { buildingId: 'cs', floorId: 'f2', edge: { from: 'f2-top', to: 'f2-west', type: 'walk' } } })
+    run({ id: 'room.access.assign', payload: { buildingId: 'cs', floorId: 'f2', faceId: 'lab201', routeNodeId: 'f2-west' } })
+    const { bundle } = visitor(doc)
+    const lab = routeTo(bundle, 'Lab 201')
+    expect(lab).toMatchObject({ found: true, floors: [0, 1] })
+    if (lab.found) expect(lab.climbs).toBeGreaterThanOrEqual(1)
+  })
 })
+

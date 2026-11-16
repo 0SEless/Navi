@@ -56,7 +56,7 @@ export function buildStairAssetVolumes(inputs: readonly StairAssetInput[], base 
       continue
     }
     const drawing = input.drawing?.properties
-    if (drawing && (input.drawing?.definitionId !== 'stair' || drawing.preset !== 'straight')) {
+    if (drawing && (input.drawing?.definitionId !== 'stair' || (drawing.preset !== 'straight' && drawing.preset !== 'ushape'))) {
       diagnostic('unsupported-preset', 'This stair preset has no resolved flight path; retain its fallback marker.')
       continue
     }
@@ -71,6 +71,15 @@ export function buildStairAssetVolumes(inputs: readonly StairAssetInput[], base 
       return [dx * cos + dy * sin, -dx * sin + dy * cos]
     }
     const toWorld = ([x, y]: Point): Point => [input.position.x + x * cos - y * sin, input.position.y + x * sin + y * cos]
+    if (drawing?.preset === 'ushape') {
+      const layout = uShapeLayout(drawing, rise)
+      if (!layout) {
+        diagnostic('invalid-dimensions', 'A U-Shape stair needs at least 2 steps and a known direction.')
+        continue
+      }
+      result.collection.features.push(...stairPieces(input.id, layout, drawing, base, toWorld))
+      continue
+    }
     let points: Point[] | undefined
     if (input.polygon) points = ringPoints(input.polygon)?.map(toLocal)
     else if (drawing) {
@@ -120,6 +129,12 @@ export function buildStairAssetVolumes(inputs: readonly StairAssetInput[], base 
       continue
     }
     result.collection.features.push(...features)
+    // Sides and a top landing (2026-11-16) only when authored, so existing straight stairs are unchanged.
+    if (drawing && ((drawing.sides && drawing.sides !== 'open') || drawing.topLandingM !== undefined)) {
+      const flight: Flight = { q: [p0, p1, p2, p3], count, h0: 0, dh: rise / count, sides: [[0, SIDE_T / Math.hypot(p1[0] - p0[0], p1[1] - p0[1])], [1 - SIDE_T / Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), 1]] }
+      const top = drawing.topLandingM !== undefined ? topLandingQuad(flight.q, drawing.topLandingM) : undefined
+      result.collection.features.push(...stairPieces(input.id, { flights: [flight], landings: [], ...(top ? { top: { q: top, h: rise } } : {}) }, drawing, base, toWorld, false))
+    }
     if (!drawing) diagnostic('STAIR_APPROXIMATE', 'Illustrative treads use the resolved rectangular footprint and known rise; no authored tread count exists.')
     if (input.landing) {
       const ring = input.landing.polygon && ringPoints(input.landing.polygon)
@@ -133,4 +148,161 @@ export function buildStairAssetVolumes(inputs: readonly StairAssetInput[], base 
     }
   }
   return result
+}
+
+// ── Stair shapes and sides (2026-11-16, whole-building view and floor-to-floor stairs) ──────────────────────────
+type Quad = [Point, Point, Point, Point]
+/** A flight: low edge p0→p1, high edge p3→p2 (p3 above p0); lateral u = 0 at p0's side, 1 at p1's side. */
+export interface Flight { q: Quad; count: number; h0: number; dh: number; sides: Array<[number, number]> }
+export interface StairLayout {
+  flights: Flight[]
+  /** Level landings: quad, height, and lateral/along ranges for sides. */
+  landings: Array<{ q: Quad; h: number; sides: Array<{ u: [number, number]; a: [number, number] }> }>
+  top?: { q: Quad; h: number }
+}
+/** Thickness of a parapet or rail, metres. */
+const SIDE_T = 0.12
+/** Gap between the two flights of a U-Shape stair, metres (spec). */
+export const U_STAIR_GAP = 0.2
+const PARAPET_M = 1.0
+const RAIL_BASE_M = 0.9
+const RAIL_TOP_M = 0.95
+
+const lerpP = (a: Point, b: Point, t: number): Point => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+const at = (q: Quad, u: number, a: number): Point => lerpP(lerpP(q[0], q[3], a), lerpP(q[1], q[2], a), u)
+const band = (q: Quad, u0: number, u1: number, a0: number, a1: number): Point[] => [at(q, u0, a0), at(q, u1, a0), at(q, u1, a1), at(q, u0, a1)]
+
+const FORWARD: Record<string, Point> = { east: [1, 0], west: [-1, 0], north: [0, -1], south: [0, 1] }
+
+/** The level platform after a flight's high edge, `length` metres long in the climbing direction. */
+export function topLandingQuad(q: Quad, length: number): Quad {
+  const dx = q[3][0] - q[0][0], dy = q[3][1] - q[0][1], n = Math.hypot(dx, dy) || 1
+  const d: Point = [dx / n * length, dy / n * length]
+  return [q[3], q[2], [q[2][0] + d[0], q[2][1] + d[1]], [q[3][0] + d[0], q[3][1] + d[1]]]
+}
+
+/**
+ * U-Shape (switchback) layout in the stair's local frame, centred on its position: flight 1 climbs along
+ * `direction` with ceil(n/2) steps, a half-landing as deep as a flight is wide spans both flights, flight 2 climbs
+ * back on the `turn` side (right by default) to the full rise; flights are `U_STAIR_GAP` apart.
+ */
+export function uShapeLayout(props: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; turn?: 'left' | 'right'; topLandingM?: number }, rise: number): StairLayout | undefined {
+  const F = FORWARD[props.direction]
+  const n = props.stepCount
+  if (!F || !Number.isInteger(n) || n < 2) return undefined
+  const S: Point = [-F[1], F[0]]
+  const P = (along: number, lat: number): Point => [F[0] * along + S[0] * lat, F[1] * along + S[1] * lat]
+  const w = props.stepWidth, d = props.stepDepth, g = U_STAIR_GAP
+  const n1 = Math.ceil(n / 2), n2 = n - n1, r = rise / n
+  const W = 2 * w + g, D = n1 * d + w
+  const sgn = props.turn === 'left' ? -1 : 1
+  const o1 = -sgn * W / 2, i1 = -sgn * (W / 2 - w), o2 = sgn * W / 2, i2 = sgn * (W / 2 - w)
+  const aE = -D / 2 + n1 * d
+  // u = 0 is the outer side; the middle wall sits in the inner half of the gap (u from 1 to 1 + g/2/w).
+  const t = SIDE_T / w, mid: [number, number] = [1, 1 + g / 2 / w]
+  const f1: Flight = { q: [P(-D / 2, o1), P(-D / 2, i1), P(aE, i1), P(aE, o1)], count: n1, h0: 0, dh: r, sides: [[0, t], mid] }
+  const f2: Flight = { q: [P(aE, o2), P(aE, i2), P(aE - n2 * d, i2), P(aE - n2 * d, o2)], count: n2, h0: n1 * r, dh: r, sides: [[0, t], mid] }
+  const landing: Quad = [P(aE, -W / 2), P(aE, W / 2), P(D / 2, W / 2), P(D / 2, -W / 2)]
+  const tl = SIDE_T / W, ta = SIDE_T / w
+  return {
+    flights: [f1, f2],
+    landings: [{ q: landing, h: n1 * r, sides: [{ u: [0, tl], a: [0, 1] }, { u: [1 - tl, 1], a: [0, 1] }, { u: [0, 1], a: [1 - ta, 1] }] }],
+    top: { q: topLandingQuad(f2.q, props.topLandingM ?? w), h: rise },
+  }
+}
+
+/** Solids for a stair layout: steps (unless `withSteps` is false), landings, top landing and the authored sides. */
+function stairPieces(id: string, layout: StairLayout, props: { sides?: 'open' | 'railing' | 'wall' }, base: number, toWorld: (p: Point) => Point, withSteps = true): GeoJSON.Feature<GeoJSON.Polygon>[] {
+  const out: GeoJSON.Feature<GeoJSON.Polygon>[] = []
+  let k = 0
+  const push = (partType: string, ring: Point[], lo: number, hi: number) => {
+    const world = ring.map(toWorld)
+    if (!world.flat().every(Number.isFinite) || !positiveArea(world) || !(hi > lo)) return
+    const fid = `${id}:${partType}:${k++}`
+    out.push({ type: 'Feature', id: fid, properties: { id: fid, featureId: id, partType, base: lo, height: hi }, geometry: { type: 'Polygon', coordinates: [[...world, [...world[0]]]] } })
+  }
+  const side = (ring: Point[], h: number) => {
+    if (props.sides === 'wall') push('parapet', ring, base, base + h + PARAPET_M)
+    else if (props.sides === 'railing') push('rail', ring, base + h + RAIL_BASE_M, base + h + RAIL_TOP_M)
+  }
+  for (const f of layout.flights) {
+    for (let i = 0; i < f.count; i++) {
+      const a0 = i / f.count, a1 = (i + 1) / f.count, h = f.h0 + f.dh * (i + 1)
+      if (withSteps) push('step', band(f.q, 0, 1, a0, a1), base, base + h)
+      for (const [u0, u1] of f.sides) side(band(f.q, u0, u1, a0, a1), h)
+    }
+  }
+  for (const l of layout.landings) {
+    push('landing', band(l.q, 0, 1, 0, 1), base, base + l.h)
+    for (const s of l.sides) side(band(l.q, s.u[0], s.u[1], s.a[0], s.a[1]), l.h)
+  }
+  if (layout.top) {
+    push('top-landing', band(layout.top.q, 0, 1, 0, 1), base, base + layout.top.h)
+    const w = Math.hypot(layout.top.q[1][0] - layout.top.q[0][0], layout.top.q[1][1] - layout.top.q[0][1]) || 1
+    side(band(layout.top.q, 0, SIDE_T / w, 0, 1), layout.top.h)
+    side(band(layout.top.q, 1 - SIDE_T / w, 1, 0, 1), layout.top.h)
+  }
+  return out
+}
+
+// ── Stair tops (2026-11-16): what the floor a stair arrives on shows ────────────────────────────────────────────
+/** A stair arriving on this floor: the flight's own input (from its From floor) plus that floor. */
+export type StairTopInput = StairAssetInput & { fromLevel: number }
+/** Thickness of the walkable top landing slab drawn on the upper floor, metres. */
+const TOP_SLAB_M = 0.05
+
+/** The flight's footprint rectangle (local, stair-aligned) and where its top landing lies. */
+function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[] } | undefined {
+  const plain = input.drawing ? { ...input, drawing: { ...input.drawing, properties: { ...input.drawing.properties, sides: 'open' as const } } } : input
+  const solids = buildStairAssetVolumes([plain], 0).collection.features
+  const steps = solids.filter(f => f.properties?.partType === 'step')
+  if (steps.length === 0) return undefined
+  const angle = (input.rotation % 360) * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle)
+  const toLocal = ([x, y]: number[]): Point => { const dx = x - input.position.x, dy = y - input.position.y; return [dx * cos + dy * sin, -dx * sin + dy * cos] }
+  const toWorld = ([x, y]: Point): Point => [input.position.x + x * cos - y * sin, input.position.y + x * sin + y * cos]
+  const body = solids.filter(f => f.properties?.partType === 'step' || f.properties?.partType === 'landing')
+  const local = body.flatMap(f => f.geometry.coordinates[0].map(toLocal))
+  const xs = local.map(p => p[0]), ys = local.map(p => p[1])
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  const well = ([[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as Point[]).map(toWorld)
+  const authored = solids.find(f => f.properties?.partType === 'top-landing')
+  let landing: Point[]
+  if (authored) landing = authored.geometry.coordinates[0].slice(0, 4) as Point[]
+  else {
+    // No authored top landing: the arrival area is a platform as long as the flight is wide past its last step.
+    const last = steps[steps.length - 1].geometry.coordinates[0].slice(0, 4) as Point[]
+    landing = topLandingQuad([last[0], last[1], last[2], last[3]], Math.hypot(last[1][0] - last[0][0], last[1][1] - last[0][1]))
+  }
+  return { well, landing }
+}
+
+/** On the floor a stair arrives on: a dashed stairwell outline (not walkable) and the walkable top landing. */
+export function buildStairTopVolumes(tops: readonly StairTopInput[], base: number): { landings: GeoJSON.FeatureCollection<GeoJSON.Polygon>; wells: GeoJSON.FeatureCollection<GeoJSON.Polygon> } {
+  const landings: GeoJSON.Feature<GeoJSON.Polygon>[] = [], wells: GeoJSON.Feature<GeoJSON.Polygon>[] = []
+  for (const top of tops) {
+    const shape = stairTopShape(top)
+    if (!shape) continue
+    const close = (ring: Point[]) => [[...ring, [...ring[0]]]]
+    wells.push({ type: 'Feature', id: `${top.id}:well`, properties: { id: `${top.id}:well`, featureId: top.id, partType: 'stairwell', fromLevel: top.fromLevel, base, height: base + 0.02 }, geometry: { type: 'Polygon', coordinates: close(shape.well) } })
+    landings.push({ type: 'Feature', id: `${top.id}:top`, properties: { id: `${top.id}:top`, featureId: top.id, partType: 'top-landing', fromLevel: top.fromLevel, base, height: base + TOP_SLAB_M }, geometry: { type: 'Polygon', coordinates: close(shape.landing) } })
+  }
+  return { landings: { type: 'FeatureCollection', features: landings }, wells: { type: 'FeatureCollection', features: wells } }
+}
+
+const insidePolygon = ([x, y]: Point, ring: readonly { x: number; y: number }[]): boolean => {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j]
+    if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside
+  }
+  return inside
+}
+
+/** Stairwells to cut out of the upper floor: only stairs whose footprint lies inside the building outline. */
+export function stairWellHoles(tops: readonly StairTopInput[], outline: readonly { x: number; y: number }[]): LocalPolygon[] {
+  if (outline.length < 3) return []
+  return tops.flatMap((top) => {
+    const shape = stairTopShape(top)
+    return shape && shape.well.every(p => insidePolygon(p, outline)) ? [{ points: shape.well.map(([x, y]) => ({ x, y })) } as LocalPolygon] : []
+  })
 }

@@ -1,6 +1,6 @@
 import type { ConnectivityGraph, NavigationGraph, NavigationArtifacts, SearchEntry, BuildingEntry, FloorEntry } from '../types'
 import type { CampusDocument, PanoramaIndex, PanoramaEntry, FloorGeometryArtifact, RoomAttributes } from '@navi/core'
-import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication } from '@navi/core'
+import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairFlightFloor, stairHasTop, stairRise } from '@navi/core'
 import { COMPILER_VERSION } from '../version'
 import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projection'
 
@@ -184,8 +184,9 @@ function buildComponents(document: CampusDocument): unknown[] {
             position,
             range: { from: staircase.fromLevel, to: staircase.toLevel },
             featureId: staircase.id,
-            metadata: { type: staircase.type },
-            ...(transformFeaturePolygon(transformer, levelGeometry.polygon, building.id, floor.level)
+            // A stair arriving from below (2026-11-16): only its top here, no flight outline.
+            metadata: levelGeometry.role !== 'top' ? { type: staircase.type } : { type: staircase.type, role: 'top', fromLevel: stairFlightFloor(staircase) },
+            ...(levelGeometry.role !== 'top' && transformFeaturePolygon(transformer, levelGeometry.polygon, building.id, floor.level)
               ? { polygon: transformFeaturePolygon(transformer, levelGeometry.polygon, building.id, floor.level) }
               : {}),
           })
@@ -1002,25 +1003,34 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
     // one entry per access floor present in `levels`, absent floors absent.
     const floorByLevel = new Map(floors.map(f => [f.level, f]))
     for (const st of b.staircases ?? []) {
-      for (const [levelKey, geom] of Object.entries(st.levels ?? {})) {
+      // One rule for which floor draws a stair (2026-11-16): the flight on its From floor; every other floor holding
+      // its geometry gets only its top, published with the flight's shape so NAVI Web can line the top up.
+      const flightFloor = stairFlightFloor(st)
+      const climbsToFloor = stairHasTop(st) && st.toLevel > flightFloor && floorByLevel.has(st.toLevel)
+      for (const [levelKey, levelGeom] of Object.entries(st.levels ?? {})) {
         const level = Number(levelKey)
         if (!Number.isInteger(level)) continue
         const slot = floorByLevel.get(level)
         if (!slot) continue
-        assertFiniteLocalCoord(geom.position, 'stair', st.id)
+        assertFiniteLocalCoord(levelGeom.position, 'stair', st.id)
+        const isTop = levelGeom.role === 'top'
+        const geom = isTop ? (st.levels[flightFloor] ?? levelGeom) : levelGeom
+        const at = isTop ? flightFloor : level
+        const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? slot.height)
         slot.staircases.push({
           id: st.id,
           name: st.name,
-          position: { x: geom.position.x + offsetFor(b, level).x, y: geom.position.y + offsetFor(b, level).y },
+          ...(isTop ? { role: 'top' as const, fromLevel: flightFloor } : {}),
+          position: { x: geom.position.x + offsetFor(b, at).x, y: geom.position.y + offsetFor(b, at).y },
           rotation: geom.rotation ?? 0,
-          ...((geom.height ?? slot.height) !== undefined ? { height: geom.height ?? slot.height } : {}),
+          ...(height !== undefined ? { height } : {}),
           ...(geom.drawing ? { drawing: structuredClone(geom.drawing) } : {}),
           ...(geom.landing ? { landing: {
             ...structuredClone(geom.landing),
-            position: { x: geom.landing.position.x + offsetFor(b, level).x, y: geom.landing.position.y + offsetFor(b, level).y },
-            ...(geom.landing.polygon ? { polygon: { points: translatePoints(geom.landing.polygon.points, offsetFor(b, level)) } } : {}),
+            position: { x: geom.landing.position.x + offsetFor(b, at).x, y: geom.landing.position.y + offsetFor(b, at).y },
+            ...(geom.landing.polygon ? { polygon: { points: translatePoints(geom.landing.polygon.points, offsetFor(b, at)) } } : {}),
           } } : {}),
-          ...(geom.polygon ? { polygon: { points: translatePoints(geom.polygon.points, offsetFor(b, level)) } } : {}),
+          ...(geom.polygon ? { polygon: { points: translatePoints(geom.polygon.points, offsetFor(b, at)) } } : {}),
         })
       }
     }

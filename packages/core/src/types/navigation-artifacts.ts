@@ -270,6 +270,9 @@ doors: Array<{ id: string; roomId?: string; doorType: string; position: LocalCoo
 export interface FloorGeometryFeature {
   id: string
   name: string
+  /** 'top' (2026-11-16): a stair arriving from `fromLevel`; position/drawing are its flight's, draw only its top. */
+  role?: 'top'
+  fromLevel?: number
   position: LocalCoord
   rotation: number
   /** Optional authored visual construction, retained without materializing defaults. */

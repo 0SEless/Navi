@@ -358,7 +358,10 @@ function buildIndoorFromFloorGeometry(
       const floorFaces = derivedFaces.map(face => polygonToWorld(face.polygon.points, buildingId, transformer)).filter(ring => ring.length >= 3)
       architecture.push({ buildingId, floor: floorLevel, elevation, floorFaces, ...buildFloorArchitectureAssets({
         buildingId, transformer, walls: fgFloor.walls ?? [], openings: fgFloor.openings ?? [], doors: fgFloor.doors,
-        stairs: fgFloor.staircases.map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })), base: elevation,
+        // A stair's flight is drawn on its From floor only; floors it arrives on show its top (2026-11-16).
+        stairs: fgFloor.staircases.filter(stair => stair.role !== 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })),
+        stairTops: fgFloor.staircases.filter(stair => stair.role === 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height, fromLevel: stair.fromLevel ?? floorLevel - 1 })),
+        base: elevation,
       }) })
 
       // Rooms
@@ -417,6 +420,7 @@ function buildIndoorFromFloorGeometry(
 
       // Staircases
       for (const s of fgFloor.staircases) {
+        if (s.role === 'top') continue
         const position = localToWorld(s.position, buildingId, transformer)
         if (!position) continue
         const polygon = s.polygon

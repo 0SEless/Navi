@@ -29,6 +29,8 @@ import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
 import { buildFloorArchitecturePreview } from './floor-architecture-preview'
 import { doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
 import { Architecture3DController } from './Architecture3DController'
+import { WholeBuildingControls, WholeBuildingLayer } from './WholeBuildingLayer'
+import { wholeBuildingPieces } from './whole-building'
 import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src/geometry/opening-position'
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
 import type { EntranceRouteAnchor } from './entrance-route-authoring'
@@ -586,11 +588,25 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
   const architecturePreview = useMemo(() => {
     const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
     const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
-    return canonicalFloor && transformer ? buildFloorArchitecturePreview(architectureDraft ?? canonicalFloor, building.id, transformer, canonicalBuilding?.staircases) : null
+    return canonicalFloor && transformer ? buildFloorArchitecturePreview(architectureDraft ?? canonicalFloor, building.id, transformer, canonicalBuilding?.staircases, canonicalBuilding?.floors) : null
     // The mutable editor document publishes geometry changes through renderVersion.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, architectureDraft])
   const architectureDiagnostics = architecturePreview?.diagnostics.map(issue => issue.message) ?? []
+  // Whole-building view (owner 2026-11-16): the floors above the edited floor stand faded at their real height.
+  const [wholeBuildingOn, setWholeBuildingOn] = useState(true)
+  const [hiddenFloors, setHiddenFloors] = useState<ReadonlySet<number>>(() => new Set())
+  const wholeBuilding = useMemo(() => {
+    if (viewMode !== '2.5d' || !wholeBuildingOn || !transformer) return null
+    const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+    const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
+    return canonicalBuilding && canonicalFloor ? wholeBuildingPieces(canonicalBuilding, canonicalFloor.level, hiddenFloors, transformer) : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, viewMode, wholeBuildingOn, hiddenFloors])
+  const floorsAbove = (canonicalArchitectureFloor ? editor.document.buildings.find(candidate => candidate.id === building.id)?.floors ?? [] : [])
+    .filter(candidate => candidate.level > (canonicalArchitectureFloor?.level ?? Infinity))
+    .sort((a, b) => a.level - b.level)
+    .map(candidate => ({ level: candidate.level, label: candidate.label }))
   const routeNodeDragRef = useRef<RouteNodeDrag | null>(null)
   const [routeNodePreview, setRouteNodePreview] = useState<{ nodeId: string; position: LocalCoord } | null>(null)
   const [doorConnectPrompt, setDoorConnectPrompt] = useState<{ edgeId: string; position: LatLng } | null>(null)
@@ -2537,6 +2553,13 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
           assetSelectionIds={Object.fromEntries(floorComponents.filter(component => component.featureId).map(component => [component.featureId!, component.id]))}
           onSelect={id => onSelect?.(id)} onWallSelect={setSelectedWallId} onPreview={setArchitectureDraft}
           execute={command => dispatcher.execute(command)} />
+      )}
+      {mapReady && viewMode === '2.5d' && (
+        <>
+          <WholeBuildingLayer map={architectureMap ?? mapRef.current} pieces={wholeBuilding} on={wholeBuildingOn} />
+          <WholeBuildingControls floorsAbove={floorsAbove} on={wholeBuildingOn} hidden={hiddenFloors} onToggle={setWholeBuildingOn}
+            onToggleFloor={(level) => setHiddenFloors(previous => { const next = new Set(previous); if (next.has(level)) next.delete(level); else next.add(level); return next })} />
+        </>
       )}
       {/* Canvas overlay — renders when flag is ON (indoor authoring) */}
       {ENABLE_CANVAS_EDITOR && (

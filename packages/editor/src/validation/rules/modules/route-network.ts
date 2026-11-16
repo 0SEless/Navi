@@ -112,7 +112,11 @@ function rootComponents(floor: Floor, graph: RouteFloorGraph): Set<string> {
     if (componentId) entranceRoots.add(componentId)
   }
   if (entranceRoots.size > 0) return entranceRoots
-  return graph.components.length > 0 ? new Set([graph.components[0][0]]) : new Set()
+  // The main (largest) route group, named the way componentByNode names it (its first-visited point). The group's
+  // node list is sorted, so its first entry is not that name (2026-11-16: upper floors failed this check).
+  const main = graph.components[0]?.[0]
+  const mainId = main !== undefined ? graph.componentByNode.get(main) : undefined
+  return mainId ? new Set([mainId]) : new Set()
 }
 
 function structureIssues(

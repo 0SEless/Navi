@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useEditor, useEditingEngine, useDocumentVersion } from '@navi/editor'
 import type { CurrentToolStore } from '@navi/editor'
 import { FeatureLinks } from './FeatureLinks'
+import { StairClimbProperties } from './StairClimbProperties'
 import { FeatureDimensionsProperties } from './FeatureDimensionsProperties'
-import { canonicalRoomId, SpatialQueryService } from '@navi/core'
+import { canonicalRoomId, SpatialQueryService, stairFlightFloor, stairHasTop } from '@navi/core'
 import type { Road } from '@navi/core'
 import { RelationshipService, RelationshipSuggestionService } from '@navi/editor'
 import { isSemanticRoomComponent, useFloorComponent } from '@/hooks/floor-graph-selectors'
@@ -865,13 +866,24 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                 const building = document.buildings.find((candidate) => candidate.id === component.buildingId)
                 const featureType = component.type === 'stair' ? 'staircase' : 'elevator'
                 const featureId = component.featureId ?? component.id
-                return building ? (
-                  <FeatureLinks
+                const climbing = featureType === 'staircase' && building?.staircases?.some((st) => st.id === featureId && stairHasTop(st))
+                return building ? (<>
+                  {featureType === 'staircase' && (
+                    <StairClimbProperties
+                      building={building} featureId={featureId}
+                      onSetTo={(toLevel) => { dispatcher.execute({ id: 'stair.setToFloor', label: 'Stair climbs to floor', payload: { featureId, toLevel } }) }}
+                      onDrawing={(properties) => {
+                        const st = building.staircases?.find((x) => x.id === featureId)
+                        if (st) dispatcher.execute({ id: 'feature.update', label: 'Edit stair', payload: { featureId, level: stairFlightFloor(st), patch: { drawing: { properties } } } })
+                      }}
+                    />
+                  )}
+                  {!climbing && <FeatureLinks
                     building={building} featureType={featureType} featureId={featureId}
                     onLink={(lowerId, upperId) => { dispatcher.execute({ id: 'feature.link', label: 'Connect floors', payload: { buildingId: building.id, featureType, lowerId, upperId } }) }}
                     onUnlink={(side) => { dispatcher.execute({ id: 'feature.unlink', label: 'Disconnect floors', payload: { buildingId: building.id, featureType, featureId, side } }) }}
-                  />
-                ) : null
+                  />}
+                </>) : null
               })()}
             </div>
           )}

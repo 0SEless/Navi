@@ -1,0 +1,66 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { Building } from '@navi/core'
+import { StairClimbProperties } from '../StairClimbProperties'
+
+afterEach(cleanup)
+
+const drawing = (preset: string) => ({ definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset } })
+function building(toLevel: number, preset = 'ushape'): Building {
+  return {
+    id: 'b', name: 'B',
+    floors: [0, 1, 2].map((level) => ({ id: `f${level}`, level, label: `Floor ${level + 1}`, elevation: level * 3.5, height: 3.5 })),
+    staircases: [{ id: 's', buildingId: 'b', name: 'S', type: 'standard', accessible: false, fromLevel: 0, toLevel,
+      levels: { 0: { position: { x: 0, y: 0 }, rotation: 0, drawing: drawing(preset) }, ...(toLevel > 0 ? { [toLevel]: { role: 'top', position: { x: 0, y: 0 }, rotation: 0 } } : {}) } }],
+  } as unknown as Building
+}
+function show(b: Building) {
+  const onSetTo = vi.fn()
+  const onDrawing = vi.fn()
+  render(<StairClimbProperties building={b} featureId="s" onSetTo={onSetTo} onDrawing={onDrawing} />)
+  return { onSetTo, onDrawing }
+}
+
+describe('StairClimbProperties', () => {
+  it('shows the climb from Floor 1 to Floor 2 with its steps', () => {
+    show(building(1))
+    expect(screen.getByTestId('stair-climb').textContent).toBe('Climbs 3.50 m — Floor 1 (0.00 m) → Floor 2 (3.50 m) · 20 × 0.175 m')
+  })
+
+  it('To lists only this floor (no climb) and the floors above; choosing one sets it, the same one does nothing', () => {
+    const { onSetTo } = show(building(1))
+    const select = screen.getByLabelText('To') as HTMLSelectElement
+    expect([...select.options].map((o) => o.textContent)).toEqual(['— stays on Floor 1 —', 'Floor 2', 'Floor 3'])
+    fireEvent.change(select, { target: { value: '2' } })
+    expect(onSetTo).toHaveBeenCalledWith(2)
+    onSetTo.mockClear()
+    fireEvent.change(select, { target: { value: '1' } })
+    expect(onSetTo).not.toHaveBeenCalled()
+  })
+
+  it('Turn is offered for U-Shape only; Sides for both', () => {
+    show(building(1, 'straight'))
+    expect(screen.queryByLabelText('Turn')).toBeNull()
+    expect(screen.getByLabelText('Sides')).toBeTruthy()
+    cleanup()
+    const { onDrawing } = show(building(1))
+    fireEvent.change(screen.getByLabelText('Turn'), { target: { value: 'left' } })
+    expect(onDrawing).toHaveBeenCalledWith({ turn: 'left' })
+    fireEvent.change(screen.getByLabelText('Sides'), { target: { value: 'wall' } })
+    expect(onDrawing).toHaveBeenCalledWith({ sides: 'wall' })
+  })
+
+  it('a one-floor stair shows no climb line', () => {
+    show(building(0))
+    expect(screen.queryByTestId('stair-climb')).toBeNull()
+  })
+
+  it('a stair that names a floor above but has no top (older data) shows no climb and stays on its floor', () => {
+    const b = building(1)
+    delete (b.staircases![0].levels as Record<number, unknown>)[1]
+    show(b)
+    expect(screen.queryByTestId('stair-climb')).toBeNull()
+    expect((screen.getByLabelText('To') as HTMLSelectElement).value).toBe('0')
+  })
+})
+

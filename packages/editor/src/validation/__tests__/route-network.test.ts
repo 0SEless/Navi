@@ -165,3 +165,25 @@ describe('route-network validation', () => {
     }))
   })
 })
+
+describe('room access on a floor without an entrance (upper floors)', () => {
+  it('a room linked to the only route on the floor is connected, whatever its route points are named', () => {
+    const floor = makeFloor({
+      id: 'floor-2', level: 1, label: 'Floor 2',
+      routeNetwork: {
+        nodes: [
+          { id: 'f2-top', type: 'transition', position: { x: 3, y: 8 }, floor: 1 },
+          { id: 'f2-hall', type: 'waypoint', position: { x: 2, y: 0 }, floor: 1 },
+          { id: 'f2-room', type: 'waypoint', position: { x: -5, y: -2 }, floor: 1 },
+        ],
+        edges: [
+          { id: 'e1', from: 'f2-top', to: 'f2-hall', type: 'walk', distance: 8 },
+          { id: 'e2', from: 'f2-hall', to: 'f2-room', type: 'walk', distance: 7 },
+        ],
+      } as never,
+      roomAttributes: [{ faceId: 'face-a', roomId: 'face-a', name: 'Lab 201', searchable: true, accessPoints: [{ routeNodeId: 'f2-room' }] }] as never,
+    })
+    const issues = validateRouteNetwork(makeDocument(floor), 'publish').filter((i) => i.ruleId === 'route-room-access')
+    expect(issues).toEqual([])
+  })
+})

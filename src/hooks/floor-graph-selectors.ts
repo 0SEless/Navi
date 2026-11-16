@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useEditor, useDocumentSelector, useDocumentVersion, useBuilding, findBuilding, resolveLevelGeometry } from '@navi/editor'
 import type { WorkflowSnapshot } from '@navi/editor'
-import { canonicalRoomId, localRectangleCornersOf } from '@navi/core'
+import { canonicalRoomId, localRectangleCornersOf, stairFlightFloor } from '@navi/core'
 import type { CampusDocument, CoordinateTransformer, LocalCoord } from '@navi/core'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
@@ -175,6 +175,15 @@ export function extractFloorComponents(
       if (!levelGeom) continue
       const wp = transformer.buildingLocalToWorld(levelGeom.position, buildingId)
       if (!wp) continue
+      // A stair arriving from the floor below (2026-11-16): only its top point here, no flight outline.
+      if (levelGeom.role === 'top') {
+        result.push({
+          id: `${st.id}-${floor.level}`, featureId: st.id, type: 'stair', name: st.name, buildingId, campusId: '', floor: floor.level,
+          position: wp, range: { from: st.fromLevel, to: st.toLevel },
+          metadata: { type: st.type, role: 'top', fromLevel: stairFlightFloor(st), rotation: levelGeom.rotation },
+        })
+        continue
+      }
       const { polygon: localPoly, landing } = resolveLevelGeometry(st, floor.level)
       let worldPoly: LatLng[] | undefined
       if (localPoly && localPoly.points.length > 0) {

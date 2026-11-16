@@ -523,6 +523,8 @@ export interface Staircase {
 }
 
 export interface StairLevelGeometry {
+  /** 'top' (2026-11-16): this floor holds only the stair's top landing (the flight is drawn on the From floor). */
+  role?: 'top'
   routeConnectionManaged?: boolean
   routeConnection?: RoomDoor['routeConnection']
   position: LocalCoord          // per-level position (editable)
@@ -537,7 +539,7 @@ export interface StairLevelGeometry {
   }
   drawing?: {                   // parametric mode; absent = freeform
     definitionId: 'stair'
-    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string }
+    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number }
   }
 }
 

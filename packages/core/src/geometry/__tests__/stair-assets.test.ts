@@ -69,7 +69,7 @@ describe('stair asset volumes', () => {
     expect(positionOnly.collection.features).toHaveLength(4)
     expect(positionOnly.diagnostics).toEqual([expect.objectContaining({ entityId: 'stair', code: 'missing-landing-polygon' })])
   })
-  it.each(['lshape', 'ushape', 'spiral', 'unknown'])('keeps fallback for unsupported %s instead of making a straight flight', preset => {
+  it.each(['lshape', 'spiral', 'unknown'])('keeps fallback for unsupported %s instead of making a straight flight', preset => {
     const result = buildStairAssetVolumes([{ ...stair, drawing: { ...stair.drawing!, properties: { ...stair.drawing!.properties, preset } } }])
     expect(result.collection.features).toEqual([])
     expect(result.diagnostics).toEqual([expect.objectContaining({ entityId: 'stair', code: 'unsupported-preset' })])

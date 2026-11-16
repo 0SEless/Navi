@@ -1,5 +1,5 @@
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
-import { collectFloorDoors, CoordinateTransformer, type CampusDocument } from '@navi/core'
+import { collectFloorDoors, CoordinateTransformer, floorStairInputs, type CampusDocument } from '@navi/core'
 import { registerBuildingTransforms } from '@navi/editor'
 import { buildFloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
@@ -22,10 +22,8 @@ export function terrainFloorStack(document: CampusDocument, open: OpenFloors | n
   registerBuildingTransforms(transformer, [building], null)
   const records: FloorArchitectureRenderData[] = building.floors.map((floor) => {
     const walls = floor.walls ?? []
-    const stairs = (building.staircases ?? []).flatMap((stair) => {
-      const geometry = stair.levels?.[floor.level]
-      return geometry ? [{ id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: geometry.height ?? floor.height }] : []
-    })
+    // One rule for which floor draws a stair (2026-11-16): flights on their From floor, only tops on the floor above.
+    const { flights: stairs, tops: stairTops } = floorStairInputs(building.staircases ?? [], building.floors, floor.level)
     const faces = walls.length ? deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), []) : []
     const floorFaces = faces
       .map((face) => face.polygon.points.map((p) => transformer.buildingLocalToWorld(p, building.id)).filter((q): q is { lat: number; lng: number } => q !== null))
@@ -34,7 +32,7 @@ export function terrainFloorStack(document: CampusDocument, open: OpenFloors | n
       buildingId: building.id, floor: floor.level, elevation: floor.elevation, floorFaces,
       ...buildFloorArchitectureAssets({
         buildingId: building.id, transformer, walls, openings: floor.openings ?? [], doors: collectFloorDoors(floor),
-        windows: floor.windows ?? [], stairs, base: floor.elevation,
+        windows: floor.windows ?? [], stairs, stairTops, base: floor.elevation,
       }),
     } as FloorArchitectureRenderData
   })

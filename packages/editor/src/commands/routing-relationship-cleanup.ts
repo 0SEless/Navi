@@ -258,6 +258,8 @@ export function cleanupFloorRoutingReferences(
       delete feature.levels[floor.level]
       const levels = Object.keys(feature.levels).map(Number).sort((a, b) => a - b)
       if (levels.length === 0) continue
+      // A stair whose flight floor is gone and only its top is left has nothing to draw or climb (review I4).
+      if (levels.every((level) => (feature.levels[level] as { role?: string } | undefined)?.role === 'top')) continue
       feature.fromLevel = levels[0]!
       feature.toLevel = levels[levels.length - 1]!
       surviving.push(feature)

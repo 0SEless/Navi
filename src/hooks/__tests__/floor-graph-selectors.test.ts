@@ -54,3 +54,23 @@ describe('active floor scope', () => {
     expect(resolveFloorScope(floors, 'stale-floor-id', 2)).toBeUndefined()
   })
 })
+
+describe('floor-to-floor stairs in the floor editor (2026-11-16)', () => {
+  const drawing = { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape' } }
+  const stairDoc = {
+    buildings: [{ id: 'building-1', floors, staircases: [{ id: 'u', buildingId: 'building-1', name: 'U', type: 'standard', accessible: false, fromLevel: 2, toLevel: 7,
+      levels: { 2: { position: { x: 1, y: 1 }, rotation: 0, drawing }, 7: { role: 'top', position: { x: 3, y: 1 }, rotation: 0 } } }] }],
+  } as unknown as CampusDocument
+
+  it('the From floor lists the stair with its outline; the upper floor lists only its top point', () => {
+    const one = extractFloorComponents(stairDoc, 'building-1', floors[1], transformer).filter(c => c.type === 'stair')
+    expect(one).toHaveLength(1)
+    expect(one[0].polygon?.length).toBeGreaterThanOrEqual(4)
+    expect(one[0].metadata?.role).toBeUndefined()
+    const two = extractFloorComponents(stairDoc, 'building-1', floors[2], transformer).filter(c => c.type === 'stair')
+    expect(two).toHaveLength(1)
+    expect(two[0].metadata?.role).toBe('top')
+    expect(two[0].polygon).toBeUndefined()
+    expect(two[0].position).toEqual({ lat: 1, lng: 3 })
+  })
+})
