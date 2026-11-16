@@ -12,7 +12,7 @@ const field: React.CSSProperties = {
 const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }
 const m = (n: number) => n.toFixed(2)
 
-type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; steepness?: 'gentle' | 'normal' | 'steep' }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
 export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }: {
   building: Building
@@ -130,12 +130,17 @@ function NumberField({ id, labelText, value, onApply }: { id: string; labelText:
  */
 function StairShapeControls({ featureId, props, onDrawing }: {
   featureId: string
-  props: { preset?: string; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; steepness?: 'gentle' | 'normal' | 'steep'; stepWidth?: number }
+  props: { preset?: string; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep'; stepWidth?: number; topLandingM?: number }
   onDrawing(patch: DrawingPatch): void
 }) {
   const straight = props.preset !== 'ushape'
-  const landings = [...(props.landings ?? [])].sort((a, b) => a - b)
-  const setLandings = (next: number[]) => onDrawing({ landings: next.filter((t) => t > 0 && t < 1).sort((a, b) => a - b) })
+  // Landings keep their stored order so each one's height stays with it.
+  const landings = props.landings ?? []
+  const heights = props.landingHeightsM
+  const setLandings = (next: number[]) => onDrawing({ landings: next.filter((t) => t > 0 && t < 1) })
+  const removeLanding = (i: number) => onDrawing({ landings: landings.filter((_, j) => j !== i), ...(heights ? { landingHeightsM: heights.filter((_, j) => j !== i) } : {}) })
+  const addLanding = () => onDrawing({ landings: [...landings, ((Math.max(0, ...landings)) + 1) / 2], ...(heights ? { landingHeightsM: [...heights, null] } : {}) })
+  const setHeight = (i: number, h: number | null) => onDrawing({ landingHeightsM: landings.map((_, j) => (j === i ? h : heights?.[j] ?? null)) })
   return (
     <>
       <div>
@@ -145,6 +150,11 @@ function StairShapeControls({ featureId, props, onDrawing }: {
           <option value="solid">Solid</option>
           <option value="open">Open</option>
         </select>
+      </div>
+      <div>
+        <label style={label} htmlFor={`stair-top-landing-${featureId}`}>TOP LANDING LENGTH (M)</label>
+        <NumberField id={`stair-top-landing-${featureId}`} labelText="Top landing length (m)" value={props.topLandingM ?? (props.stepWidth ?? 1.2)}
+          onApply={(m) => { if (m > 0) onDrawing({ topLandingM: m }) }} />
       </div>
       {straight && (
         <>
@@ -163,12 +173,14 @@ function StairShapeControls({ featureId, props, onDrawing }: {
               <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
                 <NumberField id={`stair-landing-${featureId}-${i}`} labelText={`Landing ${i + 1} position (%)`} value={Math.round(t * 100)}
                   onApply={(pct) => setLandings(landings.map((x, j) => (j === i ? pct / 100 : x)))} />
+                <OptionalNumberField id={`stair-landing-h-${featureId}-${i}`} labelText={`Landing ${i + 1} height (m)`} value={heights?.[i] ?? null}
+                  onApply={(h) => setHeight(i, h)} />
                 <button type="button" aria-label={`Remove landing ${i + 1}`} style={{ ...field, width: 'auto', cursor: 'pointer' }}
-                  onClick={() => setLandings(landings.filter((_, j) => j !== i))}>Remove</button>
+                  onClick={() => removeLanding(i)}>Remove</button>
               </div>
             ))}
             <button type="button" style={{ ...field, cursor: 'pointer' }}
-              onClick={() => setLandings([...landings, ((landings[landings.length - 1] ?? 0) + 1) / 2])}>Add landing</button>
+              onClick={addLanding}>Add landing</button>
           </div>
           {landings.length > 0 && (
             <div>
@@ -180,6 +192,22 @@ function StairShapeControls({ featureId, props, onDrawing }: {
         </>
       )}
     </>
+  )
+}
+
+/** A number field that may be left blank (automatic); applies on leave or Enter. */
+function OptionalNumberField({ id, labelText, value, onApply }: { id: string; labelText: string; value: number | null; onApply(value: number | null): void }) {
+  const shown = value === null ? '' : String(value)
+  const [text, setText] = useState(shown)
+  useEffect(() => setText(shown), [shown])
+  const apply = () => {
+    const next = text.trim() === '' ? null : Number(text)
+    if (next !== null && !Number.isFinite(next)) { setText(shown); return }
+    if (next !== value) onApply(next)
+  }
+  return (
+    <input id={id} aria-label={labelText} type="number" placeholder="auto" style={field} value={text}
+      onChange={(event) => setText(event.target.value)} onBlur={apply} onKeyDown={(event) => { if (event.key === 'Enter') apply() }} />
   )
 }
 

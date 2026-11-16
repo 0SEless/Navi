@@ -168,3 +168,22 @@ describe('every solid stair is closed, inside or outside (owner 2026-11-17)', ()
     expect(end).toHaveLength(0)
   })
 })
+
+describe('landing heights (owner 2026-11-17: "platform adjustment")', () => {
+  const straight = (props: Record<string, unknown>): StairAssetInput => ({
+    id: 'h', position: { x: 0, y: 0 }, rotation: 90, height: 3.5,
+    drawing: { definitionId: 'stair', properties: { stepCount: 20, stepWidth: 1.5, stepDepth: 0.3, direction: 'south', preset: 'straight', ...props } } as never,
+  })
+  const levelAt = (mesh: Float32Array, z: number) => {
+    const xs: number[] = []
+    for (let i = 0; i < mesh.length; i += 9) if (Math.abs(mesh[i + 2] - z) < 0.01 && mesh[i + 5] === 0 && mesh[i + 3] === 0 && mesh[i + 4] === 0) xs.push(mesh[i])
+    return xs.length ? Math.max(...xs) - Math.min(...xs) : 0
+  }
+  it('a landing set to 1.0 m above the floor is level at 1.0 m (standing on a floor at 3.5 m: 4.5 m)', () => {
+    const mesh = floorStairMesh([straight({ landings: [0.5], landingLengthM: 1.5, landingHeightsM: [1.0] })], 3.5, (p) => p)
+    let found = false
+    for (let i = 0; i < mesh.length; i += 9) if (Math.abs(mesh[i + 2] - 4.5) < 0.01) found = true
+    expect(found).toBe(true)
+    expect(levelAt(mesh, 4.5)).toBeGreaterThanOrEqual(0)
+  })
+})

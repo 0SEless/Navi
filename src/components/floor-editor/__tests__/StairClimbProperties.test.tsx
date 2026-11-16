@@ -113,5 +113,28 @@ describe('StairClimbProperties', () => {
     expect(screen.queryByRole('button', { name: 'Add landing' })).toBeNull()
     expect(screen.getByLabelText('Underneath')).toBeTruthy()
   })
+
+  it('Top landing length can be set (the platform at the top)', () => {
+    const { onDrawing } = show(building(1, 'straight'))
+    const len = screen.getByLabelText('Top landing length (m)') as HTMLInputElement
+    expect(len.value).toBe('1.2')
+    fireEvent.change(len, { target: { value: '2.5' } })
+    fireEvent.blur(len)
+    expect(onDrawing).toHaveBeenCalledWith({ topLandingM: 2.5 })
+  })
+
+  it('each landing has a height (blank = automatic) that stays with it', () => {
+    const b = building(1, 'straight')
+    Object.assign(b.staircases![0].levels[0].drawing!.properties as Record<string, unknown>, { landings: [0.3, 0.7], landingHeightsM: [null, 2.5] })
+    const { onDrawing } = show(b)
+    const h1 = screen.getByLabelText('Landing 1 height (m)') as HTMLInputElement
+    expect(h1.value).toBe('')
+    expect((screen.getByLabelText('Landing 2 height (m)') as HTMLInputElement).value).toBe('2.5')
+    fireEvent.change(h1, { target: { value: '1.2' } })
+    fireEvent.blur(h1)
+    expect(onDrawing).toHaveBeenCalledWith({ landingHeightsM: [1.2, 2.5] })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove landing 1' }))
+    expect(onDrawing).toHaveBeenCalledWith({ landings: [0.7], landingHeightsM: [2.5] })
+  })
 })
 
