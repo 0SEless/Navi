@@ -143,3 +143,28 @@ describe('terrain stair controls on floor stairs (owner 2026-11-17)', () => {
     expect(level(floorStairMesh([straight({})], 0, (p) => p))).toBeLessThan(1)
   })
 })
+
+describe('every solid stair is closed, inside or outside (owner 2026-11-17)', () => {
+  // U-Shape climbing east from x = -2.1; its half-landing is at the far end (x 0.9..2.1) at 1.75 m.
+  const faces = (mesh: Float32Array, nx: number, ny: number) => {
+    const v: Array<[number, number, number]> = []
+    for (let i = 0; i < mesh.length; i += 9) if (mesh[i + 3] * nx + mesh[i + 4] * ny > 0.9) v.push([mesh[i], mesh[i + 1], mesh[i + 2]])
+    return v
+  }
+  it('an inside U-Shape stair: its half-landing stands on a block (far end face from the floor up to 1.75 m)', () => {
+    const end = faces(floorStairMesh([u('wall')], 0, (p) => p), 1, 0).filter(([x]) => Math.abs(x - 2.1) < 0.02)
+    expect(Math.min(...end.map(([, , z]) => z))).toBeLessThanOrEqual(0.001)
+    expect(Math.max(...end.map(([, , z]) => z))).toBeGreaterThanOrEqual(1.75 - 0.001)
+  })
+
+  it('its first flight is closed at its low end (a face at the start, facing back)', () => {
+    const start = faces(floorStairMesh([u('wall')], 0, (p) => p), -1, 0).filter(([x]) => Math.abs(x + 2.1) < 0.02)
+    expect(start.length).toBeGreaterThan(0)
+  })
+
+  it('Underneath = Open stays open (no blocks)', () => {
+    const open = floorStairMesh([{ ...u('wall'), drawing: { ...u('wall').drawing!, properties: { ...u('wall').drawing!.properties, underneath: 'open' } as never } }], 0, (p) => p)
+    const end = faces(open, 1, 0).filter(([x, , z]) => Math.abs(x - 2.1) < 0.02 && z < 0.5)
+    expect(end).toHaveLength(0)
+  })
+})

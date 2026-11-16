@@ -79,9 +79,10 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
         path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width: dist(ring[0], ring[1]),
         underneath: 'solid', railings: deckRails, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
       }))
-      // An outside stair's top platform stands on a solid block down to the ground (owner 2026-11-17: "the stair
-      // has hollow, make sure to have a block in front of that").
-      if (input.doorwayAt && flat.properties?.partType === 'top-landing') {
+      // Landings and top platforms of a solid stair stand on a closed block down to its floor, inside or outside
+      // (owner 2026-11-17: "the stair has hollow" / "why is it not applied in the indoor or even other stairs?").
+      const under = (props as { underneath?: 'open' | 'solid' } | undefined)?.underneath ?? 'solid'
+      if (under === 'solid') {
         const corners = ring.slice(0, 4).map((p) => place({ x: p[0], y: p[1] }))
         if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, base, h, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
       }
