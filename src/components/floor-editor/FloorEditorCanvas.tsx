@@ -30,6 +30,7 @@ import { buildFloorArchitecturePreview } from './floor-architecture-preview'
 import { doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
 import { Architecture3DController } from './Architecture3DController'
 import { WholeBuildingControls, WholeBuildingLayer } from './WholeBuildingLayer'
+import { StairMeshLayer } from '@/components/map/layers/StairMeshLayer'
 import { wholeBuildingPieces } from './whole-building'
 import { deriveDoorLineEndpoints, deriveOpeningPosition } from '@navi/editor/src/geometry/opening-position'
 import { DERIVED_ROOM_LAYER_IDS, getSemanticRoomIdentity, readDerivedRoomHit } from './semantic-room-interaction'
@@ -603,6 +604,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     return canonicalBuilding && canonicalFloor ? wholeBuildingPieces(canonicalBuilding, canonicalFloor.level, hiddenFloors, transformer) : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, viewMode, wholeBuildingOn, hiddenFloors])
+  const floorStairMeshes = useMemo(() => [architecturePreview?.stairMesh ?? null], [architecturePreview])
   const floorsAbove = (canonicalArchitectureFloor ? editor.document.buildings.find(candidate => candidate.id === building.id)?.floors ?? [] : [])
     .filter(candidate => candidate.level > (canonicalArchitectureFloor?.level ?? Infinity))
     .sort((a, b) => a.level - b.level)
@@ -1127,7 +1129,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     try {
       const src = map.getSource('floor-walls-3d') as maplibregl.GeoJSONSource | undefined
       if (src) src.setData(architecturePreview?.collection ?? { type: 'FeatureCollection', features: [] })
-      for (const [id, data] of [['floor-window-frames-3d', architecturePreview?.frames], ['floor-window-glass-3d', architecturePreview?.glass], ['floor-door-panels-3d', architecturePreview?.panels], ['floor-stair-solids-3d', architecturePreview?.stairs]] as const) {
+      for (const [id, data] of [['floor-window-frames-3d', architecturePreview?.frames], ['floor-window-glass-3d', architecturePreview?.glass], ['floor-door-panels-3d', architecturePreview?.panels], ['floor-stair-solids-3d', architecturePreview?.stairMesh ? { type: 'FeatureCollection' as const, features: architecturePreview.stairs.features.filter(f => f.properties?.fromLevel !== undefined) } : architecturePreview?.stairs]] as const) {
         if (!map.getSource(id)) {
           map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
           map.addLayer({ id, source: id, type: 'fill-extrusion', paint: { 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-color': doorExtrusionColor(id.includes('glass') ? '#7dd3fc' : id.includes('panels') ? '#a88463' : id.includes('stair') ? '#94a3b8' : '#334155'), 'fill-extrusion-opacity': id.includes('glass') ? .38 : 1 } })
@@ -2557,6 +2559,8 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       {mapReady && viewMode === '2.5d' && (
         <>
           <WholeBuildingLayer map={architectureMap ?? mapRef.current} pieces={wholeBuilding} on={wholeBuildingOn} />
+          {/* Smooth stairs (2026-11-16): the stair blocks stay as click targets; this draws them. */}
+          <StairMeshLayer map={architectureMap ?? mapRef.current} id="floor-stair-mesh" meshes={floorStairMeshes} />
           <WholeBuildingControls floorsAbove={floorsAbove} on={wholeBuildingOn} hidden={hiddenFloors} onToggle={setWholeBuildingOn}
             onToggleFloor={(level) => setHiddenFloors(previous => { const next = new Set(previous); if (next.has(level)) next.delete(level); else next.add(level); return next })} />
         </>

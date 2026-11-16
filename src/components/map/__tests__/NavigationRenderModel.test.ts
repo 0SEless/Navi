@@ -888,7 +888,7 @@ describe('stairs from one floor to the next (2026-11-16)', () => {
     const model = buildFromCampusBundle({ buildings: [mockBuilding], nodes: [], edges: [], boundingBox: null, floorGeometry: fg })
     const at = (level: number) => model.indoor.architecture!.find(a => a.buildingId === fg.buildings[0].id && a.floor === level)!
     expect(at(0).stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(20)
-    expect(at(0).walls.features.some(f => f.properties!.partType === 'parapet')).toBe(true)
+    expect(at(0).walls.features.some(f => f.properties!.partType === 'parapet')).toBe(false) // smooth mesh draws the sides
     expect(at(1).stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(0)
     const top = at(1).stairs.features.filter(f => f.properties!.partType === 'top-landing')
     expect(top).toHaveLength(1)

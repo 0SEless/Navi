@@ -1,4 +1,4 @@
-import { buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildStairTopVolumes, buildOpeningPlanSymbols, type CoordinateTransformer, type StairAssetInput, type StairTopInput } from '@navi/core'
+import { buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildStairTopVolumes, buildOpeningPlanSymbols, floorStairMesh, toLocal, type CoordinateTransformer, type StairAssetInput, type StairTopInput } from '@navi/core'
 
 type Polygons = GeoJSON.FeatureCollection<GeoJSON.Polygon>
 export interface FloorArchitectureAssets {
@@ -11,6 +11,12 @@ export interface FloorArchitectureAssets {
   symbols: { lines: GeoJSON.FeatureCollection<GeoJSON.LineString>; markers: GeoJSON.FeatureCollection<GeoJSON.Point> }
   diagnostics: { entityId: string; code: string; message: string }[]
   modeledIds: { walls: string[]; doors: string[]; openings: string[]; stairs: string[] }
+  /**
+   * Smooth stairs (2026-11-16): this floor's stair flights as one triangle mesh (local metres east/north around
+   * `origin`, absolute heights), for a MapLibre mesh layer. The stepped `stairs` solids stay as click targets; only
+   * stair tops (features with `fromLevel`) are still drawn as blocks. Null when the floor has no buildable stair.
+   */
+  stairMesh: { origin: { lat: number; lng: number }; mesh: Float32Array } | null
 }
 export interface FloorArchitectureAssetInput {
   walls: Parameters<typeof buildWallOpeningVolumes>[0]
@@ -32,10 +38,9 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   const door = buildDoorAssetVolumes(walls, openings, doors, base)
   const window = buildWindowAssetVolumes(walls, openings, base)
   const stairAll = buildStairAssetVolumes(stairs, base)
-  // Stair sides (2026-11-16): parapets are drawn like walls, rails like door/window frames.
-  const ofPart = (keep: (part: unknown) => boolean): Polygons => ({ type: 'FeatureCollection', features: stairAll.collection.features.filter(f => keep(f.properties?.partType)) })
-  const stair = { ...stairAll, collection: ofPart(part => part !== 'parapet' && part !== 'rail') }
-  const parapets = ofPart(part => part === 'parapet'), rails = ofPart(part => part === 'rail')
+  // Stair sides (2026-11-16): parapets and rails are drawn smooth by the stair mesh (floorStairMesh), never as
+  // stepped blocks; the steps stay here as the stair's solids (click targets, fallback drawing).
+  const stair = { ...stairAll, collection: { type: 'FeatureCollection' as const, features: stairAll.collection.features.filter(f => f.properties?.partType !== 'parapet' && f.properties?.partType !== 'rail') } }
   const tops = buildStairTopVolumes(input.stairTops ?? [], base)
   stair.collection.features.push(...tops.landings.features)
   const plan = buildOpeningPlanSymbols(walls, openings, doors)
@@ -57,7 +62,7 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
     markers: { type: 'FeatureCollection' as const, features: plan.markers.features.flatMap(feature => { const c = toWorld(feature.geometry.coordinates); return c ? [{ ...feature, geometry: { type: 'Point' as const, coordinates: c } }] : [] }) },
   }
   const result = {
-    walls: project({ type: 'FeatureCollection', features: [...wall.collection.features, ...parapets.features] }), frames: project({ type: 'FeatureCollection', features: [...door.frames.features, ...window.frames.features, ...rails.features] }),
+    walls: project(wall.collection), frames: project({ type: 'FeatureCollection', features: [...door.frames.features, ...window.frames.features] }),
     panels: project(door.panels), glass: project({ type: 'FeatureCollection', features: [...door.glass.features, ...window.glass.features] }), stairs: project(stair.collection), symbols, diagnostics,
   }
   const ids = (collections: Polygons[], key: string) => [...new Set(collections.flatMap(c => c.features.flatMap(f => typeof f.properties?.[key] === 'string' ? [f.properties[key] as string] : [])))]
@@ -77,5 +82,16 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
     })
     if (valid) handledWalls.push(candidate.id)
   }
-  return { ...result, modeledIds: { walls: handledWalls, doors: ids([result.frames, result.panels, result.glass], 'doorId'), openings: ids([result.frames, result.panels, result.glass], 'openingId'), stairs: ids([result.stairs], 'featureId') } }
+  const origin = stairs.length > 0 ? transformer.buildingLocalToWorld({ x: 0, y: 0 }, buildingId) : null
+  const grid = origin ? { originLat: origin.lat, originLng: origin.lng } : null
+  // The smooth mesh is decoration: if it cannot be built, the stair blocks are drawn instead.
+  let mesh: Float32Array | null = null
+  try {
+    mesh = origin && grid ? floorStairMesh(stairs, base, (p) => {
+      const w = transformer.buildingLocalToWorld(p, buildingId)
+      return w ? toLocal(grid, w) : { x: NaN, y: NaN }
+    }) : null
+  } catch { mesh = null }
+  const stairMesh = origin && mesh && mesh.length > 0 && mesh.every(Number.isFinite) ? { origin: { lat: origin.lat, lng: origin.lng }, mesh } : null
+  return { ...result, stairMesh, modeledIds: { walls: handledWalls, doors: ids([result.frames, result.panels, result.glass], 'doorId'), openings: ids([result.frames, result.panels, result.glass], 'openingId'), stairs: ids([result.stairs], 'featureId') } }
 }

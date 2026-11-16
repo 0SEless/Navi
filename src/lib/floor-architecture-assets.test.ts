@@ -43,17 +43,32 @@ describe('fully consumed walls', () => {
     expect(missing.modeledIds.walls).toEqual([])
     expect(missing.diagnostics.some(d => d.code === 'PROJECTION_INVALID')).toBe(true)
   })
-  it('puts stair parapets with the walls and rails with the frames (2026-11-16)', () => {
+  it('stair parapets and rails are not drawn as stepped blocks (the smooth stair mesh draws them; owner 2026-11-16)', () => {
     const transformer = new CoordinateTransformer()
     transformer.registerBuilding({ buildingId: 'b', origin: { lat: 12, lng: 122 }, rotation: 0 })
     const stair = (sides: 'wall' | 'railing') => ({ id: 'u', position: { x: 0, y: 0 }, rotation: 0, height: 3.5,
       drawing: { definitionId: 'stair' as const, properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', sides } } })
-    const wall = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair('wall')] })
-    expect(wall.walls.features.some(f => f.properties!.partType === 'parapet')).toBe(true)
-    expect(wall.stairs.features.some(f => f.properties!.partType === 'parapet')).toBe(false)
-    expect(wall.stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(20)
-    const rail = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair('railing')] })
-    expect(rail.frames.features.some(f => f.properties!.partType === 'rail')).toBe(true)
-    expect(rail.stairs.features.some(f => f.properties!.partType === 'rail')).toBe(false)
+    for (const sides of ['wall', 'railing'] as const) {
+      const data = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair(sides)] })
+      const all = [...data.walls.features, ...data.frames.features, ...data.stairs.features]
+      expect(all.some(f => f.properties!.partType === 'parapet' || f.properties!.partType === 'rail')).toBe(false)
+      expect(data.stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(20)
+    }
+  })
+
+  it('returns the smooth stair mesh, around the building origin, standing on the floor base', () => {
+    const transformer = new CoordinateTransformer()
+    transformer.registerBuilding({ buildingId: 'b', origin: { lat: 12, lng: 122 }, rotation: 0 })
+    const stair = { id: 'u', position: { x: 0, y: 0 }, rotation: 0, height: 3.5,
+      drawing: { definitionId: 'stair' as const, properties: { stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'ushape', sides: 'wall' as const } } }
+    const data = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [stair], base: 3.5 })
+    expect(data.stairMesh).not.toBeNull()
+    expect(data.stairMesh!.mesh.length).toBeGreaterThan(0)
+    expect(data.stairMesh!.origin.lat).toBeCloseTo(12, 6)
+    let top = -Infinity
+    for (let i = 2; i < data.stairMesh!.mesh.length; i += 9) top = Math.max(top, data.stairMesh!.mesh[i])
+    expect(top).toBeGreaterThan(3.5 + 3.5)
+    expect(buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: [], openings: [], doors: [], stairs: [] }).stairMesh).toBeNull()
   })
 })
+
