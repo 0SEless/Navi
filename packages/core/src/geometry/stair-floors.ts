@@ -44,7 +44,22 @@ export function stairRise(stair: Staircase, floors: readonly Pick<Floor, 'level'
   const from = floors.find((f) => f.level === fromLevel)
   const to = stair.toLevel > fromLevel && stairHasTop(stair) ? floors.find((f) => f.level === stair.toLevel) : undefined
   if (from && to && Number.isFinite(to.elevation - from.elevation) && to.elevation > from.elevation) return to.elevation - from.elevation
-  return stair.levels?.[fromLevel]?.height ?? from?.height ?? 3.5
+  const flight = stair.levels?.[fromLevel]
+  if (flight?.height !== undefined) return flight.height
+  return (flight && undesignedStairRise(flight, fromLevel, floors)) ?? from?.height ?? 3.5
+}
+
+/**
+ * A stair drawn with the Stair tool (no design, no To floor, no height of its own; ASU's stairs, owner 2026-11-17)
+ * on `level`: it climbs to the next floor up; on the top floor it is where the stair below arrives, so it does not
+ * climb (0). Undefined for any other stair (its caller keeps its own rule).
+ */
+export function undesignedStairRise(geometry: Pick<StairLevelGeometry, 'drawing' | 'height'>, level: number, floors: readonly Pick<Floor, 'level' | 'elevation'>[]): number | undefined {
+  if (geometry.drawing || geometry.height !== undefined) return undefined
+  const here = floors.find((f) => f.level === level)
+  const above = floors.filter((f) => f.level > level && Number.isFinite(f.elevation)).sort((a, b) => a.level - b.level)[0]
+  if (!above) return 0
+  return here && Number.isFinite(here.elevation) && above.elevation > here.elevation ? above.elevation - here.elevation : undefined
 }
 
 /**

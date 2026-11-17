@@ -92,3 +92,19 @@ describe('outside stair doorway is published (2026-11-17)', () => {
     expect(one[0].doorwayAt).toEqual({ x: -3, y: 5 })
   })
 })
+
+describe('stairs drawn with the Stair tool, one per floor (ASU, owner 2026-11-17)', () => {
+  it('each climbs to the next floor up; the one on the top floor does not climb', () => {
+    const doc = campus()
+    const outline = { points: [{ x: 0, y: 0 }, { x: 1.2, y: 0 }, { x: 1.2, y: 4 }, { x: 0, y: 4 }] }
+    ;(doc.buildings[0] as unknown as { staircases: unknown[] }).staircases = [0, 1, 2].map((level) => ({
+      id: `s${level}`, buildingId: 'b', name: 'Staircase', type: 'standard', accessible: false, fromLevel: level, toLevel: level,
+      levels: { [level]: { position: { x: 0.6, y: 2 }, rotation: 0, polygon: outline } },
+    }))
+    const floors = new CampusCompiler().compileV2(doc).artifacts!.floorGeometry!.buildings[0]!.floors
+    const height = (level: number) => floors.find((f) => f.level === level)!.staircases[0].height
+    expect(height(0)).toBeCloseTo(3.5, 6)
+    expect(height(1)).toBeCloseTo(3.5, 6)
+    expect(height(2)).toBe(0)
+  })
+})

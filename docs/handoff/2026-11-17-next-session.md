@@ -30,6 +30,20 @@ Presentation: Thursday 2026-11-19 (flat 2D campus, 2.5D buildings).
 3. Still waiting on the owner: hide other floors' route legs (the "tree"), auto-login, a visible Flat/Terrain
    toggle. Later: connect a landing to a floor (decks), stair presets/materials, drag handles.
 
+## FIXED 2026-11-17 (evening): ASU stairs stayed flat in 2.5D
+- Cause: the Navigation-mode **Stair** tool makes an undesigned stair (outline only, From = To, auto `links.above`),
+  like all of ASU's stairs. On a turned (OSM) building its outline is turned against its saved rotation, and
+  `buildStairAssetVolumes` refused it as 'unsupported-footprint' (rectangle check at 1e-8) → no steps, no mesh.
+  (The earlier "no custom layer" note was wrong: `map.getStyle()` leaves custom layers out; use `map.getLayer`.)
+- Fix: undesigned outlines are checked as rectangles along their own edges (1 mm per metre); steps still come from
+  the outline. New `undesignedStairRise` (core stair-floors): such a stair climbs to the next floor up and not at all
+  on the top floor; used by `stairRise` and the compiler (artifacts.ts), so editor and NAVI Web agree.
+- Checked on the ASU preview (commit 64, relaxed): Computer Science GF + 1F stairs now draw as a 3D switchback at the
+  east end; the 2F (top floor) stair no longer climbs through the roof. Designed stairs are unchanged.
+- Known: the current floor's flat 2D stair marker (hatched) is still drawn at ground level in NAVI Web.
+- Machine memory: vitest workers time out when the dev server and tests run together and memory is low; stop the
+  server (port 3001) for test runs. Don't put temp test files under packages/*/src or src/ while the server runs.
+
 ## How to run locally
 - Worktree `D:\CODEme\Navi\.navi-worktrees\navi-save-v2`. Start the server ONLY with
   `scripts\save-v2\import-data\start-savev2-local.ps1` (port 3001; it sets the Save v2 settings itself — there is

@@ -103,3 +103,36 @@ describe('stair asset volumes', () => {
     }
   })
 })
+
+describe('stairs drawn with the Stair tool on a turned building (owner 2026-11-17: ASU stairs stayed flat)', () => {
+  // ASU Computer Science GF stair as saved: its outline is turned ~4° from its saved rotation (-3.06).
+  const asu: StairAssetInput = {
+    id: 'stair-1-q0je', position: { x: 19.74055251898244, y: -0.15248533204430714 }, rotation: -3.0639647870425315, height: 3.5,
+    polygon: { points: [
+      { x: 20.531370347365737, y: 3.6319273822009563 }, { x: 18.37405245192349, y: 3.4641221915371716 },
+      { x: 18.94973468966782, y: -3.936898046405986 }, { x: 21.107052586972713, y: -3.7690928555093706 },
+    ] },
+  } as StairAssetInput
+
+  it('still gets climbing steps from its outline', () => {
+    const result = buildStairAssetVolumes([asu], 0)
+    const steps = result.collection.features.filter((f) => f.properties?.partType === 'step')
+    expect(result.diagnostics.map((d) => d.code)).not.toContain('unsupported-footprint')
+    expect(steps.length).toBeGreaterThan(1)
+    expect(Math.max(...steps.map((f) => Number(f.properties!.height)))).toBeCloseTo(3.5, 6)
+  })
+
+  it('the steps stay inside the drawn outline', () => {
+    const steps = buildStairAssetVolumes([asu], 0).collection.features.filter((f) => f.properties?.partType === 'step')
+    const xs = steps.flatMap((f) => f.geometry.coordinates[0].map((p) => p[0])), ys = steps.flatMap((f) => f.geometry.coordinates[0].map((p) => p[1]))
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(18.374 - 1e-6)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(21.108 + 1e-6)
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(-3.937 - 1e-6)
+    expect(Math.max(...ys)).toBeLessThanOrEqual(3.632 + 1e-6)
+  })
+
+  it('a shape that is really not a rectangle is still refused', () => {
+    const kite = { ...asu, polygon: { points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 5, y: 3 }, { x: 0, y: 2 }] } } as StairAssetInput
+    expect(buildStairAssetVolumes([kite], 0).diagnostics.map((d) => d.code)).toContain('unsupported-footprint')
+  })
+})

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Staircase, StairLevelGeometry } from '../../types/entities'
-import { stairFlightFloor, stairFlightsOnFloor, stairRise, stairTopsOnFloor } from '../stair-floors'
+import { stairFlightFloor, stairFlightsOnFloor, stairRise, stairTopsOnFloor, undesignedStairRise } from '../stair-floors'
 
 const geom = (extra: Partial<StairLevelGeometry> = {}): StairLevelGeometry => ({ position: { x: 1, y: 2 }, rotation: 0, ...extra })
 const stair = (fromLevel: number, toLevel: number, levels: Staircase['levels']): Staircase => ({
@@ -85,5 +85,35 @@ describe('floorStairInputs: outside stair doorway (2026-11-17)', () => {
     const at = floorStairInputs([s], withDoor as never, 1).flights[0].doorwayAt
     expect(at).toEqual({ x: -3, y: 5 })
     expect(floorStairInputs([s], floors, 1).flights[0].doorwayAt).toBeUndefined()
+  })
+})
+
+describe('stairs drawn with the Stair tool (no design, no To floor): owner 2026-11-17, draw them automatically', () => {
+  const three = [{ level: 0, elevation: 0, height: 3.5 }, { level: 1, elevation: 3.5, height: 3.5 }, { level: 2, elevation: 7.2, height: 3.5 }]
+  const outline = { points: [{ x: 0, y: 0 }, { x: 1.2, y: 0 }, { x: 1.2, y: 4 }, { x: 0, y: 4 }] }
+
+  it('climbs to the next floor up', () => {
+    expect(stairRise(stair(1, 1, { 1: geom({ polygon: outline }) }), three)).toBeCloseTo(3.7, 6)
+    expect(stairRise(stair(0, 0, { 0: geom({ polygon: outline }) }), three)).toBeCloseTo(3.5, 6)
+  })
+
+  it('on the top floor it does not climb (it is where the stair below arrives)', () => {
+    expect(stairRise(stair(2, 2, { 2: geom({ polygon: outline }) }), three)).toBe(0)
+  })
+
+  it('a designed stair without a To floor keeps its floor height, as before', () => {
+    const designed = geom({ drawing: { definitionId: 'stair', properties: { preset: 'straight', stepCount: 10, stepWidth: 1.2, stepDepth: 0.3 } } } as Partial<StairLevelGeometry>)
+    expect(stairRise(stair(2, 2, { 2: designed }), three)).toBe(3.5)
+  })
+})
+
+describe('undesignedStairRise (one rule for the editor and NAVI Web)', () => {
+  const three = [{ level: 0, elevation: 0, height: 3.5 }, { level: 1, elevation: 3.5, height: 3.5 }, { level: 2, elevation: 7.2, height: 3.5 }]
+  it('per floor: next floor up, 0 on the top floor; undefined for designed stairs or an explicit height', () => {
+    expect(undesignedStairRise(geom(), 0, three)).toBeCloseTo(3.5, 6)
+    expect(undesignedStairRise(geom(), 1, three)).toBeCloseTo(3.7, 6)
+    expect(undesignedStairRise(geom(), 2, three)).toBe(0)
+    expect(undesignedStairRise(geom({ height: 2 }), 2, three)).toBeUndefined()
+    expect(undesignedStairRise(geom({ drawing: { definitionId: 'stair', properties: { preset: 'straight', stepCount: 10, stepWidth: 1.2, stepDepth: 0.3 } } } as Partial<StairLevelGeometry>), 2, three)).toBeUndefined()
   })
 })

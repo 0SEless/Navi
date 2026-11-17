@@ -1,6 +1,6 @@
 import type { ConnectivityGraph, NavigationGraph, NavigationArtifacts, SearchEntry, BuildingEntry, FloorEntry } from '../types'
 import type { CampusDocument, PanoramaIndex, PanoramaEntry, FloorGeometryArtifact, RoomAttributes } from '@navi/core'
-import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairDoorwayAt, stairFlightFloor, stairHasTop, stairRise } from '@navi/core'
+import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairDoorwayAt, stairFlightFloor, stairHasTop, stairRise, undesignedStairRise } from '@navi/core'
 import { COMPILER_VERSION } from '../version'
 import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projection'
 
@@ -1016,7 +1016,8 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         const isTop = levelGeom.role === 'top'
         const geom = isTop ? (st.levels[flightFloor] ?? levelGeom) : levelGeom
         const at = isTop ? flightFloor : level
-        const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? slot.height)
+        // A Stair-tool stair (no design) climbs to the next floor up and not at all on the top floor (2026-11-17).
+        const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? (isTop ? undefined : undesignedStairRise(geom, level, b.floors)) ?? slot.height)
         slot.staircases.push({
           id: st.id,
           name: st.name,

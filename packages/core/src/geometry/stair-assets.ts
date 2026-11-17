@@ -95,12 +95,17 @@ export function buildStairAssetVolumes(inputs: readonly StairAssetInput[], base 
       diagnostic('missing-footprint', 'Stair requires a resolved rectangular footprint or valid parametric dimensions.')
       continue
     }
-    const xmin = Math.min(...points.map(p => p[0])), xmax = Math.max(...points.map(p => p[0]))
-    const ymin = Math.min(...points.map(p => p[1])), ymax = Math.max(...points.map(p => p[1]))
+    // A stair drawn with the Stair tool (no authored design) on a turned building has an outline that is turned
+    // against its saved rotation (owner 2026-11-17: ASU stairs stayed flat). Its steps come straight from the
+    // outline, so check that outline is a rectangle along its own edges, to the nearest millimetre per metre.
+    const along = drawing ? 0 : Math.atan2(points[1][1] - points[0][1], points[1][0] - points[0][0])
+    const checked: Point[] = drawing ? points : points.map(([x, y]) => [x * Math.cos(along) + y * Math.sin(along), -x * Math.sin(along) + y * Math.cos(along)])
+    const xmin = Math.min(...checked.map(p => p[0])), xmax = Math.max(...checked.map(p => p[0]))
+    const ymin = Math.min(...checked.map(p => p[1])), ymax = Math.max(...checked.map(p => p[1]))
     const width = xmax - xmin, depth = ymax - ymin
-    const epsilon = Math.max(width, depth) * 1e-8
+    const epsilon = Math.max(width, depth) * (drawing ? 1e-8 : 1e-3)
     const corner = (p: Point) => `${Math.abs(p[0] - xmin) <= epsilon ? 0 : Math.abs(p[0] - xmax) <= epsilon ? 1 : 2}:${Math.abs(p[1] - ymin) <= epsilon ? 0 : Math.abs(p[1] - ymax) <= epsilon ? 1 : 2}`
-    const corners = points.map(corner)
+    const corners = checked.map(corner)
     if (!(width > 0 && depth > 0) || ![width, depth].every(Number.isFinite) || corners.some(c => c.includes('2')) || new Set(corners).size !== 4) {
       diagnostic('unsupported-footprint', 'Nonrectangular stairs need an authored flight path; retain their fallback marker.')
       continue
