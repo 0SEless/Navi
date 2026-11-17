@@ -29,12 +29,12 @@ const SOLID_DEPTH = 0.4
 const TOP_RAIL = 0.95
 const MID_RAIL = 0.45
 const RAIL_INSET = 0.06
-
-function rgb(hex: string): V3 {
 /** Half wall (owner 2026-11-17: "50% or 70% of the railing will be cemented, then there will be a railing"). */
 const HALF_WALL = 0.6
 /** Thickness of a concrete side wall, metres. */
 const WALL_T = 0.15
+
+function rgb(hex: string): V3 {
   const value = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1] ?? '999999'
   return [parseInt(value.slice(0, 2), 16) / 255, parseInt(value.slice(2, 4), 16) / 255, parseInt(value.slice(4, 6), 16) / 255]
 }
@@ -152,8 +152,6 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
     for (const [e0, e1] of [[L0, L1], [R0, R1]] as const) writer.quad(P(e0, t0), P(e1, t1), P(e1, bottom(e1, s1)), P(e0, bottom(e0, s0)), side)
   }
 
-  const risers: Array<{ s: number; from: number; to: number }> = []
-  if (stairs && steps > 0) {
   // A solid structure is closed at both ends, from the ground up to its surface there (owner 2026-11-17: "you can
   // see the inside of the stair"); otherwise the top end of a flight shows its hollow inside.
   if (underneath === 'solid') {
@@ -164,6 +162,8 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
     }
   }
 
+  const risers: Array<{ s: number; from: number; to: number }> = []
+  if (stairs && steps > 0) {
     for (let k = 0; k <= steps; k++) risers.push({ s: fs + k * tr, from: startH + riser * k, to: k === steps ? endH : startH + riser * (k + 1) })
   }
   if (profile && stairs) {
@@ -179,6 +179,29 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   }
 
   const sides = railings === 'both' ? [1, -1] : railings === 'left' ? [1] : railings === 'right' ? [-1] : []
+  // Concrete side walls (2026-11-17): 'wall' up to railing height, 'half-wall' part way with a rail on top. They follow
+  // the slope line, from the steps up, along each railed side.
+  const solidTo = look.railingStyle === 'wall' ? TOP_RAIL : look.railingStyle === 'half-wall' ? HALF_WALL : 0
+  if (solidTo > 0) {
+    for (const sign of sides) {
+      const outer = half * sign, inner = (half - WALL_T) * sign
+      for (let i = 1; i < S.length; i++) {
+        const s0 = S[i - 1], s1 = S[i]
+        if (s1 - s0 < 1e-9) continue
+        const t = top((s0 + s1) / 2)
+        const t0 = stairs ? t : top(s0), t1 = stairs ? t : top(s1)
+        const h0 = line(s0) + solidTo, h1 = line(s1) + solidTo
+        const O0 = edge(s0, outer), O1 = edge(s1, outer), I0 = edge(s0, inner), I1 = edge(s1, inner)
+        writer.quad(P(O0, t0), P(O1, t1), P(O1, h1), P(O0, h0), side)
+        writer.quad(P(I0, t0), P(I1, t1), P(I1, h1), P(I0, h0), side)
+        writer.quad(P(O0, h0), P(O1, h1), P(I1, h1), P(I0, h0), side)
+      }
+      for (const s of [0, length]) {
+        const t = top(Math.min(Math.max(s, 1e-6), length - 1e-6)), h = line(s) + solidTo
+        writer.quad(P(edge(s, outer), t), P(edge(s, inner), t), P(edge(s, inner), h), P(edge(s, outer), h), side)
+      }
+    }
+  }
   const railSet = new Set<number>([0, length, fs, fe])
   if (profile) for (const f of profile.flights) { railSet.add(f.startM); railSet.add(f.endM) }
   if (profile) for (const l of profile.landings) { railSet.add(l.startM); railSet.add(l.endM) }
@@ -241,22 +264,24 @@ export function buildRailingMesh(input: { from: { x: number; y: number }; to: { 
   const P = (xy: [number, number], z: number): V3 => [xy[0], xy[1], z]
   const solidTo = style === 'wall' ? TOP_RAIL : style === 'half-wall' ? HALF_WALL : 0
   if (solidTo > 0) {
-    for (const sign of sides) {
-      const outer = half * sign, inner = (half - WALL_T) * sign
-      for (let i = 1; i < S.length; i++) {
-        const s0 = S[i - 1], s1 = S[i]
-        if (s1 - s0 < 1e-9) continue
-        const t = top((s0 + s1) / 2)
-        const t0 = stairs ? t : top(s0), t1 = stairs ? t : top(s1)
-        const h0 = line(s0) + solidTo, h1 = line(s1) + solidTo
-        const O0 = edge(s0, outer), O1 = edge(s1, outer), I0 = edge(s0, inner), I1 = edge(s1, inner)
-        writer.quad(P(O0, t0), P(O1, t1), P(O1, h1), P(O0, h0), side)
-        writer.quad(P(I0, t0), P(I1, t1), P(I1, h1), P(I0, h0), side)
-        writer.quad(P(O0, h0), P(O1, h1), P(I1, h1), P(I0, h0), side)
-      }
-      for (const s of [0, length]) {
-        const t = top(Math.min(Math.max(s, 1e-6), length - 1e-6)), h = line(s) + solidTo
-        writer.quad(P(edge(s, outer), t), P(edge(s, inner), t), P(edge(s, inner), h), P(edge(s, outer), h), side)
-      }
-    }
+    const top = h + solidTo
+    const o0 = at(0, 0), o1 = at(1, 0), i0 = at(0, WALL_T), i1 = at(1, WALL_T)
+    writer.quad(P(o0, h), P(o1, h), P(o1, top), P(o0, top), side)
+    writer.quad(P(i0, h), P(i1, h), P(i1, top), P(i0, top), side)
+    writer.quad(P(o0, top), P(o1, top), P(i1, top), P(i0, top), side)
+    writer.quad(P(o0, h), P(i0, h), P(i0, top), P(o0, top), side)
+    writer.quad(P(o1, h), P(i1, h), P(i1, top), P(o1, top), side)
   }
+  if (solidTo < TOP_RAIL) {
+    const off = solidTo > 0 ? WALL_T / 2 : RAIL_INSET
+    const posts = Math.max(1, Math.round(length / 1.2))
+    for (let k = 0; k <= posts; k++) {
+      const [x, y] = at(k / posts, off)
+      const z0 = h + solidTo, z1 = h + TOP_RAIL
+      writer.tube([x - 0.03, y, (z0 + z1) / 2], [x + 0.03, y, (z0 + z1) / 2], 0.03, (z1 - z0) / 2, rail)
+    }
+    writer.tube(P(at(0, off), h + TOP_RAIL), P(at(1, off), h + TOP_RAIL), 0.035, 0.035, rail)
+    if (MID_RAIL > solidTo) writer.tube(P(at(0, off), h + MID_RAIL), P(at(1, off), h + MID_RAIL), 0.02, 0.02, rail)
+  }
+  return writer.data()
+}
