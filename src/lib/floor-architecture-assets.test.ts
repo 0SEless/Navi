@@ -72,3 +72,27 @@ describe('fully consumed walls', () => {
   })
 })
 
+
+describe('outside stairs stand on the ground (owner 2026-11-17: "the stair is still hollow")', () => {
+  const transformer = new CoordinateTransformer()
+  transformer.registerBuilding({ buildingId: 'b', origin: { lat: 12, lng: 122 }, rotation: 0 })
+  const box = [
+    { id: 'n', start: { x: 0, y: 10 }, end: { x: 10, y: 10 }, height: 3.5, thickness: 0.2 },
+    { id: 'e', start: { x: 10, y: 10 }, end: { x: 10, y: 0 }, height: 3.5, thickness: 0.2 },
+    { id: 's', start: { x: 10, y: 0 }, end: { x: 0, y: 0 }, height: 3.5, thickness: 0.2 },
+    { id: 'w', start: { x: 0, y: 0 }, end: { x: 0, y: 10 }, height: 3.5, thickness: 0.2 },
+  ]
+  const stairAt = (x: number) => ({ id: 's', position: { x: x + 0.6, y: 5 }, rotation: 0, height: 3.5,
+    polygon: { points: [{ x, y: 2 }, { x: x + 1.2, y: 2 }, { x: x + 1.2, y: 8 }, { x, y: 8 }] } })
+  const lowest = (mesh: Float32Array) => { let z = Infinity; for (let i = 2; i < mesh.length; i += 9) z = Math.min(z, mesh[i]); return z }
+
+  it('a stair outside the walls on an upper floor fills down to the ground', () => {
+    const data = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: box, openings: [], doors: [], stairs: [stairAt(12)], base: 3.5, ground: 0 })
+    expect(lowest(data.stairMesh!.mesh)).toBeLessThan(0.01)
+  })
+
+  it('a stair inside the walls stops at its own floor', () => {
+    const data = buildFloorArchitectureAssets({ buildingId: 'b', transformer, walls: box, openings: [], doors: [], stairs: [stairAt(4)], base: 3.5, ground: 0 })
+    expect(lowest(data.stairMesh!.mesh)).toBeGreaterThan(3)
+  })
+})

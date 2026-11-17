@@ -43,7 +43,7 @@ describe('StairClimbProperties', () => {
     expect(screen.queryByLabelText('Turn')).toBeNull()
     expect(screen.queryByLabelText('Sides')).toBeNull()
     expect([...(screen.getByLabelText('Railings') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['None', 'Left', 'Right', 'Both'])
-    expect([...(screen.getByLabelText('Railing style') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['Posts and rails', 'Bars', 'Glass', 'Solid wall'])
+    expect([...(screen.getByLabelText('Railing style') as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['Posts and rails', 'Bars', 'Glass', 'Solid wall', 'Half wall + rail'])
     cleanup()
     const { onDrawing } = show(building(1))
     fireEvent.change(screen.getByLabelText('Turn'), { target: { value: 'left' } })
@@ -138,3 +138,51 @@ describe('StairClimbProperties', () => {
   })
 })
 
+
+describe('Stair-tool stairs (no design): railings and underneath (owner 2026-11-17)', () => {
+  function toolStair(look?: Record<string, string>): Building {
+    return { id: 'b', name: 'B', floors: [0, 1].map((level) => ({ id: `f${level}`, level, label: `Floor ${level + 1}`, elevation: level * 3.5, height: 3.5 })),
+      staircases: [{ id: 's', buildingId: 'b', name: 'S', type: 'standard', accessible: false, fromLevel: 0, toLevel: 0,
+        levels: { 0: { position: { x: 0, y: 0 }, rotation: 0, polygon: { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 4 }, { x: 0, y: 4 }] }, ...(look ? { look } : {}) } } }],
+    } as unknown as Building
+  }
+
+  it('shows Railings (Both), Railing style (Half wall + rail) and Underneath (Solid) by default', () => {
+    render(<StairClimbProperties building={toolStair()} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()} onLook={vi.fn()} />)
+    expect((screen.getByLabelText('Railings') as HTMLSelectElement).value).toBe('both')
+    expect((screen.getByLabelText('Railing style') as HTMLSelectElement).value).toBe('half-wall')
+    expect((screen.getByLabelText('Underneath') as HTMLSelectElement).value).toBe('solid')
+  })
+
+  it('changes go to its look, not a design', () => {
+    const onLook = vi.fn(), onDrawing = vi.fn()
+    render(<StairClimbProperties building={toolStair({ railings: 'left' })} featureId="s" onSetTo={vi.fn()} onDrawing={onDrawing} onLook={onLook} />)
+    expect((screen.getByLabelText('Railings') as HTMLSelectElement).value).toBe('left')
+    fireEvent.change(screen.getByLabelText('Railing style'), { target: { value: 'wall' } })
+    expect(onLook).toHaveBeenCalledWith({ railingStyle: 'wall' })
+    fireEvent.change(screen.getByLabelText('Underneath'), { target: { value: 'open' } })
+    expect(onLook).toHaveBeenCalledWith({ underneath: 'open' })
+    expect(onDrawing).not.toHaveBeenCalled()
+  })
+
+  it('designed stairs can pick Half wall + rail too', () => {
+    show(building(1, 'straight'))
+    expect([...(screen.getByLabelText('Railing style') as HTMLSelectElement).options].map((o) => o.value)).toContain('half-wall')
+  })
+})
+
+describe('Platform railing on a U-Shape stair (owner 2026-11-17: "let me set it up … so i can pick a design")', () => {
+  it('offers Same as stair (default), None, Posts and rails, Half wall + rail, Solid wall; picking one changes the design', () => {
+    const { onDrawing } = show(building(1, 'ushape'))
+    const select = screen.getByLabelText('Platform railing') as HTMLSelectElement
+    expect(select.value).toBe('same')
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Same as stair', 'None', 'Posts and rails', 'Half wall + rail', 'Solid wall'])
+    fireEvent.change(select, { target: { value: 'half-wall' } })
+    expect(onDrawing).toHaveBeenCalledWith({ platformRailingStyle: 'half-wall' })
+  })
+
+  it('a Straight stair has no turn platform, so no Platform railing', () => {
+    show(building(1, 'straight'))
+    expect(screen.queryByLabelText('Platform railing')).toBeNull()
+  })
+})

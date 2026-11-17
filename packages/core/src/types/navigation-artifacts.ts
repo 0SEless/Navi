@@ -275,6 +275,8 @@ export interface FloorGeometryFeature {
   fromLevel?: number
   /** Outside stair (2026-11-17): the middle of the doorway its top platform opens into. */
   doorwayAt?: LocalCoord
+  /** A Stair-tool stair's railings and underneath (2026-11-17). */
+  look?: import('./entities').StairLook
   position: LocalCoord
   rotation: number
   /** Optional authored visual construction, retained without materializing defaults. */

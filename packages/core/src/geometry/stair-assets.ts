@@ -17,6 +17,10 @@ export interface StairAssetInput {
    * mesh leaves that side of the platform open and adds a ground landing at the stair's foot.
    */
   doorwayAt?: LocalCoord
+  /** A Stair-tool stair's railings and underneath (2026-11-17). */
+  look?: StairLevelGeometry['look']
+  /** Outside the building's walls (2026-11-17): a solid stair is filled down to the ground, not just its floor. */
+  outside?: boolean
 }
 export interface StairAssetDiagnostic { entityId: string; code: string; message: string }
 export interface StairAssetVolumes {

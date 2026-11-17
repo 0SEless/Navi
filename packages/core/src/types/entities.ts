@@ -522,6 +522,13 @@ export interface Staircase {
   links?: { below?: string; above?: string }
 }
 
+/** A stair's railings and underneath, for stairs drawn with the Stair tool (no design). */
+export interface StairLook {
+  railings?: 'none' | 'left' | 'right' | 'both'
+  railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
+  underneath?: 'open' | 'solid'
+}
+
 export interface StairLevelGeometry {
   /** 'top' (2026-11-16): this floor holds only the stair's top landing (the flight is drawn on the From floor). */
   role?: 'top'
@@ -537,9 +544,11 @@ export interface StairLevelGeometry {
     rotation?: number
     polygon?: LocalPolygon
   }
+  /** How a stair without a design looks (owner 2026-11-17): railings, their style, and what is under it. */
+  look?: StairLook
   drawing?: {                   // parametric mode; absent = freeform
     definitionId: 'stair'
-    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
+    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; platformRailingStyle?: 'same' | 'none' | 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
   }
 }
 

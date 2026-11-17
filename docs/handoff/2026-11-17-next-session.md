@@ -41,6 +41,28 @@ Presentation: Thursday 2026-11-19 (flat 2D campus, 2.5D buildings).
 - Checked on the ASU preview (commit 64, relaxed): Computer Science GF + 1F stairs now draw as a 3D switchback at the
   east end; the 2F (top floor) stair no longer climbs through the roof. Designed stairs are unchanged.
 - Known: the current floor's flat 2D stair marker (hatched) is still drawn at ground level in NAVI Web.
+
+## Stair looks (2026-11-17, late; owner: "add some design on the stairs … 50% or 70% of the railing will be
+## cemented, then there will be a railing" and "the stair is still hollow … put a block there")
+- New railing style **Half wall + rail** (`half-wall`): concrete wall 0.6 m above the slope with a metal rail on top
+  (0.95 m); **Solid wall** is now really solid to 0.95 m. Before this, mesh.ts ignored railingStyle entirely (Bars and
+  Glass still look like Posts and rails).
+- Stair-tool stairs (no design) have a `look` on their level geometry (railings / railingStyle / underneath),
+  default: both sides, half wall, solid. Panel shows Railings / Railing style / Underneath for them
+  (`ToolStairLook` in StairClimbProperties → feature.update `patch.look`); compiler publishes `look`.
+- A stair outside the floor's walls (walls not on all four sides of its centre) is filled down to the ground:
+  `buildFloorArchitectureAssets({ ground })` → `floorStairMesh(..., ground)`. NAVI Web passes the building's lowest
+  floor; the floor editor's faded floors pass 0 (the edited floor). terrain-floors.ts not changed (shared terrain work).
+- Solid stairs are closed at both ends (mesh.ts end caps): the top end used to show the hollow inside.
+- U-stair turn platform: railing on every edge no flight joins (`buildRailingMesh` in mesh.ts, `edgeJoinsSteps` in
+  floor-stair-mesh.ts). Panel **Platform railing** (U-Shape only): Same as stair (default) / None / Posts and rails /
+  Half wall + rail / Solid wall → drawing `platformRailingStyle`.
+- mesh.ts and structures/types.ts also hold someone else's uncommitted "platforms to a floor" (decks/landingFloors)
+  work; only my hunks were staged. When decks land, the half walls should open where a deck meets the flight.
+- Owner wants next (interviewed 2026-11-17): stairs drawn like a route — Stair tool: click start, click each turn
+  (= rest platform), double-click end; heights split evenly by default, a typed height per platform; a platform can
+  "open onto" a floor it is level with (doorway + route). Not started. The normal Stair tool today makes only
+  outline stairs (no Type/U, no landings); designed stairs exist only via script.
 - Machine memory: vitest workers time out when the dev server and tests run together and memory is low; stop the
   server (port 3001) for test runs. Don't put temp test files under packages/*/src or src/ while the server runs.
 

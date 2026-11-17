@@ -1240,6 +1240,11 @@ export const featureUpdateHandler: CommandHandler = {
     if (patch.position) levelGeom.position = { ...(patch.position as LocalCoord) }
     if (patch.rotation != null) levelGeom.rotation = patch.rotation as number
     if (patch.landing) levelGeom.landing = { ...(patch.landing as any) }
+    // A Stair-tool stair's railings and underneath (2026-11-17): merged into its look, never turned into a design.
+    if (patch.look && featureType === 'staircase') {
+      const geom = levelGeom as import('@navi/core').StairLevelGeometry
+      geom.look = { ...(geom.look ?? {}), ...(patch.look as import('@navi/core').StairLook) }
+    }
 
 
     // A drawn stair's outline is worked out from its position too (2026-11-16): moving it must move the outline.

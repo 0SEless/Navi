@@ -1028,6 +1028,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
           rotation: geom.rotation ?? 0,
           ...(height !== undefined ? { height } : {}),
           ...(geom.drawing ? { drawing: structuredClone(geom.drawing) } : {}),
+          ...(geom.look ? { look: structuredClone(geom.look) } : {}),
           ...(geom.landing ? { landing: {
             ...structuredClone(geom.landing),
             position: { x: geom.landing.position.x + offsetFor(b, at).x, y: geom.landing.position.y + offsetFor(b, at).y },

@@ -12,14 +12,18 @@ const field: React.CSSProperties = {
 const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }
 const m = (n: number) => n.toFixed(2)
 
-type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
+type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
+type LookPatch = { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
-export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }: {
+export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, onLook }: {
   building: Building
   featureId: string
   /** Climb to this floor level (the stair's own floor = no climb). */
   onSetTo(level: number): void
   onDrawing(patch: DrawingPatch): void
+  /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
+  onLook?(patch: LookPatch): void
 }) {
   const stair = building.staircases?.find((s) => s.id === featureId)
   if (!stair) return null
@@ -99,12 +103,28 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing }
                 <option value="bars">Bars</option>
                 <option value="glass">Glass</option>
                 <option value="wall">Solid wall</option>
+                <option value="half-wall">Half wall + rail</option>
               </select>
             </div>
+            {props.preset === 'ushape' && (
+              <div>
+                <label style={label} htmlFor={`stair-platform-railing-${featureId}`}>PLATFORM RAILING</label>
+                <select id={`stair-platform-railing-${featureId}`} aria-label="Platform railing" style={field}
+                  value={(p as { platformRailingStyle?: string }).platformRailingStyle ?? 'same'}
+                  onChange={(event) => onDrawing({ platformRailingStyle: event.target.value as DrawingPatch['platformRailingStyle'] })}>
+                  <option value="same">Same as stair</option>
+                  <option value="none">None</option>
+                  <option value="posts-rails">Posts and rails</option>
+                  <option value="half-wall">Half wall + rail</option>
+                  <option value="wall">Solid wall</option>
+                </select>
+              </div>
+            )}
           </>
         )
       })()}
       {props && <StairShapeControls featureId={featureId} props={props as never} onDrawing={onDrawing} />}
+      {!props && flight && onLook && <ToolStairLook featureId={featureId} look={flight.look} onLook={onLook} />}
     </div>
   )
 }
@@ -211,3 +231,40 @@ function OptionalNumberField({ id, labelText, value, onApply }: { id: string; la
   )
 }
 
+/**
+ * A stair drawn with the Stair tool (no design; ASU's stairs, owner 2026-11-17): Railings, their style and Underneath.
+ * Defaults match how it is drawn: a half wall with a rail on both sides, solid underneath.
+ */
+function ToolStairLook({ featureId, look, onLook }: { featureId: string; look?: LookPatch; onLook(patch: LookPatch): void }) {
+  return (
+    <>
+      <div>
+        <label style={label} htmlFor={`stair-railings-${featureId}`}>RAILINGS</label>
+        <select id={`stair-railings-${featureId}`} aria-label="Railings" style={field} value={look?.railings ?? 'both'}
+          onChange={(event) => onLook({ railings: event.target.value as LookPatch['railings'] })}>
+          <option value="none">None</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="both">Both</option>
+        </select>
+      </div>
+      <div>
+        <label style={label} htmlFor={`stair-railing-style-${featureId}`}>RAILING STYLE</label>
+        <select id={`stair-railing-style-${featureId}`} aria-label="Railing style" style={field} value={look?.railingStyle ?? 'half-wall'}
+          onChange={(event) => onLook({ railingStyle: event.target.value as RailingStyle })}>
+          <option value="half-wall">Half wall + rail</option>
+          <option value="wall">Solid wall</option>
+          <option value="posts-rails">Posts and rails</option>
+        </select>
+      </div>
+      <div>
+        <label style={label} htmlFor={`stair-underneath-${featureId}`}>UNDERNEATH</label>
+        <select id={`stair-underneath-${featureId}`} aria-label="Underneath" style={field} value={look?.underneath ?? 'solid'}
+          onChange={(event) => onLook({ underneath: event.target.value as 'open' | 'solid' })}>
+          <option value="solid">Solid</option>
+          <option value="open">Open</option>
+        </select>
+      </div>
+    </>
+  )
+}

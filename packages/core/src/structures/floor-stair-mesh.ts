@@ -1,6 +1,6 @@
 import { buildStairAssetVolumes, type StairAssetInput } from '../geometry/stair-assets'
 import { BUILT_IN_MATERIALS, BUILT_IN_PRESETS } from './materials'
-import { buildStructureMesh } from './mesh'
+import { buildRailingMesh, buildStructureMesh, type RailingStyle } from './mesh'
 import { structurePath } from './path'
 
 type XY = { x: number; y: number }
@@ -23,7 +23,7 @@ const dist = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1])
  * `place` turns building-local metres into the mesh layer's metres (east/north around its origin); heights are
  * absolute metres, standing on `base` (the floor's height). Interleaved 9 floats per vertex (position, normal, colour).
  */
-export function floorStairMesh(inputs: readonly StairAssetInput[], base: number, place: (p: XY) => XY): Float32Array {
+export function floorStairMesh(inputs: readonly StairAssetInput[], base: number, place: (p: XY) => XY, ground = base): Float32Array {
   const parts: Float32Array[] = []
   for (const input of inputs) {
     const props = input.drawing?.properties
@@ -33,11 +33,15 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     const steps = solids.filter((f) => f.properties?.partType === 'step')
     if (steps.length === 0) continue
     // Railings chosen per stair (owner 2026-11-17: which side, which style); older stairs keep their Sides look.
-    const chosen = (props as { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' } | undefined)
-    const style = chosen?.railingStyle ?? (sides === 'wall' ? 'wall' : 'posts-rails')
+    // A Stair-tool stair (no design) has its own look, and by default a half wall with a rail on both sides.
+    const chosen = (props ?? input.look) as { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid' } | undefined
+    const style = chosen?.railingStyle ?? (props ? (sides === 'wall' ? 'wall' : 'posts-rails') : 'half-wall')
     const look = { ...PLAIN_STAIR.look, railingStyle: style }
-    const railings = chosen?.railings ?? (sides === 'open' ? 'none' as const : 'both' as const)
-    const sideChosen = chosen?.railings !== undefined
+    const railings = chosen?.railings ?? (props ? (sides === 'open' ? 'none' as const : 'both' as const) : 'both' as const)
+    const sideChosen = chosen?.railings !== undefined || !props
+    const underneath = chosen?.underneath ?? 'solid'
+    // An outside stair (2026-11-17: "the stair is still hollow") is filled down to the ground, not just to its floor.
+    const floorAt = input.outside ? Math.min(ground, base) : base
     const n1 = props?.preset === 'ushape' ? Math.ceil(steps.length / 2) : steps.length
     const flights = [steps.slice(0, n1), steps.slice(n1)].filter((f) => f.length > 0)
     for (const flight of flights) {
@@ -55,7 +59,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       const straight = props?.preset !== 'ushape'
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h: startH } as never, { ...b, h: endH } as never), startH, endH, form: 'stairs', width: dist(first[0], first[1]),
-        underneath: shape?.underneath ?? 'solid', railings, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        underneath, railings, groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
         ...(straight && shape?.landings?.length ? { landings: shape.landings.filter((t) => t > 0 && t < 1) } : {}),
         ...(straight && shape?.landingLengthM !== undefined ? { landingLengthM: shape.landingLengthM } : {}),
         // Landing heights are stored above the stair's own floor; the builder wants absolute heights.
@@ -79,14 +83,32 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       }
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width: dist(ring[0], ring[1]),
-        underneath: 'solid', railings: deckRails, groundAt: () => base, look, materials: BUILT_IN_MATERIALS,
+        underneath: 'solid', railings: deckRails, groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
       }))
       // Landings and top platforms of a solid stair stand on a closed block down to its floor, inside or outside
       // (owner 2026-11-17: "the stair has hollow" / "why is it not applied in the indoor or even other stairs?").
-      const under = (props as { underneath?: 'open' | 'solid' } | undefined)?.underneath ?? 'solid'
+      const under = underneath
       if (under === 'solid') {
         const corners = ring.slice(0, 4).map((p) => place({ x: p[0], y: p[1] }))
-        if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, base, h, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
+        if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, floorAt, h, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
+      }
+      // The turn platform (owner 2026-11-17 sketch): a railing on every edge no flight joins, in the Platform railing
+      // style (default: the stair's own railing style; none when the stair has no railings).
+      if (flat.properties?.partType === 'landing') {
+        const picked = (props as { platformRailingStyle?: PlatformRailingStyle } | undefined)?.platformRailingStyle
+        const platformStyle = picked && picked !== 'same' ? picked : railings === 'none' ? 'none' : style
+        if (platformStyle !== 'none') {
+          const corners = ring.slice(0, 4)
+          const cx = corners.reduce((n, p) => n + p[0], 0) / 4, cy = corners.reduce((n, p) => n + p[1], 0) / 4
+          for (let i = 0; i < 4; i++) {
+            const e0 = corners[i], e1 = corners[(i + 1) % 4]
+            if (edgeJoinsSteps(e0, e1, steps.map((f) => f.geometry.coordinates[0] as Ring))) continue
+            const from = place({ x: e0[0], y: e0[1] }), to = place({ x: e1[0], y: e1[1] }), centre = place({ x: cx, y: cy })
+            const m = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+            if (![from.x, from.y, to.x, to.y, centre.x, centre.y].every(Number.isFinite)) continue
+            parts.push(buildRailingMesh({ from, to, inward: { x: centre.x - m.x, y: centre.y - m.y }, h, style: platformStyle, look, materials: BUILT_IN_MATERIALS }))
+          }
+        }
       }
     }
     // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
@@ -109,6 +131,25 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
   let offset = 0
   for (const p of parts) { out.set(p, offset); offset += p.length }
   return out
+}
+
+type PlatformRailingStyle = 'same' | 'none' | RailingStyle
+
+/** Does a flight join this platform edge? (any of five points along it touches a step, within 5 cm) */
+function edgeJoinsSteps(a: number[], b: number[], steps: Ring[]): boolean {
+  const near = (p: number[], ring: Ring) => {
+    let best = Infinity
+    for (let i = 0; i < ring.length - 1; i++) {
+      const s = ring[i], e = ring[i + 1], dx = e[0] - s[0], dy = e[1] - s[1], len = dx * dx + dy * dy
+      const t = len > 0 ? Math.max(0, Math.min(1, ((p[0] - s[0]) * dx + (p[1] - s[1]) * dy) / len)) : 0
+      best = Math.min(best, Math.hypot(p[0] - (s[0] + t * dx), p[1] - (s[1] + t * dy)))
+    }
+    return best < 0.05
+  }
+  return [0.15, 0.3, 0.5, 0.7, 0.85].some((t) => {
+    const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    return steps.some((ring) => near(p, ring))
+  })
 }
 
 /** A closed block (four sides and a top) on a quad footprint, from `low` to `high` metres; 9 floats per vertex. */

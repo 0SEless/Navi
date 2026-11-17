@@ -37,6 +37,8 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     const assets = buildFloorArchitectureAssets({
       buildingId: building.id, transformer, walls: floor.walls ?? [], openings: floor.openings ?? [], doors: collectFloorDoors(floor),
       windows: floor.windows ?? [], stairs: flights, stairTops: tops, base,
+      // Outside stairs on the faded floors reach down to the floor being edited (drawn at height 0).
+      ground: 0,
     })
     const tag = (collection: Polygons): GeoJSON.Feature<GeoJSON.Polygon>[] => collection.features.map((f) => ({ ...f, properties: { ...f.properties, floorLevel: floor.level } }))
     out.walls.features.push(...tag(assets.walls))

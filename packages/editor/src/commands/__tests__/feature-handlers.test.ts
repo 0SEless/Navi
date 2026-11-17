@@ -592,3 +592,22 @@ describe('stair inspector dimensions', () => {
     expect(doc.buildings[0].staircases![0].levels[0]).not.toHaveProperty('height')
   })
 })
+
+describe('a Stair-tool stair\'s look (owner 2026-11-17: railings on ASU stairs)', () => {
+  it('feature.update saves railings, style and underneath on a stair without a design, and undo removes them', () => {
+    const doc = createTestDoc()
+    const created = featureCreateHandler.execute(doc, { buildingId: 'bld-1', featureType: 'staircase', floor: 0, position: { x: 5, y: 5 },
+      polygon: { points: [{ x: 4.4, y: 2 }, { x: 5.6, y: 2 }, { x: 5.6, y: 8 }, { x: 4.4, y: 8 }] } })
+    const featureId = created.entityId!
+    const update = { featureId, level: 0, patch: { look: { railings: 'left', railingStyle: 'half-wall' } } }
+    const result = featureUpdateHandler.execute(doc, update)
+    expect(result.success).toBe(true)
+    expect(doc.buildings[0].staircases![0].levels[0].look).toEqual({ railings: 'left', railingStyle: 'half-wall' })
+    featureUpdateHandler.execute(doc, { featureId, level: 0, patch: { look: { underneath: 'open' } } })
+    expect(doc.buildings[0].staircases![0].levels[0].look).toEqual({ railings: 'left', railingStyle: 'half-wall', underneath: 'open' })
+    expect(doc.buildings[0].staircases![0].levels[0].drawing).toBeUndefined()
+    const inverse = featureUpdateHandler.inverse!(update, result)!
+    featureUpdateHandler.execute(doc, inverse.payload)
+    expect(doc.buildings[0].staircases![0].levels[0].look).toBeUndefined()
+  })
+})

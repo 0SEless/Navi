@@ -876,6 +876,10 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                         const st = building.staircases?.find((x) => x.id === featureId)
                         if (st) dispatcher.execute({ id: 'feature.update', label: 'Edit stair', payload: { featureId, level: stairFlightFloor(st), patch: { drawing: { properties } } } })
                       }}
+                      onLook={(look) => {
+                        const st = building.staircases?.find((x) => x.id === featureId)
+                        if (st) dispatcher.execute({ id: 'feature.update', label: 'Edit stair railings', payload: { featureId, level: stairFlightFloor(st), patch: { look } } })
+                      }}
                     />
                   )}
                   {!climbing && <FeatureLinks

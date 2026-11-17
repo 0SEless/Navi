@@ -31,6 +31,10 @@ const MID_RAIL = 0.45
 const RAIL_INSET = 0.06
 
 function rgb(hex: string): V3 {
+/** Half wall (owner 2026-11-17: "50% or 70% of the railing will be cemented, then there will be a railing"). */
+const HALF_WALL = 0.6
+/** Thickness of a concrete side wall, metres. */
+const WALL_T = 0.15
   const value = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1] ?? '999999'
   return [parseInt(value.slice(0, 2), 16) / 255, parseInt(value.slice(2, 4), 16) / 255, parseInt(value.slice(4, 6), 16) / 255]
 }
@@ -150,6 +154,16 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
 
   const risers: Array<{ s: number; from: number; to: number }> = []
   if (stairs && steps > 0) {
+  // A solid structure is closed at both ends, from the ground up to its surface there (owner 2026-11-17: "you can
+  // see the inside of the stair"); otherwise the top end of a flight shows its hollow inside.
+  if (underneath === 'solid') {
+    for (const s of [0, length]) {
+      const surface = top(Math.min(Math.max(s, 1e-6), length - 1e-6))
+      const l = edge(s, half), r = edge(s, -half)
+      writer.quad(P(l, bottom(l, s)), P(r, bottom(r, s)), P(r, surface), P(l, surface), side)
+    }
+  }
+
     for (let k = 0; k <= steps; k++) risers.push({ s: fs + k * tr, from: startH + riser * k, to: k === steps ? endH : startH + riser * (k + 1) })
   }
   if (profile && stairs) {
@@ -170,13 +184,14 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   if (profile) for (const l of profile.landings) { railSet.add(l.startM); railSet.add(l.endM) }
   for (let s = 1; s < length; s += 1) railSet.add(s)
   const railMarks = [...railSet].filter((s) => s >= 0 && s <= length).sort((a, b) => a - b)
-  for (const sign of sides) {
-    const offset = (half - RAIL_INSET) * sign
+  // A solid wall is the railing; a half wall carries the metal rail on its top, centred on it.
+  for (const sign of solidTo >= TOP_RAIL ? [] : sides) {
+    const offset = (solidTo > 0 ? half - WALL_T / 2 : half - RAIL_INSET) * sign
     const posts = Math.max(1, Math.round(length / 1.2))
     for (let k = 0; k <= posts; k++) {
       const s = Math.min(length, (k * length) / posts)
       const [x, y] = edge(s, offset)
-      const z0 = top(Math.min(s, length - 1e-6))
+      const z0 = solidTo > 0 ? line(s) + solidTo : top(Math.min(s, length - 1e-6))
       const z1 = line(s) + TOP_RAIL
       writer.tube([x - 0.03, y, (z0 + z1) / 2], [x + 0.03, y, (z0 + z1) / 2], 0.03, Math.max(0, (z1 - z0) / 2), rail)
     }
@@ -187,7 +202,7 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
       const a = edge(s0, offset)
       const b = edge(s1, offset)
       writer.tube(P(a, line(s0) + TOP_RAIL), P(b, line(s1) + TOP_RAIL), 0.035, 0.035, rail)
-      writer.tube(P(a, line(s0) + MID_RAIL), P(b, line(s1) + MID_RAIL), 0.02, 0.02, rail)
+      if (MID_RAIL > solidTo) writer.tube(P(a, line(s0) + MID_RAIL), P(b, line(s1) + MID_RAIL), 0.02, 0.02, rail)
     }
   }
 
@@ -205,3 +220,43 @@ function profileLine(profile: StructureProfile, s: number): number {
   }
   return h
 }
+
+export type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
+
+/**
+ * A level railing along one straight edge of a platform (2026-11-17: the U-stair turn platform, "rail on all open
+ * edges"): a solid wall, a half wall with the rail on top, or posts and rails. `inward` points into the platform;
+ * `h` is the platform's surface height. Same look and sizes as the stair's own side railings.
+ */
+export function buildRailingMesh(input: { from: { x: number; y: number }; to: { x: number; y: number }; inward: { x: number; y: number }; h: number; style: RailingStyle; look: StructurePreset['look']; materials: Record<string, StructureMaterial> }): Float32Array {
+  const { from, to, inward, h, style, look, materials } = input
+  const writer = meshWriter()
+  const length = Math.hypot(to.x - from.x, to.y - from.y)
+  const n = Math.hypot(inward.x, inward.y) || 1
+  const ix = inward.x / n, iy = inward.y / n
+  if (!(length > 1e-6)) return writer.data()
+  const side = rgb(materials[look.side]?.color ?? '#999999')
+  const rail = rgb(materials[look.railing]?.color ?? '#999999')
+  const at = (t: number, off: number): [number, number] => [from.x + (to.x - from.x) * t + ix * off, from.y + (to.y - from.y) * t + iy * off]
+  const P = (xy: [number, number], z: number): V3 => [xy[0], xy[1], z]
+  const solidTo = style === 'wall' ? TOP_RAIL : style === 'half-wall' ? HALF_WALL : 0
+  if (solidTo > 0) {
+    for (const sign of sides) {
+      const outer = half * sign, inner = (half - WALL_T) * sign
+      for (let i = 1; i < S.length; i++) {
+        const s0 = S[i - 1], s1 = S[i]
+        if (s1 - s0 < 1e-9) continue
+        const t = top((s0 + s1) / 2)
+        const t0 = stairs ? t : top(s0), t1 = stairs ? t : top(s1)
+        const h0 = line(s0) + solidTo, h1 = line(s1) + solidTo
+        const O0 = edge(s0, outer), O1 = edge(s1, outer), I0 = edge(s0, inner), I1 = edge(s1, inner)
+        writer.quad(P(O0, t0), P(O1, t1), P(O1, h1), P(O0, h0), side)
+        writer.quad(P(I0, t0), P(I1, t1), P(I1, h1), P(I0, h0), side)
+        writer.quad(P(O0, h0), P(O1, h1), P(I1, h1), P(I0, h0), side)
+      }
+      for (const s of [0, length]) {
+        const t = top(Math.min(Math.max(s, 1e-6), length - 1e-6)), h = line(s) + solidTo
+        writer.quad(P(edge(s, outer), t), P(edge(s, inner), t), P(edge(s, inner), h), P(edge(s, outer), h), side)
+      }
+    }
+  }

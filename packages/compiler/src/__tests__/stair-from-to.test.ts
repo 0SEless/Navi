@@ -108,3 +108,14 @@ describe('stairs drawn with the Stair tool, one per floor (ASU, owner 2026-11-17
     expect(height(2)).toBe(0)
   })
 })
+
+describe('a Stair-tool stair\'s look is published (2026-11-17)', () => {
+  it('NAVI Web gets its railings and style', () => {
+    const doc = campus()
+    const outline = { points: [{ x: 0, y: 0 }, { x: 1.2, y: 0 }, { x: 1.2, y: 4 }, { x: 0, y: 4 }] }
+    ;(doc.buildings[0] as unknown as { staircases: unknown[] }).staircases = [{ id: 'sl', buildingId: 'b', name: 'Staircase', type: 'standard', accessible: false, fromLevel: 0, toLevel: 0,
+      levels: { 0: { position: { x: 0.6, y: 2 }, rotation: 0, polygon: outline, look: { railings: 'right', railingStyle: 'wall' } } } }]
+    const floors = new CampusCompiler().compileV2(doc).artifacts!.floorGeometry!.buildings[0]!.floors
+    expect(floors.find((f) => f.level === 0)!.staircases[0].look).toEqual({ railings: 'right', railingStyle: 'wall' })
+  })
+})

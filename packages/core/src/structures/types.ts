@@ -59,6 +59,6 @@ export interface StructurePreset {
     side: string
     under: string
     railing: string
-    railingStyle: 'posts-rails' | 'bars' | 'glass' | 'wall'
+    railingStyle: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
   }
 }

@@ -29,6 +29,24 @@ export interface FloorArchitectureAssetInput {
   transformer: Pick<CoordinateTransformer, 'buildingLocalToWorld'>
   buildingId: string
   base?: number
+  /** Height of the ground under the building, same frame as `base` (default `base`): outside stairs fill down to it. */
+  ground?: number
+}
+
+type XY = { x: number; y: number }
+/** Walls on all four sides of a point (building-local): it is inside the building, not outside its walls. */
+function surroundedByWalls(p: XY, walls: readonly { start: XY; end: XY }[]): boolean {
+  const hit = (dx: number, dy: number) => walls.some(({ start: a, end: b }) => {
+    const ex = b.x - a.x, ey = b.y - a.y, den = dx * ey - dy * ex
+    if (Math.abs(den) < 1e-12) return false
+    const t = ((a.x - p.x) * ey - (a.y - p.y) * ex) / den, u = ((a.x - p.x) * dy - (a.y - p.y) * dx) / den
+    return t > 0 && u >= 0 && u <= 1
+  })
+  return hit(1, 0) && hit(-1, 0) && hit(0, 1) && hit(0, -1)
+}
+const stairCentre = (s: StairAssetInput): XY => {
+  const pts = s.polygon?.points
+  return pts && pts.length >= 3 ? { x: pts.reduce((n, q) => n + q.x, 0) / pts.length, y: pts.reduce((n, q) => n + q.y, 0) / pts.length } : s.position
 }
 
 /** Generate physical solids in local meters, then project every vertex exactly once. */
@@ -87,10 +105,12 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   // The smooth mesh is decoration: if it cannot be built, the stair blocks are drawn instead.
   let mesh: Float32Array | null = null
   try {
-    mesh = origin && grid ? floorStairMesh(stairs, base, (p) => {
+    // A stair outside the floor's walls is filled down to the ground, not just to its floor (2026-11-17).
+    const placed = walls.length ? stairs.map((s) => (surroundedByWalls(stairCentre(s), walls) ? s : { ...s, outside: true })) : stairs
+    mesh = origin && grid ? floorStairMesh(placed, base, (p) => {
       const w = transformer.buildingLocalToWorld(p, buildingId)
       return w ? toLocal(grid, w) : { x: NaN, y: NaN }
-    }) : null
+    }, input.ground ?? base) : null
   } catch { mesh = null }
   const stairMesh = origin && mesh && mesh.length > 0 && mesh.every(Number.isFinite) ? { origin: { lat: origin.lat, lng: origin.lng }, mesh } : null
   return { ...result, stairMesh, modeledIds: { walls: handledWalls, doors: ids([result.frames, result.panels, result.glass], 'doorId'), openings: ids([result.frames, result.panels, result.glass], 'openingId'), stairs: ids([result.stairs], 'featureId') } }

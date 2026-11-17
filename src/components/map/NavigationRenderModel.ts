@@ -362,6 +362,8 @@ function buildIndoorFromFloorGeometry(
         stairs: fgFloor.staircases.filter(stair => stair.role !== 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })),
         stairTops: fgFloor.staircases.filter(stair => stair.role === 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height, fromLevel: stair.fromLevel ?? floorLevel - 1 })),
         base: elevation,
+        // Outside stairs stand on the ground under the building (its lowest floor), not on their own floor.
+        ground: Math.min(...fgBuilding.floors.map(f => (Number.isFinite(f.elevation) ? f.elevation : 0))),
       }) })
 
       // Rooms
