@@ -116,9 +116,9 @@ export default function SearchPage() {
         </div>
       ) : !campus || campusLoading ? (
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="h-10 w-full animate-pulse rounded-xl bg-[var(--navi-border)]/60" />
-          <div className="h-24 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
-          <div className="h-24 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+          <div className="h-10 w-full animate-pulse rounded-xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+          <div className="h-24 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
+          <div className="h-24 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">

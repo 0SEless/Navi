@@ -126,10 +126,10 @@ export function ProfileDashboard() {
   if (!hydrated) {
     return (
       <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-4 p-4 sm:p-6">
-        <div className="h-24 w-full animate-pulse rounded-3xl bg-[var(--navi-border)]/60" />
+        <div className="h-24 w-full animate-pulse rounded-3xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="h-56 rounded-3xl bg-[var(--navi-border)]/40" />
-          <div className="h-56 rounded-3xl bg-[var(--navi-border)]/40" />
+          <div className="h-56 rounded-3xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
+          <div className="h-56 rounded-3xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
         </div>
       </div>
     )
@@ -180,7 +180,7 @@ export function ProfileDashboard() {
               </div>
             </div>
             {!isSignedIn && (
-              <div className="border-t border-[var(--navi-border)] bg-[var(--navi-primary-light)]/60 px-5 py-4 sm:px-6">
+              <div className="border-t border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-primary-light)_60%,transparent)] px-5 py-4 sm:px-6">
                 <button
                   type="button"
                   onClick={() => router.push('/login')}
@@ -208,7 +208,7 @@ export function ProfileDashboard() {
             <button
               type="button"
               onClick={() => router.push('/map/maps')}
-              className="mt-4 flex min-h-11 w-full items-center justify-between rounded-xl border border-[var(--navi-primary)]/25 px-4 py-2.5 text-left text-sm font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)]"
+              className="mt-4 flex min-h-11 w-full items-center justify-between rounded-xl border border-[color:color-mix(in_srgb,var(--navi-primary)_25%,transparent)] px-4 py-2.5 text-left text-sm font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)]"
             >
               <span>Change campus</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -363,7 +363,7 @@ export function ProfileDashboard() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--navi-error)]/30 bg-[var(--navi-error)]/5 px-4 py-2.5 text-sm font-semibold text-[var(--navi-error)] transition-colors hover:bg-[var(--navi-error)]/10"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--navi-error)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--navi-error)_5%,transparent)] px-4 py-2.5 text-sm font-semibold text-[var(--navi-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--navi-error)_10%,transparent)]"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 Sign Out

@@ -26,8 +26,8 @@ export default function ExplorePage() {
   return (
     <Suspense fallback={
       <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading campus map" role="status">
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
-        <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+        <div className="h-12 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+        <div className="flex-1 animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
       </div>
     }>
       <ExplorePageContent />
@@ -115,8 +115,8 @@ function ExplorePageContent() {
   if (!campus || campusLoading) {
     return (
       <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading campus map" role="status">
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
-        <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+        <div className="h-12 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+        <div className="flex-1 animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
       </div>
     )
   }

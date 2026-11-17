@@ -1,4 +1,4 @@
-import {collectFloorDoors} from '@navi/core'
+import {collectFloorDoors, stairFootPosition} from '@navi/core'
 import {isRouteNodeReferencedByAccessRelationships} from './routing-relationship-cleanup'
 import { recordChange } from '@navi/core'
 import type { Building, CampusDocument, Floor } from '@navi/core'
@@ -142,4 +142,82 @@ export const floorConnectionsApplyHandler:CommandHandler={
  }),
  inverse:(payload,result)=>inverse('floor.connections.apply',payload,result),
   redo:(payload,result)=>redo('floor.connections.apply',payload,result),
+}
+
+/** The entrance that stands at a stair's foot (owner 2026-11-18: a stair can connect to the outdoor route network). */
+export function stairFootEntranceId(stairId: string): string {
+  return `stair-foot-${stairId}`
+}
+
+/** The stair's own route point on this floor: its route connection, else a stair/transition point on or next to it. */
+function stairRouteNodeId(floor: Floor, stair: NonNullable<Building['staircases']>[number]): string | undefined {
+  const nodes = floor.routeNetwork?.nodes ?? []
+  const level = stair.levels?.[floor.level]
+  const linked = [level?.routeConnection?.targetRouteNodeId, level?.routeConnection?.anchorNodeId].find((id) => id && nodes.some((n) => n.id === id))
+  if (linked) return linked
+  const ring = level?.polygon?.points ?? []
+  const near = (p: { x: number; y: number }) => {
+    if (ring.length < 3) return Math.hypot(p.x - (level?.position.x ?? Infinity), p.y - (level?.position.y ?? Infinity)) <= 2
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i], b = ring[j]
+      if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside
+    }
+    if (inside) return true
+    return ring.some((a, i) => {
+      const b = ring[(i + 1) % ring.length], dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy
+      const t = l > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l)) : 0
+      return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)) <= 2
+    })
+  }
+  return nodes.find((n) => ['transition', 'stairs', 'stair', 'staircase'].includes(String(n.type)) && near(n.position))?.id
+}
+
+export const stairFootEnsureHandler: CommandHandler = {
+  id: 'stair.foot.ensure',
+  execute: (document, payload) => mutate(document, payload, (draft, floor) => {
+    const building = draft.buildings.find((b) => b.id === payload.buildingId)!
+    const stair = building.staircases?.find((s) => s.id === payload.featureId)
+    if (!stair) return { success: false, error: 'Stair not found.' }
+    const foot = stairFootPosition(stair, building.floors)
+    if (!foot) return { success: false, error: 'This stair has no steps to stand at.' }
+    const id = stairFootEntranceId(stair.id)
+    const existing = floor.entrances.find((e) => e.id === id)
+    if (existing) existing.position = { ...foot }
+    else floor.entrances.push({ id, label: `${stair.name || 'Stair'} (foot)`, position: { ...foot }, level: floor.level, type: 'side', hasQR: false, hasPanorama: false })
+    const port = ensureEntranceRoutePort(floor, id)
+    const portNode = floor.routeNetwork!.nodes.find((n) => n.id === port)!
+    portNode.position = { ...foot }
+    // Walk from the foot onto the stair, so a trip can go road -> stair -> upper floor.
+    const stairNode = stairRouteNodeId(floor, stair)
+    const network = floor.routeNetwork!
+    if (stairNode && !network.edges.some((e) => (e.from === port && e.to === stairNode) || (e.from === stairNode && e.to === port))) {
+      const target = network.nodes.find((n) => n.id === stairNode)!
+      network.edges.push({ id: genId('route-edge'), from: port, to: stairNode, type: 'walk', distance: Math.hypot(target.position.x - foot.x, target.position.y - foot.y) } as never)
+    }
+    return { success: true, entityId: id }
+  }),
+  inverse: (payload, result) => inverse('stair.foot.ensure', payload, result),
+  redo: (payload, result) => redo('stair.foot.ensure', payload, result),
+}
+
+export const stairFootRemoveHandler: CommandHandler = {
+  id: 'stair.foot.remove',
+  execute: (document, payload) => mutate(document, payload, (_draft, floor) => {
+    const id = stairFootEntranceId(payload.featureId as string)
+    const entrance = floor.entrances.find((e) => e.id === id)
+    const port = entrance?.routeNodeId ?? floor.entranceAccess?.find((a) => a.entranceId === id)?.indoorRouteNodeId
+    floor.entrances = floor.entrances.filter((e) => e.id !== id)
+    if (floor.entranceAccess) {
+      floor.entranceAccess = floor.entranceAccess.filter((a) => a.entranceId !== id)
+      if (floor.entranceAccess.length === 0) delete floor.entranceAccess
+    }
+    if (port && floor.routeNetwork) {
+      floor.routeNetwork.nodes = floor.routeNetwork.nodes.filter((n) => n.id !== port)
+      floor.routeNetwork.edges = floor.routeNetwork.edges.filter((e) => e.from !== port && e.to !== port)
+    }
+    return { success: true, entityId: id }
+  }),
+  inverse: (payload, result) => inverse('stair.foot.remove', payload, result),
+  redo: (payload, result) => redo('stair.foot.remove', payload, result),
 }

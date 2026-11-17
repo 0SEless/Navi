@@ -66,6 +66,24 @@ Presentation: Thursday 2026-11-19 (flat 2D campus, 2.5D buildings).
 - Machine memory: vitest workers time out when the dev server and tests run together and memory is low; stop the
   server (port 3001) for test runs. Don't put temp test files under packages/*/src or src/ while the server runs.
 
+## User app review fixes (2026-11-18; tested in the student app with ASU via NAVI_WEB_LOCAL_PREVIEW_CAMPUSES)
+- Real names: destination/start use the place name (src/lib/route-directions.ts `readablePlaceLabel`), never route
+  point ids like "N-112".
+- Readable directions: `describeDirections` groups route points into walk / turn left-right / enter-exit /
+  stairs-elevator / arrive with rounded distances (ComDev: 28 steps -> 4). Entering a building onto an upper floor
+  (hillside) is "enter", not stairs. Next/Back jump a whole direction; route preview "All steps" uses them too.
+- Navigate layout: active card compact and at the bottom (one status line, no raw type badge, no legend), map buttons
+  move up during navigation; recent destinations hide once a destination is set; readable "No route" card with a hint.
+- See-through panels fixed: Tailwind 3 cannot do `bg-[var(--navi-x)]/95` (no CSS at all); replaced with
+  `bg-[color:color-mix(in_srgb,var(--navi-x)_95%,transparent)]` in 10 user-app files.
+- Camera faces the building's front: `focusCamera(..., front)` + `buildingFront(nodes, id)` (main/front-named
+  entrance, else lowest floor). Search results now fly to the building too (ExploreMap reacts to a picked building
+  with its card open; zoom-selection does not fly).
+- Hidden roads: `siteRoadSurfaces` skips roads with displayMode "navigation-only" (ASU has 5).
+- Still open from the review: campus is forgotten on page refresh (blank Explore); many ASU rooms are named just
+  "Room"; map does not follow the current step during navigation; Home screen polish; ASU Computer Science upper
+  floors not connected to routes (data). No POI exists at the north road end near the Tourism Building (owner adds).
+
 ## How to run locally
 - Worktree `D:\CODEme\Navi\.navi-worktrees\navi-save-v2`. Start the server ONLY with
   `scripts\save-v2\import-data\start-savev2-local.ps1` (port 3001; it sets the Save v2 settings itself — there is

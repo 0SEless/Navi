@@ -13,7 +13,6 @@ import { FloorArchitectureLayer, selectFloorArchitecture, floorArchitectureFallb
 import { RaisedRoomLabels } from '@/components/map/layers/RaisedRoomLabels'
 import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
-import { EntranceLayer } from '@/components/map/layers/EntranceLayer'
 import { POILayer } from '@/components/map/layers/POILayer'
 import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
 import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
@@ -22,7 +21,8 @@ import { SiteLayers } from '@/components/map/site/SiteLayers'
 import { flatSite } from '@/components/map/site/flat-site'
 import { TerrainLookSwitch } from '@/components/map/TerrainLookSwitch'
 import { autoIndoorDecision } from '@/lib/auto-indoor'
-import { focusCamera } from '@/lib/focus-camera'
+import { buildingFront, focusCamera } from '@/lib/focus-camera'
+import { openingBearing } from '@/lib/opening-view'
 import { visitorPois, type PublishedPoi } from '@/lib/visitor-pois'
 import { DEFAULT_TERRAIN_LOOK, createSiteGround } from '@navi/core'
 import { FloorSelector } from '@/components/map/FloorSelector'
@@ -195,11 +195,20 @@ function ExploreLayers({
     if (building) {
       selectBuilding(building)
       setSheet('half')
-      // Close in on the building, above the sheet; close enough that zooming opens its floors.
-      const camera = map ? focusCamera(building.footprint ?? [], { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'building') : null
-      if (map && camera) map.fitBounds(camera.bounds, camera.options)
     }
   }
+
+  // Close in on a building picked by tap or from search, above its details sheet and facing its front (its
+  // entrance; owner 2026-11-18), close enough that zooming opens its floors. A building selected by zooming in
+  // (no sheet opened) keeps the view as it is; a picked room frames itself.
+  const pickedBuildingId = usePublicStore((s) => (s.sheetState === 'half' ? s.selectedBuilding?.id ?? null : null))
+  useEffect(() => {
+    if (!map || !pickedBuildingId || navigationTargetBuildingId) return
+    if (usePublicStore.getState().focusedRoom?.buildingId === pickedBuildingId) return
+    const building = bundle.buildings.find((b) => b.id === pickedBuildingId)
+    const camera = building ? focusCamera(building.footprint ?? [], { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'building', buildingFront(bundle.nodes, building.id)) : null
+    if (camera) map.fitBounds(camera.bounds, camera.options)
+  }, [map, pickedBuildingId, navigationTargetBuildingId, bundle.buildings, bundle.nodes])
 
   // Authored POIs: outdoor ones always, the open building's on the floor shown (hidden ones stay off the map
   // unless a search reveals them).
@@ -220,9 +229,9 @@ function ExploreLayers({
   }, [focusedRoom, model.indoor.rooms, model.indoor.architecture])
   useEffect(() => {
     if (!map || !focusedRoomShape) return
-    const camera = focusCamera(focusedRoomShape.room.polygon, { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'room')
+    const camera = focusCamera(focusedRoomShape.room.polygon, { width: map.getContainer().clientWidth, height: map.getContainer().clientHeight }, 'room', buildingFront(bundle.nodes, focusedRoomShape.room.buildingId))
     if (camera) map.fitBounds(camera.bounds, camera.options)
-  }, [map, focusedRoomShape])
+  }, [map, focusedRoomShape, bundle.nodes])
   // Room names of the floor open in 2.5D, placed over the raised floor (not on the ground under it).
   const openFloorRooms = useMemo(
     () => (openBuildingId ? model.indoor.rooms.filter((r) => r.buildingId === openBuildingId && r.floor === activeFloor) : null),
@@ -314,15 +323,8 @@ function ExploreLayers({
         floor={activeFloor}
         indoorContext={indoorContext}
       />
-      <EntranceLayer
-        map={map}
-        entrances={indoorContext.active
-          ? model.entrances.filter(e =>
-              e.floor === activeFloor
-                && (!indoorContext.buildingId || e.buildingId === indoorContext.buildingId)
-            )
-          : []}
-      />
+      {/* No entrance markers for visitors (owner 2026-11-18: the green house glyphs read as clutter). Entrances still
+          route; the admin Route Testing page keeps its markers. */}
       <POILayer
         map={map}
         pois={visiblePois}
@@ -485,6 +487,15 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
     () => terrainAwareMapBounds(bundle.boundingBox, bundle.terrainAreas ?? []),
     [bundle.boundingBox, bundle.terrainAreas],
   )
+  // Open entrance-first, in portrait (owner 2026-11-18): the Entrance Gate at the bottom, the campus running up.
+  const entranceFirst = useMemo(
+    () => {
+      const box = bundle.boundingBox
+      const corners = box ? [{ lat: box.minLat, lng: box.minLng }, { lat: box.minLat, lng: box.maxLng }, { lat: box.maxLat, lng: box.maxLng }, { lat: box.maxLat, lng: box.minLng }] : []
+      return openingBearing(bundle.poi ?? [], bundle.site?.boundary?.length ? bundle.site.boundary : corners)
+    },
+    [bundle.poi, bundle.boundingBox, bundle.site],
+  )
   const model = useMemo(() => {
     const baseModel = buildFromCampusBundle({
       buildings: bundle.buildings,
@@ -581,6 +592,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
   return (
     <NavigationMap
       bounds={mapBounds}
+      bearing={!camera || camera.surface === 'explore' || camera.initialSetup ? entranceFirst : undefined}
       site={shownSite ?? null}
       className="h-full w-full"
       pitch={initialPitch}

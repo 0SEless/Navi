@@ -263,11 +263,11 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     return selected ? { id: selected.id, name: selected.name, position: selected.position } : null
   }, [floorComponents, outdoorPickerEntranceId])
   const handleOpenOutdoorRoutePicker = useCallback((entranceId: string) => {
-    const entrance = floorComponents.find((component) => component.id === entranceId && component.type === 'entrance')
-    if (!entrance) return
+    // A stair's foot entrance is created in the same click that opens the picker (2026-11-18), so it may not be in
+    // this render's components yet; the picker itself waits until the entrance is there.
     setRouteAuthoringMessage(null)
     setOutdoorPickerEntranceId(entranceId)
-  }, [floorComponents])
+  }, [])
   const handleOutdoorRouteConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
     if (!selectedEntranceForPicker) return
     if (!currentFloorId) return

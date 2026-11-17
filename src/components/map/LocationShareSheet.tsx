@@ -69,7 +69,7 @@ export function LocationShareSheet({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-[var(--navi-text-secondary)] hover:bg-[var(--navi-border)]/50"
+            className="rounded-full p-1.5 text-[var(--navi-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--navi-border)_50%,transparent)]"
             aria-label="Close share dialog"
           >
             <X className="h-4 w-4" />

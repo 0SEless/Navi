@@ -117,10 +117,10 @@ export function CampusBrowser() {
   if (loading) {
     return (
       <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-4 p-4 sm:p-6">
-        <div className="h-28 w-full animate-pulse rounded-3xl bg-[var(--navi-border)]/60" />
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+        <div className="h-28 w-full animate-pulse rounded-3xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+        <div className="h-12 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
         <div className="grid gap-3 lg:grid-cols-2">
-          {[1, 2, 3].map((item) => <div key={item} className="h-40 rounded-3xl bg-[var(--navi-border)]/40" />)}
+          {[1, 2, 3].map((item) => <div key={item} className="h-40 rounded-3xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />)}
         </div>
       </div>
     )
@@ -179,7 +179,7 @@ export function CampusBrowser() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by campus name or area"
           aria-label="Search campuses"
-          className="min-h-12 w-full rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)] py-3 pl-10 pr-4 text-sm text-[var(--navi-text)] outline-none transition-colors placeholder:text-[var(--navi-text-secondary)] focus:border-[var(--navi-primary)] focus:ring-2 focus:ring-[var(--navi-primary)]/15"
+          className="min-h-12 w-full rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)] py-3 pl-10 pr-4 text-sm text-[var(--navi-text)] outline-none transition-colors placeholder:text-[var(--navi-text-secondary)] focus:border-[var(--navi-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--navi-primary)_15%,transparent)]"
         />
       </label>
       <div className="mb-5 flex items-start gap-2 px-1 text-[11px] leading-5 text-[var(--navi-text-secondary)]">
@@ -203,7 +203,7 @@ export function CampusBrowser() {
                 key={campus.campus_id}
                 data-current={isCurrent ? 'true' : 'false'}
                 data-default={isDefault ? 'true' : 'false'}
-                className={`overflow-hidden rounded-3xl border bg-[var(--navi-card)] shadow-[var(--navi-shadow-sm)] transition-colors ${isCurrent ? 'border-[var(--navi-primary)]/60' : 'border-[var(--navi-border)]'}`}
+                className={`overflow-hidden rounded-3xl border bg-[var(--navi-card)] shadow-[var(--navi-shadow-sm)] transition-colors ${isCurrent ? 'border-[color:color-mix(in_srgb,var(--navi-primary)_60%,transparent)]' : 'border-[var(--navi-border)]'}`}
               >
                 <button
                   type="button"
@@ -241,7 +241,7 @@ export function CampusBrowser() {
                     <button
                       type="button"
                       onClick={() => handleSetDefault(campus.campus_id)}
-                      className="min-h-11 rounded-lg border border-[var(--navi-primary)]/25 px-2.5 text-[11px] font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)]"
+                      className="min-h-11 rounded-lg border border-[color:color-mix(in_srgb,var(--navi-primary)_25%,transparent)] px-2.5 text-[11px] font-semibold text-[var(--navi-primary)] transition-colors hover:bg-[var(--navi-primary-light)]"
                     >
                       Set as Default
                     </button>

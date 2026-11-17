@@ -186,3 +186,24 @@ describe('Platform railing on a U-Shape stair (owner 2026-11-17: "let me set it 
     expect(screen.queryByLabelText('Platform railing')).toBeNull()
   })
 })
+
+describe('Outdoor route on a stair (owner 2026-11-18: connect the Computer Science stair to the main road)', () => {
+  it('not connected: says so, and Connect… asks for the picker', () => {
+    const onConnectOutdoor = vi.fn()
+    render(<StairClimbProperties building={building(1, 'straight')} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()} outdoor={{ connected: false, label: null }} onConnectOutdoor={onConnectOutdoor} onDisconnectOutdoor={vi.fn()} />)
+    expect(screen.getByTestId('stair-outdoor').textContent).toBe('Not connected')
+    expect(screen.queryByRole('button', { name: 'None' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect…' }))
+    expect(onConnectOutdoor).toHaveBeenCalled()
+  })
+
+  it('connected: names the route, Change… re-opens the picker, None disconnects', () => {
+    const onConnectOutdoor = vi.fn(), onDisconnectOutdoor = vi.fn()
+    render(<StairClimbProperties building={building(1, 'straight')} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()} outdoor={{ connected: true, label: 'Main road' }} onConnectOutdoor={onConnectOutdoor} onDisconnectOutdoor={onDisconnectOutdoor} />)
+    expect(screen.getByTestId('stair-outdoor').textContent).toBe('Connected to Main road')
+    fireEvent.click(screen.getByRole('button', { name: 'Change…' }))
+    expect(onConnectOutdoor).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'None' }))
+    expect(onDisconnectOutdoor).toHaveBeenCalled()
+  })
+})

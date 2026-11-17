@@ -11,7 +11,7 @@ import { hallwayCreateHandler, hallwayDeleteHandler } from '../commands/hallway-
 import { staircaseCreateHandler, staircaseDeleteHandler } from '../commands/staircase-handlers'
 import { elevatorCreateHandler, elevatorDeleteHandler } from '../commands/elevator-handlers'
 import { entranceCreateHandler, entranceDeleteHandler } from '../commands/entrance-handlers'
-import { entranceOutdoorConnectHandler, floorRouteDrawHandler, floorConnectionsApplyHandler } from '../commands/floor-route-workflow'
+import { entranceOutdoorConnectHandler, floorRouteDrawHandler, floorConnectionsApplyHandler, stairFootEnsureHandler, stairFootRemoveHandler } from '../commands/floor-route-workflow'
 import { connectEntranceHandler, disconnectEntranceHandler } from '../commands/relationship-handlers'
 import { buildingCreateHandler, buildingDeleteHandler } from '../commands/building-handlers'
 import { roadCreateHandler, roadDeleteHandler } from '../commands/road-handlers'
@@ -874,6 +874,9 @@ export function createEditorContext(
   registryCmd.register(roomAccessUnassignHandler)
   registryCmd.register(entranceAccessAssignHandler)
   registryCmd.register(entranceOutdoorConnectHandler)
+  // A stair's foot as its entrance to the outdoor route network (2026-11-18).
+  registryCmd.register(stairFootEnsureHandler)
+  registryCmd.register(stairFootRemoveHandler)
   registryCmd.register(floorRouteDrawHandler)
   registryCmd.register(floorConnectionsApplyHandler)
   registryCmd.register(entranceAccessUnassignHandler)

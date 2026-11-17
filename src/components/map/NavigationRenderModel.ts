@@ -4,7 +4,7 @@ import type { NavigationGraph } from '@navi/core'
 import type { NavNode as CompilerNavNode, NavEdge as CompilerNavEdge } from '@navi/core'
 import type { FloorGeometryArtifact, FloorGeometryBuilding, FloorGeometryFloor, LocalCoord } from '@navi/core'
 import { CoordinateTransformer } from '@navi/core'
-import { buildFloorArchitectureAssets, type FloorArchitectureAssets } from '@/lib/floor-architecture-assets'
+import { buildFloorArchitectureAssets, stairWellsFromBelow, type FloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 import type { StairAssetInput } from '@navi/core'
 import type { RoomDoor } from '@navi/core'
 import { deriveBuildingFootprint } from '@/lib/campus-geometry'
@@ -362,6 +362,7 @@ function buildIndoorFromFloorGeometry(
         stairs: fgFloor.staircases.filter(stair => stair.role !== 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })),
         stairTops: fgFloor.staircases.filter(stair => stair.role === 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height, fromLevel: stair.fromLevel ?? floorLevel - 1 })),
         base: elevation,
+        wellsFromBelow: stairWellsFromBelow(fgBuilding.floors, floorLevel),
         // Outside stairs stand on the ground under the building (its lowest floor), not on their own floor.
         ground: Math.min(...fgBuilding.floors.map(f => (Number.isFinite(f.elevation) ? f.elevation : 0))),
       }) })

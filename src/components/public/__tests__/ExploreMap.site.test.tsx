@@ -11,6 +11,7 @@ const captured = vi.hoisted(() => ({
   siteProps: null as Record<string, unknown> | null,
   routeLine: null as Record<string, unknown> | null,
   map: null as unknown,
+  entranceLayer: false,
 }))
 
 /** A map that reports its pitch and fires 'pitch' to listeners. */
@@ -55,7 +56,7 @@ vi.mock('@/components/map/layers/StaircaseLayer', () => ({ StaircaseLayer: () =>
 vi.mock('@/components/map/layers/ElevatorLayer', () => ({ ElevatorLayer: () => null }))
 vi.mock('@/components/map/layers/DoorLayer', () => ({ DoorLayer: () => null }))
 vi.mock('@/components/map/layers/OpeningLayer', () => ({ OpeningLayer: () => null }))
-vi.mock('@/components/map/layers/EntranceLayer', () => ({ EntranceLayer: () => null }))
+vi.mock('@/components/map/layers/EntranceLayer', () => ({ EntranceLayer: () => { captured.entranceLayer = true; return null } }))
 vi.mock('@/components/map/layers/POILayer', () => ({ POILayer: () => null }))
 vi.mock('@/components/map/layers/TerrainLayer', () => ({ TerrainLayer: () => null }))
 vi.mock('@/components/map/layers/FloorArchitectureLayer', async (actual) => ({ ...(await actual<typeof import('@/components/map/layers/FloorArchitectureLayer')>()), FloorArchitectureLayer: () => null }))
@@ -108,6 +109,12 @@ describe('ExploreMap with a published site (campus only, Task 15)', () => {
     expect(captured.siteProps?.threeD).toBe(true)
     expect(captured.routeLine?.route).toBeNull()
     expect(captured.siteProps?.routePath).toEqual([{ lat: 11.817, lng: 122.17 }, { lat: 11.818, lng: 122.171 }])
+  })
+
+  it('draws no entrance markers (the green house glyphs; owner 2026-11-18): entrances stay for routing only', () => {
+    captured.entranceLayer = false
+    render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} />)
+    expect(captured.entranceLayer).toBe(false)
   })
 
   it('without site: no site layers, the map keeps its base map', () => {

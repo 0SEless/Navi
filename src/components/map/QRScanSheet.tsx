@@ -90,7 +90,7 @@ export function QRScanSheet({ open, onClose, onResolved }: QRScanSheetProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--navi-text-secondary)] hover:bg-[var(--navi-border)]/50"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--navi-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--navi-border)_50%,transparent)]"
               aria-label="Close scanner"
             >
               <X className="h-4 w-4" />

@@ -56,8 +56,8 @@ function SidebarItem({ item, active, onSelect }: { item: NavItem; active: boolea
       onClick={() => onSelect(item)}
       className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
         ${active
-          ? 'bg-[var(--navi-primary)]/10 text-[var(--navi-primary)]'
-          : 'text-[var(--navi-text-secondary)] hover:bg-[var(--navi-border)]/50 hover:text-[var(--navi-text)]'
+          ? 'bg-[color:color-mix(in_srgb,var(--navi-primary)_10%,transparent)] text-[var(--navi-primary)]'
+          : 'text-[var(--navi-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--navi-border)_50%,transparent)] hover:text-[var(--navi-text)]'
         }`}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}

@@ -867,6 +867,13 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                 const featureType = component.type === 'stair' ? 'staircase' : 'elevator'
                 const featureId = component.featureId ?? component.id
                 const climbing = featureType === 'staircase' && building?.staircases?.some((st) => st.id === featureId && stairHasTop(st))
+                // The stair's link to the outdoor route network, made at its foot (owner 2026-11-18).
+                const stairForOutdoor = featureType === 'staircase' ? building?.staircases?.find((st) => st.id === featureId) : undefined
+                const footFloor = stairForOutdoor ? building?.floors.find((f) => f.level === stairFlightFloor(stairForOutdoor)) : undefined
+                const footId = `stair-foot-${featureId}`
+                const footAccess = footFloor?.entranceAccess?.find((a) => a.entranceId === footId)
+                const footRoad = footAccess?.outdoorRouteId ? document.roads?.find((road) => road.id === footAccess.outdoorRouteId) : undefined
+                const footRoadName = footRoad?.name && footRoad.name.trim() && footRoad.name !== 'Untitled' ? footRoad.name : null
                 return building ? (<>
                   {featureType === 'staircase' && (
                     <StairClimbProperties
@@ -880,6 +887,12 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                         const st = building.staircases?.find((x) => x.id === featureId)
                         if (st) dispatcher.execute({ id: 'feature.update', label: 'Edit stair railings', payload: { featureId, level: stairFlightFloor(st), patch: { look } } })
                       }}
+                      outdoor={{ connected: !!footAccess, label: footAccess ? footRoadName ?? 'an outdoor route' : null }}
+                      onConnectOutdoor={footFloor && onOpenOutdoorRoutePicker ? () => {
+                        const made = dispatcher.execute({ id: 'stair.foot.ensure', label: 'Stair foot entrance', payload: { buildingId: building.id, floorId: footFloor.id, featureId } })
+                        if (made?.success !== false) onOpenOutdoorRoutePicker(footId)
+                      } : undefined}
+                      onDisconnectOutdoor={footFloor ? () => { dispatcher.execute({ id: 'stair.foot.remove', label: 'Disconnect stair outdoors', payload: { buildingId: building.id, floorId: footFloor.id, featureId } }) } : undefined}
                     />
                   )}
                   {!climbing && <FeatureLinks

@@ -29,6 +29,11 @@ export interface FloorArchitectureAssetInput {
   transformer: Pick<CoordinateTransformer, 'buildingLocalToWorld'>
   buildingId: string
   base?: number
+  /**
+   * Outlines (building-local) of stairs climbing up through this floor from below that have no top here
+   * (stairWellsFromBelow): the floor is open over them, drawn and cut like a stair top's stairwell.
+   */
+  wellsFromBelow?: ReadonlyArray<ReadonlyArray<XY>>
   /** Height of the ground under the building, same frame as `base` (default `base`): outside stairs fill down to it. */
   ground?: number
 }
@@ -47,6 +52,27 @@ function surroundedByWalls(p: XY, walls: readonly { start: XY; end: XY }[]): boo
 const stairCentre = (s: StairAssetInput): XY => {
   const pts = s.polygon?.points
   return pts && pts.length >= 3 ? { x: pts.reduce((n, q) => n + q.x, 0) / pts.length, y: pts.reduce((n, q) => n + q.y, 0) / pts.length } : s.position
+}
+
+type WellFloor = { level: number; elevation: number; height?: number; staircases: ReadonlyArray<{ id: string; role?: string; height?: number; polygon?: { points: ReadonlyArray<XY> } }> }
+/**
+ * Stairs that climb up through floor `level` from a floor below it, as building-local outlines (owner 2026-11-18:
+ * white floor pieces over the Computer Science stair). A stair drawn with the Stair tool has no To floor and so no
+ * top on the floor it reaches; its outline opens that floor instead. A stair with a top there already has a stairwell.
+ */
+export function stairWellsFromBelow(floors: readonly WellFloor[], level: number): Array<ReadonlyArray<XY>> {
+  const here = floors.find((f) => f.level === level)
+  if (!here || !Number.isFinite(here.elevation)) return []
+  const topped = new Set(here.staircases.filter((s) => s.role === 'top').map((s) => s.id))
+  return floors.flatMap((f) => {
+    if (!Number.isFinite(f.elevation) || f.elevation >= here.elevation) return []
+    return f.staircases.flatMap((s) => {
+      const rise = s.height ?? f.height
+      const pts = s.polygon?.points
+      if (s.role === 'top' || topped.has(s.id) || !pts || pts.length < 3 || rise === undefined) return []
+      return f.elevation + rise >= here.elevation - 0.05 ? [pts] : []
+    })
+  })
 }
 
 /** Generate physical solids in local meters, then project every vertex exactly once. */
@@ -76,7 +102,7 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   }) })
   const toWorld = ([x, y]: number[]) => { const point = transformer.buildingLocalToWorld({ x, y }, buildingId); return point && Number.isFinite(point.lng) && Number.isFinite(point.lat) ? [point.lng, point.lat] : null }
   const symbols = {
-    lines: { type: 'FeatureCollection' as const, features: [...plan.lines.features, ...tops.wells.features.map(well => ({ type: 'Feature' as const, id: well.id, properties: { ...well.properties, kind: 'stairwell' }, geometry: { type: 'LineString' as const, coordinates: well.geometry.coordinates[0] } }))].flatMap(feature => { const c = feature.geometry.coordinates.map(toWorld); return c.some(p => p === null) ? [] : [{ ...feature, geometry: { type: 'LineString' as const, coordinates: c as number[][] } }] }) },
+    lines: { type: 'FeatureCollection' as const, features: [...plan.lines.features, ...tops.wells.features.map(well => ({ type: 'Feature' as const, id: well.id, properties: { ...well.properties, kind: 'stairwell' }, geometry: { type: 'LineString' as const, coordinates: well.geometry.coordinates[0] } })), ...(input.wellsFromBelow ?? []).map((pts, i) => ({ type: 'Feature' as const, id: `well-from-below-${i}`, properties: { kind: 'stairwell' }, geometry: { type: 'LineString' as const, coordinates: [...pts, pts[0]].map((p) => [p.x, p.y]) } }))].flatMap(feature => { const c = feature.geometry.coordinates.map(toWorld); return c.some(p => p === null) ? [] : [{ ...feature, geometry: { type: 'LineString' as const, coordinates: c as number[][] } }] }) },
     markers: { type: 'FeatureCollection' as const, features: plan.markers.features.flatMap(feature => { const c = toWorld(feature.geometry.coordinates); return c ? [{ ...feature, geometry: { type: 'Point' as const, coordinates: c } }] : [] }) },
   }
   const result = {

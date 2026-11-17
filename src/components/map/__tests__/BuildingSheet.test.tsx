@@ -99,11 +99,11 @@ const bundle = {
   },
 } satisfies CampusBundle
 
-function setSelectedBuilding(overrides: Partial<CampusBundle> = {}) {
+function setSelectedBuilding(overrides: Partial<CampusBundle> = {}, sheetState: 'half' | 'full' = 'full') {
   usePublicStore.setState({
     campus: { ...bundle, ...overrides },
     selectedBuilding: building,
-    sheetState: 'half',
+    sheetState,
     indoorContext: { active: true, buildingId: 'b1', floorId: 1 },
     activeFloor: 1,
     toNode: null,
@@ -192,15 +192,33 @@ describe('BuildingSheet', () => {
     expect(usePublicStore.getState().sheetState).toBe('collapsed')
   })
 
-  it('opens at a size that leaves the map visible, and its handle resizes it', () => {
-    setSelectedBuilding()
+  it('opens as a compact card (owner 2026-11-18: the panel took 30-40% of the map): name, counts, Directions', () => {
+    setSelectedBuilding({}, 'half')
     render(<BuildingSheet bundle={bundle} />)
-    const sheet = screen.getByRole('dialog')
-    expect(sheet.style.maxHeight).toBe('min(42dvh, 24rem)')
+    expect(screen.getByRole('heading', { name: 'Library' })).toBeInTheDocument()
+    expect(screen.getByText(/2 floors · 1 room/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Directions' })).toBeInTheDocument()
+    // No tabs, summary or photo until the details are opened.
+    expect(screen.queryByRole('button', { name: 'Floors' })).toBeNull()
+    expect(screen.queryByText('A quiet place to study.')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Library' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }))
+    expect(usePublicStore.getState().sheetState).toBe('full')
+  })
+
+  it('a lowered sheet is the same compact card', () => {
+    setSelectedBuilding({}, 'half')
+    usePublicStore.setState({ sheetState: 'collapsed' })
+    render(<BuildingSheet bundle={bundle} />)
+    expect(screen.queryByRole('button', { name: 'Floors' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show details' })).toBeInTheDocument()
+  })
+
+  it('its handle opens the details and lowers them back to the card', () => {
+    setSelectedBuilding({}, 'half')
+    render(<BuildingSheet bundle={bundle} />)
     fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
     expect(usePublicStore.getState().sheetState).toBe('full')
-    fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
-    expect(usePublicStore.getState().sheetState).toBe('collapsed')
     fireEvent.click(screen.getByRole('button', { name: 'Resize details' }))
     expect(usePublicStore.getState().sheetState).toBe('half')
   })

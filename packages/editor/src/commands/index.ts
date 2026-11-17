@@ -58,7 +58,7 @@ export type { DoorOwnershipChange, DoorOwnershipSnapshot } from './door-ownershi
 export { windowCreateHandler, windowUpdateHandler, windowDeleteHandler } from './feature-handlers'
 export { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from './route-network-handlers'
 export { roomAccessAssignHandler, roomAccessUnassignHandler, entranceAccessAssignHandler, entranceAccessUnassignHandler } from './route-access-handlers'
-export { entranceOutdoorConnectHandler, floorRouteDrawHandler, floorConnectionsApplyHandler } from './floor-route-workflow'
+export { entranceOutdoorConnectHandler, floorRouteDrawHandler, floorConnectionsApplyHandler, stairFootEnsureHandler, stairFootRemoveHandler, stairFootEntranceId } from './floor-route-workflow'
 export { featureLevelUpdateHandler, featureLevelCopyHandler } from './levels-handlers'
 export { wallCreateHandler, wallUpdateHandler, wallDeleteHandler } from './wall-handlers'
 export { wallJunctionUpdateHandler } from './wall-junction-handlers'

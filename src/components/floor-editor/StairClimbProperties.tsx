@@ -16,7 +16,7 @@ type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
 type LookPatch = { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
 type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
-export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, onLook }: {
+export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
   building: Building
   featureId: string
   /** Climb to this floor level (the stair's own floor = no climb). */
@@ -24,6 +24,12 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, 
   onDrawing(patch: DrawingPatch): void
   /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
   onLook?(patch: LookPatch): void
+  /** The stair's link to the outdoor route network, from its foot (owner 2026-11-18). */
+  outdoor?: { connected: boolean; label: string | null }
+  /** Open the outdoor route picker for the stair's foot. */
+  onConnectOutdoor?(): void
+  /** "None": no outdoor link. */
+  onDisconnectOutdoor?(): void
 }) {
   const stair = building.staircases?.find((s) => s.id === featureId)
   if (!stair) return null
@@ -125,6 +131,22 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, 
       })()}
       {props && <StairShapeControls featureId={featureId} props={props as never} onDrawing={onDrawing} />}
       {!props && flight && onLook && <ToolStairLook featureId={featureId} look={flight.look} onLook={onLook} />}
+      {onConnectOutdoor && (
+        <div>
+          <span style={label}>OUTDOOR ROUTE</span>
+          <div data-testid="stair-outdoor" style={{ fontSize: 11, color: 'var(--navi-text)' }}>
+            {outdoor?.connected ? `Connected to ${outdoor.label ?? 'an outdoor route'}` : 'Not connected'}
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            <button type="button" style={{ ...field, cursor: 'pointer' }} onClick={onConnectOutdoor}>
+              {outdoor?.connected ? 'Change…' : 'Connect…'}
+            </button>
+            {outdoor?.connected && onDisconnectOutdoor && (
+              <button type="button" style={{ ...field, width: 'auto', cursor: 'pointer' }} onClick={onDisconnectOutdoor}>None</button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

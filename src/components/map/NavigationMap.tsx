@@ -34,6 +34,8 @@ export interface NavigationMapProps {
   minZoom?: number
   showZoomControls?: boolean
   bounds?: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null
+  /** Compass bearing to fit the bounds with (2026-11-18: open entrance-first); absent = north-up. */
+  bearing?: number
   fitBoundsOnChange?: boolean
   style?: React.CSSProperties
   className?: string
@@ -68,14 +70,17 @@ const CAMPUS_MARGIN_M = 50
 const CAMPUS_MAX_MIN_ZOOM = 15
 
 /** The campus box plus 50 m on every side: [[west, south], [east, north]]. */
-export function campusMaxBounds(boundary: Array<{ lat: number; lng: number }>): [[number, number], [number, number]] | null {
+export function campusMaxBounds(boundary: Array<{ lat: number; lng: number }>, rotated = false): [[number, number], [number, number]] | null {
   if (boundary.length < 3) return null
   const lats = boundary.map((p) => p.lat)
   const lngs = boundary.map((p) => p.lng)
   const s = Math.min(...lats)
   const n = Math.max(...lats)
-  const dLat = CAMPUS_MARGIN_M / 111320
-  const dLng = CAMPUS_MARGIN_M / (111320 * Math.cos((((s + n) / 2) * Math.PI) / 180))
+  const k = Math.cos((((s + n) / 2) * Math.PI) / 180)
+  // A rotated view (opened entrance-first, 2026-11-18) sticks out of north-up limits; leave half the campus more.
+  const extra = rotated ? Math.max((n - s) * 111320, (Math.max(...lngs) - Math.min(...lngs)) * 111320 * k) / 2 : 0
+  const dLat = (CAMPUS_MARGIN_M + extra) / 111320
+  const dLng = (CAMPUS_MARGIN_M + extra) / (111320 * k)
   return [[Math.min(...lngs) - dLng, s - dLat], [Math.max(...lngs) + dLng, n + dLat]]
 }
 
@@ -90,6 +95,7 @@ export default function NavigationMap({
   minZoom = 12,
   showZoomControls = true,
   bounds,
+  bearing,
   fitBoundsOnChange = true,
   style,
   className,
@@ -132,7 +138,7 @@ export default function NavigationMap({
 
     mapInstance.on('load', () => {
       // Campus only: the view stays on the campus and zooms out no further than the whole campus.
-      const limits = site ? campusMaxBounds(site.boundary) : null
+      const limits = site ? campusMaxBounds(site.boundary, bearing !== undefined) : null
       if (site && limits) {
         mapInstance.setMaxBounds(limits)
         const lats = site.boundary.map((p) => p.lat)
@@ -162,9 +168,9 @@ export default function NavigationMap({
     const bb = bounds
     map.fitBounds(
       [[bb.minLng, bb.minLat], [bb.maxLng, bb.maxLat]],
-      { padding: 60, duration: 800, maxZoom: 18 }
+      { padding: 60, duration: 800, maxZoom: 18, ...(bearing === undefined ? {} : { bearing }) }
     )
-  }, [bounds, fitBoundsOnChange, map])
+  }, [bounds, bearing, fitBoundsOnChange, map])
 
   // MapLibre listens to window resize events, but flex siblings (such as the
   // expanding route dock) can resize this container without resizing the window.

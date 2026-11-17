@@ -27,8 +27,6 @@ import { defaultStart } from '@/lib/default-start'
 import {
   estimatePresentationEtaMinutes,
   formatNavigationDistance,
-  getNavigationInstruction,
-  getUpcomingInstruction,
   getNavigationRouteComposition,
   getNavigationRouteKey,
   resolveNavigationStatus,
@@ -41,6 +39,7 @@ import { useNavigationContext } from '@/components/map/NavigationContext'
 import { useNavigationIndoorController } from '@/hooks/useNavigationIndoorController'
 import { useQrNavigateDeepLink } from '@/hooks/useQrNavigateDeepLink'
 import { remainingRoutePath } from '@/lib/nav-route-helpers'
+import { describeDirections, directionAt, directionInstructionType, readablePlaceLabel } from '@/lib/route-directions'
 import { GPS_GOOD_ACCURACY_M } from '@/lib/navigation-progress-source'
 import type { NavRoute } from '@/types/route-types'
 import type { LatLng } from '@/types/nav-types'
@@ -153,6 +152,8 @@ interface ActiveNavigationGuidanceProps {
   destinationCategory?: string | null
   isPoiDestination?: boolean
   targetBuildingName?: string
+  /** A building's display name, for "Enter ..." directions. */
+  buildingName?: (buildingId: string) => string | undefined
   destinationFloorLabel: string | null
   onEnd: () => void
   onRecalculate: (location: LatLng | null) => void
@@ -163,6 +164,7 @@ function ActiveNavigationGuidance({
   destinationLabel,
   isPoiDestination = false,
   targetBuildingName,
+  buildingName,
   destinationFloorLabel,
   onEnd,
   onRecalculate,
@@ -193,57 +195,69 @@ function ActiveNavigationGuidance({
   const visibleStep = stepCount > 0
     ? Math.min(Math.max(previewedStep ?? actualStep ?? 0, 0), stepCount - 1)
     : null
-  const instruction = visibleStep === null ? null : getNavigationInstruction(route, visibleStep)
+  // Readable directions (2026-11-18): a few real steps ("Turn right and walk about 15 m") instead of one per route
+  // point ("walk to N-617"); Next/Back move a whole direction.
+  const directions = useMemo(() => describeDirections(route, { building: buildingName, destination: destinationLabel }), [route, buildingName, destinationLabel])
+  const directionCount = directions.length
+  const visibleDirection = visibleStep === null ? null : directionAt(route, visibleStep)
+  const actualDirection = actualStep === null ? null : directionAt(route, actualStep)
+  const asView = (index: number | null) => {
+    const d = index === null ? undefined : directions[index]
+    return d ? { type: directionInstructionType(d.kind), text: d.text, distance: d.distance, stepIndex: d.start } : null
+  }
+  const instruction = asView(visibleDirection)
   const displayedInstruction = isPoiDestination && !arrived && instruction?.type === 'arrive'
     ? { ...instruction, text: `Continue to ${destinationLabel}` }
     : instruction
   const isManualPreview = previewedStep !== null && previewedStep !== actualStep
-  const upcomingInstruction = visibleStep === null ? null : getUpcomingInstruction(route, visibleStep)
+  const upcomingInstruction = visibleDirection === null ? null : asView(visibleDirection + 1)
   const remainingDistance = routeProgress?.remainingDistance ?? route.totalDistance
   const etaMinutes = estimatePresentationEtaMinutes(remainingDistance)
   const navigationStatus = resolveNavigationStatus({ arrived, isOffRoute })
 
   const movePreview = useCallback((delta: number) => {
-    if (stepCount <= 0) return
-    const baseStep = previewedStep ?? actualStep ?? 0
-    setPreviewedStep(Math.min(Math.max(baseStep + delta, 0), stepCount - 1))
-  }, [actualStep, previewedStep, stepCount])
+    if (directionCount <= 0) return
+    const base = directionAt(route, previewedStep ?? actualStep ?? 0)
+    const target = Math.min(Math.max(base + delta, 0), directionCount - 1)
+    setPreviewedStep(directions[target].start)
+  }, [actualStep, directionCount, directions, previewedStep, route])
+  // Step mode: move the route position to the next / previous direction's start (one route point per call).
+  const stepForward = useCallback(() => {
+    if (actualStep === null || actualDirection === null) return
+    const target = directions[actualDirection + 1]?.start
+    if (target === undefined) return
+    for (let i = actualStep; i < target; i++) nextStep()
+  }, [actualDirection, actualStep, directions, nextStep])
+  const stepBack = useCallback(() => {
+    if (actualStep === null || actualDirection === null) return
+    const own = directions[actualDirection].start
+    const target = actualStep > own ? own : directions[Math.max(actualDirection - 1, 0)].start
+    for (let i = actualStep; i > target; i--) previousStep()
+  }, [actualDirection, actualStep, directions, previousStep])
 
   const voiceGuidanceEnabled = preferences.navigation.voiceGuidance
 
   return (
-    <div className="mt-5 space-y-3" data-testid="active-guidance">
-      <div className="grid grid-cols-2 gap-2" aria-label="Active route status">
-        <div className="rounded-xl bg-[var(--navi-content)] px-3 py-2">
-          <span className="block text-[11px] uppercase tracking-wide text-[var(--navi-text-secondary)]">
-            {routeProgress ? 'Remaining' : 'Route distance'}
-          </span>
-          <span className="mt-1 block text-sm font-semibold text-[var(--navi-text)]">
-            {formatNavigationDistance(remainingDistance)}{routeProgress ? ' remaining' : ''}
-          </span>
-        </div>
-        <div className="rounded-xl bg-[var(--navi-content)] px-3 py-2">
-          <span className="block text-[11px] uppercase tracking-wide text-[var(--navi-text-secondary)]">ETA</span>
-          <span className="mt-1 block text-sm font-semibold text-[var(--navi-text)]">
-            {etaMinutes === null ? '—' : `${etaMinutes} min`}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 text-xs text-[var(--navi-text-secondary)]">
-        <span>{navigationSegmentLabel(navigationSegment)}</span>
-        <span data-testid="progress-mode-label">{progressLabel}</span>
+    <div className="mt-2 space-y-2" data-testid="active-guidance">
+      {/* One status line instead of two boxes and a hint row (2026-11-18: keep the map visible). */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--navi-text-secondary)]" aria-label="Active route status">
+        <span className="font-semibold text-[var(--navi-text)]">{formatNavigationDistance(remainingDistance)}{routeProgress ? ' remaining' : ''}</span>
+        <span aria-hidden="true">·</span>
+        <span>{etaMinutes === null ? '—' : `${etaMinutes} min`}</span>
+        <span aria-hidden="true">·</span>
         {actualStep === null ? (
           <span>Waiting for current location</span>
         ) : (
-          <span>Current progress: Step {actualStep + 1} of {stepCount}</span>
+          <span>Step {(actualDirection ?? 0) + 1} of {directionCount}</span>
         )}
+        <span className="sr-only">{navigationSegmentLabel(navigationSegment)}</span>
+        <span className="sr-only" data-testid="progress-mode-label">{progressLabel}</span>
       </div>
 
       {gpsLostNotice ? <p className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-800" role="status">GPS signal lost: tap Next at each step</p> : null}
 
       {navigationStatus === 'off-route' && !offRouteDismissed ? (
-        <div className="rounded-xl border border-[var(--navi-error)]/40 bg-[var(--navi-error)]/10 p-3 text-sm text-[var(--navi-error)]" role="alert">
+        <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--navi-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--navi-error)_10%,transparent)] p-3 text-sm text-[var(--navi-error)]" role="alert">
           <p className="font-semibold">You seem off the route</p>
           <div className="mt-2 flex gap-2">
             <button type="button" onClick={() => onRecalculate(location)} className="min-h-11 rounded-lg bg-[var(--navi-error)] px-3 font-semibold text-white">Recalculate</button>
@@ -253,9 +267,9 @@ function ActiveNavigationGuidance({
       ) : null}
 
       {geoError ? (
-        <div className="rounded-xl border border-[var(--navi-border)] bg-[var(--navi-content)] p-3 text-sm text-[var(--navi-text-secondary)]" role="alert">
-          Current location unavailable. Navigation will resume when location access returns.
-        </div>
+        <p className="text-xs text-[var(--navi-text-secondary)]" role="alert">
+          Location is off. Tap Next as you walk.
+        </p>
       ) : null}
 
       {navigationStatus === 'arrived' ? (
@@ -271,7 +285,7 @@ function ActiveNavigationGuidance({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">Next instruction</p>
-              <p className="mt-1 text-base font-semibold text-[var(--navi-text)]">
+              <p className="mt-1 text-lg font-semibold leading-snug text-[var(--navi-text)]">
                 {displayedInstruction?.text ?? 'No instruction is available for this route step.'}
               </p>
               {displayedInstruction ? (
@@ -280,11 +294,6 @@ function ActiveNavigationGuidance({
                 </p>
               ) : null}
             </div>
-            {displayedInstruction ? (
-              <span className="shrink-0 rounded-full bg-[var(--navi-card)] px-2 py-1 text-[11px] font-semibold text-[var(--navi-text-secondary)]">
-                {displayedInstruction.type}
-              </span>
-            ) : null}
           </div>
 
           {upcomingInstruction && !isManualPreview ? (
@@ -292,13 +301,13 @@ function ActiveNavigationGuidance({
           ) : null}
 
           {isManualPreview && visibleStep !== null ? (
-            <p className="mt-3 text-xs font-medium text-[var(--navi-primary)]">Viewing step {visibleStep + 1} of {stepCount}</p>
+            <p className="mt-3 text-xs font-medium text-[var(--navi-primary)]">Viewing step {(visibleDirection ?? 0) + 1} of {directionCount}</p>
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
             {progressMode === 'step' ? <button
               type="button"
-              onClick={previousStep}
+              onClick={stepBack}
               disabled={visibleStep === null || visibleStep <= 0}
               className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
               aria-label="Back one step"
@@ -314,14 +323,14 @@ function ActiveNavigationGuidance({
             </button>}
             {progressMode === 'step' ? <button
               type="button"
-              onClick={nextStep}
-              disabled={visibleStep === null || visibleStep >= stepCount - 1}
+              onClick={stepForward}
+              disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
               className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-primary)] px-3 text-sm font-semibold text-[var(--navi-primary)] disabled:opacity-40"
               aria-label="Next step"
             >Next<ChevronRight className="h-4 w-4" aria-hidden="true" /></button> : <button
               type="button"
               onClick={() => movePreview(1)}
-              disabled={visibleStep === null || visibleStep >= stepCount - 1}
+              disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
               className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
               aria-label="Next instruction"
             >
@@ -363,10 +372,6 @@ function ActiveNavigationGuidance({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--navi-text-secondary)]" aria-label="Navigation markers">
-        <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />Current location</span>
-        <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[var(--navi-primary)]" aria-hidden="true" />Destination</span>
-      </div>
     </div>
   )
 }
@@ -403,8 +408,8 @@ export default function NavigatePage() {
   return (
     <Suspense fallback={
       <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading navigation" role="status">
-        <div className="h-12 w-full animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
-        <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+        <div className="h-12 w-full animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+        <div className="flex-1 animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
       </div>
     }>
       <NavigatePageContent />
@@ -531,17 +536,20 @@ function NavigatePageContent() {
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
   const visibleQrLocation = qrLocation
     ?? (qrDeepLink.status === 'resolved' || qrDeepLink.status === 'non-routable' ? qrDeepLink.location : null)
+  // Real names, never route point ids like "N-112" (2026-11-18): the point's own name, else what search calls it,
+  // else its building.
+  const buildingNameOf = useCallback((id: string) => buildings.find((building) => building.id === id)?.name, [buildings])
   const fromLabel = startsAtGate
     ? gateStart!.label
     : fromNode
-    ? nodeById.get(fromNode)?.label ?? fromNode
+    ? readablePlaceLabel({ nodeLabel: nodeById.get(fromNode)?.label, nodeId: fromNode, entryLabel: entryForNode(campus, fromNode)?.label, buildingName: buildingNameOf(nodeById.get(fromNode)?.buildingId ?? ''), fallback: 'Selected start' })
     : visibleQrLocation?.label ?? 'My Location'
   const toEntry = entryForNode(campus, toNode)
   const poiEntry = entryForPoi(campus, poiDestination?.poiId ?? null)
   const toLabel = poiDestination
     ? activePoiDestination?.label ?? poiEntry?.label ?? poiDestination.poiId
     : toNode
-      ? nodeById.get(toNode)?.label ?? toEntry?.label ?? toNode
+      ? readablePlaceLabel({ nodeLabel: nodeById.get(toNode)?.label, nodeId: toNode, entryLabel: toEntry?.label, buildingName: buildingNameOf(nodeById.get(toNode)?.buildingId ?? '') })
     : null
   const destinationCategory = isPoiRoute
     ? formatPoiCategory(activePoiDestination?.category ?? poiEntry?.category ?? null)
@@ -716,8 +724,8 @@ function NavigatePageContent() {
   if (!campus || campusLoading) {
     return (
       <div className="flex h-full flex-col gap-4 p-4" aria-label="Loading navigation" role="status">
-        <div className="h-28 animate-pulse rounded-2xl bg-[var(--navi-border)]/60" />
-        <div className="flex-1 animate-pulse rounded-2xl bg-[var(--navi-border)]/40" />
+        <div className="h-28 animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_60%,transparent)]" />
+        <div className="flex-1 animate-pulse rounded-2xl bg-[color:color-mix(in_srgb,var(--navi-border)_40%,transparent)]" />
       </div>
     )
   }
@@ -800,7 +808,7 @@ function NavigatePageContent() {
       data-testid="navigate-idle-surface"
     >
       <div className="mx-auto w-full max-w-xl space-y-1.5">
-        <section className="pointer-events-auto rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-2.5 shadow-xl backdrop-blur" aria-label="Destination search">
+        <section className="pointer-events-auto rounded-2xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-2.5 shadow-xl backdrop-blur" aria-label="Destination search">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -836,8 +844,8 @@ function NavigatePageContent() {
           </div>
         </section>
 
-        {recentEntries.length > 0 ? (
-          <section className="pointer-events-auto rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-2.5 shadow-lg backdrop-blur" aria-labelledby="recent-destinations-title">
+        {recentEntries.length > 0 && !hasDestination ? (
+          <section className="pointer-events-auto rounded-2xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-2.5 shadow-lg backdrop-blur" aria-labelledby="recent-destinations-title">
             <h2 id="recent-destinations-title" className="text-[10px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">Recent destinations</h2>
             <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
               {recentEntries.map((entry) => (
@@ -860,34 +868,35 @@ function NavigatePageContent() {
         ) : null}
 
         {qrDeepLink.status === 'loading' ? (
-          <p className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status" aria-live="polite">
+          <p className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status" aria-live="polite">
             Resolving QR location…
           </p>
         ) : null}
         {qrDeepLink.status === 'error' ? (
-          <div className="pointer-events-auto rounded-xl border border-[var(--navi-error)]/30 bg-[var(--navi-error)]/10 p-3 text-sm text-[var(--navi-error)] shadow-lg backdrop-blur" role="alert">
+          <div className="pointer-events-auto rounded-xl border border-[color:color-mix(in_srgb,var(--navi-error)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--navi-error)_10%,transparent)] p-3 text-sm text-[var(--navi-error)] shadow-lg backdrop-blur" role="alert">
             <p>{qrDeepLink.message}</p>
             <button
               type="button"
               onClick={qrDeepLink.retry}
-              className="mt-2 min-h-10 rounded-xl border border-[var(--navi-error)]/40 px-3 font-semibold"
+              className="mt-2 min-h-10 rounded-xl border border-[color:color-mix(in_srgb,var(--navi-error)_40%,transparent)] px-3 font-semibold"
             >
               Try QR again
             </button>
           </div>
         ) : null}
         {qrDeepLink.status === 'non-routable' ? (
-          <p className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status">
+          <p className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status">
             QR location found: {visibleQrLocation?.label ?? 'checkpoint'}, but no routing anchor is published. Choose a supported origin to build a route.
           </p>
         ) : null}
         {routeUnavailable ? (
-          <div className="pointer-events-auto rounded-xl border border-[var(--navi-error)]/30 bg-[var(--navi-error)]/10 p-3 text-sm text-[var(--navi-error)] shadow-lg backdrop-blur" role="alert">
-            No route is currently available to this destination.
+          <div className="pointer-events-auto rounded-xl border border-l-4 border-[var(--navi-border)] border-l-[var(--navi-error)] bg-[var(--navi-card)] p-3 text-sm shadow-lg" role="alert">
+            <p className="font-semibold text-[var(--navi-error)]">No route is currently available to this destination.</p>
+            <p className="mt-1 text-xs text-[var(--navi-text-secondary)]">It may not be connected yet. Try its building, or start from another place.</p>
           </div>
         ) : null}
         {!fromNode && hasDestination ? (
-          <div className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status">
+          <div className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status">
             Set your current location to preview a route.
           </div>
         ) : null}
@@ -949,19 +958,19 @@ function NavigatePageContent() {
           </div>
         ) : null}
         {experiencePhase === 'active' && route ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-2 sm:p-4">
           <section
-            className="pointer-events-auto mx-auto w-full max-w-xl rounded-2xl border border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-4 shadow-xl backdrop-blur"
+            className="pointer-events-auto mx-auto max-h-[60dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_97%,transparent)] p-3 shadow-xl backdrop-blur"
             aria-labelledby="route-surface-title"
           >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--navi-primary)]">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--navi-primary)]">
                 {experiencePhase === 'active' ? 'Active navigation' : 'Route preview'}
               </p>
-              <h1 id="route-surface-title" className="mt-1 truncate text-xl font-semibold text-[var(--navi-text)]">{toLabel}</h1>
-              {targetBuilding ? (
-                <p className="mt-1 truncate text-sm text-[var(--navi-text-secondary)]">Inside {targetBuilding.name}</p>
+              <h1 id="route-surface-title" className="truncate text-base font-semibold text-[var(--navi-text)]">{toLabel}</h1>
+              {targetBuilding && targetBuilding.name.trim().toLowerCase() !== (toLabel ?? '').trim().toLowerCase() ? (
+                <p className="truncate text-xs text-[var(--navi-text-secondary)]">Inside {targetBuilding.name}</p>
               ) : null}
               {destinationCategory ? (
                 <p className="mt-1 truncate text-xs text-[var(--navi-text-secondary)]">Category: {destinationCategory}</p>
@@ -982,6 +991,7 @@ function NavigatePageContent() {
             destinationLabel={toLabel ?? route.toLabel}
             isPoiDestination={isPoiRoute}
             targetBuildingName={targetBuilding?.name}
+            buildingName={buildingNameOf}
             destinationFloorLabel={destinationFloor}
             onEnd={clearRoute}
             onRecalculate={recalculateFromLocation}
@@ -1040,17 +1050,13 @@ function NavigatePageContent() {
               role="list"
               aria-label="Route steps"
             >
-              {route.steps.map((step, index) => {
-                const instruction = getNavigationInstruction(route, index)
-                const distance = instruction?.distance ?? 0
-                return (
-                  <li key={`${step.nodeId}:${index}`} className="flex min-h-11 items-center gap-3 py-2 text-sm">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--navi-primary-light)] text-xs font-semibold text-[var(--navi-primary)]">{index + 1}</span>
-                    <span className="min-w-0 flex-1 text-[var(--navi-text)]">{instruction?.text ?? step.label}</span>
-                    <span className="shrink-0 text-xs text-[var(--navi-text-secondary)]">{distance > 0 ? formatNavigationDistance(distance) : index === 0 ? 'Start' : ''}</span>
-                  </li>
-                )
-              })}
+              {describeDirections(route, { building: buildingNameOf, destination: toLabel ?? undefined }).map((direction, index) => (
+                <li key={`${direction.start}:${index}`} className="flex min-h-11 items-center gap-3 py-2 text-sm">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--navi-primary-light)] text-xs font-semibold text-[var(--navi-primary)]">{index + 1}</span>
+                  <span className="min-w-0 flex-1 text-[var(--navi-text)]">{direction.text}</span>
+                  <span className="shrink-0 text-xs text-[var(--navi-text-secondary)]">{direction.distance > 0 ? formatNavigationDistance(direction.distance) : ''}</span>
+                </li>
+              ))}
             </ol>
           ) : null}
           <div className="flex shrink-0 items-center gap-2 border-t border-[var(--navi-border)] px-4 py-2">

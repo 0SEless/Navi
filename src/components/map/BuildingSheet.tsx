@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { Building2, DoorOpen, Layers, MapPin, Navigation, X } from 'lucide-react'
+import { Building2, ChevronUp, DoorOpen, Layers, MapPin, Navigation, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { roomIdOfSearchEntry, usePublicStore } from '@/store/public-store'
 import type { Building, CampusBundle, SearchEntry } from '@/types/nav-types'
@@ -145,21 +145,48 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
     )
   }
 
-  // Opens small enough to keep the map in view; the handle steps half → full → lowered → half.
-  const panelMaxHeight = sheetState === 'full' ? 'calc(100% - 1rem)' : sheetState === 'collapsed' ? '9.5rem' : 'min(42dvh, 24rem)'
-  const resize = () => setSheet(sheetState === 'full' ? 'collapsed' : sheetState === 'collapsed' ? 'half' : 'full')
+  // Opens as a compact card (owner 2026-11-18: the panel took 30-40% of the map): name, counts and Directions. The
+  // handle or Details opens the full details (tabs, summary, photo); the handle lowers them back to the card.
+  const compact = sheetState !== 'full'
+  const resize = () => setSheet(compact ? 'full' : 'half')
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+  const counts = [plural(floors.length, 'floor'), plural(rooms.length, 'room')].join(' · ')
+
+  const directionsButton = (
+    <button
+      type="button"
+      onClick={handleDirections}
+      disabled={!buildingDestination}
+      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label={buildingDestination ? 'Directions' : 'Directions unavailable'}
+    >
+      <Navigation className="h-4 w-4" aria-hidden="true" />
+      {buildingDestination ? 'Directions' : 'Directions unavailable'}
+    </button>
+  )
+  const tourButton = panoramas.length > 0 && (
+    <button
+      type="button"
+      onClick={handleTour}
+      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--navi-border)] px-4 text-sm font-semibold text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
+      aria-label="Open 360 Virtual Tour"
+    >
+      <span aria-hidden="true">360°</span>
+      Virtual Tour
+    </button>
+  )
 
   return (
     <section
       className="absolute inset-x-0 bottom-0 z-30 min-w-0 overflow-y-auto rounded-t-[1.25rem] border-t border-[var(--navi-border)] bg-[var(--navi-card)] shadow-[0_-4px_16px_rgba(23,43,35,0.1)] md:inset-y-4 md:bottom-auto md:left-auto md:right-4 md:w-[min(26rem,calc(100%-2rem))] md:rounded-2xl md:border"
-      style={{ maxHeight: panelMaxHeight }}
+      style={compact ? undefined : { maxHeight: 'calc(100% - 1rem)' }}
       role="dialog"
       aria-label={`${building.name} details`}
     >
       <button type="button" onClick={resize} aria-label="Resize details" className="mx-auto flex h-5 w-16 items-center justify-center md:hidden">
         <span className="h-1 w-10 rounded-full bg-[var(--navi-border)]" aria-hidden="true" />
       </button>
-      <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-3">
+      <div className={`flex items-start justify-between gap-3 px-4 ${compact ? 'pb-2 pt-1' : 'pb-3 pt-3'}`}>
         <div className="flex min-w-0 items-start gap-3">
           <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--navi-primary-light)] text-[var(--navi-primary)]">
             <Building2 className="h-5 w-5" aria-hidden="true" />
@@ -172,6 +199,12 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
                 <>
                   <span aria-hidden="true">·</span>
                   <span className="truncate">{status}</span>
+                </>
+              )}
+              {compact && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="truncate">{counts}</span>
                 </>
               )}
             </p>
@@ -187,6 +220,21 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
         </button>
       </div>
 
+      {compact ? (
+        <div className="flex gap-2 px-4 pb-4">
+          {directionsButton}
+          {tourButton}
+          <button
+            type="button"
+            onClick={() => setSheet('full')}
+            className="flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-[var(--navi-border)] px-4 text-sm font-semibold text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
+            aria-label="Show details"
+          >
+            <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            Details
+          </button>
+        </div>
+      ) : (<>
       {imageUrl && (
         <div className="mx-4 overflow-hidden rounded-xl border border-[var(--navi-border)]">
           <Image
@@ -335,29 +383,11 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
         )}
       </div>
 
-      <div className="sticky bottom-0 flex flex-col gap-2 border-t border-[var(--navi-border)] bg-[var(--navi-card)]/95 p-4 backdrop-blur sm:flex-row">
-        <button
-          type="button"
-          onClick={handleDirections}
-          disabled={!buildingDestination}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={buildingDestination ? 'Directions' : 'Directions unavailable'}
-        >
-          <Navigation className="h-4 w-4" aria-hidden="true" />
-          {buildingDestination ? 'Directions' : 'Directions unavailable'}
-        </button>
-        {panoramas.length > 0 && (
-          <button
-            type="button"
-            onClick={handleTour}
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--navi-border)] px-4 text-sm font-semibold text-[var(--navi-text)] hover:bg-[var(--navi-content)]"
-            aria-label="Open 360 Virtual Tour"
-          >
-            <span aria-hidden="true">360°</span>
-            Virtual Tour
-          </button>
-        )}
+      <div className="sticky bottom-0 flex flex-col gap-2 border-t border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-4 backdrop-blur sm:flex-row">
+        {directionsButton}
+        {tourButton}
       </div>
+      </>)}
     </section>
   )
 }

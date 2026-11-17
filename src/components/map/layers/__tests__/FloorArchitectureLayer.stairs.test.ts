@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { area, booleanPointInPolygon, point } from '@turf/turf'
 import { floorArchitectureFeatures, selectFloorArchitecture } from '../FloorArchitectureLayer'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
 
@@ -38,5 +39,17 @@ describe('NAVI Web smooth stairs', () => {
     expect(upper[0].geometry.coordinates).toHaveLength(2)
     expect(slabs.filter((f) => f.properties!.base === 0)[0].geometry.coordinates).toHaveLength(1)
   })
-})
 
+  it('a stair only partly under the upper floor still cuts its part out (owner 2026-11-18: white pieces over the CS stair)', () => {
+    const square = [{ lat: 0, lng: 0 }, { lat: 0, lng: 10 }, { lat: 10, lng: 10 }, { lat: 10, lng: 0 }]
+    // The well runs from inside the floor (x 8..10) to outside it (x 10..12).
+    const well = { type: 'Feature', properties: { kind: 'stairwell' }, geometry: { type: 'LineString', coordinates: [[8, 2], [12, 2], [12, 5], [8, 5], [8, 2]] } }
+    const one = { ...record(0, true), floorFaces: [square] }
+    const two = { ...record(1, true), floorFaces: [square], symbols: { lines: fc([well as never]) as never, markers: fc() as never } }
+    const stack = selectFloorArchitecture([one, two] as never, { active: true, buildingId: 'b' }, 1, true)!
+    const upper = (floorArchitectureFeatures(stack).floor.features as GeoJSON.Feature<GeoJSON.Polygon>[]).filter((f) => f.properties!.base === 3.5)
+    expect(upper.some((f) => booleanPointInPolygon(point([9, 3.5]), f as never))).toBe(false)
+    expect(upper.some((f) => booleanPointInPolygon(point([5, 5]), f as never))).toBe(true)
+    expect(upper.reduce((n, f) => n + area(f as never), 0)).toBeLessThan(area({ type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] } as never))
+  })
+})

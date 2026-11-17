@@ -88,7 +88,8 @@ export default function NavigationCameraControls({
 
   return (
     <div
-      className={`pointer-events-auto absolute right-3 top-[58%] z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-4 ${className ?? ''}`}
+      // During navigation the guidance card sits at the bottom (2026-11-18), so the buttons move into the map above it.
+      className={`pointer-events-auto absolute right-3 ${surface === 'active' ? 'top-[28%]' : 'top-[58%]'} z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-4 ${className ?? ''}`}
       style={{ right: 'max(0.75rem, env(safe-area-inset-right, 0px))' }}
       data-testid="navigation-camera-controls"
       data-reduced-motion={String(reducedMotion)}
@@ -187,7 +188,7 @@ export default function NavigationCameraControls({
       {headingStatus === 'permission-required' && canRequestHeadingPermission && onRequestHeadingPermission && (
         <button
           type="button"
-          className="flex h-9 items-center gap-1.5 rounded-lg border border-[var(--navi-primary)]/30 bg-[var(--navi-primary)]/10 px-2.5 text-[11px] font-medium text-[var(--navi-primary)] shadow-sm"
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-[color:color-mix(in_srgb,var(--navi-primary)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--navi-primary)_10%,transparent)] px-2.5 text-[11px] font-medium text-[var(--navi-primary)] shadow-sm"
           onClick={onRequestHeadingPermission}
         >
           <Compass className="h-3.5 w-3.5" aria-hidden="true" />

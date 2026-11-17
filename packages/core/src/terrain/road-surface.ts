@@ -14,6 +14,8 @@ export function siteRoadSurfaces(doc: CampusDocument, sampler: TerrainSampler): 
     if (polyline.length < 2) return []
     // A route made over an outdoor stair or ramp is for navigation only: the stair itself is what visitors see.
     if (road.routing?.structureId) return []
+    // A route hidden on the map (Studio display "navigation only") still guides people but is not drawn (2026-11-18).
+    if (road.displayMode === 'navigation-only') return []
     const typed = road.heightMode === 'typed'
     const start = typed && Number.isFinite(road.routing?.startElevationMeters) ? road.routing!.startElevationMeters! : surfaceHeightAt(doc, sampler, polyline[0])
     const end = typed && Number.isFinite(road.routing?.endElevationMeters) ? road.routing!.endElevationMeters! : surfaceHeightAt(doc, sampler, polyline[polyline.length - 1])

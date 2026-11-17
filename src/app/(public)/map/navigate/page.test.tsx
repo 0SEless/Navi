@@ -158,9 +158,10 @@ const route: NavRoute = {
     { nodeId: destination.id, label: destination.label, position: destination.position, floor: 3, buildingId: 'b1', type: 'walk' },
   ],
   instructions: [
+    // Each instruction's distance is the walk into its point (0 at the start), as the routing adapter builds them.
+    { type: 'walk', text: 'Start here', distance: 0, fromNode: start.id, toNode: start.id },
     { type: 'walk', text: 'Continue to East Upper Entrance', distance: 180, fromNode: start.id, toNode: entrance.id },
-    { type: 'walk', text: 'Enter via East Upper Entrance', distance: 30, fromNode: entrance.id, toNode: destination.id },
-    { type: 'arrive', text: 'Arrive at CS 301', distance: 0, fromNode: destination.id, toNode: destination.id },
+    { type: 'arrive', text: 'Arrive at CS 301', distance: 30, fromNode: entrance.id, toNode: destination.id },
   ],
   totalDistance: 210,
   totalDuration: 0,
@@ -478,8 +479,9 @@ describe('Navigate setup and route preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All steps' }))
 
     expect(screen.getByRole('list', { name: 'Route steps' })).toBeInTheDocument()
-    expect(screen.getByText('Continue to East Upper Entrance')).toBeInTheDocument()
-    expect(screen.getByText('Enter via East Upper Entrance')).toBeInTheDocument()
+    // Readable directions (2026-11-18): grouped steps with real names, never one row per route point.
+    expect(screen.getByText('Walk about 180 m and enter Computer Studies Building')).toBeInTheDocument()
+    expect(screen.getByText('Arrive at CS 301')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start navigation' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Fewer details' })).toBeInTheDocument()
 
@@ -752,19 +754,19 @@ describe('Navigate setup and route preview', () => {
     render(<NavigatePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Start navigation' }))
-    expect(screen.getByText('Current progress: Step 1 of 3')).toBeInTheDocument()
-    expect(screen.getByText('Continue to East Upper Entrance')).toBeInTheDocument()
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Walk about 180 m and enter Computer Studies Building')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Next instruction' }))
 
     expect(screen.getByText('Viewing step 2 of 3')).toBeInTheDocument()
-    expect(screen.getByText('Enter via East Upper Entrance')).toBeInTheDocument()
-    expect(screen.getByText('Current progress: Step 1 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Walk about 30 m')).toBeInTheDocument()
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Return to current step' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to current step' }))
 
-    expect(screen.getByText('Continue to East Upper Entrance')).toBeInTheDocument()
+    expect(screen.getByText('Walk about 180 m and enter Computer Studies Building')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Return to current step' })).toBeNull()
   })
 

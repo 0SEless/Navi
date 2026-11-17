@@ -72,6 +72,20 @@ describe('siteRoadSurfaces', () => {
     } as never
     expect(siteRoadSurfaces(doc, createTerrainSampler(doc)!).map((s) => s.id)).toEqual(['r1'])
   })
+
+  it('a route hidden on the map (navigation only) is not drawn, owner 2026-11-18', async () => {
+    const { siteRoadSurfaces } = await import('../road-surface')
+    const { createTerrainSampler } = await import('../compose')
+    const doc = {
+      schemaVersion: 1, version: 0, metadata: {}, buildings: [], panoramas: [], qrCheckpoints: [],
+      terrain: { reference: { name: 'Flat', zeroMeaning: 'z' }, grid, colorRange: { minM: 0, maxM: 10 } },
+      roads: [
+        { id: 'shown', name: 'Road', polyline: { points: [ll(0, 0), ll(50, 0)] }, width: 6, surface: 'paved', type: 'connector', metadata: {}, displayMode: 'visible' },
+        { id: 'hidden', name: '', polyline: { points: [ll(0, 10), ll(50, 10)] }, width: 3, surface: 'paved', type: 'connector', metadata: {}, displayMode: 'navigation-only' },
+      ],
+    } as never
+    expect(siteRoadSurfaces(doc, createTerrainSampler(doc)!).map((s) => s.id)).toEqual(['shown'])
+  })
 })
 
 describe('road ends', () => {

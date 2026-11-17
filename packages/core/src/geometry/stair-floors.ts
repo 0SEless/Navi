@@ -1,5 +1,5 @@
 import type { Floor, Staircase, StairLevelGeometry } from '../types/entities'
-import { buildStairTopVolumes, type StairAssetInput, type StairTopInput } from './stair-assets'
+import { buildStairAssetVolumes, buildStairTopVolumes, type StairAssetInput, type StairTopInput } from './stair-assets'
 import type { LocalCoord } from '../types/coordinates'
 
 /**
@@ -106,5 +106,22 @@ export function stairDoorwayAt(stair: Staircase, floors: readonly Partial<Pick<F
   if (!(len > 0)) return undefined
   const t = (opening.offset + opening.width / 2) / len
   return { x: wall.start.x + (wall.end.x - wall.start.x) * t, y: wall.start.y + (wall.end.y - wall.start.y) * t }
+}
+
+/**
+ * Where you step onto a stair (owner 2026-11-18: connect an outside stair to the outdoor route network): half a metre
+ * out from the middle of its lowest step's front edge, building-local. Undefined when the stair has no steps.
+ */
+export function stairFootPosition(stair: Staircase, floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[]): LocalCoord | undefined {
+  const flight = floorStairInputs([stair], floors, stairFlightFloor(stair)).flights[0]
+  if (!flight) return undefined
+  const step = buildStairAssetVolumes([flight], 0).collection.features.find((f) => f.properties?.partType === 'step')
+  const ring = step?.geometry.coordinates[0] as number[][] | undefined
+  if (!ring || ring.length < 4) return undefined
+  const lo = { x: (ring[0][0] + ring[1][0]) / 2, y: (ring[0][1] + ring[1][1]) / 2 }
+  const up = { x: (ring[3][0] + ring[2][0]) / 2, y: (ring[3][1] + ring[2][1]) / 2 }
+  const len = Math.hypot(lo.x - up.x, lo.y - up.y)
+  if (!(len > 0)) return lo
+  return { x: lo.x + ((lo.x - up.x) / len) * 0.5, y: lo.y + ((lo.y - up.y) / len) * 0.5 }
 }
 

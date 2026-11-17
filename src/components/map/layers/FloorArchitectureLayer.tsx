@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo } from 'react'
+import { difference, featureCollection, polygon as turfPolygon } from '@turf/turf'
 import type maplibregl from 'maplibre-gl'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
 import { styleReady } from '@/lib/terrain/style-ready'
@@ -138,6 +139,19 @@ function inRing([x, y]: number[], ring: number[][]): boolean {
   return hit
 }
 
+/** A slab polygon with the wells it only partly covers cut out (one or more polygons; the slab as it is if none). */
+function cutWells(slab: number[][][], wells: number[][][]): number[][][][] {
+  if (wells.length === 0) return [slab]
+  try {
+    const closed = (ring: number[][]) => (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? ring : [...ring, ring[0]])
+    const cut = difference(featureCollection([turfPolygon(slab), ...wells.map(well => turfPolygon([closed(well)]))]))
+    if (!cut) return []
+    return cut.geometry.type === 'Polygon' ? [cut.geometry.coordinates] : cut.geometry.coordinates
+  } catch {
+    return [slab]
+  }
+}
+
 function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: GeoJSON.FeatureCollection, elevations: number[] = [0], faces: Array<Array<Array<{ lat: number; lng: number }>>> = [], levelWalls: GeoJSON.FeatureCollection[] = [], levelWells: number[][][][] = []): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   const toWalls = wallHullArea(areas?.[0], walls)
@@ -156,9 +170,14 @@ function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: Geo
       // Every floor is a thin floor at its own height, the ground floor too (owner 2026-11-16: "not a double floor
       // in the ground floor"): no slab reaches down into the ground.
       const base = elevation
-      // The floor is open over a stair coming up from below, inside its walls (owner 2026-11-17: "has no opening").
-      const holes = (levelWells[index] ?? []).filter(well => well.length >= 4 && well.every(p => inRing(p, ring)))
-      features.push({ type: 'Feature', properties: { base, height: elevation + FLOOR_SLAB_TOP_M }, geometry: { type: 'Polygon', coordinates: [ring, ...holes] } })
+      // The floor is open over a stair coming up from below (owner 2026-11-17: "has no opening"), also where the
+      // stair is only partly under it (owner 2026-11-18: white floor pieces over the Computer Science stair).
+      const wells = (levelWells[index] ?? []).filter(well => well.length >= 4)
+      const holes = wells.filter(well => well.every(p => inRing(p, ring)))
+      const partly = wells.filter(well => !holes.includes(well) && (well.some(p => inRing(p, ring)) || ring.some(p => inRing(p, well))))
+      for (const coordinates of cutWells([ring, ...holes], partly)) {
+        features.push({ type: 'Feature', properties: { base, height: elevation + FLOOR_SLAB_TOP_M }, geometry: { type: 'Polygon', coordinates } })
+      }
     }
   })
   return { type: 'FeatureCollection', features }
@@ -275,7 +294,7 @@ export function FloorArchitectureLayer({ map, architecture, level, floorAreas, h
     const stacked = architecture as Partial<StackedFloorArchitecture> | undefined
     return stacked?.stackStairMeshes ?? (architecture?.stairMesh ? [architecture.stairMesh] : [])
   }, [architecture])
-  return <StairMeshLayer map={map} id="floor-architecture-stair-mesh" meshes={stairMeshes} visible={!!architecture && !level} />
+  return <StairMeshLayer map={map} id="floor-architecture-stair-mesh" meshes={stairMeshes} visible={!!architecture && !level} beforePrefix="floor-architecture-" />
 }
 
 /** The translucent building shell (BuildingLayer) and the solid terrain block (SiteLayers). */
