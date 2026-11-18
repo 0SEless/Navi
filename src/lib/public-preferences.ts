@@ -35,7 +35,8 @@ export const DEFAULT_PUBLIC_PREFERENCES: PublicPreferences = {
   mapAppearance: DEFAULT_MAP_APPEARANCE,
   notifications: true,
   navigation: {
-    defaultMapView: 'top',
+    // Follow by default (owner 2026-11-18): navigation starts tilted, following the route.
+    defaultMapView: 'follow',
     voiceGuidance: true,
     autoFloorSwitching: true,
     headingFollow: false,

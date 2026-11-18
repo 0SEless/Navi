@@ -35,7 +35,7 @@ describe('RouteLine camera ownership seam', () => {
     )
 
     expect(map.addSource).toHaveBeenCalledWith('route', expect.anything())
-    expect(map.addLayer).toHaveBeenCalledTimes(3)
+    expect(map.addLayer).toHaveBeenCalledTimes(4)
     expect(map.fitBounds).not.toHaveBeenCalled()
   })
 
@@ -54,5 +54,41 @@ describe('RouteLine camera ownership seam', () => {
     }))
     expect(map.removeLayer).not.toHaveBeenCalled()
     expect(map.removeSource).not.toHaveBeenCalled()
+  })
+
+  it('is a bold glowing line with a white edge (owner 2026-11-18: really highlight the route)', () => {
+    const map = createMap()
+    render(<RouteLine map={map} route={route} getNodePosition={(id) => (id === 'start' ? { lat: 11.82, lng: 122.168 } : { lat: 11.821, lng: 122.169 })} fitCamera={false} />)
+    const layers = vi.mocked(map.addLayer).mock.calls.map(([layer]) => layer as { id: string; paint: Record<string, unknown> })
+    expect(layers.map((l) => l.id)).toEqual(['route-glow', 'route-casing', 'route-core', 'route-flow'])
+    const widthAt = (expr: unknown, zoom: number): number => {
+      // ['interpolate', ['linear'], ['zoom'], z0, w0, z1, w1, ...]; widths may be case expressions: take the active one.
+      const e = expr as unknown[]
+      const stops = e.slice(3)
+      for (let i = 0; i < stops.length; i += 2) if ((stops[i] as number) >= zoom) {
+        const w = stops[i + 1]
+        return Array.isArray(w) ? (w[2] as number) : (w as number)
+      }
+      return NaN
+    }
+    expect(widthAt(layers[2].paint['line-width'], 18)).toBeGreaterThanOrEqual(8)
+    expect(widthAt(layers[0].paint['line-width'], 18)).toBeGreaterThanOrEqual(24)
+    expect(layers[1].paint['line-color']).toBe('#FFFFFF')
+  })
+
+  it('a one-floor route is drawn loud outdoors too (owner 2026-11-18), not only indoors', () => {
+    const map = createMap()
+    render(<RouteLine map={map} route={route} getNodePosition={(id) => (id === 'start' ? { lat: 11.82, lng: 122.168 } : { lat: 11.821, lng: 122.169 })} getNodeFloor={() => 0} navigationSegment="outdoor" fitCamera={false} />)
+    const data = vi.mocked(map.addSource).mock.calls[0][1] as { data: GeoJSON.FeatureCollection }
+    expect(data.data.features.map((f) => f.properties?.active)).toEqual([1])
+  })
+
+  it('on a multi-floor route the outdoor part stays loud (owner 2026-11-18: the walk to the building was greyed)', () => {
+    const map = createMap()
+    const floors: Record<string, number> = { a: 0, b: 0, c: 1, d: 1 }
+    const inside: Record<string, string> = { a: '', b: 'bld', c: 'bld', d: 'bld' }
+    render(<RouteLine map={map} route={{ path: ['a', 'b', 'c', 'd'], cost: 1 }} getNodePosition={(id) => ({ lat: 11 + 'abcd'.indexOf(id) * 0.0001, lng: 122 })} getNodeFloor={(id) => floors[id]} getNodeBuilding={(id) => inside[id]} activeFloor={1} fitCamera={false} />)
+    const data = vi.mocked(map.addSource).mock.calls[0][1] as { data: GeoJSON.FeatureCollection }
+    expect(data.data.features.map((f) => f.properties?.active)).toEqual([1, 1])
   })
 })

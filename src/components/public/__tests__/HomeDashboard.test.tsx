@@ -136,7 +136,7 @@ describe('HomeDashboard student home experience', () => {
 
     const recent = screen.getByRole('button', { name: /Navigate to Registrar Office/i })
     expect(recent).toHaveTextContent('Library')
-    expect(recent).toHaveTextContent('Floor 1')
+    expect(recent).toHaveTextContent('1F')
 
     fireEvent.click(recent)
 

@@ -435,8 +435,11 @@ function buildSearchIndex(
     }
   }
 
-  // 3. Index graph nodes (entrances / POIs)
+  // 3. Index graph nodes (entrances / POIs). A room's own point is already its room entry: not listed twice
+  // (2026-11-18: "CS202" and "CS202 (CS202)").
+  const roomNodeIds = new Set(entries.filter(e => e.type === 'room' && e.nodeId).map(e => e.nodeId))
   for (const node of navGraph.nodes) {
+    if (node.type === 'poi' && roomNodeIds.has(node.id)) continue
     let type: SearchEntry['type']
     switch (node.type) {
       case 'outdoor':

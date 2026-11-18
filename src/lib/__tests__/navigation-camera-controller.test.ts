@@ -215,7 +215,7 @@ describe('public navigation camera controller', () => {
     expect(fixture.map.touchPitch.disable).toHaveBeenCalledTimes(1)
   })
 
-  it('applies FOLLOW pitch, heading, forward offset, and the approved ceiling', () => {
+  it('applies FOLLOW pitch, heading, forward offset, and no practical zoom limit (owner 2026-11-18: closer than POV)', () => {
     const fixture = createMap()
     const controller = createNavigationCameraController(fixture.map)
 
@@ -229,7 +229,7 @@ describe('public navigation camera controller', () => {
       offset: [0, 110],
       duration: 360,
     })
-    expect(fixture.getMaxZoom()).toBe(18)
+    expect(fixture.getMaxZoom()).toBe(22)
     expect(fixture.map.dragPan.enable).toHaveBeenCalledTimes(1)
     expect(fixture.map.scrollZoom.enable).toHaveBeenCalledTimes(1)
     expect(fixture.map.dragRotate.enable).toHaveBeenCalledTimes(1)
@@ -259,7 +259,7 @@ describe('public navigation camera controller', () => {
     expect(fixture.map.touchPitch.disable).toHaveBeenCalledTimes(1)
   })
 
-  it('uses max zoom as a ceiling without forcing a user who is zoomed farther out to zoom in', () => {
+  it('Follow never forces a zoom on a user who zoomed in or out (owner 2026-11-18: zoom in closer near the building)', () => {
     const fixture = createMap()
     const controller = createNavigationCameraController(fixture.map)
 
@@ -268,13 +268,13 @@ describe('public navigation camera controller', () => {
     fixture.setZoom(12)
     controller.update({ surface: 'active', mode: 'FOLLOW', position: [122.1001, 11.8001], heading: 90 })
 
-    expect(fixture.getMaxZoom()).toBe(18)
+    expect(fixture.getMaxZoom()).toBe(22)
     expect(fixture.map.easeTo).toHaveBeenCalledWith(expect.not.objectContaining({ zoom: expect.anything() }))
 
-    fixture.setZoom(20)
+    fixture.setZoom(20.5)
     fixture.map.easeTo.mockClear()
     controller.update({ surface: 'active', mode: 'FOLLOW', position: [122.1002, 11.8002], heading: 90 })
-    expect(fixture.map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ zoom: 18 }))
+    expect(fixture.map.easeTo).toHaveBeenCalledWith(expect.not.objectContaining({ zoom: expect.anything() }))
   })
 
   it('keeps heading-follow OFF independent from the live heading', () => {
@@ -422,7 +422,7 @@ describe('public navigation camera controller', () => {
     expect(fixture.map.easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 85, zoom: 19, bearing: 180 }))
   })
 
-  it('fits route preview as a flat overview with overlay-aware padding', () => {
+  it('fits route preview as a tilted overview (2.5D, owner 2026-11-18) with overlay-aware padding', () => {
     const fixture = createMap()
     const controller = createNavigationCameraController(fixture.map, { reducedMotion: false })
 
@@ -433,11 +433,64 @@ describe('public navigation camera controller', () => {
       {
         padding: { top: 80, right: 64, bottom: 24, left: 24 },
         duration: 400,
-        maxZoom: 16,
+        maxZoom: 17.5,
+        pitch: 45,
       },
     )
     expect(fixture.map.easeTo).not.toHaveBeenCalled()
     expect(controller.getState().mode).toBe('TOP')
+  })
+
+  it('fits the route entrance-first when the campus has a rest bearing (owner 2026-11-18: never sideways)', () => {
+    const fixture = createMap()
+    const controller = createNavigationCameraController(fixture.map, { reducedMotion: true })
+    controller.update({ surface: 'route-preview', mode: 'TOP', routeBounds, restBearing: 172 })
+    expect(fixture.map.fitBounds).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bearing: 172 }))
+  })
+
+  it('route preview stays tilted after the map settles, and can come close (owner 2026-11-18)', () => {
+    const fixture = createMap()
+    const controller = createNavigationCameraController(fixture.map, { reducedMotion: true })
+    controller.update({ surface: 'route-preview', mode: 'TOP', routeBounds })
+    fixture.setPitch(45)
+    fixture.map.easeTo.mockClear()
+    fixture.emit('moveend')
+    expect(fixture.map.easeTo).not.toHaveBeenCalled()
+    expect(fixture.getMaxZoom()).toBeGreaterThanOrEqual(17.5)
+  })
+
+  it('with cameraForBounds, fits flat then tilts around the route centre (MapLibre drifts with pitch + bearing)', () => {
+    const fixture = createMap()
+    const cameraForBounds = vi.fn(() => ({ center: [122.105, 11.805] as [number, number], zoom: 18, bearing: 172 }))
+    const map = { ...fixture.map, cameraForBounds }
+    const controller = createNavigationCameraController(map, { reducedMotion: true })
+    controller.update({ surface: 'route-preview', mode: 'TOP', routeBounds, restBearing: 172 })
+    expect(cameraForBounds).toHaveBeenCalledWith(
+      [[routeBounds.minLng, routeBounds.minLat], [routeBounds.maxLng, routeBounds.maxLat]],
+      expect.objectContaining({ bearing: 172, maxZoom: 17.5 }),
+    )
+    expect(fixture.map.fitBounds).not.toHaveBeenCalled()
+    expect(fixture.map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ center: [122.105, 11.805], zoom: 18, bearing: 172, pitch: 45 }))
+  })
+
+  it('active navigation without a location frames the route, tilted, above the navigation card (owner 2026-11-18)', () => {
+    const fixture = createMap()
+    const cameraForBounds = vi.fn(() => ({ center: [122.105, 11.805] as [number, number], zoom: 18 }))
+    const map = { ...fixture.map, cameraForBounds, getContainer: () => ({ clientHeight: 800 }) }
+    const controller = createNavigationCameraController(map, { reducedMotion: true })
+    controller.update({ surface: 'active', mode: 'FOLLOW', position: null, routeBounds, restBearing: 172 })
+    expect(cameraForBounds).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ bearing: 172 }))
+    const options = (cameraForBounds.mock.calls[0] as unknown[])[1] as { padding: { bottom: number } }
+    expect(options.padding.bottom).toBeGreaterThanOrEqual(800 * 0.4)
+    expect(fixture.map.easeTo).toHaveBeenCalledWith(expect.objectContaining({ center: [122.105, 11.805], pitch: 55 }))
+  })
+
+  it('active navigation without the compass keeps the rest bearing', () => {
+    const fixture = createMap(0)
+    const controller = createNavigationCameraController(fixture.map, { reducedMotion: true })
+    controller.update({ surface: 'active', mode: 'FOLLOW', position: [122.1, 11.8], restBearing: 172 })
+    const eased = fixture.map.easeTo.mock.calls.map(([options]) => options.bearing).filter((b) => b !== undefined)
+    expect(eased.at(-1)).toBe(172)
   })
 
   it('refits the same route after the map viewport resizes', () => {

@@ -182,6 +182,30 @@ describe('Explore contracts', () => {
     })
   })
 
+  it('a route ending in a building opens it on the destination floor while outside (owner 2026-11-18)', () => {
+    // Route preview: no live building yet.
+    expect(resolveExploreContext({ navigationTarget: { buildingId: 'b1', floor: 2 } })).toMatchObject({
+      surface: 'building', buildingId: 'b1', floor: 2, indoorActive: true,
+    })
+    // Active navigation, still outside: the destination building stays open.
+    const outside = { route: { steps: [], nodeFloors: [0] }, buildingId: undefined, floor: 0 } as unknown as NavigationContextValue
+    expect(resolveExploreContext({ parentContext: outside, navigationTarget: { buildingId: 'b1', floor: 2 } })).toMatchObject({
+      surface: 'active-navigation', buildingId: 'b1', floor: 2, indoorActive: true,
+    })
+    // Outside, the route context names no building as an empty string (owner 2026-11-18: green block, not 2.5D).
+    const outsideEmpty = { route: { steps: [], nodeFloors: [0] }, buildingId: '', floor: 0 } as unknown as NavigationContextValue
+    expect(resolveExploreContext({ parentContext: outsideEmpty, navigationTarget: { buildingId: 'b1', floor: 2 } })).toMatchObject({
+      buildingId: 'b1', floor: 2, indoorActive: true,
+    })
+    // Outdoor route points carry the legacy '__outdoor__' building (owner 2026-11-18: still a green block).
+    const outsideSentinel = { route: { steps: [], nodeFloors: [0] }, buildingId: '__outdoor__', floor: 0 } as unknown as NavigationContextValue
+    expect(resolveExploreContext({ parentContext: outsideSentinel, navigationTarget: { buildingId: 'b1', floor: 2 } })).toMatchObject({
+      buildingId: 'b1', floor: 2, indoorActive: true,
+    })
+    // Without a target nothing changes.
+    expect(resolveExploreContext({})).toMatchObject({ surface: 'outdoors', indoorActive: false })
+  })
+
   it('resolves Explore building colors as presentation values without mutation', () => {
     const before = structuredClone(building)
     expect(resolveExploreBuildingColor(building, 'department')).toBe('#7C3AED')

@@ -12,6 +12,8 @@ interface RouteLineProps {
   getNodePosition: (nodeId: string) => { lat: number; lng: number } | undefined
   /** Floor of a route node — enables per-floor emphasis. */
   getNodeFloor?: (nodeId: string) => number | undefined
+  /** Building of a route node ('' or '__outdoor__' = outdoors): outdoor parts are always loud. */
+  getNodeBuilding?: (nodeId: string) => string | undefined
   /** Floor to highlight in the route color (others render dimmed). */
   activeFloor?: number
   /** Whether this route layer owns the camera fit. Canonical Navigate opts out. */
@@ -24,7 +26,7 @@ interface RouteLineProps {
   navigationSegment?: NavigationSegment | null
 }
 
-const LAYER_IDS = ['route-glow', 'route-core', 'route-flow'] as const
+const LAYER_IDS = ['route-glow', 'route-casing', 'route-core', 'route-flow'] as const
 const SOURCE_ID = 'route'
 
 // Centralized route styling (spec §4.4) — resolves theme tokens at runtime.
@@ -52,7 +54,7 @@ export function removeRouteLayers(map: maplibregl.Map | null | undefined) {
   }
 }
 
-export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
+export function RouteLine({ map, route, getNodePosition, getNodeFloor, getNodeBuilding, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
   // Re-fit the camera only when the route itself changes, not on floor switches.
   const fittedPathRef = useRef('')
 
@@ -92,12 +94,10 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       if (seg === segments[0] && route.leadIn && coords.length > 0) coords.unshift([route.leadIn.lng, route.leadIn.lat])
       if (coords.length < 2) continue
       allCoords.push(...coords)
-      // Emphasis: floor-based when multi-floor; otherwise driven by the
-      // navigation phase (loud indoors, quiet outdoor/entrance). Same `active`
-      // channel as always — emphasis, never a restyle.
-      const active = multiFloor
-        ? (seg.floor === activeFloor ? 1 : 0)
-        : (navigationSegment === 'indoor' || navigationSegment === 'floor-transition' ? 1 : 0)
+      // Emphasis: on a multi-floor route the shown floor's part is loud and the other floors' parts dim. A one-floor
+      // route is always loud, outdoors too (owner 2026-11-18: "really highlight the route that we are traversing").
+      const outdoors = getNodeBuilding !== undefined && seg.nodes.some((id) => { const b = getNodeBuilding(id); return !b || b === '__outdoor__' })
+      const active = multiFloor && !outdoors ? (seg.floor === activeFloor ? 1 : 0) : 1
       features.push({
         type: 'Feature',
         properties: { active },
@@ -120,15 +120,35 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       })
     }
 
+    // A bold, glowing route (owner 2026-11-18: "really highlight the route that we are traversing"): a wide soft glow,
+    // a white edge and a thick core, all growing with zoom. Inactive parts (other floors, quiet phases) stay thin and dim.
+    const active = (on: number, off: number): ExpressionSpecification => ['case', ['==', ['get', 'active'], 1], on, off]
+    const byZoom = (z14: [number, number], z18: [number, number], z21: [number, number]): ExpressionSpecification => [
+      'interpolate', ['linear'], ['zoom'],
+      14, active(...z14), 18, active(...z18), 21, active(...z21),
+    ]
     if (!map.getLayer('route-glow')) map.addLayer({
       id: 'route-glow',
       type: 'line',
       source: SOURCE_ID,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': ACTIVE_COLOR,
-        'line-width': 12,
-        'line-opacity': ['case', ['==', ['get', 'active'], 1], 0.3, 0.08],
-        'line-blur': 4,
+        'line-width': byZoom([14, 6], [28, 10], [44, 14]),
+        'line-opacity': active(0.45, 0.08),
+        'line-blur': byZoom([6, 3], [10, 4], [14, 6]),
+      },
+    })
+
+    if (!map.getLayer('route-casing')) map.addLayer({
+      id: 'route-casing',
+      type: 'line',
+      source: SOURCE_ID,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#FFFFFF',
+        'line-width': byZoom([7, 3.5], [13, 5], [19, 7]),
+        'line-opacity': active(0.95, 0.4),
       },
     })
 
@@ -136,10 +156,11 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       id: 'route-core',
       type: 'line',
       source: SOURCE_ID,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': ACTIVE_COLOR,
-        'line-width': ['case', ['==', ['get', 'active'], 1], 4, 2.5],
-        'line-opacity': ['case', ['==', ['get', 'active'], 1], 1, 0.45],
+        'line-width': byZoom([4.5, 2], [9, 3], [14, 4.5]),
+        'line-opacity': active(1, 0.45),
       },
     })
 
@@ -168,7 +189,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, activeFlo
       }
     }
 
-  }, [activeFloor, fitCamera, getNodeFloor, getNodePosition, map, navigationSegment, route])
+  }, [activeFloor, fitCamera, getNodeBuilding, getNodeFloor, getNodePosition, map, navigationSegment, route])
 
   return null
 }

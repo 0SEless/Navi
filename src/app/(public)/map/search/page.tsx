@@ -17,7 +17,8 @@ export default function SearchPage() {
   const campusLoading = usePublicStore((s) => s.campusLoading)
   const campusError = usePublicStore((s) => s.campusError)
   const fetchCampusData = usePublicStore((s) => s.fetchCampusData)
-  const search = usePublicStore((s) => s.search)
+  const search = usePublicStore((s) => s.findEntries)
+  const revealSearchPois = usePublicStore((s) => s.search)
   const setTo = usePublicStore((s) => s.setTo)
   const addRecentSearch = usePublicStore((s) => s.addRecentSearch)
   const recentSearches = usePublicStore((s) => s.recentSearches)
@@ -39,6 +40,8 @@ export default function SearchPage() {
   }, [query])
 
   const results = useMemo(() => search(debounced), [search, debounced])
+  // Hidden-but-searchable POIs show on the map while searched; set after rendering (owner 2026-11-18).
+  useEffect(() => { revealSearchPois(debounced) }, [revealSearchPois, debounced])
   const groups = useMemo(
     () => groupResults(results, campus?.buildings ?? []),
     [results, campus],

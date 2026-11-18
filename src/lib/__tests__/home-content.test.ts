@@ -149,7 +149,7 @@ describe('Home content adapter', () => {
       buildingId: 'bld-main',
       buildingName: 'Main Building',
       floor: 1,
-      floorLabel: 'Floor 1',
+      floorLabel: '1F',
     })
   })
 
@@ -163,5 +163,13 @@ describe('Home content adapter', () => {
       nodeId: 'node-101',
       label: 'Room 101',
     })
+  })
+
+  it('never shows a route-point code (owner 2026-11-18: "N-16"): its building, then a plain fallback; floors as GF/1F', () => {
+    const buildings = [building()]
+    expect(buildRecentDestination('n-16', { buildings, nodes: [node({ id: 'n-16', label: 'N-16', floor: 0 })], searchEntries: [] })).toMatchObject({
+      label: 'Main Building', floorLabel: 'GF',
+    })
+    expect(buildRecentDestination('n-17', { buildings: [], nodes: [node({ id: 'n-17', label: 'N-17', buildingId: '' })], searchEntries: [] }).label).toBe('Campus place')
   })
 })

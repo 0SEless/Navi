@@ -83,7 +83,7 @@ describe('public navigation camera policy', () => {
       allowPitch: false,
       followsPosition: true,
       preferredZoom: 18,
-      maxZoom: 18,
+      maxZoom: 22,
     })
     expect(suspended.followsPosition).toBe(false)
     expect(suspended.followsHeading).toBe(false)
@@ -102,7 +102,7 @@ describe('public navigation camera policy', () => {
       bearing: 12,
       followsPosition: true,
       followsHeading: false,
-      maxZoom: 18,
+      maxZoom: 22,
     })
   })
 

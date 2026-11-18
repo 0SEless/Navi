@@ -277,20 +277,20 @@ describe('ExploreMap public navigation context boundary', () => {
     }))
   })
 
-  it('exposes only the minimal map controls', () => {
+  it('has no camera buttons on Explore (owner 2026-11-18: remove them; pinch and drag move the map)', () => {
     render(<ExploreMap bundle={buildingBundle} />)
 
-    expect(screen.getByRole('button', { name: 'Recenter map' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reset map view' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cycle camera view' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Recenter map' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reset map view' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Voice guidance' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Fit route' })).toBeNull()
   })
 
-  it('keeps legacy Explore controls when no camera configuration is supplied', () => {
+  it('without a camera configuration there is no navigation camera (Explore)', () => {
     render(<ExploreMap bundle={buildingBundle} />)
 
     expect(screen.queryByTestId('navigation-camera')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Reset map view' })).toBeInTheDocument()
   })
 
   it('uses the canonical camera seam and suppresses duplicate legacy controls when configured', () => {

@@ -166,7 +166,10 @@ export interface PublicState {
   /** W16C: Exit indoor mode, return to campus mode. */
   exitIndoorContext: () => void
   fetchCampusData: (campusId?: string) => Promise<void>
+  /** Searches the campus and reveals matching hidden POIs on the map (an action: not while rendering). */
   search: (query: string) => SearchEntry[]
+  /** Searches the campus only (safe while rendering; owner 2026-11-18: Navigate's "Cannot update a component"). */
+  findEntries: (query: string) => SearchEntry[]
   clearRevealedPoiIds: () => void
   findRoute: (fromId: string, toId: string) => NavRoute | null
   findDestinationRoute: (fromId: string) => NavRoute | null
@@ -1182,6 +1185,7 @@ export function createPublicStore(dependencies: PublicStoreDependencies = {}) {
     return promise
   },
 
+  findEntries: (query) => search(get().campus?.searchEntries ?? [], query),
   search: (query) => {
     const results = search(get().campus?.searchEntries ?? [], query)
     // Hidden-but-searchable POIs are temporarily revealed while a query is

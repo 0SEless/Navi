@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useCallback, useRef, useState } from 'react'
-import { Compass, LocateFixed, Navigation } from 'lucide-react'
 import NavigationMap, { useNavigationMap } from '@/components/map/NavigationMap'
 import { BuildingLayer } from '@/components/map/layers/BuildingLayer'
 import { RoomLayer } from '@/components/map/layers/RoomLayer'
@@ -10,6 +9,8 @@ import { StaircaseLayer } from '@/components/map/layers/StaircaseLayer'
 import { ElevatorLayer } from '@/components/map/layers/ElevatorLayer'
 import { DoorLayer } from '@/components/map/layers/DoorLayer'
 import { FloorArchitectureLayer, selectFloorArchitecture, floorArchitectureFallback } from '@/components/map/layers/FloorArchitectureLayer'
+import { RouteFloorLayer } from '@/components/map/layers/RouteFloorLayer'
+import { routeFloorRibbons } from '@/lib/route-floor-ribbons'
 import { RaisedRoomLabels } from '@/components/map/layers/RaisedRoomLabels'
 import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
@@ -18,7 +19,7 @@ import { TerrainLayer } from '@/components/map/layers/TerrainLayer'
 import { terrainAwareMapBounds } from '@/components/map/layers/terrain-layer-geojson'
 import { RouteLine } from '@/components/map/RouteLine'
 import { SiteLayers } from '@/components/map/site/SiteLayers'
-import { flatSite } from '@/components/map/site/flat-site'
+import { flatSite, routeAsRibbon } from '@/components/map/site/flat-site'
 import { TerrainLookSwitch } from '@/components/map/TerrainLookSwitch'
 import { autoIndoorDecision } from '@/lib/auto-indoor'
 import { buildingFront, focusCamera } from '@/lib/focus-camera'
@@ -61,6 +62,8 @@ export interface ExploreMapProps {
   route?: { path: string[]; cost: number; leadIn?: { lat: number; lng: number } | null } | null
   /** Route-backed visual emphasis; does not activate Explore indoor context. */
   navigationTargetBuildingId?: string
+  /** The floor the route ends on in that building (owner 2026-11-18): it opens there in 2.5D while you are outside. */
+  navigationTargetFloor?: number
   /** Opt-in canonical camera bridge; absent keeps the legacy Explore controls. */
   camera?: NavigationCameraConfig
 }
@@ -253,6 +256,35 @@ function ExploreLayers({
     },
     [bundle],
   )
+  // While a route is shown (owner 2026-11-18: "filter out the names … so we can focus on our navigation"): only the
+  // destination building is named, and other places are hidden (a place the route ends at stays).
+  const navigating = Boolean(route && (route.path.length > 0 || route.leadIn))
+  const routeEnd = route?.path.at(-1)
+  const routePois = useMemo(
+    () => (navigating ? visiblePois.filter((poi) => poi.id === routeEnd || (poi as { sourceId?: string }).sourceId === routeEnd) : visiblePois),
+    [navigating, visiblePois, routeEnd],
+  )
+  const getNodeBuilding = useCallback((id: string) => bundle.nodes.find((x) => x.id === id)?.buildingId, [bundle.nodes])
+  // The route lying on the 2.5D floors (owner 2026-11-18: "it should show on the floor"), for the open building's
+  // floors up to the one shown.
+  const routeOnFloors = useMemo(() => {
+    const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+    if (!route || !architecture) return empty
+    const elevations = new Map<number, number>()
+    for (const record of model.indoor.architecture ?? []) {
+      if (record.buildingId === architecture.buildingId) elevations.set(record.floor, Number.isFinite(record.elevation) ? record.elevation : 0)
+    }
+    return routeFloorRibbons({
+      path: route.path,
+      node: (id) => {
+        const n = bundle.nodes.find((x) => x.id === id)
+        return n ? { lat: n.position.lat, lng: n.position.lng, floor: n.floor, buildingId: n.buildingId } : undefined
+      },
+      buildingId: architecture.buildingId,
+      elevations,
+      topFloor: activeFloor,
+    })
+  }, [route, architecture, model.indoor.architecture, bundle.nodes, activeFloor])
   // The route's points for the 3D ribbon.
   const routePath = useMemo(
     () => [...(route?.leadIn ? [route.leadIn] : []), ...(route?.path ?? []).map(getNodePosition).filter((p): p is { lat: number; lng: number } => Boolean(p))],
@@ -277,6 +309,7 @@ function ExploreLayers({
         selectedBuildingId={navigationTargetBuildingId ?? selectedBuildingId}
         onBuildingClick={handleBuildingClick}
         solid={Boolean(site)}
+        labelsFor={navigating ? navigationTargetBuildingId ?? null : undefined}
       />
       <RoomLayer
         map={map}
@@ -291,6 +324,7 @@ function ExploreLayers({
         indoorContext={indoorContext}
       />
       <FloorArchitectureLayer map={map} architecture={architecture} level={threeD ? architectureLevel : undefined} floorAreas={openFloorAreas} highlight={roomHighlight} />
+      <RouteFloorLayer map={map} data={routeOnFloors} />
       <RaisedRoomLabels map={map} rooms={openFloorRooms} surfaceM={openFloorSurfaceM} />
       <WallLayer
         map={map}
@@ -327,14 +361,16 @@ function ExploreLayers({
           route; the admin Route Testing page keeps its markers. */}
       <POILayer
         map={map}
-        pois={visiblePois}
+        pois={routePois}
         revealedIds={revealedPoiIds}
       />
       <RouteLine
         map={map}
-        route={site && threeD ? null : route ?? null}
+        // On flat ground the bold route line stays when tilted; on terrain the route is a ribbon on the surface.
+        route={routeAsRibbon(site, threeD) ? null : route ?? null}
         getNodePosition={getNodePosition}
         getNodeFloor={getNodeFloor}
+        getNodeBuilding={getNodeBuilding}
         activeFloor={activeFloor}
         navigationSegment={navigationSegment}
         fitCamera={fitCamera}
@@ -342,7 +378,7 @@ function ExploreLayers({
       {/* Last on purpose: the app's layers set up only on a loaded style, and the site's terrain tiles
           would keep it "loading". The site layers insert themselves underneath the app's layers. */}
       {site && (
-        <SiteLayers map={map} site={site} buildings={bundle.buildings} threeD={threeD} contours={false} routePath={routePath} look={terrainLook} />
+        <SiteLayers map={map} site={site} buildings={bundle.buildings} threeD={threeD} contours={false} routePath={routeAsRibbon(site, threeD) ? routePath : null} look={terrainLook} />
       )}
     </div>
   )
@@ -385,81 +421,15 @@ function ExploreFloorSelector({
   )
 }
 
-function ExploreMapControls({
-  bounds,
-  site,
-}: {
-  bounds: CampusBundle['boundingBox']
-  site?: CampusBundle['site']
-}) {
-  const { map } = useNavigationMap()
+/** Explore keeps only the terrain look switch (owner 2026-11-18: no camera buttons; pinch and drag move the map). */
+function ExploreMapControls({ site }: { site?: CampusBundle['site'] }) {
   const terrainLook = usePublicStore((s) => s.preferences.terrainLook)
   const setTerrainLook = usePublicStore((s) => s.setTerrainLook)
   const campusLook = site?.look ?? DEFAULT_TERRAIN_LOOK
-  const [viewIdx, setViewIdx] = useState(0)
-
-  const cycleView = () => {
-    if (!map || !map.isStyleLoaded()) return
-    const next = (viewIdx + 1) % 2
-    setViewIdx(next)
-    if (next === 0) {
-      // TOP
-      map.easeTo({ pitch: 0, bearing: 0, zoom: Math.max(map.getZoom(), 17), duration: 300 })
-    } else {
-      // FOLLOW
-      map.easeTo({ pitch: 60, duration: 300 })
-    }
-  }
-
-  const recenter = () => {
-    if (!map || !bounds || !map.isStyleLoaded()) return
-    map.fitBounds(
-      [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
-      { padding: 48, duration: 0, maxZoom: 18 },
-    )
-  }
-
-  const resetView = () => {
-    if (!map || !map.isStyleLoaded()) return
-    setViewIdx(0)
-    map.easeTo({ bearing: 0, pitch: 0, duration: 0 })
-  }
-
-  const viewIcons = [
-    <span key="top" className="text-[10px] font-bold leading-none">TOP</span>,
-    <Navigation key="follow" className="h-4 w-4" aria-hidden="true" />,
-  ]
-
+  if (!site?.terrain) return null
   return (
     <div className="absolute right-4 top-20 z-20 flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={cycleView}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
-        aria-label="Cycle camera view"
-        title="Cycle view"
-      >
-        {viewIcons[viewIdx]}
-      </button>
-      <button
-        type="button"
-        onClick={recenter}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
-        aria-label="Recenter map"
-        title="Recenter map"
-      >
-        <LocateFixed className="h-4 w-4" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        onClick={resetView}
-        className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--navi-border)] bg-[var(--navi-card)] text-[var(--navi-text)] shadow-md"
-        aria-label="Reset map view"
-        title="Reset map view"
-      >
-        <Compass className="h-4 w-4" aria-hidden="true" />
-      </button>
-      {site?.terrain && <TerrainLookSwitch active={terrainLook ?? campusLook} campusDefault={campusLook} onChange={setTerrainLook} />}
+      <TerrainLookSwitch active={terrainLook ?? campusLook} campusDefault={campusLook} onChange={setTerrainLook} />
     </div>
   )
 }
@@ -477,7 +447,7 @@ function ExploreMapControls({
  *  - click building → selectBuilding + sheet
  *  - floor selector → filters indoor layers by floor
  */
-export default function ExploreMap({ bundle, route, navigationTargetBuildingId, camera }: ExploreMapProps) {
+export default function ExploreMap({ bundle, route, navigationTargetBuildingId, navigationTargetFloor, camera }: ExploreMapProps) {
   // Build render model from bundle (memoized)
   const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
   // Flat ground unless the visitor chose the terrain (owner 2026-11-16).
@@ -535,8 +505,9 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
       selectedBuildingId: selectedBuilding?.id,
       indoorContext,
       activeFloor,
+      navigationTarget: navigationTargetBuildingId && navigationTargetFloor !== undefined ? { buildingId: navigationTargetBuildingId, floor: navigationTargetFloor } : null,
     }),
-    [activeFloor, indoorContext, parentNavigationContext, selectedBuilding?.id],
+    [activeFloor, indoorContext, parentNavigationContext, selectedBuilding?.id, navigationTargetBuildingId, navigationTargetFloor],
   )
   const effectiveFloor = viewedFloorId ?? exploreContext.floor ?? activeFloor
   const effectiveIndoorContext = exploreContext.surface === 'outdoors'
@@ -592,7 +563,7 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
   return (
     <NavigationMap
       bounds={mapBounds}
-      bearing={!camera || camera.surface === 'explore' || camera.initialSetup ? entranceFirst : undefined}
+      bearing={entranceFirst}
       site={shownSite ?? null}
       className="h-full w-full"
       pitch={initialPitch}
@@ -610,8 +581,9 @@ export default function ExploreMap({ bundle, route, navigationTargetBuildingId, 
       {cameraWithContext ? (
         <NavigationCamera
           {...cameraWithContext}
+          restBearing={cameraWithContext.restBearing ?? entranceFirst}
         />
-      ) : <ExploreMapControls bounds={mapBounds} site={shownSite} />}
+      ) : <ExploreMapControls site={shownSite} />}
       <NavigationPositionMarker />
       <ExploreFloorSelector bundle={bundle} context={exploreContext} activeFloor={activeFloor} viewedFloorId={viewedFloorId} />
     </NavigationMap>

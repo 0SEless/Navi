@@ -92,7 +92,11 @@ export function findCanonicalRoutePath(
   fromId: string,
   toId: string,
 ): PathResult | null {
-  const route = new RoutingEngine(toCoreGraph(nodes, edges)).findRoute(fromId, toId)
+  // A room's point is a place to start or end, never a way through (owner 2026-11-18: a route cut through CS201's
+  // two doors instead of using the stair). Only the route's own start and end rooms keep their links.
+  const rooms = new Set(nodes.filter((n) => ((n.type as string) === 'room' || (n.type as string) === 'poi') && n.id !== fromId && n.id !== toId).map((n) => n.id))
+  const usable = rooms.size ? edges.filter((e) => !rooms.has(e.from) && !rooms.has(e.to)) : edges
+  const route = new RoutingEngine(toCoreGraph(nodes, usable)).findRoute(fromId, toId)
   if (!route) return null
 
   const path = route.path.map((step) => step.nodeId)

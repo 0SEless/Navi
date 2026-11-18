@@ -609,6 +609,18 @@ describe('Navigate setup and route preview', () => {
     expect(screen.queryByRole('button', { name: 'Start navigation' })).toBeNull()
   })
 
+  it('the active panel is compact (owner 2026-11-18: it covered the map): no repeated distance, no "Then", one control row', () => {
+    setReadyCampus({ fromNode: start.id, toNode: destination.id })
+    render(<NavigatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start navigation' }))
+    expect(screen.queryByText(/for this step/)).toBeNull()
+    expect(screen.queryByText(/^Then:/)).toBeNull()
+    const row = screen.getByRole('group', { name: 'Navigation controls' })
+    for (const name of ['Previous instruction', 'Next instruction', 'Mute voice guidance', 'End navigation']) {
+      expect(row).toContainElement(screen.getByRole('button', { name }))
+    }
+  })
+
   it('applies the stored camera view only after Start navigation', () => {
     const current = usePublicStore.getState().preferences
     usePublicStore.setState({

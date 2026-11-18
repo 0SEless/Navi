@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SiteArtifact } from '@navi/core'
-import { flatSite } from '../flat-site'
+import { flatSite, routeAsRibbon } from '../flat-site'
 
 const site = {
   boundary: [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }, { lat: 1, lng: 1 }],
@@ -34,5 +34,14 @@ describe('ground preference (flat by default; terrain only when chosen)', () => 
     expect(mergePublicPreferences({ ground: 'terrain' } as never).ground).toBe('terrain')
     expect(mergePublicPreferences({ ground: 'hills' } as never)).not.toHaveProperty('ground')
     expect(mergePublicPreferences({} as never)).not.toHaveProperty('ground')
+  })
+})
+
+describe('routeAsRibbon (owner 2026-11-18: a bold route line on flat ground)', () => {
+  it('only a tilted campus with terrain draws the route as a ribbon on the surface', () => {
+    expect(routeAsRibbon({ terrain: { heights: [] } } as never, true)).toBe(true)
+    expect(routeAsRibbon({ terrain: { heights: [] } } as never, false)).toBe(false)
+    expect(routeAsRibbon({ terrain: null } as never, true)).toBe(false)
+    expect(routeAsRibbon(undefined, true)).toBe(false)
   })
 })

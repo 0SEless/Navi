@@ -61,12 +61,14 @@ function NavigationRouteMap({
   route,
   active,
   navigationTargetBuildingId,
+  navigationTargetFloor,
   camera,
 }: {
   bundle: CampusBundle
   route: NavRoute | null
   active: boolean
   navigationTargetBuildingId?: string
+  navigationTargetFloor?: number
   camera: ComponentProps<typeof ExploreMap>['camera']
 }) {
   const { routeProgress } = useNavigationContext()
@@ -75,6 +77,7 @@ function NavigationRouteMap({
     bundle={bundle}
     route={route && remaining ? { ...remaining, cost: route.totalDistance } : null}
     navigationTargetBuildingId={navigationTargetBuildingId}
+    navigationTargetFloor={navigationTargetFloor}
     camera={camera}
   />
 }
@@ -85,11 +88,6 @@ function routeFloorLabel(floor: number | null): string | null {
   if (floor === null) return null
   if (floor === 0) return 'GF'
   return floor > 0 ? `${floor}F` : `B${Math.abs(floor)}F`
-}
-
-function formatPoiCategory(category: string | null): string | null {
-  if (!category?.trim()) return null
-  return category.trim().replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
 function cameraModeForPreference(view: NavigationMapView): NavigationCameraMode {
@@ -210,7 +208,6 @@ function ActiveNavigationGuidance({
     ? { ...instruction, text: `Continue to ${destinationLabel}` }
     : instruction
   const isManualPreview = previewedStep !== null && previewedStep !== actualStep
-  const upcomingInstruction = visibleDirection === null ? null : asView(visibleDirection + 1)
   const remainingDistance = routeProgress?.remainingDistance ?? route.totalDistance
   const etaMinutes = estimatePresentationEtaMinutes(remainingDistance)
   const navigationStatus = resolveNavigationStatus({ arrived, isOffRoute })
@@ -250,6 +247,7 @@ function ActiveNavigationGuidance({
         ) : (
           <span>Step {(actualDirection ?? 0) + 1} of {directionCount}</span>
         )}
+        {geoError ? (<><span aria-hidden="true">·</span><span role="alert">Location off: tap Next as you walk</span></>) : null}
         <span className="sr-only">{navigationSegmentLabel(navigationSegment)}</span>
         <span className="sr-only" data-testid="progress-mode-label">{progressLabel}</span>
       </div>
@@ -266,11 +264,6 @@ function ActiveNavigationGuidance({
         </div>
       ) : null}
 
-      {geoError ? (
-        <p className="text-xs text-[var(--navi-text-secondary)]" role="alert">
-          Location is off. Tap Next as you walk.
-        </p>
-      ) : null}
 
       {navigationStatus === 'arrived' ? (
         <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4" role="status" aria-live="polite">
@@ -281,94 +274,71 @@ function ActiveNavigationGuidance({
           <p className="mt-1 text-sm text-[var(--navi-text-secondary)]">The route session is complete.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-[var(--navi-border)] bg-[var(--navi-content)] p-3" aria-label="Current route instruction" aria-live="polite">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">Next instruction</p>
-              <p className="mt-1 text-lg font-semibold leading-snug text-[var(--navi-text)]">
-                {displayedInstruction?.text ?? 'No instruction is available for this route step.'}
-              </p>
-              {displayedInstruction ? (
-                <p className="mt-1 text-xs text-[var(--navi-text-secondary)]">
-                  {formatNavigationDistance(displayedInstruction.distance)} for this step
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          {upcomingInstruction && !isManualPreview ? (
-            <p className="mt-2 text-xs text-[var(--navi-text-secondary)]">Then: {upcomingInstruction.text}</p>
-          ) : null}
-
+        <div aria-label="Current route instruction" aria-live="polite">
+          {/* Compact (owner 2026-11-18: the panel covered the map): the instruction, then one row of controls. */}
+          <p className="sr-only">Next instruction</p>
+          <p className="text-lg font-semibold leading-snug text-[var(--navi-text)]">
+            {displayedInstruction?.text ?? 'No instruction is available for this route step.'}
+          </p>
           {isManualPreview && visibleStep !== null ? (
-            <p className="mt-3 text-xs font-medium text-[var(--navi-primary)]">Viewing step {(visibleDirection ?? 0) + 1} of {directionCount}</p>
+            <p className="mt-1 text-xs font-medium text-[var(--navi-primary)]">Viewing step {(visibleDirection ?? 0) + 1} of {directionCount}</p>
           ) : null}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {progressMode === 'step' ? <button
-              type="button"
-              onClick={stepBack}
-              disabled={visibleStep === null || visibleStep <= 0}
-              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
-              aria-label="Back one step"
-            ><ChevronLeft className="h-4 w-4" aria-hidden="true" />Back</button> : <button
-              type="button"
-              onClick={() => movePreview(-1)}
-              disabled={visibleStep === null || visibleStep <= 0}
-              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
-              aria-label="Previous instruction"
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              Previous
-            </button>}
-            {progressMode === 'step' ? <button
-              type="button"
-              onClick={stepForward}
-              disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
-              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-primary)] px-3 text-sm font-semibold text-[var(--navi-primary)] disabled:opacity-40"
-              aria-label="Next step"
-            >Next<ChevronRight className="h-4 w-4" aria-hidden="true" /></button> : <button
-              type="button"
-              onClick={() => movePreview(1)}
-              disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
-              className="flex min-h-11 items-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
-              aria-label="Next instruction"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>}
-            {isManualPreview && actualStep !== null ? (
-              <button
-                type="button"
-                onClick={() => setPreviewedStep(null)}
-                className="min-h-11 rounded-xl border border-[var(--navi-primary)] px-3 text-sm font-semibold text-[var(--navi-primary)]"
-                aria-label="Return to current step"
-              >
-                Return to current step
-              </button>
-            ) : null}
-          </div>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2" aria-label="Navigation controls">
+      <div className="flex items-center gap-2" role="group" aria-label="Navigation controls">
+        {navigationStatus !== 'arrived' ? (progressMode === 'step' ? <button
+          type="button"
+          onClick={stepBack}
+          disabled={visibleStep === null || visibleStep <= 0}
+          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
+          aria-label="Back one step"
+        ><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button> : <button
+          type="button"
+          onClick={() => movePreview(-1)}
+          disabled={visibleStep === null || visibleStep <= 0}
+          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
+          aria-label="Previous instruction"
+        ><ChevronLeft className="h-4 w-4" aria-hidden="true" /></button>) : null}
+        {navigationStatus !== 'arrived' ? (progressMode === 'step' ? <button
+          type="button"
+          onClick={stepForward}
+          disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
+          className="flex h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white disabled:opacity-40"
+          aria-label="Next step"
+        >Next<ChevronRight className="h-4 w-4" aria-hidden="true" /></button> : <button
+          type="button"
+          onClick={() => movePreview(1)}
+          disabled={visibleDirection === null || visibleDirection >= directionCount - 1}
+          className="flex h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white disabled:opacity-40"
+          aria-label="Next instruction"
+        >Next<ChevronRight className="h-4 w-4" aria-hidden="true" /></button>) : <span className="flex-1" />}
+        {isManualPreview && actualStep !== null ? (
+          <button
+            type="button"
+            onClick={() => setPreviewedStep(null)}
+            className="h-11 rounded-xl border border-[var(--navi-primary)] px-3 text-sm font-semibold text-[var(--navi-primary)]"
+            aria-label="Return to current step"
+          >
+            Now
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setNavigationPreferences({ voiceGuidance: !voiceGuidanceEnabled })}
-          className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)]"
+          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)] disabled:opacity-40"
           aria-label={voiceGuidanceEnabled ? 'Mute voice guidance' : 'Unmute voice guidance'}
           aria-pressed={voiceGuidanceEnabled}
         >
           {voiceGuidanceEnabled ? <Volume2 className="h-4 w-4" aria-hidden="true" /> : <VolumeX className="h-4 w-4" aria-hidden="true" />}
-          {voiceGuidanceEnabled ? 'Voice on' : 'Voice off'}
         </button>
         <button
           type="button"
           onClick={onEnd}
-          className="min-h-11 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)]"
+          className="h-11 rounded-xl border border-[var(--navi-border)] px-3 text-sm font-medium text-[var(--navi-text)]"
           aria-label="End navigation"
         >
-          End navigation
+          End
         </button>
       </div>
 
@@ -437,7 +407,8 @@ function NavigatePageContent() {
   const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
   const recentDestinations = usePublicStore((s) => s.recentDestinations)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
-  const searchPublishedEntries = usePublicStore((s) => s.search)
+  const searchPublishedEntries = usePublicStore((s) => s.findEntries)
+  const revealSearchPois = usePublicStore((s) => s.search)
   const findDestinationRoute = usePublicStore((s) => s.findDestinationRoute)
 
   const [picker, setPicker] = useState<PickerRole | null>(null)
@@ -547,12 +518,9 @@ function NavigatePageContent() {
   const toEntry = entryForNode(campus, toNode)
   const poiEntry = entryForPoi(campus, poiDestination?.poiId ?? null)
   const toLabel = poiDestination
-    ? activePoiDestination?.label ?? poiEntry?.label ?? poiDestination.poiId
+    ? activePoiDestination?.label ?? poiEntry?.label ?? 'Campus place'
     : toNode
       ? readablePlaceLabel({ nodeLabel: nodeById.get(toNode)?.label, nodeId: toNode, entryLabel: toEntry?.label, buildingName: buildingNameOf(nodeById.get(toNode)?.buildingId ?? '') })
-    : null
-  const destinationCategory = isPoiRoute
-    ? formatPoiCategory(activePoiDestination?.category ?? poiEntry?.category ?? null)
     : null
   const composition = useMemo(
     () => getNavigationRouteComposition(route),
@@ -572,6 +540,10 @@ function NavigatePageContent() {
           || (entry.type === 'poi' && entry.source === 'authored' && Boolean(entry.sourceId ?? entry.id)))
       .slice(0, 12)
   }, [campus, picker, query, searchPublishedEntries])
+  // Hidden-but-searchable POIs show on the map while they are being searched; done after rendering, not during it.
+  useEffect(() => {
+    if (campus && picker) revealSearchPois(query)
+  }, [campus, picker, query, revealSearchPois])
 
   const recentEntries = useMemo(() => {
     if (!campus) return []
@@ -912,6 +884,8 @@ function NavigatePageContent() {
           route={route}
           active={experiencePhase === 'active'}
           navigationTargetBuildingId={composition.targetBuildingId ?? undefined}
+          // The destination building opens in 2.5D on its floor (owner 2026-11-18), when the route ends inside it.
+          navigationTargetFloor={composition.destination?.buildingId && composition.destination.buildingId === composition.targetBuildingId && composition.destinationFloor !== null ? composition.destinationFloor : undefined}
           camera={{
             surface: experiencePhase === 'route-preview' ? 'route-preview' : 'active',
             mode: experiencePhase === 'route-preview' ? 'TOP' : activeCameraMode,
@@ -963,23 +937,17 @@ function NavigatePageContent() {
             className="pointer-events-auto mx-auto max-h-[60dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_97%,transparent)] p-3 shadow-xl backdrop-blur"
             aria-labelledby="route-surface-title"
           >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--navi-primary)]">
-                {experiencePhase === 'active' ? 'Active navigation' : 'Route preview'}
-              </p>
-              <h1 id="route-surface-title" className="truncate text-base font-semibold text-[var(--navi-text)]">{toLabel}</h1>
-              {targetBuilding && targetBuilding.name.trim().toLowerCase() !== (toLabel ?? '').trim().toLowerCase() ? (
-                <p className="truncate text-xs text-[var(--navi-text-secondary)]">Inside {targetBuilding.name}</p>
-              ) : null}
-              {destinationCategory ? (
-                <p className="mt-1 truncate text-xs text-[var(--navi-text-secondary)]">Category: {destinationCategory}</p>
-              ) : null}
-            </div>
+          {/* One line (owner 2026-11-18: the panel covered the map): where you are going, and close. */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="sr-only">Active navigation</p>
+            <h1 id="route-surface-title" className="min-w-0 truncate text-xs font-semibold text-[var(--navi-text-secondary)]">
+              To <span className="text-[var(--navi-text)]">{toLabel}</span>
+              {targetBuilding && targetBuilding.name.trim().toLowerCase() !== (toLabel ?? '').trim().toLowerCase() ? ` · ${targetBuilding.name}` : ''}
+            </h1>
             <button
               type="button"
               onClick={clearRoute}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[var(--navi-text-secondary)] hover:bg-[var(--navi-content)]"
+              className="-my-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[var(--navi-text-secondary)] hover:bg-[var(--navi-content)]"
               aria-label="Clear route"
             >
               <X className="h-4 w-4" aria-hidden="true" />

@@ -3,7 +3,6 @@ import {
   getNavigationCameraPolicy,
   getNavigationTransitionDuration,
   NAVIGATION_POV_PREFERRED_PITCH,
-  NAVIGATION_TOP_MAX_ZOOM,
   resetNavigationCompass,
   type NavigationCameraMode,
   type NavigationCameraSurface,
@@ -34,6 +33,8 @@ export interface NavigationCameraFitBoundsOptions {
   padding: { top: number; right: number; bottom: number; left: number }
   duration: number
   maxZoom?: number
+  bearing?: number
+  pitch?: number
 }
 
 export interface NavigationCameraHandler {
@@ -66,6 +67,11 @@ export interface NavigationCameraMap {
     bounds: [[number, number], [number, number]],
     options: NavigationCameraFitBoundsOptions,
   ) => void
+  getContainer?: () => { clientHeight: number }
+  cameraForBounds?: (
+    bounds: [[number, number], [number, number]],
+    options: Omit<NavigationCameraFitBoundsOptions, 'duration'>,
+  ) => { center?: unknown; zoom?: number; bearing?: number } | undefined
   on: (type: 'dragstart' | 'rotatestart' | 'zoomstart' | 'moveend' | 'styledata' | 'idle', listener: (event?: NavigationCameraInteractionEvent) => void) => void
   off: (type: 'dragstart' | 'rotatestart' | 'zoomstart' | 'moveend' | 'styledata' | 'idle', listener: (event?: NavigationCameraInteractionEvent) => void) => void
   dragPan: NavigationCameraHandler
@@ -86,6 +92,8 @@ export interface NavigationCameraUpdate {
   routeBounds?: NavigationCameraBounds | null
   initialSetup?: boolean
   reducedMotion?: boolean
+  /** The campus's entrance-first bearing (owner 2026-11-18): route fits and non-compass views use it. */
+  restBearing?: number
 }
 
 export interface NavigationCameraControllerState {
@@ -119,7 +127,9 @@ const FOLLOW_OFFSET: NavigationCameraOffset = [0, 110]
 const POV_OFFSET: NavigationCameraOffset = [0, 150]
 const ROUTE_PREVIEW_PADDING = { top: 80, right: 64, bottom: 24, left: 24 }
 const ROUTE_PREVIEW_DURATION_MS = 400
-const ROUTE_PREVIEW_MAX_ZOOM = NAVIGATION_TOP_MAX_ZOOM
+// Close enough to see the destination building's floors along a short campus route (owner 2026-11-18).
+const ROUTE_PREVIEW_MAX_ZOOM = 17.5
+const ROUTE_PREVIEW_PITCH = 45
 
 function isFiniteNumber(value: number): boolean {
   return Number.isFinite(value)
@@ -214,6 +224,8 @@ export function createNavigationCameraController(
   let pendingRecenterUpdateKey: string | null = null
   let lastRouteBoundsKey: string | null = null
   let reducedMotion = options.reducedMotion === true
+  let restBearing: number | undefined
+  let currentSurface: NavigationCameraSurface | undefined
   let transitionGeneration = 0
   let smoothedHeading: number | null = null
   let styleWasReady = false
@@ -300,7 +312,7 @@ export function createNavigationCameraController(
     if (state.mode !== 'TOP' && state.mode !== 'FOLLOW' && state.mode !== 'POV') return
     const targetPitch = clampPitchToMap(
       state.mode === 'TOP'
-        ? 0
+        ? (currentSurface === 'route-preview' ? ROUTE_PREVIEW_PITCH : 0)
         : state.mode === 'POV'
           ? NAVIGATION_POV_PREFERRED_PITCH
           : 55,
@@ -344,19 +356,30 @@ export function createNavigationCameraController(
     if (target.bearing !== undefined) state.bearing = target.bearing
   }
 
-  const fitRoute = (bounds: NavigationCameraBounds, force = false): void => {
+  // `active`: active navigation with no live location (owner 2026-11-18) — the route is framed above the navigation
+  // card (about the lower 45% of the map) at the mode's own tilt.
+  const fitRoute = (bounds: NavigationCameraBounds, force = false, active?: { pitch: number }): void => {
     if (!isReady() || !isValidBounds(bounds)) return
     const nextBoundsKey = boundsKey(bounds)
     if (!force && nextBoundsKey === lastRouteBoundsKey) return
 
-    map.fitBounds(
-      [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]],
-      {
-        padding: ROUTE_PREVIEW_PADDING,
-        duration: reducedMotion || force ? 0 : ROUTE_PREVIEW_DURATION_MS,
-        maxZoom: ROUTE_PREVIEW_MAX_ZOOM,
-      },
-    )
+    const box: [[number, number], [number, number]] = [[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]]
+    const duration = reducedMotion || force ? 0 : ROUTE_PREVIEW_DURATION_MS
+    const bearing = restBearing === undefined ? {} : { bearing: restBearing }
+    const height = map.getContainer?.().clientHeight ?? 0
+    const padding = active ? { ...ROUTE_PREVIEW_PADDING, bottom: Math.max(ROUTE_PREVIEW_PADDING.bottom, Math.round(height * 0.45)) } : ROUTE_PREVIEW_PADDING
+    const pitch = active ? active.pitch : ROUTE_PREVIEW_PITCH
+    // Tilted (owner 2026-11-18): the buildings and the destination's floors show in 2.5D along the route. MapLibre's
+    // fit with both pitch and bearing drifts the centre far off the route, so fit flat and tilt around that centre.
+    const camera = map.cameraForBounds?.(box, { padding, maxZoom: ROUTE_PREVIEW_MAX_ZOOM, ...bearing })
+    const raw = camera?.center as { lng: number; lat: number } | [number, number] | undefined
+    const center: NavigationCameraCenter | null = Array.isArray(raw) ? raw : raw && Number.isFinite(raw.lng) ? [raw.lng, raw.lat] : null
+    if (center && camera?.zoom !== undefined && Number.isFinite(camera.zoom)) {
+      cameraTransitionActive = true
+      map.easeTo({ center, zoom: camera.zoom, ...bearing, pitch, duration })
+    } else {
+      map.fitBounds(box, { padding, duration, maxZoom: ROUTE_PREVIEW_MAX_ZOOM, pitch, ...bearing })
+    }
     lastRouteBoundsKey = nextBoundsKey
   }
 
@@ -368,6 +391,8 @@ export function createNavigationCameraController(
     pendingUpdate = null
 
     reducedMotion = input.reducedMotion ?? options.reducedMotion === true
+    restBearing = Number.isFinite(input.restBearing) ? input.restBearing : undefined
+    currentSurface = input.surface
     if (input.initialSetup && !setupSessionActive) {
       setupSessionActive = true
       initialFramingApplied = false
@@ -425,6 +450,7 @@ export function createNavigationCameraController(
       ? resolveExplicitHeading(input.heading)
       : resolveLiveHeading(input.heading)
     const policy = getNavigationCameraPolicy({
+      restBearing,
       mode: nextMode,
       surface: input.surface,
       topOrientation: nextTopOrientation,
@@ -493,8 +519,15 @@ export function createNavigationCameraController(
     pendingRecenterUpdateKey = null
 
     if (input.surface === 'route-preview' && input.routeBounds) {
+      applyMaxZoom(Math.max(policy.maxZoom, ROUTE_PREVIEW_MAX_ZOOM))
       fitRoute(input.routeBounds)
-      applyMaxZoom(policy.maxZoom)
+      hasUpdated = true
+      return
+    }
+
+    if (input.surface === 'active' && input.routeBounds && !isValidCenter(input.position) && !state.followSuspended) {
+      applyMaxZoom(Math.max(policy.maxZoom, ROUTE_PREVIEW_MAX_ZOOM))
+      fitRoute(input.routeBounds, false, { pitch: clampPitchToMap(policy.pitch) })
       hasUpdated = true
       return
     }
@@ -576,6 +609,7 @@ export function createNavigationCameraController(
     if (state.followSuspended) return
 
     const policy = getNavigationCameraPolicy({
+      restBearing,
       mode: state.mode,
       surface: 'active',
       topOrientation: state.topOrientation,
@@ -601,6 +635,7 @@ export function createNavigationCameraController(
     const resolvedHeading = resolveExplicitHeading(heading)
 
     const policy = getNavigationCameraPolicy({
+      restBearing,
       mode: state.mode,
       surface: 'active',
       topOrientation: state.topOrientation,
@@ -662,6 +697,7 @@ export function createNavigationCameraController(
     state.headingFollowSuspended = reset.headingFollowSuspended
 
     const policy = getNavigationCameraPolicy({
+      restBearing,
       mode: state.mode,
       surface: 'active',
       topOrientation: state.topOrientation,

@@ -1,3 +1,4 @@
+import { floorLabel, isReadablePlaceName, readablePlaceLabel } from '@/lib/route-directions'
 import type { Building, NavNode, SearchEntry } from '@/types/nav-types'
 
 export type HomeAction =
@@ -286,13 +287,6 @@ export function reconcileRecentDestinationIds(
   })
 }
 
-function prettifyNodeId(nodeId: string): string {
-  return nodeId
-    .split('-')
-    .map((part, index) => (index === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part))
-    .join(' ')
-}
-
 export function buildRecentDestination(nodeId: string, source: HomeCampusSource): HomeRecentDestination {
   const node = source.nodes.find((candidate) => candidate.id === nodeId)
   const entry = source.searchEntries.find((candidate) => candidate.nodeId === nodeId)
@@ -300,10 +294,14 @@ export function buildRecentDestination(nodeId: string, source: HomeCampusSource)
   const building = buildingId ? source.buildings.find((candidate) => candidate.id === buildingId) : undefined
   const floor = node?.floor ?? entry?.floor
 
+  // Real words only (owner 2026-11-18): never a route-point code like "N-16"; its building, else a plain fallback.
+  const label = isReadablePlaceName(entry?.label)
+    ? entry!.label.trim()
+    : readablePlaceLabel({ nodeLabel: node?.label, nodeId, buildingName: building?.name, fallback: 'Campus place' })
   return {
     nodeId,
-    label: entry?.label || node?.label || prettifyNodeId(nodeId),
+    label,
     ...(building ? { buildingId: building.id, buildingName: building.name } : {}),
-    ...(typeof floor === 'number' ? { floor, floorLabel: `Floor ${floor}` } : {}),
+    ...(typeof floor === 'number' ? { floor, floorLabel: floorLabel(floor) } : {}),
   }
 }

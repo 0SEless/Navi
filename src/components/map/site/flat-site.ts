@@ -11,3 +11,11 @@ export function flatSite(site: SiteArtifact | undefined | null): SiteArtifact | 
   const { terrain: _terrain, ...rest } = site
   return { ...rest, buildings: site.buildings.map((b) => ({ ...b, baseM: 0 })), structures: [] } as SiteArtifact
 }
+
+/**
+ * Is the route drawn as a ribbon on the 3D surface? Only on a tilted campus with terrain; on flat ground the bold route
+ * line stays, tilted or not (owner 2026-11-18: "really highlight the route that we are traversing").
+ */
+export function routeAsRibbon(site: SiteArtifact | undefined | null, threeD: boolean): boolean {
+  return threeD && Boolean(site?.terrain)
+}

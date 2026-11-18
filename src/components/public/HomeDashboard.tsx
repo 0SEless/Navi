@@ -236,7 +236,7 @@ export function HomeDashboard() {
           <Clock3 className="h-5 w-5 text-[var(--navi-text-secondary)]" aria-hidden="true" />
         </div>
         {recentDestinations.length > 0 ? (
-          <div className="flex min-w-0 gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin">
+          <div className="flex min-w-0 gap-3 overflow-x-auto pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {recentDestinations.map((destination) => (
               <button
                 key={destination.nodeId}

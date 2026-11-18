@@ -9,6 +9,9 @@ import {
 
 export type ExploreCategory = 'all' | SearchEntry['type']
 
+/** The legacy building id of outdoor route points (NavigationRenderModel). */
+const OUTDOOR_BUILDING = '__outdoor__'
+
 export interface ExploreContextInput {
   parentContext?: NavigationContextValue | null
   selectedBuildingId?: string | null
@@ -18,6 +21,11 @@ export interface ExploreContextInput {
     floorId?: number
   }
   activeFloor?: number | null
+  /**
+   * Where the route ends, when inside a building (owner 2026-11-18): while the visitor is not in a building, the map
+   * opens that building in 2.5D on the destination floor, in route preview and active navigation.
+   */
+  navigationTarget?: { buildingId: string; floor: number } | null
 }
 
 export interface ExploreContext {
@@ -102,11 +110,15 @@ export function resolveExploreContext(input: ExploreContextInput): ExploreContex
         ? parent.route.nodeFloors
         : parent.route.steps.map(step => step.floor),
     )].sort((a, b) => b - a)
+    // Outside a building (no id, or an empty one) the route's destination building stays open in 2.5D.
+    const inside = parent.buildingId && parent.buildingId !== OUTDOOR_BUILDING ? parent.buildingId : undefined
+    const target = inside ? null : input.navigationTarget
+    const buildingId = inside || target?.buildingId || undefined
     return {
       surface: 'active-navigation',
-      buildingId: parent.buildingId,
-      floor: parent.floor,
-      indoorActive: Boolean(parent.buildingId),
+      buildingId,
+      floor: target ? target.floor : parent.floor,
+      indoorActive: Boolean(buildingId),
       routeFloors,
       navigationSegment: parent.navigationSegment,
       currentNodeId: parent.currentNodeId,
@@ -120,6 +132,16 @@ export function resolveExploreContext(input: ExploreContextInput): ExploreContex
       surface: 'building',
       buildingId: indoorBuildingId,
       floor: input.indoorContext?.floorId ?? input.activeFloor ?? undefined,
+      indoorActive: true,
+      routeFloors: [],
+    }
+  }
+
+  if (input.navigationTarget) {
+    return {
+      surface: 'building',
+      buildingId: input.navigationTarget.buildingId,
+      floor: input.navigationTarget.floor,
       indoorActive: true,
       routeFloors: [],
     }

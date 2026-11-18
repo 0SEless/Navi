@@ -44,8 +44,6 @@ function ExplorePageContent() {
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
   const focusRoom = usePublicStore((s) => s.focusRoom)
-  const mapAppearance = usePublicStore((s) => s.preferences.mapAppearance)
-  const setMapAppearance = usePublicStore((s) => s.setMapAppearance)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ExploreCategory>('all')
@@ -199,25 +197,7 @@ function ExplorePageContent() {
                 ))}
               </div>
 
-              <div className="mt-3 flex min-w-0 items-center gap-2" role="group" aria-label="Map presentation">
-                <span className="shrink-0 text-[11px] font-semibold text-[var(--navi-text-secondary)]">
-                  Map style
-                </span>
-                <div className="flex min-w-0 gap-1 overflow-x-auto">
-                  {(['department', 'navi', 'uniform'] as const).map(mode => (
-                    <button
-                      type="button"
-                      key={mode}
-                      onClick={() => setMapAppearance(mode)}
-                      aria-pressed={mapAppearance === mode}
-                      className="min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold"
-                    >
-                      {formatMapAppearanceLabel(mode)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
+              {/* Map style lives in Profile → preferences only (owner 2026-11-18). */}
               {query.trim() ? (
                 results.length > 0 ? (
                   <div className="mt-2 space-y-1" role="listbox" aria-label="Campus search results">
@@ -274,9 +254,4 @@ function formatPoiCategoryLabel(category: string): string {
   return category
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, character => character.toUpperCase())
-}
-
-function formatMapAppearanceLabel(mode: 'department' | 'navi' | 'uniform'): string {
-  if (mode === 'navi') return 'NAVI'
-  return mode.charAt(0).toUpperCase() + mode.slice(1)
 }

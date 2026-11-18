@@ -84,6 +84,34 @@ Presentation: Thursday 2026-11-19 (flat 2D campus, 2.5D buildings).
   "Room"; map does not follow the current step during navigation; Home screen polish; ASU Computer Science upper
   floors not connected to routes (data). No POI exists at the north road end near the Tourism Building (owner adds).
 
+## 2026-11-18 evening: navigation experience (for Codex to continue)
+Done (this commit):
+- Rooms drawn as walls are routable. ASU rooms are wall faces named via `roomAttributes` (floor.rooms is empty), so
+  the compiler made no room points: search showed rooms with `nodeId: ""` and Navigate hid them. `normalize/index.ts`
+  `faceRooms()` now turns each named, searchable face into a room (face centre, doors on its outline keep their
+  `routeConnection`). Result on ASU save 132: 116 room points, 111 joined to corridors, 94 of 171 room entries
+  routable. Rooms not resolved share a generic name ("Room") on one floor (`resolvePoiNodeId` needs a unique match).
+- Each room once in search (no "CS202 (CS202)" twin); room point label drops "()" and a code equal to the name.
+- Routes never pass through a room (`canonical-routing-adapter.ts`: room points only as start/end). The CS202 route
+  had cut through CS201's two doors.
+- Route lies on the 2.5D floors: `src/lib/route-floor-ribbons.ts` + `RouteFloorLayer` (thin slabs at each floor's
+  height, floors up to the one shown). Outdoor parts of a multi-floor route stay loud (`RouteLine getNodeBuilding`).
+- Destination building opens in 2.5D on its floor in preview and active navigation (`explore-contracts`
+  `navigationTarget`; the route context marks outdoors as `'__outdoor__'`).
+- Navigate: entrance-first `restBearing`, tilted preview (fit flat then tilt; MapLibre drifts with pitch+bearing),
+  Follow is the default view (zoom 18, limit 22), compact active card, bold glowing route line, other names hidden
+  while navigating, map style only in Profile, Explore camera buttons removed, recent destinations use real names,
+  Navigate search no longer sets state while rendering (`findEntries`).
+Not done / next:
+- Route strips are flat per floor; the stair climb between floors is not drawn in 3D (the flat line shows it).
+- A route that has arrived draws nothing (remaining path is empty), so the last view has no line.
+- Local testing: the app caches the campus per save number in IndexedDB `navi-public-campus-cache-v1`; after a
+  compiler change with the same save, delete that database or the old search index stays.
+- Admin Building 2F: south wall saved ~4 m inside 1F's (owner fixes in the editor). "Staircase to gr floor" on 1F is
+  drawn as a 1F→2F stair (data).
+- Not committed (other work): terrain pipeline files, the NAVI Web local-view API (`localView`, `src/lib/map/`),
+  `SiteLayers.tsx` (one-line wider terrain route ribbon of mine sits there too).
+
 ## How to run locally
 - Worktree `D:\CODEme\Navi\.navi-worktrees\navi-save-v2`. Start the server ONLY with
   `scripts\save-v2\import-data\start-savev2-local.ps1` (port 3001; it sets the Save v2 settings itself — there is

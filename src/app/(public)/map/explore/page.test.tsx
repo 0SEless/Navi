@@ -175,21 +175,12 @@ describe('ExplorePage discovery surface', () => {
     expect(usePublicStore.getState().sheetState).toBe('half')
   })
 
-  it('exposes the three presentation modes without mutating published buildings', () => {
+  it('keeps the map style out of the search panel (owner 2026-11-18: it lives in Profile preferences)', () => {
     setReadyCampus()
-    const before = structuredClone(bundle.buildings)
     render(<ExplorePage />)
-
     fireEvent.click(screen.getByRole('button', { name: 'Search campus' }))
-
-    expect(screen.getByRole('group', { name: 'Map presentation' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Department' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'NAVI' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Uniform' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'NAVI' }))
-    expect(usePublicStore.getState().preferences.mapAppearance).toBe('navi')
-    expect(bundle.buildings).toEqual(before)
+    expect(screen.queryByRole('group', { name: 'Map presentation' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Department' })).toBeNull()
   })
 
   it('shows explicit loading, error, and no-building states', () => {

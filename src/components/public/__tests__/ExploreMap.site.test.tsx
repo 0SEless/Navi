@@ -12,6 +12,8 @@ const captured = vi.hoisted(() => ({
   routeLine: null as Record<string, unknown> | null,
   map: null as unknown,
   entranceLayer: false,
+  buildingLayer: null as Record<string, unknown> | null,
+  poiLayer: null as Record<string, unknown> | null,
 }))
 
 /** A map that reports its pitch and fires 'pitch' to listeners. */
@@ -48,7 +50,7 @@ vi.mock('@/components/map/RouteLine', () => ({
     return null
   },
 }))
-vi.mock('@/components/map/layers/BuildingLayer', () => ({ BuildingLayer: () => null }))
+vi.mock('@/components/map/layers/BuildingLayer', () => ({ BuildingLayer: (props: Record<string, unknown>) => { captured.buildingLayer = props; return null } }))
 vi.mock('@/components/map/layers/RoomLayer', () => ({ RoomLayer: () => null }))
 vi.mock('@/components/map/layers/HallwayLayer', () => ({ HallwayLayer: () => null }))
 vi.mock('@/components/map/layers/WallLayer', () => ({ WallLayer: () => null }))
@@ -57,7 +59,7 @@ vi.mock('@/components/map/layers/ElevatorLayer', () => ({ ElevatorLayer: () => n
 vi.mock('@/components/map/layers/DoorLayer', () => ({ DoorLayer: () => null }))
 vi.mock('@/components/map/layers/OpeningLayer', () => ({ OpeningLayer: () => null }))
 vi.mock('@/components/map/layers/EntranceLayer', () => ({ EntranceLayer: () => { captured.entranceLayer = true; return null } }))
-vi.mock('@/components/map/layers/POILayer', () => ({ POILayer: () => null }))
+vi.mock('@/components/map/layers/POILayer', () => ({ POILayer: (props: Record<string, unknown>) => { captured.poiLayer = props; return null } }))
 vi.mock('@/components/map/layers/TerrainLayer', () => ({ TerrainLayer: () => null }))
 vi.mock('@/components/map/layers/FloorArchitectureLayer', async (actual) => ({ ...(await actual<typeof import('@/components/map/layers/FloorArchitectureLayer')>()), FloorArchitectureLayer: () => null }))
 vi.mock('@/components/map/FloorSelector', () => ({ FloorSelector: () => null }))
@@ -102,19 +104,28 @@ describe('ExploreMap with a published site (campus only, Task 15)', () => {
     usePublicStore.setState((state) => { const { ground: _g, ...rest } = state.preferences; return { preferences: rest } })
   })
 
-  it('tilting turns on 3D: the route line hides and the route is drawn as a ribbon on the surface', () => {
+  it('on flat ground, tilting keeps the bold route line (owner 2026-11-18); no ribbon', () => {
     render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} />)
     fakeMap.state.pitch = 60
     act(() => fakeMap.fire('pitch'))
     expect(captured.siteProps?.threeD).toBe(true)
-    expect(captured.routeLine?.route).toBeNull()
-    expect(captured.siteProps?.routePath).toEqual([{ lat: 11.817, lng: 122.17 }, { lat: 11.818, lng: 122.171 }])
+    expect(captured.routeLine?.route).toEqual(route)
+    expect(captured.siteProps?.routePath ?? null).toBeNull()
   })
 
   it('draws no entrance markers (the green house glyphs; owner 2026-11-18): entrances stay for routing only', () => {
     captured.entranceLayer = false
     render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} />)
     expect(captured.entranceLayer).toBe(false)
+  })
+
+  it('while a route is shown only the destination building is named and other places are hidden (owner 2026-11-18)', () => {
+    render(<ExploreMap bundle={{ ...bundle, site } as never} route={route} navigationTargetBuildingId="b1" />)
+    expect(captured.buildingLayer?.labelsFor).toBe('b1')
+    expect(captured.poiLayer?.pois).toEqual([])
+    cleanup()
+    render(<ExploreMap bundle={{ ...bundle, site } as never} route={null} />)
+    expect(captured.buildingLayer?.labelsFor).toBeUndefined()
   })
 
   it('without site: no site layers, the map keeps its base map', () => {

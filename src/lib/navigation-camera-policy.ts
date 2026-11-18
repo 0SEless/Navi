@@ -15,6 +15,11 @@ export interface NavigationCameraPolicyInput {
   followSuspended?: boolean
   headingFollowSuspended?: boolean
   reducedMotion?: boolean
+  /**
+   * The campus's own resting bearing (owner 2026-11-18: entrance-first, never sideways), used whenever the camera is
+   * not following the phone's compass. Absent: the map keeps its current bearing.
+   */
+  restBearing?: number
 }
 
 export interface NavigationCameraPolicy {
@@ -46,7 +51,8 @@ export const NAVIGATION_TOP_PREFERRED_ZOOM = 16
 export const NAVIGATION_FOLLOW_PREFERRED_ZOOM = 18
 export const NAVIGATION_POV_PREFERRED_ZOOM = 19
 export const NAVIGATION_TOP_MAX_ZOOM = 16
-export const NAVIGATION_FOLLOW_MAX_ZOOM = 18
+// No practical limit in Follow (owner 2026-11-18): zoom in closer than POV when you reach the building.
+export const NAVIGATION_FOLLOW_MAX_ZOOM = 22
 export const NAVIGATION_POV_MAX_ZOOM = 19
 export const NAVIGATION_FOLLOW_PREFERRED_PITCH = 55
 export const NAVIGATION_POV_PREFERRED_PITCH = 85
@@ -54,7 +60,7 @@ export const NAVIGATION_POV_PREFERRED_PITCH = 85
 function bearingFor(input: NavigationCameraPolicyInput, followHeading: boolean): number {
   const heading = normalizeCaptureHeading(input.heading)
   if (followHeading && heading !== null) return heading
-  return normalizeCaptureHeading(input.currentBearing) ?? 0
+  return normalizeCaptureHeading(input.restBearing) ?? normalizeCaptureHeading(input.currentBearing) ?? 0
 }
 
 function modeFromStoredPreference(view: NavigationMapView | null | undefined): NavigationCameraMode | null {

@@ -25,6 +25,11 @@ export interface BuildingLayerProps {
   solid?: boolean
   selectedBuildingId?: string | null
   onBuildingClick?: (buildingId: string) => void
+  /**
+   * Whose names to show (owner 2026-11-18: while navigating, only the destination's, so the route is not covered):
+   * a building id = only that one, null = none, absent = all.
+   */
+  labelsFor?: string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -86,6 +91,7 @@ export function BuildingLayer({
   solid = false,
   selectedBuildingId,
   onBuildingClick,
+  labelsFor,
 }: BuildingLayerProps) {
   const initializedRef = useRef(false)
   // Bumped when setup completes, so the data effect below runs even if setup happened
@@ -234,6 +240,15 @@ export function BuildingLayer({
     if (!map || !initializedRef.current) return
     try { if (map.getLayer(LYR.EXTRUSION)) map.setPaintProperty(LYR.EXTRUSION, 'fill-extrusion-opacity', solid ? 1 : 0.55) } catch { /* map removed */ }
   }, [map, solid, readyTick])
+
+  // Names shown (navigation focus).
+  useEffect(() => {
+    if (!map || !initializedRef.current) return
+    try {
+      if (!map.getLayer(LYR.LABELS)) return
+      map.setFilter(LYR.LABELS, labelsFor === undefined ? null : labelsFor ? ['==', ['get', 'id'], labelsFor] : ['==', 1, 0])
+    } catch { /* map removed */ }
+  }, [map, labelsFor, readyTick])
 
   // Sync selection state
   const selectedBuildingRef = useRef<string | null>(null)

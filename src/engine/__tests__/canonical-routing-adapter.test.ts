@@ -80,4 +80,20 @@ describe('Studio canonical routing adapter', () => {
     expect(result?.steps[1]?.distance).toBe(20)
     expect(result?.steps[1]?.edgeId).toBe('eligible')
   })
+
+  it('never walks through a room (owner 2026-11-18: the route cut through CS201 instead of using the stair)', () => {
+    // NAVI Web loads a room's point as type 'room' (the compiler's 'poi').
+    const room = { ...node('room'), type: 'room' as const }
+    const nodes = [node('a'), node('b'), node('c'), node('d'), room]
+    const edges = [
+      // Shortcut through the room's two doors.
+      edge('in', 'a', 'room', 5), edge('out', 'room', 'd', 5),
+      // The long way round (the stair).
+      edge('s1', 'a', 'b', 20), edge('s2', 'b', 'c', 20), edge('s3', 'c', 'd', 20),
+    ]
+    expect(findCanonicalRoutePath(nodes, edges, 'a', 'd')?.path).toEqual(['a', 'b', 'c', 'd'])
+    // The room is still a destination (and a start).
+    expect(findCanonicalRoutePath(nodes, edges, 'a', 'room')?.path).toEqual(['a', 'room'])
+    expect(findCanonicalRoutePath(nodes, edges, 'room', 'd')?.path).toEqual(['room', 'd'])
+  })
 })

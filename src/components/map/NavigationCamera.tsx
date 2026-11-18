@@ -29,6 +29,8 @@ export interface NavigationCameraProps {
   heading?: number | null
   bearing?: number | null
   routeBounds?: NavigationCameraBounds | null
+  /** The campus's entrance-first bearing (owner 2026-11-18): the route is shown this way up unless following the compass. */
+  restBearing?: number
   initialSetup?: boolean
   reducedMotion?: boolean
   showControls?: boolean
@@ -65,6 +67,7 @@ export default function NavigationCamera({
   heading = null,
   bearing = null,
   routeBounds = null,
+  restBearing,
   initialSetup = false,
   reducedMotion = false,
   showControls = true,
@@ -128,8 +131,9 @@ export default function NavigationCamera({
       routeBounds,
       initialSetup,
       reducedMotion,
+      restBearing,
     })
-  }, [effectiveMode, effectivePosition, heading, headingFollowEnabled, initialSetup, isReady, reducedMotion, routeBounds, surface, topOrientation])
+  }, [effectiveMode, effectivePosition, heading, headingFollowEnabled, initialSetup, isReady, reducedMotion, restBearing, routeBounds, surface, topOrientation])
 
   useEffect(() => {
     if (!map || !isReady || surface !== 'route-preview' || !routeBounds) return

@@ -36,6 +36,11 @@ describe('public-store POI search reveal (transient)', () => {
     usePublicStore.getState().clearRevealedPoiIds()
   })
 
+  it('findEntries only finds (owner 2026-11-18: "Cannot update a component while rendering" on Navigate)', () => {
+    expect(usePublicStore.getState().findEntries('guard').map((entry) => entry.id)).toEqual(['poi-hidden'])
+    expect(usePublicStore.getState().revealedPoiIds).toEqual([])
+  })
+
   it('reveals matching POI ids while a search query is active', () => {
     const results = usePublicStore.getState().search('guard')
     expect(results.map((entry) => entry.id)).toEqual(['poi-hidden'])

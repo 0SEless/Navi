@@ -13,7 +13,8 @@ export function extractRooms(document: NormalizedDocument, _context: GenerationC
         nodes.push({
           id,
           kind: 'poi' as const,
-          label: `${room.name} (${room.number})`,
+          // "Name (number)", or just the name when the room has no number (2026-11-18: no "ED101 ()").
+          label: room.number && room.number.trim() !== room.name.trim() ? `${room.name} (${room.number})` : room.name,
           position: room.centroid,
           floor: floor.level,
           buildingId: building.id,

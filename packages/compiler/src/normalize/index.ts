@@ -1,5 +1,6 @@
 import type { CampusDocument, LatLng } from '@navi/core'
 import { extractConnectivitySemantics, normalizeRoadRouting } from '@navi/core'
+import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import type {
   NormalizedDocument,
   NormalizedBuilding,
@@ -46,6 +47,64 @@ function polygonCentroid(points: Array<{ x: number; y: number }>): { x: number; 
     x: points.reduce((s, p) => s + p.x, 0) / points.length,
     y: points.reduce((s, p) => s + p.y, 0) / points.length,
   }
+}
+
+type FaceFloor = {
+  level: number
+  walls?: Array<{ id: string; start: { x: number; y: number }; end: { x: number; y: number } }>
+  doors?: Array<{ id: string; position: { x: number; y: number }; width?: number; doorType?: string; connectedToId?: string; connectedToType?: string; metadata?: Record<string, unknown>; wallAttachment?: { wallId?: string }; routeConnection?: unknown; routeConnectionManaged?: boolean }>
+  roomAttributes?: Array<{ roomId?: string; faceId?: string; name?: string; code?: string; number?: string; type?: string; category?: string; searchable?: boolean }>
+}
+
+/** Distance from a point to a closed polygon's outline, metres (building-local). */
+function distanceToOutline(p: { x: number; y: number }, ring: Array<{ x: number; y: number }>): number {
+  let best = Infinity
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length]
+    const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0
+    best = Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)))
+  }
+  return best
+}
+
+/** Named, searchable faces of a floor drawn with walls, as rooms with the doors on their outlines. */
+function faceRooms(floor: FaceFloor, origin: LatLng, floorId: string, buildingId: string): NormalizedRoom[] {
+  const named = (floor.roomAttributes ?? []).filter(ra => ra.faceId && ra.searchable !== false && (ra.name ?? '').trim())
+  const walls = floor.walls ?? []
+  if (named.length === 0 || walls.length < 3) return []
+  const faces = deriveRooms(walls.map(w => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), [])
+  const out: NormalizedRoom[] = []
+  for (const ra of named) {
+    const face = faces.find(f => f.faceId === ra.faceId)
+    if (!face) continue
+    const pts = face.polygon.points
+    const boundary = new Set(face.boundaryWallIds ?? [])
+    const center = polygonCentroid(pts)
+    const id = ra.roomId ?? ra.faceId!
+    const doors: NormalizedRoomDoor[] = (floor.doors ?? [])
+      .filter(door => (!door.wallAttachment?.wallId || boundary.has(door.wallAttachment.wallId)) && distanceToOutline(door.position, pts) <= 0.5)
+      .map(door => ({
+        id: door.id,
+        roomId: id,
+        position: localToLatLng(door.position.x, door.position.y, origin.lat, origin.lng),
+        width: door.width,
+        properties: { ...(door.metadata ?? {}), doorType: door.doorType, connectedToId: door.connectedToId, connectedToType: door.connectedToType, ...(door.routeConnection ? { routeConnection: structuredClone(door.routeConnection) } : {}), ...(door.routeConnectionManaged !== undefined ? { routeConnectionManaged: door.routeConnectionManaged } : {}) },
+      }))
+    out.push({
+      id,
+      name: ra.name!.trim(),
+      number: ra.code ?? ra.number ?? '',
+      category: ra.type ?? ra.category ?? 'room',
+      polygon: pts.map(p => localToLatLng(p.x, p.y, origin.lat, origin.lng)),
+      centroid: localToLatLng(center.x, center.y, origin.lat, origin.lng),
+      floorId,
+      floorLevel: floor.level,
+      buildingId,
+      doors,
+    })
+  }
+  return out
 }
 
 export interface NormalizeResult {
@@ -136,6 +195,11 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
           doors,
         }
       })
+
+      // Rooms drawn as walls (owner 2026-11-18: "why is there no route or room searching?"): on a floor without drawn
+      // rooms, every named, searchable face (roomAttributes) is a room at its face's centre, with the doors on its
+      // outline — so it gets a room point joined to the corridors through its doors, like a drawn room.
+      if (rooms.length === 0) rooms.push(...faceRooms(floor, origin, floorId, bld.id))
 
       const hallways: NormalizedHallway[] = floor.hallways.map(hw => ({
         id: hw.id,

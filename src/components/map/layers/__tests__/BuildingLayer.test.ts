@@ -32,6 +32,7 @@ function makeMap() {
     triggerRepaint: vi.fn(),
     setFeatureState: vi.fn(),
     getCanvas: vi.fn(() => ({ style: { cursor: '' } })),
+    setFilter: vi.fn(),
   } as unknown as maplibregl.Map
 }
 
@@ -77,5 +78,18 @@ describe('BuildingLayer selection emphasis', () => {
 
     expect(log).not.toHaveBeenCalled()
     log.mockRestore()
+  })
+})
+
+describe('BuildingLayer labels while navigating (owner 2026-11-18: focus on the destination)', () => {
+  const building = { id: 'b1', name: 'Admin', color: '#fff', footprint: [{ lat: 11, lng: 122 }, { lat: 11, lng: 122.001 }, { lat: 11.001, lng: 122 }], height: 10, base_elevation: 0 }
+  it('labelsFor shows only that building name; null shows none; absent shows all', () => {
+    const map = makeMap()
+    const { rerender } = render(createElement(BuildingLayer, { map, buildings: [building] as never, labelsFor: 'b1' }))
+    expect(map.setFilter).toHaveBeenLastCalledWith('buildings-labels', ['==', ['get', 'id'], 'b1'])
+    rerender(createElement(BuildingLayer, { map, buildings: [building] as never, labelsFor: null }))
+    expect(map.setFilter).toHaveBeenLastCalledWith('buildings-labels', ['==', 1, 0])
+    rerender(createElement(BuildingLayer, { map, buildings: [building] as never }))
+    expect(map.setFilter).toHaveBeenLastCalledWith('buildings-labels', null)
   })
 })
