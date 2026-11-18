@@ -201,14 +201,14 @@ function disconnectedIssues(
   const issues: ValidationIssue[] = []
   const scope: RouteIssueScope = { buildingId, floorId: floor.id, layer: 'navigation' }
   const disconnected = graph.components.length > 1
-    ? graph.components
+    ? graph.components.slice(1)
     : graph.components.filter((component) => component.every((nodeId) => (graph.adjacency.get(nodeId)?.size ?? 0) === 0))
 
   for (const component of disconnected) {
     const first = component[0]
     const message = component.length === 1
-      ? `Route node "${first}" is isolated from the hallway route on floor "${floor.label || floor.id}"`
-      : `Route component on floor "${floor.label || floor.id}" is disconnected from the main route (${component.join(', ')})`
+      ? `Route node "${first}" has no edge to the indoor route on floor "${floor.label || floor.id}"`
+      : `Route component on floor "${floor.label || floor.id}" needs a connection to the main indoor route (${component.join(', ')})`
     issues.push(issue('route-network-disconnected', profile, message, component.map((nodeId) => ({ entityId: nodeId, entityType: 'route-node' })), scope))
   }
   return issues
@@ -295,7 +295,6 @@ function entranceAccessIssues(
 
   for (const access of floor.entranceAccess ?? []) {
     const entranceTarget = { entityId: access.entranceId, entityType: 'entrance' }
-    const indoorTarget = { entityId: access.indoorRouteNodeId, entityType: 'route-node' }
     if (!entranceIds.has(access.entranceId)) {
       issues.push(issue('route-entrance-access', profile, `Entrance access references missing entrance "${access.entranceId}"`, [entranceTarget], scope))
     }
@@ -324,12 +323,22 @@ function entranceAccessIssues(
       }
     }
 
-    if (typeof access.indoorRouteNodeId !== 'string' || access.indoorRouteNodeId.length === 0 || !graph.nodeById.has(access.indoorRouteNodeId)) {
+    if (typeof access.indoorRouteNodeId !== 'string' || access.indoorRouteNodeId.trim().length === 0) {
+      issues.push(issue('route-entrance-access', profile, `Entrance "${access.entranceId}" has no indoor route point. Connect it to an indoor route on this floor.`, [entranceTarget], scope))
+      continue
+    }
+    const indoorTarget = { entityId: access.indoorRouteNodeId, entityType: 'route-node' }
+    if (!graph.nodeById.has(access.indoorRouteNodeId)) {
       issues.push(issue('route-entrance-access', profile, `Entrance "${access.entranceId}" references missing indoor route node "${access.indoorRouteNodeId}"`, [entranceTarget, indoorTarget], scope))
       continue
     }
     if (!hasRoutePath(graph, access.indoorRouteNodeId, roots)) {
-      issues.push(issue('route-entrance-access', profile, `Entrance "${access.entranceId}" indoor access is not connected to the hallway route`, [entranceTarget, indoorTarget], scope))
+      const label = floor.label || floor.id
+      const hasValidOutdoorRoute = typeof access.outdoorRouteId === 'string' && roadIds.has(access.outdoorRouteId) &&
+        Number.isFinite(access.outdoorPosition?.lat) && Number.isFinite(access.outdoorPosition?.lng)
+      const outside = hasValidOutdoorRoute ? ' is linked to an outdoor route.' : ' needs an indoor connection.'
+      const message = `Entrance "${access.entranceId}"${outside} Connect its indoor route point to the route on floor "${label}".`
+      issues.push(issue('route-entrance-access', profile, message, [entranceTarget, indoorTarget], scope))
     }
   }
   return issues

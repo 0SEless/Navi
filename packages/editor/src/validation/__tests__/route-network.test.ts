@@ -88,11 +88,31 @@ describe('route-network validation', () => {
 
     const issues = validateRouteNetwork(makeDocument(floor), 'publish')
     const disconnected = issues.filter((issue) => issue.ruleId === 'route-network-disconnected')
-    expect(disconnected.length).toBeGreaterThan(0)
+    expect(disconnected).toHaveLength(1)
     expect(disconnected.every((issue) => issue.severity === 'error')).toBe(true)
     expect(disconnected).toContainEqual(expect.objectContaining({
       targets: expect.arrayContaining([expect.objectContaining({ entityId: 'route-node-isolated' })]),
     }))
+  })
+
+  it('points to the indoor side when an entrance already has an outdoor route', () => {
+    const floor = makeFloor({
+      entrances: [{ id: 'entry', label: 'Main Entrance', position: { x: 0, y: 0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],
+      entranceAccess: [{
+        entranceId: 'entry', indoorRouteNodeId: 'entry-point', outdoorNodeId: 'outside',
+        outdoorRouteId: 'road', outdoorPosition: { lat: 11, lng: 122 },
+      }],
+      routeNetwork: {
+        nodes: [route('entry-point', 0, 0), route('a', 2, 0), route('b', 8, 0)],
+        edges: [edge('walk', 'a', 'b')],
+      },
+    })
+    const doc = makeDocument(floor)
+    doc.roads = [{ id: 'road' }] as CampusDocument['roads']
+    const messages = validateRouteNetwork(doc, 'publish').filter(issue => issue.ruleId === 'route-entrance-access')
+    expect(messages.map(issue => issue.message)).toEqual([
+      'Entrance "entry" is linked to an outdoor route. Connect its indoor route point to the route on floor "Ground".',
+    ])
   })
 
   it('accepts point-only RoomAccess when its route node is on the connected graph', () => {
