@@ -72,7 +72,8 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
         for (const entrance of floor.entrances) {
           addEdge(`${bld.id}-floor-${floor.level}`, entrance.id)
           const access = accessByEntrance.get(entrance.id)
-          const roadId = access?.outdoorRouteId ?? entrance.metadata?.connectorRoadId
+          const legacyRoadId = (entrance as typeof entrance & { metadata?: { connectorRoadId?: unknown } }).metadata?.connectorRoadId
+          const roadId = access?.outdoorRouteId ?? legacyRoadId
           if (typeof roadId === 'string' && roadIds.has(roadId)) addEdge(entrance.id, roadId)
         }
       }
