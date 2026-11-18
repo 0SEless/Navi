@@ -26,3 +26,20 @@ it('keeps the indoor path when only the outdoor destination changes and fails at
  const before=JSON.stringify(doc)
  expect(floorRouteDrawHandler.execute(doc,{buildingId:'b',floorId:'f',points:[{x:0,y:0},{x:1,y:1,entranceId:'missing'}]}).success).toBe(false);expect(JSON.stringify(doc)).toBe(before)
 })
+
+it('repairs a saved road assignment without an indoor node when drawing the entrance route', () => {
+  const doc = fixture()
+  const floor = doc.buildings[0].floors[0]
+  const savedAccess = { entranceId: 'entry', outdoorNodeId: 'road-node', outdoorRouteId: 'road', outdoorPosition: { lat: 11, lng: 122 } }
+  floor.entranceAccess = [savedAccess as NonNullable<typeof floor.entranceAccess>[number]]
+  const payload = { buildingId: 'b', floorId: 'f', points: [{ x: 1, y: 1, entranceId: 'entry' }, { x: 4, y: 1 }] }
+  const result = floorRouteDrawHandler.execute(doc, payload)
+  expect(result.success).toBe(true)
+  const indoorRouteNodeId = floor.entrances[0].routeNodeId
+  expect(indoorRouteNodeId).toBeTruthy()
+  expect(floor.entranceAccess).toEqual([{ ...savedAccess, indoorRouteNodeId }])
+  expect(floor.routeNetwork?.edges.some(edge => edge.from === indoorRouteNodeId)).toBe(true)
+  const undo = floorRouteDrawHandler.inverse!(payload, result)!
+  expect(floorRouteDrawHandler.execute(doc, undo.payload).success).toBe(true)
+  expect(floor.entranceAccess).toEqual([savedAccess])
+})

@@ -26,18 +26,24 @@ function restore(floor:Floor,state:ReturnType<typeof snapshot>,building:Building
 export function ensureEntranceRoutePort(floor:Floor,entranceId:string):string {
   const entrance=floor.entrances.find(e=>e.id===entranceId)
   if(!entrance)throw new Error(`Entrance not found: ${entranceId}`)
-  const existing=entrance.routeNodeId ?? floor.entranceAccess?.find(a=>a.entranceId===entranceId)?.indoorRouteNodeId
-  if(existing){
-    if(!floor.routeNetwork?.nodes.some(n=>n.id===existing))throw new Error('The entrance references a missing route point; repair it before connecting.')
-    entrance.routeNodeId=existing;return existing
+  const access = floor.entranceAccess?.find(entry => entry.entranceId === entranceId)
+  const savedNodeId = typeof access?.indoorRouteNodeId === 'string' && access.indoorRouteNodeId.trim()
+    ? access.indoorRouteNodeId : undefined
+  let nodeId = entrance.routeNodeId ?? savedNodeId
+  if (nodeId) {
+    if (!floor.routeNetwork?.nodes.some(node => node.id === nodeId)) {
+      throw new Error('The entrance references a missing route point; repair it before connecting.')
+    }
+  } else {
+    if (![entrance.position.x, entrance.position.y].every(Number.isFinite)) throw new Error('Entrance position must be finite.')
+    nodeId = `route-node-entrance-${entranceId}`
+    const network = floor.routeNetwork ??= { nodes: [], edges: [] }
+    if (network.nodes.some(node => node.id === nodeId)) throw new Error('The entrance route-point identity is already in use.')
+    network.nodes.push({ id: nodeId, type: 'entrance', position: { ...entrance.position }, floor: floor.level })
   }
-  if(![entrance.position.x,entrance.position.y].every(Number.isFinite))throw new Error('Entrance position must be finite.')
-  const id=`route-node-entrance-${entranceId}`
-  const network=floor.routeNetwork??={nodes:[],edges:[]}
-  if(network.nodes.some(n=>n.id===id))throw new Error('The entrance route-point identity is already in use.')
-  network.nodes.push({id,type:'entrance',position:{...entrance.position},floor:floor.level})
-  entrance.routeNodeId=id
-  return id
+  entrance.routeNodeId = nodeId
+  if (access && !savedNodeId) access.indoorRouteNodeId = nodeId
+  return nodeId
 }
 function mutate(document:CampusDocument,payload:Record<string,unknown>,operation:(draft:CampusDocument,floor:Floor)=>MutationResult):MutationResult {
   const buildingId=payload.buildingId as string,floorId=payload.floorId as string
