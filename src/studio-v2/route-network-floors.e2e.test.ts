@@ -179,3 +179,36 @@ describe('outdoor → indoor → stairs → upper floors', () => {
   })
 })
 
+
+it('finds a Floor 3 room and routes to it using two authored stair flights and floor routes', () => {
+  const doc = campus()
+  const run = studio(doc)
+  authorRoutes(run)
+  const building = doc.buildings[0]
+  for (const floor of building.floors) {
+    floor.walls = [{ id: `far-${floor.id}`, start: { x: -15, y: 7 }, end: { x: 15, y: 7 }, height: 3.5, thickness: 0.2 }]
+    if (floor.level === 0) continue
+    for (const y of [-2, 2]) {
+      run({ id: 'route.node.create', payload: { buildingId: 'cs', floorId: floor.id, node: {
+        id: `${floor.id}-landing-${y}`, floor: floor.level, type: 'waypoint', position: { x: 3, y },
+      } } })
+    }
+    for (const [from, to] of [[`${floor.id}-landing--2`, `${floor.id}-landing-2`], [`${floor.id}-landing-2`, `${floor.id}-stair`]]) {
+      run({ id: 'route.edge.create', payload: { buildingId: 'cs', floorId: floor.id, edge: { from, to, type: 'walk' } } })
+    }
+  }
+  const drawing = { definitionId: 'stair', properties: { stepCount: 4, stepWidth: 2, stepDepth: 0.5, direction: 'east', preset: 'straight' } }
+  for (const level of [0, 1]) {
+    const featureId = `flight-${level}`
+    run({ id: 'feature.create', payload: { buildingId: 'cs', floor: level, id: featureId, featureType: 'staircase',
+      position: { x: 0, y: 0 }, rotation: 0, drawing } })
+    run({ id: 'stair.setToFloor', payload: { featureId, toLevel: level + 1, autoConnect: true, landingExit: 'front' } })
+    const stair = building.staircases!.find(item => item.id === featureId)!
+    expect(stair.levels[level].routeConnection).toBeDefined()
+    expect(stair.levels[level + 1].routeConnection).toBeDefined()
+    expect(stair.links).toBeUndefined()
+  }
+  const { bundle, errors } = visitor(doc)
+  expect(errors).toEqual([])
+  expect(routeTo(bundle, 'Office 301')).toMatchObject({ found: true, floors: [0, 1, 2] })
+})

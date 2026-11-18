@@ -1144,8 +1144,8 @@ export const featureCreateHandler: CommandHandler = {
       if (!building.staircases) building.staircases = []
       building.staircases.push(feature)
       restoreFeatureTransitions(building, payload.verticalTransitions as VerticalTransition[] | undefined)
-      // Placed: connect to the nearest free staircase on the floor below / above.
-      autoLinkFeature(building, 'staircase', id)
+      // Drawn stairs use a landing on their destination floor. Keep implicit links for legacy markers.
+      if (!drawing && !polygon) autoLinkFeature(building, 'staircase', id)
       recordChange(document, { entityId: id, entityType: 'staircase', operation: 'created' })
       return { success: true, entityId: id, data: { feature, buildingId } }
     } else {

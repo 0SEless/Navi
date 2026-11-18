@@ -42,6 +42,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   // Climbing only when the upper floor really holds its top (older data may name a floor above without one).
   const toFloor = stair.toLevel > from && stairHasTop(stair) ? floors.find((f) => f.level === stair.toLevel) : undefined
   const above = floors.filter((f) => f.level > from)
+  const nextFloor = above[0]
   const props = flight?.drawing?.properties
   const rise = stairRise(stair, floors)
   const steps = props?.stepCount
@@ -59,6 +60,11 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
           {above.map((f) => <option key={f.id} value={String(f.level)}>{f.label}</option>)}
         </select>
       </div>
+      {!toFloor && nextFloor && (
+        <button type="button" style={{ ...field, cursor: 'pointer' }} onClick={() => onSetTo(nextFloor.level)}>
+          Connect to {nextFloor.label}
+        </button>
+      )}
       {toFloor && fromFloor && (
         <div data-testid="stair-climb" style={{ fontSize: 11, color: 'var(--navi-text)' }}>
           {`Climbs ${m(rise)} m — ${fromFloor.label} (${m(fromFloor.elevation)} m) → ${toFloor.label} (${m(toFloor.elevation)} m)`

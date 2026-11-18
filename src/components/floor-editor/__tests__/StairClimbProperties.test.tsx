@@ -33,6 +33,18 @@ describe('StairClimbProperties', () => {
     expect(onConnectFloors).toHaveBeenCalledOnce()
   })
 
+  it('suggests the next floor up for a stair on Floor 2', () => {
+    const b = building(0)
+    const stair = b.staircases![0]
+    stair.levels = { 1: stair.levels[0] }
+    stair.fromLevel = 1
+    stair.toLevel = 1
+    const { onSetTo } = show(b)
+    fireEvent.click(screen.getByRole('button', { name: 'Connect to Floor 3' }))
+    expect(onSetTo).toHaveBeenCalledWith(2)
+    expect(screen.queryByRole('button', { name: 'Connect to Floor 1' })).toBeNull()
+  })
+
   it('shows the climb from Floor 1 to Floor 2 with its steps', () => {
     show(building(1))
     expect(screen.getByTestId('stair-climb').textContent).toBe('Climbs 3.50 m — Floor 1 (0.00 m) → Floor 2 (3.50 m) · 20 × 0.175 m')

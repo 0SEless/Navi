@@ -1,6 +1,7 @@
 import { buildStairTopVolumes, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
 import type { Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
+import { floorBackboneEdges } from './floor-connections'
 
 /** How close a stair's top platform must be to a wall's face to land against it, metres. */
 export const AGAINST_WALL_M = 0.15
@@ -94,6 +95,17 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
   for (const hall of to.hallways ?? []) {
     const points = hall.polyline?.points ?? []
     if (points.length >= 2) candidates.push({ id: hall.id, shape: points, closed: false, slack: (hall.width ?? 0) / 2 })
+  }
+  if (to.routeNetwork?.edges?.length) {
+    const routeNodes = new Map(to.routeNetwork?.nodes.map(node => [node.id, node.position]))
+    for (const edge of floorBackboneEdges(building, to)) {
+      if (edge.type !== 'walk') continue
+      const from = routeNodes.get(edge.from)
+      const end = routeNodes.get(edge.to)
+      if (from && end && [from.x, from.y, end.x, end.y].every(Number.isFinite)) {
+        candidates.push({ id: edge.id, shape: [from, end], closed: false, slack: 0 })
+      }
+    }
   }
   const sides: StairLandingExit[] = flight.landingExit ? [flight.landingExit] : ['front', 'left', 'right']
   const ring = top.geometry.coordinates[0]

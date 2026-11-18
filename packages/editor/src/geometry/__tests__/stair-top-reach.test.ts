@@ -29,6 +29,17 @@ describe('stair top reach', () => {
     expect(reach.ok).toBe(true)
   })
 
+  it('finds the indoor route on the destination floor without a legacy hallway', () => {
+    const b = building({ routeNetwork: {
+      nodes: [
+        { id: 'a', position: { x: 3, y: -2 }, type: 'waypoint', floor: 1 },
+        { id: 'b', position: { x: 3, y: 2 }, type: 'waypoint', floor: 1 },
+      ],
+      edges: [{ id: 'floor-2-route', from: 'a', to: 'b', type: 'walk', distance: 4 }],
+    } })
+    expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, targetId: 'floor-2-route', exit: 'front' })
+  })
+
   it('a top landing 1 m short of the hallway does not reach (it would float; owner 2026-11-16)', () => {
     const b = building(hallwayAt(5))
     expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-walkable' })

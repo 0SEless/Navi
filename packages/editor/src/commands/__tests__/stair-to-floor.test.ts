@@ -55,6 +55,14 @@ describe('stair.setToFloor', () => {
     expect(stairRise(s, d.buildings[0].floors)).toBe(3.5)
   })
 
+  it('a drawn Floor 2 stair does not auto-link to a stair below it', () => {
+    const { d, e } = placed()
+    e.run('feature.create', { buildingId: 'b', floor: 1, id: 'middle', featureType: 'staircase', position: { x: 1, y: 2 }, rotation: 0, drawing })
+    const middle = d.buildings[0].staircases!.find(item => item.id === 'middle')!
+    expect(middle.links?.below).toBeUndefined()
+    expect(stairOf(d).links?.above).toBeUndefined()
+  })
+
   it('the top sits at the top landing: past the end of the second flight', () => {
     const { d, e } = placed()
     e.run('stair.setToFloor', { featureId: 's', toLevel: 1 })
