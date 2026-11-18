@@ -1,5 +1,5 @@
 import type { Floor, Staircase, StairLevelGeometry } from '../types/entities'
-import { buildStairAssetVolumes, buildStairTopVolumes, type StairAssetInput, type StairTopInput } from './stair-assets'
+import { buildStairAssetVolumes, buildStairTopVolumes, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from './stair-assets'
 import type { LocalCoord } from '../types/coordinates'
 
 /**
@@ -69,11 +69,13 @@ export function undesignedStairRise(geometry: Pick<StairLevelGeometry, 'drawing'
 export function floorStairInputs(stairs: readonly Staircase[], floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], level: number): { flights: StairAssetInput[]; tops: StairTopInput[] } {
   const flights = stairFlightsOnFloor(stairs, level).map(({ stair, geometry }) => {
     const doorwayAt = stairDoorwayAt(stair, floors)
-    return { id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(doorwayAt ? { doorwayAt } : {}) }
+    return { id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(stairHasTop(stair) ? { arrivalLanding: true } : {}), ...(doorwayAt ? { doorwayAt } : {}) }
   })
-  const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, fromLevel }) => {
+  const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, geometry, fromLevel }) => {
     const flight = stair.levels?.[fromLevel]
-    return flight ? [{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel }] : []
+    const doorwayAt = stairDoorwayAt(stair, floors)
+    return flight ? [{ id: stair.id, ...flight, landingExit: flight.landingExit ?? geometry.landingExit,
+      rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel, ...(doorwayAt ? { doorwayAt } : {}) }] : []
   })
   return { flights, tops }
 }
@@ -82,14 +84,40 @@ export function floorStairInputs(stairs: readonly Staircase[], floors: readonly 
  * Where a stair's top lands (the middle of its top landing), worked out from its flight — so the To floor's top point
  * always follows the flight when it is moved, rotated, resized or turned. Absent when the flight cannot be built.
  */
-export function stairTopPosition(stair: Staircase, floors: readonly Pick<Floor, 'level' | 'elevation' | 'height'>[]): LocalCoord | undefined {
+type StairFloorHeights = readonly Pick<Floor, 'level' | 'elevation' | 'height'>[]
+
+function stairTopRing(stair: Staircase, floors: StairFloorHeights): number[][] {
   const from = stairFlightFloor(stair)
   const flight = stair.levels?.[from]
-  if (!flight) return undefined
+  if (!flight) return []
   const top = buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel: from }], 0).landings.features[0]
-  const ring = top?.geometry.coordinates[0].slice(0, -1) ?? []
+  return top?.geometry.coordinates[0].slice(0, -1) ?? []
+}
+
+export function stairTopPosition(stair: Staircase, floors: StairFloorHeights): LocalCoord | undefined {
+  const ring = stairTopRing(stair, floors)
   if (ring.length === 0) return undefined
+  const exit = stair.levels[stairFlightFloor(stair)]?.landingExit ?? stair.levels[stair.toLevel]?.landingExit
+  if (exit && ring.length === 4) {
+    const edge = stairLandingExitEdge(ring, exit)
+    const a = ring[edge], b = ring[(edge + 1) % 4]
+    return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 }
+  }
   return { x: ring.reduce((sum, p) => sum + p[0], 0) / ring.length, y: ring.reduce((sum, p) => sum + p[1], 0) / ring.length }
+}
+
+/** Outward direction of the selected landing edge. */
+export function stairTopExitDirection(stair: Staircase, floors: StairFloorHeights): LocalCoord | undefined {
+  const exit = stair.levels[stairFlightFloor(stair)]?.landingExit ?? stair.levels[stair.toLevel]?.landingExit
+  if (!exit) return undefined
+  const ring = stairTopRing(stair, floors)
+  if (ring.length !== 4) return undefined
+  const edge = stairLandingExitEdge(ring, exit)
+  const a = ring[edge], b = ring[(edge + 1) % 4]
+  const c = ring[(edge + 2) % 4], d = ring[(edge + 3) % 4]
+  const x = a[0] + b[0] - c[0] - d[0], y = a[1] + b[1] - c[1] - d[1]
+  const length = Math.hypot(x, y)
+  return length > 0 ? { x: x / length, y: y / length } : undefined
 }
 
 /**
@@ -124,4 +152,3 @@ export function stairFootPosition(stair: Staircase, floors: readonly (Pick<Floor
   if (!(len > 0)) return lo
   return { x: lo.x + ((lo.x - up.x) / len) * 0.5, y: lo.y + ((lo.y - up.y) / len) * 0.5 }
 }
-

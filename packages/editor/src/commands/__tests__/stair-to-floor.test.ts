@@ -222,3 +222,30 @@ describe('stair.setToFloor', () => {
   })
 })
 
+it('automatically connects an existing stair foot and selected side landing to their floor routes in one undo step', () => {
+  const d = campus()
+  const e = editor(d)
+  const b = d.buildings[0]
+  const route = (level: number, y: number) => ({
+    nodes: [{ id: 'a' + level, type: 'waypoint', floor: level, position: { x: -4, y } },
+      { id: 'z' + level, type: 'waypoint', floor: level, position: { x: 6, y } }],
+    edges: [{ id: 'edge' + level, type: 'walk', from: 'a' + level, to: 'z' + level, distance: 10 }],
+  })
+  for (const f of b.floors.slice(0, 2)) {
+    const y = f.level ? 2 : 0
+    f.routeNetwork = route(f.level, y) as typeof f.routeNetwork
+    f.walls = [{ id: 'far', start: { x: -6, y: 5 }, end: { x: 7, y: 5 }, height: 3, thickness: 0.2 }]
+    f.hallways = [{ id: 'h', name: 'Corridor', width: 2, polyline: { points: [{ x: -4, y }, { x: 6, y }] } }] as typeof f.hallways
+  }
+  const design = { definitionId: 'stair', properties: { stepCount: 4, stepWidth: 2, stepDepth: 0.5, direction: 'east', preset: 'straight' } }
+  expect(e.run('feature.create', { buildingId: 'b', floor: 0, id: 's', featureType: 'staircase', position: { x: 0, y: 0 }, rotation: 0, drawing: design }).success).toBe(true)
+  const before = structuredClone(b.floors.slice(0, 2).map(f => f.routeNetwork))
+  expect(e.run('stair.setToFloor', { featureId: 's', toLevel: 1, landingExit: 'left', autoConnect: true }).success).toBe(true)
+  const s = stairOf(d)
+  expect(s.levels[0].landingExit).toBe('left')
+  expect(s.levels[0].routeConnection).toBeDefined()
+  expect(s.levels[1].position).toEqual({ x: 2, y: 1 })
+  expect(s.levels[1].routeConnection).toBeDefined()
+  expect(e.history.undo()).toBe(true)
+  expect(b.floors.slice(0, 2).map(f => f.routeNetwork)).toEqual(before)
+})

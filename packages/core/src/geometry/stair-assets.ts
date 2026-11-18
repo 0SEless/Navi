@@ -17,11 +17,23 @@ export interface StairAssetInput {
    * mesh leaves that side of the platform open and adds a ground landing at the stair's foot.
    */
   doorwayAt?: LocalCoord
+  landingExit?: StairLevelGeometry['landingExit']
+  arrivalLanding?: boolean
   /** A Stair-tool stair's railings and underneath (2026-11-17). */
   look?: StairLevelGeometry['look']
   /** Outside the building's walls (2026-11-17): a solid stair is filled down to the ground, not just its floor. */
   outside?: boolean
 }
+/** Landing entry is edge 0, front is edge 2, and sides are relative to the final flight. */
+export function stairLandingExitEdge(ring: readonly number[][], side: NonNullable<StairAssetInput['landingExit']>): number {
+  if (side === 'front') return 2
+  const [a, b, c, d] = ring
+  const dx = c[0] + d[0] - a[0] - b[0]
+  const dy = c[1] + d[1] - a[1] - b[1]
+  const edgeOneIsLeft = dx * (b[1] - a[1]) - dy * (b[0] - a[0]) > 0
+  return (side === 'left') === edgeOneIsLeft ? 1 : 3
+}
+
 export interface StairAssetDiagnostic { entityId: string; code: string; message: string }
 export interface StairAssetVolumes {
   collection: GeoJSON.FeatureCollection<GeoJSON.Polygon>

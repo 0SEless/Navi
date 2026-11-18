@@ -1,4 +1,4 @@
-import { buildStairAssetVolumes, type StairAssetInput } from '../geometry/stair-assets'
+import { buildStairAssetVolumes, buildStairTopVolumes, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from '../geometry/stair-assets'
 import { BUILT_IN_MATERIALS, BUILT_IN_PRESETS } from './materials'
 import { buildRailingMesh, buildStructureMesh, type RailingStyle } from './mesh'
 import { structurePath } from './path'
@@ -23,7 +23,7 @@ const dist = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1])
  * `place` turns building-local metres into the mesh layer's metres (east/north around its origin); heights are
  * absolute metres, standing on `base` (the floor's height). Interleaved 9 floats per vertex (position, normal, colour).
  */
-export function floorStairMesh(inputs: readonly StairAssetInput[], base: number, place: (p: XY) => XY, ground = base): Float32Array {
+export function floorStairMesh(inputs: readonly StairAssetInput[], base: number, place: (p: XY) => XY, ground = base, tops: readonly StairTopInput[] = []): Float32Array {
   const parts: Float32Array[] = []
   for (const input of inputs) {
     const props = input.drawing?.properties
@@ -75,7 +75,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       const la = mid(ring[0], ring[1]), lb = mid(ring[3], ring[2])
       const a = place(la), b = place(lb)
       if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || Math.hypot(b.x - a.x, b.y - a.y) > MAX_FLIGHT_M) continue
-      let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' ? railings : 'none'
+      let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' && !input.arrivalLanding ? railings : 'none'
       if (!sideChosen && deckRails === 'both' && flat.properties?.partType === 'top-landing' && input.doorwayAt) {
         // Building-local and map metres keep the same handedness, so the side test can use building-local points.
         const cross = (lb.x - la.x) * (input.doorwayAt.y - la.y) - (lb.y - la.y) * (input.doorwayAt.x - la.x)
@@ -127,6 +127,34 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       }
     }
   }
+  for (const top of tops) {
+    const landing = buildStairTopVolumes([top], base).landings.features[0]
+    if (!landing) continue
+    const ring = landing.geometry.coordinates[0].slice(0, 4)
+    const facing = place(mid(ring[0], ring[2]))
+    const at = top.doorwayAt
+    const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : at ? [1, 2, 3].reduce((best, edge) => {
+      const distance = (i: number) => {
+        const [x, y] = ring[i], [endX, endY] = ring[(i + 1) % 4]
+        const dx = endX - x, dy = endY - y
+        const along = ((at.x - x) * dx + (at.y - y) * dy) / (dx * dx + dy * dy || 1)
+        const t = Math.max(0, Math.min(1, along))
+        return Math.hypot(at.x - x - t * dx, at.y - y - t * dy)
+      }
+      return distance(edge) < distance(best) ? edge : best
+    }, 2) : 2
+    const style = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
+      ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
+    const look = { ...PLAIN_STAIR.look, railingStyle: style }
+    for (const edge of [1, 2, 3]) {
+      if (edge === exit) continue
+      const [x, y] = ring[edge], [endX, endY] = ring[(edge + 1) % 4]
+      const from = place({ x, y }), to = place({ x: endX, y: endY })
+      if (![from.x, from.y, to.x, to.y, facing.x, facing.y].every(Number.isFinite)) continue
+      parts.push(buildRailingMesh({ from, to, inward: { x: facing.x - (from.x + to.x) / 2, y: facing.y - (from.y + to.y) / 2 },
+        h: base, style, look, materials: BUILT_IN_MATERIALS }))
+    }
+  }
   const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0))
   let offset = 0
   for (const p of parts) { out.set(p, offset); offset += p.length }
@@ -175,4 +203,3 @@ function solidBlock(quad: XY[], low: number, high: number, hex: string): Float32
   tri([[p0.x, p0.y, high], [p2.x, p2.y, high], [p3.x, p3.y, high]], [0, 0, 1])
   return new Float32Array(out)
 }
-

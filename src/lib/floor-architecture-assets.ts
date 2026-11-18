@@ -126,7 +126,7 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
     })
     if (valid) handledWalls.push(candidate.id)
   }
-  const origin = stairs.length > 0 ? transformer.buildingLocalToWorld({ x: 0, y: 0 }, buildingId) : null
+  const origin = stairs.length > 0 || Boolean(input.stairTops?.length) ? transformer.buildingLocalToWorld({ x: 0, y: 0 }, buildingId) : null
   const grid = origin ? { originLat: origin.lat, originLng: origin.lng } : null
   // The smooth mesh is decoration: if it cannot be built, the stair blocks are drawn instead.
   let mesh: Float32Array | null = null
@@ -136,7 +136,7 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
     mesh = origin && grid ? floorStairMesh(placed, base, (p) => {
       const w = transformer.buildingLocalToWorld(p, buildingId)
       return w ? toLocal(grid, w) : { x: NaN, y: NaN }
-    }, input.ground ?? base) : null
+    }, input.ground ?? base, input.stairTops) : null
   } catch { mesh = null }
   const stairMesh = origin && mesh && mesh.length > 0 && mesh.every(Number.isFinite) ? { origin: { lat: origin.lat, lng: origin.lng }, mesh } : null
   return { ...result, stairMesh, modeledIds: { walls: handledWalls, doors: ids([result.frames, result.panels, result.glass], 'doorId'), openings: ids([result.frames, result.panels, result.glass], 'openingId'), stairs: ids([result.stairs], 'featureId') } }

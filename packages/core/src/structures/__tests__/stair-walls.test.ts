@@ -159,3 +159,12 @@ describe('the U-stair turn platform gets a railing on its open edges (owner 2026
     expect(v.some((p) => nearFar(p, far, true) && p.z > h + 0.3)).toBe(false)
   })
 })
+
+it('guards the front and opposite side of a Stair-tool upper landing, leaving the chosen side clear', () => {
+  const v = vertices(floorStairMesh([], 3.5, p => p, 3.5, [{ ...toolStair({ landingExit: 'left' }), fromLevel: 0 }]))
+  const platformRails = v.filter(p => p.x > 5.9 && p.z > 4.1 && is(p.c, RAIL))
+  // The front edge needs a guard when you exit at the side.
+  expect(platformRails.some(p => p.x > 7 && Math.abs(p.y) < 0.55)).toBe(true)
+  expect(platformRails.some(p => p.x < 6.5 && p.y < -0.45)).toBe(true)
+  expect(platformRails.some(p => p.x < 6.5 && p.y > 0.45)).toBe(false)
+})

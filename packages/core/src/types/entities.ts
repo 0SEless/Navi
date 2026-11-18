@@ -529,7 +529,11 @@ export interface StairLook {
   underneath?: 'open' | 'solid'
 }
 
+export type StairLandingExit = 'front' | 'left' | 'right'
+
 export interface StairLevelGeometry {
+  /** Open edge of the landing, relative to the final flight. */
+  landingExit?: StairLandingExit
   /** 'top' (2026-11-16): this floor holds only the stair's top landing (the flight is drawn on the From floor). */
   role?: 'top'
   routeConnectionManaged?: boolean

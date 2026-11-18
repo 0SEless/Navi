@@ -1,11 +1,11 @@
-import {collectFloorDoors} from '@navi/core'
+import {collectFloorDoors, stairTopExitDirection, type Staircase} from '@navi/core'
 import type { Building, Floor, LocalCoord, RoomDoor } from '@navi/core'
 import { deriveAttachedDoor } from './door-wall-attachment'
 export type FloorPortKind='door'|'entrance'|'stair'|'elevator'
 export interface FloorPort { key:string; kind:FloorPortKind; id:string; label:string; position:LocalCoord; hostWallId?:string; connection?:RoomDoor['routeConnection']; manualConnected?:boolean; issue?:string
  /** Old imported doors carry no wall attachment. The wall they sit in (nearest, within `ownWallReach`)
   * may be crossed at the very start of their link, like an attached door's host wall. */
- ownWallId?:string; ownWallReach?:number }
+ ownWallId?:string; ownWallReach?:number; exitDirection?:LocalCoord }
 /** Distance from a point to a wall's centre line. */
 function distanceToWall(point:LocalCoord,wall:{start:LocalCoord;end:LocalCoord}):number{const q=projectFloorPoint(point,wall.start,wall.end);return Math.hypot(q.x-point.x,q.y-point.y)}
 /** The single wall an unattached door sits in: the nearest wall whose centre line is within half the door depth
@@ -34,7 +34,9 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
  }
  for(const [kind,features] of [['stair',building.staircases??[]],['elevator',building.elevators??[]]] as const){
   for(const feature of features){const geometry=feature.levels?.[floor.level];if(!geometry)continue
-   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(geometry.landing?.position??geometry.position)},connection:geometry.routeConnection})
+   const exitDirection=kind==='stair'&&'role' in geometry&&geometry.role==='top'
+     ?stairTopExitDirection(feature as Staircase,building.floors):undefined
+   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(geometry.landing?.position??geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{})})
   }
  }
  return ports
@@ -52,6 +54,7 @@ export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Fl
  if(port.issue)return port.issue
  if(![port.position.x,port.position.y,target.x,target.y].every(Number.isFinite))return 'Connection coordinates are invalid.'
  const p=port.position,r={x:target.x-p.x,y:target.y-p.y}
+ if(port.exitDirection&&r.x*port.exitDirection.x+r.y*port.exitDirection.y<-.05)return 'Choose a route on the selected landing exit side.'
  for(const wall of floor.walls??[]){
   const a=wall.start,s={x:wall.end.x-a.x,y:wall.end.y-a.y},den=r.x*s.y-r.y*s.x
   if(Math.abs(den)<1e-9){
@@ -62,6 +65,8 @@ export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Fl
   const q={x:a.x-p.x,y:a.y-p.y},t=(q.x*s.y-q.y*s.x)/den,u=(q.x*r.y-q.y*r.x)/den
   if(t < -1e-7||t>1+1e-7||u < -1e-7||u>1+1e-7)continue
   if(t<=1e-6&&(port.hostWallId===wall.id||port.kind==='entrance'))continue
+  if(port.kind==='stair'&&(floor.openings??[]).some(o=>o.wallId===wall.id&&o.type==='door'&&(o.sillHeight??0)<=.05
+    &&u*Math.hypot(s.x,s.y)>=o.offset-1e-6&&u*Math.hypot(s.x,s.y)<=o.offset+o.width+1e-6))continue
   if(port.ownWallId===wall.id&&t*Math.hypot(r.x,r.y)<=port.ownWallReach!)continue
   return 'Connection crosses a wall. Choose an accessible route segment.'
  }

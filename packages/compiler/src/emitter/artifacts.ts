@@ -1021,12 +1021,16 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         const at = isTop ? flightFloor : level
         // A Stair-tool stair (no design) climbs to the next floor up and not at all on the top floor (2026-11-17).
         const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? (isTop ? undefined : undesignedStairRise(geom, level, b.floors)) ?? slot.height)
+        const exit = geom.landingExit ?? (isTop ? levelGeom.landingExit : undefined)
+        const doorwayAt = stairDoorwayAt(st, b.floors)
         slot.staircases.push({
           id: st.id,
           name: st.name,
           ...(isTop ? { role: 'top' as const, fromLevel: flightFloor } : {}),
           // An outside stair's doorway (2026-11-17), so NAVI Web leaves that side of its top platform open.
-          ...(!isTop && stairDoorwayAt(st, b.floors) ? { doorwayAt: stairDoorwayAt(st, b.floors) } : {}),
+          ...(doorwayAt ? { doorwayAt: { x: doorwayAt.x + offsetFor(b, at).x, y: doorwayAt.y + offsetFor(b, at).y } } : {}),
+          ...(exit ? { landingExit: exit } : {}),
+          ...(!isTop && climbsToFloor ? { arrivalLanding: true } : {}),
           position: { x: geom.position.x + offsetFor(b, at).x, y: geom.position.y + offsetFor(b, at).y },
           rotation: geom.rotation ?? 0,
           ...(height !== undefined ? { height } : {}),

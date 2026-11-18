@@ -3,7 +3,7 @@
 // Floor-to-floor stair settings (2026-11-16, whole-building view), in the floor editor's properties panel: which
 // floor the stair climbs To, the climb it makes (from the floors' heights, never typed), Turn and Sides.
 import { useEffect, useState } from 'react'
-import { stairFlightFloor, stairHasTop, stairRise, type Building } from '@navi/core'
+import { stairFlightFloor, stairHasTop, stairRise, type Building, type StairLandingExit } from '@navi/core'
 
 const field: React.CSSProperties = {
   width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)',
@@ -16,11 +16,13 @@ type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
 type LookPatch = { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
 type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
-export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
+export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onConnectFloors, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
   building: Building
   featureId: string
   /** Climb to this floor level (the stair's own floor = no climb). */
   onSetTo(level: number): void
+  onLandingExit?(side: StairLandingExit | 'auto'): void
+  onConnectFloors?(): void
   onDrawing(patch: DrawingPatch): void
   /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
   onLook?(patch: LookPatch): void
@@ -61,6 +63,28 @@ export function StairClimbProperties({ building, featureId, onSetTo, onDrawing, 
         <div data-testid="stair-climb" style={{ fontSize: 11, color: 'var(--navi-text)' }}>
           {`Climbs ${m(rise)} m — ${fromFloor.label} (${m(fromFloor.elevation)} m) → ${toFloor.label} (${m(toFloor.elevation)} m)`
             + (steps ? ` · ${steps} × ${(rise / steps).toFixed(3)} m` : '')}
+        </div>
+      )}
+      {toFloor && onLandingExit && (
+        <div>
+          <label style={label} htmlFor={`stair-exit-${featureId}`}>LANDING EXIT</label>
+          <select id={`stair-exit-${featureId}`} style={field} value={flight?.landingExit ?? 'auto'}
+            onChange={event => onLandingExit(event.target.value as StairLandingExit | 'auto')}>
+            <option value="auto">Auto</option>
+            <option value="front">Front</option>
+            <option value="left">Left side</option>
+            <option value="right">Right side</option>
+          </select>
+          <div style={{ ...label, marginTop: 4 }}>Left and right are as you walk up the final flight.</div>
+          {!flight?.landingExit && stair.levels[toFloor.level]?.landingExit && (
+            <div style={label}>Auto selected: {stair.levels[toFloor.level].landingExit}</div>
+          )}
+          {onConnectFloors && (
+            <button type="button" style={{ ...field, cursor: 'pointer' }} onClick={onConnectFloors}>Auto-connect floor routes</button>
+          )}
+          <div style={{ ...label, marginTop: 4 }}>
+            {fromFloor?.label}: {flight?.routeConnection ? 'Route linked' : 'No floor route linked'} · {toFloor.label}: {stair.levels[toFloor.level]?.routeConnection ? 'Route linked' : 'No floor route linked'}
+          </div>
         </div>
       )}
       {props && (

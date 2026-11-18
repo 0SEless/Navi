@@ -22,6 +22,17 @@ function show(b: Building) {
 }
 
 describe('StairClimbProperties', () => {
+  it('lets the editor choose a side exit and retry the two-floor route check', () => {
+    const onLandingExit = vi.fn()
+    const onConnectFloors = vi.fn()
+    render(<StairClimbProperties building={building(1)} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()}
+      onLandingExit={onLandingExit} onConnectFloors={onConnectFloors} />)
+    fireEvent.change(screen.getByLabelText('LANDING EXIT'), { target: { value: 'left' } })
+    expect(onLandingExit).toHaveBeenCalledWith('left')
+    fireEvent.click(screen.getByRole('button', { name: 'Auto-connect floor routes' }))
+    expect(onConnectFloors).toHaveBeenCalledOnce()
+  })
+
   it('shows the climb from Floor 1 to Floor 2 with its steps', () => {
     show(building(1))
     expect(screen.getByTestId('stair-climb').textContent).toBe('Climbs 3.50 m — Floor 1 (0.00 m) → Floor 2 (3.50 m) · 20 × 0.175 m')

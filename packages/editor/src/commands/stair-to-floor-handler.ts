@@ -1,5 +1,7 @@
-import { buildStairTopVolumes, recordChange, stairFlightFloor, stairHasTop, stairRise, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
-import { wallAgainstLanding } from '../geometry/stair-top-reach'
+import { buildStairTopVolumes, recordChange, stairFlightFloor, stairFootPosition, stairHasTop, stairLandingExitEdge, stairRise, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
+import { stairTopReach, wallAgainstLanding } from '../geometry/stair-top-reach'
+import { suggestFloorConnections } from '../geometry/floor-connections'
+import { floorConnectionsApplyHandler } from './floor-route-workflow'
 import { removeFeatureRoutePort, syncFeatureRoutePort } from '../geometry/feature-route-port'
 import { clearFeatureLinks } from '../navigation/feature-links'
 import type { Command, CommandHandler, MutationResult } from './types'
@@ -42,7 +44,15 @@ export const stairSetToFloorHandler: CommandHandler = {
     if (!Number.isInteger(toLevel) || toLevel < from) return { success: false, error: 'A stair can only climb to a floor above it.' }
     if (!building.floors.some((f) => f.level === toLevel)) return { success: false, error: 'That floor does not exist in this building.' }
 
-    for (const key of Object.keys(stair.levels)) {
+    const exit = payload.landingExit
+    if (exit !== undefined && exit !== 'auto' && exit !== 'front' && exit !== 'left' && exit !== 'right') {
+      return { success: false, error: 'Select Auto, Front, Left, or Right for the landing exit.' }
+    }
+    const keepTop = stairHasTop(stair) && toLevel === stair.toLevel && (exit !== undefined || payload.autoConnect === true)
+    if (exit === 'auto') delete flight.landingExit
+    else if (exit !== undefined) flight.landingExit = exit
+
+    for (const key of keepTop ? [] : Object.keys(stair.levels)) {
       const level = Number(key)
       if (level === from) continue
       // Its route connector on that floor goes with it (no dead-end branch left behind).
@@ -53,12 +63,45 @@ export const stairSetToFloorHandler: CommandHandler = {
     }
     stair.fromLevel = from
     stair.toLevel = toLevel
-    if (toLevel > from) {
+    if (toLevel > from && !keepTop) {
       clearFeatureLinks(building, 'staircase', stair.id)
       const position = stairTopPosition(stair, building.floors) ?? { ...flight.position }
       stair.levels[toLevel] = { role: 'top', position, rotation: flight.rotation ?? 0 }
     }
     syncStairTopOpening(building, stair)
+    if (payload.autoConnect === true && stairHasTop(stair)) {
+      const top = stair.levels[toLevel]
+      const reach = stairTopReach(building, stair)
+      if (reach.ok || flight.landingExit) {
+        top.landingExit = flight.landingExit ?? (reach.ok ? reach.exit : undefined)
+        top.position = stairTopPosition(stair, building.floors) ?? top.position
+      } else {
+        delete top.landingExit
+        top.position = stairTopPosition(stair, building.floors) ?? top.position
+      }
+      if (top.routeConnection && (!reach.ok || syncFeatureRoutePort(building, stair, toLevel))) {
+        const targetFloor = building.floors.find(floor => floor.level === toLevel)!
+        const link = top.routeConnection
+        delete top.routeConnection
+        removeFeatureRoutePort(targetFloor, link, building)
+      }
+      // Only the selected stair is eligible. Keep any existing foot link and never create a corridor.
+      if (!flight.routeConnection && !flight.landing) {
+        const foot = stairFootPosition(stair, building.floors)
+        if (foot) flight.landing = { position: foot }
+      }
+      for (const level of [from, toLevel]) {
+        const geometry = stair.levels[level]
+        if (geometry.routeConnection) continue
+        geometry.routeConnectionManaged = true
+        if (level === toLevel && !reach.ok) continue
+        const floor = building.floors.find(f => f.level === level)!
+        const proposal = suggestFloorConnections(building, floor).find(row => row.portKey === `stair:${stair.id}`)
+        if (proposal?.accepted && !proposal.existing) {
+          floorConnectionsApplyHandler.execute(document, { buildingId: building.id, floorId: floor.id, connections: [proposal] })
+        }
+      }
+    }
     recordChange(document, { entityId: featureId, entityType: 'staircase', operation: 'updated' })
     return { success: true, entityId: featureId, data: { before, networks } }
   },
@@ -83,8 +126,14 @@ export function syncStairTop(building: Building, stair: Staircase): void {
   top.position = position
   const flight = stair.levels[stairFlightFloor(stair)]
   if (flight) top.rotation = flight.rotation ?? 0
-  syncFeatureRoutePort(building, stair, stair.toLevel)
   syncStairTopOpening(building, stair)
+  const problem = syncFeatureRoutePort(building, stair, stair.toLevel)
+  const targetFloor = building.floors.find(floor => floor.level === stair.toLevel)
+  if (targetFloor && (top.landingExit || flight?.landingExit) && top.routeConnection && (problem || !stairTopReach(building, stair).ok)) {
+    const link = top.routeConnection
+    delete top.routeConnection
+    removeFeatureRoutePort(targetFloor, link, building)
+  }
 }
 
 /** Height of the automatic doorway an outside stair's top gets in the wall it lands against, metres. */
@@ -109,8 +158,13 @@ export function syncStairTopOpening(building: Building, stair: Staircase): void 
   const top = buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
   const landing = top?.geometry.coordinates[0].slice(0, -1).map(([x, y]) => ({ x, y })) ?? []
   if (landing.length < 3) return
-  const best = wallAgainstLanding(walls, landing)
-  if (!best) return
+  const ring = top.geometry.coordinates[0]
+  const reach = stairTopReach(building, stair, true)
+  const primary = reach.ok ? wallAgainstLanding(walls, landing, stairLandingExitEdge(ring, reach.exit)) : undefined
+  // Preserve the existing wall opening for older automatic stairs. A matching wall alone still grants no route.
+  const best = primary ?? (!flight.landingExit ? [2, 1, 3].map(edge => wallAgainstLanding(walls, landing, edge)).find(Boolean) : undefined)
+  if (!best || (to.openings ?? []).some(o => o.type === 'door' && (o.sillHeight ?? 0) <= 0.05
+      && o.wallId === best.wall.id && Math.min(o.offset + o.width, best.t1) - Math.max(o.offset, best.t0) >= 0.5)) return
   const opening: Opening = {
     id, type: 'door', wallId: best.wall.id, offset: best.t0, width: best.t1 - best.t0,
     height: Math.min(STAIR_OPENING_HEIGHT_M, best.wall.height ?? STAIR_OPENING_HEIGHT_M), sillHeight: 0, doorAppearance: 'open',
@@ -118,4 +172,3 @@ export function syncStairTopOpening(building: Building, stair: Staircase): void 
   }
   to.openings = [...(to.openings ?? []), opening]
 }
-

@@ -84,3 +84,20 @@ describe('stair top reach', () => {
   })
 })
 
+it('checks the selected landing edge instead of passing because a different edge reaches a corridor', () => {
+  const b = building({ hallways: [{ id: 'side', name: 'Side corridor', width: 2,
+    polyline: { points: [{ x: 1, y: 2 }, { x: 1.9, y: 2 }] } }] })
+  stair(b).levels[0].landingExit = 'front'
+  expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-walkable' })
+  stair(b).levels[0].landingExit = 'left'
+  expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, targetId: 'side' })
+})
+
+it('does not count a corner touching a corridor as a usable front exit', () => {
+  const b = building({ hallways: [{ id: 'side', name: 'Side corridor', width: 2,
+    polyline: { points: [{ x: 0, y: 2.14 }, { x: 5, y: 2.14 }] } }] })
+  stair(b).levels[0].landingExit = 'front'
+  expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-walkable' })
+  stair(b).levels[0].landingExit = 'left'
+  expect(stairTopReach(b, stair(b)).ok).toBe(true)
+})
