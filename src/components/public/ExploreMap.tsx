@@ -10,7 +10,7 @@ import { ElevatorLayer } from '@/components/map/layers/ElevatorLayer'
 import { DoorLayer } from '@/components/map/layers/DoorLayer'
 import { FloorArchitectureLayer, selectFloorArchitecture, floorArchitectureFallback } from '@/components/map/layers/FloorArchitectureLayer'
 import { RouteFloorLayer } from '@/components/map/layers/RouteFloorLayer'
-import { routeFloorRibbons } from '@/lib/route-floor-ribbons'
+import { pathToDoors, routeFloorRibbons } from '@/lib/route-floor-ribbons'
 import { RaisedRoomLabels } from '@/components/map/layers/RaisedRoomLabels'
 import { WallLayer } from '@/components/map/layers/WallLayer'
 import { OpeningLayer } from '@/components/map/layers/OpeningLayer'
@@ -265,17 +265,22 @@ function ExploreLayers({
     [navigating, visiblePois, routeEnd],
   )
   const getNodeBuilding = useCallback((id: string) => bundle.nodes.find((x) => x.id === id)?.buildingId, [bundle.nodes])
+  // The route as drawn stops at a room's door (owner 2026-11-18: "it should only go in the door").
+  const drawnRoute = useMemo(
+    () => (route ? { ...route, path: pathToDoors(route.path, (id) => bundle.nodes.find((x) => x.id === id)?.type === 'room') } : null),
+    [route, bundle.nodes],
+  )
   // The route lying on the 2.5D floors (owner 2026-11-18: "it should show on the floor"), for the open building's
   // floors up to the one shown.
   const routeOnFloors = useMemo(() => {
     const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
-    if (!route || !architecture) return empty
+    if (!drawnRoute || !architecture) return empty
     const elevations = new Map<number, number>()
     for (const record of model.indoor.architecture ?? []) {
       if (record.buildingId === architecture.buildingId) elevations.set(record.floor, Number.isFinite(record.elevation) ? record.elevation : 0)
     }
     return routeFloorRibbons({
-      path: route.path,
+      path: drawnRoute.path,
       node: (id) => {
         const n = bundle.nodes.find((x) => x.id === id)
         return n ? { lat: n.position.lat, lng: n.position.lng, floor: n.floor, buildingId: n.buildingId } : undefined
@@ -284,7 +289,7 @@ function ExploreLayers({
       elevations,
       topFloor: activeFloor,
     })
-  }, [route, architecture, model.indoor.architecture, bundle.nodes, activeFloor])
+  }, [drawnRoute, architecture, model.indoor.architecture, bundle.nodes, activeFloor])
   // The route's points for the 3D ribbon.
   const routePath = useMemo(
     () => [...(route?.leadIn ? [route.leadIn] : []), ...(route?.path ?? []).map(getNodePosition).filter((p): p is { lat: number; lng: number } => Boolean(p))],
@@ -367,7 +372,7 @@ function ExploreLayers({
       <RouteLine
         map={map}
         // On flat ground the bold route line stays when tilted; on terrain the route is a ribbon on the surface.
-        route={routeAsRibbon(site, threeD) ? null : route ?? null}
+        route={routeAsRibbon(site, threeD) ? null : drawnRoute}
         getNodePosition={getNodePosition}
         getNodeFloor={getNodeFloor}
         getNodeBuilding={getNodeBuilding}

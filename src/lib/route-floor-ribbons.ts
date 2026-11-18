@@ -12,8 +12,6 @@ type RouteNode = LatLng & { floor: number; buildingId?: string }
 const SLAB_TOP_M = 0.3
 const CORE_HALF_M = 0.45
 const EDGE_HALF_M = 0.7
-/** Pieces in a drawn climb between floors. */
-const CLIMB_PIECES = 10
 
 export interface RouteFloorRibbonsInput {
   path: readonly string[]
@@ -44,8 +42,6 @@ export function routeFloorRibbons(input: RouteFloorRibbonsInput): GeoJSON.Featur
   const features: GeoJSON.Feature<GeoJSON.Polygon>[] = []
   if (!input.buildingId) return { type: 'FeatureCollection', features }
   const inside = (n: RouteNode) => n.buildingId === input.buildingId
-  const lerp = (a: LatLng, b: LatLng, t: number): LatLng => ({ lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t })
-  // `bottom`: a climb piece is a solid step down to the previous piece's height, so the climb reads as one ramp.
   const strip = (a: LatLng, b: LatLng, floor: number, top: number, climb: boolean, bottom = top) => {
     for (const [part, half, lift] of [['edge', EDGE_HALF_M, 0.02], ['core', CORE_HALF_M, 0.05]] as const) {
       const ring = quad(a, b, half)
@@ -59,19 +55,19 @@ export function routeFloorRibbons(input: RouteFloorRibbonsInput): GeoJSON.Featur
     if (!a || !b || (!inside(a) && !inside(b))) continue
     const ea = input.elevations.get(a.floor), eb = input.elevations.get(b.floor)
     if (ea === undefined || eb === undefined || !Number.isFinite(ea) || !Number.isFinite(eb)) continue
-    if (a.floor === b.floor) {
-      if (a.floor <= input.topFloor) strip(a, b, a.floor, ea + SLAB_TOP_M, false)
-      continue
-    }
-    // A change of floor (stairs, a hillside entrance): a climb of short strips rising from one floor to the other,
-    // drawn when it starts or ends on a shown floor.
-    if (Math.min(a.floor, b.floor) > input.topFloor) continue
-    for (let k = 0; k < CLIMB_PIECES; k++) {
-      const t0 = k / CLIMB_PIECES, t1 = (k + 1) / CLIMB_PIECES
-      const h = ea + (eb - ea) * ((k + 0.5) / CLIMB_PIECES) + SLAB_TOP_M
-      const prev = ea + (eb - ea) * ((k - 0.5) / CLIMB_PIECES) + SLAB_TOP_M
-      strip(lerp(a, b, t0), lerp(a, b, t1), Math.max(a.floor, b.floor), h, true, prev)
-    }
+    // A change of floor (stairs, a hillside entrance) is not drawn in 3D (owner 2026-11-18: "we don't need this").
+    if (a.floor === b.floor && a.floor <= input.topFloor) strip(a, b, a.floor, ea + SLAB_TOP_M, false)
   }
   return { type: 'FeatureCollection', features }
+}
+
+/**
+ * The route as drawn (owner 2026-11-18: "it should only go in the door"): a room at the start or end is left out, so
+ * the line stops at the room's door instead of crossing into the room. A path of just a door and its room is kept.
+ */
+export function pathToDoors(path: readonly string[], isRoom: (id: string) => boolean): string[] {
+  let from = 0, to = path.length
+  if (to - from > 2 && isRoom(path[to - 1])) to--
+  if (to - from > 2 && isRoom(path[from])) from++
+  return path.slice(from, to)
 }
