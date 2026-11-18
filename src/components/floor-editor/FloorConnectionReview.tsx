@@ -1,13 +1,13 @@
 'use client'
-import {useEffect,useRef,useState} from 'react'
+import {useCallback,useEffect,useRef,useState} from 'react'
 import type {Building,Floor,LocalCoord} from '@navi/core'
 import {floorBackboneEdges,floorConnectionProblem,floorConnectionSignature,getFloorPorts,nearestFloorTarget,projectFloorPoint,suggestFloorConnections,type FloorConnectionProposal} from '@navi/editor/src/geometry/floor-connections'
 /** `undoAvailable`: the latest undoable step is a connections batch (true again after Redo). When omitted,
  * the button follows this panel's own last Confirm. */
-interface Props {building:Building;floor:Floor;revision:number;disabled?:boolean;undoAvailable?:boolean;onApply:(payload:Record<string,unknown>)=>{success:boolean;error?:string;revision?:number};onUndo:()=>unknown}
+interface Props {building:Building;floor:Floor;revision:number;openRequested?:boolean;onOpenRequestHandled?:()=>void;disabled?:boolean;undoAvailable?:boolean;onApply:(payload:Record<string,unknown>)=>{success:boolean;error?:string;revision?:number};onUndo:()=>unknown}
 const buttonStyle={padding:'6px 10px',border:'1px solid var(--navi-border)',borderRadius:5,background:'var(--navi-card)',color:'var(--navi-text)',cursor:'pointer',fontSize:12}
-export function FloorConnectionReview({building,floor,revision,disabled,undoAvailable,onApply,onUndo}:Props){
- const [review,setReview]=useState<{signature:string;rows:FloorConnectionProposal[]}|null>(null),[error,setError]=useState(''),[undoRevision,setUndoRevision]=useState<number|null>(null)
+export function FloorConnectionReview({building,floor,revision,openRequested,onOpenRequestHandled,disabled,undoAvailable,onApply,onUndo}:Props){
+ const [review,setReview]=useState<{signature:string;rows:FloorConnectionProposal[];selectSuggestions:boolean}|null>(null),[error,setError]=useState(''),[undoRevision,setUndoRevision]=useState<number|null>(null)
  const launch=useRef<HTMLButtonElement>(null),cancel=useRef<HTMLButtonElement>(null),svg=useRef<SVGSVGElement>(null),drag=useRef<string|null>(null)
  const ports=getFloorPorts(building,floor),edges=floorBackboneEdges(building,floor),signature=floorConnectionSignature(building,floor)
  const stale=!!review&&review.signature!==signature
@@ -15,7 +15,16 @@ export function FloorConnectionReview({building,floor,revision,disabled,undoAvai
  const minX=Math.min(0,...points.map(p=>p.x))-2,maxX=Math.max(8,...points.map(p=>p.x))+2,minY=Math.min(0,...points.map(p=>p.y))-2,maxY=Math.max(5,...points.map(p=>p.y))+2
  const width=maxX-minX,height=maxY-minY,unit=Math.max(width,height)/70
  useEffect(()=>{if(review)cancel.current?.focus();else launch.current?.focus()},[!!review])
- const open=()=>{setReview({signature,rows:suggestFloorConnections(building,floor)});setError('')}
+ const open=useCallback((selectSuggestions:boolean)=>{
+  const rows=suggestFloorConnections(building,floor)
+  setReview({signature,selectSuggestions,rows:selectSuggestions?rows:rows.map(row=>({...row,accepted:false}))})
+  setError('')
+ },[building,floor,signature])
+ useEffect(()=>{
+  if(disabled||!openRequested)return
+  open(false)
+  onOpenRequestHandled?.()
+ },[disabled,open,openRequested,onOpenRequestHandled])
  const patchRow=(key:string,change:Partial<FloorConnectionProposal>)=>setReview(current=>current?{...current,rows:current.rows.map(r=>r.portKey===key?{...r,...change}:r)}:null)
  const close=()=>{drag.current=null;setReview(null);setError('')}
  const pointerPoint=(x:number,y:number):LocalCoord|undefined=>{
@@ -33,7 +42,7 @@ export function FloorConnectionReview({building,floor,revision,disabled,undoAvai
  const accepted=review?.rows.filter(r=>r.accepted||r.disconnect)??[]
  return <>
   <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 10px',borderBottom:'1px solid var(--navi-border)',flexShrink:0}}>
-   <button ref={launch} type="button" style={buttonStyle} disabled={disabled} onClick={open}>Suggest connections</button>
+   <button ref={launch} type="button" style={buttonStyle} disabled={disabled} onClick={()=>open(true)}>Suggest connections</button>
    {undoAvailable!==undefined
     ? undoAvailable&&<button type="button" style={buttonStyle} disabled={disabled} onClick={()=>{if(!disabled)onUndo()}}>Undo connections</button>
     : undoRevision!==null&&<button type="button" style={buttonStyle} disabled={disabled||revision!==undoRevision} onClick={()=>{if(revision===undoRevision&&!disabled){onUndo();setUndoRevision(null)}}}>Undo connections</button>}
@@ -75,7 +84,7 @@ export function FloorConnectionReview({building,floor,revision,disabled,undoAvai
       </section>})}
      </div>
     </div>
-    {stale&&<div role="alert" style={{padding:'8px 16px',color:'#b45309'}}>The floor changed. Refresh suggestions before confirming. <button type="button" onClick={open}>Refresh suggestions</button></div>}
+    {stale&&<div role="alert" style={{padding:'8px 16px',color:'#b45309'}}>The floor changed. Refresh suggestions before confirming. <button type="button" onClick={()=>open(review.selectSuggestions)}>Refresh suggestions</button></div>}
     {error&&<div role="alert" style={{padding:'8px 16px',color:'#dc2626'}}>{error}</div>}
     <footer style={{display:'flex',alignItems:'center',gap:8,padding:'12px 16px',borderTop:'1px solid var(--navi-border)'}}><span style={{fontSize:12,marginRight:'auto'}}>{accepted.length} connection changes selected · blue existing · green accepted · orange needs review</span>
      <button ref={cancel} type="button" style={buttonStyle} onClick={close}>Cancel</button>

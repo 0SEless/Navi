@@ -41,3 +41,18 @@ it('puts "Route segment" on its own line under the item name and type',()=>{
  const select=screen.getAllByRole('combobox')[0],label=select.closest('label') as HTMLLabelElement
  expect(label.style.display).toBe('block')
 })
+it('opens validation repair with every suggestion unselected until the editor picks a connection',()=>{
+ const {floor,building}=fixture(),apply=vi.fn(()=>({success:true,revision:2})),handled=vi.fn()
+ const view=render(<FloorConnectionReview floor={floor} building={building} revision={1} openRequested onOpenRequestHandled={handled} onApply={apply} onUndo={vi.fn()}/>)
+ expect(screen.getByRole('dialog',{name:'Review floor connections'})).toBeTruthy()
+ expect(handled).toHaveBeenCalled()
+ expect(screen.getByRole('button',{name:'Confirm connections'})).toBeDisabled()
+ expect(apply).not.toHaveBeenCalled()
+ floor.walls[0].height=4
+ view.rerender(<FloorConnectionReview floor={floor} building={building} revision={2} onApply={apply} onUndo={vi.fn()}/>)
+ fireEvent.click(screen.getByRole('button',{name:'Refresh suggestions'}))
+ expect(screen.getByRole('button',{name:'Confirm connections'})).toBeDisabled()
+ fireEvent.click(screen.getByRole('checkbox',{name:'Include Door'}))
+ fireEvent.click(screen.getByRole('button',{name:'Confirm connections'}))
+ expect(apply.mock.calls[0][0].connections).toHaveLength(1)
+})

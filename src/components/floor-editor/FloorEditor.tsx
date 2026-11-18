@@ -6,6 +6,7 @@ import { useEditor, useSelection, useDocumentVersion, Viewport, CurrentToolStore
 import { useLegacyBuilding, useFloorSyncStatus, useFloorSyncError, useFloorComponents, useFloorWorkflowSaveState, deriveFloorHeaderStatus } from '@/hooks/floor-graph-selectors'
 import { DiagnosticsPanel } from '@/components/diagnostics/DiagnosticsPanel'
 import { runValidationChecks } from './validation-checks'
+import { BuildingConnectivityPanel } from './BuildingConnectivityPanel'
 import { FloorOutliner } from './FloorOutliner'
 import { FloorConnectionReview } from './FloorConnectionReview'
 import { ResizableSidePanel } from '@/components/layout/ResizableSidePanel'
@@ -212,6 +213,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }, [buildingId, currentFloorId, roomIdFingerprint])
 
   const [navPreviewOpen, setNavPreviewOpen] = useState(false)
+  const [connectionReviewRequested, setConnectionReviewRequested] = useState(false)
   const [validationVisible, setValidationVisible] = useState(false)
   const floorComponents = useFloorComponents(buildingId, currentLevel, currentFloorId)
   const handleWallSelect = useCallback((wallId: string | null) => {
@@ -709,7 +711,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         onResolveConflict={() => { void useGraphStore.getState().adoptServerSnapshot().catch(() => {}) }}
       />
 
-      {canonicalBuilding && canonicalFloor && editorMode==='navigation' && <FloorConnectionReview building={canonicalBuilding} floor={canonicalFloor} revision={documentVersion} disabled={mode!=='mapping'||!architectureAccess} undoAvailable={(historyRef.current as {lastCommandId?:string}|undefined)?.lastCommandId==='floor.connections.apply'}
+      {canonicalBuilding && canonicalFloor && editorMode==='navigation' && <FloorConnectionReview building={canonicalBuilding} floor={canonicalFloor} revision={documentVersion} openRequested={connectionReviewRequested} onOpenRequestHandled={()=>setConnectionReviewRequested(false)} disabled={mode!=='mapping'||!architectureAccess} undoAvailable={(historyRef.current as {lastCommandId?:string}|undefined)?.lastCommandId==='floor.connections.apply'}
         onApply={payload=>{
           if(!architectureAccess)return {success:false,error:'Editing access was lost.'}
           const result=services.get('dispatcher')!.execute({id:'floor.connections.apply',label:'Apply floor connections',payload})
@@ -1016,6 +1018,15 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
                   {validationVisible ? <Eye size={11} /> : <EyeOff size={11} />}
                   Validation
                 </button>
+                {canonicalBuilding && (
+                  <BuildingConnectivityPanel key={buildingId} document={editorDoc} buildingId={buildingId}
+                    activeLevel={currentLevel} revision={documentVersion}
+                    onReviewRoutes={mode === 'mapping' && architectureAccess ? () => {
+                      setEditorMode('navigation')
+                      setConnectionReviewRequested(true)
+                    } : undefined}
+                    onChooseOutdoorRoute={mode === 'mapping' && architectureAccess ? handleOpenOutdoorRoutePicker : undefined} />
+                )}
               </div>
             )}
           </div>

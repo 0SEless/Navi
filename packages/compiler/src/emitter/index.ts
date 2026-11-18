@@ -26,13 +26,13 @@ function behaviorToNavEdgeType(behavior: string): NavEdge['type'] {
  * ALWAYS run the AC4 spy test after changing this function —
  * if any spatial function (haversine, nearest neighbor) is called here, the test MUST fail.
  */
-export function emitGraph(graph: ConnectivityGraph): NavigationGraph {
+export function emitGraph(graph: ConnectivityGraph, nodeIdMap = new Map<string, string[]>()): NavigationGraph {
   const navNodes: NavNode[] = []
   const navEdges: NavEdge[] = []
 
   // Build ID mapping: primitive node ID → emitted NavNode IDs
   // (entrance_portal nodes produce 2 NavNodes, so we need to track both)
-  const nodeIdMap = new Map<string, string[]>() // primitiveId → [outdoorId?, indoorId?]
+  // The optional map keeps primitive IDs available to callers that need authored provenance.
 
   for (const node of graph.nodes) {
     switch (node.kind) {

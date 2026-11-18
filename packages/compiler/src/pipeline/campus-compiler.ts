@@ -120,7 +120,7 @@ export class CampusCompiler {
    *
    * TEMPORARY migration endpoint. In M6, `compile()` becomes this pipeline.
    */
-  compileV2(document: CampusDocument): CompileResultV2 {
+  compileV2(document: CampusDocument, onTopology?: (graph: import('../types').ConnectivityGraph, ids: ReadonlyMap<string, readonly string[]>) => void): CompileResultV2 {
     const startTime = performance.now()
     const diagnostics: import('../types').CompilerDiagnostic[] = []
     const warnings: CompileWarning[] = []
@@ -165,7 +165,9 @@ export class CampusCompiler {
 
       // ── Stage 3.3: Emit Graph ──
       connectivityGraph.metadata.campusId = document.metadata.campusId
-      const navGraph = emitGraph(connectivityGraph)
+      const nodeIds = onTopology ? new Map<string, string[]>() : undefined
+      const navGraph = emitGraph(connectivityGraph, nodeIds)
+      if (nodeIds) onTopology?.(connectivityGraph, nodeIds)
       navGraph.createdAt = new Date().toISOString()
       // No route points yet: frame the map on the campus (its boundary, else its buildings), not on 0°, 0°.
       if (navGraph.nodes.length === 0) {
