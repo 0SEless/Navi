@@ -57,7 +57,8 @@ describe('whole-building view pieces', () => {
     const outside = building()
     outside.staircases![0].levels[0].position = { x: 40, y: 0 }
     const pieces = wholeBuildingPieces(outside, 0, new Set(), transformer)
-    expect(pieces.warnings.features).toHaveLength(1)
+    expect(pieces.warnings.features).toHaveLength(4)
+    expect(pieces.warnings.features.every(f => f.properties!.height - f.properties!.base < 0.05)).toBe(true)
     expect(pieces.warnings.features[0].properties!.base).toBeCloseTo(3.5)
   })
 
@@ -66,12 +67,15 @@ describe('whole-building view pieces', () => {
     b.staircases!.push({ id: 's2', buildingId: 'b', name: 'S2', type: 'open', accessible: false, fromLevel: 1, toLevel: 2,
       levels: { 1: { position: { x: 0, y: 0 }, rotation: 0, drawing }, 2: { role: 'top', position: { x: 0, y: 0 }, rotation: 0 } } } as never)
     const pieces = wholeBuildingPieces(b, 0, new Set(), transformer)
-    expect(pieces.stairMeshes).toHaveLength(2)
-    let low = Infinity
-    for (let i = 2; i < pieces.stairMeshes[0].mesh.length; i += 9) low = Math.min(low, pieces.stairMeshes[0].mesh[i])
-    expect(low).toBeGreaterThan(3.5 - 0.5)
-    const top = pieces.stairMeshes[1].mesh
-    expect(Math.min(...top.filter((_, index) => index % 9 === 2))).toBeCloseTo(7)
-    expect(pieces.stairs.features.filter((f) => f.properties!.partType === 'step')).toHaveLength(0)
+    const heights = pieces.stairMeshes.flatMap(({ mesh }) => [...mesh].filter((_, index) => index % 9 === 2))
+    expect(Math.min(...heights)).toBeGreaterThan(3.5 - 0.5)
+    expect(heights.some(height => height > 3.5 && height < 7)).toBe(true)
+    expect(Math.max(...heights)).toBeGreaterThanOrEqual(7)
+    const tops = pieces.stairs.features.filter(f => f.properties!.partType === 'top-landing')
+    expect(tops.map(f => [f.properties!.featureId, f.properties!.floorLevel])).toEqual([['s', 1], ['s2', 2]])
+    const guards = pieces.stairs.features.filter(f => f.properties!.partType === 'landing-guard')
+    expect(new Set(guards.map(f => f.properties!.floorLevel))).toEqual(new Set([1, 2]))
+    expect(new Set(guards.map(f => f.id)).size).toBe(guards.length)
+    expect(pieces.stairs.features.filter(f => f.properties!.partType === 'step')).toHaveLength(0)
   })
 })

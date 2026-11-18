@@ -3,7 +3,8 @@ import { stairRise, type CampusDocument, type Staircase } from '@navi/core'
 import { CommandDispatcher } from '../dispatcher'
 import { CommandRegistry } from '../registry'
 import { featureCreateHandler, featureDeleteHandler, featureUpdateHandler } from '../feature-handlers'
-import { stairSetToFloorHandler } from '../stair-to-floor-handler'
+import { proposeStairCutout, stairSetToFloorHandler } from '../stair-to-floor-handler'
+import { detachedStairCutouts } from '../../geometry/stair-top-reach'
 import { cleanupFloorRoutingReferences } from '../routing-relationship-cleanup'
 import { DocumentEventBus } from '../../eventbus'
 import { HistoryStack } from '../../history'
@@ -169,7 +170,7 @@ describe('stair.setToFloor', () => {
     expect(stairOf(d).levels[1].position.y).toBeCloseTo(top.y - 1.05, 6)
   })
 
-  describe('outside stair: automatic opening in the wall it lands against (owner 2026-11-17)', () => {
+  describe('outside stair cutout confirmation', () => {
     const box = (level: number) => [
       { id: `n${level}`, start: { x: -11.6, y: 11.7 }, end: { x: 11.6, y: 11.7 }, height: 3.5, thickness: 0.2 },
       { id: `e${level}`, start: { x: 11.6, y: 11.7 }, end: { x: 11.6, y: -11.7 }, height: 3.5, thickness: 0.2 },
@@ -187,40 +188,47 @@ describe('stair.setToFloor', () => {
     }
     const openingsOn = (d: CampusDocument, level: number) => ((d.buildings[0].floors.find((f) => f.level === level) as unknown as { openings?: Array<Record<string, unknown>> }).openings ?? [])
 
-    it('cuts one open doorway in the north wall of Floor 2 where the top platform meets it', () => {
-      const { d } = walled()
-      const ops = openingsOn(d, 1)
-      expect(ops).toHaveLength(1)
-      expect(ops[0]).toMatchObject({ type: 'door', wallId: 'n1', doorAppearance: 'open', height: 2.1, sillHeight: 0 })
-      // the platform runs x -5..-3 along the wall (which starts at x -11.6): offset 6.6, width 2
-      expect(ops[0].offset as number).toBeCloseTo(6.6, 1)
-      expect(ops[0].width as number).toBeCloseTo(2, 1)
+    function confirm(d: CampusDocument, e: ReturnType<typeof editor>) {
+      const proposal = proposeStairCutout(d.buildings[0], stairOf(d))!
+      expect(proposal).toBeDefined()
+      expect(e.run('stair.setToFloor', { featureId: 's', toLevel: 1, cutout: {
+        wallId: proposal.wallId, offset: proposal.offset, width: proposal.width,
+      } }).success).toBe(true)
+    }
+
+    it('keeps the wall intact until an explicit cutout is applied', () => {
+      const { d, e } = walled()
+      expect(openingsOn(d, 1)).toHaveLength(0)
+      confirm(d, e)
+      expect(openingsOn(d, 1)).toEqual([expect.objectContaining({
+        type: 'door', wallId: 'n1', doorAppearance: 'open', height: 2.1, sillHeight: 0, frameless: true,
+      })])
+      expect(openingsOn(d, 1)[0].offset).toBeCloseTo(6.6, 1)
+      expect(openingsOn(d, 1)[0].width).toBeCloseTo(2, 1)
       expect(openingsOn(d, 0)).toHaveLength(0)
+      expect(e.history.undo()).toBe(true)
+      expect(openingsOn(d, 1)).toHaveLength(0)
     })
 
-    it('moving the stair off the wall removes it; moving back brings it back; undo restores', () => {
+    it('marks a confirmed cutout for review after moving the stair away and clears the flag on undo', () => {
       const { d, e } = walled()
+      confirm(d, e)
+      const saved = structuredClone(openingsOn(d, 1))
       e.run('feature.update', { featureId: 's', level: 0, patch: { position: { x: 0, y: 20 } } })
-      expect(openingsOn(d, 1)).toHaveLength(0)
+      expect(openingsOn(d, 1)).toEqual(saved)
+      expect(detachedStairCutouts(d.buildings[0], stairOf(d))).toHaveLength(1)
       expect(e.history.undo()).toBe(true)
-      expect(openingsOn(d, 1)).toHaveLength(1)
+      expect(detachedStairCutouts(d.buildings[0], stairOf(d))).toHaveLength(0)
     })
 
-    it('undoing the To floor removes the opening; To = its own floor removes it', () => {
-      const a = walled()
-      expect(a.e.history.undo()).toBe(true)
-      expect(openingsOn(a.d, 1)).toHaveLength(0)
-      const b = walled()
-      b.e.run('stair.setToFloor', { featureId: 's', toLevel: 0 })
-      expect(openingsOn(b.d, 1)).toHaveLength(0)
-    })
-
-    it('deleting the stair removes its doorway; undo brings both back', () => {
+    it('preserves an explicitly applied wall cutout when the stair stays on its floor or is deleted', () => {
       const { d, e } = walled()
+      confirm(d, e)
+      const saved = structuredClone(openingsOn(d, 1))
+      e.run('stair.setToFloor', { featureId: 's', toLevel: 0 })
+      expect(openingsOn(d, 1)).toEqual(saved)
       expect(e.run('feature.delete', { featureId: 's' }).success).toBe(true)
-      expect(openingsOn(d, 1)).toHaveLength(0)
-      expect(e.history.undo()).toBe(true)
-      expect(openingsOn(d, 1)).toHaveLength(1)
+      expect(openingsOn(d, 1)).toEqual(saved)
     })
 
     it('a stair inside the building never cuts the outer wall', () => {
@@ -295,6 +303,9 @@ it('routes from the existing flat platform through the open end of a partial wal
   expect(run.run('stair.setToFloor', { featureId: 's', toLevel: 1, autoConnect: true }).success).toBe(true)
   const stair = stairOf(d)
   expect(stair.levels[0].routeConnection).toBeDefined()
+  expect(stair.levels[0].landingExit).toBe('left')
+  expect(stair.levels[1].routeConnection).toBeUndefined()
+  expect(run.run('stair.setToFloor', { featureId: 's', toLevel: 1, landingExit: 'right', autoConnect: true }).success).toBe(true)
   expect(stair.levels[1]).toMatchObject({ landingExit: 'right', position: { x: 5.5, y: -1.5 } })
   expect(stair.levels[1].routeConnection).toBeDefined()
   expect(upper.openings ?? []).toEqual([])

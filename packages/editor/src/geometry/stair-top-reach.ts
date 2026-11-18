@@ -1,7 +1,7 @@
 import { stairTopShape, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
 import type { Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
-import { floorBackboneEdges, wallHasDoorAt } from './floor-connections'
+import { floorBackboneEdges, floorDoorSpans } from './floor-connections'
 
 /** How close a stair's top platform must be to a wall's face to land against it, metres. */
 export const AGAINST_WALL_M = 0.15
@@ -39,7 +39,7 @@ export const STAIR_TOP_REACH_M = 0.15
 
 type P = { x: number; y: number }
 export type StairTopReach =
-  | { ok: true; targetId: string; point: LocalCoord; exit: StairLandingExit }
+  | { ok: true; targetId: string; point: LocalCoord; exit: StairLandingExit; span: Span; openingId?: string; wall?: NonNullable<ReturnType<typeof wallAgainstLanding>> & { offset: number } }
   | { ok: false; reason: 'no-to-floor' | 'no-walkable' | 'no-opening' }
 
 const segDist = (p: P, a: P, b: P): number => {
@@ -85,8 +85,7 @@ function routeCrossing(a: P, b: P, interior: P, from: P, to: P): P | undefined {
 /** Check a usable span centered on the route anchor, so a touching corner cannot pass. */
 function exitGap(a: P, b: P, shape: readonly P[], closed: boolean, slack: number): number {
   const length = Math.hypot(b.x - a.x, b.y - a.y)
-  if (!(length > 0)) return Infinity
-  const sampleOffset = Math.min(0.25 / length, 0.5)
+  const sampleOffset = length > 0 ? Math.min(0.25 / length, 0.5) : 0
   const boundary = edges(shape, closed)
   return Math.max(...[0.5 - sampleOffset, 0.5, 0.5 + sampleOffset].map(t => {
     const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
@@ -94,6 +93,35 @@ function exitGap(a: P, b: P, shape: readonly P[], closed: boolean, slack: number
     const d = boundary.reduce((best, [start, end]) => Math.min(best, segDist(p, start, end)), Infinity)
     return Math.max(0, d - slack)
   }))
+}
+
+type Span = readonly [number, number]
+
+function openingOffset(wall: Wall, point: P) {
+  const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y
+  return ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / Math.hypot(dx, dy)
+}
+
+function intervalOnEdge(start: number, end: number, a: number, b: number): Span | undefined {
+  if (!(end > start) || Math.abs(b - a) < 1e-6) return
+  const t0 = (start - a) / (b - a), t1 = (end - a) / (b - a)
+  const low = Math.max(0, Math.min(t0, t1)), high = Math.min(1, Math.max(t0, t1))
+  if (high > low) return [low, high]
+}
+
+/** Expand only within the connected hallway contact containing the route anchor. */
+function expandContact(bounds: Span, center: number, length: number, touches: (t: number) => boolean): Span {
+  const step = Math.max(0.05 / length, 1 / 1200)
+  const extend = (limit: number, direction: number) => {
+    let t = center
+    while (t !== limit) {
+      const next = direction < 0 ? Math.max(limit, t - step) : Math.min(limit, t + step)
+      if (!touches(next)) break
+      t = next
+    }
+    return t
+  }
+  return [extend(bounds[0], -1), extend(bounds[1], 1)]
 }
 
 /**
@@ -133,32 +161,66 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
     }
   }
   const sides: StairLandingExit[] = flight.landingExit ? [flight.landingExit] : ['front', 'left', 'right']
-  const ring = top.landing
-  let best: { id: string; d: number; point: P; exit: StairLandingExit; wall?: ReturnType<typeof wallAgainstLanding> } | undefined
+  type Candidate = Extract<StairTopReach, { ok: true }> & { distance: number }
+  let reachable: Candidate | undefined
+  let blocked: Candidate | undefined
   for (const exit of sides) {
-    const edge = stairLandingExitEdge(ring, exit)
+    const edge = stairLandingExitEdge(top.landing, exit)
     const a = landing[edge], b = landing[(edge + 1) % 4]
-    const wall = wallAgainstLanding(walls, landing, edge, true)
+    const length = Math.hypot(b.x - a.x, b.y - a.y)
+    const at = (t: number): P => ({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) })
+    const fraction = (point: P) => ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / (length * length)
+    const host = wallAgainstLanding(walls, landing, edge, true)
+    const alongWall = host && ((p: P) => openingOffset(host.wall, p))
+    const covered = host && alongWall ? intervalOnEdge(host.t0, host.t1, alongWall(a), alongWall(b)) : undefined
     for (const candidate of candidates) {
       const crossing = top.integrated && candidate.route
         ? routeCrossing(a, b, landing[(edge + 2) % 4], candidate.shape[0], candidate.shape[1]) : undefined
-      const point = crossing ?? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-      // A wall can cover part of the pad edge while the route crosses its open end.
-      const host = wall && (!top.integrated || wallCoversPoint(wall.wall, point)) ? wall : undefined
-      const d = crossing ? 0 : exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
-      if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) <= 1e-6 && host && !best.wall)) {
-        best = { id: candidate.id, d, point, exit, wall: host }
+      const point = crossing ?? at(0.5)
+      const contact = fraction(point)
+      const distance = crossing ? 0 : exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
+      if (distance > STAIR_TOP_REACH_M) continue
+      const result = { ok: true as const, targetId: candidate.id, exit, distance }
+      if (host && covered && alongWall && wallCoversPoint(host.wall, point)) {
+        const wall = { ...host, offset: alongWall(point) }
+        const door = floorDoorSpans(to, host.wall.id).flatMap(opening => {
+          const span = intervalOnEdge(Math.max(host.t0, opening.start), Math.min(host.t1, opening.end), alongWall(a), alongWall(b))
+          if (!span || (span[1] - span[0]) * length < 0.5 - 1e-6) return []
+          const margin = 0.25 / length
+          const anchor = Math.max(span[0] + margin, Math.min(span[1] - margin, contact))
+          const next = at(anchor)
+          // A drawn route alone only establishes walkable contact at its crossing.
+          if (crossing && Math.abs(contact - anchor) * length > STAIR_TOP_REACH_M) return []
+          if (!crossing && exitGap(at(anchor - margin), at(anchor + margin), candidate.shape, candidate.closed, candidate.slack) > STAIR_TOP_REACH_M) return []
+          return [{ openingId: opening.id, span, point: next, shift: Math.abs(anchor - contact) }]
+        }).sort((first, second) => first.shift - second.shift)[0]
+        if (door) {
+          if (!reachable || distance < reachable.distance - 1e-6) {
+            reachable = { ...result, openingId: door.openingId, span: door.span, point: door.point, wall }
+          }
+        } else if (!blocked || distance < blocked.distance - 1e-6) {
+          blocked = { ...result, point, span: covered, wall }
+        }
+        continue
       }
+      const available: Span = !covered ? [0, 1] : contact < covered[0] ? [0, covered[0]] : [covered[1], 1]
+      const margin = 0.25 / length
+      const span = crossing
+        ? [Math.max(available[0], contact - margin), Math.min(available[1], contact + margin)] as const
+        : expandContact(available, contact, length, t => exitGap(at(t), at(t), candidate.shape, candidate.closed, candidate.slack) <= STAIR_TOP_REACH_M)
+      if ((span[1] - span[0]) * length < 0.5 - 1e-6) continue
+      if (!reachable || distance < reachable.distance - 1e-6) reachable = { ...result, point, span }
     }
   }
-  if (!best || best.d > STAIR_TOP_REACH_M) return { ok: false, reason: 'no-walkable' }
-  const against = best.wall
-  const { point } = best
-  if (against && !allowUncutWall) {
-    const { start, end, id } = against.wall
-    const dx = end.x - start.x, dy = end.y - start.y
-    const offset = ((point.x - start.x) * dx + (point.y - start.y) * dy) / Math.hypot(dx, dy)
-    if (!wallHasDoorAt(to, id, offset, 0.25)) return { ok: false, reason: 'no-opening' }
-  }
-  return { ok: true, targetId: best.id, exit: best.exit, point }
+  const result = reachable ?? (allowUncutWall ? blocked : undefined)
+  if (!result) return { ok: false, reason: blocked ? 'no-opening' : 'no-walkable' }
+  const { distance: _distance, ...resolved } = result
+  return resolved
+}
+
+export function detachedStairCutouts(building: Building, stair: Staircase, reach = stairTopReach(building, stair)) {
+  const activeId = reach.ok ? reach.openingId : undefined
+  return building.floors.flatMap(floor => (floor.openings ?? []).filter(opening =>
+    opening.metadata?.stairId === stair.id && (floor.level !== stair.toLevel || opening.id !== activeId))
+    .map(opening => ({ floor, opening })))
 }

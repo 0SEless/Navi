@@ -76,7 +76,7 @@ export function floorStairInputs(stairs: readonly Staircase[], floors: readonly 
   const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, geometry, fromLevel }) => {
     const flight = stair.levels?.[fromLevel]
     const doorwayAt = stairDoorwayAt(stair, floors)
-    return flight ? [{ id: stair.id, ...flight, landingExit: geometry.landingExit,
+    return flight ? [{ id: stair.id, ...flight, landingExit: geometry.landingExit, landingExitSpan: geometry.landingExitSpan,
       rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel, ...(doorwayAt ? { doorwayAt } : {}) }] : []
   })
   return { flights, tops }

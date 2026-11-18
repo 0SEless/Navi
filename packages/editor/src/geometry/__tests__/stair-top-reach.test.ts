@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Building, CampusDocument } from '@navi/core'
 import { stairTopReach } from '../stair-top-reach'
-import { getFloorPorts } from '../floor-connections'
+import { floorConnectionProblem, getFloorPorts } from '../floor-connections'
 import { stairTopReachRule } from '../../validation/rules/modules/feature-rules'
 import type { ValidationContext } from '../../validation/rules/types'
 
@@ -120,4 +120,27 @@ it('uses an authored wall-attached door as the hallway opening', () => {
   ] })
   stair(b).levels[0].landingExit = 'front'
   expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, exit: 'front' })
+})
+
+it('prefers the open side in Auto and retains a blocked explicit choice', () => {
+  const b = building({
+    walls: [{ id: 'blocked', start: { x: 2, y: -1 }, end: { x: 6, y: -1 }, height: 2.7, thickness: 0.15 }],
+    routeNetwork: {
+      nodes: [-3.5, -0.65, 0.65, 3.5].map((y, i) => ({ id: `n${i}`, position: { x: 4, y }, type: 'waypoint', floor: 1 })),
+      edges: [
+        { id: 'blocked-link', from: 'n0', to: 'n1', type: 'walk', distance: 2.85 },
+        { id: 'open-link', from: 'n2', to: 'n3', type: 'walk', distance: 2.85 },
+      ],
+    },
+  })
+  Object.assign(stair(b).levels[0], { drawing: undefined, polygon: { points: [{ x: -5, y: 1 }, { x: -5, y: -1 }, { x: 5, y: -1 }, { x: 5, y: 1 }] } })
+  expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, exit: 'left', targetId: 'open-link' })
+  stair(b).levels[0].landingExit = 'right'
+  expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-opening' })
+})
+
+it('rejects a route shortcut across empty space beside the arrival edge', () => {
+  const b = building({ walls: [{ id: 'far', start: { x: -10, y: 10 }, end: { x: 10, y: 10 }, height: 2.7, thickness: 0.15 }] })
+  const port = { ...getFloorPorts(b, b.floors[1])[0], checkStairApproach: true }
+  expect(floorConnectionProblem(port, { x: 6, y: 0 }, b.floors[1])).toBe('Draw a walkable hallway route to the stair opening.')
 })

@@ -19,7 +19,7 @@ export function StairCutout({ building, stair, onApply }: {
   if (!proposal) return null
   const { wallId, wall } = proposal
   const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
-  const center = proposal.offset + proposal.width / 2
+  const center = proposal.anchorOffset
   const current = draft?.wallId === wallId ? draft : undefined
   const offset = Number(current?.offset)
   const width = Number(current?.width)

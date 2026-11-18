@@ -34,9 +34,10 @@ describe('NAVI Web smooth stairs', () => {
     const two = { ...record(1, true), floorFaces: [square], symbols: { lines: fc([well as never, outsideWell as never]) as never, markers: fc() as never } }
     const stack = selectFloorArchitecture([one, two] as never, { active: true, buildingId: 'b' }, 1, true)!
     const slabs = floorArchitectureFeatures(stack).floor.features as GeoJSON.Feature<GeoJSON.Polygon>[]
-    const upper = slabs.filter((f) => f.properties!.base === 3.5)
+    const upper = slabs.filter((f) => f.properties!.floorElevation === 3.5)
     expect(upper).toHaveLength(1)
     expect(upper[0].geometry.coordinates).toHaveLength(2)
+    expect(upper[0].properties!.height).toBe(3.5)
     expect(slabs.filter((f) => f.properties!.base === 0)[0].geometry.coordinates).toHaveLength(1)
   })
 
@@ -47,9 +48,24 @@ describe('NAVI Web smooth stairs', () => {
     const one = { ...record(0, true), floorFaces: [square] }
     const two = { ...record(1, true), floorFaces: [square], symbols: { lines: fc([well as never]) as never, markers: fc() as never } }
     const stack = selectFloorArchitecture([one, two] as never, { active: true, buildingId: 'b' }, 1, true)!
-    const upper = (floorArchitectureFeatures(stack).floor.features as GeoJSON.Feature<GeoJSON.Polygon>[]).filter((f) => f.properties!.base === 3.5)
+    const upper = (floorArchitectureFeatures(stack).floor.features as GeoJSON.Feature<GeoJSON.Polygon>[]).filter((f) => f.properties!.floorElevation === 3.5)
     expect(upper.some((f) => booleanPointInPolygon(point([9, 3.5]), f as never))).toBe(false)
     expect(upper.some((f) => booleanPointInPolygon(point([5, 5]), f as never))).toBe(true)
     expect(upper.reduce((n, f) => n + area(f as never), 0)).toBeLessThan(area({ type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] } as never))
   })
+})
+
+it('subtracts crossing wells with no contained vertices and leaves tangent wells alone', () => {
+  const square = [{ lat: 0, lng: 0 }, { lat: 0, lng: 10 }, { lat: 10, lng: 10 }, { lat: 10, lng: 0 }]
+  const cut = (ring: number[][]) => {
+    const floor = { ...record(1, true), floorFaces: [square], stairWells: [ring] }
+    const stack = selectFloorArchitecture([floor], { active: true, buildingId: 'b' }, 1, true)!
+    return floorArchitectureFeatures(stack).floor.features
+  }
+  const crossing = cut([[-1, 4], [11, 4], [11, 6], [-1, 6]])
+  expect(crossing).toHaveLength(2)
+  expect(crossing.some(feature => booleanPointInPolygon(point([5, 5]), feature as GeoJSON.Feature<GeoJSON.Polygon>))).toBe(false)
+  const tangent = cut([[10, 2], [12, 2], [12, 6], [10, 6]])
+  expect(tangent).toHaveLength(1)
+  expect(booleanPointInPolygon(point([9, 5]), tangent[0] as GeoJSON.Feature<GeoJSON.Polygon>)).toBe(true)
 })

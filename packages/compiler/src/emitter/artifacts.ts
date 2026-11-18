@@ -1032,6 +1032,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
           // An outside stair's doorway (2026-11-17), so NAVI Web leaves that side of its top platform open.
           ...(doorwayAt ? { doorwayAt: { x: doorwayAt.x + offsetFor(b, at).x, y: doorwayAt.y + offsetFor(b, at).y } } : {}),
           ...(exit ? { landingExit: exit } : {}),
+          ...(isTop && levelGeom.landingExitSpan ? { landingExitSpan: levelGeom.landingExitSpan } : {}),
           ...(!isTop && climbsToFloor ? { arrivalLanding: true } : {}),
           position: { x: geom.position.x + offsetFor(b, at).x, y: geom.position.y + offsetFor(b, at).y },
           rotation: geom.rotation ?? 0,

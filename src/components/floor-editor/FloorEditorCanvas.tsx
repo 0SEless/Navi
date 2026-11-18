@@ -26,6 +26,7 @@ import { genId } from '@navi/editor'
 import { generateStairGraphicsLatLng, generateElevatorGraphicsLatLng } from '@navi/editor/src/rendering/feature-graphics'
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
+import { cutStairWellsFromFeatures } from '@/lib/stair-well-slabs'
 import { buildFloorArchitecturePreview } from './floor-architecture-preview'
 import { doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
 import { Architecture3DController } from './Architecture3DController'
@@ -895,6 +896,15 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     if (rendered) promoteWallEditingLayers(map)
   }, [floorPlanUrl, buildingFp, mapReady, planAlignment, viewMode])
 
+  const activeStairWells = viewMode === '2.5d' ? architecturePreview?.stairWells : undefined
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const source = map.getSource('floor-buildings') as maplibregl.GeoJSONSource | undefined
+    const outline = buildBuildingGeo(building)
+    source?.setData({ ...outline, features: cutStairWellsFromFeatures(outline.features, activeStairWells ?? []) })
+  }, [activeStairWells, building, mapReady])
+
   // Sync rooms + hallways for this floor
   useEffect(() => {
     const map = mapRef.current
@@ -989,7 +999,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
 
     try {
       const roomSrc = map.getSource('floor-rooms') as maplibregl.GeoJSONSource
-      if (roomSrc) roomSrc.setData({ type: 'FeatureCollection', features: roomFeatures })
+      if (roomSrc) roomSrc.setData({ type: 'FeatureCollection', features: cutStairWellsFromFeatures(roomFeatures, activeStairWells ?? []) })
 
       const stairAreaSrc = map.getSource('floor-stair-areas') as maplibregl.GeoJSONSource | undefined
       if (stairAreaSrc) stairAreaSrc.setData({ type: 'FeatureCollection', features: stairAreaFeatures })
@@ -1025,7 +1035,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { console.warn('FloorEditorCanvas: source not ready for setData') }
-  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId, editor.document, building.id, activeFloorId, floor])
+  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId, editor.document, building.id, activeFloorId, floor, activeStairWells])
 
 
   // Sync roads from document to floor-roads source (for interaction mode)
@@ -1424,9 +1434,9 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       }
 
       const src = map.getSource('floor-derived-rooms') as maplibregl.GeoJSONSource | undefined
-      if (src) src.setData({ type: 'FeatureCollection', features })
+      if (src) src.setData({ type: 'FeatureCollection', features: cutStairWellsFromFeatures(features, activeStairWells ?? []) })
     } catch { console.warn('FloorEditorCanvas: derived rooms source not ready') }
-  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady, activeStairWells])
 
   // Populate room labels from floor components
   useEffect(() => {

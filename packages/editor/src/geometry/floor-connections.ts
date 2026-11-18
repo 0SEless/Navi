@@ -1,3 +1,4 @@
+import { deriveRooms } from './room-derivation'
 import {collectFloorDoors, stairTopExitDirection, type Staircase} from '@navi/core'
 import type { Building, Floor, LocalCoord, RoomDoor } from '@navi/core'
 import { deriveAttachedDoor } from './door-wall-attachment'
@@ -5,7 +6,7 @@ export type FloorPortKind='door'|'entrance'|'stair'|'elevator'
 export interface FloorPort { key:string; kind:FloorPortKind; id:string; label:string; position:LocalCoord; hostWallId?:string; connection?:RoomDoor['routeConnection']; manualConnected?:boolean; issue?:string
  /** Old imported doors carry no wall attachment. The wall they sit in (nearest, within `ownWallReach`)
   * may be crossed at the very start of their link, like an attached door's host wall. */
- ownWallId?:string; ownWallReach?:number; exitDirection?:LocalCoord }
+ ownWallId?:string; ownWallReach?:number; exitDirection?:LocalCoord; checkStairApproach?:boolean }
 /** Distance from a point to a wall's centre line. */
 function distanceToWall(point:LocalCoord,wall:{start:LocalCoord;end:LocalCoord}):number{const q=projectFloorPoint(point,wall.start,wall.end);return Math.hypot(q.x-point.x,q.y-point.y)}
 /** The single wall an unattached door sits in: the nearest wall whose centre line is within half the door depth
@@ -39,7 +40,7 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
      ?stairTopExitDirection(feature as Staircase,building.floors):undefined
    const blocked = arrival &&
      geometry.routeConnectionManaged && !geometry.landingExit
-   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(arrival ? geometry.position : geometry.landing?.position ?? geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
+   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(arrival ? geometry.position : geometry.landing?.position ?? geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(arrival && 'landingExitSpan' in geometry && geometry.landingExitSpan ? { checkStairApproach: true } : {}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
   }
  }
  return ports
@@ -54,14 +55,18 @@ export function floorBackboneEdges(building:Building,floor:Floor){
  return (floor.routeNetwork?.edges??[]).filter(e=>!owned.has(e.id))
 }
 /** Both explicit openings and wall-attached doors cut the same physical wall. */
+export function floorDoorSpans(floor: Floor, wallId: string): Array<{ id: string; start: number; end: number }> {
+ const openings = (floor.openings ?? []).filter(opening => opening.wallId === wallId && opening.type === 'door' && (opening.sillHeight ?? 0) <= 0.05)
+ return [
+  ...openings.map(opening => ({ id: opening.id, start: opening.offset, end: opening.offset + opening.width })),
+  ...collectFloorDoors({...floor, rooms: floor.rooms ?? []}).flatMap(door => {
+   const attachment = door.wallAttachment
+   return attachment?.wallId === wallId ? [{ id: door.id, start: attachment.offset - door.width / 2, end: attachment.offset + door.width / 2 }] : []
+  }),
+ ]
+}
 export function wallHasDoorAt(floor: Floor, wallId: string, offset: number, halfClearance = 0): boolean {
- const covers = (start: number, end: number) => start <= offset - halfClearance + 1e-6 && end >= offset + halfClearance - 1e-6
- return (floor.openings ?? []).some(opening => opening.wallId === wallId && opening.type === 'door' &&
-   (opening.sillHeight ?? 0) <= 0.05 && covers(opening.offset, opening.offset + opening.width)) ||
-   collectFloorDoors({...floor, rooms: floor.rooms ?? []}).some(door => {
-     const attachment = door.wallAttachment
-     return attachment?.wallId === wallId && covers(attachment.offset - door.width / 2, attachment.offset + door.width / 2)
-   })
+ return floorDoorSpans(floor, wallId).some(span => span.start <= offset - halfClearance + 1e-6 && span.end >= offset + halfClearance - 1e-6)
 }
 export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Floor):string|undefined {
  if(port.issue)return port.issue
@@ -82,7 +87,44 @@ export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Fl
   if(port.ownWallId===wall.id&&t*Math.hypot(r.x,r.y)<=port.ownWallReach!)continue
   return 'Connection crosses a wall. Choose an accessible route segment.'
  }
+ if (port.checkStairApproach && !hasStairApproach(port, target, floor)) return 'Draw a walkable hallway route to the stair opening.'
 }
+/** A near route is insufficient if there is no walkable approach between it and the landing. */
+function hasStairApproach(port: FloorPort, target: LocalCoord, floor: Floor): boolean {
+ const start = port.position
+ const distance = Math.hypot(target.x - start.x, target.y - start.y)
+ if (distance <= 0.15) return true
+ const rooms = (floor.rooms ?? []).map(room => room.polygon?.points).filter((ring): ring is LocalCoord[] => !!ring?.length)
+ const faces = deriveRooms((floor.walls ?? []).map(wall => ({ id: wall.id, sourceWallId: wall.id, start: wall.start, end: wall.end })), [])
+ rooms.push(...faces.map(face => face.polygon.points))
+ const network = floor.routeNetwork
+ const nodes = new Map(network?.nodes.map(node => [node.id, node.position]))
+ const lines: Array<{ points: LocalCoord[]; reach: number }> = (floor.hallways ?? []).map(hall => ({
+  points: hall.polyline?.points ?? [], reach: (hall.width ?? 0) / 2 + 0.15,
+ }))
+ for (const edge of network?.edges ?? []) {
+  if (edge.type !== 'walk' || edge.id === port.connection?.connectorEdgeId) continue
+  const a = nodes.get(edge.from), b = nodes.get(edge.to)
+  if (a && b) lines.push({ points: [a, b], reach: 0.15 })
+ }
+ const count = Math.max(1, Math.ceil(distance / 0.15))
+ for (let index = 1; index <= count; index++) {
+  const t = index / count
+  const point = { x: start.x + (target.x - start.x) * t, y: start.y + (target.y - start.y) * t }
+  if (rooms.some(ring => {
+   let inside = false
+   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j]
+    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside
+   }
+   return inside || ring.some((a, i) => distanceToWall(point, { start: a, end: ring[(i + 1) % ring.length] }) <= 0.15)
+  })) continue
+  if (lines.some(line => line.points.some((a, i) => i > 0 && distanceToWall(point, { start: line.points[i - 1], end: a }) <= line.reach))) continue
+  return false
+ }
+ return true
+}
+
 export function nearestFloorTarget(building:Building,floor:Floor,position:LocalCoord):FloorConnectionTarget|undefined {
  const network=floor.routeNetwork;if(!network)return
  let best:{target:FloorConnectionTarget;distance:number}|undefined

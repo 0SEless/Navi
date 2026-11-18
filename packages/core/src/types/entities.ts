@@ -542,7 +542,9 @@ export type StairLandingExit = 'front' | 'left' | 'right'
 export interface StairLevelGeometry {
   /** Open edge of the landing, relative to the final flight. */
   landingExit?: StairLandingExit
-  /** When set, the editor waits for confirmation before cutting the arrival wall. */
+  /** Resolved interval along the arrival edge, from 0 to 1 in ring order. */
+  landingExitSpan?: readonly [number, number]
+  /** Legacy policy flag. New stair cutouts always require confirmation. */
   confirmCutout?: boolean
   /** 'top' (2026-11-16): this floor holds only the stair's top landing (the flight is drawn on the From floor). */
   role?: 'top'

@@ -5,7 +5,7 @@ import { splitDocument } from '../parts/split'
 import { partKey, type ZoneKey } from '../parts/part-keys'
 import type { LoadOk, PartRecordWithVersion } from '../server/types'
 import { SaveController } from './save-controller'
-import { createStudioApi, type SaveHttpResult, type SaveRequestBody, type StudioApi } from './api-client'
+import { createStudioApi, type ClientSaveChange, type SaveHttpResult, type SaveRequestBody, type StudioApi } from './api-client'
 
 const CHECKSUM = 'a'.repeat(64)
 
@@ -223,6 +223,92 @@ describe('SaveController.save', () => {
       expect(new TextEncoder().encode(JSON.stringify(body)).length).toBeLessThanOrEqual(4096)
     }
     expect(controller.isDirty(doc)).toBe(false)
+  })
+})
+
+describe('atomic staircase changes', () => {
+  function connect(doc: CampusDocument) {
+    const building = doc.buildings[0]
+    const [source, destination] = building.floors
+    const stair = building.staircases![0]
+    stair.levels[destination.level].landingExit = 'left'
+    stair.levels[destination.level].landingExitSpan = [0.25, 0.75]
+    source.label += ' route'
+    destination.label += ' arrival'
+    return [partKey('building', building.id), partKey('floor', building.id, source.id), partKey('floor', building.id, destination.id)]
+  }
+
+  it('preflights an oversized staircase change before any request and keeps every part dirty', async () => {
+    const doc = fixtureFull()
+    const api = fakeApi(async body => okReply(body))
+    const controller = new SaveController({ campusId: doc.metadata.campusId, api, zones: zonesHolding(), maxRequestBytes: 1 })
+    controller.adoptBaseline(loadOf(doc))
+    const keys = connect(doc)
+    expect(await controller.save(doc)).toMatchObject({ kind: 'failed', code: 'stair-save-too-large' })
+    expect(api.save).not.toHaveBeenCalled()
+    expect(controller.dirtyParts(doc)).toEqual(keys)
+    expect(controller.headCommit).toBe(1)
+  })
+
+  it('batches an independent large edit separately and retries a stale staircase as a whole', async () => {
+    const doc = fixtureFull()
+    const api = fakeApi(async body => okReply(body))
+    const baseline = loadOf(doc)
+    const normal = controllerFor(doc, api)
+    const keys = connect(doc)
+    await normal.save(doc)
+    const limit = new TextEncoder().encode(JSON.stringify(api.save.mock.calls[0][0])).length + 32
+    const stale = [{ partKey: keys[2], yourVersion: 1, currentVersion: 2, savedBy: 'QA', savedAt: '2026-11-01T00:00:00Z' }]
+    api.save.mockClear().mockImplementationOnce(async () => ({ status: 'stale', parts: stale }))
+    const controller = new SaveController({ campusId: doc.metadata.campusId, api, zones: zonesHolding(), maxRequestBytes: limit })
+    controller.adoptBaseline(baseline)
+    doc.roads[0].name = 'x'.repeat(Math.floor(limit * 0.6))
+    expect(await controller.save(doc)).toEqual({ kind: 'stale', parts: stale })
+    expect(api.save).toHaveBeenCalledTimes(1)
+    expect((api.save.mock.calls[0][0] as SaveRequestBody).changes.map(change => change.partKey)).toEqual(keys)
+    expect(controller.headCommit).toBe(1)
+    expect(controller.dirtyParts(doc)).toEqual(expect.arrayContaining(keys))
+
+    const latest = baseline.parts.find(part => part.partKey === keys[2])!
+    controller.resolveStale('mine', stale, [{ ...latest, versionNo: 2 }])
+    expect((await controller.save(doc)).kind).toBe('saved')
+    const retry = api.save.mock.calls[1][0] as SaveRequestBody
+    expect(retry.changes.map(change => change.partKey)).toEqual(keys)
+    expect(retry.changes.find(change => change.partKey === keys[2])?.expectedVersion).toBe(2)
+    expect(api.save.mock.calls[2][0].changes.map((change: ClientSaveChange) => change.partKey)).toEqual([partKey('map/road', doc.roads[0].id)])
+    expect(controller.isDirty(doc)).toBe(false)
+  })
+
+  it('rejects a floor edit that would orphan a stair connector before sending a save', async () => {
+    const doc = fixtureFull()
+    const api = fakeApi(async body => okReply(body))
+    const building = doc.buildings[0], destination = building.floors[1]
+    const stair = building.staircases![0]
+    const network = destination.routeNetwork!
+    const edge = network.edges[0]
+    stair.levels[destination.level].routeConnection = { anchorNodeId: edge.from, targetRouteNodeId: edge.to, connectorEdgeId: edge.id }
+    const controller = controllerFor(doc, api)
+    network.edges = network.edges.filter(candidate => candidate.id !== edge.id)
+    expect(await controller.save(doc)).toMatchObject({ kind: 'failed', code: 'stair-save-inconsistent' })
+    expect(api.save).not.toHaveBeenCalled()
+  })
+
+  it('checks even unchanged floor versions and keeps the exact mutation on an offline retry', async () => {
+    const doc = fixtureFull()
+    const api = fakeApi(async body => okReply(body))
+    api.save.mockImplementationOnce(async () => ({ status: 'offline', message: 'response lost' }))
+    const controller = controllerFor(doc, api)
+    const building = doc.buildings[0]
+    const stair = building.staircases![0]
+    stair.levels[stair.toLevel].landingExit = 'right'
+    expect((await controller.save(doc)).kind).toBe('offline')
+    const body = api.save.mock.calls[0][0] as SaveRequestBody
+    expect(body.changes.map(change => change.partKey)).toEqual([
+      partKey('building', building.id),
+      ...building.floors.map(floor => partKey('floor', building.id, floor.id)),
+    ])
+    expect((await controller.save(doc)).kind).toBe('saved')
+    expect(api.save.mock.calls[1][0]).toEqual(body)
   })
 })
 

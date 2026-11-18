@@ -1,5 +1,6 @@
-import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
-import { buildStairTopVolumes, collectFloorDoors, floorStairInputs, stairFlightFloor, stairRise, stairWellHoles, type Building, type CoordinateTransformer } from '@navi/core'
+import { enclosedFloorAreas } from '@/lib/stair-well-guards'
+import { cutStairWells } from '@/lib/stair-well-slabs'
+import { collectFloorDoors, floorStairInputs, stairFlightFloor, stairRise, stairTopShape, type Building, type CoordinateTransformer } from '@navi/core'
 import { stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
 import { buildFloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 
@@ -37,6 +38,8 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     const assets = buildFloorArchitectureAssets({
       buildingId: building.id, transformer, walls: floor.walls ?? [], openings: floor.openings ?? [], doors: collectFloorDoors(floor),
       windows: floor.windows ?? [], stairs: flights, stairTops: tops, base,
+      showIncoming: top => top.fromLevel < activeLevel || hidden.has(top.fromLevel),
+      floorAreas: floor.rooms?.map(room => room.polygon.points),
       // Outside stairs on the faded floors reach down to the floor being edited (drawn at height 0).
       ground: 0,
     })
@@ -49,15 +52,17 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     if (assets.stairMesh) out.stairMeshes.push(assets.stairMesh)
     out.stairs.features.push(...tag(assets.stairMesh ? { type: 'FeatureCollection', features: assets.stairs.features.filter((f) => f.properties?.fromLevel !== undefined) } : assets.stairs))
     // The floor itself: a thin slab over each space its walls enclose, open above stairs rising from inside.
-    const walls = floor.walls ?? []
-    const faces = walls.length ? deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), []) : []
-    faces.forEach((face, i) => {
-      const outer = face.polygon.points
-      const rings = [outer, ...stairWellHoles(tops, outer).map((hole) => hole.points)]
-        .map((ring) => ring.map(toWorld))
-      if (rings.some((ring) => ring.some((p) => p === null))) return
-      const closed = (rings as [number, number][][]).map((ring) => [...ring, ring[0]])
-      out.floors.features.push({ type: 'Feature', id: `${floor.id}:slab:${i}`, properties: { floorLevel: floor.level, base: Math.max(0, base - SLAB_M), height: base }, geometry: { type: 'Polygon', coordinates: closed } })
+    const faceRings = enclosedFloorAreas(floor.walls ?? []).map(ring => ring.map(toWorld))
+    const roomRings = (floor.rooms ?? []).map(room => room.polygon.points.map(toWorld))
+    const outline = building.footprint?.points?.map(({ lng, lat }) => [lng, lat])
+    const rings = faceRings.length ? faceRings : roomRings.length ? roomRings : outline ? [outline] : []
+    rings.forEach((ring, i) => {
+      if (ring.length < 3 || ring.some(p => p === null)) return
+      for (const [part, coordinates] of cutStairWells([ring as number[][]], assets.stairWells ?? []).entries()) {
+        out.floors.features.push({ type: 'Feature', id: `${floor.id}:slab:${i}:${part}`,
+          properties: { floorLevel: floor.level, base: Math.max(0, base - SLAB_M), height: base },
+          geometry: { type: 'Polygon', coordinates } })
+      }
     })
   }
   // A stair whose top reaches nothing walkable on the floor it climbs to: its top landing in red on that floor.
@@ -67,11 +72,21 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     const climbs = Object.values(stair.levels ?? {}).some((l) => l?.role === 'top')
     if (!climbs || !to || to.level <= Math.max(from, activeLevel) || hidden.has(to.level) || stairTopReach(building, stair).ok) continue
     const flight = stair.levels[from]
-    const top = flight && buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
-    const ring = top?.geometry.coordinates[0].map(([x, y]) => toWorld({ x, y }))
-    if (!ring || ring.some((p) => p === null)) continue
+    const top = flight && stairTopShape({ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from })
+    if (!top) continue
     const base = to.elevation - active.elevation
-    out.warnings.features.push({ type: 'Feature', id: `${stair.id}:unreached`, properties: { featureId: stair.id, floorLevel: to.level, base, height: base + 0.3 }, geometry: { type: 'Polygon', coordinates: [ring as [number, number][]] } })
+    top.landing.forEach(([x, y], edge) => {
+      const [endX, endY] = top.landing[(edge + 1) % top.landing.length]
+      const length = Math.hypot(endX - x, endY - y)
+      if (!(length > 0)) return
+      const nx = (endY - y) * 0.025 / length, ny = (x - endX) * 0.025 / length
+      const band = [[x + nx, y + ny], [endX + nx, endY + ny], [endX - nx, endY - ny], [x - nx, y - ny], [x + nx, y + ny]]
+      const ring = band.map(([x, y]) => toWorld({ x, y }))
+      if (ring.some(p => p === null)) return
+      out.warnings.features.push({ type: 'Feature', id: `${stair.id}:unreached:${edge}`,
+        properties: { featureId: stair.id, floorLevel: to.level, base, height: base + 0.03 },
+        geometry: { type: 'Polygon', coordinates: [ring as [number, number][]] } })
+    })
   }
   return out
 }

@@ -4,7 +4,7 @@
 // floor the stair climbs To, the climb it makes (from the floors' heights, never typed), Turn and Sides.
 import { useEffect, useState } from 'react'
 import { StairCutout } from './StairCutout'
-import { stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
+import { detachedStairCutouts, stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
 import { stairFlightFloor, stairHasTop, stairRise, stairTopShape, type Building, type StairLandingExit } from '@navi/core'
 
 const field: React.CSSProperties = {
@@ -77,6 +77,11 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
             + (steps ? ` · ${steps} × ${(rise / steps).toFixed(3)} m` : '')}
         </div>
       )}
+      {detachedStairCutouts(building, stair, reach).map(({ floor, opening }) => (
+        <div key={floor.id + opening.id} role="status" style={label}>
+          {floor.label} has a stair cutout that no longer serves this stair. Review the wall opening.
+        </div>
+      ))}
       {toFloor && onLandingExit && (
         <div>
           <label style={label} htmlFor={`stair-exit-${featureId}`}>LANDING EXIT</label>
@@ -97,8 +102,8 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
                   : `The landing does not reach ${toFloor.label}'s hallway. Check the landing exit.`}
             </div>
           )}
-          {reach?.ok && !flight?.landingExit && stair.levels[toFloor.level]?.landingExit && (
-            <div style={label}>Auto selected: {stair.levels[toFloor.level].landingExit}</div>
+          {reach?.ok && !flight?.landingExit && (
+            <div style={label}>Auto selected: {reach.exit}</div>
           )}
           {usesExistingPlatform && <div style={label}>Uses the existing stair platform.</div>}
           {!usesExistingPlatform && !props && onLook && (

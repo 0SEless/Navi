@@ -1,7 +1,7 @@
 import type { ValidationRule, ValidationContext } from '../types'
 import type { ValidationIssue } from '../../snapshot'
 import { pointInPolygon, stairFlightFloor } from '@navi/core'
-import { stairTopReach } from '../../../geometry/stair-top-reach'
+import { detachedStairCutouts, stairTopReach } from '../../../geometry/stair-top-reach'
 
 function hash(s: string): string {
   let h = 0
@@ -286,10 +286,32 @@ export const stairTopReachRule: ValidationRule = {
   execute(context: ValidationContext): ReadonlyArray<ValidationIssue> {
     const issues: ValidationIssue[] = []
     for (const bld of context.document.buildings) {
-      for (const stair of bld.staircases ?? []) {
+      const stairs = bld.staircases ?? []
+      const stairIds = new Set(stairs.map(stair => stair.id))
+      for (const floor of bld.floors) {
+        for (const opening of floor.openings ?? []) {
+          const id = opening.metadata?.stairId
+          if (typeof id !== 'string' || stairIds.has(id)) continue
+          issues.push({
+            issueId: `stair-cutout-detached:${floor.id}:${opening.id}`,
+            ruleId: 'stair-top-reach', severity: 'warning',
+            message: `Review the stair cutout on ${floor.label}. Its stair was removed.`,
+            targets: [{ entityId: opening.id, entityType: 'opening' }],
+          })
+        }
+      }
+      for (const stair of stairs) {
+        const reach = stairTopReach(bld, stair)
+        for (const { floor, opening } of detachedStairCutouts(bld, stair, reach)) {
+          issues.push({
+            issueId: `stair-cutout-detached:${floor.id}:${opening.id}`,
+            ruleId: 'stair-top-reach', severity: 'warning',
+            message: `${stair.name || stair.id}: Review the detached stair cutout on ${floor.label}.`,
+            targets: [{ entityId: stair.id, entityType: 'staircase' }],
+          })
+        }
         // Only stairs set to climb To a floor (their upper floor holds a top); older multi-floor stairs are left as they are.
         if (!(stair.toLevel > stairFlightFloor(stair)) || !Object.values(stair.levels ?? {}).some((l) => l?.role === 'top')) continue
-        const reach = stairTopReach(bld, stair)
         if (reach.ok) continue
         const label = bld.floors.find((f) => f.level === stair.toLevel)?.label ?? `floor ${stair.toLevel}`
         issues.push({

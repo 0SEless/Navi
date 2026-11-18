@@ -888,10 +888,10 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                   {featureType === 'staircase' && (
                     <StairClimbProperties
                       building={building} featureId={featureId}
-                      onSetTo={(toLevel) => { dispatcher.execute({ id: 'stair.setToFloor', label: 'Stair climbs to floor', payload: { featureId, toLevel, autoConnect: true, confirmCutout: true } }) }}
+                      onSetTo={(toLevel) => { dispatcher.execute({ id: 'stair.setToFloor', label: 'Stair climbs to floor', payload: { featureId, toLevel, autoConnect: true } }) }}
                       onLandingExit={stairForOutdoor ? (landingExit) => {
                         dispatcher.execute({ id: 'stair.setToFloor', label: 'Set stair landing exit',
-                          payload: { featureId, toLevel: stairForOutdoor.toLevel, landingExit, autoConnect: true, confirmCutout: true } })
+                          payload: { featureId, toLevel: stairForOutdoor.toLevel, landingExit, autoConnect: true } })
                       } : undefined}
                       onCutout={stairForOutdoor ? (cutout) =>
                         dispatcher.execute({ id: 'stair.setToFloor', label: 'Cut out stair arrival wall',
@@ -899,7 +899,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                         : undefined}
                       onConnectFloors={stairForOutdoor ? () => {
                         dispatcher.execute({ id: 'stair.setToFloor', label: 'Connect stair to floor routes',
-                          payload: { featureId, toLevel: stairForOutdoor.toLevel, autoConnect: true, confirmCutout: true } })
+                          payload: { featureId, toLevel: stairForOutdoor.toLevel, autoConnect: true } })
                       } : undefined}
                       onDrawing={(properties) => {
                         const st = building.staircases?.find((x) => x.id === featureId)

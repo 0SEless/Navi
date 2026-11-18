@@ -9,6 +9,7 @@ import { canonicalJson, fastHash } from '../parts/canonical'
 import type { PartIssue } from '../parts/content-rules'
 import { STUDIO_BODY_MAX_BYTES } from '../parts/limits'
 import { zoneOf, type PartKey, type ZoneKey } from '../parts/part-keys'
+import { staircaseSaveGroups, stairPartState, type StairPartState, type StairSaveGroup } from './stair-save-groups'
 import { splitDocument, type PartRecord } from '../parts/split'
 import type { LoadOk, OtherChangedPart, PartRecordWithVersion, StalePart, ZoneNotHeld } from '../server/types'
 import type { ClientSaveChange, SaveRequestBody, StudioApi } from './api-client'
@@ -46,7 +47,10 @@ interface BaselineEntry {
   versionNo: number
   /** fastHash(canonicalJson(content)); null for a tombstone (deleted on the server). */
   hash: string | null
+  stairState?: StairPartState
 }
+
+type SaveEntry = { key: PartKey; change: ClientSaveChange; hash: string | null; stairState?: StairPartState }
 
 const REQUEST_HEADROOM_BYTES = 64 * 1024
 const UUID_PLACEHOLDER = '00000000-0000-4000-8000-000000000000'
@@ -107,7 +111,7 @@ export class SaveController {
   private listeners = new Set<(state: SaveControllerState) => void>()
   private state: SaveControllerState = { status: 'clean', message: null, headCommit: 0 }
   /** The attempt group of the last request that ended offline (R40). */
-  private pending: { fingerprint: string; mutationId: string } | null = null
+  private pending: { fingerprint: string; mutationId: string; baseCommit: number } | null = null
 
   constructor(options: SaveControllerOptions) {
     this.campusId = options.campusId
@@ -124,7 +128,7 @@ export class SaveController {
     this.baseline = new Map()
     for (const part of load.parts) {
       if (part.deleted) continue
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: hashOfPart(part.partKey, part.content, part.contentBase64) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: hashOfPart(part.partKey, part.content, part.contentBase64), stairState: stairPartState(part.partKey, part.content) })
     }
     this.head = load.headCommit
     this.pending = null
@@ -154,10 +158,26 @@ export class SaveController {
   }
 
   async save(doc: CampusDocument, message?: string): Promise<SaveOutcome> {
-    const dirty = this.diff(doc)
+    const { parts } = splitDocument(doc)
+    const dirty = this.diff(doc, parts)
     if (dirty.length === 0) {
       this.emit({ status: 'clean', message: null })
       return { kind: 'saved', commitNo: null, othersChanged: [] }
+    }
+
+    const groups = this.stairGroups(parts, new Map(dirty.map(entry => [entry.key, entry])))
+    const problem = groups.find(group => group.problem)?.problem
+    if (problem) {
+      const outcome = { kind: 'failed' as const, code: 'stair-save-inconsistent', message: problem }
+      this.emit(this.stateFor(outcome))
+      return outcome
+    }
+    const batches = this.batches(dirty, parts, groups, message)
+    if (!batches) {
+      const outcome = { kind: 'failed' as const, code: 'stair-save-too-large',
+        message: 'This staircase and its connected floors exceed the save limit. Reduce the connected floor data before saving.' }
+      this.emit(this.stateFor(outcome))
+      return outcome
     }
 
     const needed = [...new Set(dirty.map((entry) => zoneOf(entry.key)).filter((zone): zone is ZoneKey => zone !== null))]
@@ -173,7 +193,7 @@ export class SaveController {
     const othersChanged: PartRecordWithVersion[] = []
     let commitNo: number | null = null
     const baseCommit = this.head
-    for (const batch of this.batches(dirty)) {
+    for (const batch of batches) {
       const outcome = await this.send(batch, baseCommit, message)
       if (outcome.kind !== 'saved') {
         this.emit(this.stateFor(outcome))
@@ -189,7 +209,7 @@ export class SaveController {
   /** Baseline update for parts another admin saved and that were merged into the document. */
   applyRemote(parts: PartRecordWithVersion[], headCommit?: number): void {
     for (const part of parts) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64), stairState: part.deleted ? undefined : stairPartState(part.partKey, part.content) })
     }
     if (headCommit !== undefined && headCommit > this.head) this.head = headCommit
   }
@@ -204,7 +224,7 @@ export class SaveController {
     // 'mine': adopt their version numbers but keep the local content dirty, so the next
     // save overwrites on top of their version (the UI confirms first — spec D7).
     for (const part of relevant) {
-      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64) })
+      this.baseline.set(part.partKey, { versionNo: part.versionNo, hash: part.deleted ? null : hashOfPart(part.partKey, part.content, part.contentBase64), stairState: part.deleted ? undefined : stairPartState(part.partKey, part.content) })
     }
     return { reload: [] }
   }
@@ -218,16 +238,15 @@ export class SaveController {
 
   // ── internals ──────────────────────────────────────────────────────────────
 
-  private diff(doc: CampusDocument): Array<{ key: PartKey; change: ClientSaveChange; hash: string | null }> {
-    const { parts } = splitDocument(doc)
+  private diff(doc: CampusDocument, parts = splitDocument(doc).parts): SaveEntry[] {
     const seen = new Set<PartKey>()
-    const out: Array<{ key: PartKey; change: ClientSaveChange; hash: string | null }> = []
+    const out: SaveEntry[] = []
     for (const part of parts) {
       seen.add(part.key)
       const base = this.baseline.get(part.key)
       const hash = part.contentBase64 !== undefined ? this.binaryHash(part.key, part.contentBase64) : partHash(part.key, part.content)
       if (base && base.hash === hash) continue
-      out.push({ key: part.key, change: this.putChange(part, base), hash })
+      out.push({ key: part.key, change: this.putChange(part, base), hash, stairState: stairPartState(part.key, part.content) })
     }
     for (const [key, base] of this.baseline) {
       if (seen.has(key) || base.hash === null) continue
@@ -259,50 +278,97 @@ export class SaveController {
     return change
   }
 
-  /** R28/R39: keep every request under the limit; group strict parts per zone first. */
-  private batches(dirty: Array<{ key: PartKey; change: ClientSaveChange; hash: string | null }>) {
-    // A placeholder of the same length as a real UUID keeps the size estimate exact.
-    const all = { campusId: this.campusId, mutationId: UUID_PLACEHOLDER, baseCommit: this.head, changes: dirty.map((d) => d.change) }
-    if (byteLength(all) <= this.maxRequestBytes) return [dirty]
-    const groups = new Map<string, typeof dirty>()
-    for (const entry of dirty) {
-      const group = zoneOf(entry.key) ?? '~free'
-      groups.set(group, [...(groups.get(group) ?? []), entry])
+  private stairGroups(parts: PartRecord[], byKey: ReadonlyMap<PartKey, SaveEntry>): StairSaveGroup[] {
+    const before = new Map<PartKey, StairPartState>()
+    const after = new Map<PartKey, StairPartState>()
+    for (const [key, entry] of this.baseline) if (entry.stairState) before.set(key, entry.stairState)
+    for (const part of parts) {
+      const entry = byKey.get(part.key)
+      const state = entry ? entry.stairState : this.baseline.get(part.key)?.stairState
+      if (state) after.set(part.key, state)
     }
-    const batches: Array<typeof dirty> = []
-    let current: typeof dirty = []
-    let currentBytes = 0
-    const overhead = byteLength({ ...all, changes: [] })
-    for (const group of groups.values()) {
-      for (const entry of group) {
-        const size = byteLength(entry.change) + 1
-        if (current.length > 0 && overhead + currentBytes + size > this.maxRequestBytes) {
-          batches.push(current)
-          current = []
-          currentBytes = 0
-        }
-        current.push(entry)
-        currentBytes += size
+    return staircaseSaveGroups(before, after, new Set(byKey.keys()))
+  }
+
+  /** Do not merge a remote floor over part of an unsaved staircase relationship. */
+  protectedParts(doc: CampusDocument): Set<PartKey> {
+    const { parts } = splitDocument(doc)
+    const dirty = this.diff(doc, parts)
+    return new Set([...dirty.map(entry => entry.key), ...this.stairGroups(parts, new Map(dirty.map(entry => [entry.key, entry]))).flatMap(group => group.keys)])
+  }
+
+  /** Preflight every staircase unit before sending any request. Other changes can still be split. */
+  private batches(dirty: SaveEntry[], parts: PartRecord[], groups: StairSaveGroup[], message?: string): SaveEntry[][] | undefined {
+    const byKey = new Map(dirty.map(entry => [entry.key, entry]))
+    const current = new Map(parts.map(part => [part.key, part]))
+    const coupled = groups.map(group => new Set(group.keys))
+    // A stair-foot road can be shared by two stairs. Merge units that have such a common part.
+    const units: Set<PartKey>[] = []
+    for (const group of coupled) {
+      const overlapping = units.filter(unit => [...group].some(key => unit.has(key)))
+      for (const unit of overlapping) {
+        for (const key of unit) group.add(key)
+        units.splice(units.indexOf(unit), 1)
       }
+      units.push(group)
     }
-    if (current.length > 0) batches.push(current)
+    for (const key of units.flatMap(unit => [...unit])) {
+      const part = current.get(key), base = this.baseline.get(key)
+      // An unchanged dependency is a version guard. The server checks it, then drops the no-op.
+      if (!byKey.has(key) && part && base) byKey.set(key, { key, change: this.putChange(part, base), hash: base.hash, stairState: base.stairState })
+    }
+    const body = { campusId: this.campusId, mutationId: UUID_PLACEHOLDER, baseCommit: this.head, ...(message ? { message } : {}), changes: [] as ClientSaveChange[] }
+    const size = (entries: SaveEntry[]) => byteLength({ ...body, changes: entries.map(entry => entry.change) })
+    const all = [...byKey.values()]
+    if (size(all) <= this.maxRequestBytes) return [all]
+
+    const batches: SaveEntry[][] = units.map(unit => [...unit].flatMap(key => {
+      const entry = byKey.get(key)
+      return entry ? [entry] : []
+    }))
+    if (batches.some(batch => size(batch) > this.maxRequestBytes)) return undefined
+    const grouped = new Set(units.flatMap(unit => [...unit]))
+    const independent = new Map<string, SaveEntry[]>()
+    for (const entry of dirty) {
+      if (grouped.has(entry.key)) continue
+      const zone = zoneOf(entry.key) ?? '~free'
+      const group = independent.get(zone) ?? []
+      group.push(entry)
+      independent.set(zone, group)
+    }
+    let batch: SaveEntry[] = []
+    let bytes = byteLength(body)
+    const overhead = bytes
+    for (const entry of [...independent.values()].flat()) {
+      const entryBytes = byteLength(entry.change)
+      if (batch.length && bytes + entryBytes + 1 > this.maxRequestBytes) {
+        batches.push(batch)
+        batch = []
+        bytes = overhead
+      }
+      bytes += entryBytes + (batch.length ? 1 : 0)
+      batch.push(entry)
+    }
+    if (batch.length) batches.push(batch)
     return batches
   }
 
   private async send(
-    batch: Array<{ key: PartKey; change: ClientSaveChange; hash: string | null }>,
+    batch: SaveEntry[],
     baseCommit: number,
     message: string | undefined,
   ): Promise<SaveOutcome> {
     const changes = batch.map((entry) => entry.change)
-    const fingerprint = canonicalJson({ baseCommit, changes })
-    const mutationId = this.pending?.fingerprint === fingerprint ? this.pending.mutationId : crypto.randomUUID()
+    const fingerprint = canonicalJson({ changes, message: message ?? null })
+    const retry = this.pending?.fingerprint === fingerprint ? this.pending : null
+    const mutationId = retry?.mutationId ?? crypto.randomUUID()
+    baseCommit = retry?.baseCommit ?? baseCommit
     const body: SaveRequestBody = { campusId: this.campusId, mutationId, baseCommit, changes }
     if (message) body.message = message
 
     const reply = await this.api.save(body)
     if (reply.status === 'offline') {
-      this.pending = { fingerprint, mutationId }
+      this.pending = { fingerprint, mutationId, baseCommit }
       return { kind: 'offline', message: reply.message }
     }
     this.pending = null
@@ -318,7 +384,7 @@ export class SaveController {
             continue
           }
           const previous = this.baseline.get(entry.key)
-          this.baseline.set(entry.key, { versionNo: written.get(entry.key) ?? previous?.versionNo ?? 0, hash: entry.hash })
+          this.baseline.set(entry.key, { versionNo: written.get(entry.key) ?? previous?.versionNo ?? 0, hash: entry.hash, stairState: entry.stairState })
         }
         if (reply.commitNo !== null && reply.commitNo > this.head) this.head = reply.commitNo
         return { kind: 'saved', commitNo: reply.commitNo, othersChanged: reply.othersChanged.map(toPartRecordWithVersion) }

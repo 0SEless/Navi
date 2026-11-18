@@ -21,6 +21,7 @@ export interface StairAssetInput {
   /** False for an upper-floor flight already served by a floor platform. */
   groundLanding?: boolean
   landingExit?: StairLevelGeometry['landingExit']
+  landingExitSpan?: StairLevelGeometry['landingExitSpan']
   arrivalLanding?: boolean
   /** A Stair-tool stair's railings and underneath (2026-11-17). */
   look?: StairLevelGeometry['look']
@@ -35,6 +36,19 @@ export function stairLandingExitEdge(ring: readonly number[][], side: NonNullabl
   const dy = c[1] + d[1] - a[1] - b[1]
   const edgeOneIsLeft = dx * (b[1] - a[1]) - dy * (b[0] - a[0]) > 0
   return (side === 'left') === edgeOneIsLeft ? 1 : 3
+}
+
+/** Keep the portions of each landing edge outside the resolved walking opening. Edge 0 joins the flight. */
+export function stairLandingGuardSegments(ring: readonly number[][], input: Pick<StairAssetInput, 'landingExit' | 'landingExitSpan'>) {
+  const exit = input.landingExit ? stairLandingExitEdge(ring, input.landingExit) : undefined
+  const span = input.landingExitSpan ?? [0, 1] // historical confirmed exits stored the whole open edge
+  const validSpan = span[0] >= 0 && span[1] <= 1 && span[0] < span[1]
+  return [1, 2, 3].flatMap(edge => {
+    const a = ring[edge], b = ring[(edge + 1) % 4]
+    const at = (t: number) => ({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t })
+    return (edge === exit && validSpan ? [[0, span[0]], [span[1], 1]] : [[0, 1]]).flatMap(([start, end], index) =>
+      end - start > 1e-6 ? [{ edge, index, from: at(start), to: at(end) }] : [])
+  })
 }
 
 export interface StairAssetDiagnostic { entityId: string; code: string; message: string }
@@ -303,7 +317,8 @@ export function stairTopShape(input: StairTopInput): { well: Point[]; landing: P
     const { flightEndM } = stairShape(input.height ?? 0, run)
     if (run - flightEndM >= 0.5) {
       const t = flightEndM / run
-      return { well, landing: [lerpP(first[0], last[3], t), lerpP(first[1], last[2], t), last[2], last[3]], integrated: true }
+      const landing: Point[] = [lerpP(first[0], last[3], t), lerpP(first[1], last[2], t), last[2], last[3]]
+      return { well: [first[0], first[1], landing[1], landing[0]], landing, integrated: true }
     }
   }
   const authored = solids.find(f => f.properties?.partType === 'top-landing')
@@ -316,7 +331,37 @@ export function stairTopShape(input: StairTopInput): { well: Point[]; landing: P
     const depth = input.look?.topLandingM
     landing = topLandingQuad([last[0], last[1], last[2], last[3]], typeof depth === 'number' && Number.isFinite(depth) && depth >= 0.5 ? depth : width)
   }
-  return { well, landing, integrated: false }
+  return { well: input.drawing?.properties.preset === 'ushape' ? well : [first[0], first[1], last[2], last[3]], landing, integrated: false }
+}
+
+/** Block rendering of the same in-footprint stair profile, used when a smooth mesh cannot be drawn. */
+export function integratedStairVolumes(input: StairAssetInput, base: number): GeoJSON.Feature<GeoJSON.Polygon>[] | undefined {
+  if (!input.arrivalLanding) return
+  const shape = stairTopShape({ ...input, fromLevel: 0 })
+  if (!shape?.integrated) return
+  const [a, b] = shape.well
+  const [, , c, d] = shape.landing
+  const run = Math.hypot(d[0] - a[0], d[1] - a[1])
+  const profile = stairShape(input.height ?? 0, run)
+  if (!(run > 0) || !profile.steps) return
+  const quad = (start: number, end: number): number[][] => {
+    const first = lerpP(a, d, start / run)
+    return [first, lerpP(b, c, start / run), lerpP(b, c, end / run), lerpP(a, d, end / run), first]
+  }
+  const feature = (partType: string, index: number, ring: number[][], low: number, height: number): GeoJSON.Feature<GeoJSON.Polygon> => ({
+    type: 'Feature', id: `${input.id}:${partType}:${index}`,
+    properties: { featureId: input.id, partType, base: low, height },
+    geometry: { type: 'Polygon', coordinates: [ring] },
+  })
+  const stairs = Array.from({ length: profile.steps }, (_, index) => {
+    const start = profile.flightStartM + index * profile.treadM
+    const height = base + (index + 1) * profile.riserM
+    return feature('step', index, quad(start, start + profile.treadM), input.look?.underneath === 'open' ? height - 0.05 : base, height)
+  })
+  if (profile.flightStartM > 0.01) stairs.unshift(feature('landing', 0, quad(0, profile.flightStartM), base - 0.05, base))
+  const top = base + (input.height ?? 0)
+  stairs.push(feature('integrated-arrival', 0, quad(profile.flightEndM, run), top - 0.05, top))
+  return stairs
 }
 
 /** On the floor a stair arrives on: a dashed stairwell outline (not walkable) and the walkable top landing. */

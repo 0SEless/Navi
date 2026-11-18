@@ -10,6 +10,7 @@ import { createStudioApi, type StudioApi } from './api-client'
 import { draftStore as defaultDrafts, planRestore, type DraftStore, type V2Draft, type V2DraftPart } from './draft-store'
 import { localReferenceStore as defaultReferences, type LocalReferenceStore } from './local-reference-store'
 import { mergeRemoteParts, withRemoteParts, type MergeContext } from './remote-merge'
+import { staircaseSaveGroups, stairPartState, type StairPartState } from './stair-save-groups'
 import { SaveController, binaryPartHash, partHash, type SaveControllerState, type SaveOutcome } from './save-controller'
 import { clearHistoryForZone, denialMessage, type ZoneClient } from './zone-client'
 import { getZoneClient } from './zone-registry'
@@ -284,7 +285,7 @@ export class StudioSession {
   private merge(parts: PartRecordWithVersion[]): boolean {
     const context = this.context
     if (!context || parts.length === 0) return false
-    const skip = new Set(this.controller.dirtyParts(context.document))
+    const skip = this.controller.protectedParts(context.document)
     const result = mergeRemoteParts(context, parts, skip)
     this.controller.applyRemote(parts.filter((part) => !skip.has(part.partKey)))
     if (result.applied.length === 0) return false
@@ -337,7 +338,25 @@ export class StudioSession {
     const changed = decisions.filter((decision) => decision.action === 'conflict-changed')
     const useMine = changed.length > 0
       && (forced || this.confirm(`${changed.length} of these were also changed by another admin. Use your version for them?`))
-    const restore = decisions.filter((decision) => decision.action === 'apply' || (useMine && decision.action === 'conflict-changed'))
+    const eligible = new Set(decisions.filter(decision => decision.action === 'apply' ||
+      (useMine && decision.action === 'conflict-changed')).map(decision => decision.key))
+    const before = new Map<PartKey, StairPartState>()
+    for (const part of load.parts) {
+      const state = !part.deleted && stairPartState(part.partKey, part.content)
+      if (state) before.set(part.partKey, state)
+    }
+    const after = new Map(before)
+    for (const [key, part] of Object.entries(draft.parts)) {
+      const state = stairPartState(key, part.content)
+      if (state) after.set(key, state)
+      else after.delete(key)
+    }
+    const draftKeys = new Set(Object.keys(draft.parts))
+    for (const group of staircaseSaveGroups(before, after, draftKeys)) {
+      const drafted = group.keys.filter(key => draftKeys.has(key))
+      if (drafted.some(key => !eligible.has(key))) drafted.forEach(key => eligible.delete(key))
+    }
+    const restore = decisions.filter(decision => eligible.has(decision.key))
     // Restored parts leave the set-aside copy; anything that could not come back stays there.
     if (kept) {
       const back = new Set(restore.map(({ key }) => key))

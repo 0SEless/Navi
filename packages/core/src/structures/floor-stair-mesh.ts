@@ -1,4 +1,4 @@
-import { buildStairAssetVolumes, stairTopShape, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from '../geometry/stair-assets'
+import { buildStairAssetVolumes, stairTopShape, stairLandingGuardSegments, type StairAssetInput, type StairTopInput } from '../geometry/stair-assets'
 import { BUILT_IN_MATERIALS, BUILT_IN_PRESETS } from './materials'
 import { buildRailingMesh, buildStructureMesh, type RailingStyle } from './mesh'
 import { structurePath } from './path'
@@ -135,14 +135,11 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     if (!landing) continue
     const ring = landing.landing
     const facing = place(mid(ring[0], ring[2]))
-    const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : undefined
     const style = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
       ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
     const look = { ...PLAIN_STAIR.look, railingStyle: style }
-    for (const edge of [1, 2, 3]) {
-      if (edge === exit) continue
-      const [x, y] = ring[edge], [endX, endY] = ring[(edge + 1) % 4]
-      const from = place({ x, y }), to = place({ x: endX, y: endY })
+    for (const segment of stairLandingGuardSegments(ring, top)) {
+      const from = place(segment.from), to = place(segment.to)
       if (![from.x, from.y, to.x, to.y, facing.x, facing.y].every(Number.isFinite)) continue
       parts.push(buildRailingMesh({ from, to, inward: { x: facing.x - (from.x + to.x) / 2, y: facing.y - (from.y + to.y) / 2 },
         h: base, style, look, materials: BUILT_IN_MATERIALS }))

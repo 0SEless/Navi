@@ -276,6 +276,7 @@ export interface FloorGeometryFeature {
   /** Outside stair (2026-11-17): the middle of the doorway its top platform opens into. */
   doorwayAt?: LocalCoord
   landingExit?: import('./entities').StairLandingExit
+  landingExitSpan?: import('./entities').StairLevelGeometry['landingExitSpan']
   /** A destination-floor landing owns its own railing mesh. */
   arrivalLanding?: boolean
   /** A Stair-tool stair's railings and underneath (2026-11-17). */

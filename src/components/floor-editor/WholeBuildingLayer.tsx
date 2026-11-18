@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import type maplibregl from 'maplibre-gl'
 import { FLOOR_PIECE_COLORS } from '@/components/map/layers/FloorArchitectureLayer'
+import { doorExtrusionColor } from '@/lib/opening-symbol-layers'
 import { styleReady } from '@/lib/terrain/style-ready'
 import type { WholeBuildingKind, WholeBuildingPieces } from './whole-building'
 
@@ -23,7 +24,7 @@ export function WholeBuildingLayer({ map, pieces, on }: { map: maplibregl.Map | 
         if (!map.getSource(id(kind))) map.addSource(id(kind), { type: 'geojson', data: EMPTY })
         if (!map.getLayer(id(kind))) {
           map.addLayer({ id: id(kind), type: 'fill-extrusion', source: id(kind), paint: {
-            'fill-extrusion-color': COLOR[kind], 'fill-extrusion-opacity': kind === 'warnings' ? 0.85 : WHOLE_BUILDING_OPACITY,
+            'fill-extrusion-color': kind === 'stairs' ? doorExtrusionColor(COLOR.stairs) : COLOR[kind], 'fill-extrusion-opacity': kind === 'warnings' ? 0.85 : WHOLE_BUILDING_OPACITY,
             'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-height': ['get', 'height'],
           } })
         }

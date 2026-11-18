@@ -1,7 +1,8 @@
 import {floorConnectionProblem,ownWallOf} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
-import { recordChange, collectFloorDoors, stairFlightFloor } from '@navi/core'
+import { recordChange, collectFloorDoors, stairFlightFloor, stairFootPosition } from '@navi/core'
 import { syncStairTop } from './stair-to-floor-handler'
+import { stairFootEntranceId } from './floor-route-workflow'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
 import { DOOR_OPERATIONS, HINGE_SIDES, SWING_SIDES, OPENING_MATERIALS, GLASS_TYPES, findDoorPreset, findWindowPreset, resolveDoorStyle, resolveWindowStyle, WINDOW_APPEARANCES, WINDOW_POSES, isPOICategory, isDoorType, isKnownRoomId, resolvePointOfInterestGeometry, validatePointOfInterestAppearance, validatePointOfInterestGeometry, validateWorldPointOfInterestGeometry, validatePoiNavigation, validatePoiVisibility } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
@@ -1197,7 +1198,15 @@ export const featureUpdateHandler: CommandHandler = {
     let levelGeom = feature.levels[level]
     const oldLevelGeom = levelGeom ? JSON.parse(JSON.stringify(levelGeom)) : null
     const oldFeatureProperties = { name: feature.name, fromLevel: feature.fromLevel, toLevel: feature.toLevel }
-    const oldFeatureRouteNetwork=featureRouteNetworkSnapshot(ctx.building,level)
+    const oldFeatureRouteNetwork = featureRouteNetworkSnapshot(ctx.building, level)
+    const stair = featureType === 'staircase' && level === stairFlightFloor(feature as Staircase) ? feature as Staircase : undefined
+    const top = stair && stair.levels[stair.toLevel]?.role === 'top'
+      ? { level: stair.toLevel, geometry: structuredClone(stair.levels[stair.toLevel]), network: featureRouteNetworkSnapshot(ctx.building, stair.toLevel) }
+      : undefined
+    const source = stair && ctx.building.floors.find(floor => floor.level === level)
+    const foot = stair && source ? source.entrances?.find(entrance => entrance.id === stairFootEntranceId(stair.id)) : undefined
+    const oldFoot = stair ? stairFootPosition(stair, ctx.building.floors) : undefined
+    const oldFootAccess = foot && source ? structuredClone({ entrances: source.entrances, entranceAccess: source.entranceAccess }) : undefined
 
     // Internal history restores the exact prior snapshot, including absent optional
     // fields and imported cache geometry; never run forward resizing on an inverse.
@@ -1207,7 +1216,17 @@ export const featureUpdateHandler: CommandHandler = {
       const properties = payload.restoreFeatureProperties as typeof oldFeatureProperties | undefined
       if (properties) Object.assign(feature, properties)
       if ('restoreFeatureRouteNetwork' in payload) restoreFeatureRouteNetwork(ctx.building,level,payload.restoreFeatureRouteNetwork as ReturnType<typeof featureRouteNetworkSnapshot>)
-      if (featureType === 'staircase' && level === stairFlightFloor(feature as Staircase)) syncStairTop(ctx.building, feature as Staircase)
+      const oldTop = payload.restoreStairTop as typeof top
+      if (oldTop) {
+        feature.levels[oldTop.level] = structuredClone(oldTop.geometry)
+        restoreFeatureRouteNetwork(ctx.building, oldTop.level, oldTop.network)
+      } else if (stair) syncStairTop(ctx.building, stair)
+      const restoredFoot = payload.restoreFootAccess as typeof oldFootAccess
+      if (source && restoredFoot) {
+        source.entrances = structuredClone(restoredFoot.entrances)
+        if (restoredFoot.entranceAccess === undefined) delete source.entranceAccess
+        else source.entranceAccess = structuredClone(restoredFoot.entranceAccess)
+      }
       recordChange(document, { entityId: featureId, entityType: featureType, operation: 'updated' })
       return { success: true, entityId: featureId, data: { oldLevelGeom, oldFeatureProperties } }
     }
@@ -1263,12 +1282,42 @@ export const featureUpdateHandler: CommandHandler = {
       levelGeom.polygon = { ...(patch.polygon as LocalPolygon) }
     }
 
-    const portError=syncFeatureRoutePort(ctx.building,feature,level)
-    if(portError){if(oldLevelGeom)feature.levels[level]=oldLevelGeom;else delete feature.levels[level];Object.assign(feature,oldFeatureProperties);restoreFeatureRouteNetwork(ctx.building,level,oldFeatureRouteNetwork);return {success:false,error:portError}}
-    // A stair that climbs to a floor: its top follows the flight (review C1).
-    if (featureType === 'staircase' && level === stairFlightFloor(feature as Staircase)) syncStairTop(ctx.building, feature as Staircase)
+    const newFoot = stair ? stairFootPosition(stair, ctx.building.floors) : undefined
+    const priorLanding = oldLevelGeom?.landing?.position
+    if (priorLanding && oldFoot && newFoot && !patch.landing &&
+        Math.hypot(oldFoot.x - priorLanding.x, oldFoot.y - priorLanding.y) <= 0.01) {
+      levelGeom.landing = { ...levelGeom.landing, position: newFoot }
+    }
+    if (foot && source && newFoot && Math.hypot(foot.position.x - newFoot.x, foot.position.y - newFoot.y) > 0.05) {
+      foot.position = { ...newFoot }
+      source.entranceAccess = source.entranceAccess?.filter(access => access.entranceId !== foot.id)
+      const network = source.routeNetwork
+      const node = network?.nodes.find(node => node.id === foot.routeNodeId)
+      const previous = levelGeom.routeConnection
+      if (network && node) {
+        node.position = { ...newFoot }
+        network.edges = network.edges.filter(edge =>
+          !((edge.from === node.id && edge.to === previous?.targetRouteNodeId) ||
+            (edge.to === node.id && edge.from === previous?.targetRouteNodeId)))
+      }
+    }
+
+    const portError = syncFeatureRoutePort(ctx.building, feature, level)
+    if (portError && stair && source && levelGeom.routeConnection) {
+      const connection = levelGeom.routeConnection
+      delete levelGeom.routeConnection
+      levelGeom.routeConnectionManaged = true
+      removeFeatureRoutePort(source, connection, ctx.building)
+    } else if (portError) {
+      if (oldLevelGeom) feature.levels[level] = oldLevelGeom
+      else delete feature.levels[level]
+      Object.assign(feature, oldFeatureProperties)
+      restoreFeatureRouteNetwork(ctx.building, level, oldFeatureRouteNetwork)
+      return { success: false, error: portError }
+    }
+    if (stair) syncStairTop(ctx.building, stair)
     recordChange(document, { entityId: featureId, entityType: featureType as string, operation: 'updated' })
-    return { success: true, entityId: featureId, data: { featureId, level, oldLevelGeom, oldFeatureProperties,oldFeatureRouteNetwork } }
+    return { success: true, entityId: featureId, data: { featureId, level, oldLevelGeom, oldFeatureProperties, oldFeatureRouteNetwork, top, oldFootAccess } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
     const featureId = payload.featureId as string
@@ -1279,7 +1328,7 @@ export const featureUpdateHandler: CommandHandler = {
     return {
       id: 'feature.update',
       label: 'Undo Feature Update',
-      payload: { featureId, level, restoreLevelGeometry: oldLevelGeom, restoreFeatureProperties: oldFeatureProperties,restoreFeatureRouteNetwork:result.data?.oldFeatureRouteNetwork },
+      payload: { featureId, level, restoreLevelGeometry: oldLevelGeom, restoreFeatureProperties: oldFeatureProperties,restoreFeatureRouteNetwork: result.data?.oldFeatureRouteNetwork, restoreStairTop: result.data?.top, restoreFootAccess: result.data?.oldFootAccess },
     }
   },
 }
@@ -1356,10 +1405,6 @@ export const featureDeleteHandler: CommandHandler = {
         if (fl.staircases) {
           fl.staircases = fl.staircases.filter((s: any) => s.id !== feature.id && s.id !== featureId)
         }
-      }
-      // Its automatic doorway (an outside stair's top, 2026-11-17) goes with it.
-      for (const fl of building.floors) {
-        if (fl.openings?.some(o => o.metadata?.stairId === feature.id)) fl.openings = fl.openings.filter(o => o.metadata?.stairId !== feature.id)
       }
     } else if (featureType === 'elevator') {
       if (building.elevators) {

@@ -359,9 +359,13 @@ function buildIndoorFromFloorGeometry(
       architecture.push({ buildingId, floor: floorLevel, elevation, floorFaces, ...buildFloorArchitectureAssets({
         buildingId, transformer, walls: fgFloor.walls ?? [], openings: fgFloor.openings ?? [], doors: fgFloor.doors,
         // A stair's flight is drawn on its From floor only; floors it arrives on show its top (2026-11-16).
-        stairs: fgFloor.staircases.filter(stair => stair.role !== 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height })),
+        stairs: fgFloor.staircases.filter(stair => stair.role !== 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height,
+          arrivalLanding: fgBuilding.floors.some(f => f.staircases.some(top => top.id === stair.id && top.role === 'top' && top.fromLevel === floorLevel)),
+        })),
         stairTops: fgFloor.staircases.filter(stair => stair.role === 'top').map(stair => ({ ...stair, height: stair.height ?? fgFloor.height, fromLevel: stair.fromLevel ?? floorLevel - 1 })),
         base: elevation,
+        floorAreas: fgFloor.rooms.map(room => room.polygon.points),
+        showIncoming: top => !fgBuilding.floors.some(f => f.level === top.fromLevel && f.staircases.some(source => source.id === top.id && source.role !== 'top')),
         wellsFromBelow: stairWellsFromBelow(fgBuilding.floors, floorLevel),
         // Outside stairs stand on the ground under the building (its lowest floor), not on their own floor.
         ground: Math.min(...fgBuilding.floors.map(f => (Number.isFinite(f.elevation) ? f.elevation : 0))),

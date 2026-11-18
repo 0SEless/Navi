@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo } from 'react'
-import { difference, featureCollection, polygon as turfPolygon } from '@turf/turf'
+import { cutStairWells } from '@/lib/stair-well-slabs'
 import type maplibregl from 'maplibre-gl'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
 import { styleReady } from '@/lib/terrain/style-ready'
@@ -41,7 +41,7 @@ export function selectFloorArchitecture(records: FloorArchitectureRenderData[] |
     stackFaces: stack.map(record => record.floorFaces ?? []),
     stackWalls: stack.map(record => record.walls),
     stackStairMeshes: stack.map(record => record.stairMesh ?? null),
-    stackWells: stack.map(record => (record.symbols?.lines?.features ?? []).filter(f => f.properties?.kind === 'stairwell').map(f => f.geometry.coordinates as number[][])),
+    stackWells: stack.map(record => record.stairWells ?? (record.symbols?.lines?.features ?? []).filter(f => f.properties?.kind === 'stairwell').map(f => f.geometry.coordinates as number[][])),
   } as StackedFloorArchitecture
   for (const kind of stackKinds) merged[kind] = { type: 'FeatureCollection', features: stack.flatMap(record => record[kind]?.features ?? []) } as typeof chosen[typeof kind]
   return merged
@@ -101,13 +101,15 @@ function wallHullArea(outline: ReadonlyArray<{ lat: number; lng: number }> | und
   return all.map(([lng, lat]) => ({ lat, lng }))
 }
 
-function highlightPatch(highlight: FloorArchitectureLayerProps['highlight']): GeoJSON.FeatureCollection {
+function highlightPatch(highlight: FloorArchitectureLayerProps['highlight'], wells: number[][][] = []): GeoJSON.FeatureCollection {
   if (!highlight || highlight.ring.length < 3) return { type: 'FeatureCollection', features: [] }
   const ring = highlight.ring.map((p) => [p.lng, p.lat])
   const [first, last] = [ring[0], ring[ring.length - 1]]
   if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first])
-  const top = highlight.elevation + FLOOR_SLAB_TOP_M
-  return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { base: top, height: top + 0.06 }, geometry: { type: 'Polygon', coordinates: [ring] } }] }
+  const top = highlight.elevation + (wells.length ? 0 : FLOOR_SLAB_TOP_M)
+  return { type: 'FeatureCollection', features: cutStairWells([ring], wells).map(coordinates => ({
+    type: 'Feature', properties: { base: top, height: top + 0.06 }, geometry: { type: 'Polygon', coordinates },
+  })) }
 }
 
 /** One thin slab per stacked floor at its height. */
@@ -129,29 +131,6 @@ function floorPlate(outline: ReadonlyArray<{ lat: number; lng: number }> | undef
   return plate.length >= 3 ? plate.map(([lng, lat]) => ({ lat, lng })) : null
 }
 
-/** Is a lng/lat point inside a lng/lat ring? */
-function inRing([x, y]: number[], ring: number[][]): boolean {
-  let hit = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [ax, ay] = ring[i], [bx, by] = ring[j]
-    if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) hit = !hit
-  }
-  return hit
-}
-
-/** A slab polygon with the wells it only partly covers cut out (one or more polygons; the slab as it is if none). */
-function cutWells(slab: number[][][], wells: number[][][]): number[][][][] {
-  if (wells.length === 0) return [slab]
-  try {
-    const closed = (ring: number[][]) => (ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1] ? ring : [...ring, ring[0]])
-    const cut = difference(featureCollection([turfPolygon(slab), ...wells.map(well => turfPolygon([closed(well)]))]))
-    if (!cut) return []
-    return cut.geometry.type === 'Polygon' ? [cut.geometry.coordinates] : cut.geometry.coordinates
-  } catch {
-    return [slab]
-  }
-}
-
 function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: GeoJSON.FeatureCollection, elevations: number[] = [0], faces: Array<Array<Array<{ lat: number; lng: number }>>> = [], levelWalls: GeoJSON.FeatureCollection[] = [], levelWells: number[][][][] = []): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   const toWalls = wallHullArea(areas?.[0], walls)
@@ -167,16 +146,12 @@ function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: Geo
       const ring = area.map((p) => [p.lng, p.lat])
       const [first, last] = [ring[0], ring[ring.length - 1]]
       if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first])
-      // Every floor is a thin floor at its own height, the ground floor too (owner 2026-11-16: "not a double floor
-      // in the ground floor"): no slab reaches down into the ground.
-      const base = elevation
-      // The floor is open over a stair coming up from below (owner 2026-11-17: "has no opening"), also where the
-      // stair is only partly under it (owner 2026-11-18: white floor pieces over the Computer Science stair).
-      const wells = (levelWells[index] ?? []).filter(well => well.length >= 4)
-      const holes = wells.filter(well => well.every(p => inRing(p, ring)))
-      const partly = wells.filter(well => !holes.includes(well) && (well.some(p => inRing(p, ring)) || ring.some(p => inRing(p, well))))
-      for (const coordinates of cutWells([ring, ...holes], partly)) {
-        features.push({ type: 'Feature', properties: { base, height: elevation + FLOOR_SLAB_TOP_M }, geometry: { type: 'Polygon', coordinates } })
+      const wells = levelWells[index] ?? []
+      // Where an incoming stair meets this floor, keep the floor flush with its landing.
+      const height = wells.length ? elevation : elevation + FLOOR_SLAB_TOP_M
+      const base = wells.length ? Math.max(0, elevation - FLOOR_SLAB_TOP_M) : elevation
+      for (const coordinates of cutStairWells([ring], wells)) {
+        features.push({ type: 'Feature', properties: { base, height, floorElevation: elevation }, geometry: { type: 'Polygon', coordinates } })
       }
     }
   })
@@ -186,7 +161,7 @@ function floorSlab(areas: FloorArchitectureLayerProps['floorAreas'], walls?: Geo
 /** A floor stack's pieces by kind (floor slabs, walls, frames, panels, stairs, glass), before levelling on the ground. */
 export function floorArchitectureFeatures(architecture: FloorArchitectureRenderData, floorAreas?: FloorArchitectureLayerProps['floorAreas']): Record<Exclude<LayerKind, 'highlight'>, GeoJSON.FeatureCollection> {
   const stacked = architecture as Partial<StackedFloorArchitecture>
-  const out = { floor: floorSlab(floorAreas, architecture.walls, stacked.stackElevations, stacked.stackFaces, stacked.stackWalls, stacked.stackWells) } as Record<Exclude<LayerKind, 'highlight'>, GeoJSON.FeatureCollection>
+  const out = { floor: floorSlab(floorAreas, architecture.walls, stacked.stackElevations, stacked.stackFaces, stacked.stackWalls, stacked.stackWells ?? [architecture.stairWells ?? []]) } as Record<Exclude<LayerKind, 'highlight'>, GeoJSON.FeatureCollection>
   for (const kind of kinds) out[kind] = architecture[kind] ?? { type: 'FeatureCollection', features: [] }
   // Smooth stairs (2026-11-16): where a stair mesh draws the flights, only stair tops stay as blocks.
   const meshed = (stacked.stackStairMeshes ?? [architecture.stairMesh]).some(Boolean)
@@ -213,7 +188,7 @@ export function FloorArchitectureLayer({ map, architecture, level, floorAreas, h
       const out = {} as Record<LayerKind, GeoJSON.FeatureCollection>
       for (const kind of layerKinds) {
         // On 3D terrain the stair blocks are drawn (the smooth stair mesh is for the flat map).
-        const data = kind === 'highlight' ? highlightPatch(highlight) : !architecture ? empty : kind === 'stairs' && level ? (architecture.stairs ?? empty) : floorArchitectureFeatures(architecture, floorAreas)[kind]
+        const data = kind === 'highlight' ? highlightPatch(highlight, architecture?.stairWells) : !architecture ? empty : kind === 'stairs' && level ? (architecture.stairs ?? empty) : floorArchitectureFeatures(architecture, floorAreas)[kind]
         out[kind] = level && architecture ? levelOnGround(data, groundAt, level.floorM) : data
       }
       return out
