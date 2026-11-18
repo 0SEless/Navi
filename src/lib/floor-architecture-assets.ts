@@ -1,4 +1,4 @@
-import { buildPlatformGuardVolumes, stairLandingExitEdge, buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildStairTopVolumes, buildOpeningPlanSymbols, floorStairMesh, toLocal, type CoordinateTransformer, type StairAssetInput, type StairTopInput } from '@navi/core'
+import { buildPlatformGuardVolumes, stairLandingExitEdge, buildWallOpeningVolumes, buildWindowAssetVolumes, buildDoorAssetVolumes, buildStairAssetVolumes, buildStairTopVolumes, stairTopShape, buildOpeningPlanSymbols, floorStairMesh, toLocal, type CoordinateTransformer, type StairAssetInput, type StairTopInput } from '@navi/core'
 
 type Polygons = GeoJSON.FeatureCollection<GeoJSON.Polygon>
 export interface FloorArchitectureAssets {
@@ -87,10 +87,11 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
   const stair = { ...stairAll, collection: { type: 'FeatureCollection' as const, features: stairAll.collection.features.filter(f => f.properties?.partType !== 'parapet' && f.properties?.partType !== 'rail') } }
   const tops = buildStairTopVolumes(input.stairTops ?? [], base)
   stair.collection.features.push(...tops.landings.features)
-  for (const landing of tops.landings.features) {
-    const top = input.stairTops?.find(candidate => candidate.id === landing.properties?.featureId)
-    const ring = landing.geometry.coordinates[0]
-    if (!top || ring.length < 4) continue
+  for (const top of input.stairTops ?? []) {
+    const shape = stairTopShape(top)
+    if (!shape) continue
+    const ring = shape.landing
+    const landingHeight = shape.integrated ? base : Number(tops.landings.features.find(f => f.id === `${top.id}:top`)?.properties?.height)
     const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : undefined
     const picked = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
       ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
@@ -100,7 +101,7 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
       const [x, y] = ring[edge], [endX, endY] = ring[(edge + 1) % 4]
       const guards = buildPlatformGuardVolumes(style, {
         id: `${top.id}:top-guard:${edge}`, from: { x, y }, to: { x: endX, y: endY },
-        base: Number(landing.properties?.height), thickness: 0.12,
+        base: landingHeight, thickness: 0.12,
       })
       for (const guard of guards) {
         guard.properties = { ...guard.properties, featureId: top.id, fromLevel: top.fromLevel, partType: 'landing-guard' }

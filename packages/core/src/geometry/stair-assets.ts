@@ -1,5 +1,6 @@
 import type { LocalCoord, LocalPolygon } from '../types/coordinates'
 import type { StairLevelGeometry } from '../types/entities'
+import { stairShape } from '../structures/stair-shape'
 import { resolveStairDirectionCorners } from './stair-direction'
 
 export interface StairAssetInput {
@@ -280,7 +281,7 @@ export type StairTopInput = StairAssetInput & { fromLevel: number }
 const TOP_SLAB_M = 0.05
 
 /** The flight's footprint rectangle (local, stair-aligned) and where its top landing lies. */
-function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[] } | undefined {
+export function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[]; integrated: boolean } | undefined {
   const plain = input.drawing ? { ...input, drawing: { ...input.drawing, properties: { ...input.drawing.properties, sides: 'open' as const } } } : input
   const solids = buildStairAssetVolumes([plain], 0).collection.features
   const steps = solids.filter(f => f.properties?.partType === 'step')
@@ -293,6 +294,18 @@ function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[] 
   const xs = local.map(p => p[0]), ys = local.map(p => p[1])
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
   const well = ([[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as Point[]).map(toWorld)
+  // The smooth rectangular flight already has a flat area beyond its last riser.
+  // Use the same centred flight profile as the mesh instead of adding a second slab.
+  const first = steps[0].geometry.coordinates[0] as Point[]
+  const last = steps[steps.length - 1].geometry.coordinates[0] as Point[]
+  if (!input.drawing && input.look?.topLandingM == null) {
+    const run = Math.hypot(last[3][0] - first[0][0], last[3][1] - first[0][1])
+    const { flightEndM } = stairShape(input.height ?? 0, run)
+    if (run - flightEndM >= 0.5) {
+      const t = flightEndM / run
+      return { well, landing: [lerpP(first[0], last[3], t), lerpP(first[1], last[2], t), last[2], last[3]], integrated: true }
+    }
+  }
   const authored = solids.find(f => f.properties?.partType === 'top-landing')
   let landing: Point[]
   if (authored) landing = authored.geometry.coordinates[0].slice(0, 4) as Point[]
@@ -303,7 +316,7 @@ function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[] 
     const depth = input.look?.topLandingM
     landing = topLandingQuad([last[0], last[1], last[2], last[3]], typeof depth === 'number' && Number.isFinite(depth) && depth >= 0.5 ? depth : width)
   }
-  return { well, landing }
+  return { well, landing, integrated: false }
 }
 
 /** On the floor a stair arrives on: a dashed stairwell outline (not walkable) and the walkable top landing. */
@@ -314,6 +327,7 @@ export function buildStairTopVolumes(tops: readonly StairTopInput[], base: numbe
     if (!shape) continue
     const close = (ring: Point[]) => [[...ring, [...ring[0]]]]
     wells.push({ type: 'Feature', id: `${top.id}:well`, properties: { id: `${top.id}:well`, featureId: top.id, partType: 'stairwell', fromLevel: top.fromLevel, base, height: base + 0.02 }, geometry: { type: 'Polygon', coordinates: close(shape.well) } })
+    if (shape.integrated) continue
     landings.push({ type: 'Feature', id: `${top.id}:top`, properties: { id: `${top.id}:top`, featureId: top.id, partType: 'top-landing', fromLevel: top.fromLevel, base, height: base + TOP_SLAB_M }, geometry: { type: 'Polygon', coordinates: close(shape.landing) } })
   }
   return { landings: { type: 'FeatureCollection', features: landings }, wells: { type: 'FeatureCollection', features: wells } }

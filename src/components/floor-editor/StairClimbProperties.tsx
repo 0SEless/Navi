@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { StairCutout } from './StairCutout'
 import { stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
-import { stairFlightFloor, stairHasTop, stairRise, type Building, type StairLandingExit } from '@navi/core'
+import { stairFlightFloor, stairHasTop, stairRise, stairTopShape, type Building, type StairLandingExit } from '@navi/core'
 
 const field: React.CSSProperties = {
   width: '100%', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--navi-border)',
@@ -50,6 +50,8 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   const props = flight?.drawing?.properties
   const rise = stairRise(stair, floors)
   const steps = props?.stepCount
+  const usesExistingPlatform = toFloor && flight && !props &&
+    stairTopShape({ id: featureId, ...flight, height: rise, fromLevel: from })?.integrated
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} data-testid="stair-climb-properties">
@@ -90,13 +92,16 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
             <div role="status" style={label}>
               {reach.reason === 'no-opening'
                 ? `The landing meets a wall on ${toFloor.label}. Place an opening on the hallway side.`
-                : `The landing does not reach ${toFloor.label}'s hallway. Align it with the floor platform.`}
+                : usesExistingPlatform
+                  ? `Connect ${toFloor.label}'s hallway route to the existing platform edge.`
+                  : `The landing does not reach ${toFloor.label}'s hallway. Check the landing exit.`}
             </div>
           )}
           {reach?.ok && !flight?.landingExit && stair.levels[toFloor.level]?.landingExit && (
             <div style={label}>Auto selected: {stair.levels[toFloor.level].landingExit}</div>
           )}
-          {!props && onLook && (
+          {usesExistingPlatform && <div style={label}>Uses the existing stair platform.</div>}
+          {!usesExistingPlatform && !props && onLook && (
             <label style={label}>
               Arrival landing depth (m)
               <OptionalNumberField id={`stair-arrival-depth-${featureId}`} labelText="Arrival landing depth (m)"

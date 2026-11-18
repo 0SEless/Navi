@@ -34,11 +34,12 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
  }
  for(const [kind,features] of [['stair',building.staircases??[]],['elevator',building.elevators??[]]] as const){
   for(const feature of features){const geometry=feature.levels?.[floor.level];if(!geometry)continue
-   const exitDirection=kind==='stair'&&'role' in geometry&&geometry.role==='top'
+   const arrival=kind==='stair'&&'role' in geometry&&geometry.role==='top'
+   const exitDirection=arrival
      ?stairTopExitDirection(feature as Staircase,building.floors):undefined
-   const blocked = kind === 'stair' && 'role' in geometry && geometry.role === 'top' &&
+   const blocked = arrival &&
      geometry.routeConnectionManaged && !geometry.landingExit
-   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(geometry.landing?.position??geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
+   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(arrival ? geometry.position : geometry.landing?.position ?? geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
   }
  }
  return ports

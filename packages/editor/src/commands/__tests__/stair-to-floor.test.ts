@@ -270,3 +270,34 @@ it('keeps a requested side guarded when it misses the destination hallway', () =
   expect(stair.levels[1].routeConnection).toBeUndefined()
   expect(d.buildings[0].floors[1].openings ?? []).toEqual([])
 })
+
+// A long rectangle already ends in a level mesh platform inside its footprint.
+it('routes from the existing flat platform through the open end of a partial wall', () => {
+  const d = campus()
+  const b = d.buildings[0]
+  const [lower, upper] = b.floors
+  const flight = { position: { x: 0, y: 0 }, rotation: 0, confirmCutout: true, landingExit: 'left' as const,
+    polygon: { points: [{ x: -6, y: 1.5 }, { x: -6, y: -1.5 }, { x: 6, y: -1.5 }, { x: 6, y: 1.5 }] } }
+  b.staircases = [{ id: 's', name: 'Outdoor stair', buildingId: b.id, type: 'open', accessible: false,
+    fromLevel: 0, toLevel: 1, levels: { 0: flight, 1: { role: 'top', rotation: 0,
+      position: { x: 6, y: 0 }, landing: { position: { x: -40, y: 0 } } } } }]
+  lower.walls = [{ id: 'lower-wall', start: { x: -9, y: 4 }, end: { x: 0, y: 4 }, height: 3, thickness: 0.15 }]
+  upper.walls = [{ id: 'partial-wall', start: { x: 0, y: -1.5 }, end: { x: 4, y: -1.5 }, height: 3, thickness: 0.15 }]
+  function route(level: number, x: number, y: number) {
+    return { nodes: [
+      { id: 'a', position: { x, y }, type: 'waypoint' as const, floor: level },
+      { id: 'b', position: { x, y: y + 4 }, type: 'waypoint' as const, floor: level },
+    ], edges: [{ id: 'walk', from: 'a', to: 'b', type: 'walk' as const, distance: 4 }] }
+  }
+  lower.routeNetwork = route(0, -6.5, -2)
+  upper.routeNetwork = route(1, 5.5, -4)
+  const run = editor(d)
+  expect(run.run('stair.setToFloor', { featureId: 's', toLevel: 1, autoConnect: true }).success).toBe(true)
+  const stair = stairOf(d)
+  expect(stair.levels[0].routeConnection).toBeDefined()
+  expect(stair.levels[1]).toMatchObject({ landingExit: 'right', position: { x: 5.5, y: -1.5 } })
+  expect(stair.levels[1].routeConnection).toBeDefined()
+  expect(upper.openings ?? []).toEqual([])
+  expect(run.history.undo()).toBe(true)
+  expect(stairOf(d).levels[1].routeConnection).toBeUndefined()
+})

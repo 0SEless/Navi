@@ -1,4 +1,4 @@
-import { buildStairTopVolumes, recordChange, stairFlightFloor, stairFootPosition, stairHasTop, stairLandingExitEdge, stairRise, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
+import { stairTopShape, recordChange, stairFlightFloor, stairFootPosition, stairHasTop, stairLandingExitEdge, stairRise, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
 import { stairTopReach, wallAgainstLanding, type StairTopReach } from '../geometry/stair-top-reach'
 import { suggestFloorConnections } from '../geometry/floor-connections'
 import { floorConnectionsApplyHandler } from './floor-route-workflow'
@@ -76,6 +76,15 @@ export const stairSetToFloorHandler: CommandHandler = {
       const position = stairTopPosition(stair, building.floors) ?? { ...flight.position }
       stair.levels[toLevel] = { role: 'top', position, rotation: flight.rotation ?? 0 }
     }
+    // Auto-connect may recover a previously selected side that now faces the
+    // exposed edge, but only if another side reaches an actual route or floor.
+    if (payload.autoConnect === true && exit === undefined && flight.landingExit && stairHasTop(stair)
+        && !stairTopReach(building, stair).ok
+        && stairTopShape({ id: stair.id, ...flight, height: stairRise(stair, building.floors), fromLevel: from })?.integrated) {
+      const selected = flight.landingExit
+      delete flight.landingExit
+      if (!stairTopReach(building, stair).ok) flight.landingExit = selected
+    }
     syncStairTopOpening(building, stair)
     const reach = syncLandingExit(building, stair)
     if (payload.autoConnect === true && stairHasTop(stair)) {
@@ -142,7 +151,7 @@ function syncLandingExit(building: Building, stair: Staircase): StairTopReach {
   if (top?.role === 'top') {
     if (reach.ok) top.landingExit = reach.exit
     else delete top.landingExit
-    top.position = stairTopPosition(stair, building.floors) ?? top.position
+    top.position = reach.ok ? reach.point : stairTopPosition(stair, building.floors) ?? top.position
   }
   return reach
 }
@@ -167,10 +176,10 @@ export function syncStairTopOpening(building: Building, stair: Staircase): void 
   const flight = stair.levels[from]
   const walls = to?.walls ?? []
   if (!to || !flight || walls.length === 0) return
-  const top = buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
-  const landing = top?.geometry.coordinates[0].slice(0, -1).map(([x, y]) => ({ x, y })) ?? []
+  const top = stairTopShape({ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from })
+  const landing = top?.landing.map(([x, y]) => ({ x, y })) ?? []
   if (landing.length < 3) return
-  const ring = top.geometry.coordinates[0]
+  const ring = top.landing
   const reach = stairTopReach(building, stair, true)
   if (reach.ok && stairTopReach(building, stair).ok) return
   const best = reach.ok ? wallAgainstLanding(walls, landing, stairLandingExitEdge(ring, reach.exit)) : undefined
@@ -193,10 +202,10 @@ export function proposeStairCutout(building: Building, stair: Staircase) {
   const from = stairFlightFloor(stair)
   const flight = stair.levels[from]
   if (!floor || !flight) return undefined
-  const top = buildStairTopVolumes([{ id: stair.id, ...flight, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
+  const top = stairTopShape({ id: stair.id, ...flight, height: stairRise(stair, building.floors), fromLevel: from })
   if (!top) return undefined
-  const ring = top.geometry.coordinates[0]
-  const landing = ring.slice(0, -1).map(([x,y]) => ({x,y}))
+  const ring = top.landing
+  const landing = ring.map(([x,y]) => ({x,y}))
   const hit = wallAgainstLanding(floor.walls ?? [], landing, stairLandingExitEdge(ring, reach.exit), true)
   if (!hit || hit.wall.height < STAIR_OPENING_HEIGHT_M && !hit.wall.guardStyle) return undefined
   return { wallId: hit.wall.id, offset: hit.t0, width: hit.t1 - hit.t0, reach, wall: hit.wall, floor }

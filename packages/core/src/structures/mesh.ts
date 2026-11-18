@@ -7,6 +7,8 @@ import type { Structure, StructureForm, StructureMaterial, StructurePreset } fro
 type V3 = [number, number, number]
 
 export interface MeshInput {
+  /** End the flight side rails here when the arrival platform owns its guards. */
+  railEndM?: number
   path: StructurePath
   startH: number
   endH: number
@@ -125,7 +127,8 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
   const P = (xy: [number, number], z: number): V3 => [xy[0], xy[1], z]
 
   // Breakpoints: every 0.25 m for curves, plus every tread edge so risers line up.
-  const marks = new Set<number>([0, length])
+  const railEnd = Math.min(length, Math.max(0, input.railEndM ?? length))
+  const marks = new Set<number>([0, length, railEnd])
   for (let s = 0.25; s < length; s += 0.25) marks.add(Math.round(s * 1e6) / 1e6)
   if (stairs && steps > 0) for (let k = 0; k <= steps; k++) marks.add(Math.round((fs + k * tr) * 1e6) / 1e6)
   if (profile) for (const m of profile.marks) marks.add(m)
@@ -187,7 +190,7 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
       const outer = half * sign, inner = (half - WALL_T) * sign
       for (let i = 1; i < S.length; i++) {
         const s0 = S[i - 1], s1 = S[i]
-        if (s1 - s0 < 1e-9) continue
+        if (s1 - s0 < 1e-9 || s1 > railEnd) continue
         const t = top((s0 + s1) / 2)
         const t0 = stairs ? t : top(s0), t1 = stairs ? t : top(s1)
         const h0 = line(s0) + solidTo, h1 = line(s1) + solidTo
@@ -196,23 +199,23 @@ export function buildStructureMesh(input: MeshInput): Float32Array {
         writer.quad(P(I0, t0), P(I1, t1), P(I1, h1), P(I0, h0), side)
         writer.quad(P(O0, h0), P(O1, h1), P(I1, h1), P(I0, h0), side)
       }
-      for (const s of [0, length]) {
+      for (const s of [0, railEnd]) {
         const t = top(Math.min(Math.max(s, 1e-6), length - 1e-6)), h = line(s) + solidTo
         writer.quad(P(edge(s, outer), t), P(edge(s, inner), t), P(edge(s, inner), h), P(edge(s, outer), h), side)
       }
     }
   }
-  const railSet = new Set<number>([0, length, fs, fe])
+  const railSet = new Set<number>([0, railEnd, fs, fe])
   if (profile) for (const f of profile.flights) { railSet.add(f.startM); railSet.add(f.endM) }
   if (profile) for (const l of profile.landings) { railSet.add(l.startM); railSet.add(l.endM) }
   for (let s = 1; s < length; s += 1) railSet.add(s)
-  const railMarks = [...railSet].filter((s) => s >= 0 && s <= length).sort((a, b) => a - b)
+  const railMarks = [...railSet].filter((s) => s >= 0 && s <= railEnd).sort((a, b) => a - b)
   // A solid wall is the railing; a half wall carries the metal rail on its top, centred on it.
   for (const sign of solidTo >= TOP_RAIL ? [] : sides) {
     const offset = (solidTo > 0 ? half - WALL_T / 2 : half - RAIL_INSET) * sign
-    const posts = Math.max(1, Math.round(length / 1.2))
+    const posts = Math.max(1, Math.round(railEnd / 1.2))
     for (let k = 0; k <= posts; k++) {
-      const s = Math.min(length, (k * length) / posts)
+      const s = (k * railEnd) / posts
       const [x, y] = edge(s, offset)
       const z0 = solidTo > 0 ? line(s) + solidTo : top(Math.min(s, length - 1e-6))
       const z1 = line(s) + TOP_RAIL

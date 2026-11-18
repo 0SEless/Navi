@@ -1,5 +1,5 @@
 import type { Floor, Staircase, StairLevelGeometry } from '../types/entities'
-import { buildStairAssetVolumes, buildStairTopVolumes, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from './stair-assets'
+import { buildStairAssetVolumes, stairTopShape, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from './stair-assets'
 import type { LocalCoord } from '../types/coordinates'
 
 /**
@@ -92,8 +92,7 @@ function stairTopRing(stair: Staircase, floors: StairFloorHeights): number[][] {
   const from = stairFlightFloor(stair)
   const flight = stair.levels?.[from]
   if (!flight) return []
-  const top = buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel: from }], 0).landings.features[0]
-  return top?.geometry.coordinates[0].slice(0, -1) ?? []
+  return stairTopShape({ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel: from })?.landing ?? []
 }
 
 export function stairTopPosition(stair: Staircase, floors: StairFloorHeights): LocalCoord | undefined {

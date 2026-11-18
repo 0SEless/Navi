@@ -1,4 +1,4 @@
-import { buildStairAssetVolumes, buildStairTopVolumes, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from '../geometry/stair-assets'
+import { buildStairAssetVolumes, stairTopShape, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from '../geometry/stair-assets'
 import { BUILT_IN_MATERIALS, BUILT_IN_PRESETS } from './materials'
 import { buildRailingMesh, buildStructureMesh, type RailingStyle } from './mesh'
 import { structurePath } from './path'
@@ -27,6 +27,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
   const parts: Float32Array[] = []
   for (const input of inputs) {
     const props = input.drawing?.properties
+    const arrival = input.arrivalLanding ? stairTopShape({ ...input, fromLevel: 0 }) : undefined
     const sides = props?.sides ?? 'open'
     const plain = props ? { ...input, drawing: { ...input.drawing!, properties: { ...props, sides: 'open' as const } } } : input
     const solids = buildStairAssetVolumes([plain], 0).collection.features
@@ -57,9 +58,11 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       // Steepness for a Straight stair (a U-Shape has its own half-landing).
       const shape = props as typeof props & { underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
       const straight = props?.preset !== 'ushape'
+      const railEnd = arrival?.integrated ? place(mid(arrival.landing[0], arrival.landing[1])) : undefined
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h: startH } as never, { ...b, h: endH } as never), startH, endH, form: 'stairs', width: dist(first[0], first[1]),
         underneath, railings, groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
+        ...(railEnd ? { railEndM: Math.hypot(railEnd.x - a.x, railEnd.y - a.y) } : {}),
         ...(straight && shape?.landings?.length ? { landings: shape.landings.filter((t) => t > 0 && t < 1) } : {}),
         ...(straight && shape?.landingLengthM !== undefined ? { landingLengthM: shape.landingLengthM } : {}),
         // Landing heights are stored above the stair's own floor; the builder wants absolute heights.
@@ -112,7 +115,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       }
     }
     // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
-    if (input.doorwayAt && input.groundLanding !== false && base <= ground + 1e-6) {
+    if (input.doorwayAt && input.groundLanding !== false && !arrival?.integrated && base <= ground + 1e-6) {
       const first = steps[0].geometry.coordinates[0] as Ring
       const lo = mid(first[0], first[1]), up = mid(first[3], first[2])
       const len = Math.hypot(up.x - lo.x, up.y - lo.y) || 1
@@ -128,9 +131,9 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     }
   }
   for (const top of tops) {
-    const landing = buildStairTopVolumes([top], base).landings.features[0]
+    const landing = stairTopShape(top)
     if (!landing) continue
-    const ring = landing.geometry.coordinates[0].slice(0, 4)
+    const ring = landing.landing
     const facing = place(mid(ring[0], ring[2]))
     const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : undefined
     const style = top.drawing?.properties.railingStyle ?? top.look?.railingStyle

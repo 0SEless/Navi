@@ -1,4 +1,4 @@
-import { buildStairTopVolumes, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
+import { stairTopShape, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
 import type { Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
 import { floorBackboneEdges, wallHasDoorAt } from './floor-connections'
@@ -57,6 +57,31 @@ const inside = (p: P, ring: readonly P[]): boolean => {
 }
 const edges = (ring: readonly P[], closed: boolean): Array<[P, P]> =>
   ring.slice(0, closed ? ring.length : ring.length - 1).map((a, i) => [a, ring[(i + 1) % ring.length]] as [P, P])
+function wallCoversPoint(wall: Wall, point: P): boolean {
+  const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y
+  const len = Math.hypot(dx, dy)
+  const t = ((point.x - wall.start.x) * dx + (point.y - wall.start.y) * dy) / len
+  return t >= -0.25 && t <= len + 0.25
+}
+
+/** Only a route crossing the actual pad edge away from its corners counts. */
+function routeCrossing(a: P, b: P, interior: P, from: P, to: P): P | undefined {
+  const dx = b.x - a.x, dy = b.y - a.y
+  const rx = to.x - from.x, ry = to.y - from.y
+  const det = dx * ry - dy * rx
+  if (Math.abs(det) < 1e-9) return
+  const x = from.x - a.x, y = from.y - a.y
+  const along = (x * ry - y * rx) / det
+  const route = (x * dy - y * dx) / det
+  const interiorSide = dx * (interior.y - a.y) - dy * (interior.x - a.x)
+  const fromSide = dx * (from.y - a.y) - dy * (from.x - a.x)
+  const toSide = dx * (to.y - a.y) - dy * (to.x - a.x)
+  if (fromSide * interiorSide >= -1e-9 && toSide * interiorSide >= -1e-9) return
+  const margin = 0.25 / Math.hypot(dx, dy)
+  if (along < margin || along > 1 - margin || route < 0 || route > 1) return
+  return { x: a.x + along * dx, y: a.y + along * dy }
+}
+
 /** Check a usable span centered on the route anchor, so a touching corner cannot pass. */
 function exitGap(a: P, b: P, shape: readonly P[], closed: boolean, slack: number): number {
   const length = Math.hypot(b.x - a.x, b.y - a.y)
@@ -81,10 +106,10 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
   const to = stair.toLevel > from ? building.floors.find((f) => f.level === stair.toLevel) : undefined
   const flight = stair.levels[from]
   if (!to || !flight) return { ok: false, reason: 'no-to-floor' }
-  const top = buildStairTopVolumes([{ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
+  const top = stairTopShape({ id: stair.id, ...flight, rotation: flight.rotation ?? 0, height: stairRise(stair, building.floors), fromLevel: from })
   if (!top) return { ok: false, reason: 'no-walkable' }
-  const landing: P[] = top.geometry.coordinates[0].slice(0, -1).map(([x, y]) => ({ x, y }))
-  const candidates: Array<{ id: string; shape: P[]; closed: boolean; slack: number }> = []
+  const landing: P[] = top.landing.map(([x, y]) => ({ x, y }))
+  const candidates: Array<{ id: string; shape: P[]; closed: boolean; slack: number; route?: boolean }> = []
   for (const room of to.rooms ?? []) if ((room.polygon?.points?.length ?? 0) >= 3) candidates.push({ id: room.id, shape: room.polygon.points, closed: true, slack: 0 })
   const walls = to.walls ?? []
   if (walls.length) {
@@ -103,28 +128,32 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
       const from = routeNodes.get(edge.from)
       const end = routeNodes.get(edge.to)
       if (from && end && [from.x, from.y, end.x, end.y].every(Number.isFinite)) {
-        candidates.push({ id: edge.id, shape: [from, end], closed: false, slack: 0 })
+        candidates.push({ id: edge.id, shape: [from, end], closed: false, slack: 0, route: true })
       }
     }
   }
   const sides: StairLandingExit[] = flight.landingExit ? [flight.landingExit] : ['front', 'left', 'right']
-  const ring = top.geometry.coordinates[0]
-  let best: { id: string; d: number; edge: number; exit: StairLandingExit; wall?: ReturnType<typeof wallAgainstLanding> } | undefined
+  const ring = top.landing
+  let best: { id: string; d: number; point: P; exit: StairLandingExit; wall?: ReturnType<typeof wallAgainstLanding> } | undefined
   for (const exit of sides) {
     const edge = stairLandingExitEdge(ring, exit)
     const a = landing[edge], b = landing[(edge + 1) % 4]
     const wall = wallAgainstLanding(walls, landing, edge, true)
     for (const candidate of candidates) {
-      const d = exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
-      if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) <= 1e-6 && wall && !best.wall)) {
-        best = { id: candidate.id, d, edge, exit, wall }
+      const crossing = top.integrated && candidate.route
+        ? routeCrossing(a, b, landing[(edge + 2) % 4], candidate.shape[0], candidate.shape[1]) : undefined
+      const point = crossing ?? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      // A wall can cover part of the pad edge while the route crosses its open end.
+      const host = wall && (!top.integrated || wallCoversPoint(wall.wall, point)) ? wall : undefined
+      const d = crossing ? 0 : exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
+      if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) <= 1e-6 && host && !best.wall)) {
+        best = { id: candidate.id, d, point, exit, wall: host }
       }
     }
   }
   if (!best || best.d > STAIR_TOP_REACH_M) return { ok: false, reason: 'no-walkable' }
   const against = best.wall
-  const a = landing[best.edge], b = landing[(best.edge + 1) % 4]
-  const point = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  const { point } = best
   if (against && !allowUncutWall) {
     const { start, end, id } = against.wall
     const dx = end.x - start.x, dy = end.y - start.y

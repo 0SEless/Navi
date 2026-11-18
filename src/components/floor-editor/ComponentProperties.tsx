@@ -899,7 +899,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                         : undefined}
                       onConnectFloors={stairForOutdoor ? () => {
                         dispatcher.execute({ id: 'stair.setToFloor', label: 'Connect stair to floor routes',
-                          payload: { featureId, toLevel: stairForOutdoor.toLevel, autoConnect: true } })
+                          payload: { featureId, toLevel: stairForOutdoor.toLevel, autoConnect: true, confirmCutout: true } })
                       } : undefined}
                       onDrawing={(properties) => {
                         const st = building.staircases?.find((x) => x.id === featureId)
