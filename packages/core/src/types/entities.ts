@@ -648,6 +648,8 @@ export interface VerticalConnector {
 }
 
 export interface Entrance {
+  /** Indoor checkpoint or doorway. It connects only to this floor's authored route. */
+  indoorOnly?: boolean
   routeConnectionManaged?: boolean
   routeConnection?: RoomDoor['routeConnection']
   /** Explicit floor-side terminal. A terminal alone does not imply an indoor path. */

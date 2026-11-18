@@ -51,9 +51,12 @@ export function validateEntranceAccess(
   }
 
   // Check entrance exists
-  const entranceExists = floor.entrances.some(e => e.id === access.entranceId)
-  if (!entranceExists) {
+  const entrance = floor.entrances.find(entry => entry.id === access.entranceId)
+  if (!entrance) {
     return { success: false, error: `Entrance '${access.entranceId}' not found in floor` }
+  }
+  if (entrance.indoorOnly === true) {
+    return { success: false, error: 'Indoor-only entrances cannot have an outdoor route assignment.' }
   }
 
   // Check indoor route node exists

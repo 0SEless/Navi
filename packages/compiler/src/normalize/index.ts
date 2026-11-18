@@ -248,7 +248,7 @@ export function normalizeDocument(document: CampusDocument): NormalizeResult {
         }
       }
 
-      const entrances: NormalizedEntrance[] = floor.entrances.map(ent => {
+      const entrances: NormalizedEntrance[] = floor.entrances.filter(entrance => entrance.indoorOnly !== true).map(ent => {
         // P1-T4 (D9): entrance positions are building-local — derive world here
         // (same localToLatLng convention as rooms/hallways). Legacy world-stored
         // records pass through verbatim so they normalize identically.

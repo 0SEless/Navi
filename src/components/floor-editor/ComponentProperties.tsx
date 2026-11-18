@@ -335,6 +335,7 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
     : entranceAccess?.outdoorRouteId
       ? `Route ${entranceAccess.outdoorRouteId} junction`
       : readableOutdoorRoutePoint(undefined)
+  const indoorOnlyEntrance = entranceEntity?.indoorOnly === true
   const entranceHasIndoorPath = componentFloor?.routeNetwork?.edges.some(edge=>edge.from===(entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId)||edge.to===(entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId)) ?? false
   const connectedIndoorRouteLabel = entranceHasIndoorPath ? readableIndoorRoutePoint(routeNodesForAccess, entranceAccess?.indoorRouteNodeId??entranceEntity?.routeNodeId) : 'No indoor path yet'
 
@@ -787,10 +788,22 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
           {isEntranceType(component.type) && componentFloor && (
             <div style={{ marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--navi-border)' }}>
               <label style={{ fontSize: 10, color: 'var(--navi-text-secondary)', display: 'block', marginBottom: 2 }}>INDOOR ROUTE ACCESS</label>
+              {entranceEntity && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5, fontSize: 11 }}>
+                  <input type="checkbox" checked={indoorOnlyEntrance}
+                    disabled={!indoorOnlyEntrance && Boolean(entranceAccess || entranceEntity.connectorRoadId)}
+                    onChange={event => dispatcher.execute({
+                      id: 'entity.update', label: 'Set indoor-only entrance',
+                      payload: { entityId: entranceEntity.id, changes: { indoorOnly: event.target.checked } },
+                    })}
+                  />
+                  Indoor only
+                </label>
+              )}
               <div style={{ fontSize: 10, color: 'var(--navi-text-secondary)', lineHeight: 1.35, marginBottom: 5 }}>
-                Connect this entrance outdoors independently. Draw or attach its indoor path whenever you choose.
+                {indoorOnlyEntrance ? connectedIndoorRouteLabel : 'Draw or attach an indoor path and connect the entrance outdoors.'}
               </div>
-              {onOpenOutdoorRoutePicker && (
+              {!indoorOnlyEntrance && onOpenOutdoorRoutePicker && (
                 <button
                   type="button"
                   onClick={() => onOpenOutdoorRoutePicker(component.id)}
@@ -807,12 +820,8 @@ export function ComponentProperties({ componentId, onClose, validationChecks, on
                     style={{ width: '100%', marginTop: 4, padding: '4px 0', borderRadius: 4, border: '1px solid #7F1D1D', background: '#7F1D1D', color: '#FCA5A5', fontSize: 10, cursor: 'pointer' }}
                   >Remove Entrance Route Access</button>
                 </div>
-              ) : (
-                <div style={{ padding: '5px 6px', borderRadius: 4, background: 'var(--navi-content)', color: 'var(--navi-text-secondary)', fontSize: 10 }}>
-                  This entrance can remain unconnected. Connect outdoors or draw a floor route when needed.
-                </div>
-              )}
-              {routeNodesForAccess.length > 0 && outdoorNodeOptions.length > 0 && (
+              ) : null}
+              {!indoorOnlyEntrance && routeNodesForAccess.length > 0 && outdoorNodeOptions.length > 0 && (
                 <details style={{ marginTop: 5 }}>
                   <summary style={{ color: 'var(--navi-text-secondary)', fontSize: 10, cursor: 'pointer' }}>Advanced route assignment</summary>
                   <div style={{ marginTop: 5 }}>

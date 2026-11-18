@@ -36,7 +36,6 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
 
     const roadIds = new Set(document.roads.map(road => road.id))
     for (const bld of document.buildings) {
-      if (!adj.has(bld.id)) adj.set(bld.id, new Set())
       // Building connects to all its floors
       for (const floor of bld.floors) {
         addEdge(bld.id, `${bld.id}-floor-${floor.level}`)
@@ -71,9 +70,10 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
         const accessByEntrance = new Map((floor.entranceAccess ?? []).map(access => [access.entranceId, access]))
         for (const entrance of floor.entrances) {
           addEdge(`${bld.id}-floor-${floor.level}`, entrance.id)
+          if (entrance.indoorOnly === true) continue
           const access = accessByEntrance.get(entrance.id)
           const legacyRoadId = (entrance as typeof entrance & { metadata?: { connectorRoadId?: unknown } }).metadata?.connectorRoadId
-          const roadId = access?.outdoorRouteId ?? legacyRoadId
+          const roadId = access?.outdoorRouteId ?? entrance.connectorRoadId ?? legacyRoadId
           if (typeof roadId === 'string' && roadIds.has(roadId)) addEdge(entrance.id, roadId)
         }
       }

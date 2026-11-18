@@ -52,3 +52,15 @@ describe('campus connectivity analysis', () => {
     expect(count(doc)).toBe(1)
   })
 })
+
+it('keeps footprint-only buildings out of the navigation count', () => {
+  const doc = campus()
+  doc.buildings.push({ ...doc.buildings[0], id: 'outline-only', floors: [] })
+  expect(new GraphAnalysisPass().execute(doc).connectedComponentCount).toBe(1)
+})
+
+it('counts legacy entrance-to-road connectors', () => {
+  const doc = campus(false)
+  doc.buildings[1].floors[0].entrances[0].connectorRoadId = 'road'
+  expect(new GraphAnalysisPass().execute(doc).connectedComponentCount).toBe(1)
+})

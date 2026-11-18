@@ -212,3 +212,22 @@ it('finds a Floor 3 room and routes to it using two authored stair flights and f
   expect(errors).toEqual([])
   expect(routeTo(bundle, 'Office 301')).toMatchObject({ found: true, floors: [0, 1, 2] })
 })
+
+it('keeps the indoor-only QR marker without emitting an outdoor entrance', () => {
+  const doc = campus()
+  const run = studio(doc)
+  authorRoutes(run)
+  placeOnEachFloor(run, 'staircase')
+  const before = visitor(doc).bundle.buildings.find(building => building.id === 'cs')!.entrances.length
+  doc.buildings[0].floors[1].entrances.push({
+    id: 'qr-inside', label: 'QR check-in', level: 1, type: 'side', hasQR: true, hasPanorama: false,
+    position: { x: 0, y: 0 }, routeNodeId: 'f2-stair', indoorOnly: true,
+  })
+  const { bundle, errors } = visitor(doc)
+  expect(errors).toEqual([])
+  expect(bundle.buildings.find(building => building.id === 'cs')!.entrances).toHaveLength(before)
+  expect(bundle.components.find(component => component.id === 'qr-inside')).toMatchObject({
+    floor: 1, metadata: { hasQR: true, indoorOnly: true },
+  })
+  expect(routeTo(bundle, 'Lab 201')).toMatchObject({ found: true })
+})

@@ -260,7 +260,7 @@ function buildComponents(document: CampusDocument): unknown[] {
           campusId: document.metadata.campusId,
           floor: entrance.level,
           position,
-          metadata: { hasQR: entrance.hasQR, hasPanorama: entrance.hasPanorama },
+          metadata: { hasQR: entrance.hasQR, hasPanorama: entrance.hasPanorama, ...(entrance.indoorOnly === true ? { indoorOnly: true } : {}) },
         })
       }
     }

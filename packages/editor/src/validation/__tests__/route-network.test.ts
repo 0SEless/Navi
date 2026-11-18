@@ -167,6 +167,25 @@ describe('route-network validation', () => {
     ]))
   })
 
+  it('requires an indoor-only entrance to join the floor route without an outdoor assignment', () => {
+    const floor = makeFloor({
+      entrances: [{ id: 'check-in', label: 'QR check-in', position: { x: 0, y: 0 }, level: 0, type: 'side', hasQR: true, hasPanorama: false, indoorOnly: true, routeNodeId: 'a' }],
+      routeNetwork: { nodes: [route('a', 0, 0), route('b', 5, 0)], edges: [edge('walk', 'a', 'b')] },
+    })
+    expect(validateRouteNetwork(makeDocument(floor), 'publish')).toEqual([])
+    floor.entrances[0].routeNodeId = 'missing'
+    expect(validateRouteNetwork(makeDocument(floor), 'publish')).toContainEqual(expect.objectContaining({
+      ruleId: 'route-entrance-access',
+      message: expect.stringContaining('Connect indoor-only entrance'),
+    }))
+    floor.entrances[0].routeNodeId = 'a'
+    floor.entranceAccess = [{ entranceId: 'check-in', outdoorNodeId: 'outside', indoorRouteNodeId: 'a' }]
+    expect(validateRouteNetwork(makeDocument(floor), 'publish')).toContainEqual(expect.objectContaining({
+      ruleId: 'route-entrance-access',
+      message: expect.stringContaining('Remove the outdoor route assignment'),
+    }))
+  })
+
   it('requires an explicit EntranceAccess assignment on a route-enabled floor', () => {
     const floor = makeFloor({
       entrances: [{ id: 'entrance-unassigned', label: 'Side Entrance', position: { x: 0, y: 0 }, level: 0, type: 'secondary', hasQR: false, hasPanorama: false }],

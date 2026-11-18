@@ -282,6 +282,17 @@ function entranceAccessIssues(
   for (const entrance of floor.entrances) {
     const legacyConnectorRoadId = entrance.metadata?.connectorRoadId
     const hasLegacyExplicitConnector = typeof legacyConnectorRoadId === 'string' && legacyConnectorRoadId.trim().length > 0
+    if (entrance.indoorOnly === true) {
+      const target = [{ entityId: entrance.id, entityType: 'entrance' }]
+      if (assignedEntranceIds.has(entrance.id) || entrance.connectorRoadId || hasLegacyExplicitConnector) {
+        issues.push(issue('route-entrance-access', profile, `Remove the outdoor route assignment from indoor-only entrance "${entrance.id}".`, target, scope))
+      }
+      const nodeId = entrance.routeConnection?.anchorNodeId ?? entrance.routeNodeId
+      if (!nodeId || !hasRoutePath(graph, nodeId, roots)) {
+        issues.push(issue('route-entrance-access', profile, `Connect indoor-only entrance "${entrance.id}" to the route on floor "${floor.label || floor.id}".`, target, scope))
+      }
+      continue
+    }
     if (!assignedEntranceIds.has(entrance.id) && !hasLegacyExplicitConnector) {
       issues.push(issue(
         'route-entrance-access',
@@ -438,7 +449,7 @@ export function validateRouteNetwork(document: CampusDocument, profile: RoutePro
   const roadIds = new Set((document.roads ?? []).map((road) => road.id))
   for (const building of document.buildings ?? []) {
     for (const floor of building.floors ?? []) {
-      if (!routeNetworkOf(floor)) continue
+      if (!routeNetworkOf(floor) && !floor.entrances?.some(entrance => entrance.indoorOnly === true)) continue
       const graph = buildRouteFloorGraph(floor)
       issues.push(...structureIssues(building.id, floor, profile))
       issues.push(...disconnectedIssues(building.id, floor, graph, profile))
