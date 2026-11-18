@@ -13,7 +13,7 @@ import { ResizableSidePanel } from '@/components/layout/ResizableSidePanel'
 import { ComponentProperties } from './ComponentProperties'
 import { DoorWallAttachmentProperties } from './DoorWallAttachmentProperties'
 import { DoorAppearanceProperties } from './DoorAppearanceProperties'
-import { collectFloorDoors } from '@navi/core'
+import { collectFloorDoors, stairFootPosition } from '@navi/core'
 import { WallProperties } from './WallProperties'
 import { OpeningProperties } from './OpeningProperties'
 import { useArchitectureAccess } from './useArchitectureAccess'
@@ -71,7 +71,7 @@ const ARCHITECTURE_LAYERS: { key: keyof LayerVisibility; label: string }[] = [
 ]
 
 export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
-  const { services, document: editorDoc } = useEditor()
+  const { services, document: editorDoc, transformer } = useEditor()
   const viewport = services.get('viewport')
 
   const building = useLegacyBuilding(buildingId)
@@ -234,7 +234,10 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const graphEdges = useGraphStore((state) => state.graph.edges)
   const graphBuildings = useGraphStore((state) => state.graph.buildings)
   const graphAreas = useGraphStore((state) => state.graph.areas)
-  const [outdoorPickerEntranceId, setOutdoorPickerEntranceId] = useState<string | null>(null)
+  const [outdoorPicker, setOutdoorPicker] = useState<{
+    entranceId: string
+    stair?: { id: string; floorId: string }
+  } | null>(null)
   const [pendingEntranceRoute, setPendingEntranceRoute] = useState<{
     entranceId: string
     candidate: OutdoorRouteCandidate
@@ -260,27 +263,44 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     ...(pendingEntranceRoute.candidate.routeId ? { outdoorRouteId: pendingEntranceRoute.candidate.routeId } : {}),
   } : undefined, [pendingEntranceRoute])
   const selectedEntranceForPicker = useMemo(() => {
-    if (!outdoorPickerEntranceId) return null
-    const selected = floorComponents.find((component) => component.id === outdoorPickerEntranceId && component.type === 'entrance')
+    if (!outdoorPicker) return null
+    const { entranceId, stair } = outdoorPicker
+    if (stair) {
+      const feature = canonicalBuilding?.staircases?.find(candidate => candidate.id === stair.id)
+      if (!canonicalBuilding || !feature) return null
+      const foot = stairFootPosition(feature, canonicalBuilding.floors)
+      const position = foot && transformer?.buildingLocalToWorld(foot, buildingId)
+      return position ? { id: entranceId, name: `${feature.name || 'Stair'} (foot)`, position } : null
+    }
+    const selected = floorComponents.find(component => component.id === entranceId && component.type === 'entrance')
     return selected ? { id: selected.id, name: selected.name, position: selected.position } : null
-  }, [floorComponents, outdoorPickerEntranceId])
-  const handleOpenOutdoorRoutePicker = useCallback((entranceId: string) => {
-    // A stair's foot entrance is created in the same click that opens the picker (2026-11-18), so it may not be in
-    // this render's components yet; the picker itself waits until the entrance is there.
+  }, [floorComponents, outdoorPicker, canonicalBuilding, transformer, buildingId])
+  const handleOpenOutdoorRoutePicker = useCallback((entranceId: string, stair?: { id: string; floorId: string }) => {
     setRouteAuthoringMessage(null)
-    setOutdoorPickerEntranceId(entranceId)
+    setOutdoorPicker({ entranceId, stair })
   }, [])
   const handleOutdoorRouteConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
-    if (!selectedEntranceForPicker) return
-    if (!currentFloorId) return
-    const result=services.get('dispatcher')?.execute({id:'entrance.outdoor.connect',label:'Connect entrance outdoors',payload:{buildingId,floorId:currentFloorId,entranceId:selectedEntranceForPicker.id,outdoorNodeId:candidate.id,...(candidate.routeId?{outdoorRouteId:candidate.routeId,outdoorPosition:candidate.position}:{})}})
-    if (!result?.success) {setRouteAuthoringMessage(result?.error??'The outdoor connection could not be created.');return}
-    setOutdoorPickerEntranceId(null)
+    const floorId = outdoorPicker?.stair?.floorId ?? currentFloorId
+    if (!selectedEntranceForPicker || !floorId) return
+    const result = services.get('dispatcher')?.execute({
+      id: 'entrance.outdoor.connect',
+      label: outdoorPicker?.stair ? 'Connect stair outdoors' : 'Connect entrance outdoors',
+      payload: {
+        buildingId, floorId, entranceId: selectedEntranceForPicker.id, outdoorNodeId: candidate.id,
+        ...(outdoorPicker?.stair ? { stairId: outdoorPicker.stair.id } : {}),
+        ...(candidate.routeId ? { outdoorRouteId: candidate.routeId, outdoorPosition: candidate.position } : {}),
+      },
+    })
+    if (!result?.success) {
+      setRouteAuthoringMessage(result?.error ?? 'The outdoor connection could not be created.')
+      return
+    }
+    setOutdoorPicker(null)
     setPendingEntranceRoute(null)
     setRouteAuthoringMessage('Outdoor connection established. You can draw the floor route whenever you choose.')
     activateTool('select')
-  }, [activateTool, selectedEntranceForPicker, currentFloorId, services, buildingId])
-  const handleOutdoorRouteCancel = useCallback(() => setOutdoorPickerEntranceId(null), [])
+  }, [activateTool, buildingId, currentFloorId, outdoorPicker, selectedEntranceForPicker, services])
+  const handleOutdoorRouteCancel = useCallback(() => setOutdoorPicker(null), [])
   const handleRouteStartRejected = useCallback((reason: string) => setRouteAuthoringMessage(reason), [])
   const handleRouteAccessAssigned = useCallback(() => {
     setPendingEntranceRoute(null)
@@ -288,7 +308,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   }, [])
   const handleEntranceAccessRequired = useCallback((request: EntranceAccessRequiredRequest) => {
     setPendingFinishAccess(request)
-    setOutdoorPickerEntranceId(request.entranceId)
+    setOutdoorPicker({ entranceId: request.entranceId })
   }, [])
   const handleFinishAccessConfirm = useCallback((candidate: OutdoorRouteCandidate) => {
     if (!pendingFinishAccess) return
@@ -324,7 +344,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
     } else {
       setRouteAuthoringMessage(null)
     }
-    setOutdoorPickerEntranceId(null)
+    setOutdoorPicker(null)
     setPendingFinishAccess(null)
   }, [pendingFinishAccess, services])
   const handleFinishAccessCancel = useCallback(() => {
@@ -345,7 +365,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
         })
       }
     }
-    setOutdoorPickerEntranceId(null)
+    setOutdoorPicker(null)
     setPendingFinishAccess(null)
   }, [pendingFinishAccess, services])
   const validationChecks = useMemo(

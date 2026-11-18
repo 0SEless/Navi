@@ -27,7 +27,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
   onLook?(patch: LookPatch): void
   /** The stair's link to the outdoor route network, from its foot (owner 2026-11-18). */
-  outdoor?: { connected: boolean; label: string | null }
+  outdoor?: { connected: boolean; label: string | null; hasEntrance?: boolean }
   /** Open the outdoor route picker for the stair's foot. */
   onConnectOutdoor?(): void
   /** "None": no outdoor link. */
@@ -171,7 +171,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
             <button type="button" style={{ ...field, cursor: 'pointer' }} onClick={onConnectOutdoor}>
               {outdoor?.connected ? 'Change…' : 'Connect…'}
             </button>
-            {outdoor?.connected && onDisconnectOutdoor && (
+            {(outdoor?.connected || outdoor?.hasEntrance) && onDisconnectOutdoor && (
               <button type="button" style={{ ...field, width: 'auto', cursor: 'pointer' }} onClick={onDisconnectOutdoor}>None</button>
             )}
           </div>

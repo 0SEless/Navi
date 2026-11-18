@@ -45,6 +45,15 @@ describe('StairClimbProperties', () => {
     expect(screen.queryByRole('button', { name: 'Connect to Floor 1' })).toBeNull()
   })
 
+  it('lets the editor remove a saved stair foot that has no outdoor assignment', () => {
+    const onDisconnectOutdoor = vi.fn()
+    render(<StairClimbProperties building={building(1)} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()}
+      outdoor={{ connected: false, label: null, hasEntrance: true }} onConnectOutdoor={vi.fn()}
+      onDisconnectOutdoor={onDisconnectOutdoor} />)
+    fireEvent.click(screen.getByRole('button', { name: 'None' }))
+    expect(onDisconnectOutdoor).toHaveBeenCalledOnce()
+  })
+
   it('shows the climb from Floor 1 to Floor 2 with its steps', () => {
     show(building(1))
     expect(screen.getByTestId('stair-climb').textContent).toBe('Climbs 3.50 m — Floor 1 (0.00 m) → Floor 2 (3.50 m) · 20 × 0.175 m')

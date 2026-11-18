@@ -85,3 +85,21 @@ describe('stair.foot.ensure / stair.foot.remove', () => {
     expect(JSON.stringify(doc)).toBe(before)
   })
 })
+
+it('creates and links the stair foot only when a manual road choice succeeds', () => {
+  const doc = fixture()
+  const floor = doc.buildings[0].floors[0]
+  const before = structuredClone(floor)
+  const payload = { buildingId: 'b', floorId: 'f0', stairId: 's', entranceId: stairFootEntranceId('s') }
+  expect(entranceOutdoorConnectHandler.execute(doc, { ...payload, outdoorNodeId: '' }).success).toBe(false)
+  expect(floor).toEqual(before)
+  expect(entranceOutdoorConnectHandler.execute(doc, { ...payload, floorId: 'f1', outdoorNodeId: 'road' }).success).toBe(false)
+  expect(doc.buildings[0].floors[1].entrances).toEqual([])
+  const choice = { ...payload, outdoorNodeId: 'road' }
+  const result = entranceOutdoorConnectHandler.execute(doc, choice)
+  expect(result.success).toBe(true)
+  expect(floor.entranceAccess?.[0]).toMatchObject({ entranceId: payload.entranceId, outdoorNodeId: 'road', indoorRouteNodeId: floor.entrances[0].routeNodeId })
+  expect(floor.routeNetwork?.edges).toHaveLength(1)
+  expect(entranceOutdoorConnectHandler.execute(doc, entranceOutdoorConnectHandler.inverse!(choice, result)!.payload).success).toBe(true)
+  expect(floor).toEqual(before)
+})

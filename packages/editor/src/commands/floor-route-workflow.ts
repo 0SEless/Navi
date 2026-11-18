@@ -1,4 +1,4 @@
-import {collectFloorDoors, stairFootPosition} from '@navi/core'
+import {collectFloorDoors, stairFlightFloor, stairFootPosition} from '@navi/core'
 import {isRouteNodeReferencedByAccessRelationships} from './routing-relationship-cleanup'
 import { recordChange } from '@navi/core'
 import type { Building, CampusDocument, Floor } from '@navi/core'
@@ -72,8 +72,16 @@ const redo=(id:string,payload:Record<string,unknown>,result:MutationResult)=>res
 export const entranceOutdoorConnectHandler:CommandHandler={
   id:'entrance.outdoor.connect',
   execute:(document,payload)=>mutate(document,payload,(draft,floor)=>{
-    const indoorRouteNodeId=ensureEntranceRoutePort(floor,payload.entranceId as string)
-    return entranceAccessAssignHandler.execute(draft,{...payload,indoorRouteNodeId})
+    const entranceId = payload.entranceId as string
+    const stairId = payload.stairId as string | undefined
+    const building = draft.buildings.find(candidate => candidate.id === payload.buildingId)!
+    if (stairId && entranceId !== stairFootEntranceId(stairId)) {
+      return { success: false, error: 'The entrance does not belong to the selected stair.' }
+    }
+    const indoorRouteNodeId = stairId
+      ? ensureStairFootPort(building, floor, stairId)
+      : ensureEntranceRoutePort(floor, entranceId)
+    return entranceAccessAssignHandler.execute(draft, { ...payload, indoorRouteNodeId })
   }),
   inverse:(payload,result)=>inverse('entrance.outdoor.connect',payload,result),
   redo:(payload,result)=>redo('entrance.outdoor.connect',payload,result),
@@ -179,29 +187,36 @@ function stairRouteNodeId(floor: Floor, stair: NonNullable<Building['staircases'
   return nodes.find((n) => ['transition', 'stairs', 'stair', 'staircase'].includes(String(n.type)) && near(n.position))?.id
 }
 
+function ensureStairFootPort(building: Building, floor: Floor, stairId: string): string {
+  const stair = building.staircases?.find(item => item.id === stairId)
+  if (!stair) throw new Error('Stair not found.')
+  if (floor.level !== stairFlightFloor(stair)) throw new Error('Use the floor at the foot of this stair.')
+  const foot = stairFootPosition(stair, building.floors)
+  if (!foot) throw new Error('This stair has no steps to stand at.')
+  const id = stairFootEntranceId(stair.id)
+  const existing = floor.entrances.find((e) => e.id === id)
+  if (existing) existing.position = { ...foot }
+  else floor.entrances.push({ id, label: `${stair.name || 'Stair'} (foot)`, position: { ...foot }, level: floor.level, type: 'side', hasQR: false, hasPanorama: false })
+  const port = ensureEntranceRoutePort(floor, id)
+  const portNode = floor.routeNetwork!.nodes.find((n) => n.id === port)!
+  portNode.position = { ...foot }
+  // Walk from the foot onto the stair, so a trip can go road -> stair -> upper floor.
+  const stairNode = stairRouteNodeId(floor, stair)
+  const network = floor.routeNetwork!
+  if (stairNode && !network.edges.some((e) => (e.from === port && e.to === stairNode) || (e.from === stairNode && e.to === port))) {
+    const target = network.nodes.find((n) => n.id === stairNode)!
+    network.edges.push({ id: genId('route-edge'), from: port, to: stairNode, type: 'walk', distance: Math.hypot(target.position.x - foot.x, target.position.y - foot.y) } as never)
+  }
+  return port
+}
+
 export const stairFootEnsureHandler: CommandHandler = {
   id: 'stair.foot.ensure',
   execute: (document, payload) => mutate(document, payload, (draft, floor) => {
-    const building = draft.buildings.find((b) => b.id === payload.buildingId)!
-    const stair = building.staircases?.find((s) => s.id === payload.featureId)
-    if (!stair) return { success: false, error: 'Stair not found.' }
-    const foot = stairFootPosition(stair, building.floors)
-    if (!foot) return { success: false, error: 'This stair has no steps to stand at.' }
-    const id = stairFootEntranceId(stair.id)
-    const existing = floor.entrances.find((e) => e.id === id)
-    if (existing) existing.position = { ...foot }
-    else floor.entrances.push({ id, label: `${stair.name || 'Stair'} (foot)`, position: { ...foot }, level: floor.level, type: 'side', hasQR: false, hasPanorama: false })
-    const port = ensureEntranceRoutePort(floor, id)
-    const portNode = floor.routeNetwork!.nodes.find((n) => n.id === port)!
-    portNode.position = { ...foot }
-    // Walk from the foot onto the stair, so a trip can go road -> stair -> upper floor.
-    const stairNode = stairRouteNodeId(floor, stair)
-    const network = floor.routeNetwork!
-    if (stairNode && !network.edges.some((e) => (e.from === port && e.to === stairNode) || (e.from === stairNode && e.to === port))) {
-      const target = network.nodes.find((n) => n.id === stairNode)!
-      network.edges.push({ id: genId('route-edge'), from: port, to: stairNode, type: 'walk', distance: Math.hypot(target.position.x - foot.x, target.position.y - foot.y) } as never)
-    }
-    return { success: true, entityId: id }
+    const building = draft.buildings.find(candidate => candidate.id === payload.buildingId)!
+    const stairId = payload.featureId as string
+    ensureStairFootPort(building, floor, stairId)
+    return { success: true, entityId: stairFootEntranceId(stairId) }
   }),
   inverse: (payload, result) => inverse('stair.foot.ensure', payload, result),
   redo: (payload, result) => redo('stair.foot.ensure', payload, result),
