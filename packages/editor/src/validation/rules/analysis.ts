@@ -1,5 +1,5 @@
 import type { CampusDocument } from '@navi/core'
-import { collectFloorDoors } from '@navi/core'
+import { collectFloorDoors, extractConnectivitySemantics, hasSeparatedCrossingAtPosition } from '@navi/core'
 import type { ValidationAffinity } from './types'
 import type { GraphAnalysis, GeometryAnalysis, MetadataIndex, SpatialIndex, AnalysisCache } from '../snapshot'
 
@@ -34,7 +34,9 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
       adj.get(b)!.add(a)
     }
 
+    const roadIds = new Set(document.roads.map(road => road.id))
     for (const bld of document.buildings) {
+      if (!adj.has(bld.id)) adj.set(bld.id, new Set())
       // Building connects to all its floors
       for (const floor of bld.floors) {
         addEdge(bld.id, `${bld.id}-floor-${floor.level}`)
@@ -66,9 +68,12 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
           addEdge(`${bld.id}-floor-${floor.level}`, `${bld.id}-floor-${el.toLevel}`)
         }
 
-        // Entrances connect to building
-        for (const ent of floor.entrances) {
-          addEdge(`${bld.id}-floor-${floor.level}`, ent.id)
+        const accessByEntrance = new Map((floor.entranceAccess ?? []).map(access => [access.entranceId, access]))
+        for (const entrance of floor.entrances) {
+          addEdge(`${bld.id}-floor-${floor.level}`, entrance.id)
+          const access = accessByEntrance.get(entrance.id)
+          const roadId = access?.outdoorRouteId ?? entrance.metadata?.connectorRoadId
+          if (typeof roadId === 'string' && roadIds.has(roadId)) addEdge(entrance.id, roadId)
         }
       }
 
@@ -80,9 +85,31 @@ export class GraphAnalysisPass implements AnalysisPass<GraphAnalysis> {
       }
     }
 
-    // Roads are standalone
-    for (const road of document.roads) {
-      if (!adj.has(road.id)) adj.set(road.id, new Set())
+    for (const id of roadIds) {
+      if (!adj.has(id)) adj.set(id, new Set())
+    }
+    const { junctions, separatedCrossings } = extractConnectivitySemantics(document)
+    for (const junction of junctions) {
+      const [first, ...others] = junction.roadIds
+      for (const roadId of others) addEdge(first, roadId)
+    }
+
+    // In legacy documents, coincident vertices can connect without an authored junction.
+    if (document.connectivitySemanticsVersion == null) {
+      const roadsByVertex = new Map<string, Set<string>>()
+      for (const road of document.roads) {
+        for (const point of road.polyline?.points ?? []) {
+          const key = `${point.lat},${point.lng}`
+          const shared = roadsByVertex.get(key) ?? new Set<string>()
+          for (const other of shared) {
+            if (other !== road.id && !hasSeparatedCrossingAtPosition(separatedCrossings, road.id, other, point)) {
+              addEdge(road.id, other)
+            }
+          }
+          shared.add(road.id)
+          roadsByVertex.set(key, shared)
+        }
+      }
     }
 
     // Count connected components via BFS
