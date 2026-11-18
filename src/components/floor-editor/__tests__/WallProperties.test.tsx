@@ -34,3 +34,11 @@ describe('wall properties', () => {
     expect(update).not.toHaveBeenCalled()
   })
 })
+
+it('applies a low wall and rail to the selected platform edge', () => {
+  const update = vi.fn(() => ({ success: true }))
+  render(<WallProperties wall={wall} floorHeight={3.5} onUpdate={update} />)
+  fireEvent.change(screen.getByLabelText('Platform edge finish'), { target: { value: 'half-wall' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Apply wall changes' }))
+  expect(update).toHaveBeenCalledWith(expect.objectContaining({ guardStyle: 'half-wall' }))
+})

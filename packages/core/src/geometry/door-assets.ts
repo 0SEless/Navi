@@ -93,7 +93,7 @@ export function resolveDoorApertures(
     return { id, wallId, x: wall.start.x + ux * start, y: wall.start.y + uy * start, ux, uy, width, height, depth: wall.thickness }
   }
   for (const opening of openings) {
-    if (opening.type !== 'door') continue
+    if (opening.type !== 'door' || opening.frameless) continue
     const aperture = hosted(opening.id, opening.wallId, opening.offset, opening.width, opening.height ?? 2.1)
     if (!aperture) continue
     aperture.openingId = opening.id

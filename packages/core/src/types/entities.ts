@@ -233,6 +233,8 @@ export interface Opening {
   width: number         // meters
   height?: number       // meters (optional initially)
   sillHeight?: number   // meters (optional initially)
+  /** A bare wall aperture without decorative door geometry. */
+  frameless?: boolean
   windowAppearance?: WindowAppearance // absent legacy windows remain open
   /** Casement and awning windows only; decorative. */
   windowPose?: WindowPose
@@ -261,6 +263,8 @@ export interface Opening {
  * Walls are owned by Floor.walls[]. The Floor establishes floor ownership;
  * Wall does not redundantly store floorId.
  */
+export type PlatformEdgeGuardStyle = 'posts-rails' | 'half-wall' | 'wall'
+
 export interface Wall {
   id: string
   /** BUILDING-LOCAL METERS (x=east, y=north) */
@@ -269,6 +273,8 @@ export interface Wall {
   end: LocalCoord
   thickness: number    // meters (default 0.15)
   height: number       // meters (default 3.5)
+  /** Optional platform-edge finish; the wall line still defines the floor and its openings. */
+  guardStyle?: PlatformEdgeGuardStyle
   metadata?: Record<string, unknown>
 }
 
@@ -524,6 +530,8 @@ export interface Staircase {
 
 /** A stair's railings and underneath, for stairs drawn with the Stair tool (no design). */
 export interface StairLook {
+  /** Arrival landing depth for stairs drawn as a footprint. Null uses the flight width. */
+  topLandingM?: number | null
   railings?: 'none' | 'left' | 'right' | 'both'
   railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
   underneath?: 'open' | 'solid'
@@ -534,6 +542,8 @@ export type StairLandingExit = 'front' | 'left' | 'right'
 export interface StairLevelGeometry {
   /** Open edge of the landing, relative to the final flight. */
   landingExit?: StairLandingExit
+  /** When set, the editor waits for confirmation before cutting the arrival wall. */
+  confirmCutout?: boolean
   /** 'top' (2026-11-16): this floor holds only the stair's top landing (the flight is drawn on the From floor). */
   role?: 'top'
   routeConnectionManaged?: boolean

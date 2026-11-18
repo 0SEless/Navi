@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { buildWallOpeningVolumes } from '../wall-opening-volumes'
 import type { Opening, Wall } from '../../types/entities'
 import { buildDoorAssetVolumes, type DoorAssetInput } from '../door-assets'
 
@@ -8,6 +9,16 @@ const attached = (extra: Partial<DoorAssetInput> = {}): DoorAssetInput => ({ id:
 const all = (result: ReturnType<typeof buildDoorAssetVolumes>) => [...result.frames.features, ...result.panels.features, ...result.glass.features]
 
 describe('buildDoorAssetVolumes', () => {
+  it('keeps a floor-level cutout clear of door parts while cutting the host wall', () => {
+    const cutout = opening({ doorAppearance: 'open', frameless: true, height: wall.height, sillHeight: 0 })
+    expect(all(buildDoorAssetVolumes([wall], [cutout], []))).toEqual([])
+    const solids = buildWallOpeningVolumes([wall], [cutout], [], [], 0).collection.features
+    expect(solids).toHaveLength(2)
+    expect(solids.every(solid => solid.properties?.base === 0 &&
+      (solid.geometry.coordinates[0].every(([x]) => x <= 2) ||
+       solid.geometry.coordinates[0].every(([x]) => x >= 3)))).toBe(true)
+  })
+
   it('fits three frame pieces in the aperture and puts a thin solid leaf 30 degrees ajar from its hinge', () => {
     const source = opening({ doorPose: 'ajar' })
     const before = JSON.stringify(source)

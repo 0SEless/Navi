@@ -218,7 +218,8 @@ it('keeps the indoor-only QR marker without emitting an outdoor entrance', () =>
   const run = studio(doc)
   authorRoutes(run)
   placeOnEachFloor(run, 'staircase')
-  const before = visitor(doc).bundle.buildings.find(building => building.id === 'cs')!.entrances.length
+  const before = visitor(doc).bundle.buildings.find(building => building.id === 'cs')?.entrances?.length ?? 0
+  expect(before).toBeGreaterThan(0)
   doc.buildings[0].floors[1].entrances.push({
     id: 'qr-inside', label: 'QR check-in', level: 1, type: 'side', hasQR: true, hasPanorama: false,
     position: { x: 0, y: 0 }, routeNodeId: 'f2-stair', indoorOnly: true,
@@ -226,8 +227,24 @@ it('keeps the indoor-only QR marker without emitting an outdoor entrance', () =>
   const { bundle, errors } = visitor(doc)
   expect(errors).toEqual([])
   expect(bundle.buildings.find(building => building.id === 'cs')!.entrances).toHaveLength(before)
-  expect(bundle.components.find(component => component.id === 'qr-inside')).toMatchObject({
+  expect(bundle.components?.find(component => component.id === 'qr-inside')).toMatchObject({
     floor: 1, metadata: { hasQR: true, indoorOnly: true },
   })
   expect(routeTo(bundle, 'Lab 201')).toMatchObject({ found: true })
+})
+
+it('publishes the chosen platform edge finish with its doorway and floor', () => {
+  const doc = campus()
+  const run = studio(doc)
+  authorRoutes(run)
+  placeOnEachFloor(run, 'staircase')
+  const floor = doc.buildings[0].floors[1]
+  floor.walls = [{ id: 'platform', start: { x: 0, y: 2 }, end: { x: 8, y: 2 }, thickness: 0.2, height: 3.5, guardStyle: 'half-wall' }]
+  floor.openings = [{ id: 'hallway', type: 'door', wallId: 'platform', offset: 2, width: 1.5, height: 2.1, frameless: true, doorAppearance: 'open' }]
+  const { bundle, errors } = visitor(doc)
+  expect(errors).toEqual([])
+  expect(bundle.floorGeometry?.buildings[0].floors.find(f => f.level === 1)).toMatchObject({
+    walls: [{ id: 'platform', guardStyle: 'half-wall' }],
+    openings: [{ id: 'hallway', wallId: 'platform', offset: 2, frameless: true }],
+  })
 })

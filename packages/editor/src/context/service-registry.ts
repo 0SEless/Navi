@@ -166,7 +166,8 @@ export abstract class BaseEditorService implements EditorService {
 
 export class ServiceRegistry {
   private store = new Map<string, EditorService>()
-  private _initialized = false
+  private _initialization: Promise<void> | null = null
+  private _destruction: Promise<void> | null = null
   private _accessor: ServiceAccessor | null = null
 
   // ── registration ────────────────────────────────────────────
@@ -207,9 +208,12 @@ export class ServiceRegistry {
 
   /** Initialize all services in dependency order (leaf services first). */
   async init(document: CampusDocument): Promise<void> {
-    if (this._initialized) throw new Error('ServiceRegistry already initialized')
-    this._initialized = true
+    if (this._initialization) throw new Error('ServiceRegistry already initialized')
+    this._initialization = this.initializeServices(document)
+    await this._initialization
+  }
 
+  private async initializeServices(document: CampusDocument): Promise<void> {
     const ids = Array.from(this.store.keys()) as (keyof ServiceMap)[]
     const ordered = this.topologicalSort(ids)
 
@@ -222,10 +226,20 @@ export class ServiceRegistry {
 
   /** Destroy services in LIFO order (reverse init order). */
   async destroy(): Promise<void> {
+    this._destruction ??= this.destroyServices()
+    return this._destruction
+  }
+
+  private async destroyServices(): Promise<void> {
+    try {
+      await this._initialization
+    } catch {
+      // A failed init can still leave earlier services ready for teardown.
+    }
     const entries = Array.from(this.store.entries()).reverse()
     const errors: Array<{ id: string; error: unknown }> = []
     for (const [id, svc] of entries) {
-      if (svc.status === 'destroyed' || svc.status === 'uninitialized') continue
+      if (typeof svc.destroy !== 'function' || svc.status === 'destroyed' || svc.status === 'uninitialized') continue
       try {
         await svc.destroy()
       } catch (e) {
@@ -233,7 +247,8 @@ export class ServiceRegistry {
       }
     }
     this.store.clear()
-    this._initialized = false
+    this._initialization = null
+    this._destruction = null
     this._accessor = null
     if (errors.length > 0) {
       throw new AggregateError(

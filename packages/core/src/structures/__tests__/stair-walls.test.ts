@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { floorStairMesh } from '../floor-stair-mesh'
-import { buildStairAssetVolumes } from '../../geometry/stair-assets'
+import { buildStairAssetVolumes, buildStairTopVolumes } from '../../geometry/stair-assets'
 import { BUILT_IN_MATERIALS } from '../materials'
 import type { StairAssetInput } from '../../geometry/stair-assets'
 
@@ -167,4 +167,31 @@ it('guards the front and opposite side of a Stair-tool upper landing, leaving th
   expect(platformRails.some(p => p.x > 7 && Math.abs(p.y) < 0.55)).toBe(true)
   expect(platformRails.some(p => p.x < 6.5 && p.y < -0.45)).toBe(true)
   expect(platformRails.some(p => p.x < 6.5 && p.y > 0.45)).toBe(false)
+})
+
+it('guards all exposed sides when a top landing has no confirmed hallway exit', () => {
+  const top = { ...toolStair(), fromLevel: 0 }
+  const blocked = floorStairMesh([], 3.5, p => p, 3.5, [top])
+  const open = floorStairMesh([], 3.5, p => p, 3.5, [{ ...top, landingExit: 'front' }])
+  expect(blocked.length).toBeGreaterThan(open.length)
+  const v = vertices(blocked)
+  const rail = v.filter(p => p.x > 5.9 && p.z > 4.1 && is(p.c, RAIL))
+  expect(rail.some(p => p.x > 7 && Math.abs(p.y) < 0.55)).toBe(true)
+  expect(rail.some(p => p.x < 6.5 && p.y < -0.45)).toBe(true)
+  expect(rail.some(p => p.x < 6.5 && p.y > 0.45)).toBe(true)
+})
+
+it('uses a custom arrival depth on a rectangle-drawn stair without changing the flight footprint', () => {
+  const top = { ...toolStair(), fromLevel: 0, look: { topLandingM: 0.75 } }
+  const { landings } = buildStairTopVolumes([top], 3.5)
+  const [[x0, y0], , [x2, y2], [x3, y3]] = landings.features[0].geometry.coordinates[0]
+  expect(Math.hypot(x3 - x0, y3 - y0)).toBeCloseTo(0.75)
+  expect(Math.hypot(x3 - x2, y3 - y2)).toBeCloseTo(1.2)
+})
+
+it('does not add a second ground pad to an upper-floor flight', () => {
+  const input = toolStair({ doorwayAt: { x: 6, y: 0 } })
+  const expected = floorStairMesh([{ ...input, doorwayAt: undefined }], 3.5, p => p, 0)
+  const actual = floorStairMesh([input], 3.5, p => p, 0)
+  expect(actual).toEqual(expected)
 })

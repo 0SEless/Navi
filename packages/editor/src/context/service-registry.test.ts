@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ServiceRegistry, BaseEditorService } from './service-registry'
 import type { EditorService, ServiceMap } from './service-registry'
 import type { CampusDocument } from '@navi/core'
+import { DocumentStore } from './document-store'
+import { WorkflowStore } from '../services/workflow-store'
+import { PublishStore } from '../services/publish-store'
 
 // ── Test service helpers ───────────────────────────────────────
 
@@ -249,6 +252,34 @@ describe('ServiceRegistry', () => {
       await registry.init(testDoc)
       await registry.destroy()
       expect(order).toEqual(['c', 'b', 'a'])
+    })
+
+    it('clears the registered document, workflow and publish stores without attempting teardown', async () => {
+      registry.register('documentStore', new DocumentStore(testDoc))
+      registry.register('workflowStore', new WorkflowStore())
+      registry.register('publishStore', new PublishStore())
+      await registry.init(testDoc)
+      await expect(registry.destroy()).resolves.toBeUndefined()
+      expect(registry.size).toBe(0)
+    })
+
+    it('waits for initialization and only destroys a service once during overlapping cleanup', async () => {
+      const svc = new TestService()
+      let finishInit!: () => void
+      const initialized = new Promise<void>(resolve => { finishInit = resolve })
+      vi.spyOn(svc, 'init').mockImplementation(async context => {
+        await initialized
+        await BaseEditorService.prototype.init.call(svc, context)
+      })
+      const destroy = vi.spyOn(svc, 'destroy')
+      registry.register('test', svc)
+      const init = registry.init(testDoc)
+      const cleanup = Promise.all([registry.destroy(), registry.destroy()])
+      finishInit()
+      await init
+      await cleanup
+      expect(destroy).toHaveBeenCalledTimes(1)
+      expect(svc.status).toBe('destroyed')
     })
 
     it('clears all services on destroy', async () => {

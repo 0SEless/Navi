@@ -1165,6 +1165,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
 
       const features: GeoJSON.Feature[] = []
       for (const opening of fl.openings) {
+        if (viewMode === '2.5d' && opening.frameless) continue
         const wall = fl.walls.find((w) => w.id === opening.wallId)
         if (!wall) continue
 
@@ -1217,7 +1218,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       const src = map.getSource('floor-openings') as maplibregl.GeoJSONSource | undefined
       if (src) src.setData({ type: 'FeatureCollection', features })
     } catch { console.warn('FloorEditorCanvas: opening source not ready') }
-  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady])
+  }, [renderVersion, building.id, activeFloorId, floor, transformer, mapReady, viewMode])
 
   // Sync route network from document to MapLibre
   useEffect(() => {

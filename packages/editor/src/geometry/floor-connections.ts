@@ -36,7 +36,9 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
   for(const feature of features){const geometry=feature.levels?.[floor.level];if(!geometry)continue
    const exitDirection=kind==='stair'&&'role' in geometry&&geometry.role==='top'
      ?stairTopExitDirection(feature as Staircase,building.floors):undefined
-   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(geometry.landing?.position??geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{})})
+   const blocked = kind === 'stair' && 'role' in geometry && geometry.role === 'top' &&
+     geometry.routeConnectionManaged && !geometry.landingExit
+   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(geometry.landing?.position??geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
   }
  }
  return ports
@@ -49,6 +51,16 @@ export function projectFloorPoint(point:LocalCoord,a:LocalCoord,b:LocalCoord):Lo
 export function floorBackboneEdges(building:Building,floor:Floor){
  const owned=new Set(getFloorPorts(building,floor).flatMap(p=>p.connection?[p.connection.connectorEdgeId]:[]))
  return (floor.routeNetwork?.edges??[]).filter(e=>!owned.has(e.id))
+}
+/** Both explicit openings and wall-attached doors cut the same physical wall. */
+export function wallHasDoorAt(floor: Floor, wallId: string, offset: number, halfClearance = 0): boolean {
+ const covers = (start: number, end: number) => start <= offset - halfClearance + 1e-6 && end >= offset + halfClearance - 1e-6
+ return (floor.openings ?? []).some(opening => opening.wallId === wallId && opening.type === 'door' &&
+   (opening.sillHeight ?? 0) <= 0.05 && covers(opening.offset, opening.offset + opening.width)) ||
+   collectFloorDoors({...floor, rooms: floor.rooms ?? []}).some(door => {
+     const attachment = door.wallAttachment
+     return attachment?.wallId === wallId && covers(attachment.offset - door.width / 2, attachment.offset + door.width / 2)
+   })
 }
 export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Floor):string|undefined {
  if(port.issue)return port.issue
@@ -65,8 +77,7 @@ export function floorConnectionProblem(port:FloorPort,target:LocalCoord,floor:Fl
   const q={x:a.x-p.x,y:a.y-p.y},t=(q.x*s.y-q.y*s.x)/den,u=(q.x*r.y-q.y*r.x)/den
   if(t < -1e-7||t>1+1e-7||u < -1e-7||u>1+1e-7)continue
   if(t<=1e-6&&(port.hostWallId===wall.id||port.kind==='entrance'))continue
-  if(port.kind==='stair'&&(floor.openings??[]).some(o=>o.wallId===wall.id&&o.type==='door'&&(o.sillHeight??0)<=.05
-    &&u*Math.hypot(s.x,s.y)>=o.offset-1e-6&&u*Math.hypot(s.x,s.y)<=o.offset+o.width+1e-6))continue
+  if(port.kind==='stair'&&wallHasDoorAt(floor,wall.id,u*Math.hypot(s.x,s.y)))continue
   if(port.ownWallId===wall.id&&t*Math.hypot(r.x,r.y)<=port.ownWallReach!)continue
   return 'Connection crosses a wall. Choose an accessible route segment.'
  }

@@ -3,6 +3,8 @@
 // Floor-to-floor stair settings (2026-11-16, whole-building view), in the floor editor's properties panel: which
 // floor the stair climbs To, the climb it makes (from the floors' heights, never typed), Turn and Sides.
 import { useEffect, useState } from 'react'
+import { StairCutout } from './StairCutout'
+import { stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
 import { stairFlightFloor, stairHasTop, stairRise, type Building, type StairLandingExit } from '@navi/core'
 
 const field: React.CSSProperties = {
@@ -13,15 +15,16 @@ const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secon
 const m = (n: number) => n.toFixed(2)
 
 type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
-type LookPatch = { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
+type LookPatch = { topLandingM?: number | null; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
 type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
-export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onConnectFloors, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
+export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onCutout, onConnectFloors, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
   building: Building
   featureId: string
   /** Climb to this floor level (the stair's own floor = no climb). */
   onSetTo(level: number): void
   onLandingExit?(side: StairLandingExit | 'auto'): void
+  onCutout?(cutout: { wallId: string; offset: number; width: number }): { success: boolean; error?: string }
   onConnectFloors?(): void
   onDrawing(patch: DrawingPatch): void
   /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
@@ -41,6 +44,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   const fromFloor = floors.find((f) => f.level === from)
   // Climbing only when the upper floor really holds its top (older data may name a floor above without one).
   const toFloor = stair.toLevel > from && stairHasTop(stair) ? floors.find((f) => f.level === stair.toLevel) : undefined
+  const reach = toFloor && onLandingExit ? stairTopReach(building, stair) : undefined
   const above = floors.filter((f) => f.level > from)
   const nextFloor = above[0]
   const props = flight?.drawing?.properties
@@ -82,9 +86,25 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
             <option value="right">Right side</option>
           </select>
           <div style={{ ...label, marginTop: 4 }}>Left and right are as you walk up the final flight.</div>
-          {!flight?.landingExit && stair.levels[toFloor.level]?.landingExit && (
+          {reach && !reach.ok && (
+            <div role="status" style={label}>
+              {reach.reason === 'no-opening'
+                ? `The landing meets a wall on ${toFloor.label}. Place an opening on the hallway side.`
+                : `The landing does not reach ${toFloor.label}'s hallway. Align it with the floor platform.`}
+            </div>
+          )}
+          {reach?.ok && !flight?.landingExit && stair.levels[toFloor.level]?.landingExit && (
             <div style={label}>Auto selected: {stair.levels[toFloor.level].landingExit}</div>
           )}
+          {!props && onLook && (
+            <label style={label}>
+              Arrival landing depth (m)
+              <OptionalNumberField id={`stair-arrival-depth-${featureId}`} labelText="Arrival landing depth (m)"
+                value={flight?.look?.topLandingM ?? null}
+                onApply={value => { if (value === null || value >= 0.5) onLook({ topLandingM: value }) }} />
+            </label>
+          )}
+          {onCutout && <StairCutout key={toFloor.id + (flight?.landingExit ?? 'auto')} building={building} stair={stair} onApply={onCutout} />}
           {onConnectFloors && (
             <button type="button" style={{ ...field, cursor: 'pointer' }} onClick={onConnectFloors}>Auto-connect floor routes</button>
           )}
@@ -144,7 +164,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
             </div>
             {props.preset === 'ushape' && (
               <div>
-                <label style={label} htmlFor={`stair-platform-railing-${featureId}`}>PLATFORM RAILING</label>
+                <label style={label} htmlFor={`stair-platform-railing-${featureId}`}>TURN LANDING RAILING</label>
                 <select id={`stair-platform-railing-${featureId}`} aria-label="Platform railing" style={field}
                   value={(p as { platformRailingStyle?: string }).platformRailingStyle ?? 'same'}
                   onChange={(event) => onDrawing({ platformRailingStyle: event.target.value as DrawingPatch['platformRailingStyle'] })}>

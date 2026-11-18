@@ -112,7 +112,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       }
     }
     // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
-    if (input.doorwayAt) {
+    if (input.doorwayAt && input.groundLanding !== false && base <= ground + 1e-6) {
       const first = steps[0].geometry.coordinates[0] as Ring
       const lo = mid(first[0], first[1]), up = mid(first[3], first[2])
       const len = Math.hypot(up.x - lo.x, up.y - lo.y) || 1
@@ -132,17 +132,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     if (!landing) continue
     const ring = landing.geometry.coordinates[0].slice(0, 4)
     const facing = place(mid(ring[0], ring[2]))
-    const at = top.doorwayAt
-    const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : at ? [1, 2, 3].reduce((best, edge) => {
-      const distance = (i: number) => {
-        const [x, y] = ring[i], [endX, endY] = ring[(i + 1) % 4]
-        const dx = endX - x, dy = endY - y
-        const along = ((at.x - x) * dx + (at.y - y) * dy) / (dx * dx + dy * dy || 1)
-        const t = Math.max(0, Math.min(1, along))
-        return Math.hypot(at.x - x - t * dx, at.y - y - t * dy)
-      }
-      return distance(edge) < distance(best) ? edge : best
-    }, 2) : 2
+    const exit = top.landingExit ? stairLandingExitEdge(ring, top.landingExit) : undefined
     const style = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
       ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
     const look = { ...PLAIN_STAIR.look, railingStyle: style }

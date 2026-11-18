@@ -1,5 +1,5 @@
 import { buildStairTopVolumes, recordChange, stairFlightFloor, stairFootPosition, stairHasTop, stairLandingExitEdge, stairRise, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
-import { stairTopReach, wallAgainstLanding } from '../geometry/stair-top-reach'
+import { stairTopReach, wallAgainstLanding, type StairTopReach } from '../geometry/stair-top-reach'
 import { suggestFloorConnections } from '../geometry/floor-connections'
 import { floorConnectionsApplyHandler } from './floor-route-workflow'
 import { removeFeatureRoutePort, syncFeatureRoutePort } from '../geometry/feature-route-port'
@@ -48,7 +48,15 @@ export const stairSetToFloorHandler: CommandHandler = {
     if (exit !== undefined && exit !== 'auto' && exit !== 'front' && exit !== 'left' && exit !== 'right') {
       return { success: false, error: 'Select Auto, Front, Left, or Right for the landing exit.' }
     }
-    const keepTop = stairHasTop(stair) && toLevel === stair.toLevel && (exit !== undefined || payload.autoConnect === true)
+    const cutout = payload.cutout as CutoutRequest | undefined
+    if (cutout) {
+      if (toLevel !== stair.toLevel || exit !== undefined || !stairHasTop(stair)) return { success: false, error: 'Set the arrival floor and exit before making a cutout.' }
+      const error = applyStairCutout(building, stair, cutout)
+      if (error) return { success: false, error }
+    }
+
+    const keepTop = stairHasTop(stair) && toLevel === stair.toLevel && (exit !== undefined || payload.autoConnect === true || cutout !== undefined)
+    if (payload.confirmCutout === true || cutout) flight.confirmCutout = true
     if (exit === 'auto') delete flight.landingExit
     else if (exit !== undefined) flight.landingExit = exit
 
@@ -69,16 +77,9 @@ export const stairSetToFloorHandler: CommandHandler = {
       stair.levels[toLevel] = { role: 'top', position, rotation: flight.rotation ?? 0 }
     }
     syncStairTopOpening(building, stair)
+    const reach = syncLandingExit(building, stair)
     if (payload.autoConnect === true && stairHasTop(stair)) {
       const top = stair.levels[toLevel]
-      const reach = stairTopReach(building, stair)
-      if (reach.ok || flight.landingExit) {
-        top.landingExit = flight.landingExit ?? (reach.ok ? reach.exit : undefined)
-        top.position = stairTopPosition(stair, building.floors) ?? top.position
-      } else {
-        delete top.landingExit
-        top.position = stairTopPosition(stair, building.floors) ?? top.position
-      }
       if (top.routeConnection && (!reach.ok || syncFeatureRoutePort(building, stair, toLevel))) {
         const targetFloor = building.floors.find(floor => floor.level === toLevel)!
         const link = top.routeConnection
@@ -121,19 +122,29 @@ export function syncStairTop(building: Building, stair: Staircase): void {
   if (!stairHasTop(stair)) return
   const top = stair.levels[stair.toLevel]
   if (!top || top.role !== 'top') return
-  const position = stairTopPosition(stair, building.floors)
-  if (!position) return
-  top.position = position
   const flight = stair.levels[stairFlightFloor(stair)]
   if (flight) top.rotation = flight.rotation ?? 0
   syncStairTopOpening(building, stair)
+  const reach = syncLandingExit(building, stair)
   const problem = syncFeatureRoutePort(building, stair, stair.toLevel)
   const targetFloor = building.floors.find(floor => floor.level === stair.toLevel)
-  if (targetFloor && (top.landingExit || flight?.landingExit) && top.routeConnection && (problem || !stairTopReach(building, stair).ok)) {
+  if (targetFloor && top.routeConnection && (problem || !reach.ok)) {
     const link = top.routeConnection
     delete top.routeConnection
     removeFeatureRoutePort(targetFloor, link, building)
   }
+}
+
+/** The flight stores the requested side. The destination stores the confirmed exit. */
+function syncLandingExit(building: Building, stair: Staircase): StairTopReach {
+  const reach = stairTopReach(building, stair)
+  const top = stair.levels[stair.toLevel]
+  if (top?.role === 'top') {
+    if (reach.ok) top.landingExit = reach.exit
+    else delete top.landingExit
+    top.position = stairTopPosition(stair, building.floors) ?? top.position
+  }
+  return reach
 }
 
 /** Height of the automatic doorway an outside stair's top gets in the wall it lands against, metres. */
@@ -148,6 +159,7 @@ const openingId = (stair: Staircase) => `${stair.id}-top-opening`
  */
 export function syncStairTopOpening(building: Building, stair: Staircase): void {
   const id = openingId(stair)
+  if (stair.levels[stairFlightFloor(stair)]?.confirmCutout) return
   for (const floor of building.floors) if (floor.openings?.some((o) => o.id === id)) floor.openings = floor.openings.filter((o) => o.id !== id)
   if (!stairHasTop(stair)) return
   const to = building.floors.find((f) => f.level === stair.toLevel)
@@ -160,9 +172,8 @@ export function syncStairTopOpening(building: Building, stair: Staircase): void 
   if (landing.length < 3) return
   const ring = top.geometry.coordinates[0]
   const reach = stairTopReach(building, stair, true)
-  const primary = reach.ok ? wallAgainstLanding(walls, landing, stairLandingExitEdge(ring, reach.exit)) : undefined
-  // Preserve the existing wall opening for older automatic stairs. A matching wall alone still grants no route.
-  const best = primary ?? (!flight.landingExit ? [2, 1, 3].map(edge => wallAgainstLanding(walls, landing, edge)).find(Boolean) : undefined)
+  if (reach.ok && stairTopReach(building, stair).ok) return
+  const best = reach.ok ? wallAgainstLanding(walls, landing, stairLandingExitEdge(ring, reach.exit)) : undefined
   if (!best || (to.openings ?? []).some(o => o.type === 'door' && (o.sillHeight ?? 0) <= 0.05
       && o.wallId === best.wall.id && Math.min(o.offset + o.width, best.t1) - Math.max(o.offset, best.t0) >= 0.5)) return
   const opening: Opening = {
@@ -171,4 +182,46 @@ export function syncStairTopOpening(building: Building, stair: Staircase): void 
     metadata: { stairId: stair.id, automatic: true },
   }
   to.openings = [...(to.openings ?? []), opening]
+}
+
+type CutoutRequest = { wallId: string; offset: number; width: number }
+
+export function proposeStairCutout(building: Building, stair: Staircase) {
+  const reach = stairTopReach(building, stair, true)
+  if (!reach.ok) return undefined
+  const floor = building.floors.find(f => f.level === stair.toLevel)
+  const from = stairFlightFloor(stair)
+  const flight = stair.levels[from]
+  if (!floor || !flight) return undefined
+  const top = buildStairTopVolumes([{ id: stair.id, ...flight, height: stairRise(stair, building.floors), fromLevel: from }], 0).landings.features[0]
+  if (!top) return undefined
+  const ring = top.geometry.coordinates[0]
+  const landing = ring.slice(0, -1).map(([x,y]) => ({x,y}))
+  const hit = wallAgainstLanding(floor.walls ?? [], landing, stairLandingExitEdge(ring, reach.exit), true)
+  if (!hit || hit.wall.height < STAIR_OPENING_HEIGHT_M && !hit.wall.guardStyle) return undefined
+  return { wallId: hit.wall.id, offset: hit.t0, width: hit.t1 - hit.t0, reach, wall: hit.wall, floor }
+}
+
+function applyStairCutout(building: Building, stair: Staircase, request: CutoutRequest): string | undefined {
+  const proposal = proposeStairCutout(building, stair)
+  if (!proposal || proposal.wallId !== request.wallId) return 'Choose the wall where the landing meets the hallway.'
+  if (stairTopReach(building, stair).ok) return undefined
+  const { offset, width } = request
+  const { wall, floor } = proposal
+  const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+  const midpoint = proposal.offset + proposal.width / 2
+  if (![offset,width].every(Number.isFinite) || offset < 0 || width < 0.5 || offset + width > length + 1e-6
+      || offset > midpoint - 0.25 + 1e-6 || offset + width < midpoint + 0.25 - 1e-6) {
+    return 'Keep the opening within the wall and across the stair approach.'
+  }
+  if (floor.openings?.some(o => o.wallId === wall.id && o.offset < offset + width - 1e-6 && o.offset + o.width > offset + 1e-6)) {
+    return 'The proposed cutout overlaps an existing opening. Adjust its position or width.'
+  }
+  if (floor.openings?.some(o => o.id === openingId(stair))) return 'Review the existing stair cutout on this floor before placing another.'
+  floor.openings = [...(floor.openings ?? []), {
+    id: openingId(stair), type: 'door', wallId: wall.id, offset, width,
+    height: Math.min(STAIR_OPENING_HEIGHT_M, wall.height), sillHeight: 0, frameless: true, doorAppearance: 'open',
+    metadata: { stairId: stair.id, automatic: false },
+  }]
+  return undefined
 }

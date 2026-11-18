@@ -67,14 +67,16 @@ export function undesignedStairRise(geometry: Pick<StairLevelGeometry, 'drawing'
  * from below (built from their flight's geometry on the From floor, so the top lines up with the flight).
  */
 export function floorStairInputs(stairs: readonly Staircase[], floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], level: number): { flights: StairAssetInput[]; tops: StairTopInput[] } {
+  const elevation = floors.find(floor => floor.level === level)?.elevation
+  const groundLanding = !floors.some(floor => elevation !== undefined && floor.elevation < elevation)
   const flights = stairFlightsOnFloor(stairs, level).map(({ stair, geometry }) => {
     const doorwayAt = stairDoorwayAt(stair, floors)
-    return { id: stair.id, ...geometry, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(stairHasTop(stair) ? { arrivalLanding: true } : {}), ...(doorwayAt ? { doorwayAt } : {}) }
+    return { id: stair.id, ...geometry, groundLanding, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(stairHasTop(stair) ? { arrivalLanding: true } : {}), ...(doorwayAt ? { doorwayAt } : {}) }
   })
   const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, geometry, fromLevel }) => {
     const flight = stair.levels?.[fromLevel]
     const doorwayAt = stairDoorwayAt(stair, floors)
-    return flight ? [{ id: stair.id, ...flight, landingExit: flight.landingExit ?? geometry.landingExit,
+    return flight ? [{ id: stair.id, ...flight, landingExit: geometry.landingExit,
       rotation: flight.rotation ?? 0, height: stairRise(stair, floors), fromLevel, ...(doorwayAt ? { doorwayAt } : {}) }] : []
   })
   return { flights, tops }

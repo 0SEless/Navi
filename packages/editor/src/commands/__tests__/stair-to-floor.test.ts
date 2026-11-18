@@ -257,3 +257,16 @@ it('automatically connects an existing stair foot and selected side landing to t
   expect(e.history.undo()).toBe(true)
   expect(b.floors.slice(0, 2).map(f => f.routeNetwork)).toEqual(before)
 })
+
+it('keeps a requested side guarded when it misses the destination hallway', () => {
+  const d = campus()
+  const e = editor(d)
+  const drawing = { definitionId: 'stair', properties: { stepCount: 4, stepWidth: 2, stepDepth: 0.5, direction: 'east', preset: 'straight' } }
+  e.run('feature.create', { buildingId: 'b', floor: 0, id: 's', featureType: 'staircase', position: { x: 0, y: 0 }, rotation: 0, drawing })
+  expect(e.run('stair.setToFloor', { featureId: 's', toLevel: 1, landingExit: 'right', autoConnect: true }).success).toBe(true)
+  const stair = stairOf(d)
+  expect(stair.levels[0].landingExit).toBe('right')
+  expect(stair.levels[1].landingExit).toBeUndefined()
+  expect(stair.levels[1].routeConnection).toBeUndefined()
+  expect(d.buildings[0].floors[1].openings ?? []).toEqual([])
+})

@@ -1,4 +1,5 @@
-import type { Opening, RoomDoor, Wall, Window } from '../types/entities'
+import type { LocalCoord } from '../types/coordinates'
+import type { Opening, PlatformEdgeGuardStyle, RoomDoor, Wall, Window } from '../types/entities'
 
 const EPSILON = 1e-9
 const LEGACY_WINDOW_HEIGHT = 1.2
@@ -140,6 +141,8 @@ export function buildWallOpeningVolumes(
       const midpoint = (start + end) / 2
       const occupied = apertures.filter(aperture => aperture.start < midpoint && aperture.end > midpoint)
         .map(aperture => [aperture.bottom, aperture.top] as [number, number]).sort((a, b) => a[0] - b[0] || a[1] - b[1])
+      const sx = wall.start.x + ux * start, sy = wall.start.y + uy * start
+      const ex = wall.start.x + ux * end, ey = wall.start.y + uy * end
       const gaps: Array<[number, number]> = []
       let cursor = 0
       for (const [low, high] of occupied) {
@@ -147,8 +150,15 @@ export function buildWallOpeningVolumes(
         cursor = Math.max(cursor, high)
       }
       if (wall.height - cursor > EPSILON) gaps.push([cursor, wall.height])
-      const sx = wall.start.x + ux * start, sy = wall.start.y + uy * start
-      const ex = wall.start.x + ux * end, ey = wall.start.y + uy * end
+      if (wall.guardStyle) {
+        const span = gaps.find(([low]) => low < EPSILON)
+        if (!span) continue
+        collection.features.push(...buildPlatformGuardVolumes(wall.guardStyle, {
+          id: `${wall.id}:guard:${start}:${end}`, wallId: wall.id, from: { x: sx, y: sy }, to: { x: ex, y: ey }, base,
+          thickness: wall.thickness,
+        }))
+        continue
+      }
       for (const [low, high] of gaps) {
         // Finite individual inputs can still lose precision at extreme datums.
         // Never emit a top equal to its base, even for a thin sill/header.
@@ -168,4 +178,39 @@ export function buildWallOpeningVolumes(
     }
   }
   return { collection, diagnostics }
+}
+
+/** Platform guards also render as extrusions on terrain, where triangle meshes are disabled. */
+export function buildPlatformGuardVolumes(style: PlatformEdgeGuardStyle, input: {
+  id: string; wallId?: string; from: LocalCoord; to: LocalCoord; base: number; thickness: number
+}): Array<GeoJSON.Feature<GeoJSON.Polygon>> {
+  const { id, wallId, from, to, base, thickness } = input
+  const length = Math.hypot(to.x - from.x, to.y - from.y)
+  if (length <= EPSILON || ![length, base, thickness].every(Number.isFinite)) return []
+  const ux = (to.x - from.x) / length, uy = (to.y - from.y) / length
+  const pieces: Array<GeoJSON.Feature<GeoJSON.Polygon>> = []
+  const add = (a: number, b: number, low: number, high: number, width: number, color: string) => {
+    const point = (distance: number, side: number) => [
+      from.x + ux * distance - uy * side * width / 2,
+      from.y + uy * distance + ux * side * width / 2,
+    ]
+    const pieceId = `${id}:${pieces.length}`
+    pieces.push({
+      type: 'Feature', id: pieceId,
+      properties: { id: pieceId, wallId, base: base + low, height: base + high, color },
+      geometry: { type: 'Polygon', coordinates: [[point(a, 1), point(b, 1), point(b, -1), point(a, -1), point(a, 1)]] },
+    })
+  }
+  const solid = style === 'wall' ? 1 : style === 'half-wall' ? 0.6 : 0.04
+  add(0, length, 0, solid, thickness, '#cbd5e1')
+  if (style === 'wall') return pieces
+  const rail = '#435c55'
+  add(0, length, 0.96, 1.01, 0.06, rail)
+  if (style === 'posts-rails') add(0, length, 0.46, 0.5, 0.045, rail)
+  const postCount = Math.max(1, Math.min(256, Math.ceil(length / 1.2)))
+  for (let i = 0; i <= postCount; i++) {
+    const at = i * length / postCount
+    add(Math.max(0, at - 0.025), Math.min(length, at + 0.025), solid, 0.98, 0.05, rail)
+  }
+  return pieces
 }

@@ -942,6 +942,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         end: { x: w.end.x + offset.x, y: w.end.y + offset.y },
         thickness: w.thickness,
         height: w.height,
+        ...(w.guardStyle ? { guardStyle: w.guardStyle } : {}),
       }))
 
       // W15E: openings — canonical wall-attached openings
@@ -953,6 +954,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         width: o.width,
         ...(o.height !== undefined ? { height: o.height } : {}),
         ...(o.sillHeight !== undefined ? { sillHeight: o.sillHeight } : {}),
+        ...(o.frameless === true ? { frameless: true } : {}),
         ...(o.windowAppearance !== undefined ? { windowAppearance: o.windowAppearance } : {}),
         ...(o.windowPose !== undefined ? { windowPose: o.windowPose } : {}),
           ...(o.doorAppearance !== undefined ? { doorAppearance: o.doorAppearance } : {}),
@@ -1021,7 +1023,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         const at = isTop ? flightFloor : level
         // A Stair-tool stair (no design) climbs to the next floor up and not at all on the top floor (2026-11-17).
         const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? (isTop ? undefined : undesignedStairRise(geom, level, b.floors)) ?? slot.height)
-        const exit = geom.landingExit ?? (isTop ? levelGeom.landingExit : undefined)
+        const exit = isTop ? levelGeom.landingExit : geom.landingExit
         const doorwayAt = stairDoorwayAt(st, b.floors)
         slot.staircases.push({
           id: st.id,

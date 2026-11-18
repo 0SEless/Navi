@@ -17,6 +17,8 @@ export interface StairAssetInput {
    * mesh leaves that side of the platform open and adds a ground landing at the stair's foot.
    */
   doorwayAt?: LocalCoord
+  /** False for an upper-floor flight already served by a floor platform. */
+  groundLanding?: boolean
   landingExit?: StairLevelGeometry['landingExit']
   arrivalLanding?: boolean
   /** A Stair-tool stair's railings and underneath (2026-11-17). */
@@ -297,7 +299,9 @@ function stairTopShape(input: StairTopInput): { well: Point[]; landing: Point[] 
   else {
     // No authored top landing: the arrival area is a platform as long as the flight is wide past its last step.
     const last = steps[steps.length - 1].geometry.coordinates[0].slice(0, 4) as Point[]
-    landing = topLandingQuad([last[0], last[1], last[2], last[3]], Math.hypot(last[1][0] - last[0][0], last[1][1] - last[0][1]))
+    const width = Math.hypot(last[1][0] - last[0][0], last[1][1] - last[0][1])
+    const depth = input.look?.topLandingM
+    landing = topLandingQuad([last[0], last[1], last[2], last[3]], typeof depth === 'number' && Number.isFinite(depth) && depth >= 0.5 ? depth : width)
   }
   return { well, landing }
 }

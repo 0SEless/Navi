@@ -112,3 +112,12 @@ it('does not count a corner touching a corridor as a usable front exit', () => {
   stair(b).levels[0].landingExit = 'left'
   expect(stairTopReach(b, stair(b)).ok).toBe(true)
 })
+
+it('uses an authored wall-attached door as the hallway opening', () => {
+  const wall = { id: 'wall', start: { x: 3.1, y: -5 }, end: { x: 3.1, y: 5 }, height: 3.5, thickness: 0.2 }
+  const b = building({ ...hallwayAt(4), walls: [wall], doors: [
+    { id: 'door', width: 1.5, wallAttachment: { wallId: 'wall', offset: 5, openingHeight: 2.1 } },
+  ] })
+  stair(b).levels[0].landingExit = 'front'
+  expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, exit: 'front' })
+})

@@ -1,7 +1,7 @@
 import { buildStairTopVolumes, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
 import type { Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
-import { floorBackboneEdges } from './floor-connections'
+import { floorBackboneEdges, wallHasDoorAt } from './floor-connections'
 
 /** How close a stair's top platform must be to a wall's face to land against it, metres. */
 export const AGAINST_WALL_M = 0.15
@@ -10,11 +10,11 @@ export const AGAINST_WALL_M = 0.15
  * The wall an OUTSIDE stair's top platform lands against (2026-11-17), with the stretch of it the platform covers
  * (metres from the wall start). Undefined for a platform inside the building's walls or not against any wall.
  */
-export function wallAgainstLanding(walls: readonly Wall[], landing: ReadonlyArray<{ x: number; y: number }>, exitEdge: number): { wall: Wall; t0: number; t1: number } | undefined {
+export function wallAgainstLanding(walls: readonly Wall[], landing: ReadonlyArray<{ x: number; y: number }>, exitEdge: number, includeInterior = false): { wall: Wall; t0: number; t1: number } | undefined {
   if (walls.length === 0 || landing.length < 3) return undefined
   const centre = { x: landing.reduce((s, p) => s + p.x, 0) / landing.length, y: landing.reduce((s, p) => s + p.y, 0) / landing.length }
   const faces = deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), [])
-  if (faces.some((f) => inside(centre, f.polygon.points))) return undefined
+  if (!includeInterior && faces.some((f) => inside(centre, f.polygon.points))) return undefined
   const contact = [landing[exitEdge], landing[(exitEdge + 1) % landing.length]]
   let best: { wall: Wall; t0: number; t1: number; gap: number } | undefined
   for (const wall of walls) {
@@ -113,7 +113,7 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
   for (const exit of sides) {
     const edge = stairLandingExitEdge(ring, exit)
     const a = landing[edge], b = landing[(edge + 1) % 4]
-    const wall = wallAgainstLanding(walls, landing, edge)
+    const wall = wallAgainstLanding(walls, landing, edge, true)
     for (const candidate of candidates) {
       const d = exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
       if (!best || d < best.d - 1e-6 || (Math.abs(d - best.d) <= 1e-6 && wall && !best.wall)) {
@@ -123,10 +123,13 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
   }
   if (!best || best.d > STAIR_TOP_REACH_M) return { ok: false, reason: 'no-walkable' }
   const against = best.wall
-  if (against && !allowUncutWall && !(to.openings ?? []).some(o => o.type === 'door' && (o.sillHeight ?? 0) <= 0.05
-      && o.wallId === against.wall.id && Math.min(o.offset + o.width, against.t1) - Math.max(o.offset, against.t0) >= 0.5)) {
-    return { ok: false, reason: 'no-opening' }
-  }
   const a = landing[best.edge], b = landing[(best.edge + 1) % 4]
-  return { ok: true, targetId: best.id, exit: best.exit, point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }
+  const point = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  if (against && !allowUncutWall) {
+    const { start, end, id } = against.wall
+    const dx = end.x - start.x, dy = end.y - start.y
+    const offset = ((point.x - start.x) * dx + (point.y - start.y) * dy) / Math.hypot(dx, dy)
+    if (!wallHasDoorAt(to, id, offset, 0.25)) return { ok: false, reason: 'no-opening' }
+  }
+  return { ok: true, targetId: best.id, exit: best.exit, point }
 }

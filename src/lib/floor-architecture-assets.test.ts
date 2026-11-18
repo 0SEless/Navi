@@ -96,3 +96,21 @@ describe('outside stairs stand on the ground (owner 2026-11-17: "the stair is st
     expect(lowest(data.stairMesh!.mesh)).toBeGreaterThan(3)
   })
 })
+
+it('renders the existing platform edge as a low wall and rail with its hallway opening clear', () => {
+  const transformer = new CoordinateTransformer()
+  transformer.registerBuilding({ buildingId: 'b', origin: { lat: 12, lng: 122 }, rotation: 0 })
+  const assets = buildFloorArchitectureAssets({
+    buildingId: 'b', transformer, base: 3.5, doors: [], stairs: [],
+    walls: [{ id: 'platform-edge', start: { x: 0, y: 0 }, end: { x: 8, y: 0 }, height: 3.5, thickness: 0.2, guardStyle: 'half-wall' }],
+    openings: [{ id: 'hallway-gap', type: 'door', wallId: 'platform-edge', offset: 3, width: 2, height: 2.1, doorAppearance: 'open' }],
+  })
+  expect(assets.modeledIds.walls).toContain('platform-edge')
+  const raised = assets.walls.features.map(piece => {
+    expect(piece.properties!.height).toBeLessThan(4.55)
+    return piece.geometry.coordinates[0].map(([lng, lat]) => transformer.worldToBuildingLocal({ lng, lat }, 'b')!.x)
+  })
+  expect(raised.some(xs => Math.max(...xs) - Math.min(...xs) > 2.9 && Math.max(...xs) < 3.1)).toBe(true)
+  expect(raised.some(xs => Math.max(...xs) - Math.min(...xs) > 2.9 && Math.min(...xs) > 4.9)).toBe(true)
+  expect(raised.every(xs => Math.max(...xs) < 3.1 || Math.min(...xs) > 4.9)).toBe(true)
+})

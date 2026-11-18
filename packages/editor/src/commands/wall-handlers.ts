@@ -1,5 +1,5 @@
 import { recordChange } from '@navi/core'
-import type { CampusDocument, LocalCoord } from '@navi/core'
+import type { CampusDocument, LocalCoord, PlatformEdgeGuardStyle, Wall } from '@navi/core'
 import type { CommandHandler, Command, MutationResult } from './types'
 import { genId } from '../id'
 import { prepareWallAttachmentUpdate, applyWallAttachmentState, snapshotWallAttachmentState } from '../geometry/door-wall-attachment'
@@ -7,6 +7,8 @@ import type { WallAttachmentState } from '../geometry/door-wall-attachment'
 
 const DEFAULT_WALL_THICKNESS = 0.15
 const DEFAULT_WALL_HEIGHT = 3.5
+const isGuardStyle = (value: unknown): value is PlatformEdgeGuardStyle =>
+  value === 'posts-rails' || value === 'half-wall' || value === 'wall'
 
 export const wallCreateHandler: CommandHandler = {
   id: 'wall.create',
@@ -28,6 +30,10 @@ export const wallCreateHandler: CommandHandler = {
 
     const thickness = (payload.thickness as number) ?? DEFAULT_WALL_THICKNESS
     const height = (payload.height as number) ?? DEFAULT_WALL_HEIGHT
+    const guardStyle = payload.guardStyle
+    if (guardStyle !== undefined && !isGuardStyle(guardStyle)) {
+      return { success: false, error: 'Choose a valid platform edge finish.' }
+    }
     if (!Number.isFinite(thickness) || thickness <= 0) {
       return { success: false, error: 'wall thickness must be greater than 0' }
     }
@@ -52,6 +58,7 @@ export const wallCreateHandler: CommandHandler = {
       end,
       thickness,
       height,
+      ...(isGuardStyle(guardStyle) ? { guardStyle } : {}),
       ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
     }
 
@@ -100,6 +107,9 @@ export const wallUpdateHandler: CommandHandler = {
 
     const patch = payload.patch as Record<string, unknown> | undefined
     if (!patch) return { success: false, error: 'patch is required' }
+    if (patch.guardStyle !== undefined && patch.guardStyle !== null && !isGuardStyle(patch.guardStyle)) {
+      return { success: false, error: 'Choose a valid platform edge finish.' }
+    }
     const restoreAttachmentState = payload.restoreAttachmentState as WallAttachmentState | undefined
 
     for (const key of ['height', 'thickness'] as const) {
@@ -131,6 +141,7 @@ export const wallUpdateHandler: CommandHandler = {
       end: { ...wall.end },
       thickness: wall.thickness,
       height: wall.height,
+      guardStyle: wall.guardStyle ?? null,
       metadata: wall.metadata ? { ...wall.metadata } : undefined,
     }
 
@@ -138,6 +149,8 @@ export const wallUpdateHandler: CommandHandler = {
     if (patch.end !== undefined) wall.end = patch.end as LocalCoord
     if (patch.thickness !== undefined) wall.thickness = patch.thickness as number
     if (patch.height !== undefined) wall.height = patch.height as number
+    if (patch.guardStyle === null) delete wall.guardStyle
+    if (isGuardStyle(patch.guardStyle)) wall.guardStyle = patch.guardStyle
     if (patch.metadata !== undefined) wall.metadata = patch.metadata as Record<string, unknown>
 
     applyWallAttachmentState(floor, (payload.restoreAttachmentState as WallAttachmentState | undefined) ?? attachmentUpdate.state)
@@ -151,6 +164,7 @@ export const wallUpdateHandler: CommandHandler = {
       end: LocalCoord
       thickness: number
       height: number
+      guardStyle: PlatformEdgeGuardStyle | null
       metadata?: Record<string, unknown>
     }
     if (!snapshot) return null
@@ -196,7 +210,7 @@ export const wallDeleteHandler: CommandHandler = {
     return { success: true, entityId: wallId, data: { removed, buildingId, floorId } }
   },
   inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
-    const removed = result.data?.removed as { id: string; start: LocalCoord; end: LocalCoord; thickness: number; height: number; metadata?: Record<string, unknown> }
+    const removed = result.data?.removed as Wall | undefined
     if (!removed) return null
     return {
       id: 'wall.create',
@@ -209,6 +223,7 @@ export const wallDeleteHandler: CommandHandler = {
         end: removed.end,
         thickness: removed.thickness,
         height: removed.height,
+        ...(removed.guardStyle ? { guardStyle: removed.guardStyle } : {}),
         ...(removed.metadata ? { metadata: removed.metadata } : {}),
       },
     }

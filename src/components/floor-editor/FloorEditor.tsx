@@ -1084,7 +1084,7 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
             </div>
           )}
           {selectedWall && canonicalFloor && editorMode === 'architecture' && (
-            <WallProperties key={selectedWall.id + ':' + selectedWall.height + ':' + selectedWall.thickness}
+            <WallProperties key={selectedWall.id + ':' + selectedWall.height + ':' + selectedWall.thickness + ':' + (selectedWall.guardStyle ?? '')}
               wall={selectedWall} floorHeight={canonicalFloor.height ?? 3.5} disabled={mode !== 'mapping' || !architectureAccess}
               onUpdate={patch => services.get('dispatcher')!.execute({ id: 'wall.update', label: 'Edit wall dimensions', payload: { buildingId, floorId: canonicalFloor.id, wallId: selectedWall.id, patch } })} />
           )}
