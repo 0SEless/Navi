@@ -177,7 +177,16 @@ export const featureConnectivityRule: ValidationRule = {
           const floor = bld.floors.find(f => f.level === level)
           if (!floor) continue
 
-          if (floor.hallways.length === 0) {
+          // Walkable points on this floor: legacy hallway polylines plus the
+          // floor route network (Save v2 draws indoor routes there and leaves
+          // Floor.hallways empty). Both are building-local meters.
+          const walkPoints: Array<{ x: number; y: number }> = []
+          for (const hw of floor.hallways ?? []) walkPoints.push(...(hw.polyline?.points ?? []))
+          for (const node of floor.routeNetwork?.nodes ?? []) {
+            if (node?.position && Number.isFinite(node.position.x) && Number.isFinite(node.position.y)) walkPoints.push(node.position)
+          }
+
+          if (walkPoints.length === 0) {
             issues.push({
               issueId: `feature-connectivity:${feature.id}:${hash(`no-hallways-${level}`)}`,
               ruleId: 'feature-connectivity',
@@ -190,11 +199,9 @@ export const featureConnectivityRule: ValidationRule = {
 
           const targetPos = levelGeom.landing?.position ?? levelGeom.position
           let minDist = Infinity
-          for (const hw of floor.hallways) {
-            for (const pt of hw.polyline.points) {
-              const d = pointDistance(targetPos, pt)
-              if (d < minDist) minDist = d
-            }
+          for (const pt of walkPoints) {
+            const d = pointDistance(targetPos, pt)
+            if (d < minDist) minDist = d
           }
 
           if (minDist > MAX_HALLWAY_DISTANCE) {
