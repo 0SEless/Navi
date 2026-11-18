@@ -1,4 +1,4 @@
-import { isValidRoadEdgeRouting, isValidTerrainPublication } from '@navi/core'
+import { canonicalRoomId, isValidRoadEdgeRouting, isValidTerrainPublication } from '@navi/core'
 
 export interface ArtifactDiagnostic {
   code: string
@@ -124,6 +124,29 @@ function collectBuildingReferences(value: unknown): {
   }
 
   return { buildingIds, floorsByBuilding }
+}
+
+/** Wall-derived rooms live in floorGeometry rather than the legacy component list. */
+function collectSemanticRoomReferences(geometry: unknown): Map<string, Set<string>> {
+  const roomsByFloor = new Map<string, Set<string>>()
+  if (!isRecord(geometry) || !Array.isArray(geometry.buildings)) return roomsByFloor
+  for (const building of geometry.buildings) {
+    if (!isRecord(building) || !isNonEmptyString(building.id) || !Array.isArray(building.floors)) continue
+    for (const floor of building.floors) {
+      if (!isRecord(floor) || !isFiniteNumber(floor.level) || !Array.isArray(floor.roomAttributes)) continue
+      const key = JSON.stringify([building.id, floor.level])
+      const ids = roomsByFloor.get(key) ?? new Set<string>()
+      for (const room of floor.roomAttributes) {
+        if (!isRecord(room)) continue
+        const roomId = isNonEmptyString(room.roomId) ? room.roomId : undefined
+        const faceId = isNonEmptyString(room.faceId) ? room.faceId : undefined
+        if (roomId) ids.add(roomId)
+        if (faceId && (!roomId || roomId === faceId)) ids.add(canonicalRoomId({ faceId }))
+      }
+      roomsByFloor.set(key, ids)
+    }
+  }
+  return roomsByFloor
 }
 
 function validatePlacement(
@@ -443,6 +466,7 @@ export function validateNavigationArtifacts(
   }
 
   if (hasOwn(artifacts, 'doors') && artifacts.doors !== undefined) {
+    const semanticRoomsByFloor = collectSemanticRoomReferences(artifacts.floorGeometry)
     if (!Array.isArray(artifacts.doors)) {
       pushError(errors, 'ARTIFACT_INVALID_DOOR_REFERENCE', 'Artifact doors must be an array', 'doors')
     } else {
@@ -453,11 +477,13 @@ export function validateNavigationArtifacts(
         }
         validatePlacement(door, 'door', 'ARTIFACT_INVALID_DOOR_REFERENCE', buildingIds, floorsByBuilding, errors)
         if (hasOwn(door, 'roomId')) {
-          if (!isNonEmptyString(door.roomId) || !roomIds.has(door.roomId)) {
+          const semanticRooms = isNonEmptyString(door.buildingId) && isFiniteNumber(door.floor)
+            ? semanticRoomsByFloor.get(JSON.stringify([door.buildingId, door.floor])) : undefined
+          if (!isNonEmptyString(door.roomId) || (!roomIds.has(door.roomId) && !semanticRooms?.has(door.roomId))) {
             pushError(
               errors,
               'ARTIFACT_INVALID_DOOR_REFERENCE',
-              'Door roomId must reference an emitted room component when present',
+              'Door roomId must reference an emitted room when present',
               'door.roomId',
               isNonEmptyString(door.id) ? door.id : undefined,
             )

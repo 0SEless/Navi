@@ -325,6 +325,42 @@ describe('validateNavigationArtifacts', () => {
     expect(codes(result)).toContain('ARTIFACT_INVALID_COMPONENT_REFERENCE')
   })
 
+  it('accepts a door owned by a wall-derived room on the same floor', () => {
+    const input = artifact({
+      components: [],
+      floorGeometry: { buildings: [{ id: 'building-1', floors: [{
+        level: 0,
+        roomAttributes: [{ roomId: 'room-1', faceId: 'face-1' }],
+      }] }] },
+    })
+    expect(validateNavigationArtifacts(input).valid).toBe(true)
+  })
+
+  it('accepts the canonical ID for a wall-derived room with only a face ID', () => {
+    const input = artifact({
+      components: [],
+      doors: [{ id: 'door-1', roomId: 'semantic-room-face-1', buildingId: 'building-1', floor: 0, position: { lat: 14, lng: 121 } }],
+      floorGeometry: { buildings: [{ id: 'building-1', floors: [{
+        level: 0,
+        roomAttributes: [{ roomId: 'face-1', faceId: 'face-1' }],
+      }] }] },
+    })
+    expect(validateNavigationArtifacts(input).valid).toBe(true)
+  })
+
+  it('rejects a wall-derived room reference to another floor', () => {
+    const result = validateNavigationArtifacts(artifact({
+      components: [],
+      floorGeometry: { buildings: [{ id: 'building-1', floors: [{
+        level: 1,
+        roomAttributes: [{ roomId: 'room-1', faceId: 'face-1' }],
+      }] }] },
+    }))
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      code: 'ARTIFACT_INVALID_DOOR_REFERENCE', path: 'door.roomId',
+    }))
+  })
+
   it('rejects a room-owned door with an unknown room', () => {
     const result = validateNavigationArtifacts(artifact({
       doors: [{
