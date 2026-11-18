@@ -21,21 +21,38 @@ const input = {
 }
 
 describe('routeFloorRibbons', () => {
-  it('draws the indoor parts on their floors, at the floor height, never outdoors or across a stair', () => {
+  it('draws the indoor parts on their floors, at the floor height, and the entry link from outside', () => {
     const fc = routeFloorRibbons(input)
-    const core = fc.features.filter((f) => f.properties!.part === 'core')
-    // GF: door→hall; 1F: stairUp→room. The outdoor part and the stair (floor change) are not floor strips.
-    expect(core.map((f) => f.properties!.floor)).toEqual([0, 1])
+    const core = fc.features.filter((f) => f.properties!.part === 'core' && !f.properties!.climb)
+    // out→door (the link from the road, GF), door→hall (GF), stairUp→room (1F).
+    expect(core.map((f) => f.properties!.floor)).toEqual([0, 0, 1])
     expect(core[0].properties!.base).toBeGreaterThan(0)
-    expect(core[1].properties!.base).toBeGreaterThan(3.5)
-    expect(core[1].properties!.height).toBeGreaterThan(core[1].properties!.base)
+    expect(core[2].properties!.base).toBeGreaterThan(3.5)
+    expect(core[2].properties!.height).toBeGreaterThan(core[2].properties!.base)
     // A white edge under each core strip.
-    expect(fc.features.filter((f) => f.properties!.part === 'edge')).toHaveLength(2)
+    expect(fc.features.filter((f) => f.properties!.part === 'edge' && !f.properties!.climb)).toHaveLength(3)
+  })
+
+  it('a change of floor is drawn as a climb rising from one floor to the other (owner 2026-11-18: show the link)', () => {
+    const climb = routeFloorRibbons(input).features.filter((f) => f.properties!.part === 'core' && f.properties!.climb)
+    expect(climb.length).toBeGreaterThan(3)
+    const tops = climb.map((f) => f.properties!.height as number)
+    expect(tops[0]).toBeLessThan(1)
+    expect(tops.at(-1)!).toBeGreaterThan(2.5)
+    expect([...tops].sort((a, b) => a - b)).toEqual(tops)
+    // Each piece reaches down to the previous one: one continuous ramp, no gaps from the side.
+    for (let i = 1; i < climb.length; i++) expect(climb[i].properties!.base).toBeLessThanOrEqual(climb[i - 1].properties!.height)
+  })
+
+  it('a climb from outside straight onto an upper floor (a hillside entrance) is drawn too', () => {
+    const hill = routeFloorRibbons({ ...input, path: ['out', 'stairUp'] }).features.filter((f) => f.properties!.climb)
+    expect(hill.length).toBeGreaterThan(0)
   })
 
   it('floors above the one shown are not drawn (the stack stops at the chosen floor)', () => {
     const fc = routeFloorRibbons({ ...input, topFloor: 0 })
-    expect([...new Set(fc.features.map((f) => f.properties!.floor))]).toEqual([0])
+    // Flat strips only on GF; the climb up from GF is still drawn (it starts on a shown floor).
+    expect([...new Set(fc.features.filter((f) => !f.properties!.climb).map((f) => f.properties!.floor))]).toEqual([0])
   })
 
   it('no open building: nothing', () => {

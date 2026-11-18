@@ -91,4 +91,14 @@ describe('RouteLine camera ownership seam', () => {
     const data = vi.mocked(map.addSource).mock.calls[0][1] as { data: GeoJSON.FeatureCollection }
     expect(data.data.features.map((f) => f.properties?.active)).toEqual([1, 1])
   })
+
+  it('in the 2.5D view the parts inside the open building are left to the floor strips (no line under the floor)', () => {
+    const map = createMap()
+    const floors: Record<string, number> = { a: 0, b: 0, c: 1, d: 1 }
+    const inside: Record<string, string> = { a: '', b: 'bld', c: 'bld', d: 'bld' }
+    render(<RouteLine map={map} route={{ path: ['a', 'b', 'c', 'd'], cost: 1 }} getNodePosition={(id) => ({ lat: 11 + 'abcd'.indexOf(id) * 0.0001, lng: 122 })} getNodeFloor={(id) => floors[id]} getNodeBuilding={(id) => inside[id]} hideInsideBuilding="bld" activeFloor={1} fitCamera={false} />)
+    const data = vi.mocked(map.addSource).mock.calls[0][1] as { data: GeoJSON.FeatureCollection }
+    // Only the GF part from outside (a→b) stays; the 1F part (c→d) is drawn on the floor instead.
+    expect(data.data.features).toHaveLength(1)
+  })
 })

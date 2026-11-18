@@ -14,6 +14,11 @@ interface RouteLineProps {
   getNodeFloor?: (nodeId: string) => number | undefined
   /** Building of a route node ('' or '__outdoor__' = outdoors): outdoor parts are always loud. */
   getNodeBuilding?: (nodeId: string) => string | undefined
+  /**
+   * The building shown in 2.5D (owner 2026-11-18: the line showed under the raised floor): parts of the route wholly
+   * inside it are drawn on its floors (RouteFloorLayer), not as this flat line.
+   */
+  hideInsideBuilding?: string
   /** Floor to highlight in the route color (others render dimmed). */
   activeFloor?: number
   /** Whether this route layer owns the camera fit. Canonical Navigate opts out. */
@@ -54,7 +59,7 @@ export function removeRouteLayers(map: maplibregl.Map | null | undefined) {
   }
 }
 
-export function RouteLine({ map, route, getNodePosition, getNodeFloor, getNodeBuilding, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
+export function RouteLine({ map, route, getNodePosition, getNodeFloor, getNodeBuilding, hideInsideBuilding, activeFloor, navigationSegment, fitCamera = true }: RouteLineProps) {
   // Re-fit the camera only when the route itself changes, not on floor switches.
   const fittedPathRef = useRef('')
 
@@ -93,6 +98,10 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, getNodeBu
       }
       if (seg === segments[0] && route.leadIn && coords.length > 0) coords.unshift([route.leadIn.lng, route.leadIn.lat])
       if (coords.length < 2) continue
+      if (hideInsideBuilding && getNodeBuilding && seg.nodes.every((id) => getNodeBuilding(id) === hideInsideBuilding)) {
+        allCoords.push(...coords)
+        continue
+      }
       allCoords.push(...coords)
       // Emphasis: on a multi-floor route the shown floor's part is loud and the other floors' parts dim. A one-floor
       // route is always loud, outdoors too (owner 2026-11-18: "really highlight the route that we are traversing").
@@ -189,7 +198,7 @@ export function RouteLine({ map, route, getNodePosition, getNodeFloor, getNodeBu
       }
     }
 
-  }, [activeFloor, fitCamera, getNodeBuilding, getNodeFloor, getNodePosition, map, navigationSegment, route])
+  }, [activeFloor, fitCamera, getNodeBuilding, hideInsideBuilding, getNodeFloor, getNodePosition, map, navigationSegment, route])
 
   return null
 }

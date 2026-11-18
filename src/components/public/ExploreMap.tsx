@@ -371,6 +371,7 @@ function ExploreLayers({
         getNodePosition={getNodePosition}
         getNodeFloor={getNodeFloor}
         getNodeBuilding={getNodeBuilding}
+        hideInsideBuilding={routeOnFloors.features.length > 0 ? architecture?.buildingId : undefined}
         activeFloor={activeFloor}
         navigationSegment={navigationSegment}
         fitCamera={fitCamera}
