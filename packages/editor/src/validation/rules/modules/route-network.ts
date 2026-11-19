@@ -196,14 +196,43 @@ function structureIssues(
  * outdoor walk, or a stair/lift link on this floor whose stair/lift also reaches another floor. Publish's
  * building-wide "reachable from an entrance" check still catches a group that is truly cut off.
  */
-function ownWayIn(building: { staircases?: Array<{ levels?: Record<number, { routeConnection?: { anchorNodeId?: string; targetRouteNodeId?: string } }> }>; elevators?: Array<{ levels?: Record<number, { routeConnection?: { anchorNodeId?: string; targetRouteNodeId?: string } }> }> }, floor: Floor): Set<string> {
+type WayInLevel = { position?: { x: number; y: number }; routeConnection?: { anchorNodeId?: string; targetRouteNodeId?: string } }
+type WayInFeature = { id: string; levels?: Record<number, WayInLevel>; links?: { below?: string; above?: string } }
+function ownWayIn(building: { staircases?: WayInFeature[]; elevators?: WayInFeature[] }, floor: Floor): Set<string> {
   const ids = new Set<string>()
   for (const access of floor.entranceAccess ?? []) if (access.outdoorRouteId && access.indoorRouteNodeId) ids.add(access.indoorRouteNodeId)
-  for (const feature of [...(building.staircases ?? []), ...(building.elevators ?? [])]) {
-    const levels = Object.entries(feature.levels ?? {})
-    const here = feature.levels?.[floor.level]?.routeConnection
-    if (!here || !levels.some(([level, geometry]) => Number(level) !== floor.level && geometry?.routeConnection)) continue
-    for (const id of [here.anchorNodeId, here.targetRouteNodeId]) if (id) ids.add(id)
+  const nodes = floor.routeNetwork?.nodes ?? []
+  const features = [...(building.staircases ?? []), ...(building.elevators ?? [])]
+  const byId = new Map(features.map(feature => [feature.id, feature]))
+  // Linked on a floor other than this one: itself, or (owner 2026-11-20, ASU Admin) a stair chained to it with
+  // "Connects down / up to" — publish pairs chained stairs, so the chain is the way between floors.
+  const linkedOtherFloor = (feature: WayInFeature, seen = new Set<string>()): boolean => {
+    if (seen.has(feature.id)) return false
+    seen.add(feature.id)
+    if (Object.entries(feature.levels ?? {}).some(([level, geometry]) => Number(level) !== floor.level && geometry?.routeConnection)) return true
+    return [feature.links?.below, feature.links?.above].some(id => { const next = id ? byId.get(id) : undefined; return !!next && linkedOtherFloor(next, seen) })
+  }
+  for (const feature of features) {
+    const linkedElsewhere = linkedOtherFloor(feature)
+    if (!linkedElsewhere) continue
+    const end = feature.levels?.[floor.level]
+    const here = end?.routeConnection
+    if (here) {
+      for (const id of [here.anchorNodeId, here.targetRouteNodeId]) if (id) ids.add(id)
+      continue
+    }
+    // Owner 2026-11-20 (ASU Admin Floor 3, a faculty area reached only by its stair): a stair or lift end with no
+    // link here is joined by publish to the nearest route point on this floor (the compiler's fallback), so that
+    // point's group has a way in too.
+    const at = end?.position
+    if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) continue
+    let nearest: { id: string; d: number } | undefined
+    for (const node of nodes) {
+      if (node.type !== 'waypoint') continue
+      const d = Math.hypot(node.position.x - at.x, node.position.y - at.y)
+      if (Number.isFinite(d) && (!nearest || d < nearest.d)) nearest = { id: node.id, d }
+    }
+    if (nearest) ids.add(nearest.id)
   }
   return ids
 }

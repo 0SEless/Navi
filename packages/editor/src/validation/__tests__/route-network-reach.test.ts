@@ -167,3 +167,34 @@ describe('routes drawn through a wall', () => {
     expect(of(validateRouteNetwork(doc([f]), 'publish'), 'route-through-wall')).toHaveLength(1)
   })
 })
+
+describe('a separate area reached only by its own stair (owner 2026-11-20, ASU Admin Floor 3 faculty area)', () => {
+  // Floor 2 (level 1): main route with an outdoor entrance. Floor 3 (level 2): the students' route (entrance) and a
+  // separate faculty route with its own one-floor stair, chained down to the Floor 2 stair with "Connects down to".
+  function campus(chained: boolean, faculty: 'stair-linked' | 'stair-unlinked') {
+    const floors = [floor(1), floor(2)]
+    linkEntrance(floors[0])
+    linkEntrance(floors[1], 'upper')
+    floors[1].routeNetwork!.nodes.push(node('fac1', 0, 8, 2) as never, node('fac2', 5, 8, 2) as never)
+    floors[1].routeNetwork!.edges.push(walk('fac', 'fac1', 'fac2') as never)
+    const below = { id: 'sBelow', buildingId: 'b', name: 'Floor 2 stair', type: 'open', accessible: false, fromLevel: 1, toLevel: 1,
+      ...(chained ? { links: { above: 'sAbove' } } : {}),
+      levels: { 1: { position: { x: -10, y: 0 }, rotation: 0, routeConnection: { anchorNodeId: 'a1', targetRouteNodeId: 'a1', connectorEdgeId: 'x' } } } } as unknown as Staircase
+    const above = { id: 'sAbove', buildingId: 'b', name: 'Floor 3 stair', type: 'open', accessible: false, fromLevel: 2, toLevel: 2,
+      ...(chained ? { links: { below: 'sBelow' } } : {}),
+      levels: { 2: { position: { x: 1, y: 8 }, rotation: 0, ...(faculty === 'stair-linked' ? { routeConnection: { anchorNodeId: 'fac1', targetRouteNodeId: 'fac1', connectorEdgeId: 'y' } } : {}) } } } as unknown as Staircase
+    return doc(floors, [below, above])
+  }
+
+  it('is not an error when its stair is chained to a linked stair on the floor below', () => {
+    expect(of(validateRouteNetwork(campus(true, 'stair-linked'), 'publish'), 'route-network-disconnected')).toEqual([])
+  })
+
+  it('counts an unlinked stair end too: publish joins it to the nearest route point', () => {
+    expect(of(validateRouteNetwork(campus(true, 'stair-unlinked'), 'publish'), 'route-network-disconnected')).toEqual([])
+  })
+
+  it('is still an error when nothing leads into it', () => {
+    expect(of(validateRouteNetwork(campus(false, 'stair-linked'), 'publish'), 'route-network-disconnected')).toHaveLength(1)
+  })
+})

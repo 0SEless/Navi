@@ -765,7 +765,7 @@ function NavigatePageContent() {
               <MapPin className="h-4 w-4 shrink-0 text-[var(--navi-primary)]" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--navi-text)]">{entry.label}</span>
               <span className="shrink-0 text-[11px] text-[var(--navi-text-secondary)]">
-                {entry.type}{entry.floor !== undefined ? ` · F${entry.floor}` : ''}
+                {entry.type}{entry.floor !== undefined ? ` · ${routeFloorLabel(entry.floor)}` : ''}
               </span>
             </button>
           ))}
