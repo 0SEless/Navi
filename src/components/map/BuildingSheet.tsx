@@ -96,6 +96,8 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
   const exitIndoorContext = usePublicStore((s) => s.exitIndoorContext)
   const setViewedFloor = usePublicStore((s) => s.setViewedFloor)
   const focusRoom = usePublicStore((s) => s.focusRoom)
+  // The room picked from search (owner 2026-11-20: Directions went to the building, not the room you searched for).
+  const focusedRoom = usePublicStore((s) => s.focusedRoom)
   const setTo = usePublicStore((s) => s.setTo)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
   const [activeTab, setActiveTab] = useState<BuildingTab>('overview')
@@ -121,11 +123,19 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
     setSelectedRoom(null)
   }
 
+  // A room picked here or from search is where Directions goes; otherwise the building's entrance.
+  const focusedEntry = focusedRoom && focusedRoom.buildingId === building.id
+    ? rooms.find(room => roomIdOfSearchEntry(room) === focusedRoom.roomId)
+    : undefined
+  const targetRoom = selectedRoom ?? focusedEntry ?? null
+  const roomDestination = targetRoom ? resolveStableExploreDestination(bundle, { entryId: targetRoom.id }) : null
+  const destination = roomDestination ?? buildingDestination
+
   const handleDirections = () => {
-    if (!buildingDestination) return
-    setTo(buildingDestination.nodeId)
-    addRecentDestination(buildingDestination.nodeId)
-    router.push(`/map/navigate?to=${encodeURIComponent(buildingDestination.nodeId)}`)
+    if (!destination) return
+    setTo(destination.nodeId)
+    addRecentDestination(destination.nodeId)
+    router.push(`/map/navigate?to=${encodeURIComponent(destination.nodeId)}`)
   }
 
   const handleRoomDirections = () => {
@@ -156,12 +166,12 @@ export function BuildingSheet({ bundle: bundleProp }: BuildingSheetProps) {
     <button
       type="button"
       onClick={handleDirections}
-      disabled={!buildingDestination}
+      disabled={!destination}
       className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--navi-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-      aria-label={buildingDestination ? 'Directions' : 'Directions unavailable'}
+      aria-label={!destination ? 'Directions unavailable' : roomDestination ? `Directions to ${targetRoom!.label}` : 'Directions'}
     >
       <Navigation className="h-4 w-4" aria-hidden="true" />
-      {buildingDestination ? 'Directions' : 'Directions unavailable'}
+      {!destination ? 'Directions unavailable' : roomDestination ? `Directions to ${targetRoom!.label}` : 'Directions'}
     </button>
   )
   const tourButton = panoramas.length > 0 && (

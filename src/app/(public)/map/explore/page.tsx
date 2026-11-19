@@ -83,6 +83,8 @@ function ExplorePageContent() {
       focusRoom({ roomId: roomIdOfSearchEntry(entry), buildingId: building.id, floor: entry.floor })
       setSheet('collapsed')
     } else {
+      // Not a room: Directions goes to the building, not a room picked earlier.
+      focusRoom(null)
       setSheet('half')
     }
     setSearchOpen(false)
@@ -217,7 +219,7 @@ function ExplorePageContent() {
                           {entry.type === 'poi' && entry.category
                             ? ` · ${formatPoiCategoryLabel(entry.category)}`
                             : ''}
-                          {entry.floor !== undefined ? ` · F${entry.floor}` : ''}
+                          {entry.floor !== undefined ? ` · ${formatFloorTag(entry.floor)}` : ''}
                         </span>
                       </button>
                     ))}
@@ -248,6 +250,13 @@ function formatCategoryLabel(category: Exclude<ExploreCategory, 'all'>): string 
   if (category === 'room') return 'Rooms'
   if (category === 'entrance') return 'Entrances'
   return 'POIs'
+}
+
+/** Floor as the building names it (owner 2026-11-20: "F1" read as the first floor): GF, 1F, 2F, B1. */
+function formatFloorTag(floor: number): string {
+  if (floor === 0) return 'GF'
+  if (floor > 0) return `${floor}F`
+  return `B${Math.abs(floor)}`
 }
 
 function formatPoiCategoryLabel(category: string): string {

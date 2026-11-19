@@ -120,6 +120,7 @@ afterEach(() => {
     indoorContext: { active: false },
     activeFloor: 0,
     toNode: null,
+    focusedRoom: null,
   })
 })
 
@@ -181,6 +182,23 @@ describe('BuildingSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open 360 Virtual Tour' }))
     expect(routerPush).toHaveBeenCalledWith('/map/panoramas?building_id=b1&panorama_id=pano-b1')
     expect(screen.queryByTestId('tour-viewer')).toBeNull()
+  })
+
+  it('a room picked from search gets Directions to that room, on its floor (owner 2026-11-20)', () => {
+    setSelectedBuilding({}, 'half')
+    usePublicStore.setState({ focusedRoom: { roomId: 'room-201', buildingId: 'b1', floor: 3 } })
+    render(<BuildingSheet bundle={bundle} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Directions to Room 201' }))
+    expect(usePublicStore.getState().toNode).toBe('room-201-node')
+    expect(routerPush).toHaveBeenCalledWith('/map/navigate?to=room-201-node')
+  })
+
+  it('a room picked in another building leaves this building Directions alone', () => {
+    setSelectedBuilding({}, 'half')
+    usePublicStore.setState({ focusedRoom: { roomId: 'room-201', buildingId: 'other', floor: 3 } })
+    render(<BuildingSheet bundle={bundle} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Directions' }))
+    expect(routerPush).toHaveBeenCalledWith('/map/navigate?to=building-destination-b1')
   })
 
   it('picking a room goes to it on the map (highlighted) and lowers the sheet out of the way', () => {
