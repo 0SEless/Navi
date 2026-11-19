@@ -1,5 +1,5 @@
-import { isRouteEdgeType, isRouteNodeType, ROUTE_NETWORK_THRESHOLDS, stairRouteLine, stairTopEnd, structureSampler, toLocal } from '@navi/core'
-import type { CampusDocument, Floor, RouteEdge, RouteNode } from '@navi/core'
+import { collectFloorDoors, isRouteEdgeType, isRouteNodeType, ROUTE_NETWORK_THRESHOLDS, stairRouteLine, stairTopEnd, structureSampler, toLocal } from '@navi/core'
+import type { Building, CampusDocument, Floor, LatLng, Road, RouteEdge, RouteNode, Staircase } from '@navi/core'
 import type { ValidationIssue } from '../../snapshot'
 import type { ValidationContext, ValidationProfileId, ValidationRule } from '../types'
 
@@ -463,6 +463,251 @@ function unreachableRoomIssues(document: CampusDocument, profile: RouteProfile):
   return issues
 }
 
+// ── Reach checks (owner 2026-11-19 ASU-IBAJAY check) ──
+// Studio said "0 problems" while Publish refused the campus (COMDEV Floor 3 cut off), and VOAG, single rooms and several
+// stairs could not be reached. These say so while editing. Warnings only: Publish's own compile check still decides.
+
+const warning = (...args: Parameters<typeof issue>): ValidationIssue => ({ ...issue(...args), severity: 'warning' })
+const floorName = (floor: Floor) => floor.label || floor.id
+type FloorGraphs = ReadonlyMap<number, { floor: Floor; graph: RouteFloorGraph }>
+
+/** Metres from a point to a road's centre line (flat earth around the point; roads are short). */
+function distanceToRoad(point: LatLng, road: Road): number {
+  const points = road.polyline?.points ?? []
+  const kx = 111320 * Math.cos(point.lat * Math.PI / 180)
+  const local = (p: LatLng) => ({ x: (p.lng - point.lng) * kx, y: (p.lat - point.lat) * 111320 })
+  if (points.length === 1) return Math.hypot(local(points[0]).x, local(points[0]).y)
+  let best = Number.POSITIVE_INFINITY
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = local(points[i]), b = local(points[i + 1])
+    const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy
+    const t = length2 > 0 ? Math.max(0, Math.min(1, -(a.x * dx + a.y * dy) / length2)) : 0
+    best = Math.min(best, Math.hypot(a.x + t * dx, a.y + t * dy))
+  }
+  return best
+}
+
+/**
+ * Entrance links to a spot the road no longer passes (the road was moved or reshaped after linking). Publish joins a
+ * link to its road only within ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters, so beyond that the building is cut off from
+ * outside without any other message (ASU VOAG: 0.64 m).
+ */
+function offRoadLinks(floor: Floor, roads: ReadonlyMap<string, Road>): Array<{ entranceId: string; road: Road; metres: number }> {
+  const found: Array<{ entranceId: string; road: Road; metres: number }> = []
+  for (const access of floor.entranceAccess ?? []) {
+    const road = access.outdoorRouteId ? roads.get(access.outdoorRouteId) : undefined
+    const at = access.outdoorPosition
+    if (!road || !at || !Number.isFinite(at.lat) || !Number.isFinite(at.lng)) continue
+    const metres = distanceToRoad(at, road)
+    if (metres > ROUTE_NETWORK_THRESHOLDS.dedupeMergeMeters) found.push({ entranceId: access.entranceId, road, metres })
+  }
+  return found
+}
+
+function entranceOffRoadIssues(buildingId: string, floor: Floor, roads: ReadonlyMap<string, Road>, profile: RouteProfile): ValidationIssue[] {
+  return offRoadLinks(floor, roads).map(({ entranceId, road, metres }) => {
+    const label = floor.entrances.find((entrance) => entrance.id === entranceId)?.label || entranceId
+    return warning('route-entrance-off-road', profile,
+      `Entrance "${label}" on ${floorName(floor)} is linked to "${road.name || road.id}" at a spot ${metres.toFixed(1)} m away from it (the road moved after it was linked), so visitors can't get in here. Connect the entrance to the road again.`,
+      [{ entityId: entranceId, entityType: 'entrance' }, { entityId: road.id, entityType: 'road' }],
+      { buildingId, floorId: floor.id, layer: 'access' })
+  })
+}
+
+/** Stairs drawn on separate floors and linked floor to floor (links.below/above) form one chain, as Publish joins them. */
+function stairChains(stairs: readonly Staircase[]): Map<string, string> {
+  const byId = new Map(stairs.map((stair) => [stair.id, stair]))
+  const floors = (stair: Staircase) => Object.keys(stair.levels ?? {}).map(Number).filter(Number.isInteger)
+  const below = (stair: Staircase) => {
+    const partner = stair.links?.below ? byId.get(stair.links.below) : undefined
+    if (!partner || partner.links?.above !== stair.id || floors(partner).length === 0 || floors(stair).length === 0) return undefined
+    return Math.max(...floors(partner)) + 1 === Math.min(...floors(stair)) ? partner : undefined
+  }
+  const roots = new Map<string, string>()
+  for (const stair of stairs) {
+    let root = stair
+    const seen = new Set([stair.id])
+    for (let next = below(root); next && !seen.has(next.id); next = below(root)) { seen.add(next.id); root = next }
+    roots.set(stair.id, root.id)
+  }
+  return roots
+}
+
+/** The route point a stair/lift end is joined to on its floor, if any. */
+function joinedPoint(graph: RouteFloorGraph | undefined, link: { anchorNodeId?: string; targetRouteNodeId?: string } | undefined): string | undefined {
+  if (!graph || !link) return undefined
+  return [link.anchorNodeId, link.targetRouteNodeId].find((id): id is string => !!id && graph.nodeById.has(id))
+}
+
+function stairLinkIssues(building: Building, graphs: FloorGraphs, profile: RouteProfile): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  if ((building.floors ?? []).length < 2) return issues
+  const stairs = building.staircases ?? []
+  const chains = stairChains(stairs)
+  const chainSize = new Map<string, number>()
+  for (const root of chains.values()) chainSize.set(root, (chainSize.get(root) ?? 0) + 1)
+  for (const stair of stairs) {
+    const levels = Object.keys(stair.levels ?? {}).map(Number).filter(Number.isInteger).sort((a, b) => a - b)
+    const name = stair.name || stair.id
+    const target = [{ entityId: stair.id, entityType: 'staircase' }]
+    if (levels.length === 1 && (chainSize.get(chains.get(stair.id) ?? stair.id) ?? 1) === 1) {
+      const floor = building.floors.find((candidate) => candidate.level === levels[0])
+      issues.push(warning('route-stair-link', profile,
+        `Stair "${name}" stands on ${floor ? floorName(floor) : `level ${levels[0]}`} only, so visitors can't use it to change floors. Set its To floor (or link it to the stair above or below).`,
+        target, floor ? { buildingId: building.id, floorId: floor.id, layer: 'navigation' } : undefined))
+      continue
+    }
+    for (const level of levels) {
+      const entry = graphs.get(level)
+      if (!entry || entry.graph.nodes.length === 0) continue
+      if (joinedPoint(entry.graph, stair.levels[level]?.routeConnection)) continue
+      const end = stair.levels[level]?.role === 'top' ? 'top' : levels.length > 1 && level === levels[0] ? 'foot' : 'end'
+      issues.push(warning('route-stair-link', profile,
+        `Stair "${name}" ${end} on ${floorName(entry.floor)} is not joined to this floor's route. Select the stair and press Auto-connect (or draw a route to it).`,
+        target, { buildingId: building.id, floorId: entry.floor.id, layer: 'navigation' }))
+    }
+  }
+  return issues
+}
+
+/**
+ * Floors no visitor can reach: no route point on them is reached from an entrance linked to the outdoor walk, walking
+ * the floors' routes and the stairs/lifts joined to the route on both floors (ASU COMDEV Floor 3, VOAG).
+ */
+function floorReachIssues(building: Building, graphs: FloorGraphs, roads: ReadonlyMap<string, Road>, profile: RouteProfile): ValidationIssue[] {
+  const key = (level: number, id: string) => `${level}\u0000${id}`
+  const adjacency = new Map<string, string[]>()
+  const join = (a: string, b: string) => {
+    adjacency.set(a, [...(adjacency.get(a) ?? []), b])
+    adjacency.set(b, [...(adjacency.get(b) ?? []), a])
+  }
+  for (const [level, { graph }] of graphs) {
+    for (const [id, neighbours] of graph.adjacency) for (const other of neighbours) join(key(level, id), key(level, other))
+  }
+  const chains = stairChains(building.staircases ?? [])
+  const features: Array<{ chain: string; levels: Staircase['levels'] }> = [
+    ...(building.staircases ?? []).map((stair) => ({ chain: `stair:${chains.get(stair.id) ?? stair.id}`, levels: stair.levels })),
+    ...(building.elevators ?? []).map((lift) => ({ chain: `lift:${lift.id}`, levels: lift.levels as Staircase['levels'] })),
+  ]
+  const ends = new Map<string, Array<{ level: number; point: string }>>()
+  for (const { chain, levels } of features) {
+    for (const [levelKey, geometry] of Object.entries(levels ?? {})) {
+      const level = Number(levelKey)
+      const point = joinedPoint(graphs.get(level)?.graph, geometry?.routeConnection)
+      if (point) ends.set(chain, [...(ends.get(chain) ?? []), { level, point }])
+    }
+  }
+  for (const list of ends.values()) {
+    const sorted = [...list].sort((a, b) => a.level - b.level)
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1].level === sorted[i].level + 1) join(key(sorted[i].level, sorted[i].point), key(sorted[i + 1].level, sorted[i + 1].point))
+    }
+  }
+  const queue: string[] = []
+  let linkedOutside = false
+  for (const [level, { floor, graph }] of graphs) {
+    const offRoad = new Set(offRoadLinks(floor, roads).map((link) => link.entranceId))
+    for (const access of floor.entranceAccess ?? []) {
+      linkedOutside = true
+      // Linked to a road (still on it), or straight to an outdoor route point.
+      const onRoad = access.outdoorRouteId ? roads.has(access.outdoorRouteId) && !offRoad.has(access.entranceId) : !!access.outdoorNodeId
+      if (onRoad && graph.nodeById.has(access.indoorRouteNodeId)) queue.push(key(level, access.indoorRouteNodeId))
+    }
+    for (const entrance of floor.entrances ?? []) {
+      const legacy = (entrance as { metadata?: Record<string, unknown> }).metadata?.connectorRoadId
+      const point = entrance.routeConnection?.anchorNodeId ?? entrance.routeNodeId
+      if (typeof legacy !== 'string' || legacy.trim().length === 0) continue
+      linkedOutside = true
+      if (point && graph.nodeById.has(point)) queue.push(key(level, point))
+    }
+  }
+  // A building not linked to the outdoor walk anywhere yet is still being drawn; Publish does not ask for it either.
+  if (!linkedOutside) return []
+  const reached = new Set(queue)
+  while (queue.length > 0) {
+    for (const next of adjacency.get(queue.shift()!) ?? []) if (!reached.has(next)) { reached.add(next); queue.push(next) }
+  }
+  const issues: ValidationIssue[] = []
+  for (const [level, { floor, graph }] of [...graphs].sort((a, b) => a[0] - b[0])) {
+    if (graph.nodes.length === 0 || graph.nodes.some((routeNode) => reached.has(key(level, routeNode.id)))) continue
+    issues.push(warning('route-floor-unreachable', profile,
+      `${floorName(floor)} of "${building.name || building.id}" can't be reached: no entrance on it is linked to the outdoor walk, and no stair or lift joined to the route on both floors leads to it. Visitors can't be routed to its rooms.`,
+      [{ entityId: floor.id, entityType: 'floor' }], { buildingId: building.id, floorId: floor.id, layer: 'navigation' }))
+  }
+  return issues
+}
+
+/** Route lines that pass through a wall where the wall has no floor-level opening, door or entrance (raised windows don't count). */
+function throughWallIssues(buildingId: string, floor: Floor, graph: RouteFloorGraph, profile: RouteProfile): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  const walls = (floor.walls ?? []).filter((wall) => !(Number(wall.height) <= 0.3))
+  if (walls.length === 0) return issues
+  const doors = new Map<string, Array<{ start: number; end: number }>>()
+  const addDoor = (wallId: string, start: number, end: number) => doors.set(wallId, [...(doors.get(wallId) ?? []), { start, end }])
+  for (const opening of floor.openings ?? []) {
+    // Any opening that starts at floor level lets visitors through (ASU: a glass front drawn as a window with a 0 m sill).
+    if ((opening.sillHeight ?? 0) <= 0.05) addDoor(opening.wallId, opening.offset, opening.offset + opening.width)
+  }
+  // Doors and entrances placed on a wall without being attached to it (ASU Octagon) still open it where they stand.
+  const placed: Array<{ position: { x: number; y: number }; width: number; depth: number }> = []
+  for (const door of collectFloorDoors({ ...floor, rooms: (floor.rooms ?? []) as never })) {
+    const at = door.wallAttachment
+    if (at?.wallId) addDoor(at.wallId, at.offset - door.width / 2, at.offset + door.width / 2)
+    else if (door.position && Number.isFinite(door.width)) placed.push({ position: door.position, width: door.width, depth: Number(door.depth) || 0 })
+  }
+  for (const entrance of floor.entrances ?? []) {
+    if (entrance.position) placed.push({ position: entrance.position, width: Number((entrance as { width?: number }).width) || 1.5, depth: 0 })
+  }
+  for (const wall of walls) {
+    const sx = wall.end.x - wall.start.x, sy = wall.end.y - wall.start.y, length = Math.hypot(sx, sy)
+    if (!(length > 0)) continue
+    for (const item of placed) {
+      const along = ((item.position.x - wall.start.x) * sx + (item.position.y - wall.start.y) * sy) / length
+      const across = Math.abs((item.position.x - wall.start.x) * sy - (item.position.y - wall.start.y) * sx) / length
+      if (across <= Math.max(wall.thickness ?? 0.2, item.depth) / 2 + 0.2 && along >= -item.width / 2 && along <= length + item.width / 2) {
+        addDoor(wall.id, along - item.width / 2, along + item.width / 2)
+      }
+    }
+  }
+  for (const edge of graph.edges) {
+    const a = graph.nodeById.get(edge?.from)?.position, b = graph.nodeById.get(edge?.to)?.position
+    if (!a || !b || ![a.x, a.y, b.x, b.y].every(Number.isFinite)) continue
+    for (const wall of walls) {
+      const sx = wall.end.x - wall.start.x, sy = wall.end.y - wall.start.y, length = Math.hypot(sx, sy)
+      const rx = b.x - a.x, ry = b.y - a.y, det = rx * sy - ry * sx
+      if (!(length > 0) || Math.abs(det) < 1e-12) continue
+      const t = ((wall.start.x - a.x) * sy - (wall.start.y - a.y) * sx) / det // along the route line
+      const u = ((wall.start.x - a.x) * ry - (wall.start.y - a.y) * rx) / det // along the wall
+      if (t <= 1e-6 || t >= 1 - 1e-6 || u < -1e-9 || u > 1 + 1e-9) continue
+      const offset = u * length
+      if ((doors.get(wall.id) ?? []).some((span) => offset >= span.start - 0.05 && offset <= span.end + 0.05)) continue
+      issues.push(warning('route-through-wall', profile,
+        `A route line on ${floorName(floor)} goes through a wall with no door there. Add a doorway to the wall or redraw the route around it.`,
+        [{ entityId: edge.id, entityType: 'route-edge' }, { entityId: wall.id, entityType: 'wall' }],
+        { buildingId, floorId: floor.id, layer: 'navigation' }))
+      break
+    }
+  }
+  return issues
+}
+
+function reachIssues(document: CampusDocument, profile: RouteProfile): ValidationIssue[] {
+  const roads = new Map((document.roads ?? []).map((road) => [road.id, road]))
+  const issues: ValidationIssue[] = []
+  for (const building of document.buildings ?? []) {
+    const graphs = new Map<number, { floor: Floor; graph: RouteFloorGraph }>()
+    for (const floor of building.floors ?? []) if (routeNetworkOf(floor)) graphs.set(floor.level, { floor, graph: buildRouteFloorGraph(floor) })
+    if (graphs.size === 0) continue
+    for (const { floor, graph } of graphs.values()) {
+      issues.push(...entranceOffRoadIssues(building.id, floor, roads, profile))
+      issues.push(...throughWallIssues(building.id, floor, graph, profile))
+    }
+    issues.push(...stairLinkIssues(building, graphs, profile))
+    issues.push(...floorReachIssues(building, graphs, roads, profile))
+  }
+  return issues
+}
+
 /** Pure route checks shared by the validation engine and the Floor Editor panel. */
 export function validateRouteNetwork(document: CampusDocument, profile: RouteProfile = 'publish'): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -480,6 +725,7 @@ export function validateRouteNetwork(document: CampusDocument, profile: RoutePro
   }
   issues.push(...stairRouteIssues(document, profile))
   issues.push(...unreachableRoomIssues(document, profile))
+  issues.push(...reachIssues(document, profile))
   return issues
 }
 
@@ -536,9 +782,22 @@ export const routeRoomUnreachableRule: ValidationRule = {
   defaultSeverity: 'warning',
 }
 
+const warningRule = (ruleId: string, description: string): ValidationRule => ({
+  ...rule(ruleId, description, (issues) => issues.filter((issue) => issue.ruleId === ruleId)),
+  defaultSeverity: 'warning',
+})
+export const routeFloorUnreachableRule = warningRule('route-floor-unreachable', 'Every floor with a route can be reached from an entrance linked to the outdoor walk')
+export const routeStairLinkRule = warningRule('route-stair-link', "Every stair end is joined to its floor's route, and every stair reaches another floor")
+export const routeEntranceOffRoadRule = warningRule('route-entrance-off-road', 'Entrance links to the outdoor walk still sit on their road')
+export const routeThroughWallRule = warningRule('route-through-wall', 'Route lines pass walls only through doors')
+
 export const routeNetworkRules: ReadonlyArray<ValidationRule> = [
   routeStairRule,
   routeRoomUnreachableRule,
+  routeFloorUnreachableRule,
+  routeStairLinkRule,
+  routeEntranceOffRoadRule,
+  routeThroughWallRule,
   routeNetworkStructureRule,
   routeNetworkDisconnectedRule,
   routeRoomAccessRule,

@@ -24,6 +24,10 @@ const ROUTE_RULE_TITLES: Record<string, string> = {
   'route-room-access': 'Room route access is invalid',
   'route-entrance-access': 'Entrance route access is invalid',
   'route-floor-consistency': 'Route node is on the wrong floor',
+  'route-floor-unreachable': 'Floor cannot be reached',
+  'route-stair-link': 'Stair not joined to the route',
+  'route-entrance-off-road': 'Entrance link is off its road',
+  'route-through-wall': 'Route goes through a wall',
 }
 
 function routeIssueToCheck(issue: ValidationIssue): ValidationCheck {
