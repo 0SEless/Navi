@@ -784,9 +784,14 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
     prevDraggingRef.current = pathEditor.session.isDragging
   }, [pathEditor.session.isDragging, workingPath, commitWorkingPath])
 
+  // The map is built once per building (owner 2026-11-19: "it magnetically pulls or resets"). Edits give a new building
+  // object; rebuilding and re-fitting the map on each one threw the view back to the whole building.
+  const latestBuildingRef = useRef({ building, buildingFp })
+  latestBuildingRef.current = { building, buildingFp }
   useEffect(() => {
     if (mapRef.current) return
     let mounted = true
+    const { building, buildingFp } = latestBuildingRef.current
     const c = building.center ?? buildingFp[0] ?? { lat: 11.8195, lng: 122.0922 }
     const map = new maplibregl.Map({
       container: mapContainerRef.current!,
@@ -819,40 +824,30 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       setArchitectureMap(null)
       readyRef.current = false
     }
-  }, [building])
+  }, [building.id])
 
-  // Camera state management for 2D ↔ 2.5D toggle
+  // Camera for the 2D ↔ 2.5D toggle (owner 2026-11-19: the view kept pulling back while editing). It runs only when the
+  // view mode actually changes — not on every re-render (the snapshot callback is a new function each render) — and it
+  // only changes the tilt: where the user is looking (centre, zoom, turn) stays as they left it.
+  const appliedViewModeRef = useRef<'2d' | '2.5d' | null>(null)
+  const onCameraSnapshotRef = useRef(onCameraSnapshot)
+  onCameraSnapshotRef.current = onCameraSnapshot
   useEffect(() => {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-
-    if (viewMode === '2.5d') {
-      // Snapshot current camera state before tilting
+    const mode = viewMode ?? '2d'
+    const first = appliedViewModeRef.current === null
+    if (appliedViewModeRef.current === mode) return
+    appliedViewModeRef.current = mode
+    if (mode === '2.5d') {
       const center = map.getCenter()
-      const snapshot = {
-        pitch: map.getPitch(),
-        bearing: map.getBearing(),
-        zoom: map.getZoom(),
-        center: [center.lng, center.lat] as [number, number],
-      }
-      onCameraSnapshot?.(snapshot)
-      // Tilt camera for 2.5D preview
-      map.easeTo({ pitch: 50, bearing: 0, duration: 300 })
+      onCameraSnapshotRef.current?.({ pitch: map.getPitch(), bearing: map.getBearing(), zoom: map.getZoom(), center: [center.lng, center.lat] })
+      // Tilt only when looking straight down; a view the user already tilted is left alone.
+      if (map.getPitch() < 5) map.easeTo({ pitch: 50, duration: first ? 0 : 300 })
     } else {
-      // Restore camera to snapshot (or default top-down)
-      if (cameraSnapshot) {
-        map.easeTo({
-          pitch: 0,
-          bearing: cameraSnapshot.bearing,
-          zoom: cameraSnapshot.zoom,
-          center: cameraSnapshot.center,
-          duration: 300,
-        })
-      } else {
-        map.easeTo({ pitch: 0, bearing: 0, duration: 300 })
-      }
+      map.easeTo({ pitch: 0, duration: first ? 0 : 300 })
     }
-  }, [viewMode, cameraSnapshot, onCameraSnapshot, mapReady])
+  }, [viewMode, mapReady])
 
   // Floor plan image overlay — add source + layer dynamically when URL available.
   //

@@ -148,6 +148,8 @@ export function stairDoorwayAt(stair: Staircase, floors: readonly Partial<Pick<F
 const ENTRY_REACH_M = 4
 /** Shortest entry platform, metres (room to stand before the first step). */
 const MIN_ENTRY_DEPTH_M = 1
+/** A standing pad at a stair's foot, metres deep (owner 2026-11-19: short, not as deep as a wide stair). */
+const ENTRY_PAD_M = 1.2
 /** An edge this close to the floor's outline touches it (no railing there; you walk on). */
 const ENTRY_TOUCH_M = 0.1
 
@@ -214,23 +216,29 @@ export function stairEntryPlatform(stair: Staircase, floors: readonly (Pick<Floo
   const side = { x: (B.x - A.x) / width, y: (B.y - A.y) / width }
   const at = (p: LocalCoord, d: LocalCoord, s: number) => ({ x: p.x + d.x * s, y: p.y + d.y * s })
   const STEP = 0.05
-  let corners: LocalCoord[] | undefined
-  // 1) Straight back from the bottom step until the floor.
-  for (let d = STEP; d <= ENTRY_REACH_M + 1e-9; d += STEP) {
-    if (!onFloor(at(foot, back, d), outline)) continue
-    const depth = Math.max(d, MIN_ENTRY_DEPTH_M)
-    corners = [A, B, at(B, back, depth), at(A, back, depth)]
-    break
+  // How far straight back from the bottom step the floor is, and how far sideways from a standing pad at the foot.
+  // The platform bridges whichever gap is shorter (owner 2026-11-19: a flight along the facade got a long strip back to
+  // a building corner instead of a short pad opening onto the corridor beside it).
+  let backGap: number | undefined
+  for (let d = STEP; d <= ENTRY_REACH_M + 1e-9 && backGap === undefined; d += STEP) if (onFloor(at(foot, back, d), outline)) backGap = d
+  const pad = ENTRY_PAD_M
+  const mid = at(foot, back, pad / 2)
+  let sideGap: { s: number; dir: 1 | -1 } | undefined
+  for (let s = STEP; s <= ENTRY_REACH_M + 1e-9 && !sideGap; s += STEP) {
+    if (onFloor(at(mid, side, width / 2 + s), outline)) sideGap = { s, dir: 1 }
+    else if (onFloor(at(mid, side, -(width / 2 + s)), outline)) sideGap = { s, dir: -1 }
   }
-  // 2) A stair along the facade: a pad as deep as the stair is wide, widened sideways to the floor.
-  if (!corners) {
-    const depth = Math.max(width, MIN_ENTRY_DEPTH_M)
-    const mid = at(foot, back, depth / 2)
-    for (let s = STEP; s <= ENTRY_REACH_M + 1e-9 && !corners; s += STEP) {
-      if (onFloor(at(mid, side, width / 2 + s), outline)) corners = [A, at(B, side, s), at(at(B, side, s), back, depth), at(A, back, depth)]
-      else if (onFloor(at(mid, side, -(width / 2 + s)), outline)) corners = [at(A, side, -s), B, at(B, back, depth), at(at(A, side, -s), back, depth)]
-    }
-    corners ??= [A, B, at(B, back, depth), at(A, back, depth)]
+  let corners: LocalCoord[]
+  const useBack = backGap !== undefined && (backGap <= pad || !sideGap || backGap <= sideGap.s)
+  if (useBack) {
+    const depth = Math.max(backGap!, MIN_ENTRY_DEPTH_M)
+    corners = [A, B, at(B, back, depth), at(A, back, depth)]
+  } else if (sideGap?.dir === 1) {
+    corners = [A, at(B, side, sideGap.s), at(at(B, side, sideGap.s), back, pad), at(A, back, pad)]
+  } else if (sideGap) {
+    corners = [at(A, side, -sideGap.s), B, at(B, back, pad), at(at(A, side, -sideGap.s), back, pad)]
+  } else {
+    corners = [A, B, at(B, back, pad), at(A, back, pad)]
   }
   const edges = corners.map((p, i) => [p, corners![(i + 1) % 4]] as [LocalCoord, LocalCoord])
   // An edge touches the floor when both its ends are on it (or within a hair of its edge). A side edge reaching from

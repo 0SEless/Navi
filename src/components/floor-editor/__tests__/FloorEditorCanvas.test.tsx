@@ -58,6 +58,7 @@ vi.mock('maplibre-gl', () => {
 
     style: Record<string, unknown> = {}
     loaded = () => true
+    isStyleLoaded = () => true
     fitBounds = () => {}
     once = () => {}
     getCenter = () => ({ lng: 0, lat: 0 })
@@ -770,6 +771,27 @@ describe('FloorEditorCanvas', () => {
     const data = calls[calls.length - 1][0] as { features: Array<{ properties: Record<string, unknown> }> }
     expect(data.features[0].properties).toMatchObject({ id: 'entrance-1', selected: true, activeRouteSource: true })
   })
+  // Owner 2026-11-19 (screen recording): the view "magnetically" pulled back while editing. Re-renders and building
+  // edits must not move or rebuild the map; switching 2D/2.5D only changes the tilt and keeps where the user looks.
+  it('keeps the camera where the user put it across re-renders, edits and view switches', async () => {
+    const props = { floor: 0, tool: 'select', layers, selectedId: null, onSelect: vi.fn() }
+    const { rerender } = render(<FloorEditorCanvas building={building} {...props} viewMode="2.5d" onCameraSnapshot={() => {}} />)
+    await waitFor(() => expect(mockMapInstance?.getSource('floor-openings')).toBeTruthy(), { timeout: 10_000 })
+    const map = mockMapInstance as unknown as { easeTo: unknown; fitBounds: unknown }
+    const ease = vi.fn(), fit = vi.fn()
+    map.easeTo = ease; map.fitBounds = fit
+    // A parent re-render: a new snapshot callback and an edited building object (same id).
+    rerender(<FloorEditorCanvas building={{ ...building, name: 'Edited' }} {...props} selectedId="C001" viewMode="2.5d" onCameraSnapshot={() => {}} />)
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)) })
+    expect(mockMapInstance).toBe(map)
+    expect(ease).not.toHaveBeenCalled()
+    expect(fit).not.toHaveBeenCalled()
+    // Back to 2D: flatten only (no jump to an old position or north-up turn).
+    rerender(<FloorEditorCanvas building={{ ...building, name: 'Edited' }} {...props} viewMode="2d" onCameraSnapshot={() => {}} />)
+    expect(ease).toHaveBeenCalledTimes(1)
+    expect(ease).toHaveBeenLastCalledWith({ pitch: 0, duration: 300 })
+  })
+
   it('keeps window hover passive and selects the window ahead of its host wall on click', async () => {
     const onSelect = vi.fn()
     const onWallSelect = vi.fn()

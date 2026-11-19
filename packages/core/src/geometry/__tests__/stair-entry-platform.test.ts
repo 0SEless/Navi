@@ -48,6 +48,23 @@ describe('entry platform at the foot of a stair outside its floor', () => {
     expect(round(p.contact!).map(q => q[1])).toEqual([-4.6, -4.6])
   })
 
+  // Owner 2026-11-19 screenshot: a flight along the facade got a long platform running back to a corner of the building
+  // instead of a short one opening onto the corridor beside it.
+  it('prefers a short pad beside the facade over a long strip back to a building corner', () => {
+    // L-shaped outline: the facade at y = -5, plus a wing reaching south to y = -9 from x = 11 eastward.
+    const lOutline: LocalCoord[] = [{ x: -15, y: -5 }, { x: 11, y: -5 }, { x: 11, y: -9 }, { x: 15, y: -9 }, { x: 15, y: 5 }, { x: -15, y: 5 }]
+    // Flight 0.1 m off the facade, climbing west, foot at its east end (x = 8); the wing is 3 m behind the foot.
+    const p = stairEntryPlatform(stair(1, [[8, -6.3], [8, -5.1], [0, -5.1], [0, -6.3]]), floors, lOutline)!
+    expect(box(p.ring)).toEqual([8, 9.2, -6.3, -5])
+    expect(round(p.contact!).map((q) => q[1])).toEqual([-5, -5])
+  })
+
+  it('keeps the pad short (1.2 m) for a wide stair instead of as deep as the stair is wide', () => {
+    // A 3.5 m wide flight along the facade (0.1 m off it), climbing west, foot at x = 8.
+    const p = stairEntryPlatform(stair(1, [[8, -8.6], [8, -5.1], [0, -5.1], [0, -8.6]]), floors, outline)!
+    expect(box(p.ring)).toEqual([8, 9.2, -8.6, -5])
+  })
+
   it('is not needed on the ground floor, nor when the foot is already on the floor', () => {
     expect(stairEntryPlatform(stair(0, [[1.2, -6], [0, -6], [0, -14], [1.2, -14]]), floors, outline)).toBeUndefined()
     expect(stairEntryPlatform(stair(1, [[1.2, 0], [0, 0], [0, -4], [1.2, -4]]), floors, outline)).toBeUndefined()

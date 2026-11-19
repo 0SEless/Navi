@@ -171,7 +171,13 @@ export const stairEntryOpeningId = (stairId: string) => `${stairId}-entry-openin
 function openEntryRailing(building: Building, stair: Staircase): void {
   const entry = stairEntryPlatform(stair, building.floors, buildingOutlineLocal(building))
   const floor = building.floors.find(f => f.level === stairFlightFloor(stair))
-  if (!entry?.contact || !floor?.walls?.length) return
+  if (!floor) return
+  // The stair's own entry gap follows its platform (owner 2026-11-19: the gap did not line up after the platform moved
+  // or changed): drop the old one, then cut it where the platform meets the floor now.
+  if (floor.openings?.some(o => o.id === stairEntryOpeningId(stair.id))) {
+    floor.openings = floor.openings.filter(o => o.id !== stairEntryOpeningId(stair.id))
+  }
+  if (!entry?.contact || !floor.walls?.length) return
   // A wall the platform crosses or touches (a platform reaching past the railing onto the corridor crosses it).
   for (const wall of floor.walls) {
     const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y, len = Math.hypot(dx, dy)

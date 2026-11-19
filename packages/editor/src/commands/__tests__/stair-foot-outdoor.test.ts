@@ -40,6 +40,15 @@ it('opens the railing where an entry platform crosses it, even when the platform
   expect(opening!.offset).toBeCloseTo(13, 1)
   expect(opening!.width).toBeCloseTo(1.2, 1)
   expect(b.staircases![0].levels[1].routeConnection).toBeDefined()
+  // Moved 3 m west and Auto-connect again: the railing gap follows the platform (one gap, at the new place).
+  const flight = b.staircases![0].levels[1]
+  flight.polygon = { points: flight.polygon!.points.map(p => ({ x: p.x - 3, y: p.y })) }
+  flight.position = { x: flight.position.x - 3, y: flight.position.y }
+  delete flight.routeConnection
+  expect(stairSetToFloorHandler.execute(d, { featureId: 's', toLevel: 2, autoConnect: true }).success).toBe(true)
+  const gaps = b.floors[1].openings!.filter(o => o.id === 's-entry-opening')
+  expect(gaps).toHaveLength(1)
+  expect(gaps[0].offset).toBeCloseTo(16, 1)
 })
 
 it('joins an outside stair to its foot when its foot is linked to the outdoor walk', () => {
