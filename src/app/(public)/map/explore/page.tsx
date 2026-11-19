@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, RotateCcw, Search, X } from 'lucide-react'
 import { roomIdOfSearchEntry, usePublicStore } from '@/store/public-store'
 import type { CampusBundle } from '@/types/nav-types'
@@ -44,6 +44,8 @@ function ExplorePageContent() {
   const selectBuilding = usePublicStore((s) => s.selectBuilding)
   const setSheet = usePublicStore((s) => s.setSheet)
   const focusRoom = usePublicStore((s) => s.focusRoom)
+  const setPoiDestination = usePublicStore((s) => s.setPoiDestination)
+  const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ExploreCategory>('all')
@@ -76,7 +78,17 @@ function ExplorePageContent() {
       candidate.id === entry.buildingId
       || (entry.type === 'building' && candidate.id === entry.id),
     )
-    if (!building) return
+    if (!building) {
+      // An outdoor place (bench, store, parking…; owner 2026-11-20: "I cannot click it"): it has no route point of its
+      // own, so go to directions with it as a place destination (Navigate routes to the walk point beside it).
+      if (entry.type !== 'poi' || entry.source !== 'authored') return
+      setPoiDestination(entry.sourceId ?? entry.id)
+      setSearchOpen(false)
+      setQuery('')
+      setCategory('all')
+      router.push('/map/navigate')
+      return
+    }
     selectBuilding(building)
     if (entry.type === 'room' && entry.floor !== undefined) {
       // Go to the room (highlighted on its floor) and keep the sheet low so the map shows it.

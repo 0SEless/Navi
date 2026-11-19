@@ -20,6 +20,7 @@ export default function SearchPage() {
   const search = usePublicStore((s) => s.findEntries)
   const revealSearchPois = usePublicStore((s) => s.search)
   const setTo = usePublicStore((s) => s.setTo)
+  const setPoiDestination = usePublicStore((s) => s.setPoiDestination)
   const addRecentSearch = usePublicStore((s) => s.addRecentSearch)
   const recentSearches = usePublicStore((s) => s.recentSearches)
 
@@ -56,6 +57,12 @@ export default function SearchPage() {
   const select = (entry: SearchEntry) => {
     addRecentSearch(entry.label)
     if (!entry.nodeId) {
+      // An outdoor place has no route point of its own (owner 2026-11-20): navigate to it as a place destination.
+      if (entry.type === 'poi' && entry.source === 'authored') {
+        setPoiDestination(entry.sourceId ?? entry.id)
+        router.push('/map/navigate')
+        return
+      }
       if (entry.buildingId) {
         router.push(`/map/explore?building_id=${encodeURIComponent(entry.buildingId)}`)
       }

@@ -171,8 +171,14 @@ function projectionParameter(point: LatLng, from: LatLng, to: LatLng): number {
   return Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared))
 }
 
+/** Building id the compiler gives outdoor walk points (roads and campus paths). */
+const OUTDOOR_BUILDING_ID = '__outdoor__'
+
 function isOutdoorNode(node: NavNode): boolean {
-  return node.type === 'outdoor' || (node.buildingId === '' && node.floor === 0)
+  // Owner 2026-11-20 (ASU: no bench, store or parking could be routed to): the published outdoor walk points are
+  // waypoints of building "__outdoor__", not type 'outdoor' with an empty building id.
+  return node.type === 'outdoor'
+    || ((node.buildingId === '' || node.buildingId === OUTDOOR_BUILDING_ID || node.buildingId === undefined) && (node.floor ?? 0) === 0)
 }
 
 function cloneEdge(edge: NavEdge): NavEdge {

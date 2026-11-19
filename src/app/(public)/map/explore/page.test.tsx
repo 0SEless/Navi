@@ -49,6 +49,12 @@ const authoredPoiEntry = {
   sourceId: 'poi-study-area',
 } as unknown as CampusBundle['searchEntries'][number]
 
+// An outdoor place (owner 2026-11-20: benches, stores… could be found but not clicked): no building, no route point.
+const outdoorPoiEntry = {
+  id: 'poi-bench', label: 'BENCH AREA', type: 'poi', position: { lat: 11.8203, lng: 122.1683 },
+  tags: ['bench', 'area'], category: 'waiting_area', source: 'authored', sourceId: 'poi-bench',
+} as unknown as CampusBundle['searchEntries'][number]
+
 const bundle = {
   nodes: [],
   edges: [],
@@ -69,6 +75,7 @@ const bundle = {
       floor: 2,
     },
     authoredPoiEntry,
+    outdoorPoiEntry,
   ],
   buildings: [library],
   components: [],
@@ -99,6 +106,8 @@ afterEach(() => {
     sheetState: 'hidden',
     indoorContext: { active: false },
     activeFloor: 0,
+    poiDestination: null,
+    toNode: null,
   })
 })
 
@@ -161,6 +170,17 @@ describe('ExplorePage discovery surface', () => {
     expect(usePublicStore.getState().sheetState).toBe('half')
     expect(usePublicStore.getState().toNode).toBeNull()
     expect(mocks.routerPush).not.toHaveBeenCalled()
+  })
+
+  it('an outdoor place opens directions to it (owner 2026-11-20: "I cannot click it")', () => {
+    setReadyCampus()
+    render(<ExplorePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Search campus' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search campus places' }), { target: { value: 'bench' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Explore BENCH AREA' }))
+    expect(usePublicStore.getState().poiDestination).toEqual({ destinationType: 'poi', poiId: 'poi-bench' })
+    expect(usePublicStore.getState().toNode).toBeNull()
+    expect(mocks.routerPush).toHaveBeenCalledWith('/map/navigate')
   })
 
   it('opens a stable building handoff from the Home building_id query', async () => {

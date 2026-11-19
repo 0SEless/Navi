@@ -354,3 +354,33 @@ describe('Preferred POI approach anchor', () => {
     expect(result.resolution?.candidate?.networkId).toBe('edge-a-north')
   })
 })
+
+describe('outdoor places on a published campus (owner 2026-11-20, ASU: no bench or store could be routed to)', () => {
+  // The compiler publishes outdoor walk points as waypoints of building "__outdoor__", not type 'outdoor'.
+  function publishedOutdoorGraph(): NavigationGraph {
+    const nodes = [
+      node('road-a', { lat: 0, lng: 0 }, { buildingId: '__outdoor__', floor: 0, type: 'waypoint' as NavNode['type'] }),
+      node('road-b', { lat: 0, lng: 0.0004 }, { buildingId: '__outdoor__', floor: 0, type: 'waypoint' as NavNode['type'] }),
+    ]
+    const edges = [edge('road', 'road-a', 'road-b', { distance: 44.4, weight: 44.4 })]
+    return { version: 't', campusId: 'c', createdAt: '', checksum: 't', nodes, edges,
+      metadata: { nodeCount: 2, edgeCount: 1, buildings: 0, floors: 1, boundingBox: { minLng: 0, maxLng: 0.0004, minLat: 0, maxLat: 0.0001 } } }
+  }
+  const bench = (): POI => {
+    const poi = authoredPoi({ type: 'point', position: { lat: 0.00005, lng: 0.0002 } }, { id: 'bench', label: 'BENCH' })
+    delete (poi as { buildingId?: string }).buildingId
+    delete (poi as { floor?: number }).floor
+    delete (poi as { floorId?: string }).floorId
+    return poi
+  }
+
+  it('an outdoor place beside the walk gets an approach on it', () => {
+    expect(resolve(publishedOutdoorGraph(), bench())).toMatchObject({ ok: true })
+  })
+
+  it('a waypoint inside a building is still not an outdoor approach', () => {
+    const g = publishedOutdoorGraph()
+    for (const n of g.nodes) n.buildingId = 'b1'
+    expect(resolve(g, bench())).toMatchObject({ ok: false, code: 'POI_NO_ELIGIBLE_APPROACH' })
+  })
+})
