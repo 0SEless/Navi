@@ -114,6 +114,34 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
         }
       }
     }
+    // Entry platform (owner 2026-11-19): a stair starting outside its upper floor gets a deck at its foot, level with the
+    // floor, in the stair's own look, with railings on its open edges — you walk from the floor onto it, then up.
+    const entry = input.entryPlatform
+    if (entry && entry.ring.length === 4) {
+      const [p0, p1, p2, p3] = entry.ring
+      const a = place({ x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 }), b = place({ x: (p3.x + p2.x) / 2, y: (p3.y + p2.y) / 2 })
+      const width = Math.hypot(p1.x - p0.x, p1.y - p0.y)
+      if ([a.x, a.y, b.x, b.y].every(Number.isFinite) && width > 0 && Math.hypot(b.x - a.x, b.y - a.y) <= MAX_FLIGHT_M) {
+        parts.push(buildStructureMesh({
+          path: structurePath({ ...a, h: base } as never, { ...b, h: base } as never), startH: base, endH: base, form: 'ramp', width,
+          underneath, railings: 'none', groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
+        }))
+        if (underneath === 'solid') {
+          const corners = entry.ring.map((p) => place(p))
+          if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, floorAt, base, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
+        }
+        if (railings !== 'none') {
+          const centre = place({ x: entry.ring.reduce((s, p) => s + p.x, 0) / 4, y: entry.ring.reduce((s, p) => s + p.y, 0) / 4 })
+          entry.ring.forEach((p, i) => {
+            if (!entry.railed[i]) return
+            const from = place(p), to = place(entry.ring[(i + 1) % 4])
+            const m = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+            if (![from.x, from.y, to.x, to.y, centre.x, centre.y].every(Number.isFinite)) return
+            parts.push(buildRailingMesh({ from, to, inward: { x: centre.x - m.x, y: centre.y - m.y }, h: base, style, look, materials: BUILT_IN_MATERIALS }))
+          })
+        }
+      }
+    }
     // An outside stair stands on the ground: a landing in front of its first step, to walk up to it from the path.
     if (input.doorwayAt && input.groundLanding !== false && !arrival?.integrated && base <= ground + 1e-6) {
       const first = steps[0].geometry.coordinates[0] as Ring

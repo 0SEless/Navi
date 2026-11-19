@@ -24,8 +24,20 @@ describe('production Floor rectangle authoring commands', () => {
       id: 'door.update', payload: { doorId: 'd', patch: { position: { x: 2, y: 1 }, width: 4, depth: 2, rotation: Math.PI / 2 } },
     })
     expect(buildFloorRectangleEditCommand({ id: 's-0', featureId: 's', type: 'stair', floor: 0 }, points)).toEqual({
-      id: 'feature.update', label: 'Edit stair', payload: { featureId: 's', level: 0, patch: { position: { x: 2, y: 1 }, rotation: Math.PI / 2, polygon: { points } } },
+      id: 'feature.update', label: 'Edit stair', payload: { featureId: 's', level: 0, patch: { position: { x: 2, y: 1 }, rotation: 90, polygon: { points } } },
     })
+  })
+
+  // Owner 2026-11-19: "I cannot move the stairs". Stair/lift rotation is stored in degrees; a move saved radians.
+  it('keeps a stair rotation in degrees when it is moved, and turns it by the dragged angle', () => {
+    const before = [{ x: 0, y: 0 }, { x: 0, y: -2 }, { x: 8, y: -2 }, { x: 8, y: 0 }]
+    const moved = before.map(p => ({ x: p.x + 3, y: p.y + 1 }))
+    const move = buildFloorRectangleEditCommand({ id: 's-0', featureId: 's', type: 'stair', floor: 0 }, moved, { previous: { rotation: 90, points: before } })
+    expect(move.payload).toMatchObject({ patch: { rotation: 90, position: { x: 7, y: 0 } } })
+    // A quarter turn counter-clockwise adds 90 degrees.
+    const turned = before.map(p => ({ x: -p.y, y: p.x }))
+    const turn = buildFloorRectangleEditCommand({ id: 's-0', featureId: 's', type: 'stair', floor: 0 }, turned, { previous: { rotation: 90, points: before } })
+    expect((turn.payload as { patch: { rotation: number } }).patch.rotation).toBeCloseTo(180, 9)
   })
 
   it('keeps the rotation handle at a fixed readable screen distance', () => {

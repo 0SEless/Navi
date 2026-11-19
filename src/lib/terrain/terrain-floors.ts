@@ -1,5 +1,5 @@
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
-import { collectFloorDoors, CoordinateTransformer, floorStairInputs, type CampusDocument } from '@navi/core'
+import { collectFloorDoors, CoordinateTransformer, floorStairInputs, buildingOutlineLocal, type CampusDocument } from '@navi/core'
 import { registerBuildingTransforms } from '@navi/editor'
 import { buildFloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 import type { FloorArchitectureRenderData } from '@/components/map/NavigationRenderModel'
@@ -23,7 +23,7 @@ export function terrainFloorStack(document: CampusDocument, open: OpenFloors | n
   const records: FloorArchitectureRenderData[] = building.floors.map((floor) => {
     const walls = floor.walls ?? []
     // One rule for which floor draws a stair (2026-11-16): flights on their From floor, only tops on the floor above.
-    const { flights: stairs, tops: stairTops } = floorStairInputs(building.staircases ?? [], building.floors, floor.level)
+    const { flights: stairs, tops: stairTops } = floorStairInputs(building.staircases ?? [], building.floors, floor.level, buildingOutlineLocal(building))
     const faces = walls.length ? deriveRooms(walls.map((w) => ({ id: w.id, sourceWallId: w.id, start: w.start, end: w.end })), []) : []
     const floorFaces = faces
       .map((face) => face.polygon.points.map((p) => transformer.buildingLocalToWorld(p, building.id)).filter((q): q is { lat: number; lng: number } => q !== null))

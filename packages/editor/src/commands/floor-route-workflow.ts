@@ -1,4 +1,4 @@
-import {collectFloorDoors, stairFlightFloor, stairFootPosition} from '@navi/core'
+import {collectFloorDoors, stairFlightFloor, stairFootPosition, buildingOutlineLocal} from '@navi/core'
 import {isRouteNodeReferencedByAccessRelationships} from './routing-relationship-cleanup'
 import { recordChange } from '@navi/core'
 import type { Building, CampusDocument, Floor } from '@navi/core'
@@ -209,7 +209,7 @@ function ensureStairFootPort(building: Building, floor: Floor, stairId: string):
   const stair = building.staircases?.find(item => item.id === stairId)
   if (!stair) throw new Error('Stair not found.')
   if (floor.level !== stairFlightFloor(stair)) throw new Error('Use the floor at the foot of this stair.')
-  const foot = stairFootPosition(stair, building.floors)
+  const foot = stairFootPosition(stair, building.floors, buildingOutlineLocal(building))
   if (!foot) throw new Error('This stair has no steps to stand at.')
   const id = stairFootEntranceId(stair.id)
   const existing = floor.entrances.find((e) => e.id === id)

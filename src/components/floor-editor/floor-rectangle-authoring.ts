@@ -65,7 +65,22 @@ export function buildFloorRectangleCommand(tool: FloorRectangleTool, rectangle: 
   }
 }
 
-export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget, points: LocalCoord[], options: { snapDoorToWall?: boolean } = {}) {
+/** Angle of a rectangle's first edge, radians. */
+const firstEdgeAngle = (points: readonly LocalCoord[]) => Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x)
+
+/**
+ * Stair and lift rotation is stored in degrees (owner 2026-11-19: a moved stair saved radians and turned itself).
+ * With the rectangle before the edit, a move keeps the rotation and a turn adds the turned angle.
+ */
+function featureRotationDegrees(points: readonly LocalCoord[], previous?: { rotation: number; points: readonly LocalCoord[] }): number {
+  if (!previous || previous.points.length !== 4 || !Number.isFinite(previous.rotation)) return firstEdgeAngle(points) * 180 / Math.PI
+  let turned = (firstEdgeAngle(points) - firstEdgeAngle(previous.points)) * 180 / Math.PI
+  turned = ((turned + 540) % 360) - 180
+  if (Math.abs(turned) < 1e-9) return previous.rotation
+  return previous.rotation + turned
+}
+
+export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget, points: LocalCoord[], options: { snapDoorToWall?: boolean; previous?: { rotation: number; points: readonly LocalCoord[] } } = {}) {
   if (points.length !== 4) throw new Error('A rectangle edit requires exactly four corners')
 
   const center = points.reduce(
@@ -105,7 +120,7 @@ export function buildFloorRectangleEditCommand(target: FloorRectangleEditTarget,
     payload: {
       featureId: target.featureId ?? target.id,
       level: target.floor,
-      patch: { position: center, rotation, polygon: { points } },
+      patch: { position: center, rotation: featureRotationDegrees(points, options.previous), polygon: { points } },
     },
   }
 }

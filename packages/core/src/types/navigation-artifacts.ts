@@ -281,6 +281,8 @@ export interface FloorGeometryFeature {
   arrivalLanding?: boolean
   /** A Stair-tool stair's railings and underneath (2026-11-17). */
   look?: import('./entities').StairLook
+  /** Entry platform at the foot of a stair starting outside its upper floor (owner 2026-11-19). */
+  entryPlatform?: { ring: LocalCoord[]; railed: boolean[] }
   position: LocalCoord
   rotation: number
   /** Optional authored visual construction, retained without materializing defaults. */

@@ -1,6 +1,6 @@
 import { enclosedFloorAreas } from '@/lib/stair-well-guards'
 import { cutStairWells } from '@/lib/stair-well-slabs'
-import { collectFloorDoors, floorStairInputs, stairFlightFloor, stairRise, stairTopShape, type Building, type CoordinateTransformer } from '@navi/core'
+import { collectFloorDoors, floorStairInputs, buildingOutlineLocal, stairFlightFloor, stairRise, stairTopShape, type Building, type CoordinateTransformer } from '@navi/core'
 import { stairTopReach } from '@navi/editor/src/geometry/stair-top-reach'
 import { buildFloorArchitectureAssets } from '@/lib/floor-architecture-assets'
 
@@ -34,7 +34,7 @@ export function wholeBuildingPieces(building: Building, activeLevel: number, hid
     if (floor.level <= activeLevel || hidden.has(floor.level)) continue
     const base = floor.elevation - active.elevation
     if (!(base > 0)) continue
-    const { flights, tops } = floorStairInputs(building.staircases ?? [], building.floors, floor.level)
+    const { flights, tops } = floorStairInputs(building.staircases ?? [], building.floors, floor.level, buildingOutlineLocal(building))
     const assets = buildFloorArchitectureAssets({
       buildingId: building.id, transformer, walls: floor.walls ?? [], openings: floor.openings ?? [], doors: collectFloorDoors(floor),
       windows: floor.windows ?? [], stairs: flights, stairTops: tops, base,

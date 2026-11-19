@@ -1,6 +1,7 @@
 import type { Floor, Staircase, StairLevelGeometry } from '../types/entities'
 import { buildStairAssetVolumes, stairTopShape, stairLandingExitEdge, type StairAssetInput, type StairTopInput } from './stair-assets'
-import type { LocalCoord } from '../types/coordinates'
+import type { LatLng, LocalCoord } from '../types/coordinates'
+import { CoordinateTransformer } from '../coordinates/transformer'
 
 /**
  * Which floor draws a stair (2026-11-16, whole-building view). A stair set to climb To a floor has its flight on its
@@ -66,12 +67,15 @@ export function undesignedStairRise(geometry: Pick<StairLevelGeometry, 'drawing'
  * A floor's stair inputs for the 2.5D builders: the flights drawn here (rise from the floors) and the stairs arriving
  * from below (built from their flight's geometry on the From floor, so the top lines up with the flight).
  */
-export function floorStairInputs(stairs: readonly Staircase[], floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], level: number): { flights: StairAssetInput[]; tops: StairTopInput[] } {
+export function floorStairInputs(stairs: readonly Staircase[], floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], level: number, outline?: readonly LocalCoord[]): { flights: StairAssetInput[]; tops: StairTopInput[] } {
   const elevation = floors.find(floor => floor.level === level)?.elevation
   const groundLanding = !floors.some(floor => elevation !== undefined && floor.elevation < elevation)
   const flights = stairFlightsOnFloor(stairs, level).map(({ stair, geometry }) => {
     const doorwayAt = stairDoorwayAt(stair, floors)
-    return { id: stair.id, ...geometry, groundLanding, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(stairHasTop(stair) ? { arrivalLanding: true } : {}), ...(doorwayAt ? { doorwayAt } : {}) }
+    // With the building outline, a stair starting outside its (upper) floor gets its entry platform (owner 2026-11-19).
+    const entry = outline ? stairEntryPlatform(stair, floors, outline) : undefined
+    return { id: stair.id, ...geometry, groundLanding, rotation: geometry.rotation ?? 0, height: stairRise(stair, floors), ...(stairHasTop(stair) ? { arrivalLanding: true } : {}), ...(doorwayAt ? { doorwayAt } : {}),
+      ...(entry ? { entryPlatform: { ring: entry.ring, railed: entry.railed } } : {}) }
   })
   const tops = stairTopsOnFloor(stairs, level).flatMap(({ stair, geometry, fromLevel }) => {
     const flight = stair.levels?.[fromLevel]
@@ -140,11 +144,118 @@ export function stairDoorwayAt(stair: Staircase, floors: readonly Partial<Pick<F
   return { x: wall.start.x + (wall.end.x - wall.start.x) * t, y: wall.start.y + (wall.end.y - wall.start.y) * t }
 }
 
+/** Furthest gap an entry platform bridges between a stair's foot and its floor, metres. */
+const ENTRY_REACH_M = 4
+/** Shortest entry platform, metres (room to stand before the first step). */
+const MIN_ENTRY_DEPTH_M = 1
+/** An edge this close to the floor's outline touches it (no railing there; you walk on). */
+const ENTRY_TOUCH_M = 0.1
+
+export interface StairEntryPlatform {
+  /** Four corners, building-local; edge 0 is the stair's bottom step. */
+  ring: LocalCoord[]
+  /** Per edge (ring[i] → ring[i + 1]): true where the platform is open to the outside and gets a railing. */
+  railed: boolean[]
+  /** The edge where the platform meets the floor, or null when it could not reach the floor. */
+  contact: [LocalCoord, LocalCoord] | null
+}
+
+/**
+ * The building outline in building-local metres, framed as the editor and the compiler frame it (origin = the average
+ * of all footprint points, the building's rotation in degrees).
+ */
+export function buildingOutlineLocal(building: { id: string; footprint?: unknown; rotation?: number }): LocalCoord[] {
+  const raw = building.footprint as { points?: LatLng[] } | LatLng[] | undefined
+  const points = (Array.isArray(raw) ? raw : raw?.points ?? []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng))
+  if (points.length < 3) return []
+  const origin = { lat: points.reduce((s, p) => s + p.lat, 0) / points.length, lng: points.reduce((s, p) => s + p.lng, 0) / points.length }
+  const transformer = new CoordinateTransformer()
+  transformer.registerBuilding({ buildingId: building.id, origin, rotation: building.rotation ?? 0 })
+  const local = points.map((p) => transformer.worldToBuildingLocal(p, building.id)).filter((p): p is LocalCoord => !!p)
+  const [first, last] = [local[0], local[local.length - 1]]
+  return local.length > 3 && Math.hypot(first.x - last.x, first.y - last.y) < 1e-6 ? local.slice(0, -1) : local
+}
+
+const insideRing = (p: LocalCoord, ring: readonly LocalCoord[]): boolean => {
+  let hit = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j]
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) hit = !hit
+  }
+  return hit
+}
+const distanceToRing = (p: LocalCoord, ring: readonly LocalCoord[]): number => ring.reduce((best, a, i) => {
+  const b = ring[(i + 1) % ring.length], dx = b.x - a.x, dy = b.y - a.y, len = dx * dx + dy * dy
+  const t = len > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len)) : 0
+  return Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)))
+}, Infinity)
+/** On the floor: inside the outline, or on its edge. */
+const onFloor = (p: LocalCoord, outline: readonly LocalCoord[]) => insideRing(p, outline) || distanceToRing(p, outline) <= 0.01
+
+/**
+ * Owner 2026-11-19: a stair whose bottom step is outside its floor (an upper floor's corridor edge) gets an entry
+ * platform at its foot, in the stair's own look, filling the gap to the floor, with railings on its open sides.
+ * Ground-floor stairs start on the ground and get none. Undefined when no platform is needed.
+ */
+export function stairEntryPlatform(stair: Staircase, floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], outline: readonly LocalCoord[]): StairEntryPlatform | undefined {
+  if (outline.length < 3 || floors.length === 0) return undefined
+  const level = stairFlightFloor(stair)
+  if (level <= Math.min(...floors.map((f) => f.level))) return undefined
+  const flight = floorStairInputs([stair], floors, level).flights[0]
+  const step = flight && buildStairAssetVolumes([flight], 0).collection.features.find((f) => f.properties?.partType === 'step')
+  const ring = step?.geometry.coordinates[0] as number[][] | undefined
+  if (!ring || ring.length < 4) return undefined
+  const A = { x: ring[0][0], y: ring[0][1] }, B = { x: ring[1][0], y: ring[1][1] }
+  const foot = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 }
+  const upMid = { x: (ring[3][0] + ring[2][0]) / 2, y: (ring[3][1] + ring[2][1]) / 2 }
+  const upLen = Math.hypot(upMid.x - foot.x, upMid.y - foot.y), width = Math.hypot(B.x - A.x, B.y - A.y)
+  if (!(upLen > 0) || !(width > 0) || onFloor(foot, outline)) return undefined
+  const back = { x: -(upMid.x - foot.x) / upLen, y: -(upMid.y - foot.y) / upLen }
+  const side = { x: (B.x - A.x) / width, y: (B.y - A.y) / width }
+  const at = (p: LocalCoord, d: LocalCoord, s: number) => ({ x: p.x + d.x * s, y: p.y + d.y * s })
+  const STEP = 0.05
+  let corners: LocalCoord[] | undefined
+  // 1) Straight back from the bottom step until the floor.
+  for (let d = STEP; d <= ENTRY_REACH_M + 1e-9; d += STEP) {
+    if (!onFloor(at(foot, back, d), outline)) continue
+    const depth = Math.max(d, MIN_ENTRY_DEPTH_M)
+    corners = [A, B, at(B, back, depth), at(A, back, depth)]
+    break
+  }
+  // 2) A stair along the facade: a pad as deep as the stair is wide, widened sideways to the floor.
+  if (!corners) {
+    const depth = Math.max(width, MIN_ENTRY_DEPTH_M)
+    const mid = at(foot, back, depth / 2)
+    for (let s = STEP; s <= ENTRY_REACH_M + 1e-9 && !corners; s += STEP) {
+      if (onFloor(at(mid, side, width / 2 + s), outline)) corners = [A, at(B, side, s), at(at(B, side, s), back, depth), at(A, back, depth)]
+      else if (onFloor(at(mid, side, -(width / 2 + s)), outline)) corners = [at(A, side, -s), B, at(B, back, depth), at(at(A, side, -s), back, depth)]
+    }
+    corners ??= [A, B, at(B, back, depth), at(A, back, depth)]
+  }
+  const edges = corners.map((p, i) => [p, corners![(i + 1) % 4]] as [LocalCoord, LocalCoord])
+  const touches = edges.map(([p, q]) => {
+    const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
+    return onFloor(m, outline) || distanceToRing(m, outline) <= ENTRY_TOUCH_M
+  })
+  const contactIndex = touches.findIndex((t, i) => i !== 0 && t)
+  return { ring: corners, railed: touches.map((t, i) => i !== 0 && !t), contact: contactIndex >= 0 ? edges[contactIndex] : null }
+}
+
 /**
  * Where you step onto a stair (owner 2026-11-18: connect an outside stair to the outdoor route network): half a metre
  * out from the middle of its lowest step's front edge, building-local. Undefined when the stair has no steps.
  */
-export function stairFootPosition(stair: Staircase, floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[]): LocalCoord | undefined {
+export function stairFootPosition(stair: Staircase, floors: readonly (Pick<Floor, 'level' | 'elevation' | 'height'> & Partial<Pick<Floor, 'walls' | 'openings'>>)[], outline?: readonly LocalCoord[]): LocalCoord | undefined {
+  // With an entry platform, you step onto the stair from the floor where the platform meets it (owner 2026-11-19):
+  // 0.3 m onto the floor past the middle of that edge.
+  const entry = outline ? stairEntryPlatform(stair, floors, outline) : undefined
+  if (entry?.contact) {
+    const [p, q] = entry.contact
+    const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
+    const c = { x: entry.ring.reduce((s, r) => s + r.x, 0) / 4, y: entry.ring.reduce((s, r) => s + r.y, 0) / 4 }
+    const len = Math.hypot(m.x - c.x, m.y - c.y)
+    return len > 0 ? { x: m.x + (m.x - c.x) / len * 0.3, y: m.y + (m.y - c.y) / len * 0.3 } : m
+  }
   const flight = floorStairInputs([stair], floors, stairFlightFloor(stair)).flights[0]
   if (!flight) return undefined
   const step = buildStairAssetVolumes([flight], 0).collection.features.find((f) => f.properties?.partType === 'step')

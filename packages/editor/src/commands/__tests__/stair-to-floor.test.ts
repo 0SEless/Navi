@@ -196,6 +196,15 @@ describe('stair.setToFloor', () => {
       } }).success).toBe(true)
     }
 
+    // Owner 2026-11-19: a stair arriving at a balcony railing / half-wall needs an opening there too.
+    it('opens a 1 m railing where the stair arrives, as tall as the railing', () => {
+      const { d, e } = walled()
+      const upper = d.buildings[0].floors.find((f) => f.level === 1)!
+      upper.walls!.find((w) => w.id === 'n1')!.height = 1
+      confirm(d, e)
+      expect(openingsOn(d, 1)).toEqual([expect.objectContaining({ type: 'door', wallId: 'n1', height: 1, sillHeight: 0, frameless: true })])
+    })
+
     it('keeps the wall intact until an explicit cutout is applied', () => {
       const { d, e } = walled()
       expect(openingsOn(d, 1)).toHaveLength(0)

@@ -1,4 +1,4 @@
-import { recordChange, stairFlightFloor, stairFootPosition, stairHasTop, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
+import { recordChange, stairFlightFloor, stairFootPosition, buildingOutlineLocal, stairEntryPlatform, stairHasTop, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
 import { stairTopReach, type StairTopReach } from '../geometry/stair-top-reach'
 import { suggestFloorConnections } from '../geometry/floor-connections'
 import { floorConnectionsApplyHandler } from './floor-route-workflow'
@@ -90,9 +90,10 @@ export const stairSetToFloorHandler: CommandHandler = {
     if (payload.autoConnect === true && stairHasTop(stair)) {
       // Only the selected stair is eligible. Keep any existing foot link and never create a corridor.
       if (!flight.routeConnection && !flight.landing) {
-        const foot = stairFootPosition(stair, building.floors)
+        const foot = stairFootPosition(stair, building.floors, buildingOutlineLocal(building))
         if (foot) flight.landing = { position: foot }
       }
+      openEntryRailing(building, stair)
       for (const level of [from, toLevel]) {
         const geometry = stair.levels[level]
         if (geometry.routeConnection) continue
@@ -160,13 +161,43 @@ const openingId = (stair: Staircase) => `${stair.id}-top-opening`
 
 type CutoutRequest = { wallId: string; offset: number; width: number }
 
+/** Opening id for the gap where a stair's entry platform meets its floor's railing or wall. */
+export const stairEntryOpeningId = (stairId: string) => `${stairId}-entry-opening`
+
+/**
+ * Owner 2026-11-19: where a stair's entry platform meets its floor, the corridor railing (or wall) there is opened so
+ * you can walk from the floor onto the platform. Only when no opening is already there; undone with the stair command.
+ */
+function openEntryRailing(building: Building, stair: Staircase): void {
+  const entry = stairEntryPlatform(stair, building.floors, buildingOutlineLocal(building))
+  const floor = building.floors.find(f => f.level === stairFlightFloor(stair))
+  if (!entry?.contact || !floor?.walls?.length) return
+  const [p, q] = entry.contact
+  for (const wall of floor.walls) {
+    const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y, len = Math.hypot(dx, dy)
+    if (!(len > 0)) continue
+    const along = [p, q].map(v => ((v.x - wall.start.x) * dx + (v.y - wall.start.y) * dy) / len)
+    const across = [p, q].map(v => Math.abs((v.y - wall.start.y) * dx - (v.x - wall.start.x) * dy) / len)
+    const t0 = Math.max(0, Math.min(...along)), t1 = Math.min(len, Math.max(...along))
+    if (Math.max(...across) - (wall.thickness ?? 0.2) / 2 > 0.3 || t1 - t0 < 0.5) continue
+    if (floor.openings?.some(o => o.wallId === wall.id && o.offset < t1 - 1e-6 && o.offset + o.width > t0 + 1e-6)) return
+    floor.openings = [...(floor.openings ?? []), {
+      id: stairEntryOpeningId(stair.id), type: 'door', wallId: wall.id, offset: t0, width: t1 - t0,
+      height: Math.min(STAIR_OPENING_HEIGHT_M, wall.height), sillHeight: 0, frameless: true, doorAppearance: 'open',
+      metadata: { stairEntryId: stair.id },
+    } as Opening]
+    return
+  }
+}
+
 export function proposeStairCutout(building: Building, stair: Staircase) {
   if (stairTopReach(building, stair).ok) return undefined
   const reach = stairTopReach(building, stair, true)
   if (!reach.ok || !reach.wall) return undefined
   const floor = building.floors.find(f => f.level === stair.toLevel)
   const { wall, t0, t1, offset: anchorOffset } = reach.wall
-  if (!floor || (wall.height < STAIR_OPENING_HEIGHT_M && !wall.guardStyle)) return undefined
+  // Railings and half-walls can be opened too (owner 2026-11-19); the opening is then as tall as the wall.
+  if (!floor) return undefined
   return { wallId: wall.id, offset: t0, width: t1 - t0, anchorOffset, wall, floor }
 }
 

@@ -1,6 +1,6 @@
 import type { ConnectivityGraph, NavigationGraph, NavigationArtifacts, SearchEntry, BuildingEntry, FloorEntry } from '../types'
 import type { CampusDocument, PanoramaIndex, PanoramaEntry, FloorGeometryArtifact, RoomAttributes } from '@navi/core'
-import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairDoorwayAt, stairFlightFloor, stairHasTop, stairRise, undesignedStairRise } from '@navi/core'
+import { collectFloorDoors, encodeQrCode, CoordinateTransformer, isValidTerrainPublication, stairDoorwayAt, stairFlightFloor, stairHasTop, stairRise, undesignedStairRise, stairEntryPlatform, buildingOutlineLocal } from '@navi/core'
 import { COMPILER_VERSION } from '../version'
 import { buildPOIIndex, getPointOfInterestRepresentative } from './poi-projection'
 
@@ -1025,6 +1025,8 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
         const height = climbsToFloor ? stairRise(st, b.floors) : (geom.height ?? (isTop ? undefined : undesignedStairRise(geom, level, b.floors)) ?? slot.height)
         const exit = isTop ? levelGeom.landingExit : geom.landingExit
         const doorwayAt = stairDoorwayAt(st, b.floors)
+        // Entry platform at the foot of a stair starting outside its upper floor (owner 2026-11-19), for NAVI Web.
+        const entry = !isTop ? stairEntryPlatform(st, b.floors, buildingOutlineLocal(b)) : undefined
         slot.staircases.push({
           id: st.id,
           name: st.name,
@@ -1045,6 +1047,7 @@ function buildFloorGeometry(document: CampusDocument): FloorGeometryArtifact {
             ...(geom.landing.polygon ? { polygon: { points: translatePoints(geom.landing.polygon.points, offsetFor(b, at)) } } : {}),
           } } : {}),
           ...(geom.polygon ? { polygon: { points: translatePoints(geom.polygon.points, offsetFor(b, at)) } } : {}),
+          ...(entry ? { entryPlatform: { ring: translatePoints(entry.ring, offsetFor(b, at)), railed: entry.railed } } : {}),
         })
       }
     }

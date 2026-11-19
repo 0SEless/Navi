@@ -60,6 +60,7 @@ export interface StairRenderData {
   rotation?: number
   drawing?: StairAssetInput['drawing']
   landing?: StairAssetInput['landing']
+  entryPlatform?: StairAssetInput['entryPlatform']
   height?: number
 }
 

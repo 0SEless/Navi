@@ -1,6 +1,6 @@
 import {floorConnectionProblem,ownWallOf} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
-import { recordChange, collectFloorDoors, stairFlightFloor, stairFootPosition } from '@navi/core'
+import { recordChange, collectFloorDoors, stairFlightFloor, stairFootPosition, buildingOutlineLocal } from '@navi/core'
 import { syncStairTop } from './stair-to-floor-handler'
 import { stairFootEntranceId } from './floor-route-workflow'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
@@ -1205,7 +1205,7 @@ export const featureUpdateHandler: CommandHandler = {
       : undefined
     const source = stair && ctx.building.floors.find(floor => floor.level === level)
     const foot = stair && source ? source.entrances?.find(entrance => entrance.id === stairFootEntranceId(stair.id)) : undefined
-    const oldFoot = stair ? stairFootPosition(stair, ctx.building.floors) : undefined
+    const oldFoot = stair ? stairFootPosition(stair, ctx.building.floors, buildingOutlineLocal(ctx.building)) : undefined
     const oldFootAccess = foot && source ? structuredClone({ entrances: source.entrances, entranceAccess: source.entranceAccess }) : undefined
 
     // Internal history restores the exact prior snapshot, including absent optional
@@ -1282,7 +1282,7 @@ export const featureUpdateHandler: CommandHandler = {
       levelGeom.polygon = { ...(patch.polygon as LocalPolygon) }
     }
 
-    const newFoot = stair ? stairFootPosition(stair, ctx.building.floors) : undefined
+    const newFoot = stair ? stairFootPosition(stair, ctx.building.floors, buildingOutlineLocal(ctx.building)) : undefined
     const priorLanding = oldLevelGeom?.landing?.position
     if (priorLanding && oldFoot && newFoot && !patch.landing &&
         Math.hypot(oldFoot.x - priorLanding.x, oldFoot.y - priorLanding.y) <= 0.01) {

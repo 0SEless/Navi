@@ -8,7 +8,7 @@ import type { Command } from '@navi/editor'
 import { useFloorComponents, useFloorComponent, useFloorRenderVersion, useFloorCampusId, isSemanticRoomComponent, resolveFloorScope } from '@/hooks/floor-graph-selectors'
 import type { Building, LatLng, Component } from '@/types/nav-types'
 import type { CoordinateTransformer, LocalCoord, PlanAlignment, Wall, Floor } from '@navi/core'
-import { resizeRectangleFootprint, rotateRectangleFootprint } from '@navi/core'
+import { resizeRectangleFootprint, rotateRectangleFootprint, buildingOutlineLocal } from '@navi/core'
 import type { StudioTool, LayerVisibility } from '@/types/studio-types'
 import { DEFAULT_SNAP_MODE, SNAP_CONFIGS, useFloorDrawing } from './useFloorDrawing'
 import type { EntranceAccessRequiredRequest } from './useFloorDrawing'
@@ -27,6 +27,7 @@ import { generateStairGraphicsLatLng, generateElevatorGraphicsLatLng } from '@na
 import { deriveRooms } from '@navi/editor/src/geometry/room-derivation'
 import { wallsToSegments } from '@navi/editor/src/geometry/wall-to-segment'
 import { cutStairWellsFromFeatures } from '@/lib/stair-well-slabs'
+import { stairLandingMarkings } from './stair-landing-marking'
 import { buildFloorArchitecturePreview } from './floor-architecture-preview'
 import { doorExtrusionColor, syncOpeningSymbolLayers } from '@/lib/opening-symbol-layers'
 import { Architecture3DController } from './Architecture3DController'
@@ -185,6 +186,15 @@ function addSourcesAndLayers(map: maplibregl.Map) {
   if (!map.getSource('floor-stair-arrows')) {
     map.addSource('floor-stair-arrows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
     map.addLayer({ id: 'floor-stair-arrows-line', type: 'line', source: 'floor-stair-arrows', paint: { 'line-color': '#C2410C', 'line-width': 2, 'line-opacity': 0.9 } })
+  }
+
+  // Owner 2026-11-19: where a stair lands on the floor above, drawn on its flight floor (dashed rectangle + exit edge).
+  if (!map.getSource('floor-stair-landings')) {
+    map.addSource('floor-stair-landings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+    map.addLayer({ id: 'floor-stair-landings-fill', type: 'fill', source: 'floor-stair-landings', filter: ['==', ['get', 'kind'], 'landing'], paint: { 'fill-color': ['case', ['get', 'entry'], '#F59E0B', '#14B8A6'], 'fill-opacity': 0.28 } })
+    map.addLayer({ id: 'floor-stair-landings-outline', type: 'line', source: 'floor-stair-landings', filter: ['==', ['get', 'kind'], 'landing'], paint: { 'line-color': ['case', ['get', 'entry'], '#B45309', '#0F766E'], 'line-width': 2, 'line-dasharray': [2, 1] } })
+    map.addLayer({ id: 'floor-stair-landings-exit', type: 'line', source: 'floor-stair-landings', filter: ['==', ['get', 'kind'], 'exit'], paint: { 'line-color': '#0F766E', 'line-width': 5 } })
+    map.addLayer({ id: 'floor-stair-landings-label', type: 'symbol', source: 'floor-stair-landings', filter: ['==', ['get', 'kind'], 'landing'], layout: { 'text-field': ['get', 'label'], 'text-size': 11, 'text-allow-overlap': true }, paint: { 'text-color': '#0F766E', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1.5 } })
   }
 
   if (!map.getSource('floor-elevator-areas')) {
@@ -590,7 +600,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
   const architecturePreview = useMemo(() => {
     const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
     const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
-    return canonicalFloor && transformer ? buildFloorArchitecturePreview(architectureDraft ?? canonicalFloor, building.id, transformer, canonicalBuilding?.staircases, canonicalBuilding?.floors) : null
+    return canonicalFloor && transformer ? buildFloorArchitecturePreview(architectureDraft ?? canonicalFloor, building.id, transformer, canonicalBuilding?.staircases, canonicalBuilding?.floors, canonicalBuilding ? buildingOutlineLocal(canonicalBuilding) : undefined) : null
     // The mutable editor document publishes geometry changes through renderVersion.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.document, renderVersion, building.id, activeFloorId, floor, transformer, architectureDraft])
@@ -1010,6 +1020,19 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       const stairArrowSrc = map.getSource('floor-stair-arrows') as maplibregl.GeoJSONSource | undefined
       if (stairArrowSrc) stairArrowSrc.setData({ type: 'FeatureCollection', features: stairArrowFeatures })
 
+      const landingSrc = map.getSource('floor-stair-landings') as maplibregl.GeoJSONSource | undefined
+      const canonicalBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
+      const canonicalFloor = canonicalBuilding && resolveFloorScope(canonicalBuilding.floors, activeFloorId, floor)
+      if (landingSrc) landingSrc.setData({ type: 'FeatureCollection', features: canonicalBuilding && canonicalFloor
+        ? stairLandingMarkings(canonicalBuilding, canonicalFloor.level).flatMap((marking): GeoJSON.Feature[] => {
+          const lngLat = ({ x, y }: { x: number; y: number }): [number, number] => { const p = toLatLng(x, y); return [p.lng, p.lat] }
+          const ring = [...marking.ring, marking.ring[0]].map(lngLat)
+          return [
+            { type: 'Feature', properties: { kind: 'landing', entry: marking.kind === 'entry', id: marking.stairId, label: marking.label }, geometry: { type: 'Polygon', coordinates: [ring] } },
+            ...(marking.exitEdge ? [{ type: 'Feature' as const, properties: { kind: 'exit', id: marking.stairId }, geometry: { type: 'LineString' as const, coordinates: marking.exitEdge.map(lngLat) } }] : []),
+          ]
+        }) : [] })
+
       const elevAreaSrc = map.getSource('floor-elevator-areas') as maplibregl.GeoJSONSource | undefined
       if (elevAreaSrc) elevAreaSrc.setData({ type: 'FeatureCollection', features: elevatorAreaFeatures })
 
@@ -1035,7 +1058,7 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       const pointSrc = map.getSource('floor-point-items') as maplibregl.GeoJSONSource | undefined
       if (pointSrc) pointSrc.setData({ type: 'FeatureCollection', features: pointFeatures })
     } catch { console.warn('FloorEditorCanvas: source not ready for setData') }
-  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId, editor.document, building.id, activeFloorId, floor, activeStairWells])
+  }, [floorComponents, renderVersion, mapReady, pendingRouteAnchor, selectedId, editor.document, building.id, activeFloorId, floor, activeStairWells, toLatLng])
 
 
   // Sync roads from document to floor-roads source (for interaction mode)
@@ -1566,6 +1589,10 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
       'floor-stair-areas-outline': in2_5D || layers.assets,
       'floor-stair-treads-line': in2_5D || layers.assets,
       'floor-stair-arrows-line': in2_5D || layers.assets,
+      'floor-stair-landings-fill': !in2_5D && layers.assets,
+      'floor-stair-landings-outline': !in2_5D && layers.assets,
+      'floor-stair-landings-exit': !in2_5D && layers.assets,
+      'floor-stair-landings-label': !in2_5D && layers.assets,
       'floor-elevator-areas-fill': in2_5D || layers.assets,
       'floor-elevator-areas-outline': in2_5D || layers.assets,
       'floor-elevator-cabins-outline': in2_5D || layers.assets,
@@ -2090,12 +2117,17 @@ export function FloorEditorCanvas({ building, activeFloorId, floor, tool, layers
         if (isRectangle && localPoints.length === 4) {
           const currentBuilding = editor.document.buildings.find(candidate => candidate.id === building.id)
           const currentFloor = currentBuilding && resolveFloorScope(currentBuilding.floors, activeFloorId, floor)
+          // The rectangle and rotation before this drag, so a move keeps the stair/lift rotation (stored in degrees).
+          const featureId = comp.featureId ?? comp.id
+          const level = currentFloor ? (currentBuilding?.staircases?.find(s => s.id === featureId) ?? currentBuilding?.elevators?.find(e => e.id === featureId))?.levels?.[currentFloor.level] : undefined
+          const previousPoints = comp.polygon?.map(point => transformer.worldToBuildingLocal(point, building.id)).filter((point): point is LocalCoord => Boolean(point))
+          const previous = level && previousPoints?.length === 4 ? { rotation: level.rotation ?? 0, points: previousPoints } : undefined
           const result = dispatcher.execute(buildFloorRectangleEditCommand({
             id: comp.id,
             ...(comp.featureId ? { featureId: comp.featureId } : {}),
             type: comp.type as 'door' | 'stair' | 'elevator',
             floor: comp.floor,
-          }, localPoints, { snapDoorToWall: Boolean(bodyDrag && comp.type === 'door' && currentFloor?.walls?.length) }) as Command)
+          }, localPoints, { snapDoorToWall: Boolean(bodyDrag && comp.type === 'door' && currentFloor?.walls?.length), ...(previous ? { previous } : {}) }) as Command)
           if (result?.success === false) {
             setRectangleEditError({ buildingId: building.id, floor, message: result.error ?? 'The rectangle edit was rejected.' })
             const sourceId = comp.type === 'door' ? 'floor-door-areas' : comp.type === 'stair' ? 'floor-stair-areas' : 'floor-elevator-areas'

@@ -27,6 +27,8 @@ export interface StairAssetInput {
   look?: StairLevelGeometry['look']
   /** Outside the building's walls (2026-11-17): a solid stair is filled down to the ground, not just its floor. */
   outside?: boolean
+  /** Entry platform at the foot of a stair that starts outside its floor (owner 2026-11-19); see stairEntryPlatform. */
+  entryPlatform?: { ring: LocalCoord[]; railed: boolean[] }
 }
 /** Landing entry is edge 0, front is edge 2, and sides are relative to the final flight. */
 export function stairLandingExitEdge(ring: readonly number[][], side: NonNullable<StairAssetInput['landingExit']>): number {
