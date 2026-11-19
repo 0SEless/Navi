@@ -13,10 +13,21 @@ const fields=['routeNetwork','entrances','entranceAccess','doors','rooms'] as co
 function levelOwners(building:Building,floor:Floor){return [...(building.staircases??[]),...(building.elevators??[])].flatMap(feature=>{const level=feature.levels?.[floor.level];return level?[{id:feature.id,level}]:[]})}
 function snapshot(floor:Floor,building:Building) {return {
  fields:Object.fromEntries(fields.map(key=>[key,{present:Object.hasOwn(floor,key),value:structuredClone(floor[key])}])),
+ arrivals:(building.staircases??[]).flatMap(stair=>{
+  const level=stair.levels?.[floor.level]
+  return level?.role==='top'?[{id:stair.id,position:structuredClone(level.position),exit:level.landingExit,span:structuredClone(level.landingExitSpan)}]:[]
+ }),
  levels:levelOwners(building,floor).map(({id,level})=>({id,connectionPresent:Object.hasOwn(level,'routeConnection'),connection:structuredClone(level.routeConnection),managedPresent:Object.hasOwn(level,'routeConnectionManaged'),managed:level.routeConnectionManaged})),
 }}
 function restore(floor:Floor,state:ReturnType<typeof snapshot>,building:Building) {
  for(const key of fields){if(state.fields[key].present)Object.assign(floor,{[key]:structuredClone(state.fields[key].value)});else delete (floor as unknown as Record<string,unknown>)[key]}
+ for(const item of state.arrivals??[]){
+  const level=building.staircases?.find(stair=>stair.id===item.id)?.levels[floor.level]
+  if(!level||level.role!=='top')continue
+  level.position=structuredClone(item.position)
+  if(item.exit!==undefined)level.landingExit=item.exit;else delete level.landingExit
+  if(item.span!==undefined)level.landingExitSpan=structuredClone(item.span);else delete level.landingExitSpan
+ }
  for(const item of state.levels){const owner=levelOwners(building,floor).find(p=>p.id===item.id)?.level;if(!owner)continue
   if(item.connectionPresent)owner.routeConnection=structuredClone(item.connection);else delete owner.routeConnection
   if(item.managedPresent)owner.routeConnectionManaged=item.managed;else delete owner.routeConnectionManaged
@@ -141,6 +152,13 @@ export const floorConnectionsApplyHandler:CommandHandler={
     delete owner.routeConnection
     if(previous&&port.kind!=='entrance'&&!isRouteNodeReferencedByAccessRelationships(draft,building.id,floor.id,previous.anchorNodeId)&&!network.edges.some(e=>e.from===previous.anchorNodeId||e.to===previous.anchorNodeId))network.nodes=network.nodes.filter(n=>n.id!==previous.anchorNodeId)
     continue
+   }
+   if(port.stairArrival){
+    const top=building.staircases?.find(stair=>stair.id===port.id)?.levels[floor.level]
+    if(top?.role!=='top')throw new Error('The stair arrival changed. Generate suggestions again.')
+    top.position={...port.position}
+    top.landingExit=port.stairArrival.exit
+    top.landingExitSpan=port.stairArrival.span
    }
    let anchorId=previous?.anchorNodeId
    if(port.kind==='entrance')anchorId=ensureEntranceRoutePort(floor,port.id)

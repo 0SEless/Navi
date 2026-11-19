@@ -1,12 +1,15 @@
 import { deriveRooms } from './room-derivation'
+import { stairTopReach } from './stair-top-reach'
 import {collectFloorDoors, stairTopExitDirection, type Staircase} from '@navi/core'
-import type { Building, Floor, LocalCoord, RoomDoor } from '@navi/core'
+import type { Building, Floor, LocalCoord, RoomDoor, StairLevelGeometry } from '@navi/core'
 import { deriveAttachedDoor } from './door-wall-attachment'
 export type FloorPortKind='door'|'entrance'|'stair'|'elevator'
 export interface FloorPort { key:string; kind:FloorPortKind; id:string; label:string; position:LocalCoord; hostWallId?:string; connection?:RoomDoor['routeConnection']; manualConnected?:boolean; issue?:string
  /** Old imported doors carry no wall attachment. The wall they sit in (nearest, within `ownWallReach`)
   * may be crossed at the very start of their link, like an attached door's host wall. */
- ownWallId?:string; ownWallReach?:number; exitDirection?:LocalCoord; checkStairApproach?:boolean }
+ ownWallId?:string; ownWallReach?:number; exitDirection?:LocalCoord; checkStairApproach?:boolean
+ /** An unresolved saved arrival can be proposed from current geometry, then stored on Confirm. */
+ stairArrival?: {exit:NonNullable<StairLevelGeometry['landingExit']>; span:NonNullable<StairLevelGeometry['landingExitSpan']>} }
 /** Distance from a point to a wall's centre line. */
 function distanceToWall(point:LocalCoord,wall:{start:LocalCoord;end:LocalCoord}):number{const q=projectFloorPoint(point,wall.start,wall.end);return Math.hypot(q.x-point.x,q.y-point.y)}
 /** The single wall an unattached door sits in: the nearest wall whose centre line is within half the door depth
@@ -21,7 +24,7 @@ export function ownWallOf(door:Pick<RoomDoor,'position'|'depth'>,floor:Pick<Floo
 }
 export interface FloorConnectionTarget { edgeId:string; position:LocalCoord }
 export interface FloorConnectionProposal {portKey:string;target?:FloorConnectionTarget;accepted:boolean;existing?:boolean;disconnect?:boolean;message?:string;distance?:number}
-export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
+export function getFloorPorts(building:Building,floor:Floor,resolveArrivals=true):FloorPort[]{
  const ports:FloorPort[]=[]
  for(const door of collectFloorDoors({...floor,rooms:floor.rooms??[]})){
   const wall=floor.walls?.find(w=>w.id===door.wallAttachment?.wallId)
@@ -36,11 +39,19 @@ export function getFloorPorts(building:Building,floor:Floor):FloorPort[]{
  for(const [kind,features] of [['stair',building.staircases??[]],['elevator',building.elevators??[]]] as const){
   for(const feature of features){const geometry=feature.levels?.[floor.level];if(!geometry)continue
    const arrival=kind==='stair'&&'role' in geometry&&geometry.role==='top'
-   const exitDirection=arrival
-     ?stairTopExitDirection(feature as Staircase,building.floors):undefined
-   const blocked = arrival &&
-     geometry.routeConnectionManaged && !geometry.landingExit
-   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...(arrival ? geometry.position : geometry.landing?.position ?? geometry.position)},connection:geometry.routeConnection,...(exitDirection?{exitDirection}:{}), ...(arrival && 'landingExitSpan' in geometry && geometry.landingExitSpan ? { checkStairApproach: true } : {}), ...(blocked ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {})})
+   const unresolved = arrival && geometry.routeConnectionManaged && !geometry.landingExit
+   const reach = resolveArrivals && unresolved && !geometry.routeConnection
+     ? stairTopReach(building, feature as Staircase) : undefined
+   const resolved = reach?.ok ? reach : undefined
+   const exitDirection = arrival
+     ? stairTopExitDirection(feature as Staircase, building.floors, resolved?.exit) : undefined
+   const position = resolved?.point ?? (arrival ? geometry.position : geometry.landing?.position ?? geometry.position)
+   ports.push({key:`${kind}:${feature.id}`,kind,id:feature.id,label:feature.name,position:{...position},connection:geometry.routeConnection,
+    ...(exitDirection ? { exitDirection } : {}),
+    ...(resolved ? { stairArrival: { exit: resolved.exit, span: resolved.span } } : {}),
+    ...(arrival && (resolved || geometry.landingExitSpan) ? { checkStairApproach: true } : {}),
+    ...(unresolved && !resolved ? { issue: 'Align the stair landing with a hallway opening before connecting its route.' } : {}),
+   })
   }
  }
  return ports
@@ -51,7 +62,8 @@ export function projectFloorPoint(point:LocalCoord,a:LocalCoord,b:LocalCoord):Lo
  return {x:a.x+t*dx,y:a.y+t*dy}
 }
 export function floorBackboneEdges(building:Building,floor:Floor){
- const owned=new Set(getFloorPorts(building,floor).flatMap(p=>p.connection?[p.connection.connectorEdgeId]:[]))
+ // Ownership does not depend on resolving an arrival. Reach checks this same backbone.
+ const owned=new Set(getFloorPorts(building,floor,false).flatMap(p=>p.connection?[p.connection.connectorEdgeId]:[]))
  return (floor.routeNetwork?.edges??[]).filter(e=>!owned.has(e.id))
 }
 /** Both explicit openings and wall-attached doors cut the same physical wall. */

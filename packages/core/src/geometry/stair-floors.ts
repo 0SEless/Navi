@@ -108,8 +108,11 @@ export function stairTopPosition(stair: Staircase, floors: StairFloorHeights): L
 }
 
 /** Outward direction of the selected landing edge. */
-export function stairTopExitDirection(stair: Staircase, floors: StairFloorHeights): LocalCoord | undefined {
-  const exit = stair.levels[stairFlightFloor(stair)]?.landingExit ?? stair.levels[stair.toLevel]?.landingExit
+export function stairTopExitDirection(
+  stair: Staircase,
+  floors: StairFloorHeights,
+  exit = stair.levels[stairFlightFloor(stair)]?.landingExit ?? stair.levels[stair.toLevel]?.landingExit,
+): LocalCoord | undefined {
   if (!exit) return undefined
   const ring = stairTopRing(stair, floors)
   if (ring.length !== 4) return undefined

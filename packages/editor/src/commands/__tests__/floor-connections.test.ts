@@ -159,3 +159,39 @@ it('entrance.create refuses a position without finite building-local x/y',async(
  for(const position of [{lat:11,lng:121},{x:NaN,y:0},{x:1}])expect(entranceCreateHandler.execute(doc,{buildingId:'b',floorId:'f',label:'E',position}).success).toBe(false)
  expect(JSON.stringify(doc)).toBe(before)
 })
+
+// A prior draft can leave an arrival unresolved even after a corridor is drawn.
+it('connects an existing rotated arrival when its corridor ends exactly at the landing edge', () => {
+ const {doc,floor,building}=fixture()
+ floor.doors=[];floor.entrances=[]
+ floor.walls=[{id:'far-wall',start:{x:20,y:-4},end:{x:30,y:-4},height:3,thickness:.15}]
+ building.floors=[{id:'lower',level:0,elevation:0,height:3.5},Object.assign(floor,{level:1,elevation:3.5,height:3.5})]
+ const top={role:'top',rotation:-1.5332767494543713,position:{x:27.987475388826695,y:2.176465428509206},routeConnectionManaged:true}
+ building.staircases=[{id:'s',name:'Stair',fromLevel:0,toLevel:1,levels:{0:{
+  position:{x:23.596234022639692,y:2.011630553577561},rotation:-1.5332767494543713,
+  polygon:{points:[{x:17.75699658319354,y:3.2502060495316982},{x:17.866283336654305,y:0.3387802094221115},{x:29.435471462085843,y:0.773055057739839},{x:29.326184708625078,y:3.684480897616595}]}
+ },1:top}}]
+ const openingNode={x:28.351398884145844,y:0.7323620160807263}
+ floor.routeNetwork={nodes:[
+  {id:'hall',type:'waypoint',position:{x:28.356688665226102,y:-1.018079997971654},floor:1},
+  {id:'opening',type:'waypoint',position:openingNode,floor:1},
+ ],edges:[{id:'approach',from:'hall',to:'opening',type:'walk',distance:1.75}]}
+ const before=structuredClone(doc.buildings)
+ const row=suggestFloorConnections(building,floor).find(item=>item.portKey==='stair:s')!
+ expect(row).toMatchObject({accepted:true,target:{edgeId:'approach'}})
+ expect(doc.buildings).toEqual(before)
+ const payload={buildingId:'b',floorId:floor.id,connections:[row]}
+ const result=floorConnectionsApplyHandler.execute(doc,payload)
+ expect(result.success,result.error).toBe(true)
+ const attached=building.staircases[0].levels[1]
+ expect(attached.landingExit).toBe('right')
+ expect(attached.landingExitSpan[1]-attached.landingExitSpan[0]).toBeGreaterThan(0)
+ expect(attached.position.x).toBeCloseTo(openingNode.x,10)
+ expect(attached.position.y).toBeCloseTo(openingNode.y,10)
+ expect(attached.routeConnection.targetRouteNodeId).toBe('opening')
+ const undo=floorConnectionsApplyHandler.inverse!(payload,result)!
+ expect(floorConnectionsApplyHandler.execute(doc,undo.payload).success).toBe(true)
+ expect(doc.buildings).toEqual(before)
+ floor.routeNetwork.nodes[1].position={...openingNode,y:openingNode.y-.001}
+ expect(suggestFloorConnections(building,floor).find(item=>item.portKey==='stair:s')!.accepted).toBe(false)
+})

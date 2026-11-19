@@ -78,7 +78,8 @@ function routeCrossing(a: P, b: P, interior: P, from: P, to: P): P | undefined {
   const toSide = dx * (to.y - a.y) - dy * (to.x - a.x)
   if (fromSide * interiorSide >= -1e-9 && toSide * interiorSide >= -1e-9) return
   const margin = 0.25 / Math.hypot(dx, dy)
-  if (along < margin || along > 1 - margin || route < 0 || route > 1) return
+  // An authored endpoint on a rotated edge can round just outside the segment.
+  if (along < margin || along > 1 - margin || route < -1e-9 || route > 1 + 1e-9) return
   return { x: a.x + along * dx, y: a.y + along * dy }
 }
 
