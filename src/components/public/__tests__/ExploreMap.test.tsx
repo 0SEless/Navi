@@ -11,6 +11,14 @@ import ExploreMap from '../ExploreMap'
 const navigationCameraProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 const routeLineProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 const terrainLayerProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+const poiLayerProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+
+vi.mock('@/components/map/layers/POILayer', () => ({
+  POILayer: (props: Record<string, unknown>) => {
+    poiLayerProps.current = props
+    return null
+  },
+}))
 
 vi.mock('@/components/map/NavigationMap', () => ({
   default: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
@@ -152,8 +160,10 @@ afterEach(() => {
     positionFloorId: null,
     positionFloorSource: 'unknown',
     positionBuildingId: null,
+    poiDestination: null,
   })
   vi.clearAllMocks()
+  poiLayerProps.current = null
   routeLineProps.current = null
   terrainLayerProps.current = null
 })
@@ -186,6 +196,33 @@ function NavigationStateProbe() {
     />
   )
 }
+
+describe('the place you are navigating to (owner 2026-11-20: "there is no POI" on the route to TAMBAYAN)', () => {
+  const place = (id: string, label: string, showOnMap = true) => ({
+    id, label, category: 'other', position: { lat: 11.8205, lng: 122.1685 },
+    geometry: { type: 'point', position: { lat: 11.8205, lng: 122.1685 } }, visibility: { showOnMap },
+  })
+  // A place destination's route ends at a temporary point beside it, never at the place's own id.
+  const toPlace = { path: ['outdoor', '__navi_poi_target__tambayan'], cost: 30 }
+  const shown = () => ((poiLayerProps.current?.pois ?? []) as Array<{ id: string; showOnMap?: boolean }>)
+
+  it('stays on the map while the route to it is shown; other places are hidden', () => {
+    usePublicStore.setState({ poiDestination: { destinationType: 'poi', poiId: 'tambayan' } })
+    render(<ExploreMap bundle={{ ...bundle, poi: [place('tambayan', 'TAMBAYAN'), place('bench', 'BENCH')] }} route={toPlace} />)
+    expect(shown().map((p) => p.id)).toEqual(['tambayan'])
+  })
+
+  it('shows even when the owner hid it from the browsing map', () => {
+    usePublicStore.setState({ poiDestination: { destinationType: 'poi', poiId: 'tambayan' } })
+    render(<ExploreMap bundle={{ ...bundle, poi: [place('tambayan', 'TAMBAYAN', false)] }} route={toPlace} />)
+    expect(shown()).toEqual([expect.objectContaining({ id: 'tambayan', showOnMap: true })])
+  })
+
+  it('without a route every place shows as before', () => {
+    render(<ExploreMap bundle={{ ...bundle, poi: [place('tambayan', 'TAMBAYAN'), place('bench', 'BENCH')] }} />)
+    expect(shown().map((p) => p.id).sort()).toEqual(['bench', 'tambayan'])
+  })
+})
 
 describe('ExploreMap public navigation context boundary', () => {
   it('passes published terrain and datum into the common Explore/Navigate map layer', () => {

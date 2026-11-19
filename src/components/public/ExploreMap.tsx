@@ -260,9 +260,20 @@ function ExploreLayers({
   // destination building is named, and other places are hidden (a place the route ends at stays).
   const navigating = Boolean(route && (route.path.length > 0 || route.leadIn))
   const routeEnd = route?.path.at(-1)
+  // A place picked as the destination (owner 2026-11-20: "there is no POI" on the route to TAMBAYAN): its route ends
+  // at a temporary point beside it, not at the place's own id, so the place is matched by the destination itself.
+  const poiDestinationId = usePublicStore((s) => s.poiDestination?.poiId ?? null)
   const routePois = useMemo(
-    () => (navigating ? visiblePois.filter((poi) => poi.id === routeEnd || (poi as { sourceId?: string }).sourceId === routeEnd) : visiblePois),
-    [navigating, visiblePois, routeEnd],
+    () => (navigating
+      ? visiblePois.flatMap((poi) => {
+          const sourceId = (poi as { sourceId?: string }).sourceId
+          const destination = !!poiDestinationId && (poi.id === poiDestinationId || sourceId === poiDestinationId)
+          if (!destination && poi.id !== routeEnd && sourceId !== routeEnd) return []
+          // The place you are going to shows even if the owner hid it from the browsing map.
+          return [destination ? { ...poi, showOnMap: true } : poi]
+        })
+      : visiblePois),
+    [navigating, visiblePois, routeEnd, poiDestinationId],
   )
   const getNodeBuilding = useCallback((id: string) => bundle.nodes.find((x) => x.id === id)?.buildingId, [bundle.nodes])
   // The route as drawn stops at a room's door (owner 2026-11-18: "it should only go in the door").
