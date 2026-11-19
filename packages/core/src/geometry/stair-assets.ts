@@ -256,6 +256,42 @@ export function uShapeLayout(props: { stepCount: number; stepWidth: number; step
   }
 }
 
+/** Riser height used to count the steps of a drawn stair made U-Shape, metres (as its illustrative straight steps). */
+const BOX_U_RISER_M = 0.18
+/** Narrowest flight a U-Shape made from a drawn box may have, metres. */
+export const BOX_U_MIN_FLIGHT_M = 0.5
+
+/**
+ * Owner 2026-11-19 (ASU Tourism): a stair drawn as a box with the Stair tool (its first edge is the bottom step) made
+ * U-Shape in the SAME box — two flights side by side, the turning landing at the far end, arriving back beside the
+ * foot. Returns the designed stair that does this (centred on the box, climbing "north" turned onto the box), keeping
+ * the box in `fromBox` so Straight can bring it back. Undefined when the box is too narrow or short for it.
+ */
+export function boxStairAsUShape(flight: { position: { x: number; y: number }; rotation?: number; polygon?: { points: Array<{ x: number; y: number }> }; look?: { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid' } }, rise: number, turn: 'left' | 'right' = 'right') {
+  const ring = flight.polygon && ringPoints(flight.polygon)
+  if (!ring || ring.length !== 4 || !(rise > 0)) return undefined
+  const [p0, p1, p2, p3] = ring
+  const foot: Point = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2], far: Point = [(p2[0] + p3[0]) / 2, (p2[1] + p3[1]) / 2]
+  const width = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), length = Math.hypot(far[0] - foot[0], far[1] - foot[1])
+  const flightWidth = (width - U_STAIR_GAP) / 2
+  const stepCount = Math.max(2, Math.ceil(rise / BOX_U_RISER_M))
+  const stepDepth = (length - flightWidth) / Math.ceil(stepCount / 2)
+  if (!(flightWidth >= BOX_U_MIN_FLIGHT_M) || !(stepDepth >= 0.15) || ![width, length].every(Number.isFinite)) return undefined
+  // Local "north" is (0, -1); turned by `rotation` degrees it must point from the foot to the far end.
+  const rotation = Math.atan2(far[0] - foot[0], -(far[1] - foot[1])) * 180 / Math.PI
+  const position = { x: ring.reduce((s, p) => s + p[0], 0) / 4, y: ring.reduce((s, p) => s + p[1], 0) / 4 }
+  const look = flight.look ?? {}
+  return {
+    position, rotation,
+    drawing: { definitionId: 'stair' as const, properties: {
+      preset: 'ushape', direction: 'north', turn, stepCount, stepWidth: flightWidth, stepDepth,
+      ...(look.railings ? { railings: look.railings } : {}), ...(look.railingStyle ? { railingStyle: look.railingStyle } : {}),
+      ...(look.underneath ? { underneath: look.underneath } : {}),
+      fromBox: flight.polygon!.points.map((p) => ({ x: p.x, y: p.y })), fromBoxRotation: flight.rotation ?? 0,
+    } },
+  }
+}
+
 /** Solids for a stair layout: steps (unless `withSteps` is false), landings, top landing and the authored sides. */
 function stairPieces(id: string, layout: StairLayout, props: { sides?: 'open' | 'railing' | 'wall' }, base: number, toWorld: (p: Point) => Point, withSteps = true): GeoJSON.Feature<GeoJSON.Polygon>[] {
   const out: GeoJSON.Feature<GeoJSON.Polygon>[] = []

@@ -28,7 +28,7 @@ import { buildingSetGroundHandler, buildingsFollowGroundHandler } from '../comma
 import { structureHandlers } from '../commands/structure-handlers'
 import { parametricCreateHandler, parametricDeleteHandler, parametricUpdateHandler } from '../commands/parametric-handlers'
 import { featureCreateHandler, featureUpdateHandler, featureModeTransitionHandler, featureDeleteHandler, featureReplaceHandler } from '../commands/feature-handlers'
-import { stairSetToFloorHandler } from '../commands/stair-to-floor-handler'
+import { stairSetShapeHandler, stairSetToFloorHandler } from '../commands/stair-to-floor-handler'
 import { poiCreateHandler, poiUpdateHandler, poiDeleteHandler, doorCreateHandler, doorUpdateHandler, doorDeleteHandler, doorDuplicateHandler, doorApplyAppearanceToSimilarHandler, doorRouteConnectHandler, doorRouteDisconnectHandler, openingCreateHandler, openingUpdateHandler, openingDeleteHandler } from '../commands/feature-handlers'
 import { doorOwnershipReconcileHandler } from '../commands/door-ownership'
 import { routePathCreateHandler, routeNodeCreateHandler, routeNodeUpdateHandler, routeNodeDeleteHandler, routeEdgeCreateHandler, routeEdgeDeleteHandler } from '../commands/route-network-handlers'
@@ -891,6 +891,7 @@ export function createEditorContext(
   registryCmd.register(featureUnlinkHandler)
   registryCmd.register(featureUpdateHandler)
   registryCmd.register(stairSetToFloorHandler)
+  registryCmd.register(stairSetShapeHandler)
   registryCmd.register(featureModeTransitionHandler)
   registryCmd.register(featureDeleteHandler)
   registryCmd.register(featureReplaceHandler)

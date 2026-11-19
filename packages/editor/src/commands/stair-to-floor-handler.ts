@@ -1,6 +1,6 @@
-import { recordChange, stairFlightFloor, stairFootPosition, buildingOutlineLocal, stairEntryPlatform, stairHasTop, stairTopPosition, type Building, type CampusDocument, type Opening, type Staircase } from '@navi/core'
+import { boxStairAsUShape, BOX_U_MIN_FLIGHT_M, U_STAIR_GAP, recordChange, stairFlightFloor, stairRise, stairFootPosition, buildingOutlineLocal, stairEntryPlatform, stairHasTop, stairTopPosition, type Building, type CampusDocument, type Floor, type LocalCoord, type Opening, type Staircase, type Wall } from '@navi/core'
 import { stairTopReach, type StairTopReach } from '../geometry/stair-top-reach'
-import { suggestFloorConnections } from '../geometry/floor-connections'
+import { floorDoorSpans, getFloorPorts, suggestFloorConnections } from '../geometry/floor-connections'
 import { floorConnectionsApplyHandler } from './floor-route-workflow'
 import { removeFeatureRoutePort, syncFeatureRoutePort } from '../geometry/feature-route-port'
 import { clearFeatureLinks } from '../navigation/feature-links'
@@ -75,7 +75,7 @@ export const stairSetToFloorHandler: CommandHandler = {
       const position = stairTopPosition(stair, building.floors) ?? { ...flight.position }
       stair.levels[toLevel] = { role: 'top', position, rotation: flight.rotation ?? 0 }
     }
-    const reach = syncLandingExit(building, stair)
+    let reach = syncLandingExit(building, stair)
     if (stairHasTop(stair)) {
       const top = stair.levels[toLevel]
       if (!reach.ok && exit !== undefined) top.routeConnectionManaged = true
@@ -94,13 +94,33 @@ export const stairSetToFloorHandler: CommandHandler = {
         if (foot) flight.landing = { position: foot }
       }
       openEntryRailing(building, stair)
+      // Owner 2026-11-19: a wall between a stair end and the route gets a doorway cut by Auto-connect itself. Each end
+      // being (re)connected first drops the doorways it cut before, so they follow the stair.
+      for (const level of [from, toLevel]) {
+        const floor = building.floors.find(f => f.level === level)
+        if (floor && !stair.levels[level]?.routeConnection) clearAutoCuts(floor, stair, level)
+      }
+      if (!stair.levels[toLevel].routeConnection) {
+        reach = syncLandingExit(building, stair)
+        if (!reach.ok && cutTopWay(building, stair)) reach = syncLandingExit(building, stair)
+      }
       for (const level of [from, toLevel]) {
         const geometry = stair.levels[level]
         if (geometry.routeConnection) continue
         geometry.routeConnectionManaged = true
         if (level === toLevel && !reach.ok) continue
         const floor = building.floors.find(f => f.level === level)!
-        const proposal = suggestFloorConnections(building, floor).find(row => row.portKey === `stair:${stair.id}`)
+        const suggest = () => suggestFloorConnections(building, floor).find(row => row.portKey === `stair:${stair.id}`)
+        let proposal = suggest()
+        if (proposal && !proposal.accepted && !proposal.existing && proposal.target && proposal.message?.startsWith('Connection crosses a wall')) {
+          const port = getFloorPorts(building, floor).find(p => p.key === `stair:${stair.id}`)
+          // Only from inside the building: an outside stair's foot links to the outdoor walk, never through the facade.
+          const cut = port && insideBuilding(building, port.position) ? cutDoorways(floor, stair, level, wallsInTheWay(floor, [port.position, proposal.target.position])) : []
+          if (cut.length > 0) {
+            proposal = suggest()
+            if (!proposal?.accepted) floor.openings = (floor.openings ?? []).filter(o => !cut.includes(o.id))
+          }
+        }
         if (proposal?.accepted && !proposal.existing) {
           floorConnectionsApplyHandler.execute(document, { buildingId: building.id, floorId: floor.id, connections: [proposal] })
         }
@@ -113,6 +133,67 @@ export const stairSetToFloorHandler: CommandHandler = {
     const before = result.data?.before
     if (!before) return null
     return { id: 'stair.setToFloor', label: 'Undo stair floor', payload: { featureId: payload.featureId, restoreStairs: before, restoreNetworks: result.data?.networks } }
+  },
+}
+
+/**
+ * Type for a stair drawn with the Stair tool (owner 2026-11-19, ASU Tourism): U-Shape fills the drawn box with two
+ * flights (arriving back beside the foot); Straight brings the drawn box back. Its top and both route links follow
+ * (Auto-connect runs again), all in one undo step.
+ */
+export const stairSetShapeHandler: CommandHandler = {
+  id: 'stair.setShape',
+  execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
+    const featureId = payload.featureId as string
+    const shape = payload.shape
+    const turn = payload.turn === 'left' ? 'left' : 'right'
+    const building = document.buildings.find((b) => (b.staircases ?? []).some((s) => s.id === featureId))
+    const stair = building?.staircases?.find((s) => s.id === featureId)
+    if (!building || !stair) return { success: false, error: `Stair not found: ${featureId}` }
+    if (shape !== 'ushape' && shape !== 'straight') return { success: false, error: 'Choose Straight or U-Shape.' }
+    const from = stairFlightFloor(stair)
+    const flight = stair.levels[from]
+    if (!flight) return { success: false, error: 'This stair has no drawing on its floor.' }
+    const before = structuredClone(building.staircases ?? [])
+    const networks = building.floors.map((f) => ({ id: f.id, present: Object.hasOwn(f, 'routeNetwork'), value: structuredClone(f.routeNetwork), openings: structuredClone(f.openings) }))
+    const drawnBox = flight.drawing?.properties.fromBox
+    if (shape === 'ushape') {
+      const source = drawnBox
+        ? { position: flight.position, rotation: flight.drawing!.properties.fromBoxRotation ?? 0, polygon: { points: drawnBox }, look: flight.look }
+        : flight.drawing ? undefined : flight
+      if (!source?.polygon) return { success: false, error: 'Only a stair drawn with the Stair tool can be made U-Shape here.' }
+      const u = boxStairAsUShape(source, stairRise(stair, building.floors), turn)
+      if (!u) return { success: false, error: `This box is too narrow or short for a U-Shape stair: two flights side by side need at least ${(2 * BOX_U_MIN_FLIGHT_M + U_STAIR_GAP).toFixed(1)} m of width.` }
+      flight.position = u.position
+      flight.rotation = u.rotation
+      flight.drawing = u.drawing
+      delete flight.polygon
+    } else {
+      if (!drawnBox) return { success: false, error: 'This stair has no drawn box to go back to.' }
+      flight.polygon = { points: drawnBox.map((p) => ({ ...p })) }
+      flight.rotation = flight.drawing!.properties.fromBoxRotation ?? 0
+      flight.position = { x: drawnBox.reduce((s, p) => s + p.x, 0) / drawnBox.length, y: drawnBox.reduce((s, p) => s + p.y, 0) / drawnBox.length }
+      delete flight.drawing
+    }
+    // The foot moved within the box: its route link follows it, or is dropped for Auto-connect to make again.
+    if (flight.landing && !flight.landing.polygon) delete flight.landing
+    const footFloor = building.floors.find((f) => f.level === from)
+    if (flight.routeConnection && footFloor && syncFeatureRoutePort(building, stair, from)) {
+      const link = flight.routeConnection
+      delete flight.routeConnection
+      removeFeatureRoutePort(footFloor, link, building)
+    }
+    if (stairHasTop(stair)) {
+      const result = stairSetToFloorHandler.execute(document, { featureId, toLevel: stair.toLevel, autoConnect: true })
+      if (!result.success) return result
+    }
+    recordChange(document, { entityId: featureId, entityType: 'staircase', operation: 'updated' })
+    return { success: true, entityId: featureId, data: { before, networks } }
+  },
+  inverse(payload: Record<string, unknown>, result: MutationResult): Command | null {
+    const before = result.data?.before
+    if (!before) return null
+    return { id: 'stair.setToFloor', label: 'Undo stair type', payload: { featureId: payload.featureId, restoreStairs: before, restoreNetworks: result.data?.networks } }
   },
 }
 
@@ -196,6 +277,102 @@ function openEntryRailing(building: Building, stair: Staircase): void {
     } as Opening]
     return
   }
+}
+
+/** Width of a doorway Auto-connect cuts in a wall between a stair end and the route, metres. */
+export const STAIR_AUTO_CUT_WIDTH_M = 1.2
+/** Auto-connect opens at most this many walls for one stair end; farther routes need a drawn route. */
+const MAX_AUTO_CUTS = 2
+const autoCutId = (stair: Staircase, level: number, wallId: string) => `${stair.id}-cut-${level}-${wallId}`
+
+/** Walls (not kerbs) the walk along `path` passes through where they have no floor-level door, and where along each. */
+function wallsInTheWay(floor: Floor, path: readonly LocalCoord[]): Array<{ wall: Wall; along: number }> {
+  const found: Array<{ wall: Wall; along: number }> = []
+  for (const wall of floor.walls ?? []) {
+    if (Number(wall.height) <= 0.3) continue
+    const sx = wall.end.x - wall.start.x, sy = wall.end.y - wall.start.y, length = Math.hypot(sx, sy)
+    if (!(length > 0)) continue
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i], b = path[i + 1], rx = b.x - a.x, ry = b.y - a.y, det = rx * sy - ry * sx
+      if (Math.abs(det) < 1e-12) continue
+      const t = ((wall.start.x - a.x) * sy - (wall.start.y - a.y) * sx) / det
+      const u = ((wall.start.x - a.x) * ry - (wall.start.y - a.y) * rx) / det
+      if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) continue
+      const along = u * length
+      if (floorDoorSpans(floor, wall.id).some(span => along >= span.start - 1e-6 && along <= span.end + 1e-6)) continue
+      found.push({ wall, along })
+      break
+    }
+  }
+  return found
+}
+
+/** Cuts a doorway centred on each crossing (all or none). Returns the new opening ids. */
+function cutDoorways(floor: Floor, stair: Staircase, level: number, crossings: ReadonlyArray<{ wall: Wall; along: number }>): string[] {
+  if (crossings.length === 0 || crossings.length > MAX_AUTO_CUTS) return []
+  const cuts: Opening[] = []
+  for (const { wall, along } of crossings) {
+    const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+    const width = Math.min(STAIR_AUTO_CUT_WIDTH_M, length)
+    const offset = Math.max(0, Math.min(length - width, along - width / 2))
+    if ((floor.openings ?? []).some(o => o.wallId === wall.id && o.offset < offset + width - 1e-6 && o.offset + o.width > offset + 1e-6)) return []
+    cuts.push({
+      id: autoCutId(stair, level, wall.id), type: 'door', wallId: wall.id, offset, width,
+      height: Math.min(STAIR_OPENING_HEIGHT_M, wall.height), sillHeight: 0, frameless: true, doorAppearance: 'open',
+      metadata: { stairCutFor: stair.id, automatic: true },
+    } as Opening)
+  }
+  floor.openings = [...(floor.openings ?? []), ...cuts]
+  return cuts.map(cut => cut.id)
+}
+
+/** Inside the building's outline (true when it has none, as in a building still being drawn). */
+function insideBuilding(building: Building, point: LocalCoord): boolean {
+  const ring = buildingOutlineLocal(building)
+  if (!ring || ring.length < 3) return true
+  let hit = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j]
+    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) hit = !hit
+  }
+  return hit
+}
+
+/** Drops the doorways Auto-connect cut for this stair end before (its own wall cutout at the top included). */
+function clearAutoCuts(floor: Floor, stair: Staircase, level: number): void {
+  if (!floor.openings?.length) return
+  floor.openings = floor.openings.filter(o => {
+    const metadata = o.metadata as { stairCutFor?: string; stairId?: string; automatic?: boolean } | undefined
+    if (metadata?.automatic !== true) return true
+    if (metadata.stairCutFor === stair.id && o.id.startsWith(`${stair.id}-cut-${level}-`)) return false
+    return !(level === stair.toLevel && metadata.stairId === stair.id && o.id === openingId(stair))
+  })
+}
+
+/**
+ * The top lands on the floor but a wall stands in the way (owner 2026-11-19, ASU): open the wall the landing is
+ * against (its own cutout), or the walls on the walk from the landing to the route. True when the top now reaches.
+ */
+function cutTopWay(building: Building, stair: Staircase): boolean {
+  const blocked = stairTopReach(building, stair, true)
+  const floor = building.floors.find(f => f.level === stair.toLevel)
+  if (!blocked.ok || !floor) return false
+  const previous = floor.openings
+  if (blocked.wall) {
+    const proposal = proposeStairCutout(building, stair)
+    if (!proposal || floor.openings?.some(o => o.wallId === proposal.wallId && o.offset < proposal.offset + proposal.width - 1e-6 && o.offset + o.width > proposal.offset + 1e-6)) return false
+    floor.openings = [...(floor.openings ?? []), {
+      id: openingId(stair), type: 'door', wallId: proposal.wallId, offset: proposal.offset, width: proposal.width,
+      height: Math.min(STAIR_OPENING_HEIGHT_M, proposal.wall.height), sillHeight: 0, frameless: true, doorAppearance: 'open',
+      metadata: { stairId: stair.id, automatic: true },
+    } as Opening]
+  } else if (!blocked.path || !insideBuilding(building, blocked.path[0]) || cutDoorways(floor, stair, stair.toLevel, wallsInTheWay(floor, blocked.path)).length === 0) {
+    return false
+  }
+  if (stairTopReach(building, stair).ok) return true
+  if (previous) floor.openings = previous
+  else delete floor.openings
+  return false
 }
 
 export function proposeStairCutout(building: Building, stair: Staircase) {

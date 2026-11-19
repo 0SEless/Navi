@@ -18,7 +18,7 @@ type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
 type LookPatch = { topLandingM?: number | null; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
 type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
 
-export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onCutout, onConnectFloors, onDrawing, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
+export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onCutout, onConnectFloors, onDrawing, onShape, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
   building: Building
   featureId: string
   /** Climb to this floor level (the stair's own floor = no climb). */
@@ -27,6 +27,8 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   onCutout?(cutout: { wallId: string; offset: number; width: number }): { success: boolean; error?: string }
   onConnectFloors?(): void
   onDrawing(patch: DrawingPatch): void
+  /** Type for a stair drawn with the Stair tool (owner 2026-11-19): U-Shape fills its box; Straight brings the box back. */
+  onShape?(shape: 'straight' | 'ushape', turn?: 'left' | 'right'): { success: boolean; error?: string }
   /** A stair without a design (drawn with the Stair tool): its railings and underneath (2026-11-17). */
   onLook?(patch: LookPatch): void
   /** The stair's link to the outdoor route network, from its foot (owner 2026-11-18). */
@@ -36,6 +38,7 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   /** "None": no outdoor link. */
   onDisconnectOutdoor?(): void
 }) {
+  const [shapeError, setShapeError] = useState<string | null>(null)
   const stair = building.staircases?.find((s) => s.id === featureId)
   if (!stair) return null
   const from = stairFlightFloor(stair)
@@ -48,6 +51,12 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   const above = floors.filter((f) => f.level > from)
   const nextFloor = above[0]
   const props = flight?.drawing?.properties
+  // A drawn box (Stair tool), or a U-Shape made from one: its Type and Turn go through onShape.
+  const drawnBox = !!onShape && (!props ? !!flight?.polygon : !!props.fromBox)
+  const setShape = (shape: 'straight' | 'ushape', turn?: 'left' | 'right') => {
+    const result = onShape!(shape, turn)
+    setShapeError(result.success ? null : result.error ?? 'Could not change the stair type.')
+  }
   const rise = stairRise(stair, floors)
   const steps = props?.stepCount
   const usesExistingPlatform = toFloor && flight && !props &&
@@ -123,21 +132,31 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
           </div>
         </div>
       )}
-      {props && (
+      {(props || drawnBox) && (
         <div>
           <label style={label} htmlFor={`stair-type-${featureId}`}>TYPE</label>
-          <select id={`stair-type-${featureId}`} aria-label="Type" style={field} value={props.preset === 'ushape' ? 'ushape' : 'straight'}
-            onChange={(event) => onDrawing({ preset: event.target.value as 'straight' | 'ushape' })}>
+          <select id={`stair-type-${featureId}`} aria-label="Type" style={field} value={props?.preset === 'ushape' ? 'ushape' : 'straight'}
+            onChange={(event) => {
+              const shape = event.target.value as 'straight' | 'ushape'
+              if (drawnBox) setShape(shape, props?.turn)
+              else onDrawing({ preset: shape })
+            }}>
             <option value="straight">Straight</option>
             <option value="ushape">U-Shape</option>
           </select>
+          {drawnBox && !props && <div style={{ ...label, marginTop: 2 }}>U-Shape splits this box into two flights; the top arrives back beside the foot.</div>}
+          {shapeError && <div role="alert" style={{ ...label, color: '#DC2625', marginTop: 2 }}>{shapeError}</div>}
         </div>
       )}
       {props?.preset === 'ushape' && (
         <div>
           <label style={label} htmlFor={`stair-turn-${featureId}`}>TURN</label>
           <select id={`stair-turn-${featureId}`} aria-label="Turn" style={field} value={props.turn ?? 'right'}
-            onChange={(event) => onDrawing({ turn: event.target.value as 'left' | 'right' })}>
+            onChange={(event) => {
+              const turn = event.target.value as 'left' | 'right'
+              if (drawnBox) setShape('ushape', turn)
+              else onDrawing({ turn })
+            }}>
             <option value="right">Right</option>
             <option value="left">Left</option>
           </select>

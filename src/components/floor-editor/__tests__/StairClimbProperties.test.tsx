@@ -239,3 +239,52 @@ describe('Outdoor route on a stair (owner 2026-11-18: connect the Computer Scien
     expect(onDisconnectOutdoor).toHaveBeenCalled()
   })
 })
+
+// Owner 2026-11-19 (ASU Tourism): a stair drawn with the Stair tool can be made U-Shape from the same box.
+describe('Type for a stair drawn with the Stair tool', () => {
+  const drawn = (properties?: Record<string, unknown>): Building => ({
+    id: 'b', name: 'B',
+    floors: [0, 1].map((level) => ({ id: `f${level}`, level, label: `Floor ${level + 1}`, elevation: level * 3.5, height: 3.5 })),
+    staircases: [{ id: 's', buildingId: 'b', name: 'S', type: 'standard', accessible: false, fromLevel: 0, toLevel: 0,
+      levels: { 0: properties
+        ? { position: { x: 0, y: 0 }, rotation: 0, drawing: { definitionId: 'stair', properties } }
+        : { position: { x: 0, y: 0 }, rotation: 0, polygon: { points: [{ x: 1, y: -4 }, { x: -1, y: -4 }, { x: -1, y: 4 }, { x: 1, y: 4 }] } } } }],
+  } as unknown as Building)
+
+  it('offers U-Shape for a drawn box and sends it as a shape change', () => {
+    const onShape = vi.fn(() => ({ success: true }))
+    const onDrawing = vi.fn()
+    render(<StairClimbProperties building={drawn()} featureId="s" onSetTo={vi.fn()} onDrawing={onDrawing} onShape={onShape} />)
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'ushape' } })
+    expect(onShape).toHaveBeenCalledWith('ushape', undefined)
+    expect(onDrawing).not.toHaveBeenCalled()
+  })
+
+  it('shows why a box cannot be made U-Shape', () => {
+    const onShape = vi.fn(() => ({ success: false, error: 'This box is too narrow' }))
+    render(<StairClimbProperties building={drawn()} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()} onShape={onShape} />)
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'ushape' } })
+    expect(screen.getByRole('alert').textContent).toContain('too narrow')
+  })
+
+  it('sends Straight and Turn of a U-Shape made from a box as shape changes', () => {
+    const onShape = vi.fn(() => ({ success: true }))
+    const onDrawing = vi.fn()
+    const props = { stepCount: 20, stepWidth: 0.9, stepDepth: 0.4, direction: 'north', preset: 'ushape', turn: 'right', fromBox: [{ x: 1, y: -4 }] }
+    render(<StairClimbProperties building={drawn(props)} featureId="s" onSetTo={vi.fn()} onDrawing={onDrawing} onShape={onShape} />)
+    fireEvent.change(screen.getByLabelText('Turn'), { target: { value: 'left' } })
+    expect(onShape).toHaveBeenLastCalledWith('ushape', 'left')
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'straight' } })
+    expect(onShape).toHaveBeenLastCalledWith('straight', 'right')
+    expect(onDrawing).not.toHaveBeenCalled()
+  })
+
+  it('keeps a designed stair on its own Type setting', () => {
+    const onShape = vi.fn(() => ({ success: true }))
+    const onDrawing = vi.fn()
+    render(<StairClimbProperties building={drawn({ stepCount: 20, stepWidth: 1.2, stepDepth: 0.3, direction: 'east', preset: 'straight' })} featureId="s" onSetTo={vi.fn()} onDrawing={onDrawing} onShape={onShape} />)
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'ushape' } })
+    expect(onDrawing).toHaveBeenCalledWith({ preset: 'ushape' })
+    expect(onShape).not.toHaveBeenCalled()
+  })
+})

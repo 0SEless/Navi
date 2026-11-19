@@ -39,7 +39,9 @@ export const STAIR_TOP_REACH_M = 0.15
 
 type P = { x: number; y: number }
 export type StairTopReach =
-  | { ok: true; targetId: string; point: LocalCoord; exit: StairLandingExit; span: Span; openingId?: string; wall?: NonNullable<ReturnType<typeof wallAgainstLanding>> & { offset: number } }
+  | { ok: true; targetId: string; point: LocalCoord; exit: StairLandingExit; span: Span; openingId?: string; wall?: NonNullable<ReturnType<typeof wallAgainstLanding>> & { offset: number }
+      /** Only on a walled-off result (allowUncutWall): the walk from the landing to the route that a wall blocks. */
+      path?: LocalCoord[] }
   | { ok: false; reason: 'no-to-floor' | 'no-walkable' | 'no-opening' }
 
 const segDist = (p: P, a: P, b: P): number => {
@@ -222,7 +224,8 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
       if (distance > STAIR_TOP_REACH_M) continue
       // The walk continues along a route to its end outside the landing; a wall on the way needs a door there.
       const beyond = candidate.route ? outsideEnd(a, b, landing[(edge + 2) % 4], candidate.shape) : undefined
-      const walledOff = (exitPoint: P) => crossesSolidWall(to, walls, [middle, exitPoint, ...(beyond ? [beyond] : [])])
+      const walk = (exitPoint: P): P[] => [middle, exitPoint, ...(beyond ? [beyond] : [])]
+      const walledOff = (exitPoint: P) => crossesSolidWall(to, walls, walk(exitPoint))
       const result = { ok: true as const, targetId: candidate.id, exit, distance }
       if (host && covered && alongWall && wallCoversPoint(host.wall, point)) {
         const wall = { ...host, offset: alongWall(point) }
@@ -253,7 +256,7 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
         : expandContact(available, contact, length, t => exitGap(at(t), at(t), candidate.shape, candidate.closed, candidate.slack) <= STAIR_TOP_REACH_M)
       if ((span[1] - span[0]) * length < 0.5 - 1e-6) continue
       if (walledOff(point)) {
-        if (!blocked || distance < blocked.distance - 1e-6) blocked = { ...result, point, span }
+        if (!blocked || distance < blocked.distance - 1e-6) blocked = { ...result, point, span, path: walk(point) }
         continue
       }
       if (!reachable || distance < reachable.distance - 1e-6) reachable = { ...result, point, span }

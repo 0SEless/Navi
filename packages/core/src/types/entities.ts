@@ -564,7 +564,9 @@ export interface StairLevelGeometry {
   look?: StairLook
   drawing?: {                   // parametric mode; absent = freeform
     definitionId: 'stair'
-    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; platformRailingStyle?: 'same' | 'none' | 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
+    properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; platformRailingStyle?: 'same' | 'none' | 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep'
+      /** A drawn box made U-Shape (owner 2026-11-19): the box it fills, so Straight brings it back. */
+      fromBox?: LocalCoord[]; fromBoxRotation?: number }
   }
 }
 

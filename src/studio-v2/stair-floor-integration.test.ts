@@ -61,7 +61,9 @@ function connectAndReload(outdoor: boolean) {
   const building = doc.buildings[0]
   const [lower, upper] = building.floors
   const stair = building.staircases![0]
-  expect(stairSetToFloorHandler.execute(doc, { featureId: stair.id, toLevel: 2, landingExit: 'right', autoConnect: true }).success).toBe(true)
+  // Outdoor: set the floor first and cut a narrow opening by hand; Auto-connect (owner 2026-11-19) would open the whole
+  // arrival wall by itself, and then finds the hand-cut opening already there.
+  expect(stairSetToFloorHandler.execute(doc, { featureId: stair.id, toLevel: 2, landingExit: 'right', autoConnect: !outdoor }).success).toBe(true)
   if (outdoor) {
     expect(upper.openings ?? []).toHaveLength(0)
     const proposal = proposeStairCutout(building, stair)!
