@@ -288,3 +288,41 @@ describe('Type for a stair drawn with the Stair tool', () => {
     expect(onShape).not.toHaveBeenCalled()
   })
 })
+
+describe('entry and exit platforms: Railing or Flat (owner 2026-11-19)', () => {
+  it('a designed stair: Entry flat and Exit railed by default; each sets its own choice', () => {
+    const { onDrawing } = show(building(1))
+    expect((screen.getByLabelText('Entry platform') as HTMLSelectElement).value).toBe('flat')
+    expect((screen.getByLabelText('Exit platform') as HTMLSelectElement).value).toBe('railing')
+    fireEvent.change(screen.getByLabelText('Entry platform'), { target: { value: 'railing' } })
+    expect(onDrawing).toHaveBeenCalledWith({ entryRailing: 'railing' })
+    fireEvent.change(screen.getByLabelText('Exit platform'), { target: { value: 'flat' } })
+    expect(onDrawing).toHaveBeenCalledWith({ exitRailing: 'flat' })
+  })
+
+  it('a Stair-tool stair keeps the choice in its look', () => {
+    const b = building(1)
+    const flight = b.staircases![0].levels[0] as { drawing?: unknown; polygon?: unknown }
+    delete flight.drawing
+    flight.polygon = { points: [{ x: 0.6, y: 0 }, { x: -0.6, y: 0 }, { x: -0.6, y: 4 }, { x: 0.6, y: 4 }] }
+    const onLook = vi.fn()
+    render(<StairClimbProperties building={b} featureId="s" onSetTo={vi.fn()} onDrawing={vi.fn()} onLook={onLook} />)
+    fireEvent.change(screen.getByLabelText('Exit platform'), { target: { value: 'flat' } })
+    expect(onLook).toHaveBeenCalledWith({ exitRailing: 'flat' })
+  })
+
+  it('a one-floor stair has no exit platform to choose', () => {
+    show(building(0))
+    expect(screen.queryByLabelText('Exit platform')).toBeNull()
+  })
+
+  it('shows lengths rounded and does not re-apply an unchanged rounded value', () => {
+    const b = building(1)
+    ;(b.staircases![0].levels[0] as { drawing: { properties: Record<string, unknown> } }).drawing.properties.topLandingM = 2.135292632574885
+    const { onDrawing } = show(b)
+    const field = screen.getByLabelText('Top landing length (m)') as HTMLInputElement
+    expect(field.value).toBe('2.14')
+    fireEvent.blur(field)
+    expect(onDrawing).not.toHaveBeenCalled()
+  })
+})

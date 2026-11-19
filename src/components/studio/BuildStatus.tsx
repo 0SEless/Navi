@@ -12,7 +12,7 @@ export interface BuildStatusProps {
 
 export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusProps) {
   const { services } = useEditor()
-  const { percent, validate, snapshot } = useWorkflow()
+  const { validate, snapshot } = useWorkflow()
   const publishService = services.get('publish') as {
     getSnapshot: () => { publishState: string; publishError: string | null }
     subscribe: (l: () => void) => () => void
@@ -58,9 +58,6 @@ export function BuildStatus({ onOpenProblems, problemCount = 0 }: BuildStatusPro
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
         {statusLabel}
       </span>
-      {percent > 0 && percent < 100 && (
-        <span style={{ fontSize: 10, color: '#6b7280' }}>{percent}%</span>
-      )}
       <button onClick={() => void validate()}
         style={{
           padding: '2px 10px', fontSize: 11, fontWeight: 600,

@@ -515,7 +515,12 @@ export class GraphAdapter {
             let dims: { width: number; height: number } | undefined
             if (localPoly && localPoly.points.length > 0) {
               const pts: LegacyLatLng[] = []
-              for (const p of localPoly.points) {
+              // A designed stair's outline comes back closed (first corner repeated). The 2D editor wants its four
+              // corners, as a Stair-tool stair has, so a corner drag resizes the box (owner 2026-11-19: a U-Shape stair
+              // moved one point only).
+              const ring = localPoly.points
+              const closed = ring.length > 3 && Math.hypot(ring[0].x - ring[ring.length - 1].x, ring[0].y - ring[ring.length - 1].y) < 1e-9
+              for (const p of closed ? ring.slice(0, -1) : ring) {
                 const w = this.transformer.buildingLocalToWorld(p, docBuilding.id)
                 if (w) pts.push(coreLatLngToLegacy(w))
               }

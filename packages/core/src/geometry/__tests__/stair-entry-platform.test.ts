@@ -70,3 +70,14 @@ describe('entry platform at the foot of a stair outside its floor', () => {
     expect(stairEntryPlatform(stair(1, [[1.2, 0], [0, 0], [0, -4], [1.2, -4]]), floors, outline)).toBeUndefined()
   })
 })
+
+describe('a bottom step on the floor edge opens onto the floor (owner 2026-11-19, ASU COMDEV)', () => {
+  it('no pad when the foot is drawn a few centimetres past the floor edge', () => {
+    // Foot 0.06 m off the facade (as COMDEV's 1F stair): it meets the floor, no pad sticking out past the facade.
+    expect(stairEntryPlatform(stair(1, [[1.2, -5.06], [0, -5.06], [0, -13], [1.2, -13]]), floors, outline)).toBeUndefined()
+  })
+
+  it('still a pad when the foot is clearly off the floor (more than 0.3 m)', () => {
+    expect(stairEntryPlatform(stair(1, [[1.2, -5.5], [0, -5.5], [0, -13.5], [1.2, -13.5]]), floors, outline)).toBeDefined()
+  })
+})

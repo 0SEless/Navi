@@ -35,12 +35,15 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     if (steps.length === 0) continue
     // Railings chosen per stair (owner 2026-11-17: which side, which style); older stairs keep their Sides look.
     // A Stair-tool stair (no design) has its own look, and by default a half wall with a rail on both sides.
-    const chosen = (props ?? input.look) as { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid' } | undefined
+    const chosen = (props ?? input.look) as { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; entryRailing?: 'railing' | 'flat'; exitRailing?: 'railing' | 'flat' } | undefined
     const style = chosen?.railingStyle ?? (props ? (sides === 'wall' ? 'wall' : 'posts-rails') : 'half-wall')
     const look = { ...PLAIN_STAIR.look, railingStyle: style }
     const railings = chosen?.railings ?? (props ? (sides === 'open' ? 'none' as const : 'both' as const) : 'both' as const)
     const sideChosen = chosen?.railings !== undefined || !props
     const underneath = chosen?.underneath ?? 'solid'
+    // Owner 2026-11-19: each platform railed or flat — the foot's flat by default, the top's railed.
+    const entryRailed = chosen?.entryRailing === 'railing'
+    const exitRailed = chosen?.exitRailing !== 'flat'
     // An outside stair (2026-11-17: "the stair is still hollow") is filled down to the ground, not just to its floor.
     const floorAt = input.outside ? Math.min(ground, base) : base
     const n1 = props?.preset === 'ushape' ? Math.ceil(steps.length / 2) : steps.length
@@ -78,7 +81,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       const la = mid(ring[0], ring[1]), lb = mid(ring[3], ring[2])
       const a = place(la), b = place(lb)
       if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || Math.hypot(b.x - a.x, b.y - a.y) > MAX_FLIGHT_M) continue
-      let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' && !input.arrivalLanding ? railings : 'none'
+      let deckRails: 'none' | 'left' | 'right' | 'both' = flat.properties?.partType === 'top-landing' && !input.arrivalLanding && exitRailed ? railings : 'none'
       if (!sideChosen && deckRails === 'both' && flat.properties?.partType === 'top-landing' && input.doorwayAt) {
         // Building-local and map metres keep the same handedness, so the side test can use building-local points.
         const cross = (lb.x - la.x) * (input.doorwayAt.y - la.y) - (lb.y - la.y) * (input.doorwayAt.x - la.x)
@@ -86,7 +89,8 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
       }
       parts.push(buildStructureMesh({
         path: structurePath({ ...a, h } as never, { ...b, h } as never), startH: h, endH: h, form: 'ramp', width: dist(ring[0], ring[1]),
-        underneath: 'solid', railings: deckRails, groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
+        // Owner 2026-11-19: Underneath Open leaves the turn landing a slab, not a block down to the floor.
+        underneath, railings: deckRails, groundAt: () => floorAt, look, materials: BUILT_IN_MATERIALS,
       }))
       // Landings and top platforms of a solid stair stand on a closed block down to its floor, inside or outside
       // (owner 2026-11-17: "the stair has hollow" / "why is it not applied in the indoor or even other stairs?").
@@ -130,7 +134,7 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
           const corners = entry.ring.map((p) => place(p))
           if (corners.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))) parts.push(solidBlock(corners, floorAt, base, BUILT_IN_MATERIALS[look.side]?.color ?? '#9d978b'))
         }
-        if (railings !== 'none') {
+        if (railings !== 'none' && entryRailed) {
           const centre = place({ x: entry.ring.reduce((s, p) => s + p.x, 0) / 4, y: entry.ring.reduce((s, p) => s + p.y, 0) / 4 })
           entry.ring.forEach((p, i) => {
             if (!entry.railed[i]) return
@@ -166,6 +170,8 @@ export function floorStairMesh(inputs: readonly StairAssetInput[], base: number,
     const style = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
       ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
     const look = { ...PLAIN_STAIR.look, railingStyle: style }
+    // Exit platform set Flat (owner 2026-11-19): no guard railing round the arrival.
+    if ((top.drawing?.properties as { exitRailing?: string } | undefined)?.exitRailing === 'flat' || (!top.drawing && top.look?.exitRailing === 'flat')) continue
     for (const segment of stairLandingGuardSegments(ring, top)) {
       const from = place(segment.from), to = place(segment.to)
       if (![from.x, from.y, to.x, to.y, facing.x, facing.y].every(Number.isFinite)) continue

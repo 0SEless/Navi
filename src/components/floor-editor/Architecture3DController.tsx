@@ -265,6 +265,7 @@ export function Architecture3DController(props: Props) {
         {handle.kind === 'height' && <text x={handle.point.x} y={handle.point.y+4} textAnchor="middle" fill="#0284c7" style={{ fontSize: 18, pointerEvents: 'none' }}>&#8597;</text>}
       </g>)}
     </svg>
-    <div role="status" data-testid="architecture-3d-status" style={{ position: 'absolute', left: 12, bottom: 18, maxWidth: 'calc(100% - 24px)', padding: '8px 12px', borderRadius: 6, background: '#0f172a', color: '#f8fafc', fontSize: 12, pointerEvents: 'none', zIndex: 9 }}>{message}</div>
+    {/* Above the floating Delete button (bottom centre), which used to cover it (owner 2026-11-19). */}
+    <div role="status" data-testid="architecture-3d-status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 60, width: 'max-content', maxWidth: 'calc(100% - 24px)', padding: '8px 12px', borderRadius: 6, background: '#0f172a', color: '#f8fafc', fontSize: 12, pointerEvents: 'none', zIndex: 9 }}>{message}</div>
   </>
 }

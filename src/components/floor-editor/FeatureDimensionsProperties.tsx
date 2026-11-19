@@ -2,19 +2,22 @@
 import type { StairLevelGeometry, ElevatorLevelGeometry } from '@navi/core'
 import { useState } from 'react'
 import { featureDimensions } from '@navi/editor/src/geometry/feature-dimensions'
+// Owner 2026-11-19: sizes shown to two decimals (3.66, not 3.659411729121); an unchanged shown value is not re-applied.
+const shown=(n:number|undefined)=>n===undefined||!Number.isFinite(n)?'':String(Math.round(n*100)/100)
+const buttonStyle:React.CSSProperties={padding:'4px 10px',fontSize:11,fontWeight:600,border:'1px solid var(--navi-border)',borderRadius:4,background:'var(--navi-content)',color:'var(--navi-text)',cursor:'pointer'}
 type Props = { kind: 'stair'|'elevator'; geometry: StairLevelGeometry|ElevatorLevelGeometry; floorHeight?: number; disabled?: boolean; onUpdate: (patch: Record<string, unknown>) => {success:boolean;error?:string} | void }
 export function FeatureDimensionsProperties({kind,geometry,floorHeight,disabled,onUpdate}: Props) {
   const dimensions=featureDimensions(geometry)
   const rise=(geometry as StairLevelGeometry).height ?? floorHeight
   const snapshot=JSON.stringify([dimensions?.width,dimensions?.depth,geometry.rotation,(geometry as StairLevelGeometry).height,floorHeight])
   const [previousSnapshot,setPreviousSnapshot]=useState(snapshot)
-  const [values,setValues]=useState({width:String(dimensions?.width ?? ''),depth:String(dimensions?.depth ?? ''),rotation:String(geometry.rotation),height:String(rise ?? '')})
+  const [values,setValues]=useState({width:shown(dimensions?.width),depth:shown(dimensions?.depth),rotation:shown(geometry.rotation),height:shown(rise)})
   const [error,setError]=useState('')
   // Guarded adjustment to changed canonical props keeps the existing input DOM
   // and focus, and lets undo replace drafts before children are committed.
   if(previousSnapshot!==snapshot){
     setPreviousSnapshot(snapshot)
-    setValues({width:String(dimensions?.width ?? ''),depth:String(dimensions?.depth ?? ''),rotation:String(geometry.rotation),height:String(rise ?? '')})
+    setValues({width:shown(dimensions?.width),depth:shown(dimensions?.depth),rotation:shown(geometry.rotation),height:shown(rise)})
     setError('')
   }
   const title=kind==='stair'?'Stair':'Elevator'
@@ -27,7 +30,7 @@ export function FeatureDimensionsProperties({kind,geometry,floorHeight,disabled,
       if(key==='height'&&values.height===''&&rise===undefined)continue
       const value=Number(values[key])
       if(values[key].trim()===''||!Number.isFinite(value)||(key!=='rotation'&&value<=0)){setError('Enter positive sizes in meters and a finite rotation in degrees.');return}
-      if(value!==current[key])patch[key]=value
+      if(values[key]!==shown(current[key])&&value!==current[key])patch[key]=value
     }
     if(!Object.keys(patch).length){setError('');return}
     const result=onUpdate(patch)
@@ -48,9 +51,9 @@ export function FeatureDimensionsProperties({kind,geometry,floorHeight,disabled,
     </div>
     {kind==='stair'&&<>
       <p style={{fontSize:10,color:'var(--navi-text-secondary)'}}>Rise is the top step height above this floor. {floorHeight!==undefined?`Floor height: ${floorHeight} m.`:'Floor height is not set.'}</p>
-      <button type="button" disabled={disabled||(geometry as StairLevelGeometry).height===undefined} onPointerDown={event=>event.preventDefault()} onClick={()=>{const result=onUpdate({height:null});setError(result?.success===false?(result.error??'Could not reset height.'):'')}}>Use floor height</button>
+      <button type="button" style={buttonStyle} disabled={disabled||(geometry as StairLevelGeometry).height===undefined} onPointerDown={event=>event.preventDefault()} onClick={()=>{const result=onUpdate({height:null});setError(result?.success===false?(result.error??'Could not reset height.'):'')}}>Use floor height</button>
     </>}
-    <button type="button" onPointerDown={event=>event.preventDefault()} onClick={apply} disabled={disabled} style={{marginTop:6}}>Apply dimensions</button>
+    <button type="button" onPointerDown={event=>event.preventDefault()} onClick={apply} disabled={disabled} style={{...buttonStyle,marginTop:6,marginLeft:kind==='stair'?6:0}}>Apply dimensions</button>
     <p style={{fontSize:10,color:'var(--navi-text-secondary)'}}>Changes apply when you leave a field or press Enter. Campus Save is separate.</p>
     {error&&<p role="alert" style={{fontSize:11,color:'#dc2626'}}>{error}</p>}
   </section>

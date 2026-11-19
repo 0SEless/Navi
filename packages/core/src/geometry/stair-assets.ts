@@ -267,7 +267,7 @@ export const BOX_U_MIN_FLIGHT_M = 0.5
  * foot. Returns the designed stair that does this (centred on the box, climbing "north" turned onto the box), keeping
  * the box in `fromBox` so Straight can bring it back. Undefined when the box is too narrow or short for it.
  */
-export function boxStairAsUShape(flight: { position: { x: number; y: number }; rotation?: number; polygon?: { points: Array<{ x: number; y: number }> }; look?: { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid' } }, rise: number, turn: 'left' | 'right' = 'right') {
+export function boxStairAsUShape(flight: { position: { x: number; y: number }; rotation?: number; polygon?: { points: Array<{ x: number; y: number }> }; look?: { railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; entryRailing?: 'railing' | 'flat'; exitRailing?: 'railing' | 'flat' } }, rise: number, turn: 'left' | 'right' = 'right') {
   const ring = flight.polygon && ringPoints(flight.polygon)
   if (!ring || ring.length !== 4 || !(rise > 0)) return undefined
   const [p0, p1, p2, p3] = ring
@@ -287,9 +287,45 @@ export function boxStairAsUShape(flight: { position: { x: number; y: number }; r
       preset: 'ushape', direction: 'north', turn, stepCount, stepWidth: flightWidth, stepDepth,
       ...(look.railings ? { railings: look.railings } : {}), ...(look.railingStyle ? { railingStyle: look.railingStyle } : {}),
       ...(look.underneath ? { underneath: look.underneath } : {}),
+      ...(look.entryRailing ? { entryRailing: look.entryRailing } : {}), ...(look.exitRailing ? { exitRailing: look.exitRailing } : {}),
       fromBox: flight.polygon!.points.map((p) => ({ x: p.x, y: p.y })), fromBoxRotation: flight.rotation ?? 0,
     } },
   }
+}
+
+/**
+ * Owner 2026-11-19: a U-Shape stair dragged by a corner or side in 2D resizes like a straight one — both flights fill
+ * the new box. `before` and `after` are its 2D outline (four corners, same order) before and after the drag. Returns
+ * the new step width and depth (the step count stays: the rise has not changed) and, for a stair made from a drawn
+ * box, that box moved onto the new outline; or an error when the box is too small for two flights.
+ */
+export function uShapeResizedToBox(
+  props: { stepCount?: number; stepWidth?: number; stepDepth?: number; fromBox?: Array<{ x: number; y: number }> },
+  before: ReadonlyArray<{ x: number; y: number }>, after: ReadonlyArray<{ x: number; y: number }>,
+): { stepWidth: number; stepDepth: number; fromBox?: Array<{ x: number; y: number }> } | { error: string } {
+  if (before.length !== 4 || after.length !== 4) return { error: 'A U-Shape stair resizes by its four corners.' }
+  const len = (r: ReadonlyArray<{ x: number; y: number }>, i: number) => Math.hypot(r[(i + 1) % 4].x - r[i].x, r[(i + 1) % 4].y - r[i].y)
+  const stepWidth = props.stepWidth ?? 1.2, n1 = Math.ceil((props.stepCount ?? 4) / 2)
+  const W = 2 * stepWidth + U_STAIR_GAP
+  // Which pair of sides is the stair's width (both flights side by side): the one that measured W before.
+  const widthEdge = Math.abs(len(before, 0) - W) <= Math.abs(len(before, 1) - W) ? 0 : 1
+  const newW = len(after, widthEdge), newD = len(after, 1 - widthEdge)
+  const flightWidth = (newW - U_STAIR_GAP) / 2
+  const stepDepth = (newD - flightWidth) / n1
+  if (![newW, newD].every(Number.isFinite) || !(flightWidth >= BOX_U_MIN_FLIGHT_M)) {
+    return { error: `Too narrow for a U-Shape: the box must be at least ${(2 * BOX_U_MIN_FLIGHT_M + U_STAIR_GAP).toFixed(1)} m wide (two flights side by side).` }
+  }
+  if (!(stepDepth >= 0.15)) return { error: 'Too short for a U-Shape: make the box longer so each step is at least 0.15 m deep.' }
+  let fromBox: Array<{ x: number; y: number }> | undefined
+  if (props.fromBox?.length === 4) {
+    // Each corner of the drawn box sits on a corner of the outline: it moves with that corner.
+    fromBox = props.fromBox.map((p) => {
+      let best = 0
+      for (let i = 1; i < 4; i++) if (Math.hypot(before[i].x - p.x, before[i].y - p.y) < Math.hypot(before[best].x - p.x, before[best].y - p.y)) best = i
+      return { x: after[best].x, y: after[best].y }
+    })
+  }
+  return { stepWidth: flightWidth, stepDepth, ...(fromBox ? { fromBox } : {}) }
 }
 
 /** Solids for a stair layout: steps (unless `withSteps` is false), landings, top landing and the authored sides. */

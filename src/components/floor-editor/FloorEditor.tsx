@@ -30,7 +30,7 @@ import { DEFAULT_LAYER_VISIBILITY } from '@/types/studio-types'
 
 const FloorEditorCanvas = dynamic(
   () => import('./FloorEditorCanvas').then((m) => m.FloorEditorCanvas),
-  { ssr: false, loading: () => <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: 12 }}>Loading mapâ€¦</div> }
+  { ssr: false, loading: () => <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: 12 }}>Loading map…</div> }
 )
 import { ScaleCalibration } from './ScaleCalibration'
 import { TwoPointCalibration, validateCalibrationPoints, computeCalibration } from './TwoPointCalibration'
@@ -140,9 +140,12 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
   const planImageUrl = resolveFloorPlanUrl(building?.floorPlanUrls?.[currentLevel], currentFloorData as any)
   const hasPlan = !!planImageUrl
   const persistedLocked = !!(currentFloorData as any)?.locked
+  // Owner 2026-11-19: the "no floor plan" card popped up on every floor already drawn (aligned, locked, walls and
+  // routes in place). It is for starting a new floor only.
+  const floorAlreadyDrawn = persistedLocked || !!((canonicalFloor?.walls?.length ?? 0) > 0 || (canonicalFloor?.rooms?.length ?? 0) > 0 || (canonicalFloor?.routeNetwork?.nodes?.length ?? 0) > 0)
 
   const [mode, setMode] = useState<'setup' | 'mapping'>(
-    persistedLocked ? 'mapping' : 'setup'
+    persistedLocked || (!hasPlan && floorAlreadyDrawn) ? 'mapping' : 'setup'
   )
   const [locked, setLocked] = useState(persistedLocked)
   const [showGotIt, setShowGotIt] = useState(false)
@@ -767,14 +770,14 @@ export function FloorEditor({ mapId, buildingId, floor }: FloorEditorProps) {
               <button type="button" aria-label="Dismiss route message" onClick={() => setRouteAuthoringMessage(null)} style={{ border: 'none', background: 'transparent', color: '#94A3B8', cursor: 'pointer', fontSize: 14, lineHeight: 1, pointerEvents: 'auto' }}>×</button>
             </div>
           )}
-          {!hasPlan && !uploadCardDismissed && (
+          {!hasPlan && !uploadCardDismissed && !floorAlreadyDrawn && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)', zIndex: 20 }}>
               <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: 12, padding: '28px 32px', maxWidth: 360, textAlign: 'center' }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#F1F5F9', marginBottom: 6 }}>{floorLabel}</div>
                 <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 16 }}>This floor has no floor plan.</div>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 6, background: '#3B82F6', color: '#fff', fontSize: 12, fontWeight: 600, cursor: isUploading ? 'not-allowed' : 'pointer', marginBottom: 10, opacity: isUploading ? 0.7 : 1 }}>
                   {isUploading ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {isUploading ? 'Uploadingâ€¦' : 'Upload Floor Plan'}
+                  {isUploading ? 'Uploading…' : 'Upload Floor Plan'}
                   <input type="file" accept={SUPPORTED_PLAN_ACCEPT} onChange={handleUpload} disabled={isUploading} style={{ display: 'none' }} />
                 </label>
                 <div>

@@ -15,8 +15,9 @@ const label: React.CSSProperties = { fontSize: 10, color: 'var(--navi-text-secon
 const m = (n: number) => n.toFixed(2)
 
 type RailingStyle = 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
-type LookPatch = { topLandingM?: number | null; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid' }
-type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep' }
+type PlatformEdge = 'railing' | 'flat'
+type LookPatch = { topLandingM?: number | null; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; underneath?: 'open' | 'solid'; entryRailing?: PlatformEdge; exitRailing?: PlatformEdge }
+type DrawingPatch = { preset?: 'straight' | 'ushape'; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: RailingStyle; platformRailingStyle?: 'same' | 'none' | RailingStyle; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep'; entryRailing?: PlatformEdge; exitRailing?: PlatformEdge }
 
 export function StairClimbProperties({ building, featureId, onSetTo, onLandingExit, onCutout, onConnectFloors, onDrawing, onShape, onLook, outdoor, onConnectOutdoor, onDisconnectOutdoor }: {
   building: Building
@@ -210,6 +211,34 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
       })()}
       {props && <StairShapeControls featureId={featureId} props={props as never} onDrawing={onDrawing} />}
       {!props && flight && onLook && <ToolStairLook featureId={featureId} look={flight.look} onLook={onLook} />}
+      {(props || (flight && onLook)) && (() => {
+        // Owner 2026-11-19: each platform railed, or flat ground with no railing (the foot flat, the top railed by default).
+        const chosen = (props ?? flight?.look ?? {}) as { entryRailing?: PlatformEdge; exitRailing?: PlatformEdge }
+        const set = (patch: { entryRailing?: PlatformEdge; exitRailing?: PlatformEdge }) => (props ? onDrawing(patch) : onLook?.(patch))
+        return (
+          <>
+            <div>
+              <label style={label} htmlFor={`stair-entry-edge-${featureId}`}>ENTRY PLATFORM</label>
+              <select id={`stair-entry-edge-${featureId}`} aria-label="Entry platform" style={field} value={chosen.entryRailing ?? 'flat'}
+                onChange={(event) => set({ entryRailing: event.target.value as PlatformEdge })}>
+                <option value="flat">Flat (no railing)</option>
+                <option value="railing">Railing</option>
+              </select>
+              <div style={{ ...label, marginTop: 2 }}>The platform at the foot, when the stair starts past the floor's edge.</div>
+            </div>
+            {toFloor && (
+              <div>
+                <label style={label} htmlFor={`stair-exit-edge-${featureId}`}>EXIT PLATFORM</label>
+                <select id={`stair-exit-edge-${featureId}`} aria-label="Exit platform" style={field} value={chosen.exitRailing ?? 'railing'}
+                  onChange={(event) => set({ exitRailing: event.target.value as PlatformEdge })}>
+                  <option value="railing">Railing</option>
+                  <option value="flat">Flat (no railing)</option>
+                </select>
+              </div>
+            )}
+          </>
+        )
+      })()}
       {onConnectOutdoor && (
         <div>
           <span style={label}>OUTDOOR ROUTE</span>
@@ -230,14 +259,18 @@ export function StairClimbProperties({ building, featureId, onSetTo, onLandingEx
   )
 }
 
+/** A number as shown in a field: at most two decimals (3.66, not 3.659411729121). */
+export const roundShown = (value: number) => String(Math.round(value * 100) / 100)
+
 /** A number field that applies on leave or Enter (one change per edit). */
 function NumberField({ id, labelText, value, onApply }: { id: string; labelText: string; value: number; onApply(value: number): void }) {
-  const [text, setText] = useState(String(value))
-  useEffect(() => setText(String(value)), [value])
+  const shown = roundShown(value)
+  const [text, setText] = useState(shown)
+  useEffect(() => setText(shown), [shown])
   const apply = () => {
     const n = Number(text)
-    if (Number.isFinite(n) && n !== value) onApply(n)
-    else setText(String(value))
+    if (text !== shown && Number.isFinite(n) && n !== value) onApply(n)
+    else setText(shown)
   }
   return (
     <input id={id} aria-label={labelText} type="number" style={field} value={text}
@@ -318,10 +351,11 @@ function StairShapeControls({ featureId, props, onDrawing }: {
 
 /** A number field that may be left blank (automatic); applies on leave or Enter. */
 function OptionalNumberField({ id, labelText, value, onApply }: { id: string; labelText: string; value: number | null; onApply(value: number | null): void }) {
-  const shown = value === null ? '' : String(value)
+  const shown = value === null ? '' : roundShown(value)
   const [text, setText] = useState(shown)
   useEffect(() => setText(shown), [shown])
   const apply = () => {
+    if (text === shown) return
     const next = text.trim() === '' ? null : Number(text)
     if (next !== null && !Number.isFinite(next)) { setText(shown); return }
     if (next !== value) onApply(next)

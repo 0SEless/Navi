@@ -5,7 +5,7 @@ import type { ValidationIssue } from '../validation/snapshot'
 import type { AutoFixRegistry } from '../validation/fix'
 import type { ValidationProfileId, ValidationProfile } from '../validation/rules/types'
 import { getProfiles, getDefaultProfile } from '../validation/profiles'
-import { presentValidationIssue } from '../validation/presentation'
+import { describeIssueContext, presentValidationIssue } from '../validation/presentation'
 
 const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2 }
 
@@ -213,9 +213,6 @@ export function ProblemsPanel({ entityFilter, categoryFilter, onIssueFocus, canI
             <span style={{ color: severityColor.warning }}>{severityCounts.warning} warning{severityCounts.warning === 1 ? '' : 's'}</span>
             <span style={{ color: severityColor.info }}>{severityCounts.info} info</span>
           </div>
-          <div style={{ color: '#666', fontSize: 10, paddingBottom: 6 }}>
-            Profile: {snapshot.profile} · document version {snapshot.documentVersion} · validated at {Math.round(snapshot.validatedAt)}ms
-          </div>
           {count === 0 && (
             <div style={{ color: '#666', fontStyle: 'italic', fontSize: 13, padding: '4px 0' }}>
               {entityFilter || categoryFilter ? 'No matching problems' : 'No problems'}
@@ -243,11 +240,8 @@ export function ProblemsPanel({ entityFilter, categoryFilter, onIssueFocus, canI
                   {cat.issues.map(issue => {
                     const presentation = presentValidationIssue(issue)
                     const focusable = isIssueFocusable(issue)
-                    const scope = [
-                      issue.layer ? `Layer: ${issue.layer}` : null,
-                      issue.buildingId ? `Building: ${issue.buildingId}` : null,
-                      issue.floorId ? `Floor: ${issue.floorId}` : null,
-                    ].filter(Boolean).join(' · ')
+                    // Names, not ids (owner 2026-11-19): "COMDEV BUILDING · Floor 2", "Stair \"Staircase\", Wall".
+                    const context = describeIssueContext(document, issue)
                     return (
                       <div
                         key={issue.issueId}
@@ -265,20 +259,22 @@ export function ProblemsPanel({ entityFilter, categoryFilter, onIssueFocus, canI
                           {severityIcon[issue.severity] || '○'}
                         </span>
                         <div style={{ minWidth: 0 }}>
+                          {context.place && (
+                            <div data-testid="issue-place" style={{ color: '#93c5fd', fontSize: 11, fontWeight: 600, marginBottom: 2, wordBreak: 'break-word' }}>
+                              {context.place}
+                            </div>
+                          )}
                           <div style={{ color: '#fff', wordBreak: 'break-word', fontWeight: 600 }}>
                             {presentation.title}
                           </div>
                           <div style={{ color: '#ccc', wordBreak: 'break-word', marginTop: 2 }}>{issue.message}</div>
-                          <div style={{ color: '#999', wordBreak: 'break-word', marginTop: 2, fontSize: 11 }}>
-                            {presentation.guidance}
-                          </div>
-                          {scope && (
-                            <div style={{ color: '#888', fontSize: 11, marginTop: 3 }}>{scope}</div>
-                          )}
-                          {issue.targets.length > 0 && (
-                            <div style={{ color: '#666', fontSize: 11, marginTop: 1 }}>
-                              {issue.targets.map(t => `${t.entityType}: ${t.entityId}`).join(', ')}
+                          {presentation.guidance && (
+                            <div style={{ color: '#999', wordBreak: 'break-word', marginTop: 2, fontSize: 11 }}>
+                              How to fix: {presentation.guidance}
                             </div>
+                          )}
+                          {context.things && (
+                            <div style={{ color: '#888', fontSize: 11, marginTop: 3 }}>{context.things}</div>
                           )}
                           {focusable && (
                             <button

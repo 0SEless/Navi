@@ -152,6 +152,8 @@ const MIN_ENTRY_DEPTH_M = 1
 const ENTRY_PAD_M = 1.2
 /** An edge this close to the floor's outline touches it (no railing there; you walk on). */
 const ENTRY_TOUCH_M = 0.1
+/** A bottom step this close to the floor's edge already meets the floor: no entry platform, metres. */
+const ENTRY_ON_EDGE_M = 0.3
 
 export interface StairEntryPlatform {
   /** Four corners, building-local; edge 0 is the stair's bottom step. */
@@ -212,6 +214,9 @@ export function stairEntryPlatform(stair: Staircase, floors: readonly (Pick<Floo
   const upMid = { x: (ring[3][0] + ring[2][0]) / 2, y: (ring[3][1] + ring[2][1]) / 2 }
   const upLen = Math.hypot(upMid.x - foot.x, upMid.y - foot.y), width = Math.hypot(B.x - A.x, B.y - A.y)
   if (!(upLen > 0) || !(width > 0) || onFloor(foot, outline)) return undefined
+  // Owner 2026-11-19 (ASU COMDEV): a bottom step drawn a few centimetres past the floor's edge opens onto the floor as
+  // it is — no pad sticking out past the facade.
+  if (distanceToRing(foot, outline) <= ENTRY_ON_EDGE_M) return undefined
   const back = { x: -(upMid.x - foot.x) / upLen, y: -(upMid.y - foot.y) / upLen }
   const side = { x: (B.x - A.x) / width, y: (B.y - A.y) / width }
   const at = (p: LocalCoord, d: LocalCoord, s: number) => ({ x: p.x + d.x * s, y: p.y + d.y * s })

@@ -173,6 +173,13 @@ export const stairSetShapeHandler: CommandHandler = {
       flight.polygon = { points: drawnBox.map((p) => ({ ...p })) }
       flight.rotation = flight.drawing!.properties.fromBoxRotation ?? 0
       flight.position = { x: drawnBox.reduce((s, p) => s + p.x, 0) / drawnBox.length, y: drawnBox.reduce((s, p) => s + p.y, 0) / drawnBox.length }
+      // What was chosen while it was U-Shape (railings, underneath, platforms) stays with the box.
+      const chosen = flight.drawing!.properties
+      const look = { ...(flight.look ?? {}) }
+      for (const key of ['railings', 'railingStyle', 'underneath', 'entryRailing', 'exitRailing'] as const) {
+        if (chosen[key] !== undefined) (look as Record<string, unknown>)[key] = chosen[key]
+      }
+      if (Object.keys(look).length > 0) flight.look = look
       delete flight.drawing
     }
     // The foot moved within the box: its route link follows it, or is dropped for Auto-connect to make again.

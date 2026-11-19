@@ -113,7 +113,9 @@ export function buildFloorArchitectureAssets(input: FloorArchitectureAssetInput)
     const picked = top.drawing?.properties.railingStyle ?? top.look?.railingStyle
       ?? (top.drawing?.properties.sides === 'wall' ? 'wall' : 'half-wall')
     const style = picked === 'half-wall' || picked === 'wall' ? picked : 'posts-rails'
-    const guardRuns = stairLandingGuardSegments(ring, top).map(segment => ({ ...segment, kind: 'top' }))
+    // Exit platform set Flat (owner 2026-11-19): no guard railing round the arrival.
+    const exitFlat = (top.drawing ? (top.drawing.properties as { exitRailing?: string }).exitRailing : top.look?.exitRailing) === 'flat'
+    const guardRuns = exitFlat ? [] : stairLandingGuardSegments(ring, top).map(segment => ({ ...segment, kind: 'top' }))
     if (top.drawing?.properties.preset !== 'ushape') {
       const otherWells = shapes.filter(other => other.top.id !== top.id).map(other => other.shape.well)
       guardRuns.push(...stairWellGuardSegments(shape.well, floorAreas, walls, otherWells, wallId => [

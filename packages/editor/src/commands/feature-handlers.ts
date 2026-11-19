@@ -1,6 +1,6 @@
 import {floorConnectionProblem,ownWallOf} from '../geometry/floor-connections'
 import { autoLinkFeature, clearFeatureLinks, type FeatureKind } from '../navigation/feature-links'
-import { recordChange, collectFloorDoors, stairFlightFloor, stairFootPosition, buildingOutlineLocal } from '@navi/core'
+import { recordChange, collectFloorDoors, stairFlightFloor, stairFootPosition, buildingOutlineLocal, uShapeResizedToBox } from '@navi/core'
 import { syncStairTop } from './stair-to-floor-handler'
 import { stairFootEntranceId } from './floor-route-workflow'
 import type { CampusDocument, Staircase, Elevator, LocalCoord, LocalPolygon, StaircaseType, ElevatorType, PointOfInterest, PointOfInterestAppearance, PointOfInterestGeometry, PointOfInterestNavigation, PointOfInterestVisibility, OutdoorPointOfInterest, WorldPOIGeometry, RoomDoor, Window, Opening, VerticalTransition, RouteNetwork } from '@navi/core'
@@ -1189,7 +1189,7 @@ export const featureUpdateHandler: CommandHandler = {
   execute(document: CampusDocument, payload: Record<string, unknown>): MutationResult {
     const featureId = payload.featureId as string
     const level = (payload.level as number) ?? 0
-    const patch = (payload.patch as Record<string, unknown>) ?? {}
+    const patch = { ...((payload.patch as Record<string, unknown>) ?? {}) }
 
     const ctx = findFeature(document, featureId)
     if (!ctx) return { success: false, error: `Feature not found: ${featureId}` }
@@ -1234,6 +1234,18 @@ export const featureUpdateHandler: CommandHandler = {
       return { success: false, error: 'Stair rise must be positive finite meters, or use floor height.' }
     }
     if ('rotation' in patch && (typeof patch.rotation !== 'number' || !Number.isFinite(patch.rotation))) return { success: false, error: 'Rotation must be finite degrees.' }
+    // Owner 2026-11-19: a U-Shape stair dragged by a corner or side in 2D keeps its shape — both flights fill the new
+    // box, as a straight stair's box follows the drag (its outline alone would be ignored by its design).
+    const design = levelGeom?.drawing
+    const dragged = (patch.polygon as LocalPolygon | undefined)?.points
+    if (design?.definitionId === 'stair' && design.properties?.preset === 'ushape' && dragged?.length === 4 && !patch.drawing) {
+      const ring = resolveLevelGeometry(feature, level).polygon?.points
+      // Its outline comes back closed (first corner repeated at the end).
+      const before = ring && ring.length === 5 && Math.hypot(ring[0].x - ring[4].x, ring[0].y - ring[4].y) < 1e-9 ? ring.slice(0, 4) : ring
+      const fit = before ? uShapeResizedToBox(design.properties as Parameters<typeof uShapeResizedToBox>[0], before, dragged) : { error: 'The stair outline is missing.' }
+      if ('error' in fit) return { success: false, error: fit.error }
+      patch.drawing = { properties: fit }
+    }
     let resized: typeof levelGeom | undefined
     if ('width' in patch || 'depth' in patch || ('rotation' in patch && !patch.polygon && !patch.drawing)) {
       if (!levelGeom) return { success: false, error: 'Feature level geometry is missing.' }

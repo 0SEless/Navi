@@ -23,12 +23,12 @@ describe('feature-connectivity with a floor route network', () => {
   it('reports a stair far from every route node', () => {
     const issues = run({ routeNetwork: { nodes: [node('n1', 40, 0)], edges: [] } })
     expect(issues).toHaveLength(1)
-    expect(issues[0].message).toContain('is 40m from nearest hallway')
+    expect(issues[0].message).toContain('is 40 m from the nearest hallway route')
   })
 
   it('still reports a floor with neither hallways nor route nodes', () => {
     const issues = run({})
     expect(issues).toHaveLength(1)
-    expect(issues[0].message).toContain('has no usable hallway')
+    expect(issues[0].message).toContain('has no hallway route on that floor')
   })
 })

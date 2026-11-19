@@ -2,6 +2,13 @@ import type { ValidationRule, ValidationContext } from '../types'
 import type { ValidationIssue } from '../../snapshot'
 import { collectCanonicalRoomIds, collectFloorDoors } from '@navi/core'
 
+const doorLabel = (name?: string) => (name && name.trim() && name.trim().toLowerCase() !== 'door' ? `Door "${name.trim()}"` : 'A door')
+function roomLabel(floor: { rooms?: Array<{ id: string; name?: string }> }, roomId?: string): string {
+  if (!roomId) return ' (not in a room)'
+  const name = floor.rooms?.find(room => room.id === roomId)?.name?.trim()
+  return name ? ` of room "${name}"` : ' of an unnamed room'
+}
+
 export const roomDoorConnectivityRule: ValidationRule = {
   ruleId: 'room-door-connectivity',
   description: 'Room Door Connectivity',
@@ -48,7 +55,8 @@ export const roomDoorConnectivityRule: ValidationRule = {
               issueId: identity(door.id, problem),
               ruleId: 'room-door-connectivity',
               severity,
-              message: `Door "${door.name || door.id}"${door.roomId ? ` in room "${door.roomId}"` : ''}: ${message}`,
+              // Names, not ids (owner 2026-11-19: "room-13-nf13" told the editor nothing).
+              message: `${doorLabel(door.name)}${roomLabel(floor, door.roomId)}: ${message}`,
               targets: [
                 ...(door.roomId ? [{ entityId: door.roomId, entityType: 'room' }] : []),
                 { entityId: door.id, entityType: 'door' },

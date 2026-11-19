@@ -544,7 +544,8 @@ describe('GraphAdapter', () => {
     expect(compF0.featureId).toBe('stair-main')
     expect(compF0.range).toEqual({ from: 0, to: 1 })
     expect(compF0.polygon).toBeDefined()
-    expect(compF0.polygon!.length).toBe(5)
+    // Four corners, not the closed five-point ring: the 2D editor resizes a box by its corners (owner 2026-11-19).
+    expect(compF0.polygon!.length).toBe(4)
     expect(compF0.metadata?.landing).toBeDefined()
 
     const compF1 = stairComps.find(c => c.floor === 1)!

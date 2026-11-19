@@ -535,7 +535,14 @@ export interface StairLook {
   railings?: 'none' | 'left' | 'right' | 'both'
   railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'
   underneath?: 'open' | 'solid'
+  /** Owner 2026-11-19: railings round the platform at the stair's foot, or flat (none). Default flat. */
+  entryRailing?: StairPlatformEdge
+  /** Owner 2026-11-19: railings round the platform at the stair's top, or flat (none). Default railing. */
+  exitRailing?: StairPlatformEdge
 }
+
+/** A stair platform's open edges: railed, or flat ground with no railing. */
+export type StairPlatformEdge = 'railing' | 'flat'
 
 export type StairLandingExit = 'front' | 'left' | 'right'
 
@@ -566,7 +573,8 @@ export interface StairLevelGeometry {
     definitionId: 'stair'
     properties: { stepCount: number; stepWidth: number; stepDepth: number; direction: string; preset: string; turn?: 'left' | 'right'; sides?: 'open' | 'railing' | 'wall'; topLandingM?: number; railings?: 'none' | 'left' | 'right' | 'both'; railingStyle?: 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; platformRailingStyle?: 'same' | 'none' | 'posts-rails' | 'bars' | 'glass' | 'wall' | 'half-wall'; underneath?: 'open' | 'solid'; landings?: number[]; landingLengthM?: number; landingHeightsM?: Array<number | null>; steepness?: 'gentle' | 'normal' | 'steep'
       /** A drawn box made U-Shape (owner 2026-11-19): the box it fills, so Straight brings it back. */
-      fromBox?: LocalCoord[]; fromBoxRotation?: number }
+      fromBox?: LocalCoord[]; fromBoxRotation?: number
+      entryRailing?: StairPlatformEdge; exitRailing?: StairPlatformEdge }
   }
 }
 

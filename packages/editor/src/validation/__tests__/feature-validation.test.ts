@@ -445,6 +445,6 @@ describe('P2 Feature Validation Rules', () => {
     const snapshot = engine.validate(doc)
     const issue = snapshot.issues.find((i) => i.ruleId === 'feature-connectivity' && i.targets.some((t) => t.entityId === 'stair-unconnected'))
     expect(issue).toBeDefined()
-    expect(issue!.message).toContain('is 128m from nearest hallway')
+    expect(issue!.message).toContain('is 128 m from the nearest hallway route')
   })
 })

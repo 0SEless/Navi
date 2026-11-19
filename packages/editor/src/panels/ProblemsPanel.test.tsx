@@ -163,7 +163,7 @@ describe('ProblemsPanel', () => {
     expect(screen.getByText(/1 info/i)).toBeDefined()
   })
 
-  it('shows a readable route title, scope, layer, and target identity', () => {
+  it('shows a readable title and how to fix it, without raw ids', () => {
     const { ctx } = createContext({
       issues: [{
         issueId: 'route-1',
@@ -181,11 +181,12 @@ describe('ProblemsPanel', () => {
         <ProblemsPanel />
       </EditorProvider>,
     )
-    expect(screen.getByText('Entrance route access is invalid')).toBeDefined()
-    expect(screen.getByText(/navigation/i)).toBeDefined()
-    expect(screen.getByText(/building-2/i)).toBeDefined()
-    expect(screen.getByText(/floor-0/i)).toBeDefined()
-    expect(screen.getByText(/entrance-7/i)).toBeDefined()
+    // Owner 2026-11-19: a readable title and a how-to-fix line; never raw ids or the layer name.
+    expect(screen.getByText('Entrance not linked')).toBeDefined()
+    expect(screen.getByText(/How to fix: Select the entrance/)).toBeDefined()
+    expect(screen.getByText('Entrance')).toBeDefined()
+    expect(screen.queryByText(/building-2|floor-0|entrance-7|Layer:/)).toBeNull()
+    expect(screen.queryByText(/document version|validated at/)).toBeNull()
   })
 
   it('delegates issue focus to the map-aware callback', () => {

@@ -191,8 +191,9 @@ export const featureConnectivityRule: ValidationRule = {
               issueId: `feature-connectivity:${feature.id}:${hash(`no-hallways-${level}`)}`,
               ruleId: 'feature-connectivity',
               severity: 'error',
-              message: `${entityType} "${feature.id}" on floor ${level} has no usable hallway on that floor`,
+              message: `${entityType === 'staircase' ? 'Stair' : 'Lift'} "${feature.name || 'unnamed'}" on ${floor.label || `floor ${level}`} has no hallway route on that floor to join.`,
               targets: [{ entityId: feature.id, entityType }],
+              buildingId: bld.id, floorId: floor.id, layer: 'navigation',
             })
             continue
           }
@@ -209,8 +210,9 @@ export const featureConnectivityRule: ValidationRule = {
               issueId: `feature-connectivity:${feature.id}:${hash(`far-hallway-${level}`)}`,
               ruleId: 'feature-connectivity',
               severity: 'error',
-              message: `${entityType} "${feature.id}" on floor ${level} is ${Math.round(minDist)}m from nearest hallway (max ${MAX_HALLWAY_DISTANCE}m)`,
+              message: `${entityType === 'staircase' ? 'Stair' : 'Lift'} "${feature.name || 'unnamed'}" on ${floor.label || `floor ${level}`} is ${Math.round(minDist)} m from the nearest hallway route (at most ${MAX_HALLWAY_DISTANCE} m).`,
               targets: [{ entityId: feature.id, entityType }],
+              buildingId: bld.id, floorId: floor.id, layer: 'navigation',
             })
           }
         }
@@ -308,18 +310,22 @@ export const stairTopReachRule: ValidationRule = {
             ruleId: 'stair-top-reach', severity: 'warning',
             message: `${stair.name || stair.id}: Review the detached stair cutout on ${floor.label}.`,
             targets: [{ entityId: stair.id, entityType: 'staircase' }],
+            buildingId: bld.id, floorId: floor.id,
           })
         }
         // Only stairs set to climb To a floor (their upper floor holds a top); older multi-floor stairs are left as they are.
         if (!(stair.toLevel > stairFlightFloor(stair)) || !Object.values(stair.levels ?? {}).some((l) => l?.role === 'top')) continue
         if (reach.ok) continue
-        const label = bld.floors.find((f) => f.level === stair.toLevel)?.label ?? `floor ${stair.toLevel}`
+        const toFloor = bld.floors.find((f) => f.level === stair.toLevel)
+        const label = toFloor?.label ?? `floor ${stair.toLevel}`
         issues.push({
           issueId: `stair-top-reach:${stair.id}:${hash(stair.id)}`,
           ruleId: 'stair-top-reach',
           severity: 'warning',
           message: reach.reason === 'no-opening' ? `${stair.name || stair.id}: Top meets a wall with no opening on ${label}` : `${stair.name || stair.id}: Top doesn't reach ${label}'s hallway`,
           targets: [{ entityId: stair.id, entityType: 'staircase' }],
+          // The problem is on the floor the top arrives at (owner 2026-11-19: say which floor).
+          buildingId: bld.id, ...(toFloor ? { floorId: toFloor.id } : {}), layer: 'navigation',
         })
       }
     }
