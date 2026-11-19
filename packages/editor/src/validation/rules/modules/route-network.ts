@@ -191,18 +191,38 @@ function structureIssues(
   return issues
 }
 
+/**
+ * Route points that give a route group its own way in (owner 2026-11-19 stair check): an entrance linked to the
+ * outdoor walk, or a stair/lift link on this floor whose stair/lift also reaches another floor. Publish's
+ * building-wide "reachable from an entrance" check still catches a group that is truly cut off.
+ */
+function ownWayIn(building: { staircases?: Array<{ levels?: Record<number, { routeConnection?: { anchorNodeId?: string; targetRouteNodeId?: string } }> }>; elevators?: Array<{ levels?: Record<number, { routeConnection?: { anchorNodeId?: string; targetRouteNodeId?: string } }> }> }, floor: Floor): Set<string> {
+  const ids = new Set<string>()
+  for (const access of floor.entranceAccess ?? []) if (access.outdoorRouteId && access.indoorRouteNodeId) ids.add(access.indoorRouteNodeId)
+  for (const feature of [...(building.staircases ?? []), ...(building.elevators ?? [])]) {
+    const levels = Object.entries(feature.levels ?? {})
+    const here = feature.levels?.[floor.level]?.routeConnection
+    if (!here || !levels.some(([level, geometry]) => Number(level) !== floor.level && geometry?.routeConnection)) continue
+    for (const id of [here.anchorNodeId, here.targetRouteNodeId]) if (id) ids.add(id)
+  }
+  return ids
+}
+
 function disconnectedIssues(
   buildingId: string,
   floor: Floor,
   graph: RouteFloorGraph,
   profile: RouteProfile,
+  wayIn: ReadonlySet<string> = new Set(),
 ): ValidationIssue[] {
   if (graph.nodes.length === 0) return []
   const issues: ValidationIssue[] = []
   const scope: RouteIssueScope = { buildingId, floorId: floor.id, layer: 'navigation' }
-  const disconnected = graph.components.length > 1
+  const disconnected = (graph.components.length > 1
     ? graph.components.slice(1)
-    : graph.components.filter((component) => component.every((nodeId) => (graph.adjacency.get(nodeId)?.size ?? 0) === 0))
+    : graph.components.filter((component) => component.every((nodeId) => (graph.adjacency.get(nodeId)?.size ?? 0) === 0)))
+    // A joined-up group (two or more points) with its own way in is reachable; a lone point stays an error.
+    .filter((component) => !(component.length > 1 && component.some((nodeId) => wayIn.has(nodeId))))
 
   for (const component of disconnected) {
     const first = component[0]
@@ -452,7 +472,7 @@ export function validateRouteNetwork(document: CampusDocument, profile: RoutePro
       if (!routeNetworkOf(floor) && !floor.entrances?.some(entrance => entrance.indoorOnly === true)) continue
       const graph = buildRouteFloorGraph(floor)
       issues.push(...structureIssues(building.id, floor, profile))
-      issues.push(...disconnectedIssues(building.id, floor, graph, profile))
+      issues.push(...disconnectedIssues(building.id, floor, graph, profile, ownWayIn(building, floor)))
       issues.push(...floorConsistencyIssues(building.id, floor, graph, profile))
       issues.push(...roomAccessIssues(building.id, floor, graph, profile))
       issues.push(...entranceAccessIssues(building.id, floor, graph, profile, roadIds))

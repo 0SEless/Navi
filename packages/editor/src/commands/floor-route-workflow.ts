@@ -225,6 +225,16 @@ function ensureStairFootPort(building: Building, floor: Floor, stairId: string):
     const target = network.nodes.find((n) => n.id === stairNode)!
     network.edges.push({ id: genId('route-edge'), from: port, to: stairNode, type: 'walk', distance: Math.hypot(target.position.x - foot.x, target.position.y - foot.y) } as never)
   }
+  // Owner 2026-11-19 stair check: a stair outside the building has no floor route to link its foot to, so link it to
+  // this foot point itself; otherwise the outdoor walk reaches the foot but never the stair.
+  const flight = stair.levels[floor.level]
+  if (!stairNode && flight && !flight.routeConnection) {
+    const anchorNodeId = genId('route-node'), connectorEdgeId = genId('route-edge')
+    network.nodes.push({ id: anchorNodeId, type: 'transition', position: { ...foot }, floor: floor.level } as never)
+    network.edges.push({ id: connectorEdgeId, from: anchorNodeId, to: port, type: 'walk', distance: 0 } as never)
+    flight.routeConnection = { anchorNodeId, targetRouteNodeId: port, connectorEdgeId }
+    flight.routeConnectionManaged = true
+  }
   return port
 }
 

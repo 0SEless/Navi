@@ -39,6 +39,15 @@ describe('entry platform at the foot of a stair outside its floor', () => {
     expect(p.railed.filter(Boolean).length).toBeGreaterThanOrEqual(2)
   })
 
+  it('keeps railings on both sides when the 1 m platform reaches past the facade onto the floor', () => {
+    // Foot 0.6 m off the facade: the minimum 1 m platform ends 0.4 m inside. Its far edge is the contact; the sides,
+    // half outside, keep their railings.
+    const p = stairEntryPlatform(stair(1, [[1.2, -5.6], [0, -5.6], [0, -13.6], [1.2, -13.6]]), floors, outline)!
+    expect(box(p.ring)).toEqual([0, 1.2, -5.6, -4.6])
+    expect(p.railed).toEqual([false, true, false, true])
+    expect(round(p.contact!).map(q => q[1])).toEqual([-4.6, -4.6])
+  })
+
   it('is not needed on the ground floor, nor when the foot is already on the floor', () => {
     expect(stairEntryPlatform(stair(0, [[1.2, -6], [0, -6], [0, -14], [1.2, -14]]), floors, outline)).toBeUndefined()
     expect(stairEntryPlatform(stair(1, [[1.2, 0], [0, 0], [0, -4], [1.2, -4]]), floors, outline)).toBeUndefined()

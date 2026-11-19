@@ -233,11 +233,11 @@ export function stairEntryPlatform(stair: Staircase, floors: readonly (Pick<Floo
     corners ??= [A, B, at(B, back, depth), at(A, back, depth)]
   }
   const edges = corners.map((p, i) => [p, corners![(i + 1) % 4]] as [LocalCoord, LocalCoord])
-  const touches = edges.map(([p, q]) => {
-    const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
-    return onFloor(m, outline) || distanceToRing(m, outline) <= ENTRY_TOUCH_M
-  })
-  const contactIndex = touches.findIndex((t, i) => i !== 0 && t)
+  // An edge touches the floor when both its ends are on it (or within a hair of its edge). A side edge reaching from
+  // outside across the facade does not: it keeps its railing.
+  const near = (p: LocalCoord) => onFloor(p, outline) || distanceToRing(p, outline) <= ENTRY_TOUCH_M
+  const touches = edges.map(([p, q]) => near(p) && near(q))
+  const contactIndex = touches[2] ? 2 : touches.findIndex((t, i) => i !== 0 && t)
   return { ring: corners, railed: touches.map((t, i) => i !== 0 && !t), contact: contactIndex >= 0 ? edges[contactIndex] : null }
 }
 

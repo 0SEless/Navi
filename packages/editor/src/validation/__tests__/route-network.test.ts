@@ -95,6 +95,38 @@ describe('route-network validation', () => {
     }))
   })
 
+  // Owner 2026-11-19 stair check: a route group with its own way in (an outdoor-linked entrance, or a stair/lift to
+  // another floor) is reachable; Publish's building-wide entrance check still catches anything truly cut off.
+  it('accepts a separate route group that has its own way in', () => {
+    const floor = makeFloor({
+      entrances: [{ id: 'stair-foot-s', label: 'Stair (foot)', position: { x: 30, y: 0 }, level: 0, type: 'side', hasQR: false, hasPanorama: false, routeNodeId: 'foot' }],
+      entranceAccess: [{ entranceId: 'stair-foot-s', indoorRouteNodeId: 'foot', outdoorNodeId: 'outside', outdoorRouteId: 'road', outdoorPosition: { lat: 11, lng: 122 } }],
+      routeNetwork: {
+        nodes: [route('a', 0, 0), route('b', 5, 0), route('foot', 30, 0), route('stair-anchor', 30, 1)],
+        edges: [edge('main', 'a', 'b'), edge('foot-link', 'stair-anchor', 'foot', 1)],
+      },
+    })
+    const doc = makeDocument(floor)
+    doc.roads = [{ id: 'road' }] as CampusDocument['roads']
+    expect(validateRouteNetwork(doc, 'publish').filter(issue => issue.ruleId === 'route-network-disconnected')).toEqual([])
+  })
+
+  it('accepts a route group reached only by a stair from another floor', () => {
+    const floor = makeFloor({
+      routeNetwork: {
+        nodes: [route('a', 0, 0), route('b', 5, 0), route('mezz-1', 30, 0), route('mezz-2', 35, 0)],
+        edges: [edge('main', 'a', 'b'), edge('mezz', 'mezz-1', 'mezz-2')],
+      },
+    })
+    const doc = makeDocument(floor)
+    doc.buildings[0].floors.push(makeFloor({ id: 'floor-1', level: 1, label: 'Upper', routeNetwork: { nodes: [route('u1', 0, 0, 1), route('u2', 5, 0, 1)], edges: [edge('up', 'u1', 'u2')] } }))
+    doc.buildings[0].staircases = [{ id: 's', buildingId: 'building-1', name: 'Stair', type: 'open', accessible: false, fromLevel: 0, toLevel: 1, levels: {
+      0: { position: { x: 30, y: 0 }, rotation: 0, routeConnection: { anchorNodeId: 'mezz-1', targetRouteNodeId: 'mezz-2', connectorEdgeId: 'mezz' } },
+      1: { role: 'top', position: { x: 0, y: 0 }, rotation: 0, routeConnection: { anchorNodeId: 'u1', targetRouteNodeId: 'u2', connectorEdgeId: 'up' } },
+    } }] as never
+    expect(validateRouteNetwork(doc, 'publish').filter(issue => issue.ruleId === 'route-network-disconnected' && issue.message.includes('Ground'))).toEqual([])
+  })
+
   it('points to the indoor side when an entrance already has an outdoor route', () => {
     const floor = makeFloor({
       entrances: [{ id: 'entry', label: 'Main Entrance', position: { x: 0, y: 0 }, level: 0, type: 'main', hasQR: false, hasPanorama: false }],

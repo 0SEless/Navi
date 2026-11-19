@@ -172,14 +172,16 @@ function openEntryRailing(building: Building, stair: Staircase): void {
   const entry = stairEntryPlatform(stair, building.floors, buildingOutlineLocal(building))
   const floor = building.floors.find(f => f.level === stairFlightFloor(stair))
   if (!entry?.contact || !floor?.walls?.length) return
-  const [p, q] = entry.contact
+  // A wall the platform crosses or touches (a platform reaching past the railing onto the corridor crosses it).
   for (const wall of floor.walls) {
     const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y, len = Math.hypot(dx, dy)
     if (!(len > 0)) continue
-    const along = [p, q].map(v => ((v.x - wall.start.x) * dx + (v.y - wall.start.y) * dy) / len)
-    const across = [p, q].map(v => Math.abs((v.y - wall.start.y) * dx - (v.x - wall.start.x) * dy) / len)
+    const along = entry.ring.map(v => ((v.x - wall.start.x) * dx + (v.y - wall.start.y) * dy) / len)
+    const side = entry.ring.map(v => ((v.y - wall.start.y) * dx - (v.x - wall.start.x) * dy) / len)
+    const band = (wall.thickness ?? 0.2) / 2 + 0.05
+    if (Math.min(...side) > band || Math.max(...side) < -band) continue
     const t0 = Math.max(0, Math.min(...along)), t1 = Math.min(len, Math.max(...along))
-    if (Math.max(...across) - (wall.thickness ?? 0.2) / 2 > 0.3 || t1 - t0 < 0.5) continue
+    if (t1 - t0 < 0.5) continue
     if (floor.openings?.some(o => o.wallId === wall.id && o.offset < t1 - 1e-6 && o.offset + o.width > t0 + 1e-6)) return
     floor.openings = [...(floor.openings ?? []), {
       id: stairEntryOpeningId(stair.id), type: 'door', wallId: wall.id, offset: t0, width: t1 - t0,
