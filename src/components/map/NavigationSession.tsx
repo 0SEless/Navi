@@ -12,7 +12,7 @@ import type { POI } from '@navi/core'
 import type { NavRoute } from '@/types/route-types'
 import type { LatLng } from '@/types/nav-types'
 import { isNavigationDevSimulationEnabled } from '@/lib/navigation-dev-simulation'
-import { GPS_DROP_GRACE_MS, isGoodFix, nextProgressMode, progressModeLabel, shouldWarnOffRoute, type ProgressMode } from '@/lib/navigation-progress-source'
+import { DEVIATION_THRESHOLD_M, GPS_DROP_GRACE_MS, isGoodFix, nextProgressMode, progressModeLabel, type ProgressMode } from '@/lib/navigation-progress-source'
 
 /** Arrival threshold — positional distance to destination node (meters). */
 const ARRIVAL_THRESHOLD_M = 15
@@ -85,7 +85,9 @@ interface NavigationSessionProps {
  * - Auto floor/building switch based on current step (replaces activeStepIdx-driven floor)
  * - Manual override that expires on significant progress
  * - Arrival detection (distance < 15m OR currentNode = destination)
- * - Deviation detection (> 30m from route) exposed as read-only context
+ * - Unsteady GPS (owner 2026-11-20): the marker and line stay pinned to the route. A fix that is weak or more than
+ *   30 m from the route is not used; progress holds at the last good on-route point (Next still works) and
+ *   re-finds the visitor once GPS is steady again. No off-route warning.
  * - Feeds NavigationProvider with real data
  */
 export function NavigationSession({
@@ -147,11 +149,20 @@ export function NavigationSession({
     () => (active && route && position ? computeRouteProgress(route, position) : null),
     [active, route, position],
   )
-  progressRef.current = currentCandidate
+  // A fix is used only when it is accurate and lands within DEVIATION_THRESHOLD_M of the route; otherwise the last
+  // good on-route progress is held so the line does not jump with a wandering GPS.
+  const candidateNearRoute = Boolean(currentCandidate && position
+    && haversine(position, currentCandidate.snappedPosition) <= DEVIATION_THRESHOLD_M)
+  const heldGpsProgressRef = useRef<ReturnType<typeof computeRouteProgress> | null>(null)
+  if (candidateNearRoute && isGoodFix(accuracyInput === null ? null : { accuracy: accuracyInput, timestamp: 0 })) {
+    heldGpsProgressRef.current = currentCandidate
+  }
+  progressRef.current = heldGpsProgressRef.current
   const progressRouteKeyRef = useRef(routeKey)
   useEffect(() => {
     if (routeKey === progressRouteKeyRef.current) return
     progressRouteKeyRef.current = routeKey
+    heldGpsProgressRef.current = null
     setManualIndex(0)
     setProgressMode('step')
     progressModeRef.current = 'step'
@@ -159,14 +170,15 @@ export function NavigationSession({
     setGpsLostNotice(false)
   }, [routeKey])
   const routeResetPending = progressRouteKeyRef.current !== routeKey
-  const indoors = Boolean(route?.steps[(progressMode === 'gps' ? currentCandidate?.index : manualIndex) ?? manualIndex]?.buildingId)
+  const indoors = Boolean(route?.steps[(progressMode === 'gps' ? heldGpsProgressRef.current?.index : manualIndex) ?? manualIndex]?.buildingId)
   const updateProgressMode = useCallback((now: number) => {
     if (!active) {
       progressModeRef.current = 'step'
       setProgressMode('step')
       return
     }
-    const fix = accuracyInput === null ? null : { accuracy: accuracyInput, timestamp: timestampInput ?? now }
+    // A fix far from the route counts as no fix: after the grace period the session drops to Next-at-each-step.
+    const fix = accuracyInput === null || !candidateNearRoute ? null : { accuracy: accuracyInput, timestamp: timestampInput ?? now }
     const goodFreshFix = isGoodFix(fix) && fix !== null
       && now - fix.timestamp >= 0
       && now - fix.timestamp <= GPS_DROP_GRACE_MS
@@ -180,7 +192,7 @@ export function NavigationSession({
     }
     progressModeRef.current = next
     setProgressMode(next)
-  }, [accuracyInput, active, indoors, manualIndex, timestampInput])
+  }, [accuracyInput, active, candidateNearRoute, indoors, manualIndex, timestampInput])
   useEffect(() => { updateProgressMode(Date.now()) }, [updateProgressMode, position, geoError])
   useEffect(() => {
     if (!active) return
@@ -190,9 +202,11 @@ export function NavigationSession({
   const progress = useMemo(() => {
     if (!active || !route) return null
     if (routeResetPending) return progressAtStep(route, 0)
-    return progressMode === 'gps' ? currentCandidate : progressAtStep(route, manualIndex)
+    if (progressMode === 'gps') return heldGpsProgressRef.current ?? progressAtStep(route, manualIndex)
+    return progressAtStep(route, manualIndex)
   }, [active, currentCandidate, manualIndex, progressMode, route, routeResetPending])
-  const effectiveLocation = progressMode === 'step' && progress ? progress.snappedPosition : position
+  // While navigating, the marker sits on the route (owner 2026-11-20), not at the raw GPS point.
+  const effectiveLocation = progress ? progress.snappedPosition : position
   const nextStep = useCallback(() => {
     if (!route) return
     setGpsLostNotice(false)
@@ -275,8 +289,13 @@ export function NavigationSession({
     if (!active || !route || !effectiveLocation || routeResetPending) return false
 
     if (route.destination?.entityType === 'poi') {
+      // The route can end on the walk path up to 50 m from the place, so the raw GPS point also counts.
       return activePoiDestination
         ? isPoiArrival(effectiveLocation, activePoiDestination, poiArrivalContext)
+          || (!!position && isPoiArrival(position, activePoiDestination, locationContext ?? {
+            buildingId: currentCandidate ? route.steps[currentCandidate.index]?.buildingId : currentNodeBuildingId,
+            floor: activeFloor,
+          }))
         : false
     }
 
@@ -288,7 +307,7 @@ export function NavigationSession({
     const atDestination = currentNodeId === route.arrival.nodeId
     const withinThreshold = distMeters < ARRIVAL_THRESHOLD_M
     return atDestination || withinThreshold
-  }, [active, activePoiDestination, currentNodeId, effectiveLocation, poiArrivalContext, route, routeResetPending])
+  }, [active, activeFloor, activePoiDestination, currentCandidate, currentNodeBuildingId, currentNodeId, effectiveLocation, locationContext, poiArrivalContext, position, route, routeResetPending])
 
   useEffect(() => {
     if (!active || routeKey === null || !arrivalCondition) return
@@ -305,10 +324,8 @@ export function NavigationSession({
     onArrival?.()
   }, [arrived, onArrival])
 
-  const isOffRoute = useMemo(() => {
-    if (!active || !route || !position || !progress) return false
-    return shouldWarnOffRoute({ mode: progressMode, accuracy: accuracyInput, distanceFromRouteM: haversine(position, progress.snappedPosition) })
-  }, [accuracyInput, active, position, progress, progressMode, route])
+  // Off-route is no longer reported (owner 2026-11-20): the line holds and the visitor keeps following it.
+  const isOffRoute = false
 
   const navigationStatus = resolveNavigationStatus({ arrived, isOffRoute })
 

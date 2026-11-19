@@ -311,7 +311,7 @@ describe('NavigationSession active boundary and projection context', () => {
     expect(screen.getByTestId('session-context')).toHaveAttribute('data-remaining', '')
   })
 
-  it('exposes projected remaining distance and deviation only during active navigation', async () => {
+  it('exposes projected remaining distance and never reports off-route during active navigation', async () => {
     vi.mocked(useGeolocation).mockReturnValue({
       // Stay beside the route midpoint so the deviation assertion does not
       // also exercise the route helper's intentional "past the end" clamp.
@@ -336,9 +336,54 @@ describe('NavigationSession active boundary and projection context', () => {
     await waitFor(() => {
       expect(screen.getByTestId('session-context')).toHaveAttribute('data-active', 'true')
       expect(screen.getByTestId('session-context')).toHaveAttribute('data-arrived', 'false')
-      expect(screen.getByTestId('session-context')).toHaveAttribute('data-off-route', 'true')
+      expect(screen.getByTestId('session-context')).toHaveAttribute('data-off-route', 'false')
     })
     expect(Number(screen.getByTestId('session-context').getAttribute('data-remaining'))).toBeGreaterThanOrEqual(0)
+  })
+
+  // Owner 2026-11-20: the marker sticks to the route; unsteady GPS holds the line instead of an off-route warning.
+  describe('marker pinned to the route', () => {
+    function gps(lat: number, lng: number, accuracy: number) {
+      vi.mocked(useGeolocation).mockReturnValue({
+        latitude: lat, longitude: lng, accuracy, heading: null, speed: null, timestamp: Date.now(), error: null, loading: false,
+      })
+    }
+    const view = () => createElement(
+      NavigationSession,
+      { route: sessionRoute, active: true, activeFloor: 0, setActiveFloor: vi.fn() },
+      createElement(SessionProbe),
+    )
+    const probe = () => screen.getByTestId('session-context')
+
+    it('draws the marker on the route line, not at the raw GPS point beside it', async () => {
+      gps(11.8203, 122.16805, 5) // ~5 m east of the route
+      render(view())
+      await waitFor(() => expect(probe()).toHaveAttribute('data-progress-mode', 'gps'))
+      expect(Number(probe().getAttribute('data-lng'))).toBeCloseTo(122.168, 6)
+      expect(Number(probe().getAttribute('data-lat'))).toBeCloseTo(11.8203, 6)
+    })
+
+    it('holds the last on-route point while GPS wanders, then re-finds the visitor when it is steady', async () => {
+      gps(11.8203, 122.168, 5)
+      const { rerender } = render(view())
+      await waitFor(() => expect(probe()).toHaveAttribute('data-progress-mode', 'gps'))
+      const heldRemaining = probe().getAttribute('data-remaining')
+
+      gps(11.8208, 122.169, 5) // jumps ~108 m off the route
+      rerender(view())
+      await waitFor(() => expect(probe()).toHaveAttribute('data-lat', String(11.8203)))
+      expect(probe()).toHaveAttribute('data-remaining', heldRemaining)
+      expect(probe()).toHaveAttribute('data-off-route', 'false')
+
+      gps(11.8206, 122.16801, 40) // weak fix: also ignored
+      rerender(view())
+      await waitFor(() => expect(probe()).toHaveAttribute('data-remaining', heldRemaining))
+
+      gps(11.8206, 122.168, 5) // steady again: progress moves to the new point
+      rerender(view())
+      await waitFor(() => expect(Number(probe().getAttribute('data-lat'))).toBeCloseTo(11.8206, 6))
+      expect(Number(probe().getAttribute('data-remaining'))).toBeLessThan(Number(heldRemaining))
+    })
   })
 
   it('exposes resolved GPS heading additively without changing projected progress', async () => {
