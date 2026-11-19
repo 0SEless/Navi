@@ -1,5 +1,5 @@
 import { stairTopShape, stairFlightFloor, stairLandingExitEdge, stairRise, type StairLandingExit, type Building, type LocalCoord, type Staircase } from '@navi/core'
-import type { Wall } from '@navi/core'
+import type { Floor, Wall } from '@navi/core'
 import { deriveRooms } from './room-derivation'
 import { floorBackboneEdges, floorDoorSpans } from './floor-connections'
 
@@ -81,6 +81,44 @@ function routeCrossing(a: P, b: P, interior: P, from: P, to: P): P | undefined {
   // An authored endpoint on a rotated edge can round just outside the segment.
   if (along < margin || along > 1 - margin || route < -1e-9 || route > 1 + 1e-9) return
   return { x: a.x + along * dx, y: a.y + along * dy }
+}
+
+/** Where segment a→b crosses segment c→d, as a fraction along a→b; undefined when they don't cross. */
+function crossingAlong(a: P, b: P, c: P, d: P): number | undefined {
+  const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y
+  const det = rx * sy - ry * sx
+  if (Math.abs(det) < 1e-12) return
+  const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / det
+  const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / det
+  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return
+  return t
+}
+
+/**
+ * Owner 2026-11-19: any wall between the landing and the route blocks the stair unless it has a door there.
+ * `path` is the walk from the middle of the landing to its exit point and on along the route. True when it passes
+ * through a wall where that wall has no floor-level door (windows and raised openings don't count).
+ */
+function crossesSolidWall(floor: Floor, walls: readonly Wall[], path: readonly P[]): boolean {
+  for (const wall of walls) {
+    const length = Math.hypot(wall.end.x - wall.start.x, wall.end.y - wall.start.y)
+    if (!(length > 0)) continue
+    const doors = floorDoorSpans(floor, wall.id)
+    for (let i = 0; i < path.length - 1; i++) {
+      const along = crossingAlong(wall.start, wall.end, path[i], path[i + 1])
+      if (along === undefined) continue
+      const offset = along * length
+      if (!doors.some(door => offset >= door.start - 1e-6 && offset <= door.end + 1e-6)) return true
+    }
+  }
+  return false
+}
+
+/** The end of a route segment on the outer side of a landing edge a→b (away from `interior`), if either end is. */
+function outsideEnd(a: P, b: P, interior: P, shape: readonly P[]): P | undefined {
+  const side = (p: P) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+  const inner = side(interior)
+  return [...shape].filter(p => side(p) * inner < -1e-9).sort((p, q) => Math.abs(side(q)) - Math.abs(side(p)))[0]
 }
 
 /** Check a usable span centered on the route anchor, so a touching corner cannot pass. */
@@ -165,6 +203,7 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
   type Candidate = Extract<StairTopReach, { ok: true }> & { distance: number }
   let reachable: Candidate | undefined
   let blocked: Candidate | undefined
+  const middle = { x: landing.reduce((sum, p) => sum + p.x, 0) / landing.length, y: landing.reduce((sum, p) => sum + p.y, 0) / landing.length }
   for (const exit of sides) {
     const edge = stairLandingExitEdge(top.landing, exit)
     const a = landing[edge], b = landing[(edge + 1) % 4]
@@ -181,6 +220,9 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
       const contact = fraction(point)
       const distance = crossing ? 0 : exitGap(a, b, candidate.shape, candidate.closed, candidate.slack)
       if (distance > STAIR_TOP_REACH_M) continue
+      // The walk continues along a route to its end outside the landing; a wall on the way needs a door there.
+      const beyond = candidate.route ? outsideEnd(a, b, landing[(edge + 2) % 4], candidate.shape) : undefined
+      const walledOff = (exitPoint: P) => crossesSolidWall(to, walls, [middle, exitPoint, ...(beyond ? [beyond] : [])])
       const result = { ok: true as const, targetId: candidate.id, exit, distance }
       if (host && covered && alongWall && wallCoversPoint(host.wall, point)) {
         const wall = { ...host, offset: alongWall(point) }
@@ -195,7 +237,7 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
           if (!crossing && exitGap(at(anchor - margin), at(anchor + margin), candidate.shape, candidate.closed, candidate.slack) > STAIR_TOP_REACH_M) return []
           return [{ openingId: opening.id, span, point: next, shift: Math.abs(anchor - contact) }]
         }).sort((first, second) => first.shift - second.shift)[0]
-        if (door) {
+        if (door && !walledOff(door.point)) {
           if (!reachable || distance < reachable.distance - 1e-6) {
             reachable = { ...result, openingId: door.openingId, span: door.span, point: door.point, wall }
           }
@@ -210,6 +252,10 @@ export function stairTopReach(building: Building, stair: Staircase, allowUncutWa
         ? [Math.max(available[0], contact - margin), Math.min(available[1], contact + margin)] as const
         : expandContact(available, contact, length, t => exitGap(at(t), at(t), candidate.shape, candidate.closed, candidate.slack) <= STAIR_TOP_REACH_M)
       if ((span[1] - span[0]) * length < 0.5 - 1e-6) continue
+      if (walledOff(point)) {
+        if (!blocked || distance < blocked.distance - 1e-6) blocked = { ...result, point, span }
+        continue
+      }
       if (!reachable || distance < reachable.distance - 1e-6) reachable = { ...result, point, span }
     }
   }

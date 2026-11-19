@@ -139,6 +139,61 @@ it('prefers the open side in Auto and retains a blocked explicit choice', () => 
   expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-opening' })
 })
 
+// Owner 2026-11-19: any wall between the landing and the route blocks the stair unless it has a door there.
+// A Stair-tool stair (no design) 2 m wide climbing north (+y): its top landing is x 0..2, y 3..4; the exit edge is y = 4.
+describe('a wall between the top landing and the route needs a door', () => {
+  const toolStair = (floor2: Record<string, unknown>): Building => {
+    const b = building(floor2)
+    Object.assign(stair(b).levels[0], { drawing: undefined, position: { x: 1, y: 0 },
+      polygon: { points: [{ x: 0, y: -4 }, { x: 2, y: -4 }, { x: 2, y: 4 }, { x: 0, y: 4 }] } })
+    return b
+  }
+  // Hallway route along y = 5.5 with a spur running into the landing at x = 1.
+  const spur = { routeNetwork: {
+    nodes: [{ id: 'w', position: { x: -4, y: 5.5 } }, { id: 'm', position: { x: 1, y: 5.5 } }, { id: 'e', position: { x: 6, y: 5.5 } }, { id: 'in', position: { x: 1, y: 3.5 } }]
+      .map(node => ({ ...node, type: 'waypoint', floor: 1 })),
+    edges: [{ id: 'hall-w', from: 'w', to: 'm' }, { id: 'hall-e', from: 'm', to: 'e' }, { id: 'spur', from: 'm', to: 'in' }]
+      .map(edge => ({ ...edge, type: 'walk', distance: 1 })),
+  } }
+  const wallAt = (y: number) => ({ id: 'corridor', start: { x: -5, y }, end: { x: 7, y }, height: 3.5, thickness: 0.15 })
+  const doorAt = (width: number) => ({ id: 'door', type: 'door', wallId: 'corridor', offset: 6 - width / 2, width, height: 2.1, sillHeight: 0, doorAppearance: 'open' })
+
+  it('connects with no wall in the way', () => {
+    const b = toolStair(spur)
+    expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, exit: 'front' })
+  })
+
+  it('refuses a solid wall 0.30 m beyond the landing edge', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(4.3)] })
+    expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-opening' })
+  })
+
+  it('accepts the same wall once it has a door where the route passes', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(4.3)], openings: [doorAt(1)] })
+    expect(stairTopReach(b, stair(b)).ok).toBe(true)
+  })
+
+  it('refuses a solid wall cutting 0.3 m into the landing', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(3.7)] })
+    expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-opening' })
+  })
+
+  it('refuses a window: only a floor-level door lets people through', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(4.3)], openings: [{ ...doorAt(1), type: 'window', sillHeight: 0.9 }] })
+    expect(stairTopReach(b, stair(b))).toEqual({ ok: false, reason: 'no-opening' })
+  })
+
+  it('still accepts a flush wall with a door (unchanged)', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(4.075)], openings: [doorAt(1)] })
+    expect(stairTopReach(b, stair(b))).toMatchObject({ ok: true, openingId: 'door' })
+  })
+
+  it('ignores a wall beyond the far end of the route', () => {
+    const b = toolStair({ ...spur, walls: [wallAt(6.5)] })
+    expect(stairTopReach(b, stair(b)).ok).toBe(true)
+  })
+})
+
 it('rejects a route shortcut across empty space beside the arrival edge', () => {
   const b = building({ walls: [{ id: 'far', start: { x: -10, y: 10 }, end: { x: 10, y: 10 }, height: 2.7, thickness: 0.15 }] })
   const port = { ...getFloorPorts(b, b.floors[1])[0], checkStairApproach: true }
