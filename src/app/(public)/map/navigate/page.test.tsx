@@ -341,6 +341,7 @@ describe('Navigate setup and route preview', () => {
     }
     setReadyCampus()
     render(<NavigatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show starting point' }))
 
     expect(screen.getByRole('button', { name: 'From North Gate' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start navigation' })).toBeNull()
@@ -367,6 +368,7 @@ describe('Navigate setup and route preview', () => {
   it('does not replace an existing origin when a scanner result has no routing anchor', () => {
     setReadyCampus({ fromNode: start.id })
     render(<NavigatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show starting point' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan a NAVI code' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock non-routable QR result' }))
@@ -385,6 +387,11 @@ describe('Navigate setup and route preview', () => {
     expect(screen.queryByText('Map ready')).toBeNull()
     expect(screen.queryByText('Destination', { exact: true })).toBeNull()
     expect(screen.getByRole('button', { name: 'Search building, room, or place' })).toBeInTheDocument()
+    // Owner 2026-11-20: starting point and QR fold under the search bar until opened.
+    expect(screen.queryByRole('button', { name: 'Scan a NAVI code' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show starting point' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Show starting point' }))
+    expect(screen.getByRole('button', { name: 'Hide starting point' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Scan a NAVI code' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Set starting point' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Use my current location' })).toBeNull()
@@ -516,14 +523,20 @@ describe('Navigate setup and route preview', () => {
     expect(screen.queryByTestId('navigate-map-stub')).toBeInTheDocument()
   })
 
-  it('hands off a recent destination through the same stable search entry', () => {
+  it('does not show recent destinations on the map (owner 2026-11-20: more map visible)', () => {
     setReadyCampus({ fromNode: start.id, recentDestinations: [destination.id] })
     render(<NavigatePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose recent destination CS 301' }))
+    expect(screen.queryByText('Recent destinations')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Choose recent destination CS 301' })).toBeNull()
+  })
 
-    expect(usePublicStore.getState().toNode).toBe(destination.id)
-    expect(screen.getByText('Route preview')).toBeInTheDocument()
+  it('opens the starting point row by itself when a destination has no start', () => {
+    setReadyCampus({ toNode: destination.id })
+    render(<NavigatePage />)
+
+    expect(screen.getByRole('button', { name: 'Hide starting point' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Scan a NAVI code' })).toBeInTheDocument()
   })
 
   it('shows a truthful location-unavailable state without inventing an origin', () => {
@@ -536,6 +549,7 @@ describe('Navigate setup and route preview', () => {
     try {
       setReadyCampus()
       render(<NavigatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'Show starting point' }))
       fireEvent.click(screen.getByRole('button', { name: 'Set starting point' }))
       fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }))
 
@@ -559,6 +573,7 @@ describe('Navigate setup and route preview', () => {
     try {
       setReadyCampus({ campus: { ...campus, edges: [{ id: 'start-to-destination', from: start.id, to: destination.id, distance: 200, type: 'walkway' }] } })
       render(<NavigatePage />)
+      fireEvent.click(screen.getByRole('button', { name: 'Show starting point' }))
       fireEvent.click(screen.getByRole('button', { name: 'Set starting point' }))
       fireEvent.click(screen.getByRole('button', { name: 'Use my current location' }))
       expect(screen.getByText(/You seem to be near CS 301 \(±9 m\)/)).toBeInTheDocument()

@@ -405,13 +405,14 @@ function NavigatePageContent() {
   const preferences = usePublicStore((s) => s.preferences)
   const setNavigationPreferences = usePublicStore((s) => s.setNavigationPreferences)
   const setActiveFloor = usePublicStore((s) => s.setActiveFloor)
-  const recentDestinations = usePublicStore((s) => s.recentDestinations)
   const addRecentDestination = usePublicStore((s) => s.addRecentDestination)
   const searchPublishedEntries = usePublicStore((s) => s.findEntries)
   const revealSearchPois = usePublicStore((s) => s.search)
   const findDestinationRoute = usePublicStore((s) => s.findDestinationRoute)
 
   const [picker, setPicker] = useState<PickerRole | null>(null)
+  // Starting point + QR fold under the search bar (owner 2026-11-20: more map visible).
+  const [startRowOpen, setStartRowOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [expandedRouteKey, setExpandedRouteKey] = useState<string | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
@@ -545,18 +546,6 @@ function NavigatePageContent() {
     if (campus && picker) revealSearchPois(query)
   }, [campus, picker, query, revealSearchPois])
 
-  const recentEntries = useMemo(() => {
-    if (!campus) return []
-    const seen = new Set<string>()
-    return recentDestinations
-      .map((id) => entryForNode(campus, id))
-      .filter((entry): entry is SearchEntry & { nodeId: string } => {
-        if (!entry?.nodeId || seen.has(entry.nodeId)) return false
-        seen.add(entry.nodeId)
-        return true
-      })
-      .slice(0, 4)
-  }, [campus, recentDestinations])
 
   const closePicker = () => {
     setPicker(null)
@@ -704,6 +693,8 @@ function NavigatePageContent() {
 
   const hasDestination = Boolean(toNode || poiDestination)
   const routeUnavailable = Boolean(fromNode && hasDestination && (!routeCandidate || !route))
+  // Opens by itself when a destination is chosen but there is no start yet.
+  const startRowShown = startRowOpen || (!fromNode && hasDestination)
   const previewEta = route ? estimatePresentationEtaMinutes(route.totalDistance) : null
   const entranceFloor = routeFloorLabel(composition.entranceFloor)
   const destinationFloor = routeFloorLabel(composition.destinationFloor)
@@ -792,9 +783,20 @@ function NavigatePageContent() {
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--navi-text)]">{toLabel ?? 'Search building, room, or place'}</span>
               <Search className="h-4 w-4 shrink-0 text-[var(--navi-text-secondary)]" aria-hidden="true" />
             </button>
+            <button
+              type="button"
+              onClick={() => setStartRowOpen(!startRowShown)}
+              className="flex min-h-11 min-w-11 items-center justify-center gap-0.5 rounded-xl border border-[var(--navi-border)] px-2 text-[var(--navi-text-secondary)]"
+              aria-label={startRowShown ? 'Hide starting point' : 'Show starting point'}
+              aria-expanded={startRowShown}
+              title="Starting point"
+            >
+              <Locate className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+              {startRowShown ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+            </button>
           </div>
 
-          <div className="mt-1.5 flex gap-1.5">
+          {startRowShown ? (<div className="mt-1.5 flex gap-1.5">
             <button
               type="button"
               onClick={() => setPicker('from')}
@@ -813,31 +815,9 @@ function NavigatePageContent() {
             >
               <QrCode className="h-4 w-4" aria-hidden="true" />
             </button>
-          </div>
+          </div>) : null}
         </section>
 
-        {recentEntries.length > 0 && !hasDestination ? (
-          <section className="pointer-events-auto rounded-2xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-2.5 shadow-lg backdrop-blur" aria-labelledby="recent-destinations-title">
-            <h2 id="recent-destinations-title" className="text-[10px] font-semibold uppercase tracking-wide text-[var(--navi-text-secondary)]">Recent destinations</h2>
-            <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5">
-              {recentEntries.map((entry) => (
-                <button
-                  type="button"
-                  key={entry.nodeId}
-                  onClick={() => {
-                    setTo(entry.nodeId)
-                    addRecentDestination(entry.nodeId)
-                  }}
-                  className="flex min-h-9 min-w-0 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--navi-border)] px-2.5 text-left text-xs text-[var(--navi-text)] hover:border-[var(--navi-primary)]"
-                  aria-label={`Choose recent destination ${entry.label}`}
-                >
-                  <Navigation className="h-3.5 w-3.5 shrink-0 text-[var(--navi-primary)]" aria-hidden="true" />
-                  <span className="max-w-36 truncate">{entry.label}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
 
         {qrDeepLink.status === 'loading' ? (
           <p className="pointer-events-auto rounded-xl border border-[var(--navi-border)] bg-[color:color-mix(in_srgb,var(--navi-card)_95%,transparent)] p-3 text-sm text-[var(--navi-text-secondary)] shadow-lg backdrop-blur" role="status" aria-live="polite">

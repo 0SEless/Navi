@@ -183,4 +183,11 @@ describe('NavigationCameraControls', () => {
     expect(screen.getByText('Following paused')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Camera view: Follow\./ })).toBeInTheDocument()
   })
+  it('sits lower during Navigate setup so it clears the search card (owner 2026-11-20)', () => {
+    const props = { surface: 'active' as const, mode: 'TOP' as const, hasLocation: true, compassVisible: true, onModeChange: vi.fn(), onRecenter: vi.fn(), onResetCompass: vi.fn() }
+    const { rerender } = render(<NavigationCameraControls {...props} initialSetup />)
+    expect(screen.getByTestId('navigation-camera-controls')).toHaveClass('top-[58%]')
+    rerender(<NavigationCameraControls {...props} />)
+    expect(screen.getByTestId('navigation-camera-controls')).toHaveClass('top-[28%]')
+  })
 })

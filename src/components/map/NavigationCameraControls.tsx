@@ -27,6 +27,8 @@ export interface NavigationCameraControlsProps {
   canRequestHeadingPermission?: boolean
   reducedMotion?: boolean
   headingFollowEnabled?: boolean
+  /** Navigate setup (no route yet): the search card is at the top, so the buttons sit lower. */
+  initialSetup?: boolean
   onModeChange: (mode: NavigationCameraMode) => void
   onRecenter: () => void
   onResetCompass: () => void
@@ -60,6 +62,7 @@ export default function NavigationCameraControls({
   canRequestHeadingPermission = false,
   reducedMotion = false,
   headingFollowEnabled = false,
+  initialSetup = false,
   onModeChange,
   onRecenter,
   onResetCompass,
@@ -89,7 +92,7 @@ export default function NavigationCameraControls({
   return (
     <div
       // During navigation the guidance card sits at the bottom (2026-11-18), so the buttons move into the map above it.
-      className={`pointer-events-auto absolute right-3 ${surface === 'active' ? 'top-[28%]' : 'top-[58%]'} z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-4 ${className ?? ''}`}
+      className={`pointer-events-auto absolute right-3 ${surface === 'active' && !initialSetup ? 'top-[28%]' : 'top-[58%]'} z-30 flex -translate-y-1/2 flex-col items-end gap-2 sm:right-4 ${className ?? ''}`}
       style={{ right: 'max(0.75rem, env(safe-area-inset-right, 0px))' }}
       data-testid="navigation-camera-controls"
       data-reduced-motion={String(reducedMotion)}
